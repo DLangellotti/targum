@@ -1,0 +1,72 @@
+[project]
+name = "targum"
+version = "0.1.0"
+description = "Turn a text and its translations into a self-contained HTML bilingual reader"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "David Langellotti" }]
+keywords = ["translation", "language-learning", "bilingual", "reader", "hebrew", "russian"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Education",
+  "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "pydantic>=2.7",
+  "jinja2>=3.1",
+  "stanza>=1.8",
+  "anthropic>=0.40",
+  "beautifulsoup4>=4.12",
+  "trafilatura>=1.12",
+  "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+align = ["sentence-transformers>=3.0"]
+difficulty = ["wordfreq>=3.1"]
+
+[project.urls]
+Homepage = "https://github.com/DLangellotti/targum"
+
+[project.scripts]
+targum = "targum.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.2", "mypy>=1.10", "ruff>=0.5"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/targum"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+# The package supports 3.11 and up, but numpy, which arrives with the align extra,
+# ships stubs written in 3.12 syntax that mypy cannot parse under an older target.
+# So the type check runs against 3.12 and requires-python states the real floor.
+python_version = "3.12"
+strict = true
+files = ["src/targum"]
+
+[[tool.mypy.overrides]]
+module = ["stanza.*", "trafilatura.*", "sentence_transformers.*", "wordfreq.*"]
+ignore_missing_imports = true
+
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Tooling state
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime output and secrets
+targum-out/
+.env
+*.local.toml
+
+# macOS
+.DS_Store

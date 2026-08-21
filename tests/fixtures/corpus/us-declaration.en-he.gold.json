@@ -1,0 +1,18 @@
+{
+  "pair": "en-he",
+  "source": "us-declaration.en.md",
+  "target": "us-declaration.he.md",
+  "note": "PROVENANCE: unlike the he-en set, this one was hand-checked from a draft the aligner produced rather than paired from scratch. Every link was read against both texts, and the opening was corrected: the Hebrew edition omits the dateline and the formal opening line, so those are null links, where the aligner had merged them into the first body sentence. Scores here are a regression guard, not independent evidence of accuracy. The he-en set is the independent one.",
+  "expected_counts": { "source": 50, "target": 47 },
+  "links": [
+    [[0], [0]], [[1], []], [[2], []], [[3], [1]], [[4], [2]], [[5, 6], [3]],
+    [[7], [4]], [[8], [5]], [[9], [6]], [[10], [7]], [[11], [8]], [[12], [9]],
+    [[13], [10]], [[14], [11]], [[15], [12]], [[16], [13]], [[17], [14]],
+    [[18], [15]], [[19], [16]], [[20], [17]], [[21], [18]], [[22], [19]],
+    [[23], [20]], [[24], [21]], [[25], [22]], [[26], [23]], [[27], [24]],
+    [[28], [25, 26]], [[29], [27]], [[30], [28]], [[31], [29]], [[32], [30]],
+    [[33], [31]], [[34], [32]], [[35], [33]], [[36], [34]], [[37], [35]],
+    [[38, 39], [36]], [[40], [37]], [[41], [38]], [[42], [39]], [[43], [40]],
+    [[44], [41]], [[45], [42]], [[46], [43]], [[47, 48], [44, 45]], [[49], [46]]
+  ]
+}

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="{{ source_language }}" dir="{{ page_direction }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}{% if not standalone %} — {{ section.title }}{% endif %}</title>
+<style>{{ asset('reader.css') }}</style>
+</head>
+<body class="mode-parallel{% if words %} has-list{% endif %}">
+<header class="bar">
+  <div class="bar-title">
+    <a class="home" id="home" href="/" hidden>← Library</a>
+    {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
+  </div>
+  <div class="controls" dir="ltr">
+    <div class="group" role="group" aria-label="Reading mode">
+      <button type="button" data-mode="parallel" class="on">Parallel</button>
+      <button type="button" data-mode="source">Source only</button>
+    </div>
+    {% if translations|length > 1 %}
+    <label class="group">
+      <span class="label">Translation</span>
+      <select id="translation">
+        {% for t in translations %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <div class="group" role="group" aria-label="Type size">
+      <button type="button" data-type="smaller" aria-label="Smaller type">A−</button>
+      <button type="button" data-type="larger" aria-label="Larger type">A+</button>
+      <button type="button" data-type="looser" aria-label="More line spacing">↕</button>
+    </div>
+  </div>
+</header>
+
+<main id="reader">
+{% for segment in segments %}
+  {% if segment.kind.value == 'heading' %}
+  {% set level = segment.level|default(2, true) %}
+  <div class="pair head" data-id="{{ segment.id }}" tabindex="0">
+    <h{{ level }} class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ segment.text|isolate(source_direction) }}</h{{ level }}>
+    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+  </div>
+  {% elif segment.kind.value == 'byline' %}
+  <div class="pair byline" data-id="{{ segment.id }}" tabindex="0">
+    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ segment.text|isolate(source_direction) }}</p>
+    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+  </div>
+  {% else %}
+  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ segment.text|isolate(source_direction) }}</p>
+    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+  </div>
+  {% endif %}
+{% endfor %}
+</main>
+
+{% if not standalone %}
+<nav class="pager">
+  {% if previous %}<a class="prev" href="{{ previous.filename }}">← {{ previous.title }}</a>{% endif %}
+  {% if following %}<a class="next" href="{{ following.filename }}">{{ following.title }} →</a>{% endif %}
+</nav>
+{% endif %}
+
+{% if words %}
+<aside class="list" id="list" aria-label="Words you have saved">
+  <div class="list-head">
+    <span class="list-count"><b id="list-count">0</b> saved</span>
+    <button type="button" data-export="csv" title="Download your list as a spreadsheet">Export</button>
+    <button type="button" class="list-close" data-toggle="list" aria-label="Hide the list">×</button>
+  </div>
+  <ol class="list-items" id="list-items"></ol>
+  <p class="list-empty" id="list-empty">Tap any word to see what it means and keep it. Drag across a few words to keep a phrase.</p>
+</aside>
+<button type="button" class="list-tab" id="list-tab" data-toggle="list"><b id="list-tab-count">0</b> saved</button>
+{% endif %}
+
+<div id="pick-chip" class="pick-card" hidden></div>
+{% if words %}<div id="gloss-card" class="gloss-card" hidden></div>{% endif %}
+<script type="application/json" id="targum-data">{{ data }}</script>
+<script>{{ asset('reader.js') }}</script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+"""Lemmatization through Stanza.
+
+Surface-form lookup fails on most tokens in both v1 target languages, so this runs
+before any band is assigned. Hebrew is the harder case: the same string can be one
+word or a prefix plus a word, and Stanza resolves that by splitting a token into
+several words. That reading is a decision rather than a fact, so every token it
+splits is marked, and the reader can see which words rest on one.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import logging
+from typing import Any
+
+from ..errors import TargumError
+from ..models import Segment, Token
+from ..paths import model_dir
+from ..segment.stanza_segmenter import download, has_processors, stanza_code
+
+# Multi-word tokens are not asked for by name. Only some languages have an mwt model,
+# and naming it for one that does not, Russian among them, fails the download outright.
+# Stanza adds it itself wherever the language's tokenizer needs it, which is how Hebrew
+# still gets its prefixes split.
+PROCESSORS = "tokenize,pos,lemma"
+
+# Not vocabulary a learner is trying to acquire. Names in particular would be banded
+# by how often they appear in a general corpus, which says nothing useful.
+SKIP_POS = frozenset({"PUNCT", "SYM", "NUM", "PROPN", "X"})
+
+# Function words that attach as prefixes in Hebrew. When a token splits, the content
+# word is the one that is not one of these.
+FUNCTION_POS = frozenset({"ADP", "DET", "CCONJ", "SCONJ", "PART", "AUX", "PRON"})
+
+
+class StanzaLemmatizer:
+    def __init__(self, *, auto_download: bool = True) -> None:
+        self.auto_download = auto_download
+        self._pipelines: dict[str, Any] = {}
+        self._version: str | None = None
+
+    @property
+    def name(self) -> str:
+        return f"stanza/{self._version or 'unloaded'}/{PROCESSORS}"
+
+    def pipeline(self, language: str) -> Any:
+        code = stanza_code(language)
+        if code in self._pipelines:
+            return self._pipelines[code]
+
+        import stanza
+
+        self._version = stanza.__version__
+        known = supported_languages()
+        if known and code not in known:
+            raise TargumError(
+                f"targum has no word models for '{code}'.",
+                "Build it without --words to read it with the translation only.",
+            )
+
+        # The lemma and part-of-speech models are extra files beside the tokenizer, so
+        # a language fetched for segmentation alone is still missing them.
+        if not has_processors(code, PROCESSORS):
+            if not self.auto_download:
+                raise TargumError(
+                    f"The {code} lemmatizer is not downloaded.",
+                    f"targum models fetch {code}",
+                )
+            download(code, processors=PROCESSORS)
+
+        logging.getLogger("stanza").setLevel(logging.ERROR)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                self._pipelines[code] = stanza.Pipeline(
+                    lang=code,
+                    processors=PROCESSORS,
+                    dir=str(model_dir()),
+                    download_method=None,
+                    verbose=False,
+                )
+        except Exception as exc:
+            raise TargumError(
+                f"Could not load the {code} lemmatizer.",
+                f"targum models remove {code} && targum models fetch {code}",
+            ) from exc
+        return self._pipelines[code]
+
+    def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+        if not segments:
+            return {}
+        nlp = self.pipeline(language)
+        documents = nlp.bulk_process([segment.text for segment in segments])
+        return {
+            segment.id: _tokens(document)
+            for segment, document in zip(segments, documents, strict=True)
+        }
+
+
+def _tokens(document: Any) -> list[Token]:
+    out: list[Token] = []
+    for sentence in document.sentences:
+        for token in sentence.tokens:
+            words = list(token.words)
+            content = _content_word(words)
+            if content is None:
+                continue
+            surface = token.text
+            # A split token keeps its whole surface span. Guessing where the prefix
+            # ends inside the original string would be inventing precision.
+            out.append(
+                Token(
+                    start=token.start_char,
+                    end=token.end_char,
+                    surface=surface,
+                    lemma=(content.lemma or content.text or surface).lower(),
+                    band=0,
+                    split=len(words) > 1,
+                )
+            )
+    return out
+
+
+def supported_languages() -> set[str]:
+    """Languages Stanza has models for, from the catalogue it downloads first."""
+    catalogue = model_dir() / "resources.json"
+    if not catalogue.is_file():
+        return set()
+    try:
+        import json
+
+        return {
+            code
+            for code, entry in json.loads(catalogue.read_text(encoding="utf-8")).items()
+            if isinstance(entry, dict) and "lemma" in entry
+        }
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
+def _content_word(words: list[Any]) -> Any | None:
+    usable = [word for word in words if (word.upos or "") not in SKIP_POS]
+    if not usable:
+        return None
+    if len(usable) == 1:
+        return usable[0]
+    lexical = [word for word in usable if (word.upos or "") not in FUNCTION_POS]
+    if lexical:
+        return max(lexical, key=lambda word: len(word.lemma or word.text or ""))
+    return max(usable, key=lambda word: len(word.lemma or word.text or ""))

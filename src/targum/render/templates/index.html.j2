@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="{{ source_language }}" dir="{{ page_direction }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>{{ asset('reader.css') }}</style>
+</head>
+<body class="contents">
+<header class="bar">
+  <div class="bar-title"><span>{{ title }}</span></div>
+</header>
+<main id="reader">
+  <h1 class="heading" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
+  {% if document.author %}<p class="byline">{{ document.author }}</p>{% endif %}
+  <ol class="toc" dir="{{ source_direction }}">
+    {% for section in sections %}
+    <li><a href="{{ section.filename }}">{{ section.title }}</a> <span class="count">{{ counts[section.number] }}</span></li>
+    {% endfor %}
+  </ol>
+</main>
+</body>
+</html>
