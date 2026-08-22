@@ -5,7 +5,7 @@ for comprehensible-input language learning. Named for the Aramaic word for
 translation.
 
 ```
-uv tool install "targum[difficulty] @ git+https://github.com/DLangellotti/targum"
+uv tool install "targum[difficulty]"
 export ANTHROPIC_API_KEY=...
 targum serve
 ```
