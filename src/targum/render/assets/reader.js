@@ -29,6 +29,8 @@
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
+  var roots = data.roots || [];
+  var binyanim = data.binyanim || [];
   var glosses = data.glosses || [];
   var levelNames = data.levelNames || {};
   var hasGloss = glosses.length > 0;
@@ -915,6 +917,42 @@
       bdi.textContent = lemma;
       form.appendChild(bdi);
       card.appendChild(form);
+    }
+
+    // A Hebrew verb, taken apart. This is the half of the card that costs nothing and
+    // never leaves the machine: the binyan is what the lemmatizer already worked out,
+    // and the root follows from it. Where the root could not be had honestly the
+    // binyan still shows on its own, and Pealim answers the rest.
+    var root = roots[index];
+    var binyan = binyanim[index];
+    if (root || binyan) {
+      var verb = document.createElement("span");
+      verb.className = "verb";
+      if (root) {
+        verb.appendChild(document.createTextNode("root "));
+        var shoresh = document.createElement("bdi");
+        shoresh.className = "root";
+        shoresh.setAttribute("lang", language);
+        // Spaced out the way a root is written, so it reads as three letters rather
+        // than as a word: כ־ת־ב, not כתב.
+        shoresh.textContent = root.split("").join("\u05be");
+        verb.appendChild(shoresh);
+      }
+      if (binyan) {
+        if (root) verb.appendChild(document.createTextNode(" · "));
+        var built = document.createElement("bdi");
+        built.setAttribute("lang", language);
+        built.textContent = binyan;
+        verb.appendChild(built);
+      }
+      var pealim = document.createElement("a");
+      pealim.className = "pealim";
+      pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
+      pealim.target = "_blank";
+      pealim.rel = "noopener noreferrer";
+      pealim.textContent = "conjugations";
+      verb.appendChild(pealim);
+      card.appendChild(verb);
     }
 
     var level = levelOf(word);
