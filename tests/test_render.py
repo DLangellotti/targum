@@ -148,10 +148,27 @@ def test_layout_uses_logical_properties_only(rendered: Path) -> None:
     assert "margin-inline" in body or "padding-inline" in body
 
 
-def test_is_self_contained(rendered: Path) -> None:
+# The one place a reader is allowed to point at the network, and only as somewhere the
+# reader can choose to go: full conjugation tables are more than a reader can carry.
+OUTBOUND = "https://www.pealim.com/"
+
+
+def test_loads_nothing_from_the_network(rendered: Path) -> None:
+    """Offline, on a phone, in an e-reader browser. Nothing may be fetched."""
     html = rendered.read_text(encoding="utf-8")
-    assert "http://" not in html and "https://" not in html
     assert "<style>" in html and "<script>" in html
+    # Anything the page would fetch by itself: a script, a stylesheet, a font, an image.
+    for position in (r'src\s*=\s*["\']', r"url\(", r'<link[^>]+href\s*=\s*["\']'):
+        for match in re.finditer(position + r"(https?:)?//", html, re.I):
+            raise AssertionError(
+                f"reader fetches something external: {html[match.start() : match.start() + 80]!r}"
+            )
+
+
+def test_the_only_outbound_link_is_one_the_reader_must_click(rendered: Path) -> None:
+    html = rendered.read_text(encoding="utf-8")
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
 def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:
@@ -928,3 +945,53 @@ def test_every_page_shares_one_language_choice() -> None:
     assert '<option value="he" selected>' in start
     assert "(beta)" in start
     assert ">Hebrew (beta)<" not in start
+
+
+def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
+    """Both come off the machine, so they ride in the page rather than being fetched."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=0,
+                    end=5,
+                    surface="התלבש",
+                    lemma="התלבש",
+                    band=3,
+                    binyan="התפעל",
+                    root="לבש",
+                ),
+                # Not a verb, and so carries neither. The tables still line up with the
+                # lemmas, which is the whole reason they are parallel lists.
+                Token(start=6, end=9, surface="בית", lemma="בית", band=1),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["lemmas"] == ["התלבש", "בית"]
+    assert data["roots"] == ["לבש", ""]
+    assert data["binyanim"] == ["התפעל", ""]
+    # Where the reader can go for the full tables, which are more than a page can carry.
+    assert OUTBOUND in html

@@ -423,6 +423,25 @@ body.marking .w[data-status="3"] {
   font-size: 0.8em;
 }
 .gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
+
+/* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
+   rather than a tag beside the level, because it is the answer to a different
+   question — not how hard the word is, but how it is made. */
+.gloss-card .verb {
+  display: block;
+  margin-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125em;
+}
+.gloss-card .verb bdi { font-family: var(--reading); color: var(--ink); }
+.gloss-card .verb .root { letter-spacing: 0.02em; font-weight: 600; }
+.gloss-card .verb .pealim {
+  margin-inline-start: 0.5rem;
+  color: var(--accent);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
 .gloss-card .pos {
   color: var(--ink-soft);
   font-style: italic;

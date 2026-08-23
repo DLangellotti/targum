@@ -7,6 +7,7 @@ import pytest
 from targum.annotate import BAND_COUNT, BAND_NAMES, Annotator
 from targum.annotate.frequency import CUTS, FrequencyBands
 from targum.annotate.gloss import build_glossary, estimate, unique_lemmas
+from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
 from targum.models import Annotation, Segment, SegmentedDocument, Token
 
@@ -305,3 +306,64 @@ def test_frequency_bands_know_what_they_cannot_rate() -> None:
     assert bands.supports("he") and bands.supports("ru") and bands.supports("en")
     assert not bands.supports("la")
     assert bands.band("gallia", "la") == 0
+
+
+# --- Hebrew verbs: root and binyan, worked out here rather than bought -------
+
+
+def test_binyan_is_read_off_the_features_stanza_already_produced() -> None:
+    assert binyan_of("Gender=Masc|HebBinyan=HITPAEL|Number=Sing") == "התפעל"
+    assert binyan_of("Gender=Masc|Number=Sing|Tense=Past") is None
+    assert binyan_of(None) is None
+
+
+@pytest.mark.parametrize(
+    ("lemma", "binyan", "root"),
+    [
+        ("כתב", "פעל", "כתב"),
+        ("בנה", "פעל", "בנה"),
+        ("נכתב", "נפעל", "כתב"),
+        ("דיבר", "פיעל", "דבר"),
+        ("כיסה", "פיעל", "כסה"),
+        ("דובר", "פועל", "דבר"),
+        ("הסביר", "הפעיל", "סבר"),
+        ("הוסבר", "הופעל", "סבר"),
+        ("התלבש", "התפעל", "לבש"),
+        # The ת of התפעל swaps places with a sibilant, and turns into a ד after ז.
+        ("השתמש", "התפעל", "שמש"),
+        ("הזדקן", "התפעל", "זקן"),
+        ("הצטלם", "התפעל", "צלם"),
+        # A final letter is written as one: the root of הזמין is ז־מ־ן, not ז־מ־נ.
+        ("הזמין", "הפעיל", "זמן"),
+        # A root that begins with י writes it as a ו in הפעיל.
+        ("הוריש", "הפעיל", "ירש"),
+        ("הודיע", "הפעיל", "ידע"),
+        ("שילם", "פיעל", "שלם"),
+    ],
+)
+def test_the_root_behind_a_regular_verb(lemma: str, binyan: str, root: str) -> None:
+    assert root_of(lemma, binyan) == root
+
+
+@pytest.mark.parametrize(
+    ("lemma", "binyan"),
+    [
+        # Hollow roots keep their middle letter nowhere in the written form: קם is
+        # ק־ו־ם and no rule recovers the ו.
+        ("קם", "פעל"),
+        ("בא", "פעל"),
+        # הקים is ק־ו־ם and הגיש is נ־ג־ש. The same three letters, two different
+        # roots, and nothing in the spelling to tell them apart.
+        ("הקים", "הפעיל"),
+        ("הגיש", "הפעיל"),
+        ("הבין", "הפעיל"),
+    ],
+)
+def test_a_root_that_cannot_be_had_is_not_invented(lemma: str, binyan: str) -> None:
+    """A gap is a gap. Pealim answers it; a confident wrong root does not."""
+    assert root_of(lemma, binyan) is None
+
+
+def test_no_binyan_means_no_root() -> None:
+    assert root_of("כתב", None) is None
+    assert root_of("", "פעל") is None

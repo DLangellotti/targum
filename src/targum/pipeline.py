@@ -303,12 +303,20 @@ class Build:
             return None
         path = self.resolved_out / "annotation.json"
         self.notify("Finding each word's dictionary form…")
+        annotator = self._annotator or annotate_module.Annotator()
         if not self.force:
             existing = read_artifact(Annotation, path)
-            if existing is not None and existing.document_hash == segmented.document_hash:
+            # Same text, and made by the same annotator that would run now. Naming
+            # the annotator is what lets a new word-level feature reach texts already
+            # built: a file from before it names something else, so it is redone.
+            # Redoing one is free — Stanza runs here, so nothing is fetched or spent.
+            if (
+                existing is not None
+                and existing.document_hash == segmented.document_hash
+                and existing.annotator == annotator.name
+            ):
                 self.reused.append("difficulty")
                 return existing
-        annotator = self._annotator or annotate_module.Annotator()
         try:
             annotation = annotator.annotate(segmented)
         except TargumError as error:

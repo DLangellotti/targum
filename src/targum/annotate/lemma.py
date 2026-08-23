@@ -18,12 +18,19 @@ from ..errors import TargumError
 from ..models import Segment, Token
 from ..paths import model_dir
 from ..segment.stanza_segmenter import download, has_processors, stanza_code
+from .hebrew import binyan_of, root_of
 
 # Multi-word tokens are not asked for by name. Only some languages have an mwt model,
 # and naming it for one that does not, Russian among them, fails the download outright.
 # Stanza adds it itself wherever the language's tokenizer needs it, which is how Hebrew
 # still gets its prefixes split.
 PROCESSORS = "tokenize,pos,lemma"
+
+# What the annotator knows how to say about a word, beyond its dictionary form. It goes
+# into the name, and so into every annotation.json, which is what lets the pipeline spot
+# a file written before a feature existed and redo it. Redoing one is free: Stanza runs
+# on the machine, so nothing is fetched and nothing is spent.
+FEATURES = "roots"
 
 # Not vocabulary a learner is trying to acquire. Names in particular would be banded
 # by how often they appear in a general corpus, which says nothing useful.
@@ -34,6 +41,15 @@ SKIP_POS = frozenset({"PUNCT", "SYM", "NUM", "PROPN", "X"})
 FUNCTION_POS = frozenset({"ADP", "DET", "CCONJ", "SCONJ", "PART", "AUX", "PRON"})
 
 
+def _installed_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("stanza")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 class StanzaLemmatizer:
     def __init__(self, *, auto_download: bool = True) -> None:
         self.auto_download = auto_download
@@ -42,7 +58,14 @@ class StanzaLemmatizer:
 
     @property
     def name(self) -> str:
-        return f"stanza/{self._version or 'unloaded'}/{PROCESSORS}"
+        """What made this annotation, stable before the model is loaded.
+
+        The version comes from the package metadata rather than from the imported
+        module, because the name is read to decide whether an existing annotation can
+        be reused — and importing Stanza to answer that would pay most of the cost the
+        reuse is there to avoid.
+        """
+        return f"stanza/{self._version or _installed_version()}/{PROCESSORS}+{FEATURES}"
 
     def pipeline(self, language: str) -> Any:
         code = stanza_code(language)
@@ -106,6 +129,10 @@ def _tokens(document: Any) -> list[Token]:
             if content is None:
                 continue
             surface = token.text
+            lemma = (content.lemma or content.text or surface).lower()
+            # Free, and already computed: Stanza tags the binyan as it lemmatizes. Any
+            # language without the feature simply has none, and gets no root either.
+            binyan = binyan_of(content.feats)
             # A split token keeps its whole surface span. Guessing where the prefix
             # ends inside the original string would be inventing precision.
             out.append(
@@ -113,9 +140,11 @@ def _tokens(document: Any) -> list[Token]:
                     start=token.start_char,
                     end=token.end_char,
                     surface=surface,
-                    lemma=(content.lemma or content.text or surface).lower(),
+                    lemma=lemma,
                     band=0,
                     split=len(words) > 1,
+                    binyan=binyan,
+                    root=root_of(lemma, binyan),
                 )
             )
     return out

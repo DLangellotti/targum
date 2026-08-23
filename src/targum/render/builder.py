@@ -304,6 +304,11 @@ def render(
         # a page heavy.
         lemmas: list[str] = []
         lemma_at: dict[str, int] = {}
+        # Root and binyan belong to the dictionary form, not to the occurrence, so they
+        # ride in tables beside the lemmas rather than on every token. Absent for every
+        # word that is not a Hebrew verb, and for the verbs whose root could not be had.
+        roots: list[str] = []
+        binyanim: list[str] = []
         words: dict[str, list[list[int]]] = {}
         if annotation is not None:
             for sid in section.segment_ids:
@@ -315,6 +320,8 @@ def render(
                     if token.lemma not in lemma_at:
                         lemma_at[token.lemma] = len(lemmas)
                         lemmas.append(token.lemma)
+                        roots.append(token.root or "")
+                        binyanim.append(token.binyan or "")
                     # Offsets arrive measured against the segment as ingested, which may
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
@@ -346,6 +353,8 @@ def render(
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
+                    "roots": roots,
+                    "binyanim": binyanim,
                     "glosses": glosses,
                     "levelNames": BAND_NAMES,
                     # Which text this is. Lists are kept per document, not per

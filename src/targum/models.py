@@ -163,6 +163,11 @@ class Token(Artifact):
     # a prefix plus a word. Where the segmenter split a token, that is recorded: the
     # reading is a decision, not a fact.
     split: bool = False
+    # Hebrew verbs only, and only where Stanza tagged a binyan. The root is worked out
+    # from the lemma and the binyan together, and is absent wherever that could not be
+    # done honestly — see annotate/hebrew.py.
+    binyan: str | None = None
+    root: str | None = None
 
 
 class Annotation(Artifact):
