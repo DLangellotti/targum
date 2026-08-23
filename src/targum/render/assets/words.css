@@ -74,10 +74,10 @@ body.words {
 .langs .beta,
 .beta-tag {
   padding: 0.02rem 0.3rem;
-  border-radius: 3px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -139,7 +139,7 @@ main {
 .tile b {
   display: block;
   font-family: var(--reading);
-  font-size: 1.9rem;
+  font-size: 1.75rem;
   font-weight: 600;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
@@ -179,7 +179,7 @@ main {
 .chart svg { display: block; width: 100%; overflow: visible; }
 .chart .grid line { stroke: var(--grid); stroke-width: 1; }
 .chart .axis line { stroke: var(--axis); stroke-width: 1; }
-.chart text { fill: var(--ink-soft); font-size: 11px; }
+.chart text { fill: var(--ink-soft); font-size: 0.6875rem; }
 .chart .value { fill: var(--ink); font-variant-numeric: tabular-nums; }
 
 /* A 2px gap in the surface colour between neighbouring fills, so two segments of the
@@ -198,7 +198,7 @@ main {
 .legend i {
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 3px;
+  border-radius: 4px;
   flex: none;
 }
 .legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -212,7 +212,7 @@ main {
   border-radius: 5px;
   background: var(--paper);
   box-shadow: 0 4px 14px rgb(0 0 0 / 0.14);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   line-height: 1.35;
   white-space: nowrap;
 }
@@ -243,7 +243,7 @@ main {
 .list-controls select, .list-controls button { font-size: 0.8125rem; }
 
 .table-wrap { overflow-x: auto; }
-table.rows { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.rows { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 table.rows th {
   text-align: start;
   padding: 0 0.6rem 0.4rem 0;
@@ -298,7 +298,7 @@ table.rows tr.editor-row td {
 .pip i {
   width: 0.6rem;
   height: 0.6rem;
-  border-radius: 50%;
+  border-radius: 999px;
   flex: none;
 }
 
@@ -311,7 +311,7 @@ table.rows tr.editor-row td {
 }
 .more[hidden] { display: none; }
 
-.empty { margin: 0.4rem 0 0; color: var(--ink-soft); font-size: 0.875rem; }
+.empty { margin: 0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .empty[hidden] { display: none; }
 
 .text-group { margin-block-end: 1.1rem; }
@@ -319,7 +319,7 @@ table.rows tr.editor-row td {
 .text-group h3 {
   margin: 0 0 0.4rem;
   color: var(--ink-soft);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -330,7 +330,7 @@ table.rows tr.editor-row td {
   border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
 }
 .text-group .term { font-family: var(--reading); font-size: 1.05em; }
-.text-group .reading { display: block; color: var(--ink-soft); font-size: 0.875rem; }
+.text-group .reading { display: block; color: var(--ink-soft); font-size: 0.8125rem; }
 
 @media (max-width: 40rem) {
   main { padding-inline: 1rem; gap: 1rem; }

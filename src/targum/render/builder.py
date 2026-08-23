@@ -8,10 +8,13 @@ renderer, because it is not something that can be added later without a rewrite.
 
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 import re
 import shutil
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -130,7 +133,24 @@ def _environment() -> Environment:
     )
     env.filters["isolate"] = isolate
     env.globals["asset"] = lambda name: Markup((ASSETS / name).read_text(encoding="utf-8"))
+    env.globals["data_uri"] = _data_uri
     return env
+
+
+@cache
+def _data_uri(name: str) -> str:
+    """An asset as a `data:` URI, for the places only a URL will do.
+
+    A built reader is one file in a folder of its own — there is nowhere to put a
+    sibling icon and nothing serving it, so the icons ride inside the page. They are
+    small enough (the whole set is under 3 kB) not to matter beside the inlined CSS.
+    Cached because the same three icons are asked for on every page of every section.
+    """
+    path = ASSETS / name
+    mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    if mime == "image/svg+xml":
+        mime += ";charset=utf-8"
+    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
 def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str:

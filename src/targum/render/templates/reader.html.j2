@@ -4,13 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }}{% if not standalone %} — {{ section.title }}{% endif %}</title>
+{% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}">
 <header class="bar">
+  {#- The mark holds the corner on its own: at this size the identity is the monogram,
+      not the lockup, and the bar already carries the title beside it. -#}
+  <span class="bar-brand" role="img" aria-label="targum">
+    <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+  </span>
   <div class="bar-title">
-    <a class="home" id="home" href="/" hidden>Library</a>
+    <a class="home" id="home" href="/library" hidden>Library</a>
     {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
   </div>
   <div class="controls" dir="ltr">

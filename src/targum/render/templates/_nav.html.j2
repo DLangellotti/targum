@@ -5,7 +5,17 @@
     Set `here` to "read", "library" or "words" before including this. -#}
 <header class="site-head">
   <div class="site-head-row">
-    <a class="brand" href="/">targum</a>
+    {#- The lockup, assembled live rather than dropped in as lockup.svg: the name is
+        real text in the reading face the page already loads, so it stays selectable and
+        scales with the user's type size, and the mark takes its two colours from the
+        palette so it turns over with the theme. -#}
+    <a class="brand" href="/">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
     <nav class="site-nav" aria-label="Pages">
       <a href="/" data-nav="read"{% if here == 'read' %} class="on" aria-current="page"{% endif %}>Read something</a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>

@@ -995,3 +995,36 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
     assert data["binyanim"] == ["התפעל", ""]
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert OUTBOUND in html
+
+
+def test_every_page_carries_the_identity(rendered: Path) -> None:
+    """The icons ride inside the page: a built reader has no sibling to link to."""
+    html = rendered.read_text(encoding="utf-8")
+    assert 'rel="icon" href="data:image/svg+xml' in html
+    assert 'rel="apple-touch-icon" href="data:image/png;base64,' in html
+    assert 'href="brand/' not in html
+
+
+def test_the_way_back_goes_to_the_library(tmp_path: Path) -> None:
+    """Both back links say Library, so both go there — not to the start page.
+
+    The contents page and the section pages set the link from different scripts, and
+    only one of them had been taught the difference.
+    """
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    contents, section = render(document, segmented, [translation], tmp_path / "reader")[:2]
+    for page in (contents, section):
+        html = page.read_text(encoding="utf-8")
+        assert '<a class="home" id="home" href="/library" hidden>Library</a>' in html
+        assert '"/library"' in html or '"/library?k="' in html
+        assert 'home.href = "/" ' not in html

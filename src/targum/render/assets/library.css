@@ -27,14 +27,30 @@
   gap: 1rem;
 }
 .brand {
+  display: inline-flex;
+  align-items: center;
+  /* Clear space is what the mark asks of whatever surrounds it, not of the name it is
+     joined to. The drawn lockup's own gap measures 0.14em, but that is set against a
+     84-unit name: at 1.2rem the same ratio closes up, so this is the optical match. */
+  gap: 0.3em;
   font-family: var(--reading);
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   font-weight: 600;
   color: var(--ink);
   text-decoration: none;
   letter-spacing: -0.01em;
 }
-.brand:hover { color: var(--accent); }
+.brand-mark {
+  /* Tied to the text it sits beside, so the lockup holds together at any type size.
+     Both drawn from the lockup: a 72-unit mark against a 84-unit name. */
+  height: 0.857em;
+  width: 0.667em;
+  flex: none;
+}
+/* Only the name answers the hover: the mark's ink column follows `color`, and letting
+   it go accent would leave both columns the same colour — the one thing the two-colour
+   mark is not allowed to be. */
+.brand:hover span { color: var(--accent); }
 .site-head h1 {
   margin-block: 1.5rem 0;
   font-family: var(--reading);
@@ -46,7 +62,7 @@
 
 @media (max-width: 40rem) {
   .site-head { padding-block-start: 1rem; }
-  .site-head h1 { font-size: 1.4rem; }
+  .site-head h1 { font-size: 1.5rem; }
   .site-head-row { gap: 0.5rem; }
 }
 
@@ -90,7 +106,7 @@
 .card-head h3 {
   margin: 0;
   font-family: var(--reading);
-  font-size: 1.15rem;
+  font-size: 1.5rem;
   font-weight: 600;
 }
 .card .tag {
@@ -101,7 +117,7 @@
 }
 .card .byline { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; font-style: italic; }
 .card .blurb { margin: 0.2rem 0 0; line-height: 1.5; }
-.card .facts { margin: 0; color: var(--ink-soft); font-size: 0.75rem; }
+.card .facts { margin: 0; color: var(--ink-soft); font-size: 0.6875rem; }
 
 .renderings { list-style: none; margin: 0.2rem 0 0; padding: 0; font-size: 0.8125rem; }
 .renderings li {
@@ -129,7 +145,7 @@
   text-decoration: none;
 }
 .books a:hover { color: var(--accent); }
-.books .book-title { font-family: var(--reading); font-size: 1.05rem; }
+.books .book-title { font-family: var(--reading); font-size: 1.0625rem; }
 .books .book-meta { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* --- offered instead of paying for a translation -------------------------- */
@@ -190,13 +206,13 @@
   background: var(--paper-raised);
   color: inherit;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 .account-panel form button,
 .account-panel .signed-in button {
   padding: 0.35rem 0.7rem;
   border-radius: 6px;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 .account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
 .account-panel .said { margin: 0.6rem 0 0; color: var(--accent); }
