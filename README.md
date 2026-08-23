@@ -58,10 +58,19 @@ it is bare, points are guessed on request by
 
 ## What leaves your machine
 
-The text you are reading goes to Anthropic to be translated and to have its words
-looked up. Nothing else does. targum never uploads a copyrighted translation; the
-cache, the readers and your word lists stay where they are. `targum serve` listens on
-127.0.0.1 only and is not a hosted service — see [SECURITY.md](SECURITY.md).
+Translating a text, and looking up a word, sends that text to Anthropic.
+
+Signing in sends your email address, the words you have saved — the dictionary form,
+your own meaning, your notes — and the phrases you have cut, which are the actual words
+you picked out of what you were reading. They are kept on the server you signed in to.
+Stay signed out and all of it stays in the browser instead.
+
+Tapping *conjugations* on a Hebrew verb opens Pealim in a new tab.
+
+Nothing else goes anywhere. Your readers, the cache and the build artifacts stay on
+disk, and a translation you supplied is never uploaded. `targum serve` listens on
+127.0.0.1 only and is a single-user tool, not a hosted service — see
+[SECURITY.md](SECURITY.md).
 
 ## Not supported
 
