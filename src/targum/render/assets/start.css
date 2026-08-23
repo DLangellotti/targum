@@ -1,21 +1,38 @@
 /* The page you land on. Deliberately the same palette and type as a reader, so the
    tool looks like one thing rather than a form bolted to a book. */
 
-body.start { display: grid; place-items: start center; min-height: 100vh; }
+/* The header spans the page like it does everywhere else; only the column under it
+   is narrow. `justify-items` rather than `place-items`, so a full-width header can
+   still stretch while the column stays centred. */
+body.start {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-height: 100vh;
+}
+body.start > .site-head { justify-self: stretch; }
+/* The column starts where the header's name starts, so the whole site shares one
+   left edge rather than centring each page on its own width. */
+body.start > .start-main {
+  justify-self: start;
+  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+}
 
 .start-main {
   width: min(34rem, 100%);
-  padding: 4rem 1.5rem 6rem;
+  /* 1.25rem to the side, the same as the header, so the two share a left edge. */
+  padding: 1.5rem 1.25rem 6rem;
   font-family: system-ui, sans-serif;
 }
 
-.start h1 {
-  margin: 0;
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  font-size: 2rem;
+.start .lede {
+  margin: 0 0 2.5rem;
+  font-family: var(--reading);
+  font-size: 1.75rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
-.start .lede { margin: 0.3rem 0 2.5rem; color: var(--ink-soft); }
 
 .drop {
   display: grid;
@@ -48,6 +65,36 @@ body.start { display: grid; place-items: start center; min-height: 100vh; }
 }
 .field input:focus, .field select:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
 .hint { margin: -0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.6; }
+/* Two hints in a row sat on top of each other: the rule above pulls each one up under
+   the field it explains, and with no bottom margin the second climbed into the first. */
+.hint + .hint { margin-block-start: 0.55rem; }
+.hint.caps { margin-block-start: 0.75rem; text-align: center; }
+
+/* Nothing new can be translated, said before a text is chosen rather than after the
+   wait. Warm rather than red: it is a condition, not a failure. */
+.notice {
+  margin: 0 0 2rem;
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--accent);
+  background: var(--paper-raised);
+  border-radius: 0 6px 6px 0;
+  color: var(--ink);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.unchoose {
+  margin-block-start: 0.5rem;
+  background: none;
+  border: 0;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.unchoose:hover { color: var(--ink); }
+.unchoose[hidden] { display: none; }
 .hint br { content: ""; display: block; margin-block-start: 0.5rem; }
 .hint code { background: var(--paper-raised); padding: 0.05rem 0.3rem; border-radius: 4px; }
 
@@ -65,7 +112,20 @@ body.start { display: grid; place-items: start center; min-height: 100vh; }
 .field.short { margin: 0; width: 11rem; }
 .field.wide { margin: 0; width: 13rem; }
 .hint.plain { margin-block-start: 1.1rem; }
-.check { display: flex; gap: 0.4rem; align-items: center; color: var(--ink-soft); font-size: 0.875rem; }
+/* The label wraps to two or three lines, so the box sits with the first of them
+   rather than halfway down the paragraph. */
+.check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin-block-start: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 46ch;
+}
+.check input { margin-block-start: 0.3rem; flex: none; }
+.check b { color: var(--ink); font-weight: 600; }
 
 .go {
   width: 100%;
@@ -166,3 +226,17 @@ body.start { display: grid; place-items: start center; min-height: 100vh; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* A way through to everything kept, from the page that lists everything built. */
+.library-words {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.library-words:hover { color: var(--ink); }
+
+/* A way through to the picked texts, from the sentence that mentions them. */
+.hint .to-library { color: var(--ink); text-decoration: none; border-block-end: 1px solid var(--rule); }
+.hint .to-library:hover { border-color: var(--accent); }

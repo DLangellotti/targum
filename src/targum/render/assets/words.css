@@ -1,0 +1,338 @@
+/* Everything kept, and what it adds up to. Built on the reader's palette so the two
+   pages read as one thing; the chart colours are one warm ramp off the same accent. */
+
+body.words {
+  font-family: system-ui, sans-serif;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.words {
+  /* An ordered ramp, light → dark, for a scale that runs from "just met" to "known".
+     Selected per mode rather than flipped: on paper the darkest step is the most
+     present, on a dark ground the lightest one is, and "known" should be the step
+     that carries in both. Validated against each surface — monotone lightness,
+     visible gaps, one hue, and the end nearest the surface clear of it. */
+  --step-1: #c8a778;
+  --step-2: #ab8555;
+  --step-3: #8b6840;
+  --step-4: #6b4f2e;
+  --off: #c3bdb1;
+  --grid: #e7e1d6;
+  --axis: #cfc7ba;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .words {
+    --step-1: #7d6039;
+    --step-2: #a5824f;
+    --step-3: #c8a778;
+    --step-4: #e8d3b0;
+    --off: #4a453e;
+    --grid: #2a2622;
+    --axis: #3a3530;
+  }
+}
+
+:root[data-theme="dark"] .words {
+    --step-1: #7d6039;
+    --step-2: #a5824f;
+    --step-3: #c8a778;
+    --step-4: #e8d3b0;
+    --off: #4a453e;
+    --grid: #2a2622;
+    --axis: #3a3530;
+}
+
+/* --- page furniture ------------------------------------------------------- */
+
+.back {
+  order: 3;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+  white-space: nowrap;
+}
+.back::before { content: "\2190"; margin-inline-end: 0.35em; }
+.back:hover { color: var(--ink); }
+
+.langs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-block-start: 1.1rem;
+}
+.langs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+}
+/* Said on the language itself, so it is never a surprise further in. */
+.langs .beta,
+.beta-tag {
+  padding: 0.02rem 0.3rem;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.langs button.on .beta {
+  background: color-mix(in srgb, var(--paper) 26%, transparent);
+  color: var(--paper);
+}
+.beta-note {
+  margin: 0.5rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.beta-note[hidden] { display: none; }
+.langs button.on {
+  color: var(--paper);
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+}
+.langs[hidden] { display: none; }
+
+/* Before the element rule below, which otherwise wins: a display on a type selector
+   beats the user agent's [hidden] { display: none }, and the page rendered its empty
+   panels underneath the "nothing kept yet" line. */
+main[hidden] { display: none; }
+
+main {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.nothing {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 0 1.25rem;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.nothing[hidden] { display: none; }
+.nothing a { color: var(--ink); }
+
+/* --- the numbers ---------------------------------------------------------- */
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+}
+.tile {
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+}
+.tile b {
+  display: block;
+  font-family: var(--reading);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.tile span { color: var(--ink-soft); font-size: 0.8125rem; }
+.tile .delta { display: block; margin-block-start: 0.2rem; }
+
+/* --- panels --------------------------------------------------------------- */
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1.25rem;
+}
+.panel {
+  padding: 1.1rem 1.25rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+  min-width: 0;
+}
+.panel h2 {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+.panel .note {
+  margin: 0.2rem 0 0.9rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* --- charts --------------------------------------------------------------- */
+
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart .grid line { stroke: var(--grid); stroke-width: 1; }
+.chart .axis line { stroke: var(--axis); stroke-width: 1; }
+.chart text { fill: var(--ink-soft); font-size: 11px; }
+.chart .value { fill: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* A 2px gap in the surface colour between neighbouring fills, so two segments of the
+   same ramp never look like one. */
+.stack rect { stroke: var(--paper-raised); stroke-width: 2; }
+.stack rect:hover { stroke: var(--ink-soft); }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-block-start: 0.9rem;
+  font-size: 0.8125rem;
+}
+.legend span { display: flex; align-items: center; gap: 0.4rem; color: var(--ink-soft); }
+.legend i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex: none;
+}
+.legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.14);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.tip[hidden] { display: none; }
+.tip b { font-variant-numeric: tabular-nums; }
+
+/* --- the lists ------------------------------------------------------------ */
+
+.list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 0.9rem;
+}
+.list-controls h2 { margin-inline-end: auto; }
+.list-controls input[type="search"] {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.list-controls select, .list-controls button { font-size: 0.8125rem; }
+
+.table-wrap { overflow-x: auto; }
+table.rows { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.rows th {
+  text-align: start;
+  padding: 0 0.6rem 0.4rem 0;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+table.rows td {
+  padding: 0.45rem 0.6rem 0.45rem 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+  vertical-align: baseline;
+}
+table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+table.rows .term { font-family: var(--reading); font-size: 1.05em; }
+table.rows .meaning { color: var(--ink-soft); }
+table.rows .when { color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.rows .band { color: var(--ink-soft); white-space: nowrap; }
+
+/* A row opens where it sits. The control itself is styled with the reader's, which is
+   inlined above this file, so only the placing is here. */
+table.rows tbody tr { cursor: pointer; }
+table.rows tbody tr.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+table.rows tr.editor-row, table.rows tr.editor-row:hover { background: none; cursor: auto; }
+table.rows tr.editor-row td {
+  padding-block: 0.5rem 0.8rem;
+  border-block-end: 1px solid var(--rule);
+}
+.vocab-editor .note-field { max-width: 26rem; }
+
+.text-group li { cursor: pointer; }
+.text-group li.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.text-group .vocab-editor { margin-block-start: 0.45rem; cursor: auto; }
+
+/* Your own words, and a quiet mark saying so. */
+.meaning.mine, .reading.mine { color: var(--ink); }
+.meaning.mine::after, .reading.mine::after {
+  content: " · yours";
+  color: var(--ink-soft);
+  font-size: 0.85em;
+}
+
+.pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.pip i {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.more {
+  display: block;
+  width: 100%;
+  margin-block-start: 0.9rem;
+  padding: 0.35rem;
+  font-size: 0.8125rem;
+}
+.more[hidden] { display: none; }
+
+.empty { margin: 0.4rem 0 0; color: var(--ink-soft); font-size: 0.875rem; }
+.empty[hidden] { display: none; }
+
+.text-group { margin-block-end: 1.1rem; }
+.text-group:last-child { margin-block-end: 0; }
+.text-group h3 {
+  margin: 0 0 0.4rem;
+  color: var(--ink-soft);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.text-group ol { list-style: none; margin: 0; padding: 0; }
+.text-group li {
+  padding: 0.4rem 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+}
+.text-group .term { font-family: var(--reading); font-size: 1.05em; }
+.text-group .reading { display: block; color: var(--ink-soft); font-size: 0.875rem; }
+
+@media (max-width: 40rem) {
+  main { padding-inline: 1rem; gap: 1rem; }
+  .panel { padding: 0.9rem 1rem 1rem; }
+}

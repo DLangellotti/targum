@@ -97,3 +97,64 @@ def test_fetch_reports_a_bad_identifier() -> None:
     assert result.exit_code == 1
     assert "gutenberg" in result.output
     assert "Traceback" not in result.output
+
+
+def test_rebuild_rewrites_readers_from_disk(tmp_path: Path) -> None:
+    """A reader carries the stylesheet and script targum had when it wrote it.
+
+    So a reader built last month is last month's reader, and the only way to give it
+    what targum has learned since is to write it again — from the artifacts beside it,
+    without fetching anything or spending anything.
+    """
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "book-he"
+    folder.mkdir(parents=True)
+
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    # A reader as it was: written once, then left behind by everything since.
+    render(document, segmented, [translation], folder / "reader")
+    (folder / "reader" / "index.html").write_text("<html>old</html>", encoding="utf-8")
+
+    # And one that was priced but never paid for, which has nothing to show.
+    bare = out / "unpaid-he"
+    bare.mkdir()
+    document.write(bare / "document.json")
+    segmented.write(bare / "segments.json")
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "Rewrote 1 reader" in result.output
+    assert "never translated" in result.output
+
+    written = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert "<html>old</html>" not in written
+    assert "peace" in written

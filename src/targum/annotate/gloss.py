@@ -145,6 +145,41 @@ def estimate(lemma_count: int, model: str) -> float:
     ) / 1_000_000
 
 
+def gloss_one(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider: GlossProvider,
+    *,
+    cache: Cache | None = None,
+) -> str:
+    """One word, looked up because someone asked for it.
+
+    The whole-text pass is the expensive half of a build and most of what it buys is
+    never read: you look up the handful of words you actually stumble on. This is that
+    handful, one at a time, through the same cache — so a word looked up while reading
+    one article is free in the next.
+    """
+    cache = cache or Cache()
+    key = cache.key(
+        "gloss",
+        lemma=lemma,
+        source=source_language,
+        target=target_language,
+        provider=provider.name,
+    )
+    stored = cache.get("gloss", key)
+    if isinstance(stored, dict) and stored.get("gloss"):
+        return str(stored["gloss"])
+
+    fresh = provider.gloss([lemma], source_language, target_language, None)
+    found = fresh.get(lemma)
+    if not found:
+        return ""
+    cache.put("gloss", key, {"gloss": found[0], "part_of_speech": found[1]})
+    return found[0]
+
+
 def build_glossary(
     annotation: Annotation,
     target_language: str,
@@ -153,8 +188,14 @@ def build_glossary(
     min_band: int = 1,
     cache: Cache | None = None,
     on_progress: Progress | None = None,
+    on_batch: Callable[[Glossary], None] | None = None,
 ) -> tuple[Glossary, int]:
-    """Returns the glossary and how many lemmas had to be paid for."""
+    """Returns the glossary and how many lemmas had to be paid for.
+
+    `on_batch` is handed the glossary so far after every batch that is paid for. The
+    reader opens before any of this has run and polls for the file, so writing it once
+    at the end meant every word showed a blank card for as long as the whole run took.
+    """
     cache = cache or Cache()
     wanted = unique_lemmas(annotation, min_band=min_band)
 
@@ -176,8 +217,22 @@ def build_glossary(
         else:
             missing.append(lemma)
 
-    if missing:
-        fresh = provider.gloss(missing, annotation.language, target_language, on_progress)
+    def assembled() -> Glossary:
+        return Glossary(
+            source_language=annotation.language,
+            target_language=target_language,
+            provider=provider.name,
+            entries=dict(entries),
+            parts_of_speech=dict(parts),
+        )
+
+    # Handed over a batch at a time rather than all at once, so a partial glossary can
+    # be published while the rest is still being looked up. The provider batches
+    # internally too; asking for one batch at a time makes each call one request.
+    size = max(1, int(getattr(provider, "batch_size", 0)) or len(missing) or 1)
+    for start in range(0, len(missing), size):
+        chunk = missing[start : start + size]
+        fresh = provider.gloss(chunk, annotation.language, target_language, on_progress)
         for lemma, (gloss, part) in fresh.items():
             entries[lemma] = gloss
             parts[lemma] = part
@@ -192,14 +247,7 @@ def build_glossary(
                 ),
                 {"gloss": gloss, "part_of_speech": part},
             )
+        if on_batch:
+            on_batch(assembled())
 
-    return (
-        Glossary(
-            source_language=annotation.language,
-            target_language=target_language,
-            provider=provider.name,
-            entries=entries,
-            parts_of_speech=parts,
-        ),
-        len(missing),
-    )
+    return assembled(), len(missing)

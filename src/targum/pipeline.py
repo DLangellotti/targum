@@ -15,6 +15,7 @@ from typing import Any
 from . import align as align_module
 from . import annotate as annotate_module
 from . import ingest, render
+from . import vocalize as vocalize_module
 from .cache import Cache
 from .errors import TargumError
 from .ids import slug
@@ -26,6 +27,7 @@ from .models import (
     SegmentedDocument,
     Style,
     Translation,
+    Vocalization,
     read_artifact,
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
@@ -33,6 +35,8 @@ from .translate import build as build_provider
 
 Notify = Callable[[str], None]
 Progress = Callable[[int], None]
+# Called once the reader can be read, before the word meanings are looked up.
+Ready = Callable[["Result"], None]
 
 
 @dataclass(slots=True)
@@ -58,6 +62,7 @@ class Result:
     translations: list[Translation] = field(default_factory=list)
     annotation: Annotation | None = None
     glossary: Glossary | None = None
+    vocalization: Vocalization | None = None
     pages: list[Path] = field(default_factory=list)
     reused: list[str] = field(default_factory=list)
 
@@ -82,12 +87,16 @@ class Build:
         batch_size: int = 20,
         effort: str = "medium",
         segmenter: Segmenter | None = None,
-        translations: Sequence[Path] = (),
+        # A file on disk, or anything ingest reads: a catalogue text's published
+        # translation is a wikisource: or gutenberg: name, not something downloaded
+        # by hand first.
+        translations: Sequence[Path | str] = (),
         machine: bool | None = None,
         difficulty: bool = False,
         gloss: bool = False,
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
+        vocalizer: vocalize_module.Vocalizer | None = None,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -99,7 +108,7 @@ class Build:
         self.notify = notify or (lambda _message: None)
         self.cache = Cache()
         self.segmenter: Segmenter = segmenter or StanzaSegmenter()
-        self.translation_files = list(translations)
+        self.translation_files: list[Path | str] = list(translations)
         # Supplying a published translation is a reason not to pay for a machine one,
         # unless the point is to compare them.
         self.machine = (not self.translation_files) if machine is None else machine
@@ -108,6 +117,7 @@ class Build:
         self.difficulty = difficulty or gloss
         self.gloss = gloss
         self._annotator = annotator
+        self._vocalizer = vocalizer
         self.provider: Any = build_provider(
             provider_name, model=model, batch_size=batch_size, effort=effort
         )
@@ -265,7 +275,7 @@ class Build:
         for path in self.translation_files:
             document = ingest.load(str(path))
             target = segment_document(document, self.segmenter)
-            name = document.title or path.stem
+            name = document.title or (path.stem if isinstance(path, Path) else str(path))
 
             key = self.cache.key(
                 "align",
@@ -278,7 +288,7 @@ class Build:
                 alignment = Alignment.model_validate(stored)
                 self.reused.append(f"alignment ({name})")
             else:
-                self.notify(f"Aligning {name}...")
+                self.notify(f"Matching {name} to the source…")
                 alignment = self.aligner.align(segmented, target, name)
                 self.cache.put("align", key, alignment.model_dump(mode="json"))
             alignment.write(
@@ -292,13 +302,13 @@ class Build:
         if not self.difficulty:
             return None
         path = self.resolved_out / "annotation.json"
+        self.notify("Finding each word's dictionary form…")
         if not self.force:
             existing = read_artifact(Annotation, path)
             if existing is not None and existing.document_hash == segmented.document_hash:
                 self.reused.append("difficulty")
                 return existing
         annotator = self._annotator or annotate_module.Annotator()
-        self.notify("Looking words up...")
         try:
             annotation = annotator.annotate(segmented)
         except TargumError as error:
@@ -310,20 +320,95 @@ class Build:
         annotation.write(path)
         return annotation
 
+    def vocalize(self, segmented: SegmentedDocument) -> Vocalization | None:
+        """The pointed form of each segment, for the reader's vowel toggle.
+
+        Not asked for and not switched off: a Hebrew text gets the toggle, and one in any
+        other language has nothing to toggle. The source's own pointing is used wherever
+        it exists, so a Tanakh or a pointed poem needs no diacritizer at all.
+        """
+        if not vocalize_module.supports(segmented.language):
+            return None
+        self.notify("Adding vowel points…")
+        path = self.resolved_out / "vocalization.json"
+        if not self.force:
+            existing = read_artifact(Vocalization, path)
+            if existing is not None and existing.document_hash == segmented.document_hash:
+                self.reused.append("nikkud")
+                return existing
+
+        engine = self._vocalizer
+        if engine is None and any(
+            not vocalize_module.is_fully_pointed(segment.text) for segment in segmented.segments
+        ):
+            engine = vocalize_module.build()
+        key = self.cache.key(
+            "vocalize",
+            document=segmented.document_hash,
+            vocalizer=engine.name if engine else vocalize_module.SOURCE_ONLY,
+            model=engine.model if engine else None,
+        )
+        stored = self.cache.get("vocalize", key)
+        if isinstance(stored, dict) and not self.force:
+            vocalization = Vocalization.model_validate(stored)
+            self.reused.append("nikkud (cache)")
+        else:
+            try:
+                vocalization = vocalize_module.vocalize_document(segmented, engine)
+            except TargumError as error:
+                # Vowels are a reading aid on top of a translation someone has already
+                # paid for. Losing them is worth saying; it is not worth losing the build.
+                self.notify(f"{error.message} Building without vowel points.")
+                return None
+            self.cache.put("vocalize", key, vocalization.model_dump(mode="json"))
+        if vocalization.rejected:
+            self.notify(
+                f"Kept the source text for {len(vocalization.rejected)} sentence(s): "
+                "the diacritizer changed letters, not just marks."
+            )
+        vocalization.write(path)
+        return vocalization
+
     def glossary(self, annotation: Annotation | None) -> Glossary | None:
         if not self.gloss or annotation is None:
             return None
-        from .annotate.gloss import AnthropicGlosses, build_glossary
+        from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
 
         provider = AnthropicGlosses(self.model)
+        # By far the longest stage on a real article: one lookup per distinct dictionary
+        # form, six hundred of them on a news piece. Said out loud and counted as it
+        # goes, because a progress bar that stopped moving several minutes ago is
+        # indistinguishable from a hang.
+        total = len(unique_lemmas(annotation))
+        done = 0
+        self.notify(f"Looking up {total} word meanings…")
+
+        def progress(step: int) -> None:
+            nonlocal done
+            done += step
+            self.notify(f"Looking up word meanings… {min(done, total)} of {total}")
+
+        # Published as it goes. The reader is already open and asking for this file
+        # every few seconds, so holding it back until the last lemma meant every word
+        # someone tapped showed a blank card for the length of the whole run.
+        destination = self.resolved_out / "glossary.json"
+
+        def publish(partial: Glossary) -> None:
+            partial.write(destination)
+
         glossary, paid = build_glossary(
-            annotation, self.target_language, provider, cache=self.cache
+            annotation,
+            self.target_language,
+            provider,
+            cache=self.cache,
+            on_progress=progress,
+            on_batch=publish,
         )
         if paid:
-            self.notify(f"Glossed {paid} new lemmas")
+            self.notify(f"{paid} word meanings looked up")
         else:
             self.reused.append("glossary")
-        glossary.write(self.resolved_out / "glossary.json")
+        glossary.write(destination)
         return glossary
 
     def _translation_name(self) -> str:
@@ -345,37 +430,72 @@ class Build:
             )
         return plan
 
-    def run(self, plan: Plan | None = None, on_progress: Progress | None = None) -> Result:
+    def run(
+        self,
+        plan: Plan | None = None,
+        on_progress: Progress | None = None,
+        on_ready: Ready | None = None,
+    ) -> Result:
+        """Build the reader, then keep filling it in.
+
+        `on_ready` fires the moment there is something worth reading — translated, banded
+        and vowelled — and before the long wait for word meanings. Looking those up is
+        most of the calls a build makes and none of what you need to start, so it happens
+        afterwards, into a reader that is already open.
+        """
         plan = plan or self.plan()
         assert plan.segmented is not None
+        segmented = plan.segmented
 
         translations: list[Translation] = []
         if self.machine:
-            translations.append(
-                plan.cached_translation or self.translate(plan.segmented, on_progress)
-            )
-        translations.extend(self.aligned(plan.segmented))
+            translations.append(plan.cached_translation or self.translate(segmented, on_progress))
+        translations.extend(self.aligned(segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
 
-        annotation = self.annotate(plan.segmented)
-        glossary = self.glossary(annotation)
-        pages = render.render(
-            plan.document,
-            plan.segmented,
-            translations,
-            self.resolved_out / "reader",
-            annotation=annotation,
-            glossary=glossary,
-        )
-        return Result(
+        annotation = self.annotate(segmented)
+        vocalization = self.vocalize(segmented)
+
+        def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
+            self.notify("Building the reader…")
+            return render.render(
+                plan.document,
+                segmented,
+                translations,
+                self.resolved_out / "reader",
+                annotation=annotation,
+                glossary=glossary,
+                vocalization=vocalization,
+                clean=clean,
+                # True only on the first pass of a build that ordered one.
+                glossary_pending=self.gloss and glossary is None,
+            )
+
+        result = Result(
             out_dir=self.resolved_out,
             document=plan.document,
-            segmented=plan.segmented,
+            segmented=segmented,
             translation=translations[0],
             translations=translations,
             annotation=annotation,
-            glossary=glossary,
-            pages=pages,
+            vocalization=vocalization,
+            pages=build_reader(None, clean=True),
             reused=self.reused,
         )
+        if on_ready:
+            on_ready(result)
+
+        try:
+            result.glossary = self.glossary(annotation)
+        except TargumError as error:
+            # The reader is already written and, where this is serving a page, already
+            # open. Losing the meanings is worth saying; it is not worth taking back a
+            # book someone is reading.
+            self.notify(f"{error.message} Building without word meanings.")
+            return result
+        if result.glossary is not None:
+            # Bake them into the files too, so opening this reader again does not depend
+            # on a server being there to hand them over.
+            result.pages = build_reader(result.glossary, clean=False)
+        return result

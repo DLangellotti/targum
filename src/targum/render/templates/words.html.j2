@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your words — targum</title>
+<style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="words">
+{% set here = 'words' %}{% set title = 'Your words' %}
+{% include '_nav.html.j2' %}
+
+<main id="page" hidden>
+  <section class="tiles" id="tiles" aria-label="Totals"></section>
+
+  <section class="panel">
+    <h2>Where your words are</h2>
+    <p class="note" id="progress-note"></p>
+    <div id="progress"></div>
+  </section>
+
+  <div class="panels">
+    <section class="panel">
+      <h2>Words kept over time</h2>
+      <p class="note">From the day you first marked each one.</p>
+      <div id="growth"></div>
+    </section>
+
+    <section class="panel">
+      <h2>How common they are</h2>
+      <p class="note">How often each word turns up in everyday use — not a syllabus level.</p>
+      <div id="bands"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="list-controls">
+      <h2><span id="words-title">Words</span></h2>
+      <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
+      <select id="status-filter" aria-label="Filter by how well you know them">
+        <option value="learning">Still learning</option>
+        <option value="all">All</option>
+        <option value="1">1 · just met</option>
+        <option value="2">2 · getting there</option>
+        <option value="3">3 · nearly there</option>
+        <option value="9">Known</option>
+        <option value="0">Ignored</option>
+      </select>
+      <button type="button" id="export-words">Export</button>
+    </div>
+    <div class="table-wrap">
+      <table class="rows" id="word-table">
+        <thead>
+          <tr>
+            <th scope="col">Word</th>
+            <th scope="col">Dictionary form</th>
+            <th scope="col">Meaning</th>
+            <th scope="col">How common</th>
+            <th scope="col">How well</th>
+            <th scope="col">Kept</th>
+          </tr>
+        </thead>
+        <tbody id="word-rows"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="words-empty" hidden></p>
+    <button type="button" class="more" id="more" hidden></button>
+  </section>
+
+  <section class="panel">
+    <div class="list-controls">
+      <h2><span id="phrases-title">Phrases</span></h2>
+      <button type="button" id="export-phrases">Export</button>
+    </div>
+    <p class="note">Phrases stay with the text you cut them from.</p>
+    <div id="phrase-list"></div>
+    <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across a few words while reading to keep a phrase.</p>
+  </section>
+</main>
+
+<p class="nothing" id="nothing" hidden>
+  Nothing here yet. Open something from <a id="library-link" href="/">your library</a>
+  and tap a word to say how well you know it.
+</p>
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('words.js') }}</script>
+</body>
+</html>

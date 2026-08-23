@@ -53,7 +53,21 @@ def model_size(model: str = DEFAULT_MODEL) -> int:
     folder = embeddings_dir() / ("models--" + model.replace("/", "--"))
     if not folder.is_dir():
         return 0
-    return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())
+    # The hub keeps one blob per file and a tree of symlinks pointing at it, so walking
+    # the folder naively counts every weight twice: 3.8 GB reported for the 1.8 GB
+    # download the fetch command promises. Count each inode once, and never the links.
+    seen: set[tuple[int, int]] = set()
+    total = 0
+    for path in folder.rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        info = path.stat()
+        key = (info.st_dev, info.st_ino)
+        if key in seen:
+            continue
+        seen.add(key)
+        total += info.st_size
+    return total
 
 
 class SentenceTransformerEncoder:

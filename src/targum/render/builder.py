@@ -25,8 +25,11 @@ from ..models import (
     Glossary,
     SegmentedDocument,
     Translation,
+    Vocalization,
     direction_for,
 )
+from ..translate.prompts import language_name
+from ..vocalize import map_span, strip_nikkud
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -71,7 +74,7 @@ def isolate(text: str, direction: str) -> Markup:
 
 
 def embed_json(payload: object) -> Markup:
-    """JSON safe to sit inside a <script> element.
+    r"""JSON safe to sit inside a <script> element.
 
     The HTML parser ends the element at the first "</script" it meets, even inside a
     JSON string, so a translation containing that sequence would break out into
@@ -130,8 +133,13 @@ def _environment() -> Environment:
     return env
 
 
-def start_page(token: str, limit: float) -> str:
-    """The page targum serve hands you, built with the reader's own type and palette."""
+def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str:
+    """The page targum serve hands you, built with the reader's own type and palette.
+
+    `no_key` is the notice to show when nothing can be translated. It is passed in
+    rather than worked out here, so the page states the same thing the builder would
+    have refused with.
+    """
     from ..translate.prompts import OFFERED, language_name
 
     return (
@@ -140,6 +148,47 @@ def start_page(token: str, limit: float) -> str:
         .render(
             token=token,
             limit=limit,
+            budget=budget,
+            no_key=no_key,
+            languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
+def words_page(token: str) -> str:
+    """Everything kept, with what it adds up to.
+
+    Built from the browser's own store like the start page, because that is where a
+    word list lives; the server only hands over the page.
+    """
+    from ..translate.prompts import OFFERED
+
+    return (
+        _environment()
+        .get_template("words.html.j2")
+        .render(
+            token=token,
+            languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
+def library_page(token: str) -> str:
+    """Texts worth reading, and the ones you have already built.
+
+    The catalogue is baked in rather than fetched: it is a handful of entries that
+    ship with targum, and a page that has to ask the server for them would be a page
+    that can be empty.
+    """
+    from ..catalogue import CATALOGUE
+    from ..translate.prompts import OFFERED
+
+    return (
+        _environment()
+        .get_template("library.html.j2")
+        .render(
+            token=token,
+            catalogue=[entry.state() for entry in CATALOGUE],
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )
@@ -152,19 +201,49 @@ def render(
     out_dir: Path,
     annotation: Annotation | None = None,
     glossary: Glossary | None = None,
+    vocalization: Vocalization | None = None,
+    clean: bool = True,
+    glossary_pending: bool = False,
 ) -> list[Path]:
-    """Write the reader. Returns every file written, index first."""
+    """Write the reader. Returns every file written, index first.
+
+    `clean=False` writes over what is already there instead of emptying the directory
+    first. It is for the second pass, once the word meanings have arrived: the same
+    segments produce the same section files under the same names, so overwriting leaves
+    nothing stale behind, and a reader someone has open does not have the page they are
+    reading deleted from under them for the moment it takes to write the new one.
+    """
     if not translations:
         raise ValueError("a reader needs at least one translation")
 
-    if out_dir.exists():
+    if clean and out_dir.exists():
         shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     env = _environment()
     sections = split_sections(segmented)
     by_id = {segment.id: segment for segment in segmented.segments}
     single = len(sections) == 1
+
+    # Two ways to show the same sentence. The bare form is what the page renders by
+    # default and the one every stored offset is measured against; the pointed form is
+    # the second cell the toggle reveals. Both are built here rather than in the browser
+    # so each goes through isolate() and neither has to be reassembled in JavaScript.
+    bare: dict[str, str] = {}
+    to_bare: dict[str, list[int]] = {}
+    for segment in segmented.segments:
+        bare[segment.id], to_bare[segment.id] = strip_nikkud(segment.text)
+    pointed = dict(vocalization.segments) if vocalization is not None else {}
+    machine = set(vocalization.machine) if vocalization is not None else set()
+
+    # Whose pointing this mostly is. A Tanakh or a pointed poem arrives with its vowels
+    # already on the page and someone chose it for them, so it opens pointed; a news
+    # article whose points are all guessed opens bare, which is how it was written.
+    # The marker on a guessed sentence follows the same fact: when every line is
+    # guessed it distinguishes nothing and only adds noise, so it is left off.
+    from_source = len(pointed) - len(machine)
+    source_pointed = bool(pointed) and from_source * 2 >= len(pointed)
+    mark_guessed = bool(machine) and len(machine) * 2 < len(pointed)
 
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
@@ -179,6 +258,9 @@ def render(
         "target_direction": target_direction,
         "page_direction": source_direction,
         "has_gloss": bool(glossary and glossary.entries),
+        "has_nikkud": bool(pointed),
+        "source_pointed": source_pointed,
+        "mark_guessed": mark_guessed,
         "difficulty": None
         if annotation is None
         else {
@@ -233,10 +315,15 @@ def render(
                     if token.lemma not in lemma_at:
                         lemma_at[token.lemma] = len(lemmas)
                         lemmas.append(token.lemma)
+                    # Offsets arrive measured against the segment as ingested, which may
+                    # itself be pointed. They ship measured against the bare form, the
+                    # one coordinate system the reader keeps everything in. Where the
+                    # source had no marks the map is the identity and this costs nothing.
+                    start, end = map_span(token.start, token.end, to_bare[sid])
                     rows.append(
                         [
-                            token.start,
-                            token.end,
+                            start,
+                            end,
                             token.band,
                             1 if token.split else 0,
                             lemma_at[token.lemma],
@@ -249,6 +336,9 @@ def render(
             section=section,
             words=bool(words),
             segments=segments,
+            bare=bare,
+            pointed=pointed,
+            machine=machine,
             primary=translations[0].segments,
             primary_coarse=set(translations[0].coarse),
             data=embed_json(
@@ -262,6 +352,16 @@ def render(
                     # language, so reading two articles does not pool their words.
                     "document": segmented.document_hash,
                     "title": document.title or "",
+                    # For naming an export of the language's words, which the reader
+                    # otherwise only knows by its tag.
+                    "languageName": language_name(segmented.language),
+                    # Whether the vowels on this text are its own, and so whether it
+                    # should open with them showing.
+                    "sourcePointed": source_pointed,
+                    # Whether a glossary is on its way. Words are looked up one at a
+                    # time now, so most readers have none coming and must not sit
+                    # asking for one for ten minutes.
+                    "glossPending": glossary_pending,
                 }
             ),
             previous=None if section.number == 1 else sections[section.number - 2],

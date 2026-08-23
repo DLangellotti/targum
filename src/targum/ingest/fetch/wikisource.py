@@ -21,6 +21,79 @@ from ..url import get
 API = "https://{language}.wikisource.org/w/api.php"
 DEFAULT_LANGUAGE = "en"
 
+# Sections that are the wiki talking about the text rather than the text itself. They
+# are always last, and without this they are ingested, priced, translated, pointed and
+# glossed like any other prose: a four-line "see also" block on a Bialik poem came back
+# as a chapter of its own, in the reader, paid for.
+#
+# Matched only at the end of a page and only against this list, so a work that happens
+# to contain one of these words in a real heading keeps it.
+_NAVIGATION = frozenset(
+    {
+        # Hebrew
+        "ראו גם",
+        "קישורים חיצוניים",
+        "הערות שוליים",
+        "לקריאה נוספת",
+        "מקורות",
+        "הערות",
+        # English
+        "see also",
+        "external links",
+        "references",
+        "notes",
+        "footnotes",
+        "further reading",
+        "sources",
+        "bibliography",
+        # Russian
+        "см. также",
+        "примечания",
+        "ссылки",
+        "литература",
+        "источники",
+        # French
+        "voir aussi",
+        "notes et références",
+        "références",
+        "liens externes",
+        # Spanish
+        "véase también",
+        "referencias",
+        "enlaces externos",
+        "notas",
+        # German
+        "siehe auch",
+        "einzelnachweise",
+        "weblinks",
+        "anmerkungen",
+        "literatur",
+    }
+)
+
+
+def _heading_key(text: str) -> str:
+    return text.strip().strip(":：.،,").casefold()
+
+
+def drop_trailing_navigation(paragraphs: list[Paragraph]) -> list[Paragraph]:
+    """Cut the wiki's own apparatus off the end of a page.
+
+    Only from the end, and only one known heading at a time, so the first thing that is
+    not navigation stops it.
+    """
+    out = list(paragraphs)
+    while True:
+        last = None
+        for index in range(len(out) - 1, -1, -1):
+            if out[index][0] is BlockKind.heading:
+                last = index
+                break
+        if last is None or last == 0 or _heading_key(out[last][2]) not in _NAVIGATION:
+            return out
+        out = out[:last]
+
+
 # Wikisource subdomains are language codes already, with a few historic exceptions.
 _TAGS = {"iw": "he"}
 
@@ -73,6 +146,7 @@ class WikisourceFetcher:
             (kind, level, normalize(text))
             for kind, level, text in paragraphs_from_html(parsed.get("text", ""))
         ]
+        paragraphs = drop_trailing_navigation(paragraphs)
         if not paragraphs:
             raise TargumError(f"Wikisource page '{title}' has no readable text.")
 

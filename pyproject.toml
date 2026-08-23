@@ -25,6 +25,7 @@ dependencies = [
   "beautifulsoup4>=4.12",
   "trafilatura>=1.12",
   "httpx>=0.27",
+  "nakdimon>=0.1",
 ]
 
 [project.optional-dependencies]
@@ -63,7 +64,7 @@ strict = true
 files = ["src/targum"]
 
 [[tool.mypy.overrides]]
-module = ["stanza.*", "trafilatura.*", "sentence_transformers.*", "wordfreq.*"]
+module = ["stanza.*", "trafilatura.*", "sentence_transformers.*", "wordfreq.*", "nakdimon.*"]
 ignore_missing_imports = true
 
 

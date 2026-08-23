@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 
 from targum.errors import ProviderError
 from targum.models import Segment, SegmentedDocument, Style
 from targum.translate import NullProvider, build, names
-from targum.translate.anthropic_provider import AnthropicProvider
+from targum.translate.anthropic_provider import (
+    CHARS_PER_TOKEN,
+    DEFAULT_MODEL,
+    PRICES,
+    TOKENS_PER_BATCH,
+    AnthropicProvider,
+)
 from targum.translate.base import batches, context_window
 from targum.translate.prompts import system_prompt
 
@@ -186,3 +194,95 @@ def test_a_single_blocked_segment_is_named(monkeypatch: pytest.MonkeyPatch) -> N
     install(provider, type("C", (), {"messages_parse": staticmethod(parse)})())
     with pytest.raises(ProviderError, match=segments[0].id):
         provider.translate(segments, "he", "en", Style.natural)
+
+
+# --- what a run will cost, before it is spent --------------------------------
+
+
+SENTENCE = "בראשית ברא אלהים את השמים ואת הארץ והארץ היתה תהו ובהו"
+
+
+def sized_segments(count: int) -> list[Segment]:
+    """Segments with a body the length of a real sentence, so cost scales with count."""
+    segments = make_segments(count)
+    return [segment.model_copy(update={"text": SENTENCE}) for segment in segments]
+
+
+def counting_client(provider: AnthropicProvider, *, chars_per_token: float = 1.45) -> None:
+    """A stand-in for the token-counting endpoint, proportional the way a real one is."""
+
+    def count_tokens(**kwargs: object) -> object:
+        messages: Any = kwargs["messages"]
+        body = str(messages[0]["content"])
+        return type("C", (), {"input_tokens": int(len(body) / chars_per_token)})()
+
+    class Client:
+        messages = type("M", (), {"count_tokens": staticmethod(count_tokens)})()
+
+    provider._client = Client()
+
+
+def offline_client(provider: AnthropicProvider) -> None:
+    def count_tokens(**kwargs: object) -> object:
+        raise RuntimeError("no network")
+
+    class Client:
+        messages = type("M", (), {"count_tokens": staticmethod(count_tokens)})()
+
+    provider._client = Client()
+
+
+def test_estimate_is_linear_in_the_length_of_the_text() -> None:
+    """The overhead is a fixed cost per batch, not a share of the whole document.
+
+    Charging it as a percentage made the estimate grow with the square of the length: a
+    100k-word novel came out at $422 against a real $8.70, which blocked every book.
+    """
+    provider = AnthropicProvider(batch_size=20)
+    counting_client(provider)
+
+    short = provider.estimate(sized_segments(100), "he", "en", Style.natural)
+    long = provider.estimate(sized_segments(1000), "he", "en", Style.natural)
+
+    assert 9.9 < long / short < 10.1
+
+
+def test_estimate_charges_the_batch_overhead_once_per_batch() -> None:
+    segments = sized_segments(100)
+    in_price, out_price = PRICES[DEFAULT_MODEL]
+
+    twenty = AnthropicProvider(batch_size=20)
+    counting_client(twenty)
+    ten = AnthropicProvider(batch_size=10)
+    counting_client(ten)
+
+    # Halving the batch doubles the number of requests, so the fixed overhead is paid
+    # twice as often and each batch re-sends its context against half as much body.
+    extra = ten.estimate(segments, "he", "en", Style.natural) - twenty.estimate(
+        segments, "he", "en", Style.natural
+    )
+    body_tokens = len("\n".join(s.text for s in segments)) / 1.45
+    expected = (5 * TOKENS_PER_BATCH + body_tokens * 0.2) * in_price / 1_000_000
+    assert expected * 0.99 < extra < expected * 1.01
+    assert out_price > 0  # output does not move with batching; only input does
+
+
+def test_estimate_falls_back_to_the_source_language_when_it_cannot_count() -> None:
+    """Hebrew is 1.45 characters per token. A Latin-script guess undercounts it by 1.7x."""
+    segments = sized_segments(50)
+    provider = AnthropicProvider()
+    offline_client(provider)
+
+    hebrew = provider.estimate(segments, "he", "en", Style.natural)
+    english = provider.estimate(segments, "en", "he", Style.natural)
+    unknown = provider.estimate(segments, "sw", "en", Style.natural)
+
+    assert hebrew > unknown > english
+    assert 1.6 < hebrew / english < 2.0
+    assert CHARS_PER_TOKEN["he"] == 1.45
+
+
+def test_estimate_of_nothing_is_nothing() -> None:
+    provider = AnthropicProvider()
+    offline_client(provider)
+    assert provider.estimate([], "he", "en", Style.natural) == 0.0

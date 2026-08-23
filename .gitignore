@@ -16,6 +16,9 @@ build/
 targum-out/
 .env
 *.local.toml
+# Personal launchers: they source .env, so they stay out of the repo.
+serve.sh
+Targum.command
 
 # macOS
 .DS_Store

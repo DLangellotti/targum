@@ -29,6 +29,29 @@ PRICES: dict[str, tuple[float, float]] = {
 
 MAX_ATTEMPTS = 3
 
+# Cost model, measured Aug 23 2026 against the Hebrew fixtures with the token-counting
+# endpoint. Redo these if the prompt, the batch size or the context span changes.
+
+# The system prompt and the structured-output scaffolding ride on every request and do
+# not grow with the document. This is a fixed cost per batch, not a share of the text:
+# treating it as a percentage made the estimate grow with the square of the length.
+TOKENS_PER_BATCH = 428
+
+# Each batch also re-sends the sentences on either side of it as context, so that share
+# of the body is paid for twice. Two segments each way; see context_window().
+CONTEXT_SEGMENTS_PER_BATCH = 4
+
+# Hebrew runs 57% of the English word count for the same content but nearly the same
+# token count, so a translation comes back at about the size that went in. Thinking is
+# billed inside output_tokens and measures at 15% or less, so it needs no separate term.
+OUTPUT_RATIO = 1.0
+
+# Characters per token, for when the counting endpoint cannot be reached. Only Hebrew
+# and English are measured. The default is a Latin-script guess and reads low on any
+# script that is not one: Hebrew is 1.45, not the 2.5 an English-shaped guess gives.
+CHARS_PER_TOKEN = {"he": 1.45, "en": 2.73}
+DEFAULT_CHARS_PER_TOKEN = 2.5
+
 
 class _Blocked(Exception):
     """A batch the safety filter refused, which a smaller batch often survives."""
@@ -70,34 +93,43 @@ class AnthropicProvider:
                 self._client = anthropic.Anthropic()
             except Exception as exc:
                 raise ProviderError(
-                    "Could not start the Anthropic client.",
-                    "export ANTHROPIC_API_KEY=...",
+                    "No Anthropic API key found.",
+                    "Get one at console.anthropic.com, then: export ANTHROPIC_API_KEY=...",
                 ) from exc
         return self._client
 
     def available(self) -> tuple[bool, str]:
         if os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"):
             return True, self.model
-        return False, "set ANTHROPIC_API_KEY"
+        return False, "set ANTHROPIC_API_KEY (a key comes from console.anthropic.com)"
 
     # -- cost -------------------------------------------------------------------
 
     def estimate(self, segments: list[Segment], source: str, target: str, style: Style) -> float:
-        """Rough USD for a run. Excludes thinking tokens, so it reads low on hard texts."""
+        """Rough USD for a run, before a cent of it is spent.
+
+        Shaped the way the requests actually are: the body once, the sentences either
+        side of each batch a second time as context, and a fixed overhead on every call.
+        The overhead is counted per batch, so a longer text pays more of it, but the
+        estimate stays linear in the length rather than growing with its square.
+        """
+        if not segments:
+            return 0.0
         body = "\n".join(segment.text for segment in segments)
         try:
             counted = self.client().messages.count_tokens(
                 model=self.model,
-                system=system_prompt(source, target, style),
                 messages=[{"role": "user", "content": body}],
             )
-            input_tokens = float(counted.input_tokens)
+            body_tokens = float(counted.input_tokens)
         except Exception:
-            # Offline, or no key yet. Characters per token runs low on Hebrew and Russian.
-            input_tokens = len(body) / 2.5
-        # Context repeats across batches, and the system prompt rides on every call.
-        input_tokens *= 1.0 + (len(list(batches(segments, self.batch_size))) * 0.15)
-        output_tokens = input_tokens * 1.3
+            # Offline, or no key yet.
+            language = source.split("-")[0].lower()
+            body_tokens = len(body) / CHARS_PER_TOKEN.get(language, DEFAULT_CHARS_PER_TOKEN)
+        batch_count = len(list(batches(segments, self.batch_size)))
+        context_share = CONTEXT_SEGMENTS_PER_BATCH / self.batch_size
+        input_tokens = body_tokens * (1.0 + context_share) + TOKENS_PER_BATCH * batch_count
+        output_tokens = body_tokens * OUTPUT_RATIO
         in_price, out_price = PRICES.get(self.model, PRICES[DEFAULT_MODEL])
         return (input_tokens * in_price + output_tokens * out_price) / 1_000_000
 
@@ -201,7 +233,8 @@ class AnthropicProvider:
             )
         except anthropic.AuthenticationError as exc:
             raise ProviderError(
-                "The Anthropic API rejected the key.", "Check ANTHROPIC_API_KEY"
+                "The Anthropic API rejected the key.",
+                "Check ANTHROPIC_API_KEY, or get a new one at console.anthropic.com",
             ) from exc
         except anthropic.NotFoundError as exc:
             raise ProviderError(f"No such model: {self.model}", str(exc)) from exc
@@ -219,7 +252,7 @@ class AnthropicProvider:
         if response.stop_reason == "refusal":
             raise ProviderError(
                 "The model declined to translate a passage.",
-                "Rerun with a smaller --batch-size to isolate it.",
+                "Rerun to try it again on its own; finished work is cached.",
             )
         parsed: Any = response.parsed_output
         if not isinstance(parsed, _Batch):
