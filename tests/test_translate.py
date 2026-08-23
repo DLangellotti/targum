@@ -235,8 +235,8 @@ def offline_client(provider: AnthropicProvider) -> None:
 def test_estimate_is_linear_in_the_length_of_the_text() -> None:
     """The overhead is a fixed cost per batch, not a share of the whole document.
 
-    Charging it as a percentage made the estimate grow with the square of the length: a
-    100k-word novel came out at $422 against a real $8.70, which blocked every book.
+    Charging it as a percentage made the estimate grow with the square of the length,
+    far enough over the cap that no book could be built at all.
     """
     provider = AnthropicProvider(batch_size=20)
     counting_client(provider)
