@@ -22,9 +22,11 @@
     if (href && href.indexOf("?") === -1) link.setAttribute("href", href + suffix);
   });
 
+  // The link says Library, so it goes to the library — not the start page. The same
+  // rule reader.js follows for the section pages.
   var home = document.getElementById("home");
   if (home) {
-    home.href = "/" + suffix;
+    home.href = "/library" + suffix;
     home.hidden = false;
   }
 })();

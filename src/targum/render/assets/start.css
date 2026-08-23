@@ -40,13 +40,13 @@ body.start > .start-main {
   place-items: center;
   padding: 2.5rem 1rem;
   border: 1px dashed var(--rule);
-  border-radius: 10px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--paper-raised) 60%, transparent);
   text-align: center;
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.drop-label { margin: 0; color: var(--ink); font-size: 1rem; }
+.drop-label { margin: 0; color: var(--ink); font-size: 1.0625rem; }
 .drop-note { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .drop button { margin-block-start: 0.6rem; }
 
@@ -79,7 +79,7 @@ body.start > .start-main {
   background: var(--paper-raised);
   border-radius: 0 6px 6px 0;
   color: var(--ink);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
 }
 
@@ -120,7 +120,7 @@ body.start > .start-main {
   align-items: flex-start;
   margin-block-start: 1.1rem;
   color: var(--ink-soft);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.6;
   max-width: 46ch;
 }
@@ -130,7 +130,7 @@ body.start > .start-main {
 .go {
   width: 100%;
   padding: 0.7rem;
-  font-size: 1rem;
+  font-size: 1.0625rem;
   color: var(--paper);
   background: var(--accent);
   border: none;
@@ -145,16 +145,16 @@ body.start > .start-main {
   border: 1px solid var(--rule);
   border-radius: 8px;
   background: var(--paper-raised);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.55;
 }
 .status[hidden] { display: none; }
 .status b { color: var(--ink); }
 .status .cost { display: block; margin-block-start: 0.35rem; color: var(--ink-soft); }
-.status .bar { height: 3px; margin-block-start: 0.6rem; background: var(--rule); border-radius: 2px; }
-.status .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width 300ms ease; }
+.status .bar { height: 3px; margin-block-start: 0.6rem; background: var(--rule); border-radius: 999px; }
+.status .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 300ms ease; }
 .status .row { display: flex; gap: 0.5rem; margin-block-start: 0.7rem; }
-.status.bad { border-color: color-mix(in srgb, #b4553f 60%, var(--rule)); }
+.status.bad { border-color: var(--ink-soft); }
 
 .library { margin-block-start: 3.5rem; }
 .library[hidden] { display: none; }
@@ -185,13 +185,13 @@ body.start > .start-main {
   grid-column: 2;
   grid-row: 2;
   color: var(--ink-soft);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-align: end;
   opacity: 0.8;
 }
 .library-note[hidden] { display: none; }
 .library-export { grid-column: 2; grid-row: 1; display: flex; gap: 0.35rem; }
-.library-export button { padding: 0.15rem 0.5rem; font-size: 0.75rem; }
+.library-export button { padding: 0.15rem 0.5rem; font-size: 0.6875rem; }
 
 .library ul { list-style: none; margin: 0; padding: 0; }
 .library li { border-block-end: 1px solid var(--rule); }
@@ -216,13 +216,13 @@ body.start > .start-main {
 .library a:hover { background: var(--paper-raised); }
 
 .book-main { display: grid; gap: 0.2rem; min-width: 0; }
-.book-title { font-size: 0.95rem; line-height: 1.35; }
+.book-title { font-size: 1.0625rem; line-height: 1.35; }
 .book-title bdi { display: inline-block; max-width: 100%; }
 .book-meta { color: var(--ink-soft); font-size: 0.8125rem; white-space: nowrap; }
 .book-lang {
   flex: none;
   color: var(--ink-soft);
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -240,3 +240,10 @@ body.start > .start-main {
 /* A way through to the picked texts, from the sentence that mentions them. */
 .hint .to-library { color: var(--ink); text-decoration: none; border-block-end: 1px solid var(--rule); }
 .hint .to-library:hover { border-color: var(--accent); }
+
+/* Everything honours prefers-reduced-motion: the progress bar jumps to its width
+   rather than travelling there. */
+@media (prefers-reduced-motion: reduce) {
+  .status .bar i,
+  .drop { transition: none; }
+}

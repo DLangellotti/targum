@@ -1,0 +1,9 @@
+{#- The tab icon, on every page that has a head.
+
+    Carried as data: URIs rather than linked, because a built reader is a single file
+    in a folder of its own: there is no sibling for `href="favicon.svg"` to reach and
+    nothing serving one. The SVG carries its own prefers-color-scheme switch, so the
+    monogram follows the tab strip's theme rather than the page's. -#}
+<link rel="icon" href="{{ data_uri('brand/favicon.svg') }}" type="image/svg+xml">
+<link rel="alternate icon" href="{{ data_uri('brand/favicon-32.png') }}" type="image/png">
+<link rel="apple-touch-icon" href="{{ data_uri('brand/apple-touch-icon-180.png') }}">

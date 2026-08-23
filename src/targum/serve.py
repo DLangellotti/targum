@@ -20,6 +20,7 @@ import traceback
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -125,6 +126,13 @@ document.getElementById("in").addEventListener("submit", function (event) {
 </script>
 </body>
 </html>"""
+
+
+@cache
+def _icon() -> bytes:
+    """The tab icon for /favicon.ico, which only takes a raster."""
+    brand = Path(__file__).parent / "render" / "assets" / "brand"
+    return (brand / "favicon-32.png").read_bytes()
 
 
 @dataclass
@@ -465,11 +473,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
         # The browser asks for this on every page load without being told to, and it
-        # carries no key, so it was answering the stale-session page and putting a
-        # failed request in the console each time. Nothing is disclosed by saying there
-        # is no icon.
+        # carries no key, so it would otherwise answer the stale-session page and put a
+        # failed request in the console each time. Answered before the key check and
+        # served for real: the monogram is public, and a tab with no icon is the one
+        # place the identity is visibly missing.
         if route == "/favicon.ico":
-            return self._send(204, b"", "image/x-icon")
+            return self._send(200, _icon(), "image/png")
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
