@@ -68,18 +68,64 @@
     if (file) take(file);
   });
 
+  var unchoose = document.getElementById("unchoose");
+  var DROP_LABEL = drop.querySelector(".drop-label").textContent;
+  var DROP_NOTE = drop.querySelector(".drop-note").textContent;
+
+  function showChosen() {
+    var picked = chosen !== null;
+    drop.querySelector(".drop-label").textContent = picked ? chosen.name : DROP_LABEL;
+    drop.querySelector(".drop-note").textContent = picked
+      ? Math.round(chosen.size / 1024) + " KB"
+      : DROP_NOTE;
+    document.getElementById("choose").hidden = picked;
+    if (unchoose) unchoose.hidden = !picked;
+  }
+
   function take(file) {
     chosen = file;
     sourceInput.value = "";
-    drop.querySelector(".drop-label").textContent = file.name;
-    drop.querySelector(".drop-note").textContent = Math.round(file.size / 1024) + " KB";
+    showChosen();
   }
 
+  function forget() {
+    chosen = null;
+    fileInput.value = "";
+    showChosen();
+  }
+
+  if (unchoose) unchoose.onclick = forget;
+
+  // Typing a link puts the file down. Leaving the filename on screen while the link is
+  // what gets used left no way to tell which of the two would win.
   sourceInput.addEventListener("input", function () {
-    if (sourceInput.value.trim()) chosen = null;
+    if (sourceInput.value.trim() && chosen) forget();
   });
 
   /* --- building ------------------------------------------------------------ */
+
+  // The language chosen here is the one the library and the words page open on.
+  (function () {
+    var from = document.getElementById("from");
+    var note = document.getElementById("from-beta");
+    var names = window.TARGUM_LANGUAGES || {};
+    var lang = window.TargumLang;
+    var was = lang.current(Object.keys(names));
+    if (was) from.value = was;
+    function say() {
+      var code = from.value;
+      note.hidden = !code || !lang.beta(code);
+      if (!note.hidden) note.textContent = lang.betaNote(code, names);
+      if (code) lang.set(code);
+    }
+    from.addEventListener("change", say);
+    say();
+  })();
+
+  // Nothing on this page is drawn from the word list, so there is nothing to redraw:
+  // sync runs here only so the header can say who is signed in, and so that a browser
+  // that lands here first still claims what it has been keeping.
+  if (window.TargumSync) window.TargumSync.start();
 
   function options() {
     return {
@@ -88,7 +134,10 @@
       // Always. Being able to tap a word is most of what this is for, and a checkbox
       // asking whether you want that is a question nobody should have to answer.
       words: true,
-      gloss: true,
+      // Never from here. A glossary of the whole text is about half of what a build
+      // costs and most of it is never read; words are looked up one at a time, from
+      // the card, when you actually want one. `targum build --gloss` still buys the lot.
+      gloss: false,
     };
   }
 
@@ -104,12 +153,36 @@
     });
   }
 
+  // One blocking request covers fetching the text, reading it through, and the first
+  // time a language is used, some setting up that only ever happens once. A single
+  // unchanging line for all of that reads as a hang, so it keeps talking.
+  function waiting() {
+    var box = document.createDocumentFragment();
+    var text = line("Fetching it…");
+    var note = document.createElement("p");
+    note.className = "hint plain";
+    note.textContent = "";
+    box.appendChild(text);
+    box.appendChild(note);
+    var started = Date.now();
+    var timer = setInterval(function () {
+      var seconds = Math.round((Date.now() - started) / 1000);
+      if (!status.contains(note)) return clearInterval(timer);
+      note.textContent =
+        seconds < 12
+          ? ""
+          : "Still going. The first text in a new language takes a minute or two "
+            + "longer to set up — after that it is quick.";
+    }, 1000);
+    return box;
+  }
+
   go.onclick = function () {
     var payload = options();
     var prepared;
 
     go.disabled = true;
-    say(line("Reading and splitting into sentences…"));
+    say(waiting());
 
     if (chosen) {
       prepared = readFile(chosen).then(function (content) {
@@ -121,7 +194,7 @@
       payload.source = sourceInput.value.trim();
       if (!payload.source) {
         go.disabled = false;
-        say(line("Give a link, an identifier, or a file."), true);
+        say(line("Paste a link, drop a file, or type a Gutenberg or Wikisource id."), true);
         return;
       }
       prepared = ask("/prepare", payload);
@@ -131,6 +204,7 @@
       .then(function (job) {
         go.disabled = false;
         if (job.error) return say(line(job.error), true);
+        if (job.catalogue) return instead(job.catalogue);
         if (job.blocked) return refuse(job);
         offer(job);
       })
@@ -140,6 +214,69 @@
       });
   };
 
+  function describe(job) {
+    return named(job.language) + " · " + job.segments + " sentences";
+  }
+
+  // What it will take, in the only currency the reader is spending: their time. What
+  // it costs us is our business and never theirs — they pay by the month.
+  function price(job) {
+    if (!job.estimate) return "Ready in a moment — this one is already prepared.";
+    var minutes = Math.max(1, Math.round(job.segments / 25));
+    if (minutes <= 1) return "About a minute to get ready.";
+    if (minutes <= 4) return "A couple of minutes to get ready.";
+    return "About " + minutes + " minutes to get ready.";
+  }
+
+  // This text is already in the library with a translation somebody published, which
+  // is both better than a machine one and free. Said before anything is priced.
+  function instead(entry) {
+    var box = document.createDocumentFragment();
+    var head = document.createElement("p");
+    head.className = "instead";
+    head.innerHTML = "<b></b>";
+    head.querySelector("b").textContent = entry.title;
+    head.appendChild(
+      document.createTextNode(
+        " is in the library already, with " +
+          (entry.translations.length === 1
+            ? "a translation"
+            : entry.translations.length + " translations") +
+          " somebody published. Reading it from there costs nothing and is better than " +
+          "anything a model would write for you."
+      )
+    );
+    var row = document.createElement("div");
+    row.className = "row";
+    var go = document.createElement("button");
+    go.type = "button";
+    go.textContent = "Take me to it";
+    go.onclick = function () {
+      window.location.href = "/library?k=" + encodeURIComponent(key);
+    };
+    row.appendChild(go);
+    var anyway = document.createElement("button");
+    anyway.type = "button";
+    anyway.textContent = "Translate it anyway";
+    anyway.onclick = function () {
+      // Deliberate, so it is asked for a second time rather than assumed.
+      go.disabled = anyway.disabled = true;
+      var payload = options();
+      payload.source = sourceInput.value.trim();
+      payload.force_machine = true;
+      say(waiting());
+      ask("/prepare", payload).then(function (job) {
+        if (job.error) return say(line(job.error), true);
+        if (job.blocked) return refuse(job);
+        offer(job);
+      });
+    };
+    row.appendChild(anyway);
+    head.appendChild(row);
+    box.appendChild(head);
+    say(box);
+  }
+
   // Too long or too expensive to translate, said plainly rather than by failing.
   function refuse(job) {
     var box = document.createDocumentFragment();
@@ -147,9 +284,7 @@
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
     head.querySelector("b").textContent = job.title;
-    head.appendChild(
-      document.createTextNode(" — " + job.language + ", " + job.segments + " sentences")
-    );
+    head.appendChild(document.createTextNode(" · " + describe(job)));
     box.appendChild(head);
     var why = document.createElement("span");
     why.className = "cost";
@@ -165,23 +300,19 @@
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
     head.querySelector("b").textContent = job.title;
-    head.appendChild(
-      document.createTextNode(" — " + job.language + ", " + job.segments + " sentences")
-    );
+    head.appendChild(document.createTextNode(" · " + describe(job)));
     box.appendChild(head);
 
     var cost = document.createElement("span");
     cost.className = "cost";
-    cost.textContent = job.estimate
-      ? "Translating it costs about $" + job.estimate.toFixed(2) + "."
-      : "Nothing to pay for this one.";
+    cost.textContent = price(job);
     box.appendChild(cost);
 
     var row = document.createElement("div");
     row.className = "row";
     var confirm = document.createElement("button");
     confirm.type = "button";
-    confirm.textContent = "Translate it";
+    confirm.textContent = "Start reading";
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
         if (state.blocked) return refuse(state);
@@ -193,9 +324,23 @@
     say(box);
   }
 
+  var PLAIN = {
+    "Finding each word's dictionary form…": "Reading the words…",
+    "Adding vowel points…": "Adding vowel points…",
+    "Building the reader…": "Setting the page…",
+  };
+
+  function plain(message) {
+    if (!message) return "Getting it ready…";
+    if (PLAIN[message]) return PLAIN[message];
+    if (message.indexOf("Matching") === 0) return "Lining the translation up…";
+    if (message.indexOf("Looking up") === 0) return "Looking words up…";
+    return "Getting it ready…";
+  }
+
   function watch(job) {
     var box = document.createDocumentFragment();
-    var text = line("Translating…");
+    var text = line("Getting it ready…");
     var bar = document.createElement("div");
     bar.className = "bar";
     bar.appendChild(document.createElement("i"));
@@ -209,8 +354,10 @@
           clearInterval(timer);
           return say(line(state.error), true);
         }
-        text.textContent =
-          state.message || "Translating… " + state.done + " of " + state.total;
+        // The pipeline narrates itself in its own vocabulary. This is the reader's.
+        text.textContent = state.done
+          ? "Getting it ready… " + Math.round((state.done / state.total) * 100) + "%"
+          : plain(state.message);
         var share = state.total ? state.done / state.total : 0;
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
@@ -222,198 +369,9 @@
     }, 700);
   }
 
-  /* --- your library ------------------------------------------------------- */
+  /* --- getting about ------------------------------------------------------- */
 
-  function stored(name) {
-    try {
-      return JSON.parse(localStorage.getItem(name) || "{}");
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function ago(stamp) {
-    if (!stamp) return "";
-    var minutes = Math.round((Date.now() - stamp) / 60000);
-    if (minutes < 2) return "just now";
-    if (minutes < 60) return minutes + " minutes ago";
-    var hours = Math.round(minutes / 60);
-    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
-    var days = Math.round(hours / 24);
-    if (days === 1) return "yesterday";
-    if (days < 30) return days + " days ago";
-    return new Date(stamp).toLocaleDateString();
-  }
-
-  function plural(count, one) {
-    return count + " " + one + (count === 1 ? "" : "s");
-  }
-
-  /* --- exporting everything ------------------------------------------------ */
-
-  function csvCell(value) {
-    var text = value === undefined || value === null ? "" : String(value);
-    return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
-  }
-
-  function download(name, csv) {
-    // A byte order mark, so a spreadsheet opens Hebrew and Russian as UTF-8.
-    var blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 1000);
-  }
-
-  // Everything kept in one language, across every text, with the same word from two
-  // articles folded into one row that names both.
-  function exportLanguage(master, language) {
-    var byKey = {};
-    var order = [];
-    Object.keys(master).forEach(function (id) {
-      var book = master[id];
-      if (book.language !== language) return;
-      (book.entries || []).forEach(function (entry) {
-        var key = entry.kind + ":" + (entry.lemma || entry.text);
-        if (!byKey[key]) {
-          byKey[key] = {
-            text: entry.text,
-            lemma: entry.lemma,
-            level: entry.level,
-            kind: entry.kind,
-            meaning: entry.meaning,
-            from: [],
-          };
-          order.push(key);
-        }
-        if (byKey[key].from.indexOf(book.title) === -1) byKey[key].from.push(book.title);
-      });
-    });
-
-    var header = ["text", "dictionary form", "difficulty", "kind", "meaning", "from"];
-    var rows = order.map(function (key) {
-      var row = byKey[key];
-      return [row.text, row.lemma, row.level, row.kind, row.meaning, row.from.join("; ")];
-    });
-    download(
-      "targum " + language + " words.csv",
-      [header].concat(rows).map(function (row) {
-        return row.map(csvCell).join(",");
-      }).join("\n")
-    );
-  }
-
-  function exportButtons(master, languages) {
-    var box = document.getElementById("library-export");
-    var note = document.getElementById("library-note");
-    if (!box) return;
-    box.textContent = "";
-
-    languages.forEach(function (language) {
-      var button = document.createElement("button");
-      button.type = "button";
-      button.textContent =
-        languages.length > 1 ? named(language) + " CSV" : "Export CSV";
-      button.onclick = function () {
-        exportLanguage(master, language);
-      };
-      box.appendChild(button);
-    });
-
-    // Said on the page rather than hidden in a tooltip, and next to the button it
-    // describes: this is the list you built as you read, not the meanings that appear
-    // when you tap a word.
-    if (note) {
-      note.hidden = !languages.length;
-      note.textContent = languages.length ? "words and phrases you saved" : "";
-    }
-  }
-
-  ask("/library").then(function (data) {
-    var readers = data.readers || [];
-    if (!readers.length) return;
-
-    var master = stored("targum:master");
-    var opened = stored("targum:opened");
-    var list = document.getElementById("library-list");
-
-    // What you are part way through comes first, then whatever is newest.
-    readers.forEach(function (reader) {
-      reader.saved = (master[reader.document] || {}).entries || [];
-      reader.opened = opened[reader.document] || 0;
-    });
-    readers.sort(function (a, b) {
-      return b.opened - a.opened || b.built * 1000 - a.built * 1000;
-    });
-
-    // What you have kept, counted per language: someone reading Hebrew and Russian
-    // wants two totals, not one meaningless sum.
-    var tally = {};
-    Object.keys(master).forEach(function (id) {
-      var book = master[id];
-      (book.entries || []).forEach(function (entry) {
-        var counts = tally[book.language] || (tally[book.language] = { words: 0, phrases: 0 });
-        if (entry.kind === "phrase") counts.phrases += 1;
-        else counts.words += 1;
-      });
-    });
-
-    var languages = Object.keys(tally).sort();
-    var summary = document.getElementById("library-sum");
-    summary.textContent = languages
-      .map(function (code) {
-        var counts = tally[code];
-        var parts = [plural(counts.words, "word")];
-        if (counts.phrases) parts.push(plural(counts.phrases, "phrase"));
-        return named(code) + ": " + parts.join(", ");
-      })
-      .join(" · ");
-
-    // One export per language, since a study list mixing two is not much use.
-    exportButtons(master, languages);
-
-    readers.forEach(function (reader) {
-      var item = document.createElement("li");
-      var link = document.createElement("a");
-      link.href =
-        "/reader/" + reader.name + "/reader/index.html?k=" + encodeURIComponent(key);
-
-      var main = document.createElement("span");
-      main.className = "book-main";
-
-      var title = document.createElement("span");
-      title.className = "book-title";
-      var name = document.createElement("bdi");
-      name.setAttribute("lang", reader.language || "und");
-      name.textContent = reader.title;
-      title.appendChild(name);
-      main.appendChild(title);
-
-      var facts = [];
-      if (reader.saved.length) facts.push(plural(reader.saved.length, "word") + " kept");
-      if (reader.sections > 1) facts.push(plural(reader.sections, "section"));
-      facts.push(reader.opened ? "read " + ago(reader.opened) : "not opened yet");
-
-      var meta = document.createElement("span");
-      meta.className = "book-meta";
-      meta.textContent = facts.join(" · ");
-      main.appendChild(meta);
-      link.appendChild(main);
-
-      var lang = document.createElement("span");
-      lang.className = "book-lang";
-      lang.textContent = reader.language;
-      link.appendChild(lang);
-
-      item.appendChild(link);
-      list.appendChild(item);
-    });
-    document.getElementById("library").hidden = false;
+  Array.prototype.forEach.call(document.querySelectorAll(".site-nav a, .to-library"), function (link) {
+    link.href = link.getAttribute("href") + "?k=" + encodeURIComponent(key);
   });
 })();

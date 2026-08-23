@@ -22,3 +22,11 @@ class ProviderError(TargumError):
 
 class ModelMissing(TargumError):
     """A language model is needed and is not on disk."""
+
+
+class SkeletonChanged(TargumError):
+    """A vocalizer altered a letter instead of only the marks above it.
+
+    Raised per segment rather than per document: one bad sentence falls back to the
+    source's own text, and the rest of the build keeps its vowels.
+    """

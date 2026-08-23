@@ -4,6 +4,16 @@
    round on their own. */
 
 :root {
+  color-scheme: light;
+
+  /* Latin faces first, then Hebrew ones. A Latin serif carries no Hebrew glyphs, so
+     Hebrew falls through to the first face here that has them rather than to whatever
+     the platform picks — which decided how well the nikkud sat, and was left to
+     chance. The CLM faces are the good ones where they are installed; the two after
+     them ship with macOS and Windows respectively. */
+  --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+             "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT",
+             "Times New Roman", serif;
   --measure: 34rem;
   --size: 1.0625rem;
   --leading: 1.75;
@@ -19,8 +29,13 @@
   --focus: #b8935e;
 }
 
+/* Three states, not two. With nothing stamped on <html> the system decides, which is
+   what happens until someone presses the toggle; after that the stamp wins in both
+   directions — the :not() guard is what lets a light choice beat an OS set to dark.
+   color-scheme goes with them so form controls and scrollbars follow. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --ink: #e6e1d8;
     --ink-soft: #9a9288;
     --paper: #171614;
@@ -31,13 +46,24 @@
   }
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+    --ink: #e6e1d8;
+    --ink-soft: #9a9288;
+    --paper: #171614;
+    --paper-raised: #201e1b;
+    --rule: #322e29;
+    --accent: #c8a778;
+    --focus: #c8a778;
+}
+
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font-family: var(--reading);
   font-size: var(--size);
   line-height: var(--leading);
   -webkit-text-size-adjust: 100%;
@@ -70,6 +96,58 @@ body {
 
 .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .group { display: flex; gap: 0.25rem; align-items: center; }
+
+/* Three reading modes in the width two words used to take. The state is carried by a
+   single pill that slides between them rather than by three buttons lighting up, so
+   the control reads as one thing with a position instead of three things with states. */
+.modes {
+  position: relative;
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.modes button {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 0.28rem 0.5rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  transition: color 160ms ease;
+}
+.modes button:hover { color: var(--ink); background: none; }
+.modes button:disabled { opacity: 0.35; cursor: default; }
+.modes button:disabled:hover { color: var(--ink-soft); }
+.modes button.on { color: var(--paper); background: none; }
+.modes button svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+.modes button svg .faint { opacity: 0.55; }
+.modes .slide {
+  position: absolute;
+  z-index: 0;
+  inset-block: 2px;
+  inset-inline-start: 0;
+  width: 0;
+  border-radius: 4px;
+  background: var(--ink-soft);
+}
+/* Only once it has been measured, or it would slide in from the left edge on load. */
+.modes.ready .slide {
+  transition:
+    transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    width 240ms cubic-bezier(0.32, 0.72, 0, 1);
+}
 .group .label { color: var(--ink-soft); margin-inline-end: 0.35rem; }
 
 button, select {
@@ -83,6 +161,22 @@ button, select {
 }
 button:hover, select:hover { color: var(--ink); border-color: var(--ink-soft); }
 button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
+
+[data-theme-toggle] {
+  display: grid;
+  place-items: center;
+  padding: 0.28rem 0.45rem;
+}
+[data-theme-toggle] svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* --- reading surface ---------------------------------------------------- */
 
@@ -142,6 +236,73 @@ main {
   vertical-align: super;
 }
 
+/* Two ways to show one sentence, both in the page, one at a time. Visibility is a class
+   on <body> rather than a hidden attribute on each cell, so the toggle is a single flip
+   and the default survives with no JavaScript at all. */
+.src.pointed { display: none; }
+body.nikkud .src.plain { display: none; }
+body.nikkud .src.pointed { display: revert; }
+
+/* Where the vowels were guessed at rather than read off the source. Marked only while
+   they are on show, and only on the source cell, since that is what they are about.
+   Quieter than .coarse above and deliberately a different glyph: that one means the
+   pairing is approximate, this one means the vowels are.
+
+   Only on a page where some sentences are guessed and some are not. On a modern
+   article every line is guessed, and a mark against all of them told a reader nothing
+   while covering the page in dots; there the Vowels button says it once instead. */
+body.nikkud.mark-guessed .pair.machine .src.pointed {
+  border-inline-start: 2px dotted var(--rule);
+  padding-inline-start: 0.6rem;
+}
+body.nikkud.mark-guessed .pair.machine .src.pointed::after {
+  content: "˙";
+  color: var(--ink-soft);
+  font-size: 0.75em;
+  margin-inline-start: 0.4rem;
+  vertical-align: super;
+}
+
+/* What the single keys do. There is a button for it, because a shortcut nobody can
+   find is not a shortcut, and the arrow keys stop scrolling the page the moment this
+   reader loads — which is worth being able to look up. */
+.keys-card {
+  position: fixed;
+  inset-block-end: 1.25rem;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: fit-content;
+  max-width: min(24rem, calc(100vw - 2rem));
+  z-index: 30;
+  padding: 0.9rem 1.15rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  direction: ltr;
+  text-align: start;
+}
+.keys-card[hidden] { display: none; }
+.keys-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.35rem 0.9rem;
+  margin: 0;
+  align-items: baseline;
+}
+.keys-card dt {
+  font-family: ui-monospace, Menlo, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0 0.35em;
+  justify-self: start;
+}
+.keys-card dd { margin: 0; color: var(--ink-soft); }
+
 .quote { font-style: italic; padding-inline-start: 1rem; border-inline-start: 2px solid var(--rule); }
 
 [dir="rtl"] { line-height: var(--leading-rtl); }
@@ -152,10 +313,27 @@ main {
 
 .method { display: none; }
 
-/* Every word is tappable, but nothing is decorated until you keep it. The page should
-   read as a page, not as a worksheet. */
+/* Every word is tappable, but nothing is decorated until you have said something about
+   it. The page should read as a page, not as a worksheet.
+
+   What you have said travels with the word across every text in the language, so these
+   marks are how a book you have never opened still shows what you already know. The
+   tint fades as a word moves up the scale and goes altogether once it is known: the
+   page gets quieter as you learn it, which is the only progress bar worth having. */
 .w { border-radius: 2px; cursor: pointer; }
-.w.saved { border-block-end: 1px solid var(--accent); }
+
+body.marking .w[data-status="1"] {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+}
+body.marking .w[data-status="2"] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+body.marking .w[data-status="3"] {
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+/* Known and ignored are deliberately plain. A word you have finished with should read
+   like any other word. */
 
 /* Nothing marks a split word in the running text. Most Hebrew words carry a prefix,
    so marking them all decorated the page without telling a reader anything they could
@@ -167,6 +345,10 @@ main {
 
 .gloss-card {
   position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: start;
   inset-block-end: 1.25rem;
   inset-inline: 0;
   margin-inline: auto;
@@ -185,7 +367,62 @@ main {
   text-align: start;
 }
 .gloss-card[hidden] { display: none; }
-.gloss-card .lemma { font-family: inherit; font-weight: 600; }
+.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
+.gloss-card .form { color: var(--ink-soft); font-size: 0.8125em; }
+
+/* How well you know it, and what you want it to say. A scale rather than a switch: the
+   word "save" was hiding a decision the reader wants to make more than once. The same
+   control appears in the card, in the list beside the text and on the words page, so
+   the rules for it live in one place. */
+.vocab-editor { display: flex; flex-direction: column; gap: 0.35rem; }
+.vocab-editor .levels { display: flex; gap: 0.25rem; align-items: center; flex-wrap: wrap; }
+.vocab-editor .level {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.8125em;
+  line-height: 1.4;
+}
+.vocab-editor .level.on {
+  color: var(--paper);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.vocab-editor .level-9, .vocab-editor .level-0 { font-size: 0.75em; }
+.vocab-editor .note-field {
+  width: 100%;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125em;
+}
+.vocab-editor .note-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* The card is now a small form, so it stacks and its control gets room. */
+.pick-card .vocab-editor .note-field { min-width: 12rem; }
+.pick-card .drop-pick { align-self: start; font-size: 0.8125em; color: var(--ink-soft); }
+
+.gloss-card .vocab-editor { width: 100%; }
+
+.gloss-card .look-up {
+  align-self: start;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.8125em;
+  color: var(--ink-soft);
+}
+.gloss-card .look-up:disabled { opacity: 0.6; cursor: default; border-color: transparent; }
+
+/* A meaning you wrote yourself is the one that counts, and it says so quietly. */
+.meaning.mine { color: var(--ink); }
+.meaning.mine::after {
+  content: "·  yours";
+  color: var(--ink-soft);
+  font-size: 0.8em;
+}
+.gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
 .gloss-card .pos {
   color: var(--ink-soft);
   font-style: italic;
@@ -223,6 +460,10 @@ main {
 /* What you are about to keep, shown before you decide. */
 .pick-card {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: start;
   z-index: 30;
   translate: -50% 0;
   width: max-content;
@@ -279,7 +520,7 @@ main {
   font-size: 0.8125rem;
 }
 .list[hidden] { display: none; }
-.list-head, .list-items, .list-empty { direction: ltr; text-align: start; }
+.list-head, .list-items, .list-empty, .list-foot { direction: ltr; text-align: start; }
 
 .list-head {
   display: flex;
@@ -290,34 +531,78 @@ main {
   border-block-end: 1px solid var(--rule);
   color: var(--ink-soft);
 }
-.list-count b {
-  color: var(--ink);
-  font-size: 1.15rem;
+/* Each count stays on its own line rather than breaking between the number and what it
+   counts. The panel is narrow enough that the row wraps instead, which is fine: two
+   counts on two lines still read as two counts. */
+/* Words and phrases are two lists with two counts and two exports, so the panel holds
+   one at a time. Tabs rather than stacked sections: the word list runs to hundreds and
+   anything below it is out of sight. */
+.list-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 0.25rem;
+}
+.list-tabs [role="tab"] {
+  padding: 0.15rem 0.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.list-tabs [role="tab"] b {
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
   margin-inline-end: 0.15rem;
 }
+.list-tabs [role="tab"]:hover { color: var(--ink); background: none; }
+.list-tabs [role="tab"].on { color: var(--ink); background: var(--paper-raised); }
+.list-tabs [role="tab"].on b { color: var(--ink); }
+.list-tabs [role="tab"].bumped b { animation: count-bump 380ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+.list-head > .list-close { flex: none; }
 .list-head button { padding: 0.15rem 0.45rem; font-size: 0.75rem; }
 .list-head .list-close { margin-inline-start: auto; border: none; font-size: 1rem; line-height: 1; }
 
 /* A new entry slides in from where the reader's eye already is. */
-.list-count.bumped b { animation: count-bump 380ms cubic-bezier(0.2, 1.4, 0.4, 1); }
 @keyframes count-bump {
   0% { transform: scale(1); }
   45% { transform: scale(1.4); color: var(--accent); }
   100% { transform: scale(1); }
 }
 
-.list-items {
+/* One scrolling area holding both lists, rather than two that each claim half the
+   panel and fight over it. */
+.list-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+
+.list-items {
   list-style: none;
   margin: 0;
   padding: 0;
 }
+
+.list-items[hidden] { display: none; }
+
+/* The export sits at the foot, out of the way of the list and always reachable. */
+.list-foot {
+  padding-block-start: 0.7rem;
+  margin-block-start: 0.5rem;
+  border-block-start: 1px solid var(--rule);
+}
+.list-foot button { width: 100%; padding: 0.3rem; font-size: 0.75rem; }
+.list-foot button:disabled { opacity: 0.4; cursor: default; }
+.list-foot button:disabled:hover { color: var(--ink-soft); border-color: var(--rule); }
 .list-items li {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* term, difficulty, how well you know it, and the button that drops it. The meaning
+     spans all four on a second row. */
+  grid-template-columns: 1fr auto auto auto;
   gap: 0 0.4rem;
+  align-items: center;
   padding: 0.4rem 0;
   border-block-end: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
   animation: slide-in 320ms ease-out;
@@ -333,6 +618,58 @@ main {
 .list-items .sep { color: var(--ink-soft); margin: 0 0.35rem; opacity: 0.6; }
 .list-items .dict { opacity: 0.7; font-weight: 400; }
 .list-items .kind { color: var(--ink-soft); font-size: 0.75em; }
+.list-items .row-status {
+  justify-self: end;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--ink);
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+.list-items .row-status.status-3 { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* A row opens where it sits rather than in a popup: the panel is narrow, and a card
+   floating over the list would cover the rows either side of the one being set. */
+.list-items li { cursor: pointer; }
+.list-items li.open { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.list-items .row-editor {
+  grid-column: 1 / -1;
+  margin-block-start: 0.45rem;
+  cursor: auto;
+}
+.list-items .row-editor .level { font-size: 0.75rem; padding: 0.1rem 0.35rem; }
+
+/* English chrome inside a panel that inherits the page's direction. Left as-is, a line
+   opening with a number — "34% known here" — has the number reordered to the far end.
+   Set on the text rather than on .list, whose own inset-inline-end places the panel. */
+.list-stats, .list-mark, .list-empty { direction: ltr; text-align: start; }
+
+.list-stats {
+  margin: 0.1rem 0 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.list-mark {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-block-end: 0.7rem;
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.list-mark input { margin: 0; }
+.list-items .kind.is-phrase {
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0 0.3em;
+  font-style: normal;
+}
 .list-items .meaning { grid-column: 1 / -1; color: var(--ink-soft); line-height: 1.4; }
 .list-items .drop {
   border: none;
@@ -369,7 +706,9 @@ main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .list-items li, .list-count.bumped b { animation: none; }
+  .list-items li, .list-tabs [role="tab"].bumped b { animation: none; }
+  #reader.settled { animation: none; }
+  .modes.ready .slide { transition: none; }
 }
 
 /* --- source only --------------------------------------------------------- */
@@ -377,6 +716,36 @@ main {
 .mode-source .pair { grid-template-columns: 1fr; }
 .mode-source .tr { display: none; }
 .mode-source .src { max-width: none; }
+
+/* --- interlinear --------------------------------------------------------- */
+
+/* Each word carries its dictionary meaning underneath, the way a study edition sets
+   it. The running translation goes away: this mode is for reading the source as the
+   source, with just enough help to keep going, and the sentence translation is one
+   key away in parallel.
+
+   Every word becomes an inline block so its meaning can sit under it, which also means
+   the line breaks between words rather than inside one. */
+.mode-inter .pair { grid-template-columns: 1fr; }
+.mode-inter .src, .mode-inter .tr { max-width: none; }
+
+/* The translation sits under the line it translates rather than across a gap from it,
+   which is the whole difference from parallel: on a long line your eye does not have to
+   travel to find the English, and the pair reads as one block. */
+.mode-inter .tr {
+  margin-block-start: 0.35rem;
+  padding-inline-start: 0.9rem;
+  border-inline-start: 2px solid var(--rule);
+}
+.mode-inter .pair { margin-block-end: 1.6rem; }
+
+/* Switching modes moves every line on the page. Fading the text back in over the
+   change reads as one movement rather than as a jump. */
+#reader.settled { animation: settle 200ms ease-out; }
+@keyframes settle {
+  from { opacity: 0.25; }
+  to { opacity: 1; }
+}
 
 /* --- narrow screens ----------------------------------------------------- */
 
@@ -412,6 +781,16 @@ main {
 }
 .pager a { color: var(--ink-soft); text-decoration: none; }
 .pager a:hover { color: var(--ink); }
+
+/* Arrows belong to the direction the page reads in, not to the markup. Written as
+   literal glyphs beside a Hebrew title, "←" sat at the right of the line and pointed
+   away from the page it led to, so back read as forward. These flip with `dir`. */
+.pager .prev::before { content: "\2190"; margin-inline-end: 0.4em; }
+.pager .next::after { content: "\2192"; margin-inline-start: 0.4em; }
+.bar-title .home::before { content: "\2190"; margin-inline-end: 0.35em; }
+[dir="rtl"] .pager .prev::before { content: "\2192"; }
+[dir="rtl"] .pager .next::after { content: "\2190"; }
+[dir="rtl"] .bar-title .home::before { content: "\2192"; }
 
 @media print {
   .bar, .pager { display: none; }

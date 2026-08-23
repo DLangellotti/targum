@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library — targum</title>
+<style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="words shelf">
+{% set here = 'library' %}{% set title = 'Library' %}
+{% include '_nav.html.j2' %}
+
+<main>
+  <section class="panel">
+    <h2>Picked for you</h2>
+    <p class="note" id="picked-note">
+      Each of these comes with a translation by someone who spent years with the text,
+      which reads far better than anything translated on the fly. Start one and it opens
+      in a moment.
+    </p>
+    <ul class="cards" id="catalogue"></ul>
+    <p class="empty" id="picked-empty" hidden></p>
+  </section>
+
+  <section class="panel">
+    <h2>Your reading</h2>
+    <p class="note" id="shelf-note"></p>
+    <ul class="books" id="library-list"></ul>
+  </section>
+</main>
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
+</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('library.js') }}</script>
+</body>
+</html>

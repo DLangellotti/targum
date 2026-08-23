@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
 
-from targum.errors import TargumError
-from targum.models import Document, Style, Translation, read_artifact
-from targum.pipeline import Build
+from targum.errors import ProviderError, TargumError
+from targum.models import (
+    Annotation,
+    Document,
+    SegmentedDocument,
+    Style,
+    Token,
+    Translation,
+    read_artifact,
+)
+from targum.pipeline import Build, Result
 
 
 def build(source: Path, out: Path, segmenter: object, **kwargs: object) -> Build:
@@ -207,3 +216,198 @@ def test_a_changed_source_file_wins_over_the_artifact(
     result = build(source, out, fake_segmenter).run()
     assert "document (edited)" not in result.reused
     assert any("לגמרי" in segment.text for segment in result.segmented.segments)
+
+
+# --- announcing, and opening before the meanings arrive ----------------------
+
+
+class Announcements:
+    """Everything the build told the caller, in order."""
+
+    def __init__(self) -> None:
+        self.said: list[str] = []
+
+    def __call__(self, message: str) -> None:
+        self.said.append(message)
+
+    def mentions(self, word: str) -> bool:
+        return any(word.lower() in message.lower() for message in self.said)
+
+
+class FakeAnnotator:
+    """One token per segment, so the pipeline has words without needing Stanza."""
+
+    name = "fake/1"
+
+    def annotate(self, segmented: SegmentedDocument) -> Annotation:
+        return Annotation(
+            document_hash=segmented.document_hash,
+            language=segmented.language,
+            annotator=self.name,
+            method="frequency",
+            method_note="made up",
+            tokens={
+                segment.id: [
+                    Token(
+                        start=0,
+                        end=len(segment.text.split()[0]),
+                        surface=segment.text.split()[0],
+                        lemma=segment.text.split()[0],
+                        band=3,
+                    )
+                ]
+                for segment in segmented.segments
+                if segment.text.split()
+            },
+        )
+
+
+class FakeGlosses:
+    """Stands in for the Anthropic lookup, and records when it was asked."""
+
+    name = "fake-glosses/1"
+    calls: list[float] = []
+
+    def __init__(self, model: str | None = None, **_: object) -> None:
+        self.model = model
+
+    def available(self) -> tuple[bool, str]:
+        return True, ""
+
+    def gloss(
+        self,
+        lemmas: list[str],
+        source_language: str,
+        target_language: str,
+        on_progress: object = None,
+    ) -> dict[str, tuple[str, str]]:
+        type(self).calls.append(time.time())
+        return {lemma: (f"meaning of {lemma}", "noun") for lemma in lemmas}
+
+
+class FailingGlosses(FakeGlosses):
+    def gloss(self, *args: object, **kwargs: object) -> dict[str, tuple[str, str]]:
+        raise ProviderError("The glossary provider fell over.", "try again later")
+
+
+@pytest.fixture
+def fake_glosses(monkeypatch: pytest.MonkeyPatch) -> type[FakeGlosses]:
+    FakeGlosses.calls = []
+    monkeypatch.setattr("targum.annotate.gloss.AnthropicGlosses", FakeGlosses)
+    return FakeGlosses
+
+
+def glossed_build(source: Path, out: Path, segmenter: object, **kwargs: object) -> Build:
+    return build(
+        source,
+        out,
+        segmenter,
+        gloss=True,
+        annotator=FakeAnnotator(),  # type: ignore[arg-type]
+        **kwargs,
+    )
+
+
+def test_every_slow_stage_announces_itself(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """A stage that works in silence is indistinguishable from a hang.
+
+    `targum serve` shows the last thing the build said, falling back to the translation
+    count. Vowel points and rendering used to say nothing, so the page went on showing
+    the count it had already finished with while they ran.
+    """
+    said = Announcements()
+    build(
+        source,
+        tmp_path / "out",
+        fake_segmenter,
+        difficulty=True,
+        annotator=FakeAnnotator(),  # type: ignore[arg-type]
+        notify=said,
+    ).run()
+
+    assert said.mentions("dictionary form"), said.said
+    assert said.mentions("vowel points"), said.said
+    assert said.mentions("reader"), said.said
+
+
+def test_a_reused_annotation_still_announces_the_stage(
+    source: Path, tmp_path: Path, fake_segmenter: object, fake_glosses: type[FakeGlosses]
+) -> None:
+    """The second run is where this bit: reusing the artifact skipped the message."""
+    out = tmp_path / "out"
+    first = Announcements()
+    glossed_build(source, out, fake_segmenter, notify=first).run()
+
+    again = Announcements()
+    result = glossed_build(source, out, fake_segmenter, notify=again).run()
+
+    assert "difficulty" in result.reused, result.reused
+    assert again.mentions("dictionary form"), again.said
+
+
+def test_the_reader_exists_before_any_word_is_looked_up(
+    source: Path, tmp_path: Path, fake_segmenter: object, fake_glosses: type[FakeGlosses]
+) -> None:
+    """The whole point: something readable, before the long part starts."""
+    out = tmp_path / "out"
+    seen: list[Path] = []
+
+    def ready(result: Result) -> None:
+        # Readable on disk, and the lookups have not begun.
+        assert result.index.exists(), "on_ready fired before anything was written"
+        assert '<main id="reader">' in result.index.read_text(encoding="utf-8")
+        assert fake_glosses.calls == [], "glossing started before the reader opened"
+        seen.append(result.index)
+
+    result = glossed_build(source, out, fake_segmenter).run(on_ready=ready)
+
+    assert seen, "on_ready never fired"
+    assert fake_glosses.calls, "the glossary was never built"
+    assert result.glossary is not None
+
+
+def test_the_meanings_are_baked_in_afterwards(
+    source: Path, tmp_path: Path, fake_segmenter: object, fake_glosses: type[FakeGlosses]
+) -> None:
+    """Opening the file again must not depend on a server being there to hand them over."""
+    out = tmp_path / "out"
+    at_open: list[str] = []
+    result = glossed_build(source, out, fake_segmenter).run(
+        on_ready=lambda r: at_open.append(r.index.read_text(encoding="utf-8"))
+    )
+
+    assert "meaning of" not in at_open[0]
+    assert "meaning of" in result.index.read_text(encoding="utf-8")
+    assert (out / "glossary.json").exists()
+
+
+def test_a_failed_lookup_costs_the_meanings_not_the_reader(
+    source: Path, tmp_path: Path, fake_segmenter: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Someone is already reading it. Do not take the book back."""
+    monkeypatch.setattr("targum.annotate.gloss.AnthropicGlosses", FailingGlosses)
+    said = Announcements()
+    out = tmp_path / "out"
+
+    result = glossed_build(source, out, fake_segmenter, notify=said).run()
+
+    assert result.index.exists()
+    assert result.glossary is None
+    assert said.mentions("without word meanings"), said.said
+
+
+def test_the_second_pass_leaves_no_stale_section_files(
+    source: Path, tmp_path: Path, fake_segmenter: object, fake_glosses: type[FakeGlosses]
+) -> None:
+    """It writes over the directory rather than emptying it, so check nothing lingers."""
+    out = tmp_path / "out"
+    before: list[str] = []
+    result = glossed_build(source, out, fake_segmenter).run(
+        on_ready=lambda r: before.extend(sorted(p.name for p in r.pages))
+    )
+    after = sorted(path.name for path in result.pages)
+
+    assert before == after
+    assert sorted(p.name for p in (out / "reader").glob("*.html")) == after

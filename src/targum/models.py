@@ -8,6 +8,7 @@ never serve a stale artifact against new code.
 from __future__ import annotations
 
 import json
+import os
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypeVar
@@ -18,7 +19,8 @@ from .ids import content_hash
 
 # 2: M2 added source_hash and ingester to Document, and the byline block kind.
 # 3: M3 added Link and Alignment. M4 added Token and Annotation.
-SCHEMA_VERSION = 3
+# 4: added Vocalization.
+SCHEMA_VERSION = 4
 
 # BCP-47 primary subtags written right to left.
 RTL_LANGUAGES = frozenset({"he", "iw", "ar", "fa", "ur", "yi", "ji", "arc", "dv", "ps", "sd", "ug"})
@@ -48,11 +50,21 @@ class Artifact(BaseModel):
     schema_version: int = SCHEMA_VERSION
 
     def write(self, path: Path) -> Path:
+        """Write it whole, or not at all.
+
+        The glossary is rewritten every batch while a reader is polling for it, so a
+        half-written file is a thing someone can actually read. Writing beside the
+        target and renaming makes every read see one complete version or the previous
+        one; rename is atomic within a directory on every platform targum runs on.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(self.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        body = json.dumps(self.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n"
+        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+        try:
+            temporary.write_text(body, encoding="utf-8")
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
         return path
 
 
@@ -248,3 +260,27 @@ class Translation(Artifact):
     @property
     def direction(self) -> str:
         return direction_for(self.target_language)
+
+
+class Vocalization(Artifact):
+    """The pointed form of each segment, for the reader's nikkud toggle.
+
+    Nikkud only ever adds marks above the letters, never changes them, so every entry
+    here has the same consonant skeleton as the segment it belongs to. Segments that end
+    up with no marks at all are left out: there is nothing to toggle for them.
+    """
+
+    document_hash: str
+    language: str
+    vocalizer: str
+    model: str | None = None
+    segments: dict[str, str] = Field(default_factory=dict)
+    # Segments carrying at least one word a diacritizer pointed rather than the source.
+    # The reader marks these, because a diacritizer is 55-73% right on classical Hebrew
+    # and a visibly uncertain vowel beats a confidently wrong one. Same reasoning as
+    # Translation.coarse above.
+    machine: list[str] = Field(default_factory=list)
+    # Segments whose vocalized form was refused because it changed a letter rather than
+    # only the marks. Kept rather than merely counted: which sentence broke is the first
+    # thing worth knowing when a diacritizer starts misbehaving.
+    rejected: list[str] = Field(default_factory=list)

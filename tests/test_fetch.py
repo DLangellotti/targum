@@ -10,7 +10,7 @@ from targum import ingest
 from targum.errors import TargumError, UnsupportedSource
 from targum.ingest import fetch
 from targum.ingest.fetch.gutenberg import GutenbergFetcher, strip_boilerplate
-from targum.ingest.fetch.wikisource import split_identifier
+from targum.ingest.fetch.wikisource import drop_trailing_navigation, split_identifier
 from targum.models import BlockKind
 
 
@@ -104,6 +104,55 @@ def test_markdown_output_does_not_double_the_byline(tmp_path: Path) -> None:
     source.write_text("---\nauthor: An Author\n---\n\n# T\n\nBody.\n", encoding="utf-8")
     written = ingest.to_markdown(ingest.load(str(source)))
     assert written.count("An Author") == 1
+
+
+def _para(kind: BlockKind, text: str) -> tuple[BlockKind, int, str]:
+    return (kind, 1, text)
+
+
+def test_trailing_wiki_navigation_is_dropped() -> None:
+    """A "see also" block is the wiki talking, and it was being translated and paid for."""
+    kept = drop_trailing_navigation(
+        [
+            _para(BlockKind.heading, "אל הציפור"),
+            _para(BlockKind.paragraph, "שלום רב שובך"),
+            _para(BlockKind.heading, "ראו גם"),
+            _para(BlockKind.paragraph, "ביאור:אל הציפור"),
+            _para(BlockKind.paragraph, "טקסט זה הועתק מפרויקט בן-יהודה."),
+        ]
+    )
+    assert [text for _, _, text in kept] == ["אל הציפור", "שלום רב שובך"]
+
+
+def test_several_navigation_sections_go_together() -> None:
+    kept = drop_trailing_navigation(
+        [
+            _para(BlockKind.heading, "Walden"),
+            _para(BlockKind.paragraph, "I went to the woods"),
+            _para(BlockKind.heading, "See also"),
+            _para(BlockKind.paragraph, "link"),
+            _para(BlockKind.heading, "External links"),
+            _para(BlockKind.paragraph, "link"),
+        ]
+    )
+    assert [text for _, _, text in kept] == ["Walden", "I went to the woods"]
+
+
+def test_navigation_wording_inside_a_work_is_kept() -> None:
+    """Only the end of a page, so a real chapter called "Notes" survives."""
+    paragraphs = [
+        _para(BlockKind.heading, "Notes"),
+        _para(BlockKind.paragraph, "body"),
+        _para(BlockKind.heading, "Chapter 1"),
+        _para(BlockKind.paragraph, "text"),
+    ]
+    assert drop_trailing_navigation(paragraphs) == paragraphs
+
+
+def test_a_page_that_is_only_a_navigation_heading_is_left_alone() -> None:
+    """Emptying the document would turn a thin page into "no readable text"."""
+    paragraphs = [_para(BlockKind.heading, "See also"), _para(BlockKind.paragraph, "x")]
+    assert drop_trailing_navigation(paragraphs) == paragraphs
 
 
 # --- live ---------------------------------------------------------------------

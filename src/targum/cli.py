@@ -25,7 +25,10 @@ from .pipeline import Build
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Turn a text and its translations into a bilingual HTML reader.",
+    help=(
+        "Read a text in the language you are learning, with a translation beside it.\n\n"
+        "Start with: targum serve"
+    ),
 )
 models_app = typer.Typer(no_args_is_help=True, help="Manage language models.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
@@ -34,6 +37,35 @@ app.add_typer(cache_app, name="cache")
 
 console = Console()
 err = Console(stderr=True)
+
+
+def _show_version(value: bool) -> None:
+    """The first question anyone helping with a bug report asks."""
+    if not value:
+        return
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        console.print(f"targum {version('targum')}")
+    except PackageNotFoundError:  # running from a source tree
+        console.print("targum (unpackaged source tree)")
+    raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_show_version,
+            is_eager=True,
+            help="Show the version and exit.",
+        ),
+    ] = False,
+) -> None:
+    return
+
 
 # Above this, a run asks before it spends.
 CONFIRM_ABOVE_USD = 0.50
@@ -47,23 +79,171 @@ def fail(error: TargumError) -> None:
 
 
 @app.command()
+def serve(
+    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8420,
+    out: Annotated[Path | None, typer.Option("--out", help="Where readers are kept.")] = None,
+    open_browser: Annotated[
+        bool, typer.Option("--open/--no-open", help="Open the page automatically.")
+    ] = True,
+    max_cost: Annotated[
+        float, typer.Option("--max-cost", help="Most one text may cost, in dollars.")
+    ] = 2.00,
+    budget: Annotated[
+        float, typer.Option("--budget", help="Most this session may spend, in dollars.")
+    ] = 10.00,
+    store: Annotated[
+        Path | None, typer.Option("--store", help="Where your words are kept.")
+    ] = None,
+) -> None:
+    """Open a page for building readers, without the terminal."""
+    from .serve import default_store, start
+
+    directory = out or Path.cwd() / "targum-out"
+    words = store or default_store()
+    directory.mkdir(parents=True, exist_ok=True)
+
+    def announce(address: str) -> None:
+        # The key is part of the address, so it has to be printed with it — and it is
+        # a different key every start, which is why a bookmark of this never works.
+        console.print(f"[green]targum[/green] is at [bold]{address}[/bold]")
+        console.print(
+            "[dim]It should have opened by itself. This link changes every time targum "
+            "starts, so open it from here rather than from a bookmark.[/dim]"
+        )
+        console.print(
+            "[dim]Only this machine can reach it. Keep this window open while you read; "
+            "Ctrl-C here stops it.[/dim]"
+        )
+        console.print(f"[dim]Your readers are saved in {directory}[/dim]")
+        # Said separately from the readers, because it is somewhere else on purpose:
+        # readers can be rebuilt and a word list cannot, so deleting the one must not
+        # be a way of losing the other.
+        console.print(f"[dim]Your words are kept in {words}, and stay there.[/dim]")
+        console.print(
+            f"[dim]Spending is capped at ${max_cost:.2f} per text and ${budget:.2f} this "
+            f"session. You see the price before anything is spent.[/dim]"
+        )
+
+    try:
+        start(
+            directory,
+            store=words,
+            port=port,
+            open_browser=open_browser,
+            max_cost=max_cost,
+            budget=budget,
+            announce=announce,
+        )
+    except TargumError as error:
+        fail(error)
+    console.print(f"[dim]Stopped. Your readers are still in {directory}[/dim]")
+
+
+@app.command()
+def rebuild(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the readers are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Rewrite every reader from what is already on disk.
+
+    targum bakes its stylesheet and its JavaScript into each reader as it writes it, so
+    a reader built last month is still the reader targum wrote last month. This rewrites
+    them all from the artifacts beside them: nothing is fetched and nothing is spent,
+    and anything the reader has learned to do since arrives in the ones you already have.
+    """
+    from .models import (
+        Annotation,
+        Document,
+        Glossary,
+        SegmentedDocument,
+        Translation,
+        Vocalization,
+        read_artifact,
+    )
+    from .render import render as render_reader
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No readers in {root}.", "Build one first: targum serve"))
+
+    done = 0
+    skipped: list[tuple[str, str]] = []
+    for folder in sorted(root.iterdir()):
+        if not folder.is_dir() or folder.name == "uploads":
+            continue
+        document = read_artifact(Document, folder / "document.json")
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            skipped.append((folder.name, "no text on disk"))
+            continue
+        translations = [
+            translation
+            for path in sorted((folder / "translations").glob("*.json"))
+            if (translation := read_artifact(Translation, path)) is not None
+        ]
+        if not translations:
+            # Ingested and priced, then never paid for. There is nothing to read.
+            skipped.append((folder.name, "never translated"))
+            continue
+        pages = render_reader(
+            document,
+            segmented,
+            translations,
+            folder / "reader",
+            annotation=read_artifact(Annotation, folder / "annotation.json"),
+            glossary=read_artifact(Glossary, folder / "glossary.json"),
+            vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+        )
+        done += 1
+        console.print(
+            f"[dim]  {document.title or folder.name} ({len(pages)} file"
+            f"{'' if len(pages) == 1 else 's'})[/dim]"
+        )
+
+    for name, why in skipped:
+        console.print(f"[dim]  skipped {name} — {why}[/dim]")
+    console.print(
+        f"[green]Rewrote {done} reader{'' if done == 1 else 's'}.[/green] "
+        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+    )
+
+
+@app.command()
 def build(
     # A string, not a Path: pathlib collapses the double slash in https:// and would
     # quietly turn every link into a missing file.
     source: Annotated[
         str, typer.Argument(help="A file, a link, or gutenberg:/wikisource: by name.")
     ],
-    to: Annotated[str, typer.Option("--to", help="Target language, as a BCP-47 tag.")] = "en",
+    to: Annotated[
+        str,
+        typer.Option("--to", help="Translate into: he, ru, en, ar, fr, es, de, la."),
+    ] = "en",
     source_language: Annotated[
         str | None,
         typer.Option("--from", help="Source language. Detected from the script if omitted."),
     ] = None,
     style: Annotated[
-        Style, typer.Option("--style", help="Idiomatic, or close to the source structure.")
+        Style,
+        typer.Option(
+            "--style",
+            help="natural: idiomatic English. direct: close to the original's structure.",
+        ),
     ] = Style.natural,
-    provider: Annotated[str | None, typer.Option("--provider")] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option("--provider", help="Translation provider. Default: anthropic."),
+    ] = None,
     model: Annotated[str | None, typer.Option("--model", help="Provider model id.")] = None,
-    out: Annotated[Path | None, typer.Option("--out", help="Where to write.")] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            help="Folder for the reader and its files. Default: ./targum-out/<title>-<lang>/",
+        ),
+    ] = None,
     translation: Annotated[
         list[Path] | None,
         typer.Option(
@@ -87,32 +267,42 @@ def build(
     ] = False,
     gloss: Annotated[
         bool,
-        typer.Option("--gloss", help="Also look up every word. Implies --difficulty."),
+        typer.Option(
+            "--gloss",
+            help="Look up every word up front. Costs money, and implies --words. "
+            "Reading through targum serve, you can look words up one at a time instead.",
+        ),
     ] = False,
-    force: Annotated[bool, typer.Option("--force", help="Redo every stage.")] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Rebuild from scratch, ignoring anything cached."),
+    ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
     """Build a bilingual reader from one text."""
-    settings = config_module.load()
-    builder = Build(
-        source,
-        target_language=to,
-        source_language=source_language,
-        style=style,
-        provider_name=provider or settings.provider,
-        model=model or settings.model,
-        out=out or (Path(settings.out) if settings.out else None),
-        force=force,
-        batch_size=settings.batch_size,
-        effort=settings.effort,
-        translations=translation or [],
-        machine=machine,
-        difficulty=words,
-        gloss=gloss,
-        notify=lambda message: console.print(f"[dim]{message}[/dim]"),
-    )
-
+    # Inside the try, not before it. A mistyped --provider, or a stray key in the
+    # config file, raised straight through Typer as a traceback: the one-line
+    # message those errors carry never reached anyone.
     try:
+        settings = config_module.load()
+        builder = Build(
+            source,
+            target_language=to,
+            source_language=source_language,
+            style=style,
+            provider_name=provider or settings.provider,
+            model=model or settings.model,
+            out=out or (Path(settings.out) if settings.out else None),
+            force=force,
+            batch_size=settings.batch_size,
+            effort=settings.effort,
+            translations=translation or [],
+            machine=machine,
+            difficulty=words,
+            gloss=gloss,
+            notify=lambda message: console.print(f"[dim]{message}[/dim]"),
+        )
+
         if words or gloss:
             from .annotate import frequency_available
             from .annotate.frequency import MISSING
@@ -120,12 +310,15 @@ def build(
             if not frequency_available():
                 raise TargumError(*MISSING)
 
+        with console.status("Reading and segmenting..."):
+            plan = builder.plan()
+
+        # After ingest, not before it. Checked first, a .pdf and a file that is not
+        # there both answered "Provider 'anthropic' is not ready", which is neither
+        # the problem nor a thing anyone can act on.
         usable, detail = builder.provider.available()
         if builder.machine and not usable:
             raise TargumError(f"Provider '{builder.provider_name}' is not ready.", detail)
-
-        with console.status("Reading and segmenting..."):
-            plan = builder.plan()
 
         count = len(plan.segmented.segments) if plan.segmented else 0
         console.print(
@@ -136,7 +329,9 @@ def build(
         if plan.needs_payment:
             console.print(f"[dim]Estimated cost: about ${plan.estimated_cost:.2f}[/dim]")
             if plan.estimated_cost > CONFIRM_ABOVE_USD and not yes:
-                if not typer.confirm("Translate?", default=True):
+                if not typer.confirm(
+                    f"Translate for about ${plan.estimated_cost:.2f}?", default=True
+                ):
                     raise typer.Abort()
 
         if plan.cached_translation is not None:
@@ -179,8 +374,8 @@ def build(
         console.print(f"[dim]Reused: {', '.join(result.reused)}[/dim]")
     pages = len(result.pages) - (0 if len(result.pages) == 1 else 1)
     console.print(
-        f"[green]Wrote[/green] {result.index} [dim]({pages} section"
-        f"{'' if pages == 1 else 's'})[/dim]"
+        f"[green]Done.[/green] Open {result.index} in a browser "
+        f"[dim]({pages} part{'' if pages == 1 else 's'})[/dim]"
     )
 
 
@@ -338,52 +533,12 @@ def align(
 
 
 @app.command()
-def serve(
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8420,
-    out: Annotated[Path | None, typer.Option("--out", help="Where readers are kept.")] = None,
-    open_browser: Annotated[
-        bool, typer.Option("--open/--no-open", help="Open the page automatically.")
-    ] = True,
-    max_cost: Annotated[
-        float, typer.Option("--max-cost", help="Most one text may cost, in dollars.")
-    ] = 2.00,
-    budget: Annotated[
-        float, typer.Option("--budget", help="Most this session may spend, in dollars.")
-    ] = 10.00,
-) -> None:
-    """Open a page for building readers, without the terminal."""
-    from .serve import start
-
-    directory = out or Path.cwd() / "targum-out"
-    directory.mkdir(parents=True, exist_ok=True)
-    console.print(f"[dim]Readers are kept in {directory}[/dim]")
-
-    def announce(address: str) -> None:
-        # The key is part of the address, so it has to be printed with it.
-        console.print(f"[green]targum[/green] is at [bold]{address}[/bold]")
-        console.print("[dim]Only this machine can reach it. Ctrl-C to stop.[/dim]")
-
-    console.print(
-        f"[dim]Spending is capped at ${max_cost:.2f} for one text and "
-        f"${budget:.2f} for this session.[/dim]"
-    )
-    start(
-        directory,
-        port=port,
-        open_browser=open_browser,
-        max_cost=max_cost,
-        budget=budget,
-        announce=announce,
-    )
-    console.print("[dim]Stopped.[/dim]")
-
-
-@app.command()
 def sources() -> None:
     """List everything targum can read."""
-    for name in ingest.sources():
-        console.print(f"  {name}")
-    console.print("[dim]PDF is not supported.[/dim]")
+    console.print("  [bold]Files[/bold]      .epub, .txt, .md")
+    console.print("  [bold]Links[/bold]      any article, essay or wiki page")
+    console.print("  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>")
+    console.print("[dim]Not PDF. Save one as text or markdown first.[/dim]")
 
 
 @app.command()
@@ -398,7 +553,7 @@ def providers() -> None:
         usable, detail = instance.available()
         table.add_row(name, "[green]yes[/green]" if usable else "[yellow]no[/yellow]", detail)
     console.print(table)
-    console.print(f"[dim]Config: {config_path()}[/dim]")
+    console.print(f"[dim]Settings file: {config_path()} (optional)[/dim]")
 
 
 @models_app.command("list")
@@ -431,7 +586,7 @@ def models_fetch(
         if embedding.is_downloaded():
             console.print("[dim]The embedding model is already downloaded.[/dim]")
             return
-        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.8 GB...[/dim]")
+        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.8 GB…[/dim]")
         try:
             embedding.SentenceTransformerEncoder().encoder()
         except TargumError as error:
@@ -473,7 +628,7 @@ def main() -> None:
     try:
         app()
     except KeyboardInterrupt:
-        err.print("[dim]Stopped. Finished work is cached.[/dim]")
+        err.print("[dim]Stopped. Anything that finished earlier is cached.[/dim]")
         sys.exit(130)
 
 

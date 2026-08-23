@@ -4,12 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>targum</title>
-<style>{{ asset('reader.css') }}{{ asset('start.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('start.css') }}{{ asset('library.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
 </head>
 <body class="start">
+{% set here = 'read' %}
+{% include '_nav.html.j2' %}
 <main class="start-main">
-  <h1>targum</h1>
-  <p class="lede">Read in the language you are learning, translation beside it.</p>
+  <p class="lede">Read Hebrew with the translation beside it.</p>
+
+  {% if no_key %}
+  <p class="notice" role="status">{{ no_key }}</p>
+  {% endif %}
 
   <section class="step">
     <h2>What do you want to read?</h2>
@@ -19,55 +25,54 @@
       <p class="drop-note">EPUB, plain text, or markdown</p>
       <input type="file" id="file" accept=".txt,.md,.markdown,.epub" hidden>
       <button type="button" id="choose">Choose a file</button>
+      <button type="button" id="unchoose" class="unchoose" hidden>Use something else</button>
     </div>
 
     <p class="or">or paste a link</p>
 
     <label class="field">
-      <input type="text" id="source" placeholder="https://www.bbc.com/news/articles/…" spellcheck="false">
+      <input type="text" id="source" placeholder="https://…" spellcheck="false">
     </label>
-    <p class="hint">Any article, essay or wiki page. Not logins, paywalls or web apps.</p>
-    <p class="hint">Also by name: <code>gutenberg:1342</code>,
-      <code>wikisource:Walden</code>. No PDF.</p>
+    <p class="hint">A news story, an essay, a blog post, a Wikipedia article. Not
+      something behind a login or a paywall, and not a PDF.</p>
+    <p class="hint">Looking for a book? There are some
+      <a class="to-library" href="/library">picked out for you</a>, ready to read.</p>
   </section>
 
   <section class="step">
     <h2>Which languages?</h2>
     <div class="options">
       <label class="field short">
-        <span>I am learning</span>
+        <span>I am reading</span>
         <select id="from">
-          <option value="">detect it</option>
-          {% for code, name in languages %}<option value="{{ code }}">{{ name }}</option>{% endfor %}
+          {% for code, name in languages %}<option value="{{ code }}"{% if code == 'he' %} selected{% endif %}>{{ name }}{% if code != 'he' %} (beta){% endif %}</option>{% endfor %}
+          <option value="">work it out for me</option>
         </select>
       </label>
       <label class="field short">
-        <span>My language</span>
+        <span>Translate into</span>
         <select id="to">
           {% for code, name in languages %}<option value="{{ code }}"{% if code == 'en' %} selected{% endif %}>{{ name }}</option>{% endfor %}
         </select>
       </label>
     </div>
+    <p class="hint" id="from-beta" hidden></p>
   </section>
 
   <button type="button" id="go" class="go">Read this</button>
+  <p class="hint caps">Long books take longer to get ready. You will see roughly how
+    long before it starts.</p>
   <div class="status" id="status" hidden></div>
 
-  <section class="library" id="library" hidden>
-    <div class="library-head">
-      <h2>Your library</h2>
-      <span class="library-sum" id="library-sum"></span>
-      <span class="library-export" id="library-export"></span>
-      <span class="library-note" id="library-note" hidden></span>
-    </div>
-    <ul id="library-list"></ul>
-  </section>
 </main>
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LIMIT = {{ limit }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 </script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
 <script>{{ asset('start.js') }}</script>
 </body>
 </html>

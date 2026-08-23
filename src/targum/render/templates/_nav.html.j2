@@ -1,0 +1,43 @@
+{#- The same header on every page: the name on the left, the three places you can be,
+    and the light switch. It is one file because three copies of a navigation bar drift
+    apart — they had already drifted into three different orders.
+
+    Set `here` to "read", "library" or "words" before including this. -#}
+<header class="site-head">
+  <div class="site-head-row">
+    <a class="brand" href="/">targum</a>
+    <nav class="site-nav" aria-label="Pages">
+      <a href="/" data-nav="read"{% if here == 'read' %} class="on" aria-current="page"{% endif %}>Read something</a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
+      <a href="/words" data-nav="words"{% if here == 'words' %} class="on" aria-current="page"{% endif %}>Your words</a>
+    </nav>
+    <div class="account" id="account">
+      <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
+        Sign in
+      </button>
+      <div class="account-panel" id="account-panel" role="dialog" aria-label="Your account" hidden>
+        <div class="signed-out">
+          <p>Sign in and your words follow you — to your phone, and to any browser you
+          open this in. Nothing to remember: we email you a link.</p>
+          <form id="account-form">
+            <input type="email" id="account-email" placeholder="you@example.com"
+                   autocomplete="email" spellcheck="false" required>
+            <button type="submit">Email me a link</button>
+          </form>
+        </div>
+        <div class="signed-in" hidden>
+          <p class="whom" id="account-whom"></p>
+          <p class="kept" id="account-kept"></p>
+          <button type="button" id="account-out">Sign out</button>
+        </div>
+        <p class="said" id="account-said" hidden></p>
+      </div>
+    </div>
+    <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+  </div>
+  {% if title %}<h1>{{ title }}</h1>{% endif %}
+  {%- if here in ('library', 'words') %}
+  <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>
+  <p class="beta-note" id="beta-note" hidden></p>
+  {%- endif %}
+</header>
