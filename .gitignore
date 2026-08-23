@@ -22,3 +22,6 @@ Targum.command
 
 # macOS
 .DS_Store
+
+# Claude Code session checkpoints
+.claude/
