@@ -270,7 +270,25 @@
     return item;
   }
 
+  function roomName() {
+    var found = SHELVES.filter(function (room) {
+      return room.id === shelf;
+    })[0];
+    return found ? found.name : "Library";
+  }
+
+  // The page is a room now, not a panel on a page, so the heading and the browser tab
+  // both have to say which room — otherwise a bookmarked Beit Midrash comes back
+  // titled "Library", and so does the h1 above the tabs.
+  function nameTheRoom() {
+    var name = roomName();
+    var heading = document.getElementById("page-title");
+    if (heading) heading.textContent = name;
+    document.title = name + " — targum";
+  }
+
   function drawPicked(code) {
+    nameTheRoom();
     var host = document.getElementById("catalogue");
     var empty = document.getElementById("picked-empty");
     var note = document.getElementById("picked-note");

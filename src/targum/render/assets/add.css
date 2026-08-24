@@ -28,7 +28,7 @@ body.add > .add-main {
   font-family: system-ui, sans-serif;
 }
 
-.start .lede {
+.add .lede {
   margin: 0 0 2.5rem;
   font-family: var(--reading);
   font-size: 1.75rem;
@@ -68,6 +68,11 @@ body.add > .add-main {
 }
 .field input:focus, .field select:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
 .hint { margin: -0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.6; }
+/* Said before anything is priced, so it sits with the heading rather than with the
+   form. The link is the only accent above the fold — the button below it is the page's
+   primary action and keeps its own. */
+.add .lede + .hint { margin: -1.75rem 0 2.5rem; }
+.to-library { color: var(--accent); }
 /* Two hints in a row sat on top of each other: the rule above pulls each one up under
    the field it explains, and with no bottom margin the second climbed into the first. */
 .hint + .hint { margin-block-start: 0.55rem; }

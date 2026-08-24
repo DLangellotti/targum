@@ -489,11 +489,16 @@ def test_the_words_page_stands_on_its_own() -> None:
     assert 'id="growth"' in html  # kept over time
     assert 'id="bands"' in html  # how common they are
 
-    script = (ASSETS / "words.js").read_text(encoding="utf-8")
-    # The same three stores the reader writes, and no fourth copy of anything.
+    # The same three stores the reader writes, and no fourth copy of anything. The
+    # reading of them lives in charts.js, because Learn draws the same numbers from the
+    # same shape and a second collector is the one that stops matching.
+    script = (ASSETS / "charts.js").read_text(encoding="utf-8")
     assert '"targum:vocab:"' in script
     assert '"targum:picked:"' in script
     assert '"targum:docs"' in script
+    for page in ("words.js", "learn.js"):
+        source = (ASSETS / page).read_text(encoding="utf-8")
+        assert "function collect(" not in source, f"{page} should share the collector"
 
     css = (ASSETS / "words.css").read_text(encoding="utf-8")
     # One ordered ramp, stepped for each surface rather than flipped: on paper the
