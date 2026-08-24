@@ -8,6 +8,7 @@ rather than meet a page saying "Coming soon". Everything else stays shut.
 from __future__ import annotations
 
 import re
+from html import unescape
 from pathlib import Path
 
 import pytest
@@ -18,10 +19,15 @@ from targum.render.builder import shelf_page, text_page
 ADDRESS = "https://targum.page"
 
 
-def strip(html: str) -> str:
-    """The text a crawler indexes: no style block, no markup."""
-    html = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", html, flags=re.S)
-    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+def strip(markup: str) -> str:
+    """The text a crawler indexes: no style block, no markup, entities resolved.
+
+    Unescaping matters: Jinja turns the apostrophe in "Nevi'im" into `&#39;`, correctly,
+    so comparing raw catalogue strings against raw HTML fails on exactly the entries
+    whose names carry one.
+    """
+    markup = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", markup, flags=re.S)
+    return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
 # -- the shelves --------------------------------------------------------------
@@ -44,10 +50,15 @@ def test_a_shelf_holds_only_its_own_texts() -> None:
                 assert f'href="/{entry.shelf.value}/{entry.id}"' not in html
 
 
-def test_an_empty_shelf_says_so_rather_than_pretending() -> None:
-    """The Beit Midrash is empty until Sefaria lands, and should admit it."""
-    empty = [shelf for shelf in Shelf if not on(shelf)]
-    for shelf in empty:
+def test_an_empty_shelf_says_so_rather_than_pretending(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A shelf with nothing on it admits it.
+
+    Tested by emptying one rather than by waiting for one to be empty: both shelves have
+    texts now, so the earlier version of this found nothing to check and passed without
+    asserting anything at all.
+    """
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", [])
+    for shelf in Shelf:
         assert "Nothing here yet" in shelf_page(shelf, ADDRESS)
 
 
@@ -67,10 +78,10 @@ def test_every_text_page_carries_what_a_search_engine_needs(entry: object) -> No
 @pytest.mark.parametrize("entry", CATALOGUE, ids=lambda e: e.id)
 def test_a_text_page_is_about_the_text(entry: object) -> None:
     """Whoever arrives searched for the book, not for a reading tool."""
-    html = text_page(entry, ADDRESS)  # type: ignore[arg-type]
-    assert entry.title in html  # type: ignore[attr-defined]
-    assert entry.author in html  # type: ignore[attr-defined]
-    assert entry.blurb in html  # type: ignore[attr-defined]
+    text = strip(text_page(entry, ADDRESS))  # type: ignore[arg-type]
+    assert entry.title in text  # type: ignore[attr-defined]
+    assert entry.author in text  # type: ignore[attr-defined]
+    assert entry.blurb in text  # type: ignore[attr-defined]
 
 
 def test_the_sample_is_real_reading_in_both_languages() -> None:
@@ -104,13 +115,13 @@ def test_a_translation_is_named_wherever_a_text_is_shown() -> None:
     is also the obligation being discharged by the code rather than by memory.
     """
     for entry in CATALOGUE:
-        html = text_page(entry, ADDRESS)
+        text = strip(text_page(entry, ADDRESS))
         for rendering in entry.translations:
-            assert rendering.name in html
+            assert rendering.name in text
             if rendering.publisher:
-                assert rendering.publisher in html
+                assert rendering.publisher in text
             if rendering.licence:
-                assert rendering.licence in html
+                assert rendering.licence in text
 
 
 def test_no_page_leaks_a_route_that_needs_an_account() -> None:

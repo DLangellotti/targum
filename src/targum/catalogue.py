@@ -191,6 +191,310 @@ CATALOGUE: list[Entry] = [
             )
         ],
     ),
+    Entry(
+        id="ruth",
+        title="רות",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="sefaria:Ruth",
+        blurb="Four chapters, and the shortest way in: one family, one harvest, plain narrative.",
+        words=1129,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
+                source="sefaria:en:Ruth",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="esther",
+        title="אסתר",
+        author="Ketuvim · Esther",
+        language="he",
+        source="sefaria:Esther",
+        blurb="Read whole every Purim. Court intrigue, and not one mention of God.",
+        words=2609,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
+                source="sefaria:en:Esther",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="song-of-songs",
+        title="שיר השירים",
+        author="Ketuvim · Song of Songs",
+        language="he",
+        source="sefaria:Song of Songs",
+        blurb="Love poetry, and the Hebrew repays every minute it takes.",
+        words=1142,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
+                source="sefaria:en:Song of Songs",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="lamentations",
+        title="איכה",
+        author="Ketuvim · Lamentations",
+        language="he",
+        source="sefaria:Lamentations",
+        blurb="Five acrostics on the fall of Jerusalem. The alphabet is visible down the page.",
+        words=1405,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
+                source="sefaria:en:Lamentations",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="ecclesiastes",
+        title="קהלת",
+        author="Ketuvim · Ecclesiastes",
+        language="he",
+        source="sefaria:Ecclesiastes",
+        blurb="Everything you have heard quoted in English, in the Hebrew it was written in.",
+        words=2594,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
+                source="sefaria:en:Ecclesiastes",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="proverbs",
+        title="משלי",
+        author="Ketuvim · Proverbs",
+        language="he",
+        source="sefaria:Proverbs",
+        blurb="Self-contained verses, which makes it the easiest thing here to read a little of.",
+        words=6080,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
+                source="sefaria:en:Proverbs",
+                note="Translated with Rashi's commentary in view.",
+                publisher="Rabbi Shraga Silverstein",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="job",
+        title="איוב",
+        author="Ketuvim · Job",
+        language="he",
+        source="sefaria:Job",
+        blurb="The hardest Hebrew on the shelf, and for many people the reason to learn it.",
+        words=7164,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
+                source="sefaria:en:Job",
+                note="Translated with Rashi's commentary in view.",
+                publisher="Rabbi Shraga Silverstein",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="genesis",
+        title="בראשית",
+        author="Torah · Genesis",
+        language="he",
+        source="sefaria:Genesis",
+        blurb="Where it begins, and the chapters everybody knows are near the front.",
+        words=17676,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="Metsudah Chumash, Metsudah Publications, 2009",
+                source="sefaria:en:Genesis",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="exodus",
+        title="שמות",
+        author="Torah · Exodus",
+        language="he",
+        source="sefaria:Exodus",
+        blurb="Slavery, departure, and the law. The narrative half reads easiest.",
+        words=14282,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="Metsudah Chumash, Metsudah Publications, 2009",
+                source="sefaria:en:Exodus",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="leviticus",
+        title="ויקרא",
+        author="Torah · Leviticus",
+        language="he",
+        source="sefaria:Leviticus",
+        blurb="The priestly law, in the register it was set down in.",
+        words=10078,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="Metsudah Chumash, Metsudah Publications, 2009",
+                source="sefaria:en:Leviticus",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="numbers",
+        title="במדבר",
+        author="Torah · Numbers",
+        language="he",
+        source="sefaria:Numbers",
+        blurb="Forty years of wandering, two censuses, and Balaam's donkey.",
+        words=14137,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="Metsudah Chumash, Metsudah Publications, 2009",
+                source="sefaria:en:Numbers",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="deuteronomy",
+        title="דברים",
+        author="Torah · Deuteronomy",
+        language="he",
+        source="sefaria:Deuteronomy",
+        blurb="Moses saying it again before the end. The book the rest of the Tanakh quotes most.",
+        words=12404,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="Metsudah Chumash, Metsudah Publications, 2009",
+                source="sefaria:en:Deuteronomy",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="judges",
+        title="שופטים",
+        author="Nevi'im · Judges",
+        language="he",
+        source="sefaria:Judges",
+        blurb="Before the kings: twelve leaders, and the years between them.",
+        words=8453,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Tanach series, Lakewood, N.J",
+                source="sefaria:en:Judges",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="i-samuel",
+        title="שמואל א",
+        author="Nevi'im · I Samuel",
+        language="he",
+        source="sefaria:I Samuel",
+        blurb="Samuel, Saul, and the young David.",
+        words=11424,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Tanach series, Lakewood, N.J",
+                source="sefaria:en:I Samuel",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="ii-samuel",
+        title="שמואל ב",
+        author="Nevi'im · II Samuel",
+        language="he",
+        source="sefaria:II Samuel",
+        blurb="David reigning, and paying for it.",
+        words=9399,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Tanach series, Lakewood, N.J",
+                source="sefaria:en:II Samuel",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
+        id="i-kings",
+        title="מלכים א",
+        author="Nevi'im · I Kings",
+        language="he",
+        source="sefaria:I Kings",
+        blurb="Solomon, the Temple, and a kingdom splitting in two.",
+        words=11255,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Metsudah Tanach series, Lakewood, N.J",
+                source="sefaria:en:I Kings",
+                note="A linear translation, made to be read beside the Hebrew.",
+                publisher="Metsudah Publications, Lakewood N.J.",
+                licence="CC-BY",
+            )
+        ],
+    ),
 ]
 
 

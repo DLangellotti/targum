@@ -18,5 +18,15 @@
       "source": "אנו סבורים שאמיתות אלה ברורות מאליהן, שכל בני האדם נבראו שווים, ובוראם העניק להם זכויות שאין ליטול מהם, ביניהן: חיים, חירות והחתירה אחר האושר.",
       "target": "We hold these truths to be self-evident, that all men are created equal, that they are endowed by their Creator with certain unalienable Rights, that among these are Life, Liberty and the pursuit of Happiness."
     }
+  ],
+  "ruth": [
+    {
+      "source": "וַיְהִי בִּימֵי שְׁפֹט הַשֹּׁפְטִים וַיְהִי רָעָב בָּאָרֶץ וַיֵּלֶךְ אִישׁ מִבֵּית לֶחֶם יְהוּדָה לָגוּר בִּשְׂדֵי מוֹאָב הוּא וְאִשְׁתּוֹ וּשְׁנֵי בָנָיו׃",
+      "target": "And it happened in the days when the Judges judged, that there was a famine in the land, and a man of Bethlehem in Judah went to sojourn in the fields of Moab; he with his wife and two sons."
+    },
+    {
+      "source": "וְשֵׁם הָאִישׁ אֱ‍לִימֶלֶךְ וְשֵׁם אִשְׁתּוֹ נָעֳמִי וְשֵׁם שְׁנֵי־בָנָיו מַחְלוֹן וְכִלְיוֹן אֶפְרָתִים מִבֵּית לֶחֶם יְהוּדָה וַיָּבֹאוּ שְׂדֵי־מוֹאָב וַיִּהְיוּ־שָׁם׃",
+      "target": "The man’s name was Elimelech, his wife’s name was Naomi, the name[s] of his two sons, were Machlon and Kilyon, Ephrathites from Bethlehem in Judah; they came to the Moabite country and remained there."
+    }
   ]
 }

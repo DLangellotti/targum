@@ -7,6 +7,7 @@ from typing import Protocol
 from ...errors import UnsupportedSource
 from ...models import Document
 from .gutenberg import GutenbergFetcher
+from .sefaria import SefariaFetcher
 from .wikisource import WikisourceFetcher
 
 __all__ = ["FETCHERS", "Fetcher", "is_identifier", "load"]
@@ -22,6 +23,7 @@ class Fetcher(Protocol):
 
 FETCHERS: dict[str, Fetcher] = {
     "gutenberg": GutenbergFetcher(),
+    "sefaria": SefariaFetcher(),
     "wikisource": WikisourceFetcher(),
 }
 
