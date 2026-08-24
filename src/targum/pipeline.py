@@ -299,6 +299,30 @@ class Build:
         translation.write(self.translation_path(self.resolved_out))
         return translation
 
+    def _first_chapters(self, segmented: SegmentedDocument, count: int) -> list[Segment] | None:
+        """The segments of the first `count` sections, or None when there is one section.
+
+        A text that does not divide into chapters is translated whole: the machinery for
+        paying by the chapter is worth nothing on an article, which costs five cents.
+        """
+        from .render.builder import split_sections
+
+        sections = split_sections(segmented)
+        if len(sections) < 2:
+            return None
+        wanted = {sid for section in sections[:count] for sid in section.segment_ids}
+        return [segment for segment in segmented.segments if segment.id in wanted]
+
+    def chapter_segments(self, segmented: SegmentedDocument, number: int) -> list[Segment]:
+        """One chapter's segments, by its number on the contents page."""
+        from .render.builder import split_sections
+
+        for section in split_sections(segmented):
+            if section.number == number:
+                ids = set(section.segment_ids)
+                return [segment for segment in segmented.segments if segment.id in ids]
+        return []
+
     def _translated(
         self,
         segmented: SegmentedDocument,
@@ -532,6 +556,7 @@ class Build:
         plan: Plan | None = None,
         on_progress: Progress | None = None,
         on_ready: Ready | None = None,
+        chapters: int | None = None,
     ) -> Result:
         """Build the reader, then keep filling it in.
 
@@ -544,9 +569,17 @@ class Build:
         assert plan.segmented is not None
         segmented = plan.segmented
 
+        # How much of a book to pay for now. `chapters=1` translates the first section
+        # and leaves the rest waiting, which is what stops a reader who opens a novel and
+        # reads one chapter from buying nineteen they will never reach. None means all of
+        # it, which is what the command line does and what a single-section text needs.
+        only = self._first_chapters(segmented, chapters) if chapters else None
+
         translations: list[Translation] = []
         if self.machine:
-            translations.append(plan.cached_translation or self.translate(segmented, on_progress))
+            translations.append(
+                plan.cached_translation or self.translate(segmented, on_progress, only=only)
+            )
         translations.extend(self.aligned(segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")

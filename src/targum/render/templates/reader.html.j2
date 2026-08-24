@@ -100,9 +100,9 @@
 </main>
 
 {% if not standalone %}
-<nav class="pager">
+<nav class="pager" data-chapter="{{ section.number }}">
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
-  {% if following %}<a class="next" href="{{ following.filename }}">{{ following.title }}</a>{% endif %}
+  {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>
 {% endif %}
 

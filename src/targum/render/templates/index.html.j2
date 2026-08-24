@@ -33,7 +33,7 @@
   {% if document.author %}<p class="byline">{{ document.author }}</p>{% endif %}
   <ol class="toc" dir="{{ source_direction }}">
     {% for section in sections %}
-    <li><a href="{{ section.filename }}">{{ section.title }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>
+    <li data-chapter="{{ section.number }}"><a href="{{ section.filename }}">{{ section.title }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>
     {% endfor %}
   </ol>
 </main>

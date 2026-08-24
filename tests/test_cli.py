@@ -226,3 +226,50 @@ def test_a_catalogue_reader_can_be_rebuilt(tmp_path: Path) -> None:
     assert reloaded is not None
     assert reloaded.segments == {"0000.000-aaa": "peace"}
     assert source.segments[0].id in reloaded.segments
+
+
+def test_rebuild_finds_targums_inside_homes(tmp_path: Path) -> None:
+    """A regression from the multi-tenancy work.
+
+    Targums used to sit directly under the library root and now sit one level down, in a
+    directory per person. Looking only at the top found the homes themselves and reported
+    every one as having no text, so `targum rebuild` rewrote nothing at all.
+    """
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "p1" / "book-he"
+    folder.mkdir(parents=True)
+
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "Rewrote 1 targum" in result.output, result.output

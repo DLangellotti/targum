@@ -254,7 +254,13 @@
       link.appendChild(title);
 
       var facts = [];
-      if (reader.sections > 1) facts.push(reader.sections + " parts");
+      // A book says how much of it is bought. "3 of 20 chapters" is the whole of what
+      // paying by the chapter looks like from here.
+      if (reader.chapters && reader.chapters.length) {
+        facts.push(reader.readyChapters + " of " + reader.chapters.length + " chapters");
+      } else if (reader.sections > 1) {
+        facts.push(reader.sections + " parts");
+      }
       facts.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
       var meta = document.createElement("span");
       meta.className = "book-meta";

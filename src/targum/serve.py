@@ -61,6 +61,11 @@ HOSTED_MODEL = "claude-sonnet-5"
 # A deleted Targum waits in the trash before it goes. Deleting is one press on a day
 # somebody is tidying up, and a week is what makes that survivable — the same reasoning,
 # and the same seven days, as an account that asks to be forgotten.
+# How much of a book is bought before anybody has read a word of it. One: the reader
+# waits under a minute instead of half an hour, and the next chapter is started while
+# they are most of the way through this one.
+FIRST_CHAPTERS = 1
+
 TRASH_DAYS = 7
 
 # Written inside the folder rather than kept in a table: the folder is the thing being
@@ -509,7 +514,7 @@ class Library:
 
     def trash(self, home: Path, name: str) -> bool:
         """Throw one away. Nothing is deleted yet."""
-        folder = self._within(home, name)
+        folder = self.within(home, name)
         if folder is None or not (folder / "reader" / "index.html").is_file():
             return False
         (folder / TRASHED).write_text(str(now()), encoding="utf-8")
@@ -517,14 +522,14 @@ class Library:
 
     def restore(self, home: Path, name: str) -> bool:
         """Change your mind, while there is still something to change it about."""
-        folder = self._within(home, name)
+        folder = self.within(home, name)
         if folder is None:
             return False
         (folder / TRASHED).unlink(missing_ok=True)
         return True
 
     @staticmethod
-    def _within(home: Path, name: str) -> Path | None:
+    def within(home: Path, name: str) -> Path | None:
         """A folder in this home, and nowhere else.
 
         The name arrives from a request, so it is resolved and checked rather than
@@ -554,6 +559,40 @@ class Library:
                     gone.append(folder.name)
         return gone
 
+    @staticmethod
+    def chapters(folder: Path) -> list[dict[str, Any]]:
+        """Every chapter of a targum, and whether it has been translated.
+
+        Derived from the artifacts rather than recorded anywhere: a chapter is ready when
+        every one of its segments has a translation. A second place saying so would drift
+        from the truth the first time a build died between writing them.
+        """
+        from .models import SegmentedDocument, Translation, read_artifact
+        from .render.builder import split_sections
+
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if segmented is None:
+            return []
+        sections = split_sections(segmented)
+        if len(sections) < 2:
+            # One section is a targum, not a book. A tree of one is furniture.
+            return []
+        done: set[str] = set()
+        for path in sorted((folder / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is not None:
+                done |= {sid for sid, text in translation.segments.items() if text}
+        return [
+            {
+                "number": section.number,
+                "title": section.title,
+                "file": section.filename,
+                "sentences": len(section.segment_ids),
+                "ready": bool(section.segment_ids) and all(s in done for s in section.segment_ids),
+            }
+            for section in sections
+        ]
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -570,6 +609,7 @@ class Library:
             language = ""
             content_hash = ""
             sections = len(list((folder / "reader").glob("sec-*.html"))) or 1
+            chapters = self.chapters(folder)
             document = folder / "document.json"
             if document.is_file():
                 try:
@@ -588,6 +628,8 @@ class Library:
                     "language": language,
                     "document": content_hash,
                     "sections": sections,
+                    "chapters": chapters,
+                    "readyChapters": sum(1 for c in chapters if c["ready"]),
                     "trashed": when,
                     # How long is left, so the page can say it rather than imply it.
                     "goesIn": max(0, TRASH_DAYS - (now() - when) // (24 * 60 * 60 * 1000))
@@ -678,6 +720,8 @@ class Library:
         return estimate(lemmas, builder.model or ""), lemmas
 
     def run(self, job: Job) -> None:
+        if job.options.get("chapter"):
+            return self.run_chapter(job)
         try:
             job.stage = "working"
             self.remember(job)
@@ -696,7 +740,9 @@ class Library:
                 job.message = ""
                 self.remember(job)
 
-            result = builder.run(on_progress=progress, on_ready=ready)
+            # One chapter. A book is bought as it is read; a text with no chapters is
+            # translated whole, which the pipeline decides for itself.
+            result = builder.run(on_progress=progress, on_ready=ready, chapters=FIRST_CHAPTERS)
             # The reservation becomes the receipt. Until this, the ledger held an
             # estimate and the budget was an approximation of itself.
             job.spent = result.spent.cost()
@@ -712,6 +758,59 @@ class Library:
                 job,
                 "Something went wrong. The Terminal has the detail.",
             )
+
+    def run_chapter(self, job: Job) -> None:
+        """Buy one more chapter of a book already on disk.
+
+        Nothing is ingested or segmented again — those are done, they are free, and they
+        are sitting in the folder. This translates one chapter and rewrites the reader
+        around it, which is the whole of what asking for a chapter costs.
+        """
+        from .models import Annotation, Document, Glossary, SegmentedDocument, Vocalization
+        from .models import read_artifact as read
+        from .render import render as render_reader
+
+        folder = (job.home or self.out) / str(job.options.get("folder") or "")
+        document = read(Document, folder / "document.json")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            return self._blame(job, "That one is no longer on disk.")
+
+        builder = self._builder(job)
+        builder._resolved_out = folder
+        number = int(job.options["chapter"])
+        wanted = builder.chapter_segments(segmented, number)
+        if not wanted:
+            return self._blame(job, "No such chapter.")
+
+        job.stage = "working"
+        job.total = len(wanted)
+        self.remember(job)
+        try:
+            translation = builder.translate(
+                segmented, lambda done: setattr(job, "done", job.done + done), only=wanted
+            )
+            pages = render_reader(
+                document,
+                segmented,
+                [translation],
+                folder / "reader",
+                annotation=read(Annotation, folder / "annotation.json"),
+                glossary=read(Glossary, folder / "glossary.json"),
+                vocalization=read(Vocalization, folder / "vocalization.json"),
+                clean=False,
+            )
+        except TargumError as error:
+            return self._blame(job, error.message)
+        except Exception:
+            traceback.print_exc()
+            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+
+        job.spent = builder.spent.cost()
+        job.reader = f"{folder.name}/reader/{pages[0].name}"
+        job.stage = "done"
+        self.settle(job)
+        self.remember(job)
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -1010,6 +1109,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._build(payload)
         if route == "/gloss":
             return self._gloss_word(payload)
+        if route == "/chapter":
+            return self._chapter(payload)
         if route == "/trash":
             return self._trash(payload)
         if route == "/restore":
@@ -1172,6 +1273,34 @@ class Handler(BaseHTTPRequestHandler):
             job.blocked = blocked
             job.stage = "blocked"
             return self._json(job.state(), 402)
+        self.library.enqueue(job)
+        self._json(job.state())
+
+    def _chapter(self, payload: dict[str, Any]) -> None:
+        """Translate one chapter of a targum already on disk, and rewrite its page.
+
+        A book is bought a chapter at a time. This is the asking — from the contents
+        page, from the end of the one before, or from a reader who wants chapter nine.
+        """
+        home = self._home()
+        folder = self.library.within(home, str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        try:
+            number = int(payload.get("number") or 0)
+        except (TypeError, ValueError):
+            return self._json({"error": "not found"}, 404)
+
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=str(folder),
+            options={"chapter": number, "folder": folder.name},
+            owner=person.id if person else None,
+            home=home,
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
         self.library.enqueue(job)
         self._json(job.state())
 

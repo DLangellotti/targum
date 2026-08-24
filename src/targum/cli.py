@@ -194,10 +194,27 @@ def rebuild(
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
+    def targums(where: Path) -> list[Path]:
+        """Every targum under a library root, whichever home it sits in.
+
+        Targums used to live directly under the root and now live one level down, in a
+        directory per person. Looking only at the top finds the homes themselves and
+        reports every one of them as having no text — which is what this did.
+        """
+        found: list[Path] = []
+        for entry in where.iterdir():
+            if not entry.is_dir():
+                continue
+            if (entry / "document.json").is_file():
+                found.append(entry)
+            else:
+                found.extend(child for child in entry.iterdir() if child.is_dir())
+        return found
+
     done = 0
     skipped: list[tuple[str, str]] = []
-    for folder in sorted(root.iterdir()):
-        if not folder.is_dir() or folder.name == "uploads":
+    for folder in sorted(targums(root)):
+        if folder.name == "uploads":
             continue
         document = read_artifact(Document, folder / "document.json")
         segmented = read_artifact(SegmentedDocument, folder / "segments.json")

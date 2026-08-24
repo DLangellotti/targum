@@ -920,3 +920,23 @@ body.marking .w[data-status="3"] {
   .bar, .pager { display: none; }
   body { background: #fbf9f5; color: #1c1a17; }
 }
+
+/* --- a book, a chapter at a time ------------------------------------------- */
+
+/* A chapter nobody has paid for yet. Quiet rather than broken: it is a thing you can
+   have, not a thing that failed. */
+.toc li.waiting > a { color: var(--ink-soft); }
+.toc li.waiting .count { opacity: 0.6; }
+.toc .get {
+  margin-inline-start: 0.5rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.toc .get:hover { color: var(--ink); border-color: var(--ink-soft); }
+.toc .get:disabled { opacity: 0.6; cursor: default; }
