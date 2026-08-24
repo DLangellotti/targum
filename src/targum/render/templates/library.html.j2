@@ -25,9 +25,17 @@
   </section>
 
   <section class="panel">
-    <h2>Your reading</h2>
+    <h2>Your targums</h2>
     <p class="note" id="shelf-note"></p>
     <ul class="books" id="library-list"></ul>
+  </section>
+
+  {#- Only there when there is something in it. An empty trash is a drawer nobody needs
+      to be shown, and a permanent one invites tidying for its own sake. -#}
+  <section class="panel trash" id="trash-panel" hidden>
+    <h2>Trash</h2>
+    <p class="note">Deleted targums wait here for seven days, then go for good.</p>
+    <ul class="books" id="trash-list"></ul>
   </section>
 </main>
 

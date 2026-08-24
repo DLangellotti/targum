@@ -18,6 +18,7 @@ import json
 import queue
 import re
 import secrets
+import shutil
 import threading
 import traceback
 import webbrowser
@@ -60,6 +61,15 @@ HTML = "text/html; charset=utf-8"
 # What the hosted product translates with. Opus stays reachable from the command line
 # for anyone who wants it and is paying for it themselves.
 HOSTED_MODEL = "claude-sonnet-5"
+
+# A deleted Targum waits in the trash before it goes. Deleting is one press on a day
+# somebody is tidying up, and a week is what makes that survivable — the same reasoning,
+# and the same seven days, as an account that asks to be forgotten.
+TRASH_DAYS = 7
+
+# Written inside the folder rather than kept in a table: the folder is the thing being
+# deleted, and a marker inside it cannot drift away from what it describes.
+TRASHED = "trashed"
 
 # What a page is allowed to do. Readers are self-contained by construction — no script,
 # stylesheet, font or image from anywhere, and the tests hold that — so the policy can
@@ -282,6 +292,7 @@ class Library:
         self.account_budget = account_budget
         self.store = store
         self.adopt()
+        self.empty_trash()
         self._committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
@@ -501,7 +512,65 @@ class Library:
             )
         return ""
 
-    def readers(self, home: Path) -> list[dict[str, Any]]:
+    @staticmethod
+    def trashed_at(folder: Path) -> int:
+        """When this was thrown away, or 0 if it was not."""
+        marker = folder / TRASHED
+        if not marker.is_file():
+            return 0
+        try:
+            return int(marker.read_text(encoding="utf-8").strip() or 0)
+        except (OSError, ValueError):
+            return 0
+
+    def trash(self, home: Path, name: str) -> bool:
+        """Throw one away. Nothing is deleted yet."""
+        folder = self._within(home, name)
+        if folder is None or not (folder / "reader" / "index.html").is_file():
+            return False
+        (folder / TRASHED).write_text(str(now()), encoding="utf-8")
+        return True
+
+    def restore(self, home: Path, name: str) -> bool:
+        """Change your mind, while there is still something to change it about."""
+        folder = self._within(home, name)
+        if folder is None:
+            return False
+        (folder / TRASHED).unlink(missing_ok=True)
+        return True
+
+    @staticmethod
+    def _within(home: Path, name: str) -> Path | None:
+        """A folder in this home, and nowhere else.
+
+        The name arrives from a request, so it is resolved and checked rather than
+        trusted: `../` in it would otherwise reach another person's Targums.
+        """
+        try:
+            folder = (home / name).resolve()
+        except OSError:
+            return None
+        if home.resolve() not in folder.parents or not folder.is_dir():
+            return None
+        return folder
+
+    def empty_trash(self, days: int = TRASH_DAYS) -> list[str]:
+        """Delete for real anything whose week is up. Called at start-up."""
+        gone: list[str] = []
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        if not self.out.is_dir():
+            return gone
+        for home in self.out.iterdir():
+            if not home.is_dir():
+                continue
+            for folder in home.iterdir():
+                when = self.trashed_at(folder) if folder.is_dir() else 0
+                if when and when < cutoff:
+                    shutil.rmtree(folder, ignore_errors=True)
+                    gone.append(folder.name)
+        return gone
+
+    def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
         if not home.is_dir():
@@ -509,6 +578,9 @@ class Library:
         for folder in home.iterdir():
             index = folder / "reader" / "index.html"
             if not index.is_file():
+                continue
+            when = self.trashed_at(folder)
+            if bool(when) != trashed:
                 continue
             title = folder.name
             language = ""
@@ -532,6 +604,11 @@ class Library:
                     "language": language,
                     "document": content_hash,
                     "sections": sections,
+                    "trashed": when,
+                    # How long is left, so the page can say it rather than imply it.
+                    "goesIn": max(0, TRASH_DAYS - (now() - when) // (24 * 60 * 60 * 1000))
+                    if when
+                    else 0,
                     "built": int(index.stat().st_mtime),
                 }
             )
@@ -885,7 +962,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, self.shelf.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
-            return self._json({"readers": self.library.readers(self._home())})
+            home = self._home()
+            return self._json(
+                {
+                    "readers": self.library.readers(home),
+                    "trash": self.library.readers(home, trashed=True),
+                }
+            )
         if route == "/account/me":
             return self._me()
         if route.startswith("/glossary/"):
@@ -935,6 +1018,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._build(payload)
         if route == "/gloss":
             return self._gloss_word(payload)
+        if route == "/trash":
+            return self._trash(payload)
+        if route == "/restore":
+            return self._restore(payload)
         if route == "/account/sign-in":
             return self._sign_in(payload)
         if route == "/account/sign-out":
@@ -1098,6 +1185,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(job.state(), 402)
         self.library.enqueue(job)
         self._json(job.state())
+
+    def _trash(self, payload: dict[str, Any]) -> None:
+        name = str(payload.get("name") or "")
+        if not self.library.trash(self._home(), name):
+            return self._json({"error": "not found"}, 404)
+        self._json({"trashed": True, "days": TRASH_DAYS})
+
+    def _restore(self, payload: dict[str, Any]) -> None:
+        name = str(payload.get("name") or "")
+        if not self.library.restore(self._home(), name):
+            return self._json({"error": "not found"}, 404)
+        self._json({"restored": True})
 
     def _gloss_word(self, payload: dict[str, Any]) -> None:
         """One word, because a reader asked for it.

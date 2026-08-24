@@ -152,7 +152,7 @@ def test_rebuild_rewrites_readers_from_disk(tmp_path: Path) -> None:
 
     result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
     assert result.exit_code == 0, result.output
-    assert "Rewrote 1 reader" in result.output
+    assert "Rewrote 1 targum" in result.output
     assert "never translated" in result.output
 
     written = (folder / "reader" / "index.html").read_text(encoding="utf-8")
