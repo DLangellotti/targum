@@ -244,13 +244,68 @@ def test_the_pairing_is_one_to_one_at_full_confidence() -> None:
     assert alignment.length_ratio > 1, "descriptive, but it should be real"
 
 
-def test_a_disagreement_stops_the_build(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pairing verse n against verse n+1 would be a quiet, durable mistranslation of
-    scripture. Refusing to build is the smaller harm by a long way."""
+def test_a_translation_may_stop_short_of_a_chapter() -> None:
+    """Silverstein's Psalm 82 has seven verses to the Hebrew's eight, and 82:8 has no
+    English at all. One missing verse should not cost the shelf a hundred and fifty
+    psalms.
+
+    Safe only because of how Sefaria writes a gap: a verse it has no text for in the
+    middle of a chapter is an empty string *in place* — Psalms 30:7, 41:9 and 73:5 are
+    all like that — so a genuinely shorter chapter is the end falling off, and the end
+    falling off shifts nothing before it.
+    """
     source = segment_document(document("he"), _WholeBlocks())
     target = segment_document(document("en"), _WholeBlocks())
     object.__setattr__(target, "segments", target.segments[:-1])
-    with pytest.raises(TargumError, match="89 segments against 88"):
+
+    alignment = parallel.pair(source, target, "Ruth")
+    orphans = [link for link in alignment.links if not link.target]
+    assert len(orphans) == 1, "the untranslated verse should be recorded, not dropped"
+    assert orphans[0].source == [source.segments[-1].id]
+    assert alignment.coverage() < 1.0, "and coverage should say so"
+
+
+def test_everything_before_a_gap_is_still_paired_correctly() -> None:
+    """The property that makes the allowance safe at all.
+
+    A gap that shifted the verses after it would be far worse than a missing verse: it
+    would put the wrong English under Hebrew, silently, forever.
+    """
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    whole = {
+        link.source[0]: link.target[0]
+        for link in parallel.pair(source, target, "Ruth").links
+        if link.target
+    }
+
+    object.__setattr__(target, "segments", target.segments[:-1])
+    gapped = {
+        link.source[0]: link.target[0]
+        for link in parallel.pair(source, target, "Ruth").links
+        if link.target
+    }
+    assert gapped == {k: v for k, v in whole.items() if k in gapped}
+
+
+def test_a_chapter_count_disagreement_stops_the_build() -> None:
+    """Pairing chapter n against chapter n+1 would be a quiet, durable mistranslation of
+    scripture. Refusing to build is the smaller harm by a long way."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    trimmed = [s for s in target.segments if not s.text.startswith("Ruth 4")]
+    object.__setattr__(target, "segments", trimmed[: trimmed.index(trimmed[-1])])
+    with pytest.raises(TargumError, match="chapters against"):
+        parallel.pair(source, target, "Ruth")
+
+
+def test_a_translation_with_more_verses_than_the_text_is_refused() -> None:
+    """Not a gap but a different numbering, and pairing through it would misalign the
+    rest of the chapter."""
+    source = segment_document(document("he"), _WholeBlocks())
+    target = segment_document(document("en"), _WholeBlocks())
+    object.__setattr__(source, "segments", source.segments[:-1])
+    with pytest.raises(TargumError, match="23 units to 22 in the source"):
         parallel.pair(source, target, "Ruth")
 
 

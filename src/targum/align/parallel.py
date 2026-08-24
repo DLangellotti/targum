@@ -18,8 +18,13 @@ scripture.
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from ..errors import TargumError
-from ..models import Alignment, Link, SegmentedDocument
+from ..models import Alignment, BlockKind, Link, SegmentedDocument
+
+LOG = logging.getLogger(__name__)
 
 NAME = "parallel/1"
 
@@ -45,32 +50,72 @@ def parallel_key(document: object) -> str | None:
     return f"{scheme.lower()}:{' '.join(rest.split()).lower()}"
 
 
-def pair(source: SegmentedDocument, target: SegmentedDocument, name: str) -> Alignment:
-    """One link per segment, in order, at full confidence.
+def _chapters(segments: list[Any]) -> list[list[Any]]:
+    """Split a run of segments into chapters, each starting at its heading.
 
-    Raises rather than returning a partial alignment. Reaching here means something has
-    already claimed these two are parallel, so a disagreement is a real fault — the
-    edition changed underneath us, or the claim was wrong — and either way pairing verse
-    n of one book against verse n+1 of another would be a quiet, durable mistranslation
-    of scripture. Refusing to build is the smaller harm by a long way.
+    Pairing is scoped to the chapter rather than the book, and that is what makes a
+    missing verse survivable: a gap can then only ever shift the chapter it is in, and
+    only from the gap onwards — never the other hundred and forty-nine.
     """
-    if len(source.segments) != len(target.segments):
+    out: list[list[Any]] = []
+    for segment in segments:
+        if segment.kind is BlockKind.heading or not out:
+            out.append([])
+        out[-1].append(segment)
+    return out
+
+
+def pair(source: SegmentedDocument, target: SegmentedDocument, name: str) -> Alignment:
+    """One link per verse, chapter by chapter, at full confidence.
+
+    Where a translation is complete this is exactly 1:1. Where it is not, the gap is
+    allowed only in the one place it cannot do harm — see below — and everything else
+    raises rather than returning a partial alignment. Reaching here means something has
+    already claimed these two are parallel, so a disagreement is a real fault, and
+    pairing verse n of one book against verse n+1 of another would be a quiet, durable
+    mistranslation of scripture.
+    """
+    mine, theirs = _chapters(list(source.segments)), _chapters(list(target.segments))
+    if len(mine) != len(theirs):
         raise TargumError(
-            f"{name}: {len(source.segments)} segments against {len(target.segments)}.",
-            "These two were meant to line up verse for verse and no longer do. "
-            "The edition may have changed; nothing has been written.",
+            f"{name}: {len(mine)} chapters against {len(theirs)}.",
+            "These two were meant to line up and no longer do. Nothing has been written.",
         )
 
-    for index, (left, right) in enumerate(zip(source.segments, target.segments, strict=True)):
-        if left.kind is not right.kind:
+    links: list[Link] = []
+    missing = 0
+    for number, (left, right) in enumerate(zip(mine, theirs, strict=True), start=1):
+        if len(right) > len(left):
+            # The translation claims verses the source does not have. That is not a gap,
+            # it is a different numbering, and pairing through it would misalign the rest
+            # of the chapter.
             raise TargumError(
-                f"{name}: the two sides disagree about what unit {index + 1} is.",
-                f"One calls it {left.kind.value}, the other {right.kind.value}. "
-                "Nothing has been written.",
+                f"{name}, chapter {number}: the translation has {len(right)} units to "
+                f"{len(left)} in the source.",
+                "A translation cannot have more verses than the text. Nothing written.",
             )
+        for here, there in zip(left, right, strict=False):
+            if here.kind is not there.kind:
+                raise TargumError(
+                    f"{name}, chapter {number}: the two sides disagree about a unit.",
+                    f"One calls it {here.kind.value}, the other {there.kind.value}. "
+                    "Nothing has been written.",
+                )
+            links.append(Link(source=[here.id], target=[there.id], confidence=1.0, coarse=False))
 
-    # Descriptive rather than load-bearing — nothing here consults it — but recorded
-    # honestly so an artifact from this path can be read beside one the aligner made.
+        # Anything left over is untranslated, and it is safe to say so *only* because a
+        # short chapter means the tail is missing. Sefaria writes a gap in the middle as
+        # an empty verse in place — Psalms 30:7, 41:9 and 73:5 are all like that, and
+        # their chapters still count correctly. A genuinely shorter chapter is the end
+        # falling off, which shifts nothing before it. Silverstein's Psalm 82 has seven
+        # verses to the Hebrew's eight, and 82:8 simply has no English.
+        for orphan in left[len(right) :]:
+            missing += 1
+            links.append(Link(source=[orphan.id], target=[], confidence=0.0, coarse=False))
+
+    if missing:
+        LOG.info("%s: %d verses have no translation in this edition", name, missing)
+
     from .base import length_ratio
 
     ratio = length_ratio(
@@ -86,11 +131,5 @@ def pair(source: SegmentedDocument, target: SegmentedDocument, name: str) -> Ali
         target_language=target.language,
         aligner=NAME,
         length_ratio=round(ratio, 4),
-        links=[
-            # Confidence 1.0 is not flattery. It is not a similarity estimate at all:
-            # it is the publisher's own numbering, and marking it lower would have the
-            # reader shown an approximation warning over a certainty.
-            Link(source=[left.id], target=[right.id], confidence=1.0, coarse=False)
-            for left, right in zip(source.segments, target.segments, strict=True)
-        ],
+        links=links,
     )
