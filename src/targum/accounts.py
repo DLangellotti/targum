@@ -695,6 +695,51 @@ class Store:
             out[name] = [dict(row) for row in rows]
         return out
 
+    def everything(self, person: Person) -> dict[str, Any]:
+        """Everything targum holds about one person, for them to take away.
+
+        The point is that it needs nobody's help: somebody who wants their data should
+        not have to ask the person who runs the server for it.
+
+        Complete except for one deliberate omission. Sessions and sign-in links are
+        credentials, not data — writing them into a file somebody downloads, mails to
+        themselves and leaves in a downloads folder would be handing out live keys to
+        their own account. What is here is everything they wrote or caused.
+        """
+        account = self.db.execute(
+            "SELECT email, made, shelf FROM person WHERE id = ?", (person.id,)
+        ).fetchone()
+        out: dict[str, Any] = {
+            "account": {
+                "email": account["email"],
+                "joined": account["made"],
+                "shelf": account["shelf"] or "",
+            },
+            "exported": now(),
+        }
+        for name, kind in KINDS.items():
+            columns = [*kind.key, *kind.fields, "seen"]
+            rows = self.db.execute(
+                f"SELECT {', '.join(columns)} FROM {kind.table}"
+                " WHERE person = ? AND gone = 0 ORDER BY at DESC"
+                if "at" in kind.fields
+                else f"SELECT {', '.join(columns)} FROM {kind.table} WHERE person = ? AND gone = 0",
+                (person.id,),
+            ).fetchall()
+            out[name] = [dict(row) for row in rows]
+
+        # What they built, and what it cost. Theirs as much as their words are, and the
+        # only place the spend is written down.
+        out["builds"] = [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT source, title, language, stage, spent, made FROM job"
+                " WHERE owner = ? ORDER BY made DESC",
+                (person.id,),
+            )
+        ]
+        return out
+
     def counts(self, person: Person) -> dict[str, int]:
         """What someone has, for the sake of saying so on the page."""
         out = {}

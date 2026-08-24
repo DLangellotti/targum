@@ -921,9 +921,63 @@
     );
   };
 
+  /* --- taking it all away ----------------------------------------------------
+   *
+   * The two Export buttons above hand back what you are looking at: one language, and
+   * whatever the status filter is showing. That is right for a spreadsheet and quietly
+   * wrong for leaving — a reader with Hebrew and Russian, or with "learning" selected,
+   * would get a subset and no sign that anything was missing.
+   *
+   * This one is everything, from the account rather than from this browser, so it holds
+   * what other devices contributed too. Signed out there is no account to ask, and what
+   * is in this browser is all there is.
+   */
+  function takeEverything() {
+    var signedIn = window.TargumSync && window.TargumSync.who;
+    if (signedIn) {
+      window.location.href = keyed("/account/export");
+      return;
+    }
+    var stores = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var name = localStorage.key(i);
+      if (name && name.indexOf("targum:") === 0) {
+        try {
+          stores[name] = JSON.parse(localStorage.getItem(name));
+        } catch (e) {
+          stores[name] = localStorage.getItem(name);
+        }
+      }
+    }
+    var blob = new Blob([JSON.stringify({ browser: stores }, null, 1)], {
+      type: "application/json;charset=utf-8",
+    });
+    var url = URL.createObjectURL(blob);
+    var link = el("a");
+    link.href = url;
+    link.download = "targum.json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  var takeAll = document.getElementById("export-all");
+  if (takeAll) takeAll.onclick = takeEverything;
+
+  function offerEverything(anything) {
+    var panel = document.getElementById("take");
+    // Nothing to take is not worth offering, and an empty download is a worse answer
+    // than no button.
+    if (panel) panel.hidden = !anything;
+  }
+
   /* --- putting it together --------------------------------------------------- */
 
   function show(code) {
+    offerEverything(true);
     currentCode = code;
     shown = PAGE;
     window.TargumLang.switcher(document.getElementById("langs"), codes, names, code, show);
@@ -958,6 +1012,7 @@
       // too, rather than leave the table it drew a moment ago standing.
       document.getElementById("nothing").hidden = codes.length > 0;
       document.getElementById("page").hidden = codes.length === 0;
+      offerEverything(codes.length > 0);
       if (!codes.length) return;
       if (codes.indexOf(currentCode) < 0) currentCode = window.TargumLang.current(codes);
       show(currentCode);

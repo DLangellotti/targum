@@ -1186,7 +1186,7 @@ class Handler(BaseHTTPRequestHandler):
             # page rather than a 401 — and not the sign-in page either, because a door
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
-            if route.startswith(("/readers", "/job/", "/glossary/")):
+            if route.startswith(("/readers", "/job/", "/glossary/", "/account/export")):
                 return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
@@ -1230,6 +1230,24 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/account/export":
+            # Everything the account holds, for somebody who wants to take it away. A
+            # download rather than a page: the point of this is that it needs nobody's
+            # help, and a wall of JSON in a browser tab is not a thing anybody can keep.
+            person = self._person()
+            if person is None:
+                return self._json({"error": "Sign in first."}, 401)
+            body = json.dumps(self.store.everything(person), ensure_ascii=False, indent=1).encode(
+                "utf-8"
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="targum.json"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return None
         if route.startswith("/glossary/"):
             return self._serve_glossary(route[len("/glossary/") :])
         if route.startswith("/job/"):
