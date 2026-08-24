@@ -150,6 +150,33 @@ def check_api_key() -> Check:
     )
 
 
+def check_invitations(store: Path) -> Check:
+    """Whether anybody may open an account here.
+
+    Hosted, an empty list means nobody can — which is the right default but the wrong
+    thing to discover from a reader saying the link never came. A warning rather than a
+    failure: a box with nobody invited yet is a normal state on the way to inviting
+    somebody, and refusing to start would leave no way to run the command that fixes it.
+    """
+    if _env("TARGUM_REQUIRE_ACCOUNT").lower() not in {"1", "true", "yes"}:
+        return Check("invitations", True, "not hosted, so no guest list", fatal=False)
+    try:
+        from .accounts import Store
+
+        people = Store(store).invitations()
+    except Exception as error:  # noqa: BLE001 - a missing or unreadable store
+        return Check("invitations", False, f"cannot read the list — {error}", fatal=False)
+    if not people:
+        return Check(
+            "invitations",
+            False,
+            "nobody is invited, so nobody can sign up.",
+            "targum invite someone@example.com",
+            fatal=False,
+        )
+    return Check("invitations", True, f"{len(people)} invited")
+
+
 def check_paths(store: Path, out: Path) -> list[Check]:
     checks = []
     for label, path in (
@@ -208,6 +235,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks = [check_address(), check_account_required()]
     checks += check_mail(connect=connect)
     checks.append(check_api_key())
+    checks.append(check_invitations(store))
     checks += check_paths(store, out)
     checks += [check_disk(store.parent), check_port(port)]
     return checks

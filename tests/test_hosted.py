@@ -321,3 +321,117 @@ def test_the_account_tells_the_page_which_shelf(hosted: tuple[int, str]) -> None
     status, body = ask(port, "/account/me", "targum.page", session)
     assert status == 200
     assert "shelf" in json.loads(body)
+
+
+# -- who may open an account --------------------------------------------------
+
+
+def post(port: int, path: str, payload: dict[str, object], host: str = "targum.page"):
+    body = json.dumps(payload).encode()
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("POST", path, skip_host=True)
+    conn.putheader("Host", host)
+    conn.putheader("Content-Type", "application/json")
+    conn.putheader("Content-Length", str(len(body)))
+    conn.endheaders()
+    conn.send(body)
+    response = conn.getresponse()
+    out = json.loads(response.read())
+    conn.close()
+    return response.status, out
+
+
+def test_an_empty_list_means_nobody_rather_than_everybody(tmp_path: Path) -> None:
+    """The safe way round, and the whole point.
+
+    A box standing on a public address with a funded API key must not, by default, let
+    whoever finds it open an account and start spending — the per-account rail is $3.00
+    a *day*, which is a rate limit rather than a plan limit.
+    """
+    store = Store(tmp_path / "invite.db")
+    assert store.invitations() == []
+    assert not store.may_join("stranger@example.com")
+
+
+def test_only_an_invited_address_gets_a_link(tmp_path: Path) -> None:
+    sent: list[str] = []
+
+    class Mailer:
+        def send(self, to: str, link: str) -> None:
+            sent.append(to)
+
+    store_path = tmp_path / "invite.db"
+    store = Store(store_path)
+    port = 8494
+    threading.Thread(
+        target=lambda: serve.start(
+            out=tmp_path / "out",
+            port=port,
+            open_browser=False,
+            store=store_path,
+            mailer=Mailer(),
+            require_account=True,
+            public_address=PUBLIC,
+        ),
+        daemon=True,
+    ).start()
+    for _ in range(60):
+        try:
+            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe.request("GET", "/health")
+            probe.getresponse().read()
+            probe.close()
+            break
+        except OSError:
+            time.sleep(0.1)
+
+    status, body = post(port, "/account/sign-in", {"email": "wife@example.com"})
+    assert status == 403 and "not open" in body["error"]
+    assert sent == [], "an uninvited address must not be mailed"
+
+    # Messy on the way in, tidied on the way through — the same rule addresses already
+    # follow everywhere else, so an invitation typed with a capital still matches.
+    store.invite("  Wife@Example.com ")
+    assert store.invitations() == ["wife@example.com"]
+
+    assert post(port, "/account/sign-in", {"email": "wife@example.com"})[0] == 200
+    assert sent == ["wife@example.com"]
+    assert post(port, "/account/sign-in", {"email": "stranger@example.com"})[0] == 403
+    assert sent == ["wife@example.com"], "and still nobody else"
+
+
+def test_locally_there_is_no_guest_list(tmp_path: Path) -> None:
+    """One person, one machine, nobody else able to reach it. Making them ask themselves
+    for permission would be absurd."""
+    store = Store(tmp_path / "local.db")
+    assert store.invitations() == []
+    # The gate lives in the hosted branch of `_sign_in`, so this is the assertion that
+    # the switch is the thing deciding rather than the list being empty.
+    assert "self.require_account and not self.store.may_join" in Path(
+        "src/targum/serve.py"
+    ).read_text(encoding="utf-8")
+
+
+def test_uninviting_does_not_lock_out_somebody_already_reading(tmp_path: Path) -> None:
+    """This decides who may *join*. Someone who has been reading for a month should not
+    lose their own words to an edit of a guest list."""
+    store = Store(tmp_path / "invite.db")
+    store.invite("reader@example.com")
+    signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed_in is not None
+
+    assert store.uninvite("reader@example.com") is True
+    assert store.invitations() == []
+    assert store.whoever(signed_in[1]) is not None, "their session should still work"
+
+
+def test_removing_an_address_that_was_never_there_says_so(tmp_path: Path) -> None:
+    assert Store(tmp_path / "invite.db").uninvite("nobody@example.com") is False
+
+
+def test_an_invitation_survives_a_restart(tmp_path: Path) -> None:
+    """It is a table rather than an environment variable so the list outlives a redeploy
+    and gets backed up with everything else."""
+    path = tmp_path / "invite.db"
+    Store(path).invite("reader@example.com")
+    assert Store(path).may_join("reader@example.com")

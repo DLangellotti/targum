@@ -148,6 +148,10 @@ def shelves_are_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
 
+# What somebody who has not been invited is told. Honest about the state of things and
+# says nothing about who is on the list.
+NOT_OPEN = "targum is not open yet."
+
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
 
@@ -1323,6 +1327,17 @@ class Handler(BaseHTTPRequestHandler):
         email = str(payload.get("email") or "")
         if not plausible(email):
             return self._json({"error": "That does not look like an email address."}, 400)
+        # Hosted, an address has to have been invited. Without this, standing a box up
+        # on a public address with a funded key lets whoever finds it open an account and
+        # start spending — held back only by a per-account rail that is $3.00 a *day*,
+        # which is a rate limit and not a plan limit.
+        #
+        # Said plainly rather than answered with a silent "check your email". That does
+        # tell an asker whether an address is on the list, and for an alpha of a handful
+        # of people the confusion of a link that never arrives costs more than the
+        # enumeration is worth. Revisit when the list is long enough to be worth probing.
+        if self.require_account and not self.store.may_join(email):
+            return self._json({"error": NOT_OPEN}, 403)
         if self.store.asking_too_often(email):
             return self._json(
                 {"error": "Too many links to that address. Check your spam folder."},
