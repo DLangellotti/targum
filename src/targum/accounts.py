@@ -364,6 +364,17 @@ class Store:
 
     # -- signing in -------------------------------------------------------------
 
+    def anyone(self) -> bool:
+        """Whether anybody has an account here at all.
+
+        The question behind it is what "signed out" means. On a machine nobody has ever
+        signed up on, it means nothing — there is one person, it is theirs, and asking
+        them to make an account to read their own files would be absurd. Once an account
+        exists, the machine is being used as targum-with-accounts and signing out is a
+        thing somebody chose to do.
+        """
+        return self.db.execute("SELECT 1 FROM person LIMIT 1").fetchone() is not None
+
     def person_by_email(self, email: str) -> Person | None:
         row = self.db.execute(
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
