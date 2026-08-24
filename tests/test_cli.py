@@ -158,3 +158,71 @@ def test_rebuild_rewrites_readers_from_disk(tmp_path: Path) -> None:
     written = (folder / "reader" / "index.html").read_text(encoding="utf-8")
     assert "<html>old</html>" not in written
     assert "peace" in written
+
+
+def test_a_catalogue_reader_can_be_rebuilt(tmp_path: Path) -> None:
+    """A reader built from a published translation must be rewritable like any other.
+
+    It was not. The alignment on disk holds links, not text, and the published
+    translation's segments are kept nowhere, so `rebuild` found no `translations/`
+    entry and reported the reader as "never translated". The class of reader that
+    costs nothing to build was the one class a design change could never reach.
+    """
+    from targum.align import to_translation
+    from targum.models import Alignment, BlockKind, Link, Segment, SegmentedDocument
+
+    source = SegmentedDocument(
+        document_hash="src",
+        language="he",
+        segmenter="t/1",
+        segments=[
+            Segment(
+                id="0000.000-aaa",
+                block_id="b0",
+                block_index=0,
+                index=0,
+                text="שלום",
+                kind=BlockKind.paragraph,
+            )
+        ],
+    )
+    target = SegmentedDocument(
+        document_hash="tgt",
+        language="en",
+        segmenter="t/1",
+        segments=[
+            Segment(
+                id="0000.000-bbb",
+                block_id="b0",
+                block_index=0,
+                index=0,
+                text="peace",
+                kind=BlockKind.paragraph,
+            )
+        ],
+    )
+    alignment = Alignment(
+        name="A Published Translation",
+        document_hash="src",
+        translation_hash="tgt",
+        source_language="he",
+        target_language="en",
+        aligner="t/1",
+        links=[Link(source=["0000.000-aaa"], target=["0000.000-bbb"], confidence=1.0)],
+    )
+
+    projected = to_translation(alignment, target)
+    assert projected.segments == {"0000.000-aaa": "peace"}, projected.segments
+
+    # The projection is what has to survive to disk: the alignment alone cannot
+    # reproduce it, because nothing on disk remembers what the target said.
+    written = tmp_path / "translations" / "aligned.a-published-translation.en.json"
+    projected.write(written)
+    assert written.is_file()
+
+    from targum.models import Translation, read_artifact
+
+    reloaded = read_artifact(Translation, written)
+    assert reloaded is not None
+    assert reloaded.segments == {"0000.000-aaa": "peace"}
+    assert source.segments[0].id in reloaded.segments

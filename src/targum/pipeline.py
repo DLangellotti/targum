@@ -294,7 +294,17 @@ class Build:
             alignment.write(
                 self.resolved_out / "alignments" / f"{slug(name)}.{target.language}.json"
             )
-            out.append(align_module.to_translation(alignment, target))
+            projected = align_module.to_translation(alignment, target)
+            # The projection goes to disk beside a machine translation, not only into
+            # this run's memory. The alignment alone cannot be re-rendered later: it
+            # holds links, not text, and the published translation's segments are not
+            # kept anywhere. Without this, `targum rebuild` reports a catalogue reader
+            # as "never translated" and skips it — so the readers that cost nothing to
+            # build were the only ones a design change could never reach.
+            projected.write(
+                self.resolved_out / "translations" / f"aligned.{slug(name)}.{target.language}.json"
+            )
+            out.append(projected)
         return out
 
     def annotate(self, segmented: SegmentedDocument) -> Annotation | None:
