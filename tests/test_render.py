@@ -511,7 +511,7 @@ def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
     theme and swaps to the other; and every page has to carry both the switch and the
     script, or the choice stops at the page you made it on.
     """
-    from targum.render.builder import ASSETS, start_page, words_page
+    from targum.render.builder import ASSETS, add_page, learn_page, library_page, words_page
 
     theme = (ASSETS / "theme.js").read_text(encoding="utf-8")
     assert '"targum:theme"' in theme  # one key, one origin, every page
@@ -529,7 +529,9 @@ def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
         segments={segments[0].id: "tr"},
     )
     pages = {
-        "start": start_page("k", 2.0, 10.0),
+        "add": add_page("k"),
+        "learn": learn_page("k"),
+        "library": library_page("k"),
         "words": words_page("k"),
         "reader": render(document, segmented, [translation], tmp_path / "r")[0].read_text(
             encoding="utf-8"
@@ -934,13 +936,13 @@ def test_every_page_shares_one_language_choice() -> None:
     the module that keeps that choice has to be on every page that offers it. Hebrew
     is the default and the only one not marked beta.
     """
-    from targum.render.builder import library_page, start_page, words_page
+    from targum.render.builder import add_page, learn_page, library_page, words_page
 
-    for html in (start_page("k", 2.0, 10.0), words_page("k"), library_page("k")):
+    for html in (add_page("k"), learn_page("k"), words_page("k"), library_page("k")):
         assert "TargumLang" in html, "the shared language choice is missing"
         assert 'HOME = "he"' in html
 
-    start = start_page("k", 2.0, 10.0)
+    start = add_page("k")
     # Hebrew is chosen for you; the others say what they are.
     assert '<option value="he" selected>' in start
     assert "(beta)" in start
@@ -1005,11 +1007,13 @@ def test_every_page_carries_the_identity(rendered: Path) -> None:
     assert 'href="brand/' not in html
 
 
-def test_the_way_back_goes_to_the_library(tmp_path: Path) -> None:
-    """Both back links say Library, so both go there — not to the start page.
+def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
+    """Both back links say Learn, so both go there.
 
-    The contents page and the section pages set the link from different scripts, and
-    only one of them had been taught the difference.
+    Somebody leaving a text wants their own shelf and the thing they were part way
+    through — not the catalogue. The contents page and the section pages set the link
+    from different scripts, and only one of them had ever been taught the difference,
+    which is why both are checked.
     """
     segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
     segmented = make_segmented(segments)
@@ -1025,9 +1029,8 @@ def test_the_way_back_goes_to_the_library(tmp_path: Path) -> None:
     contents, section = render(document, segmented, [translation], tmp_path / "reader")[:2]
     for page in (contents, section):
         html = page.read_text(encoding="utf-8")
-        assert '<a class="home" id="home" href="/library" hidden>Library</a>' in html
-        assert '"/library"' in html or '"/library?k="' in html
-        assert 'home.href = "/" ' not in html
+        assert '<a class="home" id="home" href="/" hidden>Learn</a>' in html
+        assert '"/library"' not in html, "the way out is not the catalogue any more"
 
 
 ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"

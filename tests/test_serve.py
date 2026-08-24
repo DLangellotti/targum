@@ -1032,7 +1032,7 @@ def test_signing_out_shows_the_holding_page_once_an_account_exists(tmp_path: Pat
 def test_the_about_page_is_reachable_from_inside_the_app() -> None:
     """It is the open-source half made visible, and a link only on the front door means
     nobody who is signed in ever finds it."""
-    from targum.render.builder import library_page, start_page, words_page
+    from targum.render.builder import add_page, learn_page, library_page, words_page
 
-    for page in (library_page("k"), words_page("k"), start_page("k", 2.0, 10.0)):
+    for page in (library_page("k"), learn_page("k"), words_page("k"), add_page("k")):
         assert 'href="/about"' in page

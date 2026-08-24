@@ -157,22 +157,47 @@ def _data_uri(name: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
-def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str:
-    """The page targum serve hands you, built with the reader's own type and palette.
+def learn_page(token: str) -> str:
+    """The page you land on: carry on, what you have, what you know.
 
-    `no_key` is the notice to show when nothing can be translated. It is passed in
-    rather than worked out here, so the page states the same thing the builder would
-    have refused with.
+    In that order on purpose. Most visits are somebody returning to a text rather than
+    looking for a new one, and the brand rule is that the reader is a reader rather than
+    a player — so the numbers sit under the thing you came to do, not over it.
+
+    Nothing about the reader is baked in. The shelf comes from `/readers` and the words
+    from the browser's own stores, which is what lets one rendered page serve everybody.
     """
     from ..translate.prompts import OFFERED, language_name
 
     return (
         _environment()
-        .get_template("start.html.j2")
+        .get_template("learn.html.j2")
         .render(
             token=token,
-            limit=limit,
-            budget=budget,
+            languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
+def add_page(token: str, no_key: str = "") -> str:
+    """Bringing a text targum does not have.
+
+    No longer the page anybody lands on — Learn is — so it introduces nothing and says
+    what it is for. It is still the only place in the product with a file input, a free
+    source field, a choice of language pair, and a price shown before anything is spent.
+
+    `no_key` is the notice to show when nothing can be translated. It is passed in rather
+    than worked out here, so the page states the same thing the builder would have
+    refused with — and it matters more here than it used to, this now being the only page
+    that spends anything.
+    """
+    from ..translate.prompts import OFFERED, language_name
+
+    return (
+        _environment()
+        .get_template("add.html.j2")
+        .render(
+            token=token,
             no_key=no_key,
             languages=[(code, language_name(code)) for code in OFFERED],
         )

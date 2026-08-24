@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+{#- `words` as well as `learn`, because the chart palette (--step-1..4) is defined on
+    `.words` and the tiles and the growth line are drawn with the same kit as the words
+    page. -#}
+<body class="words learn">
+{% set here = 'learn' %}
+{% set title = '' %}
+{% include '_nav.html.j2' %}
+
+<main id="page" hidden>
+  {#- What you came back for. First and largest, because most visits are somebody
+      returning to something rather than looking for something new. -#}
+  <section class="panel carry" id="carry" hidden>
+    <h2>Carry on</h2>
+    <a class="carry-link" id="carry-link" href="/">
+      <bdi class="carry-title" id="carry-title"></bdi>
+    </a>
+    <p class="carry-meta" id="carry-meta"></p>
+    <p class="carry-known" id="carry-known" hidden></p>
+  </section>
+
+  <section class="panel" id="shelf-panel">
+    <div class="list-controls">
+      <h2>Your targums</h2>
+    </div>
+    <p class="note" id="shelf-note"></p>
+    <ul class="books" id="library-list"></ul>
+    <p class="empty" id="shelf-empty" hidden></p>
+  </section>
+
+  {#- The glance, not the study. The table, the filters and the exports stay on the words
+      page, which is somewhere you go on purpose. -#}
+  <section class="panel" id="words-panel" hidden>
+    <div class="list-controls">
+      <h2>Your words</h2>
+      <a class="to-words" href="/words">All of them</a>
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="chart" id="growth"></div>
+  </section>
+
+  <section class="panel elsewhere">
+    <h2>Something new</h2>
+    <p class="note">
+      <a href="/library" data-shelf="beit-midrash">The Beit Midrash</a> for Tanakh, the
+      <a href="/library" data-shelf="library">Library</a> for everything else.
+    </p>
+  </section>
+
+  {#- Only there when there is something in it. -#}
+  <section class="panel trash" id="trash-panel" hidden>
+    <h2>Trash</h2>
+    <p class="note">Kept for seven days.</p>
+    <ul class="books" id="trash-list"></ul>
+  </section>
+</main>
+
+{#- The first thing a new reader sees, so it is the onboarding now. It points at the
+    shelves rather than at the upload form, which is the whole change. -#}
+<section class="nothing" id="nothing" hidden>
+  <p class="lede">Nothing here yet.</p>
+  <p>Pick something from the <a href="/library">Library</a> or the
+    <a href="/library" data-shelf="beit-midrash">Beit Midrash</a> — both are free.</p>
+  <p class="hint">Or <a href="/add">add a text of your own</a>.</p>
+</section>
+
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('learn.js') }}</script>
+</body>
+</html>

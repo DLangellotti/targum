@@ -1,0 +1,97 @@
+/* Learn — the page you land on.
+ *
+ * Almost everything here is borrowed: the panels, tiles, charts and list controls come
+ * from words.css, the shelf rows and chapter trees from library.css. What is defined
+ * here is only the one band those two do not already have — the thing you came back for.
+ *
+ * §9 holds: one raised layer, and the accent spent on the single thing worth pressing. */
+
+body.learn main {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+/* The type selector otherwise beats the user-agent [hidden] rule. */
+body.learn main[hidden] {
+  display: none;
+}
+
+/* Carry on. The largest thing on the page, and the only one with the accent on it,
+   because it is the one thing most visits are for. */
+.carry {
+  border-color: var(--accent);
+}
+.carry h2 {
+  margin-block-end: 0.6rem;
+}
+.carry-link {
+  display: inline-block;
+  text-decoration: none;
+  color: var(--ink);
+}
+.carry-title {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+.carry-link:hover .carry-title {
+  color: var(--accent);
+}
+.carry-meta {
+  margin: 0.35rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+/* A real count of a real thing, in the reading face with tabular figures — the ledger
+   treatment the brand asks for, not a score. */
+.carry-known {
+  margin: 0.5rem 0 0;
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--leaf);
+}
+.carry-known[hidden] {
+  display: none;
+}
+
+/* Where to go next, and the way to add something. Quiet on purpose: the catalogue has
+   its own page now, and repeating it here is what this redesign is undoing. */
+.elsewhere .note a,
+.learn .to-words {
+  color: var(--accent);
+}
+.learn .list-controls .to-words {
+  margin-inline-start: auto;
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+
+/* Nothing yet — which is the onboarding now, so it points at the shelves rather than at
+   a form. */
+body.learn .nothing {
+  max-width: 34rem;
+  margin: 4rem auto;
+  padding: 0 1.25rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+body.learn .nothing[hidden] {
+  display: none;
+}
+body.learn .nothing .lede {
+  margin: 0 0 0.5rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  color: var(--ink);
+}
+body.learn .nothing a {
+  color: var(--accent);
+}
+body.learn .nothing .hint {
+  margin-block-start: 1.25rem;
+  font-size: 0.8125rem;
+}
