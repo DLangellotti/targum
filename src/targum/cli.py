@@ -104,7 +104,21 @@ def serve(
     words = store or default_store()
     directory.mkdir(parents=True, exist_ok=True)
 
+    # Hosted is configuration, not a different program. Set these in the deployment's
+    # environment and `targum serve` is the public server; leave them and it is the
+    # local one it has always been. Read before `announce` because what it should say
+    # depends on which of the two this is.
+    public = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()
+    hosted = os.environ.get("TARGUM_REQUIRE_ACCOUNT", "").strip().lower() in {"1", "true", "yes"}
+
     def announce(address: str) -> None:
+        # Hosted this goes to a journal rather than to somebody sitting in front of it,
+        # and every line below is untrue there: there is no key in the address, the box
+        # is reachable from everywhere on purpose, and nobody is going to press Ctrl-C.
+        if hosted:
+            console.print(f"[green]targum[/green] is serving [bold]{address}[/bold]")
+            console.print(f"[dim]Words in {words}. Targums in {directory}.[/dim]")
+            return
         # The key is part of the address, so it has to be printed with it — and it is
         # a different key every start, which is why a bookmark of this never works.
         console.print(f"[green]targum[/green] is at [bold]{address}[/bold]")
@@ -126,11 +140,6 @@ def serve(
             f"session. You see the price before anything is spent.[/dim]"
         )
 
-    # Hosted is configuration, not a different program. Set these in the deployment's
-    # environment and `targum serve` is the public server; leave them and it is the
-    # local one it has always been.
-    public = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()
-    hosted = os.environ.get("TARGUM_REQUIRE_ACCOUNT", "").strip().lower() in {"1", "true", "yes"}
     if hosted and not os.environ.get("TARGUM_SMTP_HOST", "").strip():
         # Otherwise the door is shut and there is no way to knock: every route asks
         # for an account, and the only way to get one is a link nobody can send.

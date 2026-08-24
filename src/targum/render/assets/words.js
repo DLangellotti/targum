@@ -9,6 +9,20 @@
   "use strict";
 
   var key = window.TARGUM_KEY;
+  /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
+     riding in every URL is a bearer token in browser history, on a shared screen, and in
+     a Referer. Local it stays, because there it proves the page came from the terminal
+     that started the process. Both cases are this one branch. */
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
   var names = window.TARGUM_LANGUAGES || {};
 
   var KNOWN = 9;
@@ -49,7 +63,7 @@
 
   function wireNav() {
     Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
-      link.href = link.getAttribute("href") + "?k=" + encodeURIComponent(key);
+      link.href = keyed(link.getAttribute("href"));
     });
   }
   wireNav();
