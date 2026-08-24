@@ -1,0 +1,65 @@
+# /etc/systemd/system/targum.service
+#
+# targum behind Caddy. It binds loopback and always has — Caddy terminates TLS and
+# forwards, so nothing here is reachable from outside except through the proxy.
+#
+#   systemctl daemon-reload && systemctl enable --now targum
+#   journalctl -u targum -f
+
+[Unit]
+Description=targum
+Documentation=https://github.com/dlangellotti/targum
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=targum
+Group=targum
+WorkingDirectory=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+
+# The gate. A deployment fails either here, in the journal, or at somebody's first
+# sign-in — and there is only one alpha reader to spend on the second. Non-zero exit
+# stops the start, so a missing TARGUM_PUBLIC_ADDRESS never reaches a reader as a
+# sign-in link pointing at the server's own loopback address. A missing API key is a
+# warning rather than a failure and does not block: the catalogue still works.
+ExecStartPre=/usr/local/bin/targum preflight --no-connect \
+  --store /var/lib/targum/targum.db --out /var/lib/targum/targums
+
+ExecStart=/usr/local/bin/targum serve --no-open --port 8420 \
+  --store /var/lib/targum/targum.db --out /var/lib/targum/targums
+
+Restart=always
+RestartSec=10
+# Give up after five failures in five minutes rather than restarting into the same
+# broken environment forever. `systemctl reset-failed targum` clears it.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# Stanza and LaBSE are large, and a build is a long-running request. Let it finish.
+TimeoutStopSec=90
+KillSignal=SIGINT
+
+# --- hardening -------------------------------------------------------------
+# It parses documents from the open internet and runs somebody else's uploads through
+# a model pipeline, so it should be able to reach very little of the box.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+ReadWritePaths=/var/lib/targum
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

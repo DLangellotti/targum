@@ -167,6 +167,43 @@ def serve(
 
 
 @app.command()
+def preflight(
+    port: Annotated[int, typer.Option("--port", help="The port serve will bind.")] = 8420,
+    out: Annotated[Path | None, typer.Option("--out", help="Where targums are kept.")] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Where words are kept.")] = None,
+    connect: Annotated[
+        bool, typer.Option("--connect/--no-connect", help="Also try reaching the mail host.")
+    ] = True,
+) -> None:
+    """Check a deployment before a reader does.
+
+    A deployment fails either here, where it costs a minute, or at somebody's first
+    sign-in, where it costs the only alpha reader there is. Run it after every deploy.
+    Exits non-zero if anything would present a broken product, so a deploy script can
+    stop on it.
+    """
+    from .preflight import fatal
+    from .preflight import preflight as run
+    from .serve import default_store
+
+    words = store or default_store()
+    directory = out or Path.cwd() / "targum-out"
+    checks = run(words, directory, port=port, connect=connect)
+
+    for check in checks:
+        colour = {"ok": "green", "warn": "yellow", "FAIL": "red"}[check.state]
+        console.print(f"[{colour}]{check.state:>4}[/{colour}]  {check.name:<24} {check.detail}")
+        if check.fix and not check.ok:
+            console.print(f"        [dim]{check.fix}[/dim]")
+
+    broken = fatal(checks)
+    if broken:
+        console.print(f"\n[red]{len(broken)} of {len(checks)} would fail a reader.[/red]")
+        raise typer.Exit(1)
+    console.print(f"\n[green]Ready.[/green] [dim]{len(checks)} checks.[/dim]")
+
+
+@app.command()
 def backup(
     out: Annotated[
         Path | None,
