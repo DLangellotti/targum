@@ -433,7 +433,17 @@ class Build:
             return None
         path = self.resolved_out / "annotation.json"
         self.notify("Finding each word's dictionary form…")
-        annotator = self._annotator or annotate_module.Annotator()
+        # A Tanakh is banded against the Tanakh. wordfreq's Hebrew is contemporary
+        # Israeli media, which asks the wrong question of scripture and answers it
+        # confidently: vocabulary that is everywhere in Torah but has left modern usage
+        # would show as "very hard" to somebody for whom it is the first thing to learn.
+        # `for_source` returns None for everything else, and `Annotator` then takes its
+        # own default, so no other text is affected.
+        from .annotate import biblical
+
+        annotator = self._annotator or annotate_module.Annotator(
+            bands=biblical.for_source(self.source)
+        )
         if not self.force:
             existing = read_artifact(Annotation, path)
             # Same text, and made by the same annotator that would run now. Naming
