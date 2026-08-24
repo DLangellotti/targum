@@ -15,6 +15,7 @@ import base64
 import errno
 import json
 import queue
+import re
 import secrets
 import threading
 import traceback
@@ -194,6 +195,28 @@ class Job:
         }
 
 
+# A person's home is `p` and their number, and nothing else. Matching on the `p` alone
+# would treat a text called "poem-he" as somebody's home and leave it unadopted, which
+# is to say invisible.
+HOME = re.compile(r"p\d+")
+
+
+def free_name(home: Path, name: str) -> Path:
+    """A name in this home that nothing is using yet.
+
+    Two documents can slug to the same name and hold different texts, and adopting one
+    over the other would silently destroy work. Renaming over a directory that already
+    has something in it does not even fail cleanly — it raises, part-way through
+    start-up, and the server never comes up.
+    """
+    target = home / name
+    nth = 2
+    while target.exists():
+        target = home / f"{name}-{nth}"
+        nth += 1
+    return target
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
 
@@ -323,7 +346,7 @@ class Library:
         if not self.out.is_dir():
             return
         for folder in list(self.out.iterdir()):
-            if not folder.is_dir() or folder.name == "local" or folder.name.startswith("p"):
+            if not folder.is_dir() or folder.name == "local" or HOME.fullmatch(folder.name):
                 continue
             # Any document folder, not only one that reached a rendered reader:
             # "ingested, then never translated" is a real state and orphaning it
@@ -331,7 +354,12 @@ class Library:
             if not (folder / "document.json").is_file():
                 continue
             local.mkdir(parents=True, exist_ok=True)
-            folder.rename(local / folder.name)
+            try:
+                folder.rename(free_name(local, folder.name))
+            except OSError:
+                # One folder that will not move is not a reason for targum not to
+                # start. It stays where it is and is tried again next time.
+                continue
 
     def remaining(self) -> float:
         return max(0.0, self.budget - self.committed)

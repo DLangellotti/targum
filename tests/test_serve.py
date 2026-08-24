@@ -462,3 +462,47 @@ def test_adopting_twice_changes_nothing(tmp_path: Path) -> None:
 
     assert (tmp_path / "local" / "book-he" / "reader" / "index.html").is_file()
     assert not (tmp_path / "local" / "local").exists()
+
+
+def test_adopting_does_not_overwrite_a_name_already_taken(tmp_path: Path) -> None:
+    """Two documents can slug the same and hold different texts.
+
+    Renaming one over the other loses work, and on a non-empty directory it does not
+    even fail cleanly: it raises part-way through start-up and the server never comes
+    up. Which is what happened.
+    """
+    from targum.serve import Library
+
+    (tmp_path / "local" / "declaration-he").mkdir(parents=True)
+    (tmp_path / "local" / "declaration-he" / "document.json").write_text(
+        '{"title": "the one already adopted"}', encoding="utf-8"
+    )
+    (tmp_path / "declaration-he").mkdir()
+    (tmp_path / "declaration-he" / "document.json").write_text(
+        '{"title": "a different text with the same slug"}', encoding="utf-8"
+    )
+
+    Library(tmp_path)  # must not raise
+
+    kept = (tmp_path / "local" / "declaration-he" / "document.json").read_text()
+    moved = (tmp_path / "local" / "declaration-he-2" / "document.json").read_text()
+    assert "already adopted" in kept
+    assert "different text" in moved
+    assert not (tmp_path / "declaration-he").exists()
+
+
+def test_a_text_whose_name_starts_with_p_is_still_adopted(tmp_path: Path) -> None:
+    """A home is `p` and a number. "poem-he" is a text, not somebody's home."""
+    from targum.serve import Library
+
+    for name in ("poem-he", "p12", "portrait-en"):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "document.json").write_text("{}", encoding="utf-8")
+
+    Library(tmp_path)
+
+    assert (tmp_path / "local" / "poem-he").is_dir()
+    assert (tmp_path / "local" / "portrait-en").is_dir()
+    # p12 looks exactly like a person's home, so it is left alone.
+    assert (tmp_path / "p12").is_dir()
+    assert not (tmp_path / "local" / "p12").exists()
