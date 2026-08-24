@@ -67,6 +67,16 @@ SCHEMA_VERSION = 4
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
 # by hand or the first query naming it fails against every database but a brand new one
 # — which is exactly what a test suite full of temporary files does not catch.
+# Who may open an account. Hosted, an address has to be here first — see `may_join`.
+# A table rather than an environment variable so the list survives a redeploy, gets
+# backed up with everything else, and can be changed without one.
+INVITED = """
+CREATE TABLE IF NOT EXISTS invited (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+"""
+
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
     # Which shelf somebody reads. On the account rather than in the browser, because
@@ -305,6 +315,7 @@ class Store:
         # Not inside `write()`: executescript issues its own COMMIT first, which ends
         # the transaction out from under whoever opened it.
         self.db.executescript(SCHEMA)
+        self.db.executescript(INVITED)
         self._migrate()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -407,6 +418,46 @@ class Store:
                 return True
             db.execute("INSERT INTO asked (who, made) VALUES (?, ?)", (tidy(who), now()))
             return False
+
+    def invite(self, email: str) -> str:
+        """Let one address open an account. Returns the address as it was stored."""
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def uninvite(self, email: str) -> bool:
+        """Take an address off the list. Any account it already has is untouched.
+
+        Deliberately: this decides who may *join*, and someone who has been reading for a
+        month should not be locked out of their own words by an edit to a guest list.
+        Use `forget` to remove a person.
+        """
+        with self.write() as db:
+            return db.execute("DELETE FROM invited WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    def invitations(self) -> list[str]:
+        return [row["email"] for row in self.db.execute("SELECT email FROM invited ORDER BY at")]
+
+    def may_join(self, email: str) -> bool:
+        """Whether this address may open an account here.
+
+        Called only in hosted mode. An empty list therefore means *nobody* rather than
+        everybody, which is the safe way round: standing a box up on a public address
+        with a funded API key should not, by default, let whoever finds it spend money.
+        The first invitation comes from the command line on the box itself, which makes
+        having the box the root of the whole thing.
+        """
+        address = tidy(email)
+        if not address:
+            return False
+        found = self.db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone()
+        return found is not None
 
     def start_sign_in(self, email: str) -> str:
         """Mint a link for this address, making the account if there is not one.

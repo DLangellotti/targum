@@ -119,3 +119,34 @@ def test_a_check_reports_its_own_state() -> None:
     assert Check("x", True, "").state == "ok"
     assert Check("x", False, "").state == "FAIL"
     assert Check("x", False, "", fatal=False).state == "warn"
+
+
+def test_a_hosted_box_with_nobody_invited_warns(hosted_env: None, tmp_path: Path) -> None:
+    """A box nobody may join is the right default and the wrong thing to find out about
+    from a reader saying the link never came.
+
+    A warning rather than a failure on purpose: an empty list is a normal state on the
+    way to inviting somebody, and refusing to start would leave no way to run the command
+    that fixes it.
+    """
+    from targum.accounts import Store
+    from targum.preflight import check_invitations
+
+    store = tmp_path / "targum.db"
+    Store(store)
+
+    empty = check_invitations(store)
+    assert not empty.ok and not empty.fatal
+    assert "targum invite" in empty.fix
+
+    Store(store).invite("wife@example.com")
+    assert check_invitations(store).ok
+
+
+def test_a_local_machine_is_not_asked_about_a_guest_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.preflight import check_invitations
+
+    monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT", raising=False)
+    assert check_invitations(tmp_path / "nothing.db").ok

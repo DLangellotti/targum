@@ -213,6 +213,56 @@ def preflight(
 
 
 @app.command()
+def invite(
+    email: Annotated[str | None, typer.Argument(help="The address to let in.")] = None,
+    remove: Annotated[
+        str | None, typer.Option("--remove", help="Take an address off the list.")
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Say who may open an account.
+
+    Hosted, nobody may until they are on this list — an empty list means nobody rather
+    than everybody, so a box standing on a public address with a funded key does not let
+    whoever finds it start spending. The first invitation is made here, on the box, which
+    is what makes having the box the root of the whole thing.
+
+    Taking an address off stops it opening a *new* account; anyone already reading keeps
+    their words. Use the account-deletion path to remove a person.
+
+    With no arguments, lists who is on it.
+    """
+    from .accounts import Store
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+
+    if remove:
+        gone = keeping.uninvite(remove)
+        if gone:
+            console.print(f"[green]Removed[/green] {remove}")
+        else:
+            console.print(f"[dim]{remove} was not on the list[/dim]")
+        return
+
+    if email:
+        try:
+            added = keeping.invite(email)
+        except ValueError as error:
+            fail(TargumError(str(error), "Try: targum invite someone@example.com"))
+        console.print(f"[green]Invited[/green] {added}")
+        return
+
+    people = keeping.invitations()
+    if not people:
+        console.print("[dim]Nobody is invited. Hosted, that means nobody can join.[/dim]")
+        return
+    for person in people:
+        console.print(person)
+    console.print(f"[dim]{len(people)} invited[/dim]")
+
+
+@app.command()
 def backup(
     out: Annotated[
         Path | None,
