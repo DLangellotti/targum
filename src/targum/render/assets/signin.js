@@ -42,7 +42,7 @@
       .catch(function () {
         said.hidden = false;
         said.classList.add("bad");
-        said.textContent = "targum could not be reached. Try again in a moment.";
+        said.textContent = "Cannot reach targum.";
         button.disabled = false;
       });
   });

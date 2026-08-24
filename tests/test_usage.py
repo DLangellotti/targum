@@ -175,7 +175,7 @@ def test_one_reader_running_away_does_not_stop_another(tmp_path: Path) -> None:
     assert library.claim(owned(library, 1, 2.5, "a1")) == ""
     refused = library.claim(owned(library, 1, 2.5, "a2"))
     assert refused, "the same reader should hit their own ceiling"
-    assert "for you" in refused
+    assert "your fill" in refused
 
     # Somebody else is unaffected: it is a rail per reader, not a shared tap.
     assert library.claim(owned(library, 2, 2.5, "b1")) == ""
@@ -189,7 +189,7 @@ def test_the_box_has_a_ceiling_no_per_account_limit_could_give_it(tmp_path: Path
     assert library.claim(owned(library, 2, 2.5, "b")) == ""
     refused = library.claim(owned(library, 3, 2.5, "c"))
     assert refused, "a third reader, inside their own limit, should still be stopped"
-    assert "everyone" in refused
+    assert "at its limit" in refused
 
 
 def test_a_refusal_says_which_limit_and_when_it_lifts(tmp_path: Path) -> None:

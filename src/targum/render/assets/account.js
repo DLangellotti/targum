@@ -47,7 +47,7 @@
     if (counts.phrases) {
       parts.push(counts.phrases + (counts.phrases === 1 ? " phrase" : " phrases"));
     }
-    if (!parts.length) return "Nothing kept yet. Tap a word while reading and it lands here.";
+    if (!parts.length) return "Nothing kept yet.";
     return "Keeping " + parts.join(" and ") + " for you.";
   }
 
@@ -61,7 +61,7 @@
       kept.textContent = tally(who.counts);
     } else {
       open.textContent = "Sign in";
-      open.title = "Sign in so your words follow you";
+      open.title = "Sign in";
     }
   }
 
@@ -87,7 +87,7 @@
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say("That did not go through. Try again in a moment.");
+        say("That did not go through.");
       });
   });
 
@@ -111,9 +111,9 @@
   // A link that has just been used, or one that had expired. Said on the page it lands
   // on rather than on a page of its own.
   var arrived = new URLSearchParams(location.search).get("signin");
-  if (arrived === "welcome") say("You are signed in. Your words follow you from here.", true);
+  if (arrived === "welcome") say("Signed in.", true);
   if (arrived === "expired") {
-    say("That link had already been used. Ask for another and it will work.", true);
+    say("That link was used. Ask for another.", true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

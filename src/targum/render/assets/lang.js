@@ -87,8 +87,7 @@
   function betaNote(code, names) {
     return (
       (names[code] || code.toUpperCase()) +
-      " is in beta. targum is built for Hebrew first — vowel points, dictionary forms " +
-      "and difficulty all work best there, and less well here."
+      " is in beta. Everything works best in Hebrew."
     );
   }
 

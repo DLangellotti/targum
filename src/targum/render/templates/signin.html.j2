@@ -24,39 +24,35 @@
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
   <h1>Sign in as {{ landing }}</h1>
-  <p class="said">You asked for this link. Press the button and targum will remember
-    you on this browser.</p>
+  <p class="said">Press to sign in on this browser.</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
     <button class="go" type="submit">Sign in</button>
   </form>
-  <p class="aside">Did not ask for it? Close this page and nothing happens.</p>
+  <p class="aside">Did not ask for it? Close this page.</p>
 
   {% elif expired %}
   <h1>That link has been used</h1>
-  <p class="said">A link works once and lasts twenty minutes, which is what keeps an
-    old email in an inbox from being a way in. Ask for another.</p>
+  <p class="said">Links work once, for twenty minutes. Ask for another.</p>
   <form method="post" action="/account/sign-in" id="ask">
-    <label for="email">Your email address</label>
+    <label for="email">Email</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="you@example.com">
-    <button class="go" type="submit">Email me a link</button>
+    <button class="go" type="submit">Send a link</button>
   </form>
 
   {% else %}
-  <h1>Read Hebrew with the translation beside it</h1>
+  <h1>Hebrew, with the translation beside it</h1>
   {#- One door. An address targum has not seen makes an account; one it has sends a
       link. Nobody has to work out which of two buttons they are. -#}
-  <p class="said">Sign in, or make an account — they are the same thing. There is no
-    password to invent: targum emails you a link.</p>
+  <p class="said">No password. targum emails you a link.</p>
   <form method="post" action="/account/sign-in" id="ask">
-    <label for="email">Your email address</label>
+    <label for="email">Email</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="you@example.com">
-    <button class="go" type="submit">Email me a link</button>
+    <button class="go" type="submit">Send a link</button>
   </form>
-  <p class="aside">Your words follow you to every browser you sign in on. Signed out,
-    targum keeps them in the one you are reading in.</p>
+  <p class="aside">Signed in, your words follow you between browsers.</p>
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>
