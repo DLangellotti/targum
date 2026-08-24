@@ -263,3 +263,60 @@
 }
 .site-foot a { color: var(--ink-soft); text-decoration: none; }
 .site-foot a:hover { color: var(--ink); }
+
+/* --- a book, opened into its chapters -------------------------------------- */
+
+.books .open-chapters {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.books .open-chapters:hover { color: var(--ink); border-color: var(--ink-soft); }
+.books .open-chapters[aria-expanded="true"] { color: var(--ink); border-color: var(--ink-soft); }
+
+/* Indented under the book it belongs to, and quiet: a chapter list is a thing you
+   opened, not a second shelf competing with the first. */
+.chapters {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding-inline-start: 1.2rem;
+  border-inline-start: 1px solid var(--rule);
+}
+.chapters li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-block: 0.3rem;
+  font-size: 0.8125rem;
+}
+/* `.books a` stacks a title over its metadata, and the chapter list sits inside the
+   same `<ul>` — so without this a chapter row inherits a flex column and puts its number
+   on one line and its title on the next. */
+.chapters li > a {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+.chapters li { border-block-end: none; }
+.chapters li > a:hover { color: var(--accent); }
+.chapters li.waiting > a { color: var(--ink-soft); }
+.chapters .get {
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.chapters .get:hover { color: var(--ink); border-color: var(--ink-soft); }
+.chapters .get:disabled { opacity: 0.6; cursor: default; }
