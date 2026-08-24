@@ -145,10 +145,16 @@ def test_the_growth_chart_is_defined_once() -> None:
 
 @pytest.mark.parametrize("page", ["words", "learn"])
 def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
+    """The first version of this said `"charts.js" in html or "TargumCharts" in html`,
+    which passes on any page whose own script merely *mentions* the global — so Learn
+    shipped without charts.js at all and the assertion stayed green. Look for the
+    definition, not the name."""
     html = PAGES[page]
-    assert "charts.js" in html or "TargumCharts" in html
-    if "charts.js" in html and f"{page}.js" in html:
-        assert html.index("charts.js") < html.index(f"{page}.js"), "order matters"
+    charts = (ASSETS / "charts.js").read_text(encoding="utf-8")
+    body = charts[charts.index("window.TargumCharts =") :][:80]
+    assert body in html, f"{page} does not inline charts.js"
+    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    assert html.index(body) < html.index(own), "and before the page that uses them"
 
 
 # -- the upsell, and the two things it got wrong ---------------------------------
@@ -168,3 +174,76 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     retry = source[source.index("anyway.onclick") : source.index("row.appendChild(anyway)")]
     assert "readFile(chosen)" in retry, "a file has to be able to take this branch"
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
+
+
+# -- the library is a room, and says which one -----------------------------------
+
+
+def test_the_library_heading_follows_the_shelf() -> None:
+    """It is a page now rather than a panel, so the heading is the room. It read
+    "Library" with the Beit Midrash open, which is the one thing a reader keeping Tanakh
+    apart from secular material would notice first."""
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert 'document.getElementById("page-title")' in source
+    assert 'document.title = name + " — targum"' in source, "and the bookmark too"
+    assert 'id="page-title"' in PAGES["library"], "the heading it writes into"
+
+
+def test_the_library_has_one_heading() -> None:
+    """ "Picked for you" was a panel title on a page that also held the reader's shelf
+    and their trash. With nothing else on the page it only repeated the h1."""
+    library = PAGES["library"]
+    assert "Picked for you" not in library
+    assert len(re.findall(r"<h2\b", library)) == 0
+
+
+# -- the header every page wears --------------------------------------------------
+
+
+def test_every_page_styles_its_own_header() -> None:
+    """The add page loaded no file called "library", because it has no catalogue — and
+    the header rules lived in library.css, so its brand mark rendered 675px across and
+    its header a thousand tall. Nothing failed; it just looked broken.
+
+    Anything belonging to `_nav.html.j2` belongs in chrome.css, which is why this asserts
+    against the rules rather than against the filename.
+    """
+    for name, page in PAGES.items():
+        for rule in (".site-head", ".brand-mark", ".site-nav", ".account-panel"):
+            assert rule in page, f"{name} wears the header but does not style {rule}"
+
+
+def test_the_chrome_is_not_in_the_library() -> None:
+    """Where it was, and where it must not go back to."""
+    library = (ASSETS / "library.css").read_text(encoding="utf-8")
+    for rule in (".site-head {", ".brand-mark {", ".site-nav {", ".account-panel {"):
+        assert rule not in library, f"{rule} belongs in chrome.css"
+
+
+# -- every script parses ----------------------------------------------------------
+
+
+def test_every_script_parses() -> None:
+    """reader.js had this check; nothing else did.
+
+    Splitting the charts out of words.js left its closing brace behind in one file and
+    missing from the other. charts.js then failed to parse, `window.TargumCharts` was
+    never assigned, and the words page threw on its first line and rendered a header
+    over an empty screen. Every test passed: they all read the HTML as a string, and the
+    broken script was inlined into it perfectly.
+    """
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    broken = []
+    for script in sorted(ASSETS.glob("*.js")):
+        done = subprocess.run(
+            [node, "--check", str(script)], capture_output=True, text=True, timeout=30
+        )
+        if done.returncode != 0:
+            broken.append(f"{script.name}: {done.stderr.strip().splitlines()[-1]}")
+    assert not broken, "\n".join(broken)

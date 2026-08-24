@@ -76,78 +76,7 @@
 
   // Words are filed per language; phrases per text, with the text index saying which
   // language each belongs to. Gathered here into one shape per language.
-  function collect() {
-    var docs = read("targum:docs", "{}");
-    // The index the reader writes now, and the one it wrote before. A phrase kept
-    // before the change is only in the older one, and without this it has no language
-    // and never reaches the page.
-    var older = read("targum:master", "{}");
-    function about(hash) {
-      var now = docs[hash] || {};
-      var was = older[hash] || {};
-      return { language: now.language || was.language || "", title: now.title || was.title || "" };
-    }
-    var byLanguage = {};
-
-    function slot(code) {
-      if (!byLanguage[code]) byLanguage[code] = { code: code, words: [], phrases: [] };
-      return byLanguage[code];
-    }
-
-    for (var i = 0; i < localStorage.length; i++) {
-      var name = localStorage.key(i);
-      if (!name) continue;
-
-      if (name.indexOf("targum:vocab:") === 0) {
-        var code = name.slice("targum:vocab:".length);
-        var vocab = read(name, "{}");
-        Object.keys(vocab).forEach(function (lemma) {
-          var item = vocab[lemma] || {};
-          slot(code).words.push({
-            lemma: lemma,
-            term: item.surface || lemma,
-            meaning: item.meaning || "",
-            note: item.note || "",
-            band: item.band || "",
-            status: item.status,
-            at: item.at || 0,
-          });
-        });
-      }
-
-      if (name.indexOf("targum:picked:") === 0) {
-        var hash = name.slice("targum:picked:".length);
-        var doc = about(hash);
-        if (!doc.language) continue;
-        var segments = read(name, "{}");
-        Object.keys(segments).forEach(function (segmentId) {
-          (segments[segmentId] || []).forEach(function (pick) {
-            slot(doc.language).phrases.push({
-              store: name,
-              segmentId: segmentId,
-              index: (segments[segmentId] || []).indexOf(pick),
-              term: pick.text || "",
-              meaning: pick.meaning || "",
-              note: pick.note || "",
-              status: pick.status === undefined ? null : pick.status,
-              title: doc.title || "a text",
-              at: pick.at || 0,
-            });
-          });
-        });
-      }
-    }
-
-    Object.keys(byLanguage).forEach(function (code) {
-      byLanguage[code].words.sort(function (a, b) {
-        return a.at - b.at;
-      });
-      byLanguage[code].phrases.sort(function (a, b) {
-        return a.at - b.at;
-      });
-    });
-    return byLanguage;
-  }
+  var collect = charts.collect;
 
   // Anything still in the per-document lists is moved across first, or someone who
   // comes here before opening a text is told they have kept nothing.

@@ -28,11 +28,6 @@
     if (key) head["X-Targum-Key"] = key;
     return head;
   }
-  var names = window.TARGUM_LANGUAGES || {};
-  var catalogue = window.TARGUM_CATALOGUE || [];
-  var lang = window.TargumLang;
-
-
   var charts = window.TargumCharts;
   var lang = window.TargumLang;
   var names = window.TARGUM_LANGUAGES || {};
@@ -361,7 +356,7 @@
 
   function drawWords(code) {
     var panel = document.getElementById("words-panel");
-    var store = kept()[code];
+    var store = charts.collect()[code];
     if (!store || !store.words.length) {
       panel.hidden = true;
       return;
@@ -387,17 +382,17 @@
         return b.opened - a.opened || b.built * 1000 - a.built * 1000;
       });
 
+      // `kept()` is a list of {language}, not a map — reading it with Object.keys put a
+      // language called "0" in the switcher.
       var vocabulary = kept();
       var codes = [lang.HOME];
-      readers.concat(Object.keys(vocabulary).map(function (code) {
-        return { language: code };
-      })).forEach(function (thing) {
+      readers.concat(vocabulary).forEach(function (thing) {
         var code = base(thing.language);
         if (code && codes.indexOf(code) < 0) codes.push(code);
       });
       codes = lang.order(codes, names);
 
-      var nothing = !readers.length && !Object.keys(vocabulary).length;
+      var nothing = !readers.length && !vocabulary.length;
       document.getElementById("nothing").hidden = !nothing;
       document.getElementById("page").hidden = nothing;
       if (nothing) return;
@@ -411,7 +406,11 @@
           return base(reader.language) === code;
         });
         drawCarry(mine[0]);
-        drawShelf(code, readers);
+        // The rest of the shelf. Repeating the one above it would be a list whose first
+        // row is the thing already filling the top of the page.
+        drawShelf(code, readers.filter(function (reader) {
+          return reader !== mine[0];
+        }));
         drawTrash(code, trash);
         drawWords(code);
       }
