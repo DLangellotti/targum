@@ -75,7 +75,11 @@ POLICY = (
     "img-src 'self' data:; "
     "connect-src 'self'; "
     "base-uri 'none'; "
-    "form-action 'none'; "
+    # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
+    # it has to work with no JavaScript, because it arrives from an email in whatever
+    # browser opened it — and 'none' forbids exactly that. A reader has no form at all,
+    # so this permits nothing it could use.
+    "form-action 'self'; "
     "frame-ancestors 'none'"
 )
 

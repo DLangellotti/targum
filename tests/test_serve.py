@@ -769,7 +769,7 @@ def test_a_page_carries_a_policy_naming_its_own_blocks(served: tuple[int, str, P
     assert "default-src 'none'" in policy
     assert "frame-ancestors 'none'" in policy
     assert "base-uri 'none'" in policy
-    assert "form-action 'none'" in policy
+    assert "form-action 'self'" in policy
     assert "'unsafe-inline'" not in policy, "hashes, not a blanket permission"
 
     # The fixture serves a stub, so the hashing itself is checked against a page that
@@ -801,3 +801,37 @@ def test_the_policy_travels_with_html_and_not_with_data(served: tuple[int, str, 
     assert response.getheader("Content-Security-Policy") is None
     assert response.getheader("Referrer-Policy") == "no-referrer"
     connection.close()
+
+
+def test_the_policy_still_lets_the_sign_in_form_post(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The regression this file did not catch the first time.
+
+    `form-action 'none'` reads as obviously right — a reader has no forms — and it
+    silently broke the one page in targum that is a real form. The landing page has to
+    work with no JavaScript, because it arrives from an email in whatever browser opened
+    it, so the browser posts it and the policy decides whether that is allowed.
+    """
+    from http.client import HTTPConnection
+
+    port, _, _ = served
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", "/account/signin")
+    response = connection.getresponse()
+    body = response.read()
+    policy = response.getheader("Content-Security-Policy") or ""
+    connection.close()
+
+    assert b"<form" in body, "the door is a form, and must stay one"
+    assert "form-action 'self'" in policy, "the policy must allow it to post back"
+    assert "form-action 'none'" not in policy
+
+    # And end to end: the link opens a page, the button posts, a session comes back.
+    call(port, "POST", "/account/sign-in", {"email": "reader@example.com"})
+    link = postbox.link
+    status, page, _ = call(port, "GET", link[link.index("/account/enter") :])
+    assert status == 200 and b"<form" in page
+    _, _, handed = form(port, "/account/enter", {"t": link.split("t=", 1)[1]})
+    assert "targum_session=" in handed
