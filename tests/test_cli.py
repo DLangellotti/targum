@@ -273,3 +273,32 @@ def test_rebuild_finds_targums_inside_homes(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
     assert result.exit_code == 0, result.output
     assert "Rewrote 1 targum" in result.output, result.output
+
+
+def test_clearing_the_cache_is_refused_on_a_hosted_box(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a hosted box `cache clear` is a command that deletes money.
+
+    The cache is what makes a public text free for the second reader and every reader
+    after, so clearing it means all of them buy the same translations again. Locally it
+    only costs the one person a rebuild, so it stays unguarded there.
+    """
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    # conftest points this at a temp directory for every test already. Said again here
+    # because the second half of this test really does clear a cache, and a test that
+    # deletes 5 GB of somebody's models when an autouse fixture is refactored is not a
+    # failure anyone would enjoy diagnosing.
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+
+    monkeypatch.setenv("TARGUM_REQUIRE_ACCOUNT", "1")
+    refused = CliRunner().invoke(app, ["cache", "clear"])
+    assert refused.exit_code != 0
+    assert "paid work" in refused.output
+
+    monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT")
+    allowed = CliRunner().invoke(app, ["cache", "clear"])
+    assert allowed.exit_code == 0, "a machine somebody runs themselves keeps the old behaviour"
