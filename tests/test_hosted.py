@@ -20,12 +20,18 @@ from targum.accounts import Store
 
 PUBLIC = "https://targum.page"
 
+# Where the module-scoped server keeps its database. A list rather than a return value so
+# the handful of tests that need to reach past the API can, without every other test
+# having to unpack something it does not use.
+STORE: list[Path] = []
+
 
 @pytest.fixture(scope="module")
 def hosted(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, str]:
     """A server started the way the deployment starts it, with somebody signed in."""
     tmp = tmp_path_factory.mktemp("hosted")
     store_path = tmp / "targum.db"
+    STORE.append(store_path)
     store = Store(store_path)
     token = store.start_sign_in("reader@example.com")
     signed_in = store.finish_sign_in(token)
@@ -435,3 +441,68 @@ def test_an_invitation_survives_a_restart(tmp_path: Path) -> None:
     path = tmp_path / "invite.db"
     Store(path).invite("reader@example.com")
     assert Store(path).may_join("reader@example.com")
+
+
+# -- taking everything away ---------------------------------------------------
+
+
+def test_the_export_holds_every_language_and_no_filter(hosted: tuple[int, str]) -> None:
+    """The two Export buttons on the words page hand back what you are *looking at* —
+    one language, filtered by the status filter. That is right for a spreadsheet and
+    quietly wrong for leaving: a reader with Hebrew and Russian would get a subset with
+    no sign anything was missing. This one is everything.
+    """
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
+                {"language": "ru", "lemma": "книга", "status": 1, "at": 2, "seen": 2},
+            ]
+        },
+    )
+
+    status, body = ask(port, "/account/export", "targum.page", session)
+    assert status == 200
+    data = json.loads(body)
+    assert {word["language"] for word in data["words"]} == {"he", "ru"}
+    assert data["account"]["email"] == "reader@example.com"
+    for expected in ("words", "phrases", "docs", "builds", "account"):
+        assert expected in data, expected
+
+
+def test_the_export_arrives_as_a_file(hosted: tuple[int, str]) -> None:
+    """A wall of JSON in a browser tab is not a thing anybody can keep."""
+    port, session = hosted
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("GET", "/account/export", skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.putheader("Cookie", f"targum_session={session}")
+    conn.endheaders()
+    response = conn.getresponse()
+    response.read()
+    assert "attachment" in (response.getheader("Content-Disposition") or "")
+    conn.close()
+
+
+def test_the_export_carries_no_credentials(hosted: tuple[int, str]) -> None:
+    """Sessions and sign-in links are keys, not data.
+
+    Writing them into a file somebody downloads, mails to themselves and leaves in a
+    downloads folder would be handing out live access to their own account.
+    """
+    port, session = hosted
+    body = ask(port, "/account/export", "targum.page", session)[1].decode()
+    assert session not in body
+    assert "session" not in body and "link" not in json.loads(body)
+
+
+def test_nobody_else_gets_your_data(hosted: tuple[int, str]) -> None:
+    port, _ = hosted
+    status, body = ask(port, "/account/export", "targum.page")
+    assert status == 401, "and as data, not as a page somebody has to read"
+    assert json.loads(body)["error"]

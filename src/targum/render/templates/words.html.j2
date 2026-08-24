@@ -78,6 +78,17 @@
     <div id="phrase-list"></div>
     <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
   </section>
+
+  {#- The two Export buttons above give you what you are looking at, which is right for
+      a spreadsheet and wrong for leaving. This one is everything, in one file, with no
+      filter applied and nobody to ask. -#}
+  <section class="panel take" id="take" hidden>
+    <div class="list-controls">
+      <h2>Everything</h2>
+      <button type="button" id="export-all">Download</button>
+    </div>
+    <p class="note">Every word and phrase, in every language, and what you have built.</p>
+  </section>
 </main>
 {% include '_foot.html.j2' %}
 
