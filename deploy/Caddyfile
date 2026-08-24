@@ -1,0 +1,53 @@
+# /etc/caddy/Caddyfile
+#
+# Caddy gets a certificate from Let's Encrypt on its own and renews it on its own.
+# The only prerequisite is that targum.page's A record already points here.
+#
+#   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+
+www.targum.page {
+	# One canonical address. `hosts_for()` in serve.py admits www as well, because a
+	# registrar's redirect is not always in place on the first day and a reader who
+	# types it should not meet a 403.
+	redir https://targum.page{uri} permanent
+}
+
+targum.page {
+	encode zstd gzip
+
+	# A targum is a self-contained HTML file and readers are dropped in whole, so the
+	# ceiling here has to clear serve.py's MAX_UPLOAD of 32 MB plus base64's third.
+	request_body {
+		max_size 48MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	# Deliberately no Content-Security-Policy here. targum builds its own per page,
+	# naming that page's inline blocks by hash, and a blanket header from the proxy
+	# would either be redundant or quietly break every page it did not know about.
+
+	reverse_proxy 127.0.0.1:8420 {
+		# A build runs for minutes and streams progress. The default would cut it off
+		# mid-translation, after the money had been spent.
+		transport http {
+			response_header_timeout 5m
+			read_timeout 10m
+		}
+	}
+
+	log {
+		output file /var/log/caddy/targum.log
+		# The sign-in link is a bearer token in a query string. Do not write it down.
+		format filter {
+			request>uri query {
+				delete t
+				delete k
+			}
+		}
+	}
+}
