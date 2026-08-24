@@ -38,7 +38,28 @@ from .pipeline import Build, Result
 from .render.builder import about_page, holding_page, signin_page
 
 MAX_UPLOAD = 32 * 1024 * 1024
+
+# Which `Host` a request may claim. Loopback always, because that is what a machine
+# somebody runs themselves is reached by and what a reverse proxy connects to. Hosted,
+# the public address is added: behind a proxy the original Host survives the hop, so a
+# signed-in reader at targum.page arrives claiming targum.page, and a loopback-only
+# allowlist refuses every page they ask for — with a message telling them to open a
+# Terminal they do not have. `www.` is included because a registrar's default redirect
+# is not always in place on the first day.
 SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+
+
+def hosts_for(public_address: str) -> frozenset[str]:
+    """The names this server will answer to."""
+    allowed = set(SAFE_HOSTS)
+    host = urlparse(public_address).hostname if public_address else ""
+    if host and host not in allowed:
+        allowed.add(host)
+        # A name, not an address: `www.` means nothing in front of an IP.
+        if not host.replace(".", "").isdigit():
+            allowed.add(host[4:] if host.startswith("www.") else f"www.{host}")
+    return frozenset(allowed)
+
 
 # A base64 body is a third larger than the file inside it, so this is the real ceiling
 # on what someone can drop, and the number the page quotes when it refuses one.
@@ -107,7 +128,7 @@ ACCOUNT_BUDGET = 3.00
 # making them make an account to read their own files would be absurd. So it is a
 # switch, off by default, and the hosted deployment is what turns it on.
 OPEN_TO_STRANGERS = frozenset(
-    {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me"}
+    {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
 )
 
 MAX_COST = 2.00
@@ -899,6 +920,7 @@ class Handler(BaseHTTPRequestHandler):
     require_account = False
 
     server_version = "targum"
+    hosts: frozenset[str] = frozenset(SAFE_HOSTS)
     library: Library
     token: str
     page: str
@@ -960,7 +982,7 @@ class Handler(BaseHTTPRequestHandler):
     def _host_is_ours(self) -> bool:
         # A page on another origin resolving a name to this address should not be able
         # to drive the builder, whatever else it can prove.
-        return (self.headers.get("Host") or "").rsplit(":", 1)[0] in SAFE_HOSTS
+        return (self.headers.get("Host") or "").rsplit(":", 1)[0] in self.hosts
 
     def _authorised(self) -> bool:
         if not self._host_is_ours():
@@ -1024,8 +1046,28 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes -------------------------------------------------------------
 
+    def _health(self) -> None:
+        """Whether the process is alive and can still reach the one file that matters.
+
+        Behind the key and the account check, because the thing asking is a monitor
+        rather than a reader — and behind the host check too, or anyone who resolves a
+        name here could use it to find out the box exists. It touches the store on
+        purpose: a process that is running with a database it can no longer read is the
+        failure worth catching, and one that only answers "yes I am a process" would
+        report that as healthy.
+        """
+        try:
+            self.store.anyone()
+        except Exception:
+            return self._json({"ok": False, "store": False}, 503)
+        self._json({"ok": True, "store": True, "queue": len(self.library.jobs)})
+
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
+        # No key, no account, no cookie: a monitor asks this every minute from off the
+        # box, and A6 is "I find out it broke before she tells me".
+        if route == "/health":
+            return self._health()
         # The browser asks for this on every page load without being told to, and it
         # carries no key, so it would otherwise answer the stale-session page and put a
         # failed request in the console each time. Answered before the key check and
@@ -1472,6 +1514,7 @@ def start(
         {
             "library": library,
             "require_account": require_account,
+            "hosts": hosts_for(public_address),
             "token": token,
             "store": keeping,
             "mailer": mailer or from_environment(),
