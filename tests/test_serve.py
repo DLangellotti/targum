@@ -506,3 +506,71 @@ def test_a_text_whose_name_starts_with_p_is_still_adopted(tmp_path: Path) -> Non
     # p12 looks exactly like a person's home, so it is left alone.
     assert (tmp_path / "p12").is_dir()
     assert not (tmp_path / "local" / "p12").exists()
+
+
+def test_old_builds_belong_to_the_one_person_on_the_machine(tmp_path: Path) -> None:
+    """Signing in must not empty your library.
+
+    Everything built before homes existed went to the signed-out home, which is right
+    until you remember that the person who built it has an account and is signed in.
+    They then see nothing at all.
+    """
+    from targum.accounts import Store
+    from targum.serve import Library
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("reader@example.com")
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+
+    out = tmp_path / "out"
+    (out / "book-he" / "reader").mkdir(parents=True)
+    (out / "book-he" / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    (out / "book-he" / "document.json").write_text("{}", encoding="utf-8")
+
+    library = Library(out, store=store)
+
+    assert [r["name"] for r in library.readers(library.home(person))] == ["book-he"]
+    assert library.readers(library.home(None)) == []
+
+
+def test_builds_already_in_the_signed_out_home_are_carried_over(tmp_path: Path) -> None:
+    """The upgrade path for anyone who ran the version that got this wrong."""
+    from targum.accounts import Store
+    from targum.serve import Library
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("reader@example.com")
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+
+    out = tmp_path / "out"
+    (out / "local" / "book-he" / "reader").mkdir(parents=True)
+    (out / "local" / "book-he" / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+
+    library = Library(out, store=store)
+
+    assert [r["name"] for r in library.readers(library.home(person))] == ["book-he"]
+    assert not (out / "local" / "book-he").exists()
+
+
+def test_with_two_accounts_nobody_inherits_anything(tmp_path: Path) -> None:
+    """Who owns an old build is then a guess, and it is not made."""
+    from targum.accounts import Store
+    from targum.serve import Library
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("one@example.com")
+    store.start_sign_in("two@example.com")
+    one = store.person_by_email("one@example.com")
+    assert one is not None
+
+    out = tmp_path / "out"
+    (out / "book-he" / "reader").mkdir(parents=True)
+    (out / "book-he" / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    (out / "book-he" / "document.json").write_text("{}", encoding="utf-8")
+
+    library = Library(out, store=store)
+
+    assert library.readers(library.home(one)) == []
+    assert [r["name"] for r in library.readers(library.home(None))] == ["book-he"]
