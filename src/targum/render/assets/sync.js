@@ -439,17 +439,6 @@
        blunt reason: `clearLocal()` below deletes every `targum:*` key but the theme on
        sign-out, on purpose, so a local preference would be forgotten every time somebody
        signed out on their own machine. */
-    shelf: function () {
-      return (api.who && api.who.shelf) || "";
-    },
-
-    setShelf: function (shelf) {
-      if (api.who) api.who.shelf = shelf;
-      return ask("/account/shelf", { shelf: shelf }).catch(function () {
-        // Signed out, or offline. The page has already redrawn; the choice simply does
-        // not outlive the tab, which is the honest outcome rather than a false one.
-      });
-    },
 
     start: function () {
       return ask("/account/me")

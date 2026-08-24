@@ -79,10 +79,6 @@ CREATE TABLE IF NOT EXISTS invited (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
-    # Which shelf somebody reads. On the account rather than in the browser, because
-    # sign-out deletes every `targum:*` key but the theme — deliberately — so a local
-    # preference would be forgotten every time they signed out on their own machine.
-    "ALTER TABLE person ADD COLUMN shelf TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
 )
@@ -251,9 +247,6 @@ def plausible(email: str) -> bool:
 class Person:
     id: int
     email: str
-    # "" means they have not chosen, which is not the same as choosing the Library:
-    # the switcher shows both until somebody says otherwise.
-    shelf: str = ""
 
 
 # The three kinds of thing a person accumulates, and the columns each one syncs. Kept as
@@ -398,9 +391,9 @@ class Store:
 
     def person_by_email(self, email: str) -> Person | None:
         row = self.db.execute(
-            "SELECT id, email, shelf FROM person WHERE email = ?", (tidy(email),)
+            "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
         ).fetchone()
-        return Person(row["id"], row["email"], row["shelf"] or "") if row else None
+        return Person(row["id"], row["email"]) if row else None
 
     def asking_too_often(self, who: str, limit: int = ASKS_PER_HOUR) -> bool:
         """Whether this address has asked for too many links in the last hour.
@@ -491,13 +484,13 @@ class Store:
         """
         cutoff = now() - LINK_MINUTES * 60 * 1000
         row = self.db.execute(
-            "SELECT person.id AS id, person.email AS email, person.shelf AS shelf FROM link "
+            "SELECT person.id AS id, person.email AS email FROM link "
             "JOIN person ON person.id = link.person "
             "WHERE link.hash = ? AND link.used IS NULL AND link.made >= ? "
             "AND person.leaving IS NULL",
             (digest(token), cutoff),
         ).fetchone()
-        return Person(row["id"], row["email"], row["shelf"] or "") if row else None
+        return Person(row["id"], row["email"]) if row else None
 
     def finish_sign_in(self, token: str) -> tuple[Person, str] | None:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
@@ -515,14 +508,14 @@ class Store:
                 return None
             db.execute("UPDATE link SET used = ? WHERE hash = ?", (now(), digest(token)))
             who = db.execute(
-                "SELECT id, email, shelf FROM person WHERE id = ?", (row["person"],)
+                "SELECT id, email FROM person WHERE id = ?", (row["person"],)
             ).fetchone()
             session = secrets.token_urlsafe(TOKEN_BYTES)
             db.execute(
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), who["id"], now(), now()),
             )
-        return Person(who["id"], who["email"], who["shelf"] or ""), session
+        return Person(who["id"], who["email"]), session
 
     def whoever(self, session: str | None) -> Person | None:
         """The person holding this session, or nobody.
@@ -533,7 +526,7 @@ class Store:
             return None
         cutoff = now() - SESSION_DAYS * 24 * 60 * 60 * 1000
         row = self.db.execute(
-            "SELECT person.id AS id, person.email AS email, person.shelf AS shelf,"
+            "SELECT person.id AS id, person.email AS email,"
             " session.seen AS seen"
             " FROM session JOIN person ON person.id = session.person"
             " WHERE session.hash = ?",
@@ -546,19 +539,7 @@ class Store:
         if now() - row["seen"] > 60_000:
             with self.write() as db:
                 db.execute("UPDATE session SET seen = ? WHERE hash = ?", (now(), digest(session)))
-        return Person(row["id"], row["email"], row["shelf"] or "")
-
-    def choose_shelf(self, person: Person, shelf: str) -> None:
-        """Remember which room somebody reads in.
-
-        Only the two known values, and "" for undecided. Anything else would be a route
-        that does not exist, arriving from a request — so it is refused rather than
-        stored and puzzled over later.
-        """
-        if shelf not in ("", "library", "beit-midrash"):
-            raise ValueError(f"No such shelf: {shelf!r}")
-        with self.write() as db:
-            db.execute("UPDATE person SET shelf = ? WHERE id = ?", (shelf, person.id))
+        return Person(row["id"], row["email"])
 
     def sign_out(self, session: str | None) -> None:
         if not session:
@@ -707,13 +688,12 @@ class Store:
         their own account. What is here is everything they wrote or caused.
         """
         account = self.db.execute(
-            "SELECT email, made, shelf FROM person WHERE id = ?", (person.id,)
+            "SELECT email, made FROM person WHERE id = ?", (person.id,)
         ).fetchone()
         out: dict[str, Any] = {
             "account": {
                 "email": account["email"],
                 "joined": account["made"],
-                "shelf": account["shelf"] or "",
             },
             "exported": now(),
         }

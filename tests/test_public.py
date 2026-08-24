@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.catalogue import CATALOGUE, Shelf, on
+from targum.catalogue import CATALOGUE, Tag, beit_midrash
 from targum.render.builder import shelf_page, text_page
 
 ADDRESS = "https://targum.page"
@@ -30,36 +30,46 @@ def strip(markup: str) -> str:
     return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
-# -- the shelves --------------------------------------------------------------
+# -- the catalogue ------------------------------------------------------------
 
 
-@pytest.mark.parametrize("shelf", list(Shelf))
-def test_a_shelf_page_names_itself_and_lists_its_texts(shelf: Shelf) -> None:
-    html = shelf_page(shelf, ADDRESS)
-    assert f'href="{ADDRESS}/{shelf.value}"' in html, "a canonical URL, or duplicates compete"
-    for entry in on(shelf):
-        assert f'href="/{shelf.value}/{entry.id}"' in html
+def test_the_catalogue_page_names_itself_and_lists_every_text() -> None:
+    """One list. There were two — a Library and a Beit Midrash — and the split meant a
+    reader had to already know which room a text was in to find it."""
+    html = shelf_page(ADDRESS)
+    assert f'href="{ADDRESS}/library"' in html, "a canonical URL, or duplicates compete"
+    for entry in CATALOGUE:
+        assert f'href="/library/{entry.id}"' in html
 
 
-def test_a_shelf_holds_only_its_own_texts() -> None:
-    """The point of two shelves. A Tanakh page must never list a novel."""
-    for shelf in Shelf:
-        html = shelf_page(shelf, ADDRESS)
-        for entry in CATALOGUE:
-            if entry.shelf is not shelf:
-                assert f'href="/{entry.shelf.value}/{entry.id}"' not in html
-
-
-def test_an_empty_shelf_says_so_rather_than_pretending(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A shelf with nothing on it admits it.
-
-    Tested by emptying one rather than by waiting for one to be empty: both shelves have
+def test_an_empty_catalogue_says_so_rather_than_pretending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tested by emptying it rather than by waiting for it to be empty: it has twenty
     texts now, so the earlier version of this found nothing to check and passed without
-    asserting anything at all.
-    """
+    asserting anything at all."""
     monkeypatch.setattr("targum.catalogue.CATALOGUE", [])
-    for shelf in Shelf:
-        assert "Nothing here yet" in shelf_page(shelf, ADDRESS)
+    assert "Nothing here yet" in shelf_page(ADDRESS)
+
+
+# -- what a text is -----------------------------------------------------------
+
+
+def test_the_jewish_texts_are_tagged() -> None:
+    """The split is gone; what it was for is not. Some readers — ultra-Orthodox ones
+    especially — would rather not be shown secular material at all, and a Beit Midrash
+    mode needs to know which entries they came for. That is this tag, and nothing else
+    can stand in for it: `sefaria:` is where a text was fetched from, not what it is.
+    """
+    tagged = beit_midrash()
+    assert tagged, "the Tanakh entries carry the tag"
+    assert all(Tag.tanakh in entry.tags for entry in tagged)
+    # And it is a property of the entry, so it survives into the browser.
+    assert tagged[0].state()["tags"] == ["tanakh"]
+
+    untagged = [entry for entry in CATALOGUE if not entry.tags]
+    assert untagged, "and the secular texts do not"
+    assert untagged[0].state()["tags"] == []
 
 
 # -- one text -----------------------------------------------------------------
@@ -126,7 +136,7 @@ def test_a_translation_is_named_wherever_a_text_is_shown() -> None:
 
 def test_no_page_leaks_a_route_that_needs_an_account() -> None:
     private = ("/words", "/readers", "/reader/", "/job/", "/glossary/")
-    pages = [shelf_page(shelf, ADDRESS) for shelf in Shelf]
+    pages = [shelf_page(ADDRESS)]
     pages += [text_page(entry, ADDRESS) for entry in CATALOGUE]
     for html in pages:
         for route in private:

@@ -140,7 +140,7 @@ OPEN_TO_STRANGERS = frozenset(
 # page it reaches says "Coming soon" is worse than none at all — what gets indexed is
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
-PUBLIC_TEXT = re.compile(r"^/(library|beit-midrash)/([a-z0-9][a-z0-9-]{0,63})$")
+PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
 
 
 def shelves_are_public() -> bool:
@@ -947,7 +947,7 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     words: str
-    shelf: str
+    catalogue: str
     store: Store
     mailer: Mailer
     address: str
@@ -1087,7 +1087,6 @@ class Handler(BaseHTTPRequestHandler):
             "Allow: /$",
             "Allow: /about",
             "Allow: /library",
-            "Allow: /beit-midrash",
             "Disallow: /account/",
             "Disallow: /reader/",
             "Disallow: /readers",
@@ -1108,12 +1107,10 @@ class Handler(BaseHTTPRequestHandler):
         arrive.
         """
         from . import catalogue as catalogue_module
-        from .catalogue import Shelf
 
         where = self.address or ""
-        paths = ["/", "/about"]
-        paths += [f"/{shelf.value}" for shelf in Shelf]
-        paths += [f"/{entry.shelf.value}/{entry.id}" for entry in catalogue_module.CATALOGUE]
+        paths = ["/", "/about", "/library"]
+        paths += [f"/library/{entry.id}" for entry in catalogue_module.CATALOGUE]
         urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
         return (
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1192,25 +1189,20 @@ class Handler(BaseHTTPRequestHandler):
         if naming is not None:
             from . import catalogue as catalogue_module
 
-            entry = catalogue_module.by_id(naming.group(2))
-            if entry is None or entry.shelf.value != naming.group(1):
+            entry = catalogue_module.by_id(naming.group(1))
+            if entry is None:
                 return self._send(404, b"not found", "text/plain")
             return self._send(200, text_page(entry, self.address).encode("utf-8"), HTML)
         # The shelves answer to whoever is asking. Signed out that is the public index —
         # the shop window, and the thing a search engine indexes. Signed in it is the
         # product. Same address either way, because a text somebody found on Google
         # should still be there after they sign in to read it.
-        if route in ("/library", "/beit-midrash"):
-            from .catalogue import Shelf
-
+        if route == "/library":
             if self._person() is None and not self._authorised():
                 if not shelves_are_public():
                     return self._send(200, holding_page().encode("utf-8"), HTML)
-                page = shelf_page(Shelf(route.lstrip("/")), self.address)
+                page = shelf_page(self.address)
                 return self._send(200, page.encode("utf-8"), HTML)
-            # One app page with a switcher, rather than two that drift apart.
-            if route == "/beit-midrash":
-                return self._go("/library?shelf=beit-midrash")
 
         if self._needs_account(route):
             # Data routes answer as data. Anything a person could be looking at gets a
@@ -1251,7 +1243,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/words":
             return self._send(200, self.words.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
-            return self._send(200, self.shelf.encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(200, self.catalogue.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -1335,15 +1327,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._restore(payload)
         if route == "/account/sign-in":
             return self._sign_in(payload)
-        if route == "/account/shelf":
-            person = self._person()
-            if person is None:
-                return self._json({"error": "Sign in first."}, 401)
-            try:
-                self.store.choose_shelf(person, str(payload.get("shelf") or ""))
-            except ValueError as error:
-                return self._json({"error": str(error)}, 400)
-            return self._json({"shelf": str(payload.get("shelf") or "")})
         if route == "/account/sign-out":
             return self._sign_out()
         if route == "/account/forget":
@@ -1362,7 +1345,6 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "signedIn": True,
                 "email": person.email,
-                "shelf": person.shelf,
                 "revision": self.store.revision(person),
                 "counts": self.store.counts(person),
             }
@@ -1712,7 +1694,7 @@ def start(
             "page": learn_page(token),
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "words": words_page(token),
-            "shelf": library_page(token),
+            "catalogue": library_page(token),
         },
     )
     try:
