@@ -53,9 +53,14 @@ The half no tests can reach, and which matters as much:
 - **Icons are drawings, not a library.** Inline SVG, 16px viewBox, no fill, stroke
   `currentColor` at 1.4, round caps. Typed characters elsewhere: arrows per reading
   direction, × to close, A− A+ ? as themselves.
-- **Voice:** literary, precise, unpatronising — a designer-engineer explaining a
-  decision, never marketing. Second person for the reader's actions. Complete sentences.
-  Plain about limits. The name is always lowercase, even at the start of a sentence.
+- **Voice:** literary, precise, unpatronising — never marketing. Second person for the
+  reader's actions. Plain about limits. The name is always lowercase, even at the start
+  of a sentence.
+- **And short.** Buttons and links are one or two words: "Send a link", not "Email me a
+  link"; "Delete", not "Move to the trash". State what happened without justifying it,
+  softening it, or answering the question nobody asked. §6 asks for "reasons given",
+  which is what produced 131 words on a sign-in page — David cut that by half on
+  2026-08-24 and the terser reading wins.
 
 ## Checks
 
