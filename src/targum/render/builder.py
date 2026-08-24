@@ -16,8 +16,12 @@ import shutil
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, FileSystemLoader
+
+if TYPE_CHECKING:  # imported for types only; the real import is inside each function,
+    from ..catalogue import Entry, Shelf  # because catalogue imports nothing from here
 from markupsafe import Markup, escape
 
 from ..annotate.base import BAND_NAMES, method_label
@@ -232,6 +236,73 @@ def words_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
+SHELVES = {
+    "library": (
+        "Library",
+        "Modern Hebrew, Russian and more — each with a translation beside it, "
+        "sentence by sentence.",
+    ),
+    "beit-midrash": (
+        "Beit Midrash",
+        "Tanakh with the vowel points as they are written, and a published English "
+        "translation beside every verse.",
+    ),
+}
+
+
+def shelf_page(shelf: Shelf, address: str = "") -> str:
+    """One shelf, for somebody who has not signed in.
+
+    Public on purpose. It is the shop window, and until it exists there is nothing for a
+    search engine to find but a page saying "Coming soon".
+    """
+    from ..catalogue import Shelf as Kind
+    from ..catalogue import on
+
+    kind = Kind(shelf)
+    name, blurb = SHELVES[kind.value]
+    other = Kind.beit_midrash if kind is Kind.library else Kind.library
+    return (
+        _environment()
+        .get_template("shelf.html.j2")
+        .render(
+            title=f"{name} — targum",
+            description=blurb,
+            canonical=f"{address}/{kind.value}" if address else "",
+            shelf_name=name,
+            shelf_blurb=blurb,
+            entries=on(kind),
+            other=other,
+            other_name=SHELVES[other.value][0],
+        )
+    )
+
+
+def text_page(entry: Entry, address: str = "") -> str:
+    """One text, for somebody who has not signed in.
+
+    A page about the text rather than about targum: whoever arrives here searched for the
+    book, and the sample is the reason the page is worth indexing at all.
+    """
+    from ..models import direction_for
+
+    name = SHELVES[entry.shelf.value][0]
+    return (
+        _environment()
+        .get_template("text.html.j2")
+        .render(
+            title=f"{entry.title} — {name} — targum",
+            description=entry.blurb,
+            canonical=f"{address}/{entry.shelf.value}/{entry.id}" if address else "",
+            entry=entry,
+            shelf_name=name,
+            direction=direction_for(entry.language),
+            sample=entry.sample,
+            minutes=max(1, round(entry.words / 130)),
         )
     )
 

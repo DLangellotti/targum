@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public">
+{#- A page about a text, not a page about targum. Somebody arriving here searched for
+    the book, not for a reading tool, and the first thing they should meet is the book. -#}
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <p class="where"><a href="/{{ entry.shelf.value }}">{{ shelf_name }}</a></p>
+  <h1 lang="{{ entry.language }}" dir="{{ direction }}"><bdi>{{ entry.title }}</bdi></h1>
+  <p class="byline">{{ entry.author }}</p>
+  <p class="lede">{{ entry.blurb }}</p>
+
+  {%- if sample %}
+  {#- The reason this page is worth indexing at all: real text, in both languages, laid
+      out the way the reader itself lays it out. A page of description would rank for
+      nothing and tell a visitor nothing. -#}
+  <section class="sample">
+    <h2>The opening</h2>
+    {%- for line in sample %}
+    <div class="pair">
+      <p class="source" lang="{{ entry.language }}" dir="{{ direction }}">{{ line.source }}</p>
+      <p class="target" lang="en" dir="ltr">{{ line.target }}</p>
+    </div>
+    {%- endfor %}
+  </section>
+  {%- endif %}
+
+  {%- if entry.translations %}
+  {#- Who made the translation, and under what. A reader deciding whether to trust an
+      English Tanakh decides on this, so it is body text rather than a footnote. -#}
+  <section class="provenance">
+    <h2>{{ 'Translations' if entry.translations | length > 1 else 'Translation' }}</h2>
+    <ul>
+      {%- for rendering in entry.translations %}
+      <li>
+        <b>{{ rendering.name }}</b>
+        {%- if rendering.publisher %}<span class="publisher">{{ rendering.publisher }}</span>{% endif %}
+        {%- if rendering.note %}<span class="note">{{ rendering.note }}</span>{% endif %}
+        {%- if rendering.licence %}<span class="licence">{{ rendering.licence }}</span>{% endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  <p class="facts">{{ entry.words | int }} words, about {{ minutes }} minutes of reading.</p>
+
+  <p class="door">
+    <a class="go" href="/account/signin">Read it</a>
+    <span class="free">Free. Someone has already translated this one.</span>
+  </p>
+</main>
+
+<footer class="foot">
+  <a href="/{{ entry.shelf.value }}">{{ shelf_name }}</a>
+  <a href="/about">What's built</a>
+  <a href="https://github.com/DLangellotti/targum">Source</a>
+</footer>
+</body>
+</html>

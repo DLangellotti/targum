@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public">
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <h1>{{ shelf_name }}</h1>
+  <p class="lede">{{ shelf_blurb }}</p>
+
+  {%- if entries %}
+  <ul class="texts">
+    {%- for entry in entries %}
+    <li>
+      <a href="/{{ entry.shelf.value }}/{{ entry.id }}">
+        <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
+      </a>
+      <span class="byline">{{ entry.author }}</span>
+      <span class="blurb">{{ entry.blurb }}</span>
+    </li>
+    {%- endfor %}
+  </ul>
+  {%- else %}
+  {#- Said plainly rather than dressed up. An empty shelf that pretends otherwise is
+      worse than one that admits it, and this one fills up shortly. -#}
+  <p class="empty">Nothing here yet.</p>
+  {%- endif %}
+
+  {%- if other %}
+  <p class="elsewhere">Also: <a href="/{{ other.value }}">{{ other_name }}</a></p>
+  {%- endif %}
+</main>
+
+<footer class="foot">
+  <a href="/about">What's built</a>
+  <a href="https://github.com/DLangellotti/targum">Source</a>
+  <span>MIT</span>
+</footer>
+</body>
+</html>

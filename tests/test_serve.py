@@ -871,15 +871,40 @@ def hosted(tmp_path: Path) -> tuple[int, threading.Thread, ThreadingHTTPServer]:
 
 
 def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> None:
+    """The product stays shut to anyone without an account.
+
+    The shelves are the deliberate exception and are tested below: they are the shop
+    window, and a catalogue nobody outside can see is a catalogue nobody arrives
+    through. Everything else a signed-out visitor asks for is still the door.
+    """
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/", "/library", "/words"):
+        for route in ("/", "/words"):
             status, body, _ = call(port, "GET", route)
             assert status == 200, route
             assert b"Coming soon" in body, f"{route} should be the holding page"
             assert b'href="/account/signin"' in body, f"{route} has no way in"
             # None of the product leaks through.
             assert b"start</html>" not in body and b"library</html>" not in body
+    finally:
+        server.shutdown()
+
+
+def test_the_shelves_are_public_and_the_product_is_not(tmp_path: Path) -> None:
+    """Signed out, a shelf is its public index — the only pages a crawler ever sees.
+
+    It has to carry the texts and no more than the texts: no shelf of somebody's own
+    builds, no trash, nothing that belongs to a person.
+    """
+    port, _, server = hosted(tmp_path)
+    try:
+        for route in ("/library", "/beit-midrash"):
+            status, body, _ = call(port, "GET", route)
+            assert status == 200, route
+            assert b"Coming soon" not in body, f"{route} is the shop window now"
+            assert b'href="/account/signin"' in body, f"{route} has no way in"
+            assert b"Your targums" not in body, f"{route} leaked the product"
+            assert b"Trash" not in body, f"{route} leaked the product"
     finally:
         server.shutdown()
 
