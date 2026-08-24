@@ -828,10 +828,17 @@ class Handler(BaseHTTPRequestHandler):
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
 
     def _needs_account(self, route: str) -> bool:
-        """Whether this request has to be turned away at the door."""
-        if not self.require_account or route in OPEN_TO_STRANGERS:
+        """Whether this request has to be turned away at the door.
+
+        Hosted, always. On a machine somebody runs themselves, only once an account
+        exists on it — because until then "signed out" describes nobody. A fresh install
+        opens and works with nothing to sign into, which is what the README promises and
+        what the command line is for; the moment somebody signs up, signing out means
+        what it means everywhere else.
+        """
+        if route in OPEN_TO_STRANGERS or self._person() is not None:
             return False
-        return self._person() is None
+        return self.require_account or self.store.anyone()
 
     def _home(self) -> Path:
         """The only directory this request is allowed to see."""

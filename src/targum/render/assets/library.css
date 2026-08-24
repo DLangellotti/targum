@@ -248,3 +248,18 @@
 .trash .gone { flex: 1; min-width: 0; display: block; }
 .trash .book-title { color: var(--ink-soft); }
 .trash .book-meta { display: block; color: var(--clay); }
+
+/* The footer inside the app. The about page is the open-source half made visible, and
+   it should be reachable from the product and not only from the door. */
+.site-foot {
+  max-width: 46rem;
+  margin: 3rem auto 0;
+  padding: 1.2rem 1rem 2rem;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  gap: 1.2rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.site-foot a { color: var(--ink-soft); text-decoration: none; }
+.site-foot a:hover { color: var(--ink); }

@@ -410,9 +410,12 @@ def test_a_session_outlives_a_restart_where_the_key_does_not(
     status, body, _ = call(port, "GET", "/words", cookie=cookie)
     assert status == 200 and b"words" in body
 
-    # And without either, still nothing.
+    # And without either, still nothing — the holding page now, rather than the
+    # stale-session error, because once an account exists on a machine "signed out" is
+    # a state somebody chose rather than a key that expired.
     status, body, _ = call(port, "GET", "/words")
-    assert status == 403
+    assert b"<html>words</html>" not in body, "the words page must not be served"
+    assert b"Coming soon" in body or status == 403
 
 
 # --- one person's readers are their own ---------------------------------------
@@ -935,3 +938,30 @@ def test_the_holding_page_links_to_it(tmp_path: Path) -> None:
         assert b'href="/about"' in body
     finally:
         server.shutdown()
+
+
+def test_signing_out_shows_the_holding_page_once_an_account_exists(tmp_path: Path) -> None:
+    """What "signed out" means depends on whether anybody ever signed in.
+
+    A fresh install has one person, it is theirs, and asking them to make an account to
+    read their own files would be absurd — so it opens and works. The moment somebody
+    signs up, the machine is being used as targum-with-accounts and signing out means
+    what it means everywhere else. Without this, the holding page was only ever visible
+    with an environment variable set, which is to say never.
+    """
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "w.db")
+    assert store.anyone() is False
+
+    store.start_sign_in("someone@example.com")
+    assert store.anyone() is True
+
+
+def test_the_about_page_is_reachable_from_inside_the_app() -> None:
+    """It is the open-source half made visible, and a link only on the front door means
+    nobody who is signed in ever finds it."""
+    from targum.render.builder import library_page, start_page, words_page
+
+    for page in (library_page("k"), words_page("k"), start_page("k", 2.0, 10.0)):
+        assert 'href="/about"' in page
