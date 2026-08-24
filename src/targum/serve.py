@@ -57,6 +57,16 @@ NO_KEY = (
 # billed amounts, so they are deliberately conservative.
 HTML = "text/html; charset=utf-8"
 
+# What the hosted product translates with. Opus stays reachable from the command line
+# for anyone who wants it and is paying for it themselves.
+HOSTED_MODEL = "claude-sonnet-5"
+
+# What one reader may spend in the window, against what the whole machine may. The
+# per-account figure is a safety rail for the alpha and not a plan limit: Milestone C
+# settles what a tier actually allows, in texts and pages rather than dollars, once the
+# real numbers from `usage` have been watched for a while.
+ACCOUNT_BUDGET = 3.00
+
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
 # to put a build that belongs to nobody. On a machine somebody runs themselves the
@@ -184,6 +194,8 @@ class Job:
     # request to ask, so both travel with the job rather than being looked up later.
     owner: int | None = None
     home: Path | None = None
+    # What it really cost, once the API has said. Zero until it has.
+    spent: float = 0.0
     made: int = field(default_factory=now)
 
     def state(self) -> dict[str, Any]:
@@ -240,10 +252,12 @@ class Library:
         max_cost: float = MAX_COST,
         budget: float = SESSION_BUDGET,
         store: Store | None = None,
+        account_budget: float | None = ACCOUNT_BUDGET,
     ) -> None:
         self.out = out
         self.max_cost = max_cost
         self.budget = budget
+        self.account_budget = account_budget
         self.store = store
         self.adopt()
         self._committed = 0.0
@@ -281,6 +295,7 @@ class Library:
                 lemmas=int(row["lemmas"]),
                 meanings=float(row["meanings"]),
                 blocked=str(row["blocked"]),
+                spent=float(row["spent"]),
                 options=json.loads(row["options"] or "{}"),
                 owner=row["owner"],
                 home=Path(str(row["home"])),
@@ -311,6 +326,7 @@ class Library:
                 "lemmas": job.lemmas,
                 "meanings": job.meanings,
                 "blocked": job.blocked,
+                "spent": job.spent,
                 "made": job.made,
             }
         )
@@ -418,12 +434,34 @@ class Library:
     def _since() -> int:
         return now() - BUDGET_HOURS * 60 * 60 * 1000
 
+    def settle(self, job: Job) -> None:
+        """Swap what a build reserved for what it spent."""
+        if self.store is not None:
+            self.store.settle(job.id, job.spent)
+
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
         if self.store is not None:
             return self.store.unclaim(job.id)
         with self.lock:
             self._committed = max(0.0, self._committed - job.estimate)
+
+    def _out_of(self, whose: str) -> str:
+        """Which ceiling stopped this, and when it lifts.
+
+        A refusal that does not say which limit was hit, or when it stops applying, is
+        indistinguishable from the product being broken.
+        """
+        when = f"in about {BUDGET_HOURS} hours"
+        if whose == "account":
+            return (
+                "That is as much reading as targum will take on for you at once. "
+                f"It picks up again {when}, and anything from the library is always free."
+            )
+        return (
+            "targum is at its limit for the moment, across everyone using it. "
+            f"Try again {when}, or read something from the library — that costs nothing."
+        )
 
     def why_blocked(self, estimate: float) -> str:
         """Whether this build may go ahead, in words the page can show."""
@@ -524,9 +562,17 @@ class Library:
         if self.store is not None:
             # One transaction decides and spends. It holds across processes as well as
             # threads, which the lock below never did.
-            if self.store.claim(job.id, job.estimate, self.budget, self._since()):
+            refused = self.store.claim(
+                job.id,
+                job.estimate,
+                self.budget,
+                self._since(),
+                owner=job.owner,
+                per_account=self.account_budget,
+            )
+            if not refused:
                 return ""
-            return self.why_blocked(self.budget + 1)
+            return self._out_of(refused)
         with self.lock:
             blocked = self.why_blocked(job.estimate)
             if not blocked:
@@ -567,7 +613,11 @@ class Library:
                 job.message = ""
                 self.remember(job)
 
-            builder.run(on_progress=progress, on_ready=ready)
+            result = builder.run(on_progress=progress, on_ready=ready)
+            # The reservation becomes the receipt. Until this, the ledger held an
+            # estimate and the budget was an approximation of itself.
+            job.spent = result.spent.cost()
+            self.settle(job)
             self.remember(job)
         except TargumError as error:
             self._blame(job, error.message)
@@ -596,7 +646,13 @@ class Library:
         # The money was committed when the build was claimed. A build that failed spent
         # little or none of it, and without this three failures in a row exhaust a
         # session budget that paid for nothing.
-        self.release(job)
+        # Not simply released: a build that failed part-way still paid for the batches
+        # it got through, and the API said how much. Releasing the whole claim would
+        # hand that money back to the budget as though it had never gone.
+        if job.spent > 0:
+            self.settle(job)
+        else:
+            self.release(job)
         self.remember(job)
 
     def _builder(self, job: Job) -> Build:
@@ -609,6 +665,11 @@ class Library:
             # anyone who wants it can say so there, and putting the choice on this
             # page cost more in confusion than it bought.
             style=Style.natural,
+            # Sonnet, not the provider's Opus default. Measured, a Hebrew novel is
+            # $12.64 on Opus against $7.58 on Sonnet, and the difference in a reader's
+            # translation does not show up beside the difference in the bill. The CLI
+            # keeps the provider default: that is somebody spending their own key.
+            model=HOSTED_MODEL,
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
             difficulty=bool(options.get("words")),

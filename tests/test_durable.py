@@ -17,7 +17,9 @@ def library(tmp_path: Path, budget: float = 10.0) -> tuple[Library, Store]:
     # max_cost is the per-text ceiling and is not what these tests are about; raised so
     # the session budget is the only thing that can refuse a build.
     store = Store(tmp_path / "targum.db")
-    return Library(tmp_path / "out", max_cost=budget, budget=budget, store=store), store
+    return Library(
+        tmp_path / "out", max_cost=budget, budget=budget, store=store, account_budget=None
+    ), store
 
 
 def job(library: Library, estimate: float, **kw: object) -> Job:

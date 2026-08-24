@@ -113,6 +113,14 @@ class AnthropicGlosses:
                 raise ProviderError(
                     f"Anthropic API error {exc.status_code} while glossing.", exc.message
                 ) from exc
+            # Word meanings are a real share of a build — measured, about half of it
+            # before glossing became on-demand — so they are counted like everything
+            # else rather than treated as incidental.
+            self._provider.spent.add(
+                self.model or "",
+                int(getattr(response.usage, "input_tokens", 0) or 0),
+                int(getattr(response.usage, "output_tokens", 0) or 0),
+            )
             parsed: Any = response.parsed_output
             if isinstance(parsed, _Batch):
                 wanted = set(batch)

@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from ..errors import ProviderError
 from ..models import Segment, Style
+from ..usage import Usage
 from .base import Progress, batches, context_window
 from .prompts import language_name, system_prompt
 
@@ -82,6 +83,9 @@ class AnthropicProvider:
         self.batch_size = max(1, batch_size)
         self.effort = effort
         self._client: Any = None
+        # What this provider has actually spent, as opposed to what it estimated.
+        # Accumulated across every call a run makes, read once at the end.
+        self.spent = Usage()
 
     # -- setup ------------------------------------------------------------------
 
@@ -219,6 +223,17 @@ class AnthropicProvider:
             parts.append(f"Context after (do not translate):\n{after}")
         return "\n\n".join(parts)
 
+    def _record(self, response: Any) -> None:
+        """Add one response's tokens to the running total, if it reported any."""
+        usage = getattr(response, "usage", None)
+        if usage is None:
+            return
+        self.spent.add(
+            self.model,
+            int(getattr(usage, "input_tokens", 0) or 0),
+            int(getattr(usage, "output_tokens", 0) or 0),
+        )
+
     def _call(self, system: str, message: str) -> _Batch:
         import anthropic
 
@@ -248,6 +263,10 @@ class AnthropicProvider:
             if exc.status_code == 400 and "content filtering" in (exc.message or ""):
                 raise _Blocked(exc.message) from exc
             raise ProviderError(f"Anthropic API error {exc.status_code}.", exc.message) from exc
+
+        # Recorded before anything can go wrong with the answer: a batch that comes
+        # back refused or unparseable was still charged for.
+        self._record(response)
 
         if response.stop_reason == "refusal":
             raise ProviderError(
