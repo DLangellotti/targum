@@ -87,7 +87,8 @@ def get(port: int, path: str) -> tuple[int, Any]:
 
 
 def write_glossary(out: Path, folder: str, entries: dict[str, str]) -> None:
-    build = out / folder
+    # Signed out, a build lands in the shared local home rather than at the root.
+    build = out / "local" / folder
     build.mkdir(parents=True, exist_ok=True)
     (build / "glossary.json").write_text(
         json.dumps(
@@ -389,3 +390,75 @@ def test_a_session_outlives_a_restart_where_the_key_does_not(
     # And without either, still nothing.
     status, body, _ = call(port, "GET", "/words")
     assert status == 403
+
+
+# --- one person's readers are their own ---------------------------------------
+
+
+def test_homes_do_not_contain_one_another(tmp_path: Path) -> None:
+    """The containment guard is only worth anything if no home sits inside another."""
+    from targum.accounts import Person
+    from targum.serve import Library
+
+    library = Library(tmp_path)
+    alice = library.home(Person(1, "alice@example.com"))
+    bob = library.home(Person(2, "bob@example.com"))
+    anon = library.home(None)
+
+    assert len({alice, bob, anon}) == 3
+    for a in (alice, bob, anon):
+        for b in (alice, bob, anon):
+            if a != b:
+                assert a not in b.parents, f"{b} sits inside {a}"
+
+
+def test_a_person_only_lists_their_own_readers(tmp_path: Path) -> None:
+    from targum.accounts import Person
+    from targum.serve import Library
+
+    library = Library(tmp_path)
+    alice, bob = Person(1, "a@x.com"), Person(2, "b@x.com")
+    for person, name in ((alice, "hers-he"), (bob, "his-he")):
+        reader = library.home(person) / name / "reader"
+        reader.mkdir(parents=True)
+        (reader / "index.html").write_text("<p>x</p>", encoding="utf-8")
+
+    assert [r["name"] for r in library.readers(library.home(alice))] == ["hers-he"]
+    assert [r["name"] for r in library.readers(library.home(bob))] == ["his-he"]
+    assert library.readers(library.home(None)) == []
+
+
+def test_readers_built_before_homes_existed_are_adopted(tmp_path: Path) -> None:
+    """Upgrading must not hide the readers already on disk."""
+    from targum.serve import Library
+
+    old = tmp_path / "book-he"
+    (old / "reader").mkdir(parents=True)
+    (old / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    (old / "document.json").write_text("{}", encoding="utf-8")
+    # Ingested and never translated: no reader, but the work is still on disk.
+    stub = tmp_path / "stub-he"
+    stub.mkdir()
+    (stub / "document.json").write_text("{}", encoding="utf-8")
+
+    library = Library(tmp_path)
+
+    assert (tmp_path / "local" / "book-he" / "reader" / "index.html").is_file()
+    assert (tmp_path / "local" / "stub-he" / "document.json").is_file()
+    assert not old.exists() and not stub.exists()
+    assert [r["name"] for r in library.readers(library.home(None))] == ["book-he"]
+
+
+def test_adopting_twice_changes_nothing(tmp_path: Path) -> None:
+    from targum.serve import Library
+
+    old = tmp_path / "book-he"
+    (old / "reader").mkdir(parents=True)
+    (old / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    (old / "document.json").write_text("{}", encoding="utf-8")
+
+    Library(tmp_path)
+    Library(tmp_path)  # a restart
+
+    assert (tmp_path / "local" / "book-he" / "reader" / "index.html").is_file()
+    assert not (tmp_path / "local" / "local").exists()

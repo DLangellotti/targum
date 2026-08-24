@@ -153,6 +153,10 @@ class Job:
     meanings: float = 0.0
     blocked: str = ""
     options: dict[str, Any] = field(default_factory=dict)
+    # Whose build this is, and where its reader lands. The thread that runs it has no
+    # request to ask, so both travel with the job rather than being looked up later.
+    owner: int | None = None
+    home: Path | None = None
 
     def state(self) -> dict[str, Any]:
         return {
@@ -184,11 +188,47 @@ class Library:
         self, out: Path, max_cost: float = MAX_COST, budget: float = SESSION_BUDGET
     ) -> None:
         self.out = out
+        self.adopt()
         self.max_cost = max_cost
         self.budget = budget
         self.committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
+
+    def home(self, person: Person | None) -> Path:
+        """Where this person's readers live.
+
+        Every home is a directory of its own, including the signed-out one, so that no
+        home contains another and the traversal guard below has something real to
+        resolve against. Before this, one output directory was shared by whoever could
+        reach the server, which on a machine somebody runs themselves is the same
+        person and hosted is not.
+
+        Signed out, everyone shares `local`. That is right for a single-user machine
+        and wrong for a hosted box, which is why hosted has to require an account —
+        the sign-in page in A2 is what closes it.
+        """
+        return self.out / (f"p{person.id}" if person else "local")
+
+    def adopt(self) -> None:
+        """Move readers built before homes existed into the signed-out one.
+
+        Without this, upgrading hides every reader already on disk: the code would
+        start looking one directory deeper and find nothing.
+        """
+        local = self.out / "local"
+        if not self.out.is_dir():
+            return
+        for folder in list(self.out.iterdir()):
+            if not folder.is_dir() or folder.name == "local" or folder.name.startswith("p"):
+                continue
+            # Any document folder, not only one that reached a rendered reader:
+            # "ingested, then never translated" is a real state and orphaning it
+            # would lose the work already paid for.
+            if not (folder / "document.json").is_file():
+                continue
+            local.mkdir(parents=True, exist_ok=True)
+            folder.rename(local / folder.name)
 
     def remaining(self) -> float:
         return max(0.0, self.budget - self.committed)
@@ -214,12 +254,12 @@ class Library:
             )
         return ""
 
-    def readers(self) -> list[dict[str, Any]]:
+    def readers(self, home: Path) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
-        if not self.out.is_dir():
+        if not home.is_dir():
             return found
-        for folder in self.out.iterdir():
+        for folder in home.iterdir():
             index = folder / "reader" / "index.html"
             if not index.is_file():
                 continue
@@ -369,7 +409,7 @@ class Library:
             # anyone who wants it can say so there, and putting the choice on this
             # page cost more in confusion than it bought.
             style=Style.natural,
-            out_root=self.out,
+            out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
             difficulty=bool(options.get("words")),
             # A catalogue text arrives with a translation somebody already made, so
@@ -418,6 +458,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
+
+    def _home(self) -> Path:
+        """The only directory this request is allowed to see."""
+        return self.library.home(self._person())
+
+    def _own_job(self, job_id: str) -> Job | None:
+        """A job, but only if it belongs to whoever is asking.
+
+        Ids are unguessable, so this is not the only thing standing between two
+        people's builds — but an id is a bearer token, and one that leaks through a
+        log or a shared screen should not hand over someone else's text.
+        """
+        job = self.library.jobs.get(job_id)
+        if job is None:
+            return None
+        person = self._person()
+        return job if job.owner == (person.id if person else None) else None
 
     def _host_is_ours(self) -> bool:
         # A page on another origin resolving a name to this address should not be able
@@ -500,13 +557,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, self.shelf.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
-            return self._json({"readers": self.library.readers()})
+            return self._json({"readers": self.library.readers(self._home())})
         if route == "/account/me":
             return self._me()
         if route.startswith("/glossary/"):
             return self._serve_glossary(route[len("/glossary/") :])
         if route.startswith("/job/"):
-            job = self.library.jobs.get(route[len("/job/") :])
+            job = self._own_job(route[len("/job/") :])
             return self._json(
                 job.state()
                 if job
@@ -660,13 +717,20 @@ class Handler(BaseHTTPRequestHandler):
             if already is not None:
                 return self._json({"catalogue": already.state()})
 
-        job = Job(id=secrets.token_hex(8), source=source, options=payload)
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=source,
+            options=payload,
+            owner=person.id if person else None,
+            home=self.library.home(person),
+        )
         self.library.jobs[job.id] = job
         self.library.prepare(job)
         self._json(job.state())
 
     def _build(self, payload: dict[str, Any]) -> None:
-        job = self.library.jobs.get(str(payload.get("id", "")))
+        job = self._own_job(str(payload.get("id", "")))
         if job is None:
             return self._json(
                 {
@@ -724,7 +788,10 @@ class Handler(BaseHTTPRequestHandler):
                     f"targum cannot read '{suffix}' files. Save it as plain text or "
                     "markdown and drop that in instead."
                 )
-            uploads = self.library.out / "uploads"
+            # A directory of its own per upload. Two people — or one person twice —
+            # dropping files with the same name used to overwrite each other, because
+            # the basename was the whole path.
+            uploads = self._home() / "uploads" / secrets.token_hex(8)
             uploads.mkdir(parents=True, exist_ok=True)
             # Only the file's own name, never a path it carries.
             path = uploads / Path(str(name)).name
@@ -743,7 +810,7 @@ class Handler(BaseHTTPRequestHandler):
         fills them in without a reload. Answering "not yet" is a normal reply, not an
         error: the file appears when the lookups finish.
         """
-        root = self.library.out.resolve()
+        root = self._home().resolve()
         target = (root / unquote(folder) / "glossary.json").resolve()
         if root not in target.parents:
             return self._json({"error": "not found"}, 404)
@@ -760,8 +827,8 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"ready": True, "entries": entries})
 
     def _serve_reader(self, relative: str) -> None:
-        """Built readers, and nothing else under the output directory."""
-        root = self.library.out.resolve()
+        """This person's readers, and nothing else — not even another person's."""
+        root = self._home().resolve()
         target = (root / unquote(relative)).resolve()
         if not target.is_file() or root not in target.parents:
             return self._send(404, b"not found", "text/plain")
