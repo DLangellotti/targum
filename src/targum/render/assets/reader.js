@@ -887,28 +887,42 @@
   // control in it agrees about which level is now set.
   var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };
 
+  // How to set a level on the phrase card while it is open. A phrase is saved by its
+  // offsets into one sentence and a word by its lemma, so the two cards cannot share a
+  // path — they share the keys instead. Set by `showPick`, cleared when it closes.
+  var pickLevel = null;
+
   function markLookedUp(key) {
-    if (!lookedUp || !card || card.hidden) return false;
     // Asked of the object's own keys: `KEYED_STATUS["constructor"]` is a function, and
     // every other key on the page would have gone through this branch holding one.
     if (!Object.prototype.hasOwnProperty.call(KEYED_STATUS, key)) return false;
     var status = KEYED_STATUS[key];
-    var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
-    if (!lemmas[index]) return false;
-    setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
-    var word = lookedUp;
-    redraw();
-    // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
-    // Find its replacement by lemma in the same sentence rather than holding a
-    // reference to a node that is no longer in the page.
-    var pair = word.closest ? word.closest(".pair") : null;
-    var again =
-      pair && pair.parentNode
-        ? pair.querySelector('.w[data-lemma="' + index + '"]')
-        : null;
-    if (again) showCard(again);
-    else hideCard();
-    return true;
+
+    // Whichever card is open. The word card wins if somehow both are.
+    if (lookedUp && card && !card.hidden) {
+      var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
+      if (!lemmas[index]) return false;
+      setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
+      var word = lookedUp;
+      redraw();
+      // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
+      // Find its replacement by lemma in the same sentence rather than holding a
+      // reference to a node that is no longer in the page.
+      var pair = word.closest ? word.closest(".pair") : null;
+      var again =
+        pair && pair.parentNode
+          ? pair.querySelector('.w[data-lemma="' + index + '"]')
+          : null;
+      if (again) showCard(again);
+      else hideCard();
+      return true;
+    }
+
+    if (pickLevel && chip && !chip.hidden) {
+      pickLevel(status);
+      return true;
+    }
+    return false;
   }
 
   function statusRow(index, surface, band) {
@@ -1268,25 +1282,33 @@
       return pick;
     }
 
-    return TargumVocab.editor({
-      status: pick ? pick.status : undefined,
-      note: pick ? pick.note || "" : "",
-      placeholder: "Your own reading",
-      onStatus: function (value) {
-        var item = ensure();
-        if (value !== null) item.status = value;
-        stamp(item);
-        remember();
-        redraw();
-      },
-      onNote: function (text) {
-        var item = ensure();
-        item.note = text;
-        stamp(item);
-        remember();
-        redraw();
-      },
-    });
+    // The element and the doing, separately: the keys set a level on the open card, and
+    // a phrase is saved by offsets into one sentence rather than by lemma, so they
+    // cannot share the word's path.
+    function apply(value) {
+      var item = ensure();
+      if (value !== null) item.status = value;
+      stamp(item);
+      remember();
+      redraw();
+    }
+
+    return {
+      element: TargumVocab.editor({
+        status: pick ? pick.status : undefined,
+        note: pick ? pick.note || "" : "",
+        placeholder: "Your own reading",
+        onStatus: apply,
+        onNote: function (text) {
+          var item = ensure();
+          item.note = text;
+          stamp(item);
+          remember();
+          redraw();
+        },
+      }),
+      apply: apply,
+    };
   }
 
   // Pressing the mouse down on the card must not count as starting a new selection.
@@ -1305,9 +1327,16 @@
     var picked = currentSelection();
     if (!picked || !picked.text) {
       chip.hidden = true;
+      pickLevel = null;
       return;
     }
+    showPick(picked);
+  });
 
+  // Built as a function rather than inline in the handler, because setting a level from
+  // the keyboard has to draw the card again to show which one is now set — the editor
+  // reads its pressed state once, when it is made.
+  function showPick(picked) {
     var token = soleToken(picked);
     if (token) {
       var index = token[4];
@@ -1315,13 +1344,19 @@
       // Dragging across one word is not a phrase, whatever the gesture was. It gets the
       // word's own card, with the same scale and the same field as tapping it.
       var surface = segmentText(picked.segmentId).slice(token[0], token[1]);
+      var band = levelNames[token[2]] || "";
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",
         note: lemma && lemma !== surface ? "dictionary form " + lemma : "",
-        editor: statusRow(index, surface, levelNames[token[2]] || ""),
+        editor: statusRow(index, surface, band),
       });
       place(picked.rect);
+      pickLevel = function (status) {
+        setStatus(index, surface, band, status);
+        redraw();
+        showPick(picked);
+      };
       return;
     }
 
@@ -1335,6 +1370,7 @@
     // The whole sentence has a translation already; a part of one does not.
     var whole = coversSegment(picked);
     var reading = whole ? translationFor(picked.segmentId) : wordByWord(picked);
+    var editing = phraseEditor(picked, existing, reading);
     pickCard({
       title: picked.text,
       reading: reading,
@@ -1343,7 +1379,7 @@
         : reading
           ? "word by word — the sentence is in parallel"
           : "",
-      editor: phraseEditor(picked, existing, reading),
+      editor: editing.element,
       action: existing > -1 ? "take it off the list" : "",
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
@@ -1367,11 +1403,16 @@
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
         chip.hidden = true;
+        pickLevel = null;
         redraw();
       },
     });
     place(picked.rect);
-  });
+    pickLevel = function (status) {
+      editing.apply(status);
+      showPick(picked);
+    };
+  }
 
   /* --- export -------------------------------------------------------------- */
 

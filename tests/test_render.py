@@ -1377,7 +1377,9 @@ def test_the_level_keys_only_borrow_the_letters_while_a_card_is_open() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
-    assert "if (!lookedUp || !card || card.hidden) return false;" in script, "scoped"
+    # Only ever while one of the two cards is up.
+    assert "if (lookedUp && card && !card.hidden) {" in script, "the word card"
+    assert "if (pickLevel && chip && !chip.hidden) {" in script, "and the phrase card"
     # And the letters still do their old job, which is only true if the switch is intact.
     keys = script[script.index("switch (event.key) {") :]
     assert 'case "k":' in keys and 'case "i":' in keys
@@ -1392,3 +1394,30 @@ def test_the_level_keys_are_written_down() -> None:
     template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
     assert "<dt>1 2 3</dt>" in template
     assert "known, or ignore it" in template
+
+
+def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
+    """Same keys, different saving: a word is filed by lemma and travels between texts,
+    a phrase is offsets into one sentence and stays with it. The two cards share the
+    keys rather than the path.
+
+    The card is drawn again afterwards because `TargumVocab.editor` reads its pressed
+    state once, when it is built — without that, the level would be saved and the button
+    would go on looking unpressed.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function showPick(picked)" in script, "rebuildable, so the card can restate"
+    body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
+    assert body.count("showPick(picked);") == 2, "each redraws it"
+    # And it stops being live the moment the card goes: both places that hide the card
+    # clear it, or the keys would go on marking a phrase you can no longer see.
+    hides = [line for line in script.splitlines() if "chip.hidden = true;" in line]
+    assert len(hides) == 2
+    for spot in (
+        "chip.hidden = true;\n      pickLevel = null;",
+        "chip.hidden = true;\n        pickLevel = null;",
+    ):
+        assert spot in script, spot
