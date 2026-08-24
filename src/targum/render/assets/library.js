@@ -255,6 +255,21 @@
     });
   }
 
+  /* Languages this reader has words in. Signed out with nothing kept, this is empty
+     and the switcher does not appear, which is the intended resting state. */
+  function kept() {
+    var found = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var name = localStorage.key(i) || "";
+        if (name.indexOf("targum:vocab:") === 0) {
+          found.push({ language: name.slice("targum:vocab:".length) });
+        }
+      }
+    } catch (e) {}
+    return found;
+  }
+
   /* --- putting it together --------------------------------------------------- */
 
   ask("/readers").then(function (data) {
@@ -268,8 +283,16 @@
     });
 
     // Hebrew is always on offer, whether or not anything is on the shelf in it.
+    //
+    // The languages after it are the reader's own: what they have built, and what they
+    // have kept words in. The catalogue deliberately does not add to this list. It
+    // holds one Russian novel, and letting it in put Russian in front of every visitor
+    // who had never touched it — which is the opposite of what this switcher is for,
+    // and flatly against what lang.js says it does: someone who never touches another
+    // language should never see a switcher at all. The catalogue is then shown filtered
+    // to whichever language is chosen, the same as the shelf.
     var codes = [lang.HOME];
-    catalogue.concat(readers).forEach(function (thing) {
+    readers.concat(kept()).forEach(function (thing) {
       var code = base(thing.language);
       if (code && codes.indexOf(code) < 0) codes.push(code);
     });
