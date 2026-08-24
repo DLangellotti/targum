@@ -307,7 +307,7 @@ main {
 /* Tighter again where a pair is one pasuk rather than one paragraph. A chapter of Tanakh
    is continuous text that happens to be numbered; spacing its verses apart turns it into
    a list of separate sayings, which is the one thing the layout must not say. */
-body.verses .pair { margin-block-end: 0.15rem; }
+body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 
 /* The pairing has to be visible, or a learner cannot trust it. */
 .pair:hover, .pair:focus-visible { background: var(--paper-raised); }
@@ -854,6 +854,12 @@ body.marking .w[data-status="3"] {
 .mode-source .pair { grid-template-columns: 1fr; }
 .mode-source .tr { display: none; }
 .mode-source .src { max-width: none; }
+
+/* With the translation gone there is no pairing left to make visible, so the space that
+   was buying it is pure cost: a column of one-line pesukim reads as a list of separate
+   sayings instead of a chapter. Nearly continuous here — the padding is only what keeps
+   a hovered line from touching its own text. */
+.mode-source .pair { margin-block-end: 0; padding-block: 0.1rem; }
 
 /* --- interlinear --------------------------------------------------------- */
 
