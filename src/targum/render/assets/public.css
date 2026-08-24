@@ -1,0 +1,232 @@
+/* The pages a stranger can reach.
+
+   These are the only surfaces a search engine ever sees, and the only ones somebody
+   meets before they have an account — so they carry more of the brand's weight than
+   anything inside the product.
+
+   §9 holds throughout: paper and ink do the work, one accent on the single thing to
+   press, and the sample text is full ink because it is what the visitor came for. */
+
+body.public {
+  margin: 0;
+  padding: 0 1.5rem 4rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+}
+
+.public .corner {
+  position: absolute;
+  inset-block-start: 1rem;
+  inset-inline-end: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.public .corner .enter {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.public .corner .enter:hover {
+  box-shadow: var(--lift);
+}
+
+.public .sheet {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding-block-start: 4rem;
+}
+
+.public .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: 2.5rem;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  text-decoration: none;
+}
+.public .brand-mark {
+  width: 1.1rem;
+  height: 1.4rem;
+}
+
+.public .where {
+  margin: 0 0 0.35rem;
+  font-size: 0.8125rem;
+}
+.public .where a {
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.public .where a:hover {
+  color: var(--ink);
+}
+
+.public h1 {
+  margin: 0 0 0.35rem;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.public .byline {
+  margin: 0 0 1.25rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.public .lede {
+  margin: 0 0 2.5rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.public h2 {
+  margin: 0 0 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* The sample. Full ink on both sides at one size — the bilingual parity rule is not a
+   reading-page rule, it is the brand's, and this is the first place anyone sees it. */
+.public .sample {
+  margin-block-end: 2.5rem;
+}
+.public .pair {
+  margin-block-end: 1.4rem;
+  padding-inline-start: 0.9rem;
+  border-inline-start: 2px solid var(--rule);
+}
+.public .pair p {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: var(--size);
+}
+.public .pair .source {
+  line-height: var(--leading-rtl);
+}
+.public .pair .target {
+  margin-block-start: 0.3rem;
+  color: var(--ink-soft);
+  line-height: var(--leading);
+}
+
+/* Who translated it, and under what. Body text, not a footnote: an Orthodox reader
+   deciding whether to trust an English Tanakh decides on exactly this. */
+.public .provenance {
+  margin-block-end: 2.5rem;
+}
+.public .provenance ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.public .provenance li {
+  margin-block-end: 0.7rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.public .provenance b {
+  font-weight: 600;
+}
+.public .provenance span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public .provenance .licence {
+  font-size: 0.8125rem;
+}
+
+.public .facts {
+  margin: 0 0 2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.public .door {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0;
+}
+.public .door .go {
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+  font-size: 0.9375rem;
+  text-decoration: none;
+}
+.public .door .go:hover {
+  box-shadow: var(--lift);
+}
+.public .door .free {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* The shelf index. */
+.public .texts {
+  margin: 0 0 2.5rem;
+  padding: 0;
+  list-style: none;
+}
+.public .texts li {
+  padding-block: 1rem;
+  border-block-end: 1px solid var(--rule);
+}
+.public .texts a {
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.public .texts a:hover {
+  color: var(--accent);
+}
+.public .texts .byline,
+.public .texts .blurb {
+  display: block;
+  color: var(--ink-soft);
+}
+.public .texts .byline {
+  margin-block-start: 0.15rem;
+  font-size: 0.8125rem;
+}
+.public .texts .blurb {
+  margin-block-start: 0.35rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.public .empty,
+.public .elsewhere {
+  margin: 0 0 2rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.public .elsewhere a {
+  color: var(--accent);
+}
+
+.public .foot {
+  max-width: var(--measure);
+  margin: 3rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public .foot a {
+  color: var(--ink-soft);
+}

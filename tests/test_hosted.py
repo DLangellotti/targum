@@ -204,3 +204,50 @@ def test_health_reports_the_store_rather_than_only_the_process() -> None:
     An endpoint that only proves a socket is open would call that healthy.
     """
     assert "self.store.anyone()" in Path("src/targum/serve.py").read_text()
+
+
+# -- the public surface -------------------------------------------------------
+
+
+def test_robots_and_sitemap_are_served(hosted: tuple[int, str]) -> None:
+    port, _ = hosted
+    status, robots = ask(port, "/robots.txt", "targum.page")
+    assert status == 200
+    assert b"Sitemap: https://targum.page/sitemap.xml" in robots
+    assert b"Disallow: /account/" in robots
+
+    status, sitemap = ask(port, "/sitemap.xml", "targum.page")
+    assert status == 200
+    assert b"<urlset" in sitemap
+
+
+def test_the_sitemap_lists_every_text_and_nothing_private(hosted: tuple[int, str]) -> None:
+    """Generated from the catalogue, never kept by hand — a hand-written sitemap is
+    wrong the first time somebody adds an entry and forgets, and being wrong here is
+    invisible until the traffic does not arrive."""
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    found = re.findall(r"<loc>(.*?)</loc>", ask(port, "/sitemap.xml", "targum.page")[1].decode())
+    paths = {url.removeprefix("https://targum.page") for url in found}
+    for entry in CATALOGUE:
+        assert f"/{entry.shelf.value}/{entry.id}" in paths, entry.id
+    for private in ("/words", "/readers", "/health", "/account/signin"):
+        assert private not in paths, f"{private} should not be advertised"
+
+
+def test_a_text_only_answers_on_its_own_shelf(hosted: tuple[int, str]) -> None:
+    """Otherwise every text would exist at two addresses, which splits whatever ranking
+    it earns and puts a novel at a Beit Midrash URL."""
+    port, _ = hosted
+    assert ask(port, "/library/il-declaration", "targum.page")[0] == 200
+    assert ask(port, "/beit-midrash/il-declaration", "targum.page")[0] == 404
+    assert ask(port, "/library/no-such-text", "targum.page")[0] == 404
+
+
+def test_the_front_door_is_still_shut(hosted: tuple[int, str]) -> None:
+    """The shelves opening up must not have opened anything else."""
+    port, _ = hosted
+    for route in ("/", "/words"):
+        status, body = ask(port, route, "targum.page")
+        assert status == 200 and b"Coming soon" in body, route

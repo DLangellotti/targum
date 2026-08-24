@@ -35,7 +35,7 @@ from .errors import TargumError
 from .mail import Mailer
 from .models import SegmentedDocument, Style
 from .pipeline import Build, Result
-from .render.builder import about_page, holding_page, signin_page
+from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
 
 MAX_UPLOAD = 32 * 1024 * 1024
 
@@ -130,6 +130,11 @@ ACCOUNT_BUDGET = 3.00
 OPEN_TO_STRANGERS = frozenset(
     {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
 )
+
+# The public shelves, and every text on them. These are the only pages a search engine
+# will ever see, and the whole reason the catalogue is worth compiling: somebody looking
+# for a specific text should be able to find it, not meet a page saying "Coming soon".
+PUBLIC_TEXT = re.compile(r"^/(library|beit-midrash)/([a-z0-9][a-z0-9-]{0,63})$")
 
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
@@ -1049,6 +1054,49 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes -------------------------------------------------------------
 
+    def _robots(self) -> str:
+        """What a crawler may have.
+
+        Everything public is public on purpose; everything else needs an account and
+        would answer with the door anyway. Naming the private routes here keeps crawlers
+        from spending their budget on pages that will never be worth an index entry.
+        """
+        lines = [
+            "User-agent: *",
+            "Allow: /$",
+            "Allow: /about",
+            "Allow: /library",
+            "Allow: /beit-midrash",
+            "Disallow: /account/",
+            "Disallow: /reader/",
+            "Disallow: /readers",
+            "Disallow: /words",
+            "Disallow: /job/",
+            "Disallow: /glossary/",
+            "Disallow: /health",
+        ]
+        if self.address:
+            lines.append(f"Sitemap: {self.address}/sitemap.xml")
+        return "\n".join(lines) + "\n"
+
+    def _sitemap(self) -> str:
+        """Every public page, generated from the catalogue rather than kept by hand.
+
+        A hand-maintained sitemap is one that is wrong the first time somebody adds an
+        entry and forgets, and being wrong here is invisible until traffic does not
+        arrive.
+        """
+        from . import catalogue as catalogue_module
+        from .catalogue import Shelf
+
+        where = self.address or ""
+        paths = ["/", "/about"]
+        paths += [f"/{shelf.value}" for shelf in Shelf]
+        paths += [f"/{entry.shelf.value}/{entry.id}" for entry in catalogue_module.CATALOGUE]
+        urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
+        return f'<?xml version="1.0" encoding="UTF-8"?>\n' \
+               f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
+
     def _health(self) -> None:
         """Whether the process is alive and can still reach the one file that matters.
 
@@ -1078,6 +1126,34 @@ class Handler(BaseHTTPRequestHandler):
         # place the identity is visibly missing.
         if route == "/favicon.ico":
             return self._send(200, _icon(), "image/png")
+        if route == "/robots.txt":
+            return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        if route == "/sitemap.xml":
+            return self._send(200, self._sitemap().encode("utf-8"), "application/xml")
+        # A text's own page, always public and never behind the account check. It carries
+        # a sample rather than the whole text, so there is nothing here to protect.
+        naming = PUBLIC_TEXT.match(route)
+        if naming is not None:
+            from . import catalogue as catalogue_module
+
+            entry = catalogue_module.by_id(naming.group(2))
+            if entry is None or entry.shelf.value != naming.group(1):
+                return self._send(404, b"not found", "text/plain")
+            return self._send(200, text_page(entry, self.address).encode("utf-8"), HTML)
+        # The shelves answer to whoever is asking. Signed out that is the public index —
+        # the shop window, and the thing a search engine indexes. Signed in it is the
+        # product. Same address either way, because a text somebody found on Google
+        # should still be there after they sign in to read it.
+        if route in ("/library", "/beit-midrash"):
+            from .catalogue import Shelf
+
+            if self._person() is None and not self._authorised():
+                page = shelf_page(Shelf(route.lstrip("/")), self.address)
+                return self._send(200, page.encode("utf-8"), HTML)
+            # One app page with a switcher, rather than two that drift apart.
+            if route == "/beit-midrash":
+                return self._go("/library?shelf=beit-midrash")
+
         if self._needs_account(route):
             # Data routes answer as data. Anything a person could be looking at gets a
             # page rather than a 401 — and not the sign-in page either, because a door
