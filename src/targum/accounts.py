@@ -60,7 +60,8 @@ SESSION_DAYS = 90
 
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
-SCHEMA_VERSION = 3
+# 4: job.chapters, how a text divides — one means it is not a book.
+SCHEMA_VERSION = 4
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -69,6 +70,7 @@ SCHEMA_VERSION = 3
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
 )
 
 SCHEMA = """
@@ -175,6 +177,7 @@ CREATE TABLE IF NOT EXISTS job (
   title    TEXT    NOT NULL DEFAULT '',
   language TEXT    NOT NULL DEFAULT '',
   segments INTEGER NOT NULL DEFAULT 0,
+  chapters INTEGER NOT NULL DEFAULT 1,
   estimate REAL    NOT NULL DEFAULT 0,
   done     INTEGER NOT NULL DEFAULT 0,
   total    INTEGER NOT NULL DEFAULT 0,

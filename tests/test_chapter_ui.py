@@ -171,3 +171,62 @@ def test_a_book_with_nothing_waiting_needs_no_preparing(tmp_path: Path) -> None:
     home = library.home(None)
     book(home / "book-he", chapters=3, translated=3)
     assert [c["ready"] for c in library.chapters(home / "book-he")] == [True, True, True]
+
+
+def test_a_book_is_priced_by_the_chapter_it_will_buy(tmp_path: Path) -> None:
+    """The gap that made the whole chapter feature unreachable.
+
+    The engine and the interface were built and a novel was still refused, because
+    `prepare` priced every segment: an 87k-word book estimated $5.90 against a $2.00 cap
+    while the build behind it would only spend $0.30. The estimate has to be for what is
+    actually bought.
+    """
+    from targum.models import Style
+    from targum.pipeline import Build
+
+    text = "\n\n".join(
+        f"# Chapter {c}\n\n" + "\n\n".join(f"Sentence {n} of chapter {c}." for n in range(40))
+        for c in range(1, 11)
+    )
+    source = tmp_path / "novel.md"
+    source.write_text(text, encoding="utf-8")
+
+    def priced(chapters: int | None) -> tuple[float, int]:
+        build = Build(
+            str(source),
+            target_language="en",
+            style=Style.natural,
+            out_root=tmp_path / "out",
+            difficulty=False,
+            gloss=False,
+        )
+        plan = build.plan(chapters=chapters)
+        return plan.estimated_cost, plan.buying
+
+    whole_cost, whole_segments = priced(None)
+    first_cost, first_segments = priced(1)
+
+    assert whole_segments > first_segments * 5, "a chapter should be a fraction of the book"
+    assert first_cost < whole_cost / 5, f"{first_cost} is not much less than {whole_cost}"
+
+
+def test_an_article_is_priced_whole(tmp_path: Path) -> None:
+    """Below a chapter boundary there is nothing to defer, and the machinery is worth
+    nothing on a text that costs five cents."""
+    from targum.models import Style
+    from targum.pipeline import Build
+
+    source = tmp_path / "article.md"
+    source.write_text("\n\n".join(f"Sentence {n}." for n in range(20)), encoding="utf-8")
+    build = Build(
+        str(source),
+        target_language="en",
+        style=Style.natural,
+        out_root=tmp_path / "out",
+        difficulty=False,
+        gloss=False,
+    )
+    plan = build.plan(chapters=1)
+    assert plan.chapters == 1
+    assert plan.segmented is not None
+    assert plan.buying == len(plan.segmented.segments), "an article is bought whole"

@@ -229,6 +229,8 @@ class Job:
     home: Path | None = None
     # What it really cost, once the API has said. Zero until it has.
     spent: float = 0.0
+    # How many chapters the text has. One means it is not a book.
+    chapters: int = 1
     made: int = field(default_factory=now)
 
     def state(self) -> dict[str, Any]:
@@ -238,6 +240,7 @@ class Job:
             "title": self.title,
             "language": self.language,
             "segments": self.segments,
+            "chapters": self.chapters,
             "estimate": round(self.estimate, 2),
             "stage": self.stage,
             "done": self.done,
@@ -330,6 +333,7 @@ class Library:
                 meanings=float(row["meanings"]),
                 blocked=str(row["blocked"]),
                 spent=float(row["spent"]),
+                chapters=int(row["chapters"]),
                 options=json.loads(row["options"] or "{}"),
                 owner=row["owner"],
                 home=Path(str(row["home"])),
@@ -351,6 +355,7 @@ class Library:
                 "title": job.title,
                 "language": job.language,
                 "segments": job.segments,
+                "chapters": job.chapters,
                 "estimate": job.estimate,
                 "done": job.done,
                 "total": job.total,
@@ -645,12 +650,17 @@ class Library:
         """Ingest and segment, which costs nothing, then price the rest."""
         try:
             builder = self._builder(job)
-            plan = builder.plan()
+            # Priced for what the build will buy, which for a book is one chapter. The
+            # cap then applies to a chapter, not to a novel — which is the difference
+            # between "no books at all" and "no chapter over two dollars".
+            plan = builder.plan(chapters=FIRST_CHAPTERS)
             job.title = plan.document.title or job.source
             job.language = plan.document.language
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
+            job.chapters = plan.chapters
             job.estimate = plan.estimated_cost
-            job.total = job.segments
+            # The progress bar counts what is being translated now, not the whole book.
+            job.total = plan.buying or job.segments
             usable, _ = builder.provider.available()
             if builder.machine and not usable:
                 # Checked here, not at the first API call. The estimate falls back to a
