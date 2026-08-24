@@ -1307,8 +1307,13 @@
 
   /* --- export -------------------------------------------------------------- */
 
+  /* A spreadsheet runs a cell that opens with =, +, - or @ as a formula, so an export
+     is a way to hand somebody a file that does something when they open it. The leading
+     apostrophe is what marks the rest as text; it is visible, which is the price of the
+     file being inert. Everything else is left exactly as the reader wrote it. */
   function csvCell(value) {
     var text = value === undefined || value === null ? "" : String(value);
+    if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
     return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
