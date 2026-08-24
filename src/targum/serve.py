@@ -12,6 +12,7 @@ would cost, and spend nothing until you say so.
 from __future__ import annotations
 
 import base64
+import contextlib
 import errno
 import json
 import queue
@@ -228,10 +229,10 @@ class Library:
         store: Store | None = None,
     ) -> None:
         self.out = out
-        self.adopt()
         self.max_cost = max_cost
         self.budget = budget
         self.store = store
+        self.adopt()
         self._committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
@@ -336,15 +337,45 @@ class Library:
         """
         return self.out / (f"p{person.id}" if person else "local")
 
-    def adopt(self) -> None:
-        """Move readers built before homes existed into the signed-out one.
+    def _sole_owner(self) -> Path | None:
+        """The one person on this machine, if there is exactly one.
 
-        Without this, upgrading hides every reader already on disk: the code would
-        start looking one directory deeper and find nothing.
+        A machine somebody runs themselves has one account on it, and everything built
+        on it is theirs — including everything built before they made the account.
+        Two or more, and who owns an old build is a guess, so it is not made.
         """
-        local = self.out / "local"
+        if self.store is None:
+            return None
+        people = self.store.db.execute("SELECT id FROM person LIMIT 2").fetchall()
+        if len(people) != 1:
+            return None
+        return self.out / f"p{int(people[0]['id'])}"
+
+    def adopt(self) -> None:
+        """Move what was built before homes existed into the home it belongs to.
+
+        Without this, upgrading hides every reader already on disk: the code starts
+        looking one directory deeper and finds nothing.
+
+        Where they land is the part that is easy to get wrong, and I got it wrong once:
+        everything went to the signed-out home, so the one person on the machine signed
+        in and found an empty library. If there is exactly one account here, the
+        builds are theirs.
+        """
         if not self.out.is_dir():
             return
+        local = self.out / "local"
+        owner = self._sole_owner()
+        home = owner or local
+        # Builds already adopted into the signed-out home before this was understood.
+        # Only when the person has no home yet, so this is a one-time upgrade and never
+        # a way for one account to inherit what other people built while signed out.
+        if owner is not None and not owner.exists() and local.is_dir():
+            owner.mkdir(parents=True, exist_ok=True)
+            for folder in list(local.iterdir()):
+                if folder.is_dir():
+                    with contextlib.suppress(OSError):
+                        folder.rename(free_name(owner, folder.name))
         for folder in list(self.out.iterdir()):
             if not folder.is_dir() or folder.name == "local" or HOME.fullmatch(folder.name):
                 continue
@@ -353,9 +384,9 @@ class Library:
             # would lose the work already paid for.
             if not (folder / "document.json").is_file():
                 continue
-            local.mkdir(parents=True, exist_ok=True)
+            home.mkdir(parents=True, exist_ok=True)
             try:
-                folder.rename(free_name(local, folder.name))
+                folder.rename(free_name(home, folder.name))
             except OSError:
                 # One folder that will not move is not a reason for targum not to
                 # start. It stays where it is and is tried again next time.
