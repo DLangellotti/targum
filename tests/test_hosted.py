@@ -506,3 +506,71 @@ def test_nobody_else_gets_your_data(hosted: tuple[int, str]) -> None:
     status, body = ask(port, "/account/export", "targum.page")
     assert status == 401, "and as data, not as a page somebody has to read"
     assert json.loads(body)["error"]
+
+
+# -- how much of a text you already know --------------------------------------
+
+
+def test_the_shelf_says_how_much_of_each_text_you_know(hosted: tuple[int, str]) -> None:
+    """The number the reader has always computed and thrown away.
+
+    `reader.js` works it out for the section in front of you and says so — its own comment
+    records why: *the reason to know it is choosing what to read next.* It was never
+    persisted, so the choosing happened somewhere it could not be seen.
+    """
+    import json as json_module
+
+    from targum.coverage import against, lemmas
+
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+
+    # A targum with real annotation on this reader's shelf.
+    home = Path(str(STORE[0])).parent / "out" / f"p{person.id}"
+    folder = home / "measured"
+    (folder / "reader").mkdir(parents=True, exist_ok=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json_module.dumps({"title": "Measured", "language": "he", "content_hash": "h"}),
+        encoding="utf-8",
+    )
+    (folder / "annotation.json").write_text(
+        json_module.dumps(
+            {"tokens": {"s1": [{"lemma": w} for w in ("אחד", "שתיים", "שלוש", "ארבע")]}}
+        ),
+        encoding="utf-8",
+    )
+    store.push(
+        person,
+        {"words": [{"language": "he", "lemma": "אחד", "status": 9, "at": 1, "seen": 1}]},
+    )
+
+    status, body = ask(port, "/readers", "targum.page", session)
+    assert status == 200
+    mine = [r for r in json.loads(body)["readers"] if r["name"] == "measured"]
+    assert mine, "the targum should be on the shelf"
+    assert mine[0]["known"] == 0.25, "one of its four words is known"
+    assert mine[0]["fresh"] == 3, "and three have never been marked"
+
+    # Counted straight, the same answer.
+    assert against(folder, {"אחד": 9}).known == 0.25  # type: ignore[union-attr]
+    assert len(lemmas(folder)) == 4
+
+
+def test_a_targum_with_no_annotation_says_nothing_rather_than_zero(tmp_path: Path) -> None:
+    """ "0% known" and "not measured" are very different claims to make about a book, and
+    a targum built without `--words` is a normal state rather than a fault."""
+    from targum.coverage import against
+
+    assert against(tmp_path, {"anything": 9}) is None
+
+
+def test_the_shelf_never_carries_a_server_path(hosted: tuple[int, str]) -> None:
+    """The folder is resolved on the server. Where a file sits on disk is not something a
+    browser has any business being told."""
+    port, session = hosted
+    for reader in json.loads(ask(port, "/readers", "targum.page", session)[1])["readers"]:
+        assert "folder" not in reader
+        assert not any(str(value).startswith("/") for value in reader.values())

@@ -271,7 +271,9 @@
     go.type = "button";
     go.textContent = "Open it";
     go.onclick = function () {
-      window.location.href = keyed("/library");
+      // The text it just named, not the index it happens to sit on. Every catalogue text
+      // has its own page now, so the button can go where it says it goes.
+      window.location.href = keyed("/" + entry.shelf + "/" + entry.id);
     };
     row.appendChild(go);
     var anyway = document.createElement("button");
@@ -281,14 +283,33 @@
       // Deliberate, so it is asked for a second time rather than assumed.
       go.disabled = anyway.disabled = true;
       var payload = options();
-      payload.source = sourceInput.value.trim();
       payload.force_machine = true;
       say(waiting());
-      ask("/prepare", payload).then(function (job) {
-        if (job.error) return say(line(job.error), true);
-        if (job.blocked) return refuse(job);
-        offer(job);
-      });
+      // The same two ways in as the first attempt. Re-sending only `source` meant a
+      // dropped file could never take this branch: the override worked for a pasted
+      // link and silently did nothing for an upload.
+      var again;
+      if (chosen) {
+        again = readFile(chosen).then(function (content) {
+          payload.name = chosen.name;
+          payload.content = content;
+          return ask("/prepare", payload);
+        });
+      } else {
+        payload.source = sourceInput.value.trim();
+        again = ask("/prepare", payload);
+      }
+      again
+        .then(function (job) {
+          if (job.error) return say(line(job.error), true);
+          if (job.blocked) return refuse(job);
+          offer(job);
+        })
+        .catch(function () {
+          // A dropped connection used to leave both buttons dead with no way forward.
+          go.disabled = anyway.disabled = false;
+          say(line("That did not go through. Try again."), true);
+        });
     };
     row.appendChild(anyway);
     head.appendChild(row);
