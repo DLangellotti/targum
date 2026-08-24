@@ -34,6 +34,7 @@ from .errors import TargumError
 from .mail import Mailer
 from .models import SegmentedDocument, Style
 from .pipeline import Build, Result
+from .render.builder import signin_page
 
 MAX_UPLOAD = 32 * 1024 * 1024
 SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -54,6 +55,18 @@ NO_KEY = (
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
 # billed amounts, so they are deliberately conservative.
+HTML = "text/html; charset=utf-8"
+
+# Hosted, everyone signs in first. Signed out, every home would be the same `local`
+# directory, so one visitor would be reading another's library — and there is nowhere
+# to put a build that belongs to nobody. On a machine somebody runs themselves the
+# opposite is true: there is one person, they are the only one who can reach it, and
+# making them make an account to read their own files would be absurd. So it is a
+# switch, off by default, and the hosted deployment is what turns it on.
+OPEN_TO_STRANGERS = frozenset(
+    {"/account/signin", "/account/enter", "/account/sign-in", "/account/me"}
+)
+
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
 
@@ -617,6 +630,10 @@ SENT = "Check your email. If that address has an account, a link is on its way."
 
 
 class Handler(BaseHTTPRequestHandler):
+    # Overridden on the type built in start(). Off here so a Handler made by hand —
+    # which is how the tests make one — behaves like a machine somebody runs themselves.
+    require_account = False
+
     server_version = "targum"
     library: Library
     token: str
@@ -645,6 +662,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
+
+    def _needs_account(self, route: str) -> bool:
+        """Whether this request has to be turned away at the door."""
+        if not self.require_account or route in OPEN_TO_STRANGERS:
+            return False
+        return self._person() is None
 
     def _home(self) -> Path:
         """The only directory this request is allowed to see."""
@@ -723,15 +746,28 @@ class Handler(BaseHTTPRequestHandler):
         # place the identity is visibly missing.
         if route == "/favicon.ico":
             return self._send(200, _icon(), "image/png")
+        if self._needs_account(route):
+            # A page rather than a 401: they arrived at a URL with nothing, which is
+            # exactly the case the door is for.
+            return self._send(200, signin_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
+        if route == "/account/signin":
+            return self._send(200, signin_page().encode("utf-8"), HTML)
         if route == "/account/enter":
             # Exempt from the key, never from the host check: a page on another origin
             # that resolves a name to this address still gets nothing.
             if not self._host_is_ours():
                 return self._send(404, b"not found", "text/plain")
-            return self._enter(parse_qs(urlparse(self.path).query).get("t", [""])[0])
+            # A page, not a sign-in. A mail client that fetches links to preview them
+            # spends nothing here; the button below posts, and that is what signs in.
+            token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            person = self.store.peek_sign_in(token) if token else None
+            if person is None:
+                return self._send(200, signin_page(expired=True).encode("utf-8"), HTML)
+            page = signin_page(landing=person.email, token=token)
+            return self._send(200, page.encode("utf-8"), HTML)
         if not self._authorised():
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
@@ -766,6 +802,10 @@ class Handler(BaseHTTPRequestHandler):
         # it cannot be behind the key that expired. It is still loopback-only, it says
         # the same thing whatever address it is given, and all it can cause is one email
         # to an address the asker typed themselves.
+        if route == "/account/enter":
+            return self._enter(self._form().get("t", ""))
+        if self._needs_account(route):
+            return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
         if route != "/account/sign-in" and not self._authorised():
             return self._json(
                 {
@@ -815,10 +855,26 @@ class Handler(BaseHTTPRequestHandler):
             }
         )
 
+    def _form(self) -> dict[str, str]:
+        """A form post, read as a form. The landing page is a page, not an app."""
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > 8192:
+            return {}
+        body = self.rfile.read(length).decode("utf-8", errors="replace")
+        return {key: values[0] for key, values in parse_qs(body).items() if values}
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
             return self._json({"error": "That does not look like an email address."}, 400)
+        if self.store.asking_too_often(email):
+            return self._json(
+                {
+                    "error": "That is several links to one address in an hour. "
+                    "Check the inbox, including its spam folder, and try again later."
+                },
+                429,
+            )
         token = self.store.start_sign_in(email)
         link = f"{self.address}/account/enter?t={token}"
         try:
@@ -832,9 +888,9 @@ class Handler(BaseHTTPRequestHandler):
     def _enter(self, token: str) -> None:
         got = self.store.finish_sign_in(token) if token else None
         if got is None:
-            # Not an error page: a spent or stale link is what a second click on the
-            # same email looks like, and the way out of it is to ask for another.
-            return self._go(f"/?k={self.token}&signin=expired")
+            # Not an error: a spent or stale link is what a second press looks like,
+            # and the way out of it is to ask for another, which that page offers.
+            return self._send(200, signin_page(expired=True).encode("utf-8"), HTML)
         _, session = got
         from .accounts import SESSION_DAYS
 
@@ -1044,6 +1100,7 @@ def start(
     store: Path | None = None,
     mailer: Mailer | None = None,
     announce: Callable[[str], None] | None = None,
+    require_account: bool = False,
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
     from .mail import from_environment
@@ -1065,6 +1122,7 @@ def start(
         (Handler,),
         {
             "library": library,
+            "require_account": require_account,
             "token": token,
             "store": keeping,
             "mailer": mailer or from_environment(),

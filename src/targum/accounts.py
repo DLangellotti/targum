@@ -50,17 +50,42 @@ LINK_MINUTES = 20
 
 # A session lasts until it is not used. Someone who reads every few days stays signed
 # in indefinitely; a browser abandoned for three months does not.
+GRACE_DAYS = 7
+# Asking for a link is the one thing anyone can do without an account, and every ask
+# sends mail to an address the asker chose. Enough for someone who mistyped their own
+# address twice and is trying again; not enough to use targum as a way to post mail
+# into somebody else's inbox.
+ASKS_PER_HOUR = 5
 SESSION_DAYS = 90
 
-SCHEMA_VERSION = 1
+# 2: person.leaving, for a deletion that waits out a grace period.
+SCHEMA_VERSION = 2
+
+# Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
+# EXISTS` does nothing to a table that is already there, so a new column has to be added
+# by hand or the first query naming it fails against every database but a brand new one
+# — which is exactly what a test suite full of temporary files does not catch.
+MIGRATIONS: tuple[tuple[int, str], ...] = ((2, "ALTER TABLE person ADD COLUMN leaving INTEGER"),)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS person (
   id       INTEGER PRIMARY KEY,
   email    TEXT    NOT NULL UNIQUE,
   made     INTEGER NOT NULL,
-  revision INTEGER NOT NULL DEFAULT 0
+  revision INTEGER NOT NULL DEFAULT 0,
+  -- When they asked to be forgotten. Everything goes at the end of the grace period;
+  -- until then they are signed out and the account is unusable, so the only thing the
+  -- delay buys is the chance to undo a mistake.
+  leaving  INTEGER
 );
+
+-- How often an address has asked for a link. A sign-in endpoint that anyone can call
+-- is a way to send mail from someone else's domain to someone else's inbox.
+CREATE TABLE IF NOT EXISTS asked (
+  who   TEXT    NOT NULL,
+  made  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS asked_when ON asked (who, made);
 
 CREATE TABLE IF NOT EXISTS link (
   hash   TEXT    PRIMARY KEY,
@@ -264,8 +289,28 @@ class Store:
         self._local = threading.local()
         # Not inside `write()`: executescript issues its own COMMIT first, which ends
         # the transaction out from under whoever opened it.
+        was = int(self.db.execute("PRAGMA user_version").fetchone()[0])
         self.db.executescript(SCHEMA)
+        self._migrate(was)
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+    def _migrate(self, was: int) -> None:
+        """Bring a database written by an older targum up to date.
+
+        A fresh file is created at the current version by SCHEMA and needs none of
+        this; `was` is 0 for it, so every step still runs, and each one is written to
+        be harmless when the column is already there.
+        """
+        for version, statement in MIGRATIONS:
+            if was >= version:
+                continue
+            try:
+                self.db.execute(statement)
+            except sqlite3.OperationalError as error:
+                # Already applied by a newer targum that then wrote an older version
+                # number, or by SCHEMA itself on a fresh file.
+                if "duplicate column" not in str(error).lower():
+                    raise
 
     # -- plumbing ---------------------------------------------------------------
 
@@ -320,6 +365,23 @@ class Store:
         ).fetchone()
         return Person(row["id"], row["email"]) if row else None
 
+    def asking_too_often(self, who: str, limit: int = ASKS_PER_HOUR) -> bool:
+        """Whether this address has asked for too many links in the last hour.
+
+        Recorded per address rather than per connection: an address is the thing that
+        receives the mail, and it is the inbox being protected.
+        """
+        window = now() - 60 * 60 * 1000
+        with self.write() as db:
+            db.execute("DELETE FROM asked WHERE made < ?", (window,))
+            row = db.execute(
+                "SELECT COUNT(*) AS n FROM asked WHERE who = ? AND made >= ?", (tidy(who), window)
+            ).fetchone()
+            if int(row["n"]) >= limit:
+                return True
+            db.execute("INSERT INTO asked (who, made) VALUES (?, ?)", (tidy(who), now()))
+            return False
+
     def start_sign_in(self, email: str) -> str:
         """Mint a link for this address, making the account if there is not one.
 
@@ -343,6 +405,23 @@ class Store:
             )
         return token
 
+    def peek_sign_in(self, token: str) -> Person | None:
+        """Who this link would sign in, without spending it.
+
+        The landing page has to say whose account it is before anyone presses the
+        button, and reading must not be the thing that consumes the link — that is the
+        whole reason the link stopped being a plain GET.
+        """
+        cutoff = now() - LINK_MINUTES * 60 * 1000
+        row = self.db.execute(
+            "SELECT person.id AS id, person.email AS email FROM link "
+            "JOIN person ON person.id = link.person "
+            "WHERE link.hash = ? AND link.used IS NULL AND link.made >= ? "
+            "AND person.leaving IS NULL",
+            (digest(token), cutoff),
+        ).fetchone()
+        return Person(row["id"], row["email"]) if row else None
+
     def finish_sign_in(self, token: str) -> tuple[Person, str] | None:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
         cutoff = now() - LINK_MINUTES * 60 * 1000
@@ -351,6 +430,11 @@ class Store:
                 "SELECT person, made, used FROM link WHERE hash = ?", (digest(token),)
             ).fetchone()
             if row is None or row["used"] is not None or row["made"] < cutoff:
+                return None
+            leaving = db.execute(
+                "SELECT leaving FROM person WHERE id = ?", (row["person"],)
+            ).fetchone()
+            if leaving is None or leaving["leaving"] is not None:
                 return None
             db.execute("UPDATE link SET used = ? WHERE hash = ?", (now(), digest(token)))
             who = db.execute(
@@ -393,13 +477,39 @@ class Store:
             db.execute("DELETE FROM session WHERE hash = ?", (digest(session),))
 
     def forget(self, person: Person) -> None:
-        """Everything about someone, gone. The other half of being allowed to keep it."""
+        """Start forgetting someone. The other half of being allowed to keep it.
+
+        Nothing is deleted yet. They are signed out of everywhere, the account stops
+        working, and the data goes at the end of the grace period. Deleting an account
+        is one click on a bad day, and the only thing that makes that safe is time.
+        """
         with self.write() as db:
-            for table in ("word", "phrase", "doc"):
-                db.execute(f"DELETE FROM {table} WHERE person = ?", (person.id,))
+            db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
-            db.execute("DELETE FROM person WHERE id = ?", (person.id,))
+
+    def stay(self, person: Person) -> None:
+        """Change their mind, while there is still something to change it about."""
+        with self.write() as db:
+            db.execute("UPDATE person SET leaving = NULL WHERE id = ?", (person.id,))
+
+    def purge(self, days: int = GRACE_DAYS) -> list[int]:
+        """Delete everyone whose grace period is up, and say whose files still stand.
+
+        The store knows nothing about the output directory, so the rows go here and the
+        ids come back for the caller to finish the job on disk.
+        """
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            rows = db.execute(
+                "SELECT id FROM person WHERE leaving IS NOT NULL AND leaving < ?", (cutoff,)
+            ).fetchall()
+            gone = [int(row["id"]) for row in rows]
+            for person_id in gone:
+                for table in ("word", "phrase", "doc", "session", "link"):
+                    db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
+                db.execute("DELETE FROM person WHERE id = ?", (person_id,))
+        return gone
 
     # -- syncing ----------------------------------------------------------------
 
@@ -516,6 +626,7 @@ class Store:
                 "DELETE FROM session WHERE seen < ?",
                 (now() - SESSION_DAYS * 24 * 60 * 60 * 1000,),
             )
+            db.execute("DELETE FROM asked WHERE made < ?", (now() - 60 * 60 * 1000,))
 
     # -- the work queue ---------------------------------------------------------
 

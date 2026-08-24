@@ -15,6 +15,7 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import pytest
 
@@ -194,12 +195,34 @@ def call(
         connection.close()
 
 
+def form(port: int, path: str, fields: dict[str, str], cookie: str = "") -> tuple[int, Any, str]:
+    """A plain form post. The landing page is a page in an email, not an app."""
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        if cookie:
+            headers["Cookie"] = cookie
+        connection.request("POST", path, urlencode(fields).encode("utf-8"), headers)
+        response = connection.getresponse()
+        raw = response.read()
+        handed = response.getheader("Set-Cookie") or ""
+        return response.status, raw, handed or (response.getheader("Location") or "")
+    finally:
+        connection.close()
+
+
 def sign_in(port: int, postbox: Postbox, email: str = "reader@example.com") -> str:
-    """Go all the way through the front door, and come back with a session cookie."""
+    """Go all the way through the front door, and come back with a session cookie.
+
+    Two steps now: the link opens a page, and pressing its button is what spends it.
+    """
     status, payload, _ = call(port, "POST", "/account/sign-in", {"email": email})
     assert status == 200 and payload["sent"], payload
     link = postbox.link
-    _, _, handed = call(port, "GET", link[link.index("/account/enter") :])
+    token = link.split("t=", 1)[1]
+    status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
+    assert status == 200 and b"Sign in as" in body, "the link should open a page"
+    status, _, handed = form(port, "/account/enter", {"t": token})
     assert "targum_session=" in handed, handed
     return handed.split(";", 1)[0]
 
@@ -231,12 +254,12 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     assert payload["signedIn"] is True
     assert payload["email"] == "reader@example.com"
 
-    # The same link a second time is spent, and lands back on the page rather than on
-    # an error: clicking an old email twice is an ordinary thing to do.
+    # The same link a second time is spent, and lands on a page offering another
+    # rather than on an error: clicking an old email twice is an ordinary thing to do.
     link = postbox.link
-    status, _, where = call(port, "GET", link[link.index("/account/enter") :])
-    assert status == 303
-    assert "signin=expired" in where
+    status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
+    assert status == 200
+    assert b"has been used" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:
@@ -574,3 +597,126 @@ def test_with_two_accounts_nobody_inherits_anything(tmp_path: Path) -> None:
 
     assert library.readers(library.home(one)) == []
     assert [r["name"] for r in library.readers(library.home(None))] == ["book-he"]
+
+
+# --- the front door -----------------------------------------------------------
+
+
+def test_a_mail_client_reading_the_link_does_not_spend_it(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The reason the link stopped being a plain GET.
+
+    Mail clients fetch links to preview them. When the GET was the sign-in, the reader
+    clicked a link that had already been used by their own inbox.
+    """
+    port, token, _ = served
+    call(port, "POST", "/account/sign-in", {"email": "reader@example.com"})
+    link = postbox.link
+    where = link[link.index("/account/enter") :]
+
+    # Three prefetches, the way a mail client might.
+    for _ in range(3):
+        status, body, handed = call(port, "GET", where)
+        assert status == 200
+        assert b"Sign in as reader@example.com" in body
+        assert "targum_session=" not in handed, "reading the page signed somebody in"
+
+    # And it still works when a person actually presses the button.
+    status, _, handed = form(port, "/account/enter", {"t": link.split("t=", 1)[1]})
+    assert "targum_session=" in handed
+
+
+def test_the_landing_page_names_the_account_without_spending_the_link(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, _, _ = served
+    call(port, "POST", "/account/sign-in", {"email": "someone@example.com"})
+    link = postbox.link
+    status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
+    assert status == 200
+    assert b"someone@example.com" in body
+
+
+def test_asking_for_too_many_links_is_refused(served: tuple[int, str, Path]) -> None:
+    """Anyone can call this route, and every call sends mail to an address they chose."""
+    port, _, _ = served
+    codes = [
+        call(port, "POST", "/account/sign-in", {"email": "flood@example.com"})[0] for _ in range(8)
+    ]
+    assert 200 in codes and 429 in codes, codes
+    # A different address is unaffected: the limit is per inbox, not a global tap.
+    assert call(port, "POST", "/account/sign-in", {"email": "other@example.com"})[0] == 200
+
+
+def test_signed_out_is_shown_the_door_when_an_account_is_required(tmp_path: Path) -> None:
+    from targum.serve import Handler
+
+    assert Handler.require_account is False, "a local run must not need an account"
+
+
+def test_deleting_an_account_waits_out_the_grace_period(tmp_path: Path) -> None:
+    """Deleting is one click on a bad day. Time is what makes that survivable."""
+    from targum.accounts import GRACE_DAYS, Store, now
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("leaving@example.com")
+    person = store.person_by_email("leaving@example.com")
+    assert person is not None
+
+    store.forget(person)
+    # Gone as far as anyone can tell, but still recoverable.
+    assert store.purge() == []
+    assert store.person_by_email("leaving@example.com") is not None
+    token = store.start_sign_in("leaving@example.com")
+    assert store.finish_sign_in(token) is None, "a leaving account must not sign in"
+
+    store.stay(person)
+    token = store.start_sign_in("leaving@example.com")
+    assert store.finish_sign_in(token) is not None, "changing their mind should work"
+
+    store.forget(person)
+    with store.write() as db:
+        stale = now() - (GRACE_DAYS + 1) * 24 * 60 * 60 * 1000
+        db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
+    assert store.purge() == [person.id]
+    assert store.person_by_email("leaving@example.com") is None
+
+
+def test_an_older_database_gains_the_columns_it_is_missing(tmp_path: Path) -> None:
+    """The failure a suite of temporary files cannot see.
+
+    `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
+    column added later is missing on every database but a brand new one. This is what
+    that looks like: a v1 file, opened by the current code.
+    """
+    import sqlite3
+
+    from targum.accounts import Store
+
+    path = tmp_path / "old.db"
+    raw = sqlite3.connect(path)
+    raw.executescript(
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE,"
+        " made INTEGER NOT NULL, revision INTEGER NOT NULL DEFAULT 0);"
+        "INSERT INTO person (email, made) VALUES ('old@example.com', 1);"
+        "PRAGMA user_version = 1;"
+    )
+    raw.commit()
+    raw.close()
+
+    store = Store(path)
+    person = store.person_by_email("old@example.com")
+    assert person is not None, "the account from the old file should still be there"
+    # The query that used to raise "no such column: person.leaving".
+    assert store.purge() == []
+    store.forget(person)
+    assert store.peek_sign_in("nonsense") is None
+    assert int(store.db.execute("PRAGMA user_version").fetchone()[0]) == 2
+
+
+def test_opening_a_current_database_twice_is_fine(tmp_path: Path) -> None:
+    from targum.accounts import Store
+
+    Store(tmp_path / "x.db")
+    Store(tmp_path / "x.db")

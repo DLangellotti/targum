@@ -175,6 +175,21 @@ def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str
     )
 
 
+def signin_page(*, landing: str = "", token: str = "", expired: bool = False) -> str:
+    """The door. Three states, one template.
+
+    Empty is the sign-in form. `landing` is the page an emailed link opens, naming the
+    account it would sign in without having spent anything to find out. `expired` is
+    what a link that has been used or has aged out arrives at, which is a normal thing
+    to hit rather than an error.
+    """
+    return (
+        _environment()
+        .get_template("signin.html.j2")
+        .render(landing=landing, token=token, expired=expired)
+    )
+
+
 def words_page(token: str) -> str:
     """Everything kept, with what it adds up to.
 
