@@ -49,6 +49,10 @@ class Plan:
     segmented: SegmentedDocument | None = None
     cached_translation: Translation | None = None
     estimated_cost: float = 0.0
+    # How the text divides, and how much of it this estimate covers. A book is priced a
+    # chapter at a time, so the two differ and the page needs both to say anything true.
+    chapters: int = 1
+    buying: int = 0
 
     @property
     def needs_payment(self) -> bool:
@@ -540,15 +544,30 @@ class Build:
         glossing = getattr(self._glosser, "spent", None) if self._glosser else None
         return total + glossing if glossing else total
 
-    def plan(self) -> Plan:
+    def plan(self, chapters: int | None = None) -> Plan:
+        """Ingest, segment, and price what a build would actually spend.
+
+        `chapters` is what the build will buy, and so what the estimate is for. Pricing
+        the whole book when only the first chapter is bought is not a rounding error: a
+        novel prices at $7.58 against a real $0.38, the cap refuses it, and a book can
+        never be opened at all — which is what happened when the chapter engine was
+        built and the estimate was left alone.
+        """
         document = self.ingest()
         plan = Plan(document=document)
         plan.segmented = self.segment(document)
         plan.cached_translation = self.cached(plan.segmented) if self.machine else None
         if self.machine and plan.cached_translation is None and hasattr(self.provider, "estimate"):
+            from .render.builder import split_sections
+
+            buying = (
+                self._first_chapters(plan.segmented, chapters) if chapters else None
+            ) or plan.segmented.segments
             plan.estimated_cost = self.provider.estimate(
-                plan.segmented.segments, plan.segmented.language, self.target_language, self.style
+                buying, plan.segmented.language, self.target_language, self.style
             )
+            plan.chapters = len(split_sections(plan.segmented))
+            plan.buying = len(buying)
         return plan
 
     def run(

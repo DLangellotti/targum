@@ -214,17 +214,24 @@
   };
 
   function describe(job) {
-    return named(job.language) + " · " + job.segments + " sentences";
+    var what =
+      job.chapters > 1
+        ? job.chapters + " chapters"
+        : job.segments + " sentences";
+    return named(job.language) + " · " + what;
   }
 
   // What it will take, in the only currency the reader is spending: their time. What
   // it costs us is our business and never theirs — they pay by the month.
   function price(job) {
     if (!job.estimate) return "Ready in a moment.";
-    var minutes = Math.max(1, Math.round(job.segments / 25));
-    if (minutes <= 1) return "About a minute.";
-    if (minutes <= 4) return "A couple of minutes.";
-    return "About " + minutes + " minutes to get ready.";
+    // A book opens on its first chapter, so the wait is that chapter's — not the
+    // novel's. `total` is what is being translated now.
+    var minutes = Math.max(1, Math.round((job.total || job.segments) / 25));
+    var start = job.chapters > 1 ? "First chapter in " : "";
+    if (minutes <= 1) return start ? start + "about a minute." : "About a minute.";
+    if (minutes <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
+    return start + "about " + minutes + " minutes.";
   }
 
   // This text is already in the library with a translation somebody published, which
