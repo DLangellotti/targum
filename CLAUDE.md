@@ -68,6 +68,19 @@ The half no tests can reach, and which matters as much:
 — all four, as CI runs them. Note `.venv/bin/*` shebangs are stale on this machine, so
 `.venv/bin/python -m pytest` works where `uv run pytest` may not.
 
+## The API key is in `.env`, and nothing loads it for you
+
+`ANTHROPIC_API_KEY` lives in `.env` (gitignored, never committed). Neither `uv run` nor
+`.venv/bin/python` reads it, so anything that talks to the model needs:
+
+```
+set -a && . ./.env && set +a && .venv/bin/python ...
+```
+
+Without it the failure is `Could not resolve authentication method`, which reads like a
+missing key rather than an unloaded one — and the honest conclusion "there is no key" is
+wrong. There is; it is just not in the environment of a fresh shell.
+
 ## Two things that are easy to get wrong
 
 - **Do not bump `SCHEMA_VERSION`** to invalidate one stage. It feeds the cache key for
