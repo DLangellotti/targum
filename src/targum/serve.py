@@ -1094,8 +1094,10 @@ class Handler(BaseHTTPRequestHandler):
         paths += [f"/{shelf.value}" for shelf in Shelf]
         paths += [f"/{entry.shelf.value}/{entry.id}" for entry in catalogue_module.CATALOGUE]
         urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
-        return f'<?xml version="1.0" encoding="UTF-8"?>\n' \
-               f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
+        return (
+            f'<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
+        )
 
     def _health(self) -> None:
         """Whether the process is alive and can still reach the one file that matters.
