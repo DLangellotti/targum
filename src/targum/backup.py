@@ -1,26 +1,41 @@
-"""Copies of the one file that cannot be rebuilt.
+"""Copies of the two things that cannot be rebuilt.
 
-Everything else targum keeps can be made again. Readers are rendered from artifacts on
-disk; the cache is paid work but the readers hold the same translations; models are
-downloads. The database is the exception: accounts, the words somebody has spent months
-keeping, their phrases, the job queue and the spend ledger exist nowhere else.
+Readers are rendered from artifacts on disk and models are downloads, so neither is
+backed up. Two things are not like that:
 
-**A copy of the file is not a backup.** In WAL mode the recent writes live in
+**The database.** Accounts, the words somebody has spent months keeping, their phrases,
+the job queue and the spend ledger exist nowhere else.
+
+**The translation cache.** This module used to say the cache did not need copying,
+because "the readers hold the same translations" — which was true of a tool one person
+ran on their own laptop, and is false hosted. On a shared box the cache is what makes a
+public text free for the *second* reader and every reader after: `Build.plan()` looks
+there before pricing, so a cache hit is quoted at nothing. Lose it and everyone pays
+again for work already bought. It is paid inventory, not scratch, whatever
+`paths.cache_dir()` says about being safe to delete.
+
+**A copy of the database file is not a backup.** In WAL mode the recent writes live in
 `targum.db-wal`, not in `targum.db` — on this machine the log was 1 MB against an 86 KB
 database, so `cp targum.db` would have saved almost nothing and looked like it worked.
 SQLite's own backup API reads a consistent snapshot of a live database, and that is what
-this uses.
+this uses. The cache is ordinary JSON and needs no such care, only excluding the models
+directory, which is gigabytes of things that can simply be downloaded again.
 """
 
 from __future__ import annotations
 
 import shutil
 import sqlite3
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 STAMP = "%Y%m%d-%H%M%S"
 KEEP = 14
+
+# Downloaded weights, not paid work. Stanza and LaBSE together are gigabytes, and
+# copying them nightly would bury the thing actually worth keeping.
+NOT_PAID_FOR = "models"
 
 
 def snapshot(store: Path, into: Path, now: datetime | None = None) -> Path:
@@ -49,8 +64,75 @@ def snapshot(store: Path, into: Path, now: datetime | None = None) -> Path:
     return target
 
 
+def archive_cache(root: Path, into: Path, now: datetime | None = None) -> Path | None:
+    """Zip the paid half of the cache. Returns the file, or None if there is nothing yet.
+
+    One file rather than a directory tree, because the copy has to leave the box and
+    `rclone` moving one archive beats it walking thousands of small JSON files.
+
+    The models directory is excluded deliberately — gigabytes of downloads that would
+    bury the megabytes that were actually paid for.
+    """
+    if not root.is_dir():
+        return None
+    paid = sorted(
+        path for path in root.rglob("*.json") if NOT_PAID_FOR not in path.relative_to(root).parts
+    )
+    if not paid:
+        return None
+
+    into.mkdir(parents=True, exist_ok=True)
+    stamped = (now or datetime.now()).strftime(STAMP)
+    target = into / f"cache-{stamped}.zip"
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for path in paid:
+            bundle.write(path, path.relative_to(root).as_posix())
+    return target
+
+
+def check_archive(path: Path) -> str:
+    """What is wrong with this cache archive, or "" if nothing is.
+
+    Same rule as the database: opened and read as it is taken. A zip that was written
+    while something was being deleted underneath it is a zip that fails on the night it
+    is needed.
+    """
+    if not path.is_file() or path.stat().st_size == 0:
+        return "the file is missing or empty"
+    try:
+        with zipfile.ZipFile(path) as bundle:
+            broken = bundle.testzip()
+            if broken is not None:
+                return f"{broken} is corrupt"
+            names = bundle.namelist()
+            if not names:
+                return "it holds nothing"
+            if any(name.split("/")[0] == NOT_PAID_FOR for name in names):
+                return f"it holds the {NOT_PAID_FOR} directory, which is downloads"
+    except (zipfile.BadZipFile, OSError) as error:
+        return str(error)
+    return ""
+
+
+def restore_cache(archive: Path, root: Path) -> int:
+    """Unpack a cache archive over the cache. Returns how many entries were written.
+
+    Deliberately additive rather than a replacement: the cache is content-addressed, so
+    an entry that is already there is the same entry, and anything bought since the
+    archive was taken should survive being restored onto.
+    """
+    problem = check_archive(archive)
+    if problem:
+        raise ValueError(f"That cache archive is not usable: {problem}")
+    root.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive) as bundle:
+        names = bundle.namelist()
+        bundle.extractall(root)
+    return len(names)
+
+
 def check(path: Path) -> str:
-    """What is wrong with this backup, or "" if nothing is.
+    """What is wrong with this database backup, or "" if nothing is.
 
     Run on every snapshot as it is taken. A backup nobody has opened is a rumour.
     """
@@ -78,11 +160,18 @@ def check(path: Path) -> str:
 
 
 def sweep(into: Path, keep: int = KEEP) -> list[Path]:
-    """Drop the oldest, keep the newest `keep`. Returns what was removed."""
-    found = sorted(into.glob("targum-*.db"))
-    gone = found[: max(0, len(found) - keep)]
-    for path in gone:
-        path.unlink(missing_ok=True)
+    """Drop the oldest, keep the newest `keep`. Returns what was removed.
+
+    Counted per kind, not across both: databases and cache archives are taken together
+    but a run that produced no cache must not let stale databases pile up, nor let one
+    kind push the other out.
+    """
+    gone: list[Path] = []
+    for pattern in ("targum-*.db", "cache-*.zip"):
+        found = sorted(into.glob(pattern))
+        for path in found[: max(0, len(found) - keep)]:
+            path.unlink(missing_ok=True)
+            gone.append(path)
     return gone
 
 

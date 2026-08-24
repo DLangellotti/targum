@@ -221,15 +221,20 @@ def backup(
     store: Annotated[Path | None, typer.Option("--store", help="Which database to copy.")] = None,
     keep: Annotated[int, typer.Option("--keep", help="How many copies to keep.")] = 14,
 ) -> None:
-    """Copy the one file that cannot be rebuilt.
+    """Copy the two things that cannot be rebuilt.
 
-    Accounts, saved words, phrases and the spend ledger live in one SQLite file and
-    nowhere else. Everything else targum keeps can be made again.
+    The database first: accounts, saved words, phrases and the spend ledger live in one
+    SQLite file and nowhere else. Then the translation cache, which is paid work — on a
+    shared box it is what makes a public text free for the second reader and every reader
+    after, so losing it means buying the same translations twice.
+
+    Language models are skipped. They are downloads.
 
     Every copy is opened and checked as it is taken, because a backup nobody has opened
     is a rumour. Run it from cron, and keep the copies somewhere other than this machine.
     """
-    from .backup import check, snapshot, sweep
+    from .backup import archive_cache, check, check_archive, snapshot, sweep
+    from .paths import cache_dir
     from .serve import default_store
 
     where = store or default_store()
@@ -246,9 +251,28 @@ def backup(
         made.unlink(missing_ok=True)
         fail(TargumError("The copy came out unusable, so it was thrown away.", problem))
 
-    dropped = sweep(into, keep)
     size = made.stat().st_size / 1024
     console.print(f"[green]Copied to {made}[/green] [dim]({size:.0f} KB, checked)[/dim]")
+
+    # The cache is the other half. A failure here must not lose the database copy that
+    # already succeeded, so it reports and carries on rather than exiting.
+    try:
+        bundle = archive_cache(cache_dir(), into)
+    except OSError as error:
+        bundle = None
+        console.print(f"[yellow]Could not copy the cache:[/yellow] [dim]{error}[/dim]")
+    if bundle is not None:
+        spoiled = check_archive(bundle)
+        if spoiled:
+            bundle.unlink(missing_ok=True)
+            console.print(f"[yellow]The cache copy is unusable:[/yellow] [dim]{spoiled}[/dim]")
+        else:
+            mb = bundle.stat().st_size / 1024 / 1024
+            console.print(
+                f"[green]Cache copied to {bundle}[/green] [dim]({mb:.1f} MB, checked)[/dim]"
+            )
+
+    dropped = sweep(into, keep)
     if dropped:
         word = "copy" if len(dropped) == 1 else "copies"
         console.print(f"[dim]Dropped {len(dropped)} older {word}[/dim]")
@@ -264,11 +288,25 @@ def restore(
 ) -> None:
     """Put a backup back. Stop targum first.
 
-    What is there now is moved aside rather than deleted: restoring the wrong file is a
-    thing people do at four in the morning.
+    Takes either half: a `targum-*.db` snapshot or a `cache-*.zip` archive. The database
+    replaces what is there, moving it aside rather than deleting it, because restoring
+    the wrong file is a thing people do at four in the morning. The cache is unpacked
+    *over* what is there instead — it is content-addressed, so an entry already present
+    is the same entry, and anything bought since the copy was taken should survive.
     """
     from .backup import restore as put_back
+    from .backup import restore_cache
+    from .paths import cache_dir
     from .serve import default_store
+
+    if backup.suffix == ".zip":
+        try:
+            written = restore_cache(backup, cache_dir())
+        except ValueError as error:
+            fail(TargumError(str(error), "Try an earlier copy."))
+        console.print(f"[green]Restored {written} cached items to {cache_dir()}[/green]")
+        console.print("[dim]Nothing already there was removed.[/dim]")
+        return
 
     where = store or default_store()
     try:
@@ -776,8 +814,27 @@ def models_remove(language: Annotated[str, typer.Argument()]) -> None:
 
 
 @cache_app.command("clear")
-def cache_clear() -> None:
-    """Drop cached translations. Language models are kept."""
+def cache_clear(
+    force: Annotated[
+        bool, typer.Option("--force", help="Clear it anyway on a hosted box.")
+    ] = False,
+) -> None:
+    """Drop cached translations. Language models are kept.
+
+    On a machine one person runs, this frees disk and costs them a rebuild. On a hosted
+    box it is a command that deletes money: the cache is what makes a public text free
+    for the second reader and every reader after, so clearing it means every one of them
+    buys the same translations again. Hosted, it asks first.
+    """
+    hosted = os.environ.get("TARGUM_REQUIRE_ACCOUNT", "").strip().lower() in {"1", "true", "yes"}
+    if hosted and not force:
+        fail(
+            TargumError(
+                "This is a hosted box, and the cache is paid work.",
+                "Everyone who has read a public text would pay for it again. "
+                "Take a backup first, then `targum cache clear --force`.",
+            )
+        )
     removed = Cache().clear()
     console.print(f"[green]Cleared[/green] {removed} cached items [dim]{cache_dir()}[/dim]")
 
