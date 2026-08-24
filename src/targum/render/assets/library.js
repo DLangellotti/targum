@@ -31,6 +31,57 @@
   var catalogue = window.TARGUM_CATALOGUE || [];
   var lang = window.TargumLang;
 
+  /* --- which room -----------------------------------------------------------
+   *
+   * Tanakh is a separate shelf from everything else. Not tidiness: the registers differ
+   * enough that a difficulty band built for one is wrong for the other, and some readers
+   * would rather not be shown secular material at all.
+   *
+   * The preference is on the account rather than in this browser. It has to be, for the
+   * plainest reason: `sync.js` deletes every `targum:*` key but the theme on sign-out,
+   * deliberately, so a local one would be forgotten every time somebody signed out on
+   * their own machine.
+   */
+  var SHELVES = [
+    { id: "library", name: "Library" },
+    { id: "beit-midrash", name: "Beit Midrash" },
+  ];
+  var shelf = "library";
+
+  function shelvesWithAnything() {
+    return SHELVES.filter(function (room) {
+      return catalogue.some(function (entry) {
+        return entry.shelf === room.id;
+      });
+    });
+  }
+
+  function drawShelves(onPick) {
+    var host = document.getElementById("shelves");
+    if (!host) return;
+    var rooms = shelvesWithAnything();
+    // One room is not a choice, and a control offering it is furniture. Same rule the
+    // language switcher already follows.
+    host.hidden = rooms.length < 2;
+    if (host.hidden) return;
+    host.textContent = "";
+    rooms.forEach(function (room) {
+      var tab = el("button", room.id === shelf ? "on" : "", room.name);
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", room.id === shelf ? "true" : "false");
+      tab.onclick = function () {
+        if (room.id === shelf) return;
+        shelf = room.id;
+        if (window.TargumSync && window.TargumSync.setShelf) {
+          window.TargumSync.setShelf(shelf);
+        }
+        onPick();
+      };
+      host.appendChild(tab);
+    });
+  }
+
   function named(code) {
     return names[code] || (code || "").toUpperCase();
   }
@@ -225,7 +276,7 @@
     var note = document.getElementById("picked-note");
     host.textContent = "";
     var mine = catalogue.filter(function (entry) {
-      return base(entry.language) === code;
+      return base(entry.language) === code && entry.shelf === shelf;
     });
     mine.forEach(function (entry) {
       host.appendChild(card(entry));
@@ -489,8 +540,22 @@
     var chosen = lang.current(codes);
     var betaNote = document.getElementById("beta-note");
 
+    // What the account remembers, and what the address asked for. The address wins,
+    // because a link to /beit-midrash should land there whatever was chosen last.
+    var remembered = window.TargumSync && window.TargumSync.shelf && window.TargumSync.shelf();
+    var asked = new URLSearchParams(location.search).get("shelf");
+    if (asked && SHELVES.some(function (r) { return r.id === asked; })) {
+      shelf = asked;
+      if (window.TargumSync && window.TargumSync.setShelf) window.TargumSync.setShelf(asked);
+    } else if (remembered && SHELVES.some(function (r) { return r.id === remembered; })) {
+      shelf = remembered;
+    }
+
     function show(code) {
       chosen = code;
+      drawShelves(function () {
+        show(chosen);
+      });
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       betaNote.hidden = !lang.beta(code);
       if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);

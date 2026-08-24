@@ -45,7 +45,14 @@ def hosted(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, str]:
     ).start()
     for _ in range(60):
         try:
-            HTTPConnection("127.0.0.1", port, timeout=1).request("GET", "/health")
+            # Read the response and close it. Firing a request and walking away leaves
+            # the server writing into a socket that has been collected, which surfaces
+            # as an "Exception occurred during processing of request" in about one run
+            # in three — noise from the probe, mistaken for a fault in the product.
+            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe.request("GET", "/health")
+            probe.getresponse().read()
+            probe.close()
             break
         except OSError:
             time.sleep(0.1)
@@ -251,3 +258,52 @@ def test_the_front_door_is_still_shut(hosted: tuple[int, str]) -> None:
     for route in ("/", "/words"):
         status, body = ask(port, route, "targum.page")
         assert status == 200 and b"Coming soon" in body, route
+
+
+# -- which shelf somebody reads in --------------------------------------------
+
+
+def test_the_shelf_choice_outlives_a_sign_out(tmp_path: Path) -> None:
+    """The whole reason it is on the account rather than in the browser.
+
+    `sync.js` deletes every `targum:*` key but the theme on sign-out — deliberately,
+    after a bug that left a previous reader's words behind — so a local preference would
+    be forgotten every time somebody signed out on their own machine, and a new device
+    would show them the shelf they asked not to see.
+    """
+    store = Store(tmp_path / "shelf.db")
+    signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed_in is not None
+    person, session = signed_in
+    assert person.shelf == "", "undecided is not the same as choosing the Library"
+
+    store.choose_shelf(person, "beit-midrash")
+    store.sign_out(session)
+
+    again = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert again is not None
+    assert again[0].shelf == "beit-midrash"
+    # And on a device that has never held any browser storage at all.
+    assert store.whoever(again[1]).shelf == "beit-midrash"  # type: ignore[union-attr]
+
+
+def test_only_a_shelf_that_exists_can_be_chosen(tmp_path: Path) -> None:
+    """It arrives from a request, so it is checked rather than trusted."""
+    store = Store(tmp_path / "shelf.db")
+    signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed_in is not None
+    person = signed_in[0]
+    for junk in ("../etc", "Library", "beit midrash", "'; DROP TABLE person; --"):
+        with pytest.raises(ValueError):
+            store.choose_shelf(person, junk)
+    for good in ("library", "beit-midrash", ""):
+        store.choose_shelf(person, good)
+
+
+def test_the_account_tells_the_page_which_shelf(hosted: tuple[int, str]) -> None:
+    """The page is baked once and shared, so this is the only way a per-person choice
+    can reach it."""
+    port, session = hosted
+    status, body = ask(port, "/account/me", "targum.page", session)
+    assert status == 200
+    assert "shelf" in json.loads(body)

@@ -83,6 +83,36 @@
 .site-nav a:hover { color: var(--ink); background: var(--paper-raised); }
 .site-nav a.on { color: var(--paper); background: var(--ink-soft); }
 
+/* Which room. Same pill vocabulary as the language tabs, because they are the same kind
+   of control — a scope you are choosing, not an action you are taking. */
+.shelves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-block-start: 0.9rem;
+}
+.shelves[hidden] {
+  display: none;
+}
+.shelves button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.shelves button:hover {
+  color: var(--ink);
+}
+.shelves button.on {
+  border-color: transparent;
+  background: var(--ink-soft);
+  color: var(--paper);
+}
+
 /* --- the catalogue -------------------------------------------------------- */
 
 .cards {

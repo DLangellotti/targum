@@ -1257,6 +1257,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._restore(payload)
         if route == "/account/sign-in":
             return self._sign_in(payload)
+        if route == "/account/shelf":
+            person = self._person()
+            if person is None:
+                return self._json({"error": "Sign in first."}, 401)
+            try:
+                self.store.choose_shelf(person, str(payload.get("shelf") or ""))
+            except ValueError as error:
+                return self._json({"error": str(error)}, 400)
+            return self._json({"shelf": str(payload.get("shelf") or "")})
         if route == "/account/sign-out":
             return self._sign_out()
         if route == "/account/forget":
@@ -1275,6 +1284,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "signedIn": True,
                 "email": person.email,
+                "shelf": person.shelf,
                 "revision": self.store.revision(person),
                 "counts": self.store.counts(person),
             }
