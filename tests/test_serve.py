@@ -835,3 +835,82 @@ def test_the_policy_still_lets_the_sign_in_form_post(
     assert status == 200 and b"<form" in page
     _, _, handed = form(port, "/account/enter", {"t": link.split("t=", 1)[1]})
     assert "targum_session=" in handed
+
+
+# --- what a stranger sees ------------------------------------------------------
+
+
+def hosted(tmp_path: Path) -> tuple[int, threading.Thread, ThreadingHTTPServer]:
+    """A server in the shape targum.page runs in: an account required for everything."""
+    from targum.mail import ConsoleMailer
+    from targum.render.builder import holding_page, signin_page
+
+    handler = type(
+        "Hosted",
+        (Handler,),
+        {
+            "library": Library(tmp_path / "out", store=Store(tmp_path / "w.db")),
+            "require_account": True,
+            "token": "key",
+            "store": Store(tmp_path / "w.db"),
+            "mailer": ConsoleMailer(stream=io.StringIO()),
+            "address": "https://targum.page",
+            "page": "<html>start</html>",
+            "words": "<html>words</html>",
+            "shelf": "<html>library</html>",
+        },
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    assert holding_page() and signin_page()
+    return server.server_address[1], thread, server
+
+
+def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> None:
+    port, _, server = hosted(tmp_path)
+    try:
+        for route in ("/", "/library", "/words"):
+            status, body, _ = call(port, "GET", route)
+            assert status == 200, route
+            assert b"Coming soon" in body, f"{route} should be the holding page"
+            assert b'href="/account/signin"' in body, f"{route} has no way in"
+            # None of the product leaks through.
+            assert b"start</html>" not in body and b"library</html>" not in body
+    finally:
+        server.shutdown()
+
+
+def test_the_holding_page_offers_one_thing_to_press(tmp_path: Path) -> None:
+    """ "Coming soon" was a pill first and read as a button on a page with nothing else
+    to press, which is a promise the page cannot keep."""
+    from targum.render.builder import holding_page
+
+    page = holding_page()
+    assert "Coming soon" in page
+    soon = page[page.index('class="soon"') : page.index("</p>", page.index('class="soon"'))]
+    assert "<button" not in soon
+    css = (Path(__file__).resolve().parents[1] / "src/targum/render/assets/holding.css").read_text()
+    rule = css[css.index(".middle .soon {") : css.index("}", css.index(".middle .soon {"))]
+    assert "border" not in rule and "radius" not in rule, "it must not look pressable"
+
+
+def test_data_routes_answer_as_data(tmp_path: Path) -> None:
+    port, _, server = hosted(tmp_path)
+    try:
+        status, body, _ = call(port, "GET", "/readers")
+        assert status == 401
+        assert body["signIn"] == "/account/signin"
+    finally:
+        server.shutdown()
+
+
+def test_the_door_is_still_reachable_without_an_account(tmp_path: Path) -> None:
+    port, _, server = hosted(tmp_path)
+    try:
+        status, body, _ = call(port, "GET", "/account/signin")
+        assert status == 200
+        assert b'type="email"' in body, "the sign-in page must still be a form"
+        assert b"Coming soon" not in body
+    finally:
+        server.shutdown()

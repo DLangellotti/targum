@@ -34,7 +34,7 @@ from .errors import TargumError
 from .mail import Mailer
 from .models import SegmentedDocument, Style
 from .pipeline import Build, Result
-from .render.builder import signin_page
+from .render.builder import holding_page, signin_page
 
 MAX_UPLOAD = 32 * 1024 * 1024
 SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -846,9 +846,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/favicon.ico":
             return self._send(200, _icon(), "image/png")
         if self._needs_account(route):
-            # A page rather than a 401: they arrived at a URL with nothing, which is
-            # exactly the case the door is for.
-            return self._send(200, signin_page().encode("utf-8"), HTML)
+            # Data routes answer as data. Anything a person could be looking at gets a
+            # page rather than a 401 — and not the sign-in page either, because a door
+            # shown to somebody with no key is a wall that looks like a mistake. The
+            # door is one click away, in the corner.
+            if route.startswith(("/readers", "/job/", "/glossary/")):
+                return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
+            return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.

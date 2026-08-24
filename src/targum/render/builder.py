@@ -175,6 +175,16 @@ def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str
     )
 
 
+def holding_page() -> str:
+    """What a stranger sees while the product is not open yet.
+
+    Deliberately not the sign-in page: that is a door, and a door presented to somebody
+    with no key is a wall that looks like a mistake. This says where things are, and
+    keeps the door in the corner for the people who have one.
+    """
+    return _environment().get_template("holding.html.j2").render()
+
+
 def signin_page(*, landing: str = "", token: str = "", expired: bool = False) -> str:
     """The door. Three states, one template.
 
