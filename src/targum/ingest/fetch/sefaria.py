@@ -64,6 +64,7 @@ ENGLISH: dict[str, str] = {
     "I Samuel": "The Metsudah Tanach series, Lakewood, N.J",
     "II Samuel": "The Metsudah Tanach series, Lakewood, N.J",
     "I Kings": "The Metsudah Tanach series, Lakewood, N.J",
+    "Psalms": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
     "Proverbs": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
     "Job": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
 }

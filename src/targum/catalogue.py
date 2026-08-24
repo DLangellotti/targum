@@ -287,6 +287,28 @@ CATALOGUE: list[Entry] = [
         ],
     ),
     Entry(
+        id="psalms",
+        title="תהילים",
+        author="Ketuvim · Psalms",
+        language="he",
+        source="sefaria:Psalms",
+        blurb="A hundred and fifty, and you can begin at any one of them.",
+        words=17255,
+        shelf=Shelf.beit_midrash,
+        translations=[
+            Rendering(
+                name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
+                source="sefaria:en:Psalms",
+                note=(
+                    "Translated with Rashi's commentary in view. "
+                    "Psalm 82:8 has no English in this edition."
+                ),
+                publisher="Rabbi Shraga Silverstein",
+                licence="CC-BY",
+            )
+        ],
+    ),
+    Entry(
         id="proverbs",
         title="משלי",
         author="Ketuvim · Proverbs",
