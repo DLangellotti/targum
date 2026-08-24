@@ -411,6 +411,12 @@ def render(
         "has_nikkud": bool(pointed),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
+        # A verse is not a paragraph. Tanakh pairs one pasuk to a row, and rows spaced
+        # like paragraphs put a blank line between every verse — a chapter then reads as
+        # a list of separate sayings rather than as continuous text. Asked of the source
+        # rather than guessed from the content, the same way `biblical.for_source()`
+        # decides which difficulty bands to use, and for the same reason.
+        "verse_by_verse": document.source.startswith("sefaria:"),
         "difficulty": None
         if annotation is None
         else {
