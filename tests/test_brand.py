@@ -1,6 +1,8 @@
 """The brand guidelines, enforced.
 
-`Design.pdf` in the vault is the source; these are the parts of it a machine can check.
+`Design updated.pdf` in the vault is the source — it replaced `Design.pdf` on Aug 24
+2026, adding functional colour, a bright set for peak moments, and §9's rules on
+contrast. These are the parts of it a machine can check.
 They are here rather than in a review checklist because a guideline nobody can run is a
 guideline that drifts: the palette held for three months and then a stray #b4553f
 arrived for an error state, and nothing said so.
@@ -51,9 +53,33 @@ PALETTE = {
     "#4a453e": "chart off, dark",
     "#2a2622": "chart grid, dark",
     "#3a3530": "chart axis, dark",
-    "#7c1f14": "error, light",
-    "#f5b0a0": "error, dark",
+    # Functional colour (§4): UI features only, never the identity.
+    "#5a7340": "leaf, light",
+    "#a8c37e": "leaf, dark",
+    "#b4553f": "clay, light",
+    "#e0937d": "clay, dark",
+    "#6b5a8e": "iris, light",
+    "#b3a3d6": "iris, dark",
+    # The bright set (§4): peak moments, one hue at a time.
+    "#e2a33c": "sun",
+    "#7ba646": "leaf-bright",
+    "#8e74c9": "iris-bright",
+    "#c2517a": "rose",
+    # Deep paper (§9): structural only, never a text background.
+    "#ece7de": "desk",
+    # The other two deep paper tones are already above: #e7e1d6 doubles as the chart
+    # grid and #e6e1d8 as ink on the dark surface. Same values, different jobs.
+    # The max-contrast pair (§9).
+    "#fffdf9": "page, switched on",
+    "#121110": "ink, switched on",
 }
+
+# §4. The bright set lives on ink. On paper it is allowed only as a graphic at 3:1 or
+# better, and two of the four do not reach that, so they are ink-panel only.
+INK_ONLY = {"#e2a33c": 2.09, "#7ba646": 2.70}
+
+# §1 and §10. The identity is flat forever; the gloss recipe is for UI only.
+IDENTITY = ("brand-mark", "brand", "lockup", "wordmark")
 
 # §8. Radii are exact, and never snapped.
 RADII = {"4px", "5px", "6px", "8px", "999px", "50%", "0"}
@@ -162,3 +188,34 @@ def test_no_exclamation_marks() -> None:
     for path in PAGES + SCRIPTS + [SERVE]:
         for line in prose(path):
             assert "!" not in line, f"{path.name}: exclamation mark in {line.strip()[:50]!r}"
+
+
+def test_the_identity_never_carries_a_sheen() -> None:
+    """§1, §9, §10. The mark, lockup and wordmark are flat forever.
+
+    The UI may shine — that is new in the August 2026 revision — but the sheen is for
+    interactive and celebratory elements, never for the identity and never on a
+    resting text surface.
+    """
+    for sheet in STYLESHEETS:
+        text = re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for rule in re.findall(r"([^{}]+)\{([^}]*)\}", text):
+            selector, body = rule[0], rule[1]
+            if not re.search(r"--gloss|linear-gradient", body):
+                continue
+            assert not any(name in selector for name in IDENTITY), (
+                f"{sheet.name}: the identity carries a sheen in {selector.strip()[:60]!r}"
+            )
+
+
+def test_no_gradient_is_a_colour_ramp() -> None:
+    """§9. Gloss is light on glass, never metal — never a gold-to-gold ramp."""
+    for sheet in STYLESHEETS:
+        text = re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for gradient in re.findall(r"linear-gradient\(([^;]*?)\)\s", text):
+            stops = re.findall(r"#[0-9a-fA-F]{3,8}|var\(--[a-z-]+\)", gradient)
+            named = [x for x in stops if not x.startswith("var(--gloss")]
+            assert not named, (
+                f"{sheet.name}: gradient mixes colours rather than adding a sheen: "
+                f"{gradient[:60]!r}"
+            )

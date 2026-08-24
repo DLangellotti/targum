@@ -262,7 +262,7 @@ table.rows td {
 }
 table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.rows .term { font-family: var(--reading); font-size: 1.05em; }
-table.rows .meaning { color: var(--ink-soft); }
+table.rows .meaning { color: var(--ink); }
 table.rows .when { color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.rows .band { color: var(--ink-soft); white-space: nowrap; }
 
