@@ -268,9 +268,95 @@
       link.appendChild(meta);
 
       item.appendChild(link);
+      if (reader.chapters && reader.chapters.length) item.appendChild(opener(reader, item));
       item.appendChild(binButton(reader));
       list.appendChild(item);
     });
+  }
+
+  /* A book is one row that opens, not twenty rows.
+   *
+   * The alternative — a row per chapter — is honest about what is being bought and makes
+   * a novel look like homework. This keeps the book as one thing and puts its chapters
+   * one press away. */
+  function opener(reader, item) {
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "open-chapters";
+    press.setAttribute("aria-expanded", "false");
+    press.title = "Chapters";
+    press.textContent = "Chapters";
+
+    var tree = null;
+    press.onclick = function () {
+      if (tree) {
+        tree.remove();
+        tree = null;
+        press.setAttribute("aria-expanded", "false");
+        return;
+      }
+      tree = chapterTree(reader);
+      item.after(tree);
+      press.setAttribute("aria-expanded", "true");
+    };
+    return press;
+  }
+
+  function chapterTree(reader) {
+    var list = document.createElement("ol");
+    list.className = "chapters";
+
+    reader.chapters.forEach(function (chapter) {
+      var row = document.createElement("li");
+      if (!chapter.ready) row.className = "waiting";
+
+      var name = document.createElement("a");
+      name.href =
+        "/reader/" + reader.name + "/reader/" + chapter.file + "?k=" + encodeURIComponent(key);
+      name.appendChild(document.createTextNode(chapter.number + ". "));
+      var title = document.createElement("bdi");
+      title.setAttribute("lang", reader.language || "und");
+      title.textContent = chapter.title;
+      name.appendChild(title);
+      row.appendChild(name);
+
+      if (chapter.ready) {
+        list.appendChild(row);
+        return;
+      }
+      var get = document.createElement("button");
+      get.type = "button";
+      get.className = "get";
+      get.textContent = "Translate";
+      get.onclick = function () {
+        get.disabled = true;
+        get.textContent = "Translating…";
+        post("/chapter", { name: reader.name, number: chapter.number }).then(function (job) {
+          follow(job.id, get);
+        }, function () {
+          get.disabled = false;
+          get.textContent = "Translate";
+        });
+      };
+      row.appendChild(get);
+      list.appendChild(row);
+    });
+    return list;
+  }
+
+  function follow(id, button) {
+    var timer = setInterval(function () {
+      ask("/job/" + id).then(function (job) {
+        if (job.stage === "done") {
+          clearInterval(timer);
+          reload();
+        } else if (job.stage === "failed" || job.blocked) {
+          clearInterval(timer);
+          button.disabled = false;
+          button.textContent = job.error || job.blocked || "That did not work.";
+        }
+      });
+    }, 1500);
   }
 
   /* Throwing one away and getting it back.

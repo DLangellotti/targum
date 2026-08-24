@@ -940,3 +940,19 @@ body.marking .w[data-status="3"] {
 }
 .toc .get:hover { color: var(--ink); border-color: var(--ink-soft); }
 .toc .get:disabled { opacity: 0.6; cursor: default; }
+
+/* Prepare a whole book, for reading somewhere with no connection. */
+.contents .whole { margin-block-start: 2rem; }
+.contents .whole[hidden] { display: none; }
+.contents .whole button {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.contents .whole button:hover { color: var(--ink); border-color: var(--ink-soft); }
+.contents .whole button:disabled { opacity: 0.6; cursor: default; }

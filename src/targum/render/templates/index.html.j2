@@ -36,6 +36,9 @@
     <li data-chapter="{{ section.number }}"><a href="{{ section.filename }}">{{ section.title }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>
     {% endfor %}
   </ol>
+  {#- For somebody about to lose their connection. A reader off a disk is the promise
+      this product makes, and half a translated book is not that. -#}
+  <p class="whole" hidden><button type="button" id="prepare">Prepare all</button></p>
 </main>
 <script>{{ asset('contents.js') }}</script>
 </body>

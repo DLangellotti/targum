@@ -720,7 +720,10 @@ class Library:
         return estimate(lemmas, builder.model or ""), lemmas
 
     def run(self, job: Job) -> None:
-        if job.options.get("chapter"):
+        # On the list, not on `chapter`: preparing a whole book sets no single chapter
+        # number, and a falsy 0 sent this down the ordinary build path — which then tried
+        # to ingest the folder name as though it were a file.
+        if job.options.get("chapters"):
             return self.run_chapter(job)
         try:
             job.stage = "working"
@@ -778,8 +781,12 @@ class Library:
 
         builder = self._builder(job)
         builder._resolved_out = folder
-        number = int(job.options["chapter"])
-        wanted = builder.chapter_segments(segmented, number)
+        numbers = job.options.get("chapters") or []
+        wanted = [
+            segment
+            for number in numbers
+            for segment in builder.chapter_segments(segmented, int(number))
+        ]
         if not wanted:
             return self._blame(job, "No such chapter.")
 
@@ -1286,16 +1293,25 @@ class Handler(BaseHTTPRequestHandler):
         folder = self.library.within(home, str(payload.get("name") or ""))
         if folder is None:
             return self._json({"error": "not found"}, 404)
+        # `number` names one chapter; `all` buys every one still waiting. The second is
+        # for somebody about to lose their connection, which is the one case where the
+        # whole book at once is what a reader actually wants.
+        whole = bool(payload.get("all"))
         try:
-            number = int(payload.get("number") or 0)
+            number = 0 if whole else int(payload.get("number") or 0)
         except (TypeError, ValueError):
             return self._json({"error": "not found"}, 404)
+        waiting: list[int] = []
+        if whole:
+            waiting = [c["number"] for c in self.library.chapters(folder) if not c["ready"]]
+            if not waiting:
+                return self._json({"ready": True})
 
         person = self._person()
         job = Job(
             id=secrets.token_hex(8),
             source=str(folder),
-            options={"chapter": number, "folder": folder.name},
+            options={"chapters": waiting if whole else [number], "folder": folder.name},
             owner=person.id if person else None,
             home=home,
         )

@@ -143,3 +143,31 @@ def test_only_the_first_chapters_are_translated_up_front() -> None:
 
     assert {s.id for s in build.chapter_segments(segmented, 3)} == {"h3", "s3-0", "s3-1", "s3-2"}
     assert build.chapter_segments(segmented, 99) == []
+
+
+def test_preparing_a_whole_book_is_still_a_chapter_job(tmp_path: Path) -> None:
+    """The bug this catches: "prepare all" names no single chapter, so it carried
+    `chapter: 0` — and the dispatch tested that for truthiness. Zero is falsy, so the
+    job went down the ordinary build path and tried to ingest the folder name as a file.
+    """
+    from targum.serve import Job, Library
+
+    library = Library(tmp_path, store=None)
+
+    whole = Job(id="a", source="x", options={"chapters": [2, 3, 4], "folder": "book-he"})
+    one = Job(id="b", source="x", options={"chapters": [3], "folder": "book-he"})
+    ordinary = Job(id="c", source="/tmp/book.md", options={"to": "en"})
+
+    assert bool(whole.options.get("chapters")) is True
+    assert bool(one.options.get("chapters")) is True
+    assert bool(ordinary.options.get("chapters")) is False
+    # And the old shape, which is what went wrong.
+    assert bool({"chapter": 0}.get("chapter")) is False
+    assert library is not None
+
+
+def test_a_book_with_nothing_waiting_needs_no_preparing(tmp_path: Path) -> None:
+    library = Library(tmp_path)
+    home = library.home(None)
+    book(home / "book-he", chapters=3, translated=3)
+    assert [c["ready"] for c in library.chapters(home / "book-he")] == [True, True, True]

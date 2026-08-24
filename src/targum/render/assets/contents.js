@@ -119,3 +119,63 @@
     })
     .catch(function () {});
 })();
+
+/* Prepare the whole book, for reading somewhere with no connection. */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+
+  var key = new URLSearchParams(location.search).get("k");
+  var press = document.getElementById("prepare");
+  if (!key || !press) return;
+
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function show() {
+    var waiting = document.querySelectorAll("[data-chapter].waiting").length;
+    var box = press.parentNode;
+    box.hidden = waiting === 0;
+  }
+
+  press.onclick = function () {
+    press.disabled = true;
+    press.textContent = "Preparing…";
+    fetch("/chapter?k=" + encodeURIComponent(key), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      body: JSON.stringify({ name: name, all: true }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (job) {
+        if (!job.id) return location.reload();
+        var timer = setInterval(function () {
+          fetch("/job/" + job.id + "?k=" + encodeURIComponent(key))
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (state) {
+              if (state.stage === "done") {
+                clearInterval(timer);
+                location.reload();
+              } else if (state.stage === "failed" || state.blocked) {
+                clearInterval(timer);
+                press.disabled = false;
+                press.textContent = state.error || state.blocked || "That did not work.";
+              }
+            });
+        }, 1500);
+      });
+  };
+
+  // The chapter states arrive a moment after load; watch for them rather than guess.
+  new MutationObserver(show).observe(document.querySelector(".toc"), {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  show();
+})();
