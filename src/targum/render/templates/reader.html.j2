@@ -21,6 +21,9 @@
   <div class="bar-title">
     <a class="home" id="home" href="/" hidden>Learn</a>
     {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
+    {#- How much of this text you can already read. Filled in by the reader from the
+        words it has, and hidden outright on a text that carries none. -#}
+    <span class="known" id="known" hidden></span>
   </div>
   <div class="controls" dir="ltr">
     <div class="group modes" id="modes" role="group" aria-label="Reading mode">
@@ -54,6 +57,14 @@
     <div class="group" role="group" aria-label="Vowel points">
       <button type="button" data-nikkud="off" class="on" title="Read without vowel points (n)">No vowels</button>
       <button type="button" data-nikkud="on"{% if mark_guessed %} title="Vowel points. Where this text left a word bare, targum guessed — about 90% right on modern Hebrew, less on classical. Guessed sentences are marked."{% elif source_pointed %} title="Vowel points, as this text writes them (n)"{% else %} title="Vowel points, guessed by targum — about 90% right on modern Hebrew, less on classical (n)"{% endif %}>Vowels</button>
+    </div>
+    {% endif %}
+    {#- Reading, or marking. Off is reading: the page is just a page. Only offered on a
+        text that has words to mark — the rest carry no annotation at all. -#}
+    {% if words %}
+    <div class="group">
+      <button type="button" data-marking aria-pressed="false"
+              title="Mark words as you read (m)">Mark</button>
     </div>
     {% endif %}
     <div class="group" role="group" aria-label="Type size">
@@ -118,7 +129,8 @@
     <button type="button" class="list-close" data-toggle="list" aria-label="Hide the list">×</button>
   </div>
   <p class="list-stats" id="list-stats"></p>
-  <label class="list-mark"><input type="checkbox" id="list-mark" checked> Mark them in the text</label>
+  {#- "Mark them in the text" was here, and it took the colours off and left everything
+      else on. The Mark button in the bar does the whole job now. -#}
   <div class="list-body">
     <ol class="list-items" id="list-items" role="tabpanel" aria-labelledby="tab-words"></ol>
     <p class="list-empty" id="words-empty">Tap any word to say how well you know it.</p>
@@ -147,7 +159,8 @@
     <dt>o</dt><dd>source only</dd>
     <dt>i</dt><dd>interlinear — the translation under each line</dd>
     {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
-    {% if words %}<dt>s</dt><dd>your saved words</dd>{% endif %}
+    {% if words %}<dt>m</dt><dd>mark words as you read</dd>
+    <dt>s</dt><dd>your saved words</dd>{% endif %}
     <dt>Esc</dt><dd>close this, or a word</dd>
   </dl>
 </div>

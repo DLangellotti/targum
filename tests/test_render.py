@@ -1179,3 +1179,173 @@ def test_only_a_verse_text_is_spaced_like_verses() -> None:
         encoding="utf-8"
     )
     assert '"verse_by_verse": document.source.startswith("sefaria:")' in builder
+
+
+# -- reading, or marking ---------------------------------------------------------
+
+
+def _reader_css() -> str:
+    from targum.render.builder import ASSETS
+
+    return (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+
+def test_reading_is_what_a_text_opens_in() -> None:
+    """Somebody opening a text came to read it. A page lit up word by word is a thing
+    you ask for."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    prefs = script[script.index("var prefs = {") : script.index("try {", script.index("var prefs"))]
+    assert re.search(r"\bmarking:\s*false\b", prefs), "reading is the default"
+    assert "mark: true" not in prefs, "the old half-measure is gone"
+
+
+def test_the_marking_class_is_not_one_applymode_eats() -> None:
+    """`applyMode()` strips every `mode-*` token off body.className to swap the reading
+    mode. A marking class named `mode-…` would vanish the first time somebody pressed
+    p, o or i — silently, and only for people who use those keys."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'classList.toggle("marking"' in script
+    assert 'classList.toggle("mode-marking"' not in script
+    stripper = re.search(r"body\.className\.replace\((/[^)]+/g)", script)
+    assert stripper is not None, "applyMode no longer strips the way this test reads it"
+    assert re.match(stripper.group(1)[1:-2], "marking") is None
+
+
+def test_nothing_about_reading_mode_can_reflow_the_page() -> None:
+    """Switching must not rebreak a line. Every rule that differs between the two modes
+    is a paint property, so the boxes are identical and the text cannot move."""
+    css = _reader_css()
+    block = css[css.index(".w { border-radius") : css.index("/* --- what a word means")]
+    allowed = {"border-radius", "cursor", "background", "box-shadow"}
+
+    # Parsed by declaration block rather than by line: these rules are written one to a
+    # line as often as not, and an anchored regex silently skips those — which would let
+    # exactly the property this test exists to catch through.
+    seen = []
+    for chunk in re.findall(r"\{([^}]*)\}", block):
+        for declaration in chunk.split(";"):
+            name = declaration.split(":", 1)[0].strip()
+            if name:
+                seen.append(name)
+    assert len(seen) >= 6, "the rules moved; this is reading the wrong slice"
+    for prop in seen:
+        assert prop in allowed, f"{prop} changes a box, so switching modes would reflow"
+
+
+def test_a_word_is_markable_in_both_modes() -> None:
+    """Marking changes what the page shows you, never what it lets you do.
+
+    You have to be able to mark a word in order to clear it, and clearing them is the
+    whole point of the mode — so gating the card on the mode would make the mode
+    impossible to get out of.
+    """
+    css = _reader_css()
+    assert ".w { border-radius: 4px; cursor: pointer; }" in css, "tappable either way"
+    assert "body.marking .w { cursor" not in css
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    handler = script[script.index("/* --- clicks ---") : script.index("/* --- keyboard ---")]
+    assert "prefs.marking &&" not in handler, "a tap opens the card in either mode"
+    picking = script[script.index('document.addEventListener("mouseup"') :][:600]
+    assert "prefs.marking" not in picking, "so does a selection"
+
+
+def test_a_word_you_have_never_marked_is_the_loudest_thing_on_the_page() -> None:
+    """The point of the mode: everything you do not know starts lit, and you put it out
+    by marking it. A scale that only began once you had already said something told you
+    nothing about the words you had not.
+    """
+    css = _reader_css()
+    assert "body.marking .w:not([data-status])" in css, "never-marked words carry the top step"
+
+    # One hue, and monotone down the scale, or it does not read as one scale.
+    def wash(selector: str) -> int:
+        rules = css.split(selector, 1)[1].split("}", 1)[0]
+        found = re.search(r"background:.*?var\(--accent\) (\d+)%", rules)
+        return int(found.group(1)) if found else 0
+
+    fresh = wash("body.marking .w:not([data-status])")
+    one = wash('body.marking .w[data-status="1"]')
+    two = wash('body.marking .w[data-status="2"]')
+    assert fresh > one > two > 0, "saying anything about a word must make it quieter"
+    # §4 caps the accent wash at 22%.
+    assert fresh <= 22 and two >= 12, "every step stays inside the sanctioned wash range"
+
+    # Known and ignored take no wash at all — the page empties as you learn it.
+    assert 'body.marking .w[data-status="9"]' not in css
+    assert 'body.marking .w[data-status="0"]' not in css
+
+
+def test_the_words_are_wrapped_in_both_modes_so_copying_is_the_same() -> None:
+    """The spans are what a status hangs off, and they stay in the page either way —
+    reading mode is CSS. If it ever became a re-render, the copied string would differ
+    between modes and nothing would say so.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    body = script[script.index("function markSegment(cell)") : script.index("function redraw()")]
+    assert "prefs.marking" not in body, "marking up must not depend on the mode"
+
+
+def test_the_shortcut_is_listed_like_every_other_one() -> None:
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>m</dt>" in template
+    assert "data-marking" in template
+
+
+# -- how much of this you can already read ----------------------------------------
+
+
+def test_the_header_counts_the_words_here_and_the_knowing_everywhere() -> None:
+    """Words are kept per language, so a word first met in another text already counts
+    the moment you open this one. That is what makes the number answer "how hard is this
+    for me" rather than "how far through this text am I"."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    # coverage() walks lemmasHere() — this text — and asks statusOf(), which reads the
+    # language-wide store. Both halves come from that one call.
+    assert "var counts = coverage();" in stats
+    assert "counts.known" in stats
+
+
+def test_ignored_words_leave_the_total_rather_than_counting_as_known() -> None:
+    """Ignore means "this is not vocabulary" — a name, a numeral, a word from another
+    language. Counting it as known would make the figure one you could raise by ignoring
+    things, which is not what the label claims.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var scored = counts.total - counts.ignored;" in script
+    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    assert "counts.known + counts.ignored" not in stats
+
+
+def test_a_text_with_no_words_shows_no_count() -> None:
+    """ "0 of 0 known" is worse than saying nothing. Some builds carry no annotation."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "headerKnown.hidden = !scored;" in script
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert '<span class="known" id="known" hidden></span>' in template
+
+
+def test_the_known_count_reads_the_same_way_on_a_hebrew_page() -> None:
+    """`.bar-title` takes the page's direction, so on a Hebrew text this line came out
+    "of 142 known 0" — an English phrase reordered around its own numbers."""
+    css = _reader_css()
+    rules = css.split(".bar-title .known {", 1)[1].split("}", 1)[0]
+    assert "direction: ltr" in rules
+    assert "unicode-bidi: isolate" in rules

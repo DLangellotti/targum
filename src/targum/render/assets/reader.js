@@ -67,9 +67,13 @@
     translation: null,
     list: null,
     nikkud: false,
-    // Whether words you have marked are tinted where they appear. Kept because a page
-    // covered in marks is a worksheet, and some days you want to just read.
-    mark: true,
+    // Reading, or marking. Off is reading: no tints, no hover, no card, and every word
+    // an ordinary word — a page covered in marks is a worksheet, and most of the time
+    // you want to just read. It was `mark` and it only took the colours off; the cursor,
+    // the hover and the card all stayed, so the page still behaved like a worksheet.
+    //
+    // Off by default. Somebody opening a text for the first time came to read it.
+    marking: false,
     listTab: "words",
     // Per document, because whose vowels these are is a fact about the text, not a
     // setting. A pointed poem opens pointed; a news article whose points were all
@@ -568,7 +572,7 @@
   }
 
   var listStats = document.getElementById("list-stats");
-  var listMark = document.getElementById("list-mark");
+  var headerKnown = document.getElementById("known");
 
   // How much of what is in front of you you have already dealt with. The reason to
   // know it is choosing what to read next, so it counts this text and not the language.
@@ -586,27 +590,53 @@
   }
 
   function renderStats() {
-    if (!listStats) return;
     var counts = coverage();
+    // Ignored words are neither known nor waiting, so they come out of the total rather
+    // than counting against you. Ignore means "this is not vocabulary" — a name, a
+    // numeral, a word from another language — and counting it as known would make the
+    // figure something you could raise without learning anything.
+    var scored = counts.total - counts.ignored;
+
+    // In the header, beside the title: how much of this text you can already read. The
+    // words are counted here and the knowing is counted across the language, so a word
+    // first met in another text already counts the moment you open this one.
+    if (headerKnown) {
+      headerKnown.hidden = !scored;
+      if (scored) {
+        // Built rather than written, so the two figures can carry the ledger treatment
+        // the guidelines ask for and the words around them cannot.
+        headerKnown.textContent = "";
+        var whole = document.createElement("b");
+        whole.textContent = String(counts.known);
+        var all = document.createElement("b");
+        all.textContent = String(scored);
+        headerKnown.appendChild(whole);
+        headerKnown.appendChild(document.createTextNode(" of "));
+        headerKnown.appendChild(all);
+        headerKnown.appendChild(document.createTextNode(" known"));
+      }
+    }
+
+    if (!listStats) return;
     if (!counts.total) {
       listStats.textContent = "";
       return;
     }
-    // Ignored words are neither known nor waiting, so they come out of the total
-    // rather than counting against you.
-    var scored = counts.total - counts.ignored;
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
     listStats.textContent =
       share + "% known here · " + counts.fresh + " you have not marked yet";
   }
 
-  if (listMark) {
-    listMark.checked = prefs.mark !== false;
-    body.classList.toggle("marking", listMark.checked);
-    listMark.addEventListener("change", function () {
-      prefs.mark = listMark.checked;
-      body.classList.toggle("marking", listMark.checked);
-      save();
+  // Reading or marking. One class on the body, and nothing is redrawn: every word is
+  // already wrapped in its span whichever mode you are in, so the difference is paint —
+  // which is what keeps the lines from rebreaking as you switch, and what makes the text
+  // you copy the same string either way.
+  function applyMarking() {
+    var on = !!prefs.marking;
+    body.classList.toggle("marking", on);
+    Array.prototype.forEach.call(document.querySelectorAll("[data-marking]"), function (button) {
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
     });
   }
 
@@ -1535,6 +1565,12 @@
         showKeys(keysCard ? keysCard.hidden : false);
         return;
       }
+      if (button.hasAttribute("data-marking")) {
+        prefs.marking = !prefs.marking;
+        applyMarking();
+        save();
+        return;
+      }
       var mode = button.getAttribute("data-mode");
       if (mode) {
         if (mode === prefs.mode) return;
@@ -1563,7 +1599,9 @@
       return;
     }
 
-    // A word answers the same way whichever mode you are reading in.
+    // A word answers the same way whichever mode you are in. Marking changes what the
+    // page shows you, never what it lets you do — you have to be able to mark a word to
+    // clear it, and the whole point of the mode is clearing them.
     var word = event.target.closest ? event.target.closest(".w") : null;
     if (word) {
       showCard(word);
@@ -1623,6 +1661,11 @@
         prefs.mode = "inter";
         applyMode();
         settle();
+        save();
+        return;
+      case "m":
+        prefs.marking = !prefs.marking;
+        applyMarking();
         save();
         return;
       case "s":
@@ -1762,6 +1805,7 @@
 
   applyType();
   applyMode();
+  applyMarking();
   showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
   // leaving it set would hide every sentence on the page.
