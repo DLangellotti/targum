@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -163,6 +164,74 @@ def serve(
     except TargumError as error:
         fail(error)
     console.print(f"[dim]Stopped. Your targums are still in {directory}[/dim]")
+
+
+@app.command()
+def backup(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where to keep copies. Default: ~/.targum/backups"),
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database to copy.")] = None,
+    keep: Annotated[int, typer.Option("--keep", help="How many copies to keep.")] = 14,
+) -> None:
+    """Copy the one file that cannot be rebuilt.
+
+    Accounts, saved words, phrases and the spend ledger live in one SQLite file and
+    nowhere else. Everything else targum keeps can be made again.
+
+    Every copy is opened and checked as it is taken, because a backup nobody has opened
+    is a rumour. Run it from cron, and keep the copies somewhere other than this machine.
+    """
+    from .backup import check, snapshot, sweep
+    from .serve import default_store
+
+    where = store or default_store()
+    into = out or where.parent / "backups"
+    try:
+        made = snapshot(where, into)
+    except FileNotFoundError:
+        fail(TargumError(f"No database at {where}.", "Nothing has been saved yet."))
+    except sqlite3.Error as error:
+        fail(TargumError("Could not copy the database.", str(error)))
+
+    problem = check(made)
+    if problem:
+        made.unlink(missing_ok=True)
+        fail(TargumError("The copy came out unusable, so it was thrown away.", problem))
+
+    dropped = sweep(into, keep)
+    size = made.stat().st_size / 1024
+    console.print(f"[green]Copied to {made}[/green] [dim]({size:.0f} KB, checked)[/dim]")
+    if dropped:
+        word = "copy" if len(dropped) == 1 else "copies"
+        console.print(f"[dim]Dropped {len(dropped)} older {word}[/dim]")
+    console.print("[dim]Keep these somewhere other than this machine.[/dim]")
+
+
+@app.command()
+def restore(
+    backup: Annotated[Path, typer.Argument(help="The copy to put back.")],
+    store: Annotated[
+        Path | None, typer.Option("--store", help="Which database to replace.")
+    ] = None,
+) -> None:
+    """Put a backup back. Stop targum first.
+
+    What is there now is moved aside rather than deleted: restoring the wrong file is a
+    thing people do at four in the morning.
+    """
+    from .backup import restore as put_back
+    from .serve import default_store
+
+    where = store or default_store()
+    try:
+        aside = put_back(backup, where)
+    except ValueError as error:
+        fail(TargumError(str(error), "Try an earlier copy."))
+
+    console.print(f"[green]Restored {backup} to {where}[/green]")
+    console.print(f"[dim]What was there is at {aside}[/dim]")
 
 
 @app.command()
