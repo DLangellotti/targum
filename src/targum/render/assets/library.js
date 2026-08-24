@@ -31,6 +31,17 @@
     });
   }
 
+  function post(path, body) {
+    return ask(path, body).then(function (answer) {
+      if (answer && answer.error) throw new Error(answer.error);
+      return answer;
+    });
+  }
+
+  function reload() {
+    location.reload();
+  }
+
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
     link.href = link.getAttribute("href") + "?k=" + encodeURIComponent(key);
   });
@@ -251,6 +262,76 @@
       link.appendChild(meta);
 
       item.appendChild(link);
+      item.appendChild(binButton(reader));
+      list.appendChild(item);
+    });
+  }
+
+  /* Throwing one away and getting it back.
+   *
+   * Both go through the same shape: press, ask the server, redraw. There is no
+   * confirmation step — the trash is the confirmation, and a dialog asking "are you
+   * sure" before something reversible is a question nobody can answer usefully. */
+  function binButton(reader) {
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "bin";
+    press.textContent = "Delete";
+    press.title = "Move to the trash";
+    press.onclick = function () {
+      press.disabled = true;
+      post("/trash", { name: reader.name }).then(reload, function () {
+        press.disabled = false;
+      });
+    };
+    return press;
+  }
+
+  function drawTrash(code, trash) {
+    var panel = document.getElementById("trash-panel");
+    var list = document.getElementById("trash-list");
+    if (!panel || !list) return;
+    var mine = trash.filter(function (reader) {
+      return base(reader.language) === code;
+    });
+    panel.hidden = !mine.length;
+    list.textContent = "";
+
+    mine.forEach(function (reader) {
+      var item = document.createElement("li");
+      var title = document.createElement("bdi");
+      title.setAttribute("lang", reader.language || "und");
+      title.className = "book-title";
+      title.textContent = reader.title;
+
+      var meta = document.createElement("span");
+      meta.className = "book-meta";
+      // Said in days rather than a date: what a reader wants to know is how long they
+      // have, not when the clock started.
+      meta.textContent =
+        reader.goesIn > 1
+          ? "goes for good in " + reader.goesIn + " days"
+          : reader.goesIn === 1
+            ? "goes for good tomorrow"
+            : "goes for good today";
+
+      var back = document.createElement("button");
+      back.type = "button";
+      back.className = "restore";
+      back.textContent = "Put back";
+      back.onclick = function () {
+        back.disabled = true;
+        post("/restore", { name: reader.name }).then(reload, function () {
+          back.disabled = false;
+        });
+      };
+
+      var wrap = document.createElement("span");
+      wrap.className = "gone";
+      wrap.appendChild(title);
+      wrap.appendChild(meta);
+      item.appendChild(wrap);
+      item.appendChild(back);
       list.appendChild(item);
     });
   }
@@ -274,6 +355,7 @@
 
   ask("/readers").then(function (data) {
     var readers = data.readers || [];
+    var trash = data.trash || [];
     var opened = stored("targum:opened");
     readers.forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
@@ -308,6 +390,7 @@
       if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
       drawPicked(code);
       drawShelf(code, readers);
+      drawTrash(code, trash);
     }
 
     show(chosen);

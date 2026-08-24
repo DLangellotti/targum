@@ -218,3 +218,33 @@
 .account-panel .said { margin: 0.6rem 0 0; color: var(--accent); }
 .account-panel .said[hidden] { display: none; }
 .account-panel [hidden] { display: none; }
+
+/* --- deleting one, and getting it back ------------------------------------ */
+
+/* The row holds the link and the control side by side; the link keeps the whole width
+   it had, so nothing moves when the control appears. */
+.books li { display: flex; align-items: center; gap: 0.6rem; }
+.books li > a { flex: 1; min-width: 0; }
+
+/* Quiet until you go looking for it. §9 wants every tappable thing to carry ink or a
+   hue, so it takes ink on hover rather than sitting in a beige it never leaves — and
+   clay only once it is what you are about to press. */
+.books .bin,
+.books .restore {
+  flex: none;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.books .bin:hover { color: var(--clay); border-color: var(--clay); }
+.books .restore:hover { color: var(--ink); border-color: var(--ink-soft); }
+.books .bin:disabled,
+.books .restore:disabled { opacity: 0.5; cursor: default; }
+
+.trash .gone { flex: 1; min-width: 0; display: block; }
+.trash .book-title { color: var(--ink-soft); }
+.trash .book-meta { display: block; color: var(--clay); }

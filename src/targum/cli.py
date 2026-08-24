@@ -82,7 +82,7 @@ def fail(error: TargumError) -> None:
 @app.command()
 def serve(
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8420,
-    out: Annotated[Path | None, typer.Option("--out", help="Where readers are kept.")] = None,
+    out: Annotated[Path | None, typer.Option("--out", help="Where your targums are kept.")] = None,
     open_browser: Annotated[
         bool, typer.Option("--open/--no-open", help="Open the page automatically.")
     ] = True,
@@ -96,7 +96,7 @@ def serve(
         Path | None, typer.Option("--store", help="Where your words are kept.")
     ] = None,
 ) -> None:
-    """Open a page for building readers, without the terminal."""
+    """Open a page for building targums, without the terminal."""
     from .serve import default_store, start
 
     directory = out or Path.cwd() / "targum-out"
@@ -115,7 +115,7 @@ def serve(
             "[dim]Only this machine can reach it. Keep this window open while you read; "
             "Ctrl-C here stops it.[/dim]"
         )
-        console.print(f"[dim]Your readers are saved in {directory}[/dim]")
+        console.print(f"[dim]Your targums are saved in {directory}[/dim]")
         # Said separately from the readers, because it is somewhere else on purpose:
         # readers can be rebuilt and a word list cannot, so deleting the one must not
         # be a way of losing the other.
@@ -162,14 +162,14 @@ def serve(
         )
     except TargumError as error:
         fail(error)
-    console.print(f"[dim]Stopped. Your readers are still in {directory}[/dim]")
+    console.print(f"[dim]Stopped. Your targums are still in {directory}[/dim]")
 
 
 @app.command()
 def rebuild(
     out: Annotated[
         Path | None,
-        typer.Option("--out", help="Where the readers are. Default: ./targum-out"),
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
     ] = None,
 ) -> None:
     """Rewrite every reader from what is already on disk.
@@ -192,7 +192,7 @@ def rebuild(
 
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
-        fail(TargumError(f"No readers in {root}.", "Build one first: targum serve"))
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
     done = 0
     skipped: list[tuple[str, str]] = []
@@ -231,7 +231,7 @@ def rebuild(
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")
     console.print(
-        f"[green]Rewrote {done} reader{'' if done == 1 else 's'}.[/green] "
+        f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] "
         f"[dim]Nothing was fetched and nothing was spent.[/dim]"
     )
 
@@ -267,7 +267,7 @@ def build(
         Path | None,
         typer.Option(
             "--out",
-            help="Folder for the reader and its files. Default: ./targum-out/<title>-<lang>/",
+            help="Folder for the targum and its files. Default: ./targum-out/<title>-<lang>/",
         ),
     ] = None,
     translation: Annotated[
@@ -305,7 +305,7 @@ def build(
     ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
-    """Build a bilingual reader from one text."""
+    """Build a targum — one text with its translation beside it."""
     # Inside the try, not before it. A mistyped --provider, or a stray key in the
     # config file, raised straight through Typer as a traceback: the one-line
     # message those errors carry never reached anyone.
