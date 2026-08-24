@@ -280,11 +280,11 @@
 
     var ignored = counts[IGNORED] || 0;
     note.textContent = ignored
-      ? plural(ignored, "word") + " you told targum to ignore are left out of this."
+      ? plural(ignored, "word") + " ignored are left out."
       : "";
 
     if (!total) {
-      host.appendChild(el("p", "empty", "Nothing marked in this language yet."));
+      host.appendChild(el("p", "empty", "Nothing marked yet."));
       return;
     }
 
@@ -365,7 +365,7 @@
     });
     if (dated.length < 2) {
       host.appendChild(
-        el("p", "empty", "There will be a line here once you have kept words on two days.")
+        el("p", "empty", "A line appears after two days.")
       );
       return;
     }
@@ -529,7 +529,7 @@
       any = true;
     });
     if (!any) {
-      host.appendChild(el("p", "empty", "Nothing marked in this language yet."));
+      host.appendChild(el("p", "empty", "Nothing marked yet."));
       return;
     }
 
@@ -544,7 +544,7 @@
       viewBox: "0 0 " + W + " " + H,
       role: "img",
       "aria-label":
-        "Words by how common they are: " +
+        "By how common: " +
         BANDS.map(function (band, index) {
           return counts[index] + " " + band;
         }).join(", "),

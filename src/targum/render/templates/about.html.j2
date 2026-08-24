@@ -27,16 +27,14 @@
   </a>
 
   <h1>targum is under construction</h1>
-  <p class="lede">Here is the work so far. The pipeline is open source under the MIT
-    licence and always will be, so rather than describe the state it is in, this page
-    reads it out of the repository.</p>
-  <p class="lede"><a href="https://github.com/DLangellotti/targum">The code is on
-    GitHub</a>, and <a href="https://pypi.org/project/targum/">targum is on PyPI</a> —
-    you can run the whole thing yourself today with your own API key.</p>
+  <p class="lede">The work so far, read out of the repository.</p>
+  <p class="lede">Open source, MIT, on
+    <a href="https://github.com/DLangellotti/targum">GitHub</a> and
+    <a href="https://pypi.org/project/targum/">PyPI</a>. Run it yourself.</p>
 
   {% if work.commits %}
   <section>
-    <h2>The last {{ days }} days</h2>
+    <h2>Last {{ days }} days</h2>
     <p class="figures">
       <b>{{ work.commits }}</b> {{ 'change' if work.commits == 1 else 'changes' }}
       · <b>{{ work.shipping_days }}</b>
@@ -44,7 +42,7 @@
     </p>
     {#- One square a day. Colour says how much landed, and an empty day is left as the
         quiet grey it was rather than dressed up. -#}
-    <ol class="calendar" aria-label="Changes per day over the last {{ days }} days">
+    <ol class="calendar" aria-label="Changes per day, last {{ days }} days">
       {% for day, count in work.days %}
       <li class="day level-{{ level(count, work.busiest) }}"
           title="{{ day }} — {{ count }} {{ 'change' if count == 1 else 'changes' }}"></li>
@@ -56,7 +54,7 @@
   </section>
 
   <section>
-    <h2>Where the work went</h2>
+    <h2>Where it went</h2>
     <ul class="areas">
       {% for name, count in work.areas %}
       <li><span class="what">{{ name }}</span><span class="bar"></span><b>{{ count }}</b></li>
@@ -76,8 +74,7 @@
   </section>
   {% else %}
   <section>
-    <p class="lede">This copy of targum was installed from a package rather than
-      cloned, so there is no history here to read. It is all on GitHub.</p>
+    <p class="lede">No repository here. It is all on GitHub.</p>
   </section>
   {% endif %}
 </main>

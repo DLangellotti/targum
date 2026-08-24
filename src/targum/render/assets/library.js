@@ -58,7 +58,7 @@
     var button = card.querySelector("[data-build]");
     button.disabled = true;
     status.hidden = false;
-    status.textContent = "Getting the text ready…";
+    status.textContent = "Getting ready…";
 
     ask("/prepare", {
       source: entry.source,
@@ -74,7 +74,7 @@
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (job.blocked) throw new Error(job.blocked);
-        status.textContent = "Lining the translation up…";
+        status.textContent = "Lining up…";
         return ask("/build", { id: job.id }).then(function () {
           return watch(job.id, status);
         });
@@ -95,7 +95,7 @@
   function say(message) {
     if (!message) return "";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining the translation up…";
+    if (message.indexOf("Matching") === 0) return "Lining up…";
     if (message.indexOf("Looking up") === 0) return "Looking words up…";
     return "Almost there…";
   }
@@ -220,7 +220,7 @@
     note.hidden = mine.length === 0;
     if (!mine.length) {
       empty.textContent =
-        "Nothing picked out in " + named(code) + " yet. Bring your own on the reading page.";
+        "Nothing picked out in " + named(code) + " yet.";
     }
   }
 
@@ -236,11 +236,11 @@
     });
     if (!mine.length) {
       note.textContent = readers.length
-        ? "Nothing in " + named(code) + " yet. Start one above, or bring your own on the reading page."
-        : "Nothing here yet. Pick something above, or bring your own on the reading page.";
+        ? "Nothing in " + named(code) + " yet. Start one above."
+        : "Nothing here yet. Pick something above.";
       return;
     }
-    note.textContent = "Whatever you were last reading comes first.";
+    note.textContent = "Last read first.";
 
     mine.forEach(function (reader) {
       var item = document.createElement("li");
@@ -277,7 +277,7 @@
     press.type = "button";
     press.className = "bin";
     press.textContent = "Delete";
-    press.title = "Move to the trash";
+    press.title = "Move to trash";
     press.onclick = function () {
       press.disabled = true;
       post("/trash", { name: reader.name }).then(reload, function () {

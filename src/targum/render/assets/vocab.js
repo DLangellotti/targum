@@ -109,8 +109,8 @@
     { value: 1, label: "1", title: "Just met it" },
     { value: 2, label: "2", title: "Getting there" },
     { value: 3, label: "3", title: "Nearly know it" },
-    { value: KNOWN, label: "known", title: "Known — stop marking it" },
-    { value: IGNORED, label: "ignore", title: "A name or a number; never mark it" },
+    { value: KNOWN, label: "known", title: "Known" },
+    { value: IGNORED, label: "ignore", title: "A name or a number" },
   ];
 
   // One control, used by the word card, the phrase card, the list beside the text and

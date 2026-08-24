@@ -16,7 +16,7 @@
   <section class="tiles" id="tiles" aria-label="Totals"></section>
 
   <section class="panel">
-    <h2>Where your words are</h2>
+    <h2>Where they are</h2>
     <p class="note" id="progress-note"></p>
     <div id="progress"></div>
   </section>
@@ -24,13 +24,13 @@
   <div class="panels">
     <section class="panel">
       <h2>Words kept over time</h2>
-      <p class="note">From the day you first marked each one.</p>
+      <p class="note">From when you first marked each.</p>
       <div id="growth"></div>
     </section>
 
     <section class="panel">
       <h2>How common they are</h2>
-      <p class="note">How often each word turns up in everyday use — not a syllabus level.</p>
+      <p class="note">How often each turns up in everyday use.</p>
       <div id="bands"></div>
     </section>
   </div>
@@ -74,16 +74,15 @@
       <h2><span id="phrases-title">Phrases</span></h2>
       <button type="button" id="export-phrases">Export</button>
     </div>
-    <p class="note">Phrases stay with the text you cut them from.</p>
+    <p class="note">Phrases stay with their text.</p>
     <div id="phrase-list"></div>
-    <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across a few words while reading to keep a phrase.</p>
+    <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
   </section>
 </main>
 {% include '_foot.html.j2' %}
 
 <p class="nothing" id="nothing" hidden>
-  Nothing here yet. Open something from <a id="library-link" href="/">your library</a>
-  and tap a word to say how well you know it.
+  Nothing yet. Open something from your <a id="library-link" href="/">library</a>.
 </p>
 
 <script>

@@ -57,7 +57,7 @@ def test_the_budget_still_refuses_after_a_restart(tmp_path: Path) -> None:
     )
     blocked = second.claim(job(second, 4.0, id="j2"))
     assert blocked, "the second build should not fit in what is left"
-    assert "sitting" in blocked or "take on" in blocked
+    assert "your fill" in blocked or "its limit" in blocked
 
 
 def test_a_failed_build_gives_its_money_back(tmp_path: Path) -> None:

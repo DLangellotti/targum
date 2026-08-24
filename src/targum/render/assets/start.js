@@ -171,8 +171,7 @@
       note.textContent =
         seconds < 12
           ? ""
-          : "Still going. The first text in a new language takes a minute or two "
-            + "longer to set up — after that it is quick.";
+          : "Still going. The first in a language takes longer.";
     }, 1000);
     return box;
   }
@@ -194,7 +193,7 @@
       payload.source = sourceInput.value.trim();
       if (!payload.source) {
         go.disabled = false;
-        say(line("Paste a link, drop a file, or type a Gutenberg or Wikisource id."), true);
+        say(line("Paste a link, drop a file, or give an id."), true);
         return;
       }
       prepared = ask("/prepare", payload);
@@ -221,10 +220,10 @@
   // What it will take, in the only currency the reader is spending: their time. What
   // it costs us is our business and never theirs — they pay by the month.
   function price(job) {
-    if (!job.estimate) return "Ready in a moment — this one is already prepared.";
+    if (!job.estimate) return "Ready in a moment.";
     var minutes = Math.max(1, Math.round(job.segments / 25));
-    if (minutes <= 1) return "About a minute to get ready.";
-    if (minutes <= 4) return "A couple of minutes to get ready.";
+    if (minutes <= 1) return "About a minute.";
+    if (minutes <= 4) return "A couple of minutes.";
     return "About " + minutes + " minutes to get ready.";
   }
 
@@ -242,15 +241,14 @@
           (entry.translations.length === 1
             ? "a translation"
             : entry.translations.length + " translations") +
-          " somebody published. Reading it from there costs nothing and is better than " +
-          "anything a model would write for you."
+          " somebody published. Better than a machine, and free."
       )
     );
     var row = document.createElement("div");
     row.className = "row";
     var go = document.createElement("button");
     go.type = "button";
-    go.textContent = "Take me to it";
+    go.textContent = "Open it";
     go.onclick = function () {
       window.location.href = "/library?k=" + encodeURIComponent(key);
     };
@@ -333,7 +331,7 @@
   function plain(message) {
     if (!message) return "Getting it ready…";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining the translation up…";
+    if (message.indexOf("Matching") === 0) return "Lining up…";
     if (message.indexOf("Looking up") === 0) return "Looking words up…";
     return "Getting it ready…";
   }

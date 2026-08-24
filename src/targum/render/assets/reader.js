@@ -270,7 +270,7 @@
       })
       .catch(function () {
         asked[lemma] = false;
-        onDone("Could not reach targum. Is it still running?");
+        onDone("Cannot reach targum.");
       });
   }
 
@@ -710,7 +710,7 @@
         var mark = document.createElement("span");
         mark.className = "row-status status-" + entry.status;
         mark.textContent = String(entry.status);
-        mark.title = "How well you know it: 1 just met, 3 nearly there";
+        mark.title = "How well you know it";
         item.appendChild(mark);
       }
     }
@@ -977,12 +977,12 @@
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
-        meaning.textContent = "no meaning found — write your own";
+        meaning.textContent = "nothing found — write your own";
       } else {
         var ask = document.createElement("button");
         ask.type = "button";
         ask.className = "look-up";
-        ask.textContent = served && passKey ? "look it up" : "no meaning saved for this one";
+        ask.textContent = served && passKey ? "look it up" : "nothing saved";
         ask.disabled = !(served && passKey);
         ask.onclick = function (event) {
           event.stopPropagation();
@@ -1008,7 +1008,7 @@
       // Say so rather than presenting one reading of an ambiguous string as settled.
       var caveat = document.createElement("span");
       caveat.className = "caveat";
-      caveat.textContent = "read as a prefix plus a word — if that is wrong, so is the meaning";
+      caveat.textContent = "read as a prefix plus a word";
       card.appendChild(caveat);
     }
     card.hidden = false;
@@ -1271,9 +1271,9 @@
       title: picked.text,
       reading: reading,
       note: whole
-        ? "the translation of the whole sentence"
+        ? "the whole sentence"
         : reading
-          ? "rough, word by word — the sentence translation is in parallel"
+          ? "word by word — the sentence is in parallel"
           : "",
       editor: phraseEditor(picked, existing, reading),
       action: existing > -1 ? "take it off the list" : "",

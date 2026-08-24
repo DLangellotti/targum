@@ -47,11 +47,7 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # Said once, in the page, rather than as a stack trace after the wait. Without a key the
 # builder can still open everything already built, so this blocks a text rather than
 # stopping the server.
-NO_KEY = (
-    "targum cannot take on anything new just now. Everything you were already reading "
-    "still opens, with its vowels and your word lists. (If you are running this "
-    "yourself: no Anthropic API key is set.)"
-)
+NO_KEY = "Nothing new can be built now. Everything you have still opens."
 
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
@@ -485,31 +481,19 @@ class Library:
         A refusal that does not say which limit was hit, or when it stops applying, is
         indistinguishable from the product being broken.
         """
-        when = f"in about {BUDGET_HOURS} hours"
+        when = f"in {BUDGET_HOURS} hours"
         if whose == "account":
-            return (
-                "That is as much reading as targum will take on for you at once. "
-                f"It picks up again {when}, and anything from the library is always free."
-            )
-        return (
-            "targum is at its limit for the moment, across everyone using it. "
-            f"Try again {when}, or read something from the library — that costs nothing."
-        )
+            return f"You have read your fill for now. Back {when}. The library is always free."
+        return f"targum is at its limit. Try again {when}, or read from the library."
 
     def why_blocked(self, estimate: float) -> str:
         """Whether this build may go ahead, in words the page can show."""
         if estimate > self.max_cost:
             # The reader pays by the month and never by the text, so what stops them is
             # a limit on the thing itself, not a sum of money they have never been shown.
-            return (
-                "That one is longer than we can take on in a single go. Try a chapter "
-                "of it, a shorter piece, or something from the library."
-            )
+            return "Too long. Try a chapter, or something from the library."
         if estimate > self.remaining():
-            return (
-                "That is as much as targum will take on in one sitting. Give it a rest "
-                "and come back, or read something already waiting for you."
-            )
+            return "Enough for one sitting. Come back later."
         return ""
 
     @staticmethod
@@ -726,7 +710,7 @@ class Library:
             traceback.print_exc()
             self._blame(
                 job,
-                "Something went wrong while building this one. The Terminal window has the detail.",
+                "Something went wrong. The Terminal has the detail.",
             )
 
     def _blame(self, job: Job, message: str) -> None:
@@ -790,7 +774,7 @@ SESSION_COOKIE = "targum_session"
 # What the sign-in page says, whether or not the address has an account, and whether or
 # not the mail went out. Anything more specific turns the form into a way of asking
 # which addresses are registered here.
-SENT = "Check your email. If that address has an account, a link is on its way."
+SENT = "Check your email."
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -1007,10 +991,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
         if route != "/account/sign-in" and not self._authorised():
             return self._json(
-                {
-                    "error": "This page is from an earlier targum session. Open the link "
-                    "printed in the Terminal window and try again."
-                },
+                {"error": "This page is from an earlier session. Open the Terminal link."},
                 403,
             )
         length = int(self.headers.get("Content-Length") or 0)
@@ -1072,10 +1053,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "That does not look like an email address."}, 400)
         if self.store.asking_too_often(email):
             return self._json(
-                {
-                    "error": "That is several links to one address in an hour. "
-                    "Check the inbox, including its spam folder, and try again later."
-                },
+                {"error": "Too many links to that address. Check your spam folder."},
                 429,
             )
         token = self.store.start_sign_in(email)
@@ -1085,7 +1063,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Said plainly, because a link that never arrives with a cheerful "check
             # your email" is the worst version of this failing.
-            return self._json({"error": "The link could not be sent. Try again in a minute."}, 502)
+            return self._json({"error": "The link could not be sent."}, 502)
         self._json({"sent": True, "message": SENT})
 
     def _enter(self, token: str) -> None:
@@ -1182,8 +1160,8 @@ class Handler(BaseHTTPRequestHandler):
         if job is None:
             return self._json(
                 {
-                    "error": "That build was lost when targum restarted. Start it again — "
-                    "anything already translated is cached."
+                    "error": "That build was lost when targum restarted. Start it again; "
+                    "nothing is paid for twice."
                 },
                 404,
             )
@@ -1260,7 +1238,7 @@ class Handler(BaseHTTPRequestHandler):
 
         source = str(payload.get("source", "")).strip()
         if not source:
-            raise TargumError("Paste a link, drop a file, or type a Gutenberg or Wikisource id.")
+            raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
 
     def _serve_glossary(self, folder: str) -> None:

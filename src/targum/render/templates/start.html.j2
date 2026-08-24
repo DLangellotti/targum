@@ -12,7 +12,7 @@
 {% set here = 'read' %}
 {% include '_nav.html.j2' %}
 <main class="start-main">
-  <p class="lede">Read Hebrew with the translation beside it.</p>
+  <p class="lede">Hebrew, with the translation beside it.</p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>
@@ -25,8 +25,8 @@
       <p class="drop-label">Drop a book or an article here</p>
       <p class="drop-note">EPUB, plain text, or markdown</p>
       <input type="file" id="file" accept=".txt,.md,.markdown,.epub" hidden>
-      <button type="button" id="choose">Choose a file</button>
-      <button type="button" id="unchoose" class="unchoose" hidden>Use something else</button>
+      <button type="button" id="choose">Choose file</button>
+      <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
     </div>
 
     <p class="or">or paste a link</p>
@@ -34,10 +34,8 @@
     <label class="field">
       <input type="text" id="source" placeholder="https://…" spellcheck="false">
     </label>
-    <p class="hint">A news story, an essay, a blog post, a Wikipedia article. Not
-      something behind a login or a paywall, and not a PDF.</p>
-    <p class="hint">Looking for a book? There are some
-      <a class="to-library" href="/library">picked out for you</a>, ready to read.</p>
+    <p class="hint">Articles and wiki pages. No logins, paywalls or PDFs.</p>
+    <p class="hint">Or something <a class="to-library" href="/library">picked for you</a>.</p>
   </section>
 
   <section class="step">
@@ -61,8 +59,7 @@
   </section>
 
   <button type="button" id="go" class="go">Read this</button>
-  <p class="hint caps">Long books take longer to get ready. You will see roughly how
-    long before it starts.</p>
+  <p class="hint caps">You will see how long first.</p>
   <div class="status" id="status" hidden></div>
 
 </main>
