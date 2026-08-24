@@ -61,6 +61,24 @@ HTML = "text/html; charset=utf-8"
 # for anyone who wants it and is paying for it themselves.
 HOSTED_MODEL = "claude-sonnet-5"
 
+# What a page is allowed to do. Readers are self-contained by construction — no script,
+# stylesheet, font or image from anywhere, and the tests hold that — so the policy can
+# be the strict one rather than a shrug: nothing loads from outside, the page cannot be
+# framed, and there is no form to post anywhere.
+#
+# Inline script and style are the whole design here: a reader is one file that works off
+# a disk with no server. Rather than `unsafe-inline`, which would allow anything a
+# defect managed to inject, each block is named by the hash of its own contents, so only
+# the code targum wrote will run.
+POLICY = (
+    "default-src 'none'; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "frame-ancestors 'none'"
+)
+
 # What one reader may spend in the window, against what the whole machine may. The
 # per-account figure is a safety rail for the alpha and not a plan limit: Milestone C
 # settles what a tier actually allows, in texts and pages rather than dollars, once the
@@ -765,12 +783,28 @@ class Handler(BaseHTTPRequestHandler):
         # opposite of what signing in is for.
         return self._person() is not None
 
+    @staticmethod
+    def _policy(body: bytes) -> str:
+        """The content policy for one page, naming its own inline blocks by hash."""
+        import base64
+        import hashlib
+
+        hashes: list[str] = []
+        for block in re.findall(rb"<(?:script|style)[^>]*>(.*?)</(?:script|style)>", body, re.S):
+            digested = base64.b64encode(hashlib.sha256(block).digest()).decode("ascii")
+            hashes.append(f"'sha256-{digested}'")
+        allowed = " ".join(dict.fromkeys(hashes))
+        return f"{POLICY}; script-src {allowed}; style-src {allowed}"
+
     def _send(self, status: int, body: bytes, kind: str) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        if kind.startswith("text/html"):
+            self.send_header("Content-Security-Policy", self._policy(body))
         self.end_headers()
         self.wfile.write(body)
 

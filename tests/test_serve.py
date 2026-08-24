@@ -743,3 +743,61 @@ def test_the_emailed_link_names_an_address_a_reader_can_reach(
         assert f"{address}/account/enter" == expected
 
     assert Handler.require_account is False
+
+
+# --- what a served page is allowed to do --------------------------------------
+
+
+def test_a_page_carries_a_policy_naming_its_own_blocks(served: tuple[int, str, Path]) -> None:
+    """Inline script and style are the design — a reader is one file that works off a
+    disk. So the policy names each block by the hash of its contents rather than
+    allowing inline generally, which would permit whatever a defect managed to inject.
+    """
+    import base64
+    import hashlib
+    import re
+    from http.client import HTTPConnection
+
+    port, token, _ = served
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/?k={token}")
+    response = connection.getresponse()
+    response.read()
+    policy = response.getheader("Content-Security-Policy") or ""
+    connection.close()
+
+    assert "default-src 'none'" in policy
+    assert "frame-ancestors 'none'" in policy
+    assert "base-uri 'none'" in policy
+    assert "form-action 'none'" in policy
+    assert "'unsafe-inline'" not in policy, "hashes, not a blanket permission"
+
+    # The fixture serves a stub, so the hashing itself is checked against a page that
+    # has the shape a real one does: inline style, inline script, and a data block.
+    from targum.serve import Handler
+
+    real = (
+        b"<html><head><style>body{color:red}</style></head>"
+        b'<body><script type="application/json">{"a":1}</script>'
+        b"<script>window.x = 1</script></body></html>"
+    )
+    named = Handler._policy(real)
+    blocks = re.findall(rb"<(?:script|style)[^>]*>(.*?)</(?:script|style)>", real, re.S)
+    assert len(blocks) == 3
+    for block in blocks:
+        digest = base64.b64encode(hashlib.sha256(block).digest()).decode("ascii")
+        assert f"'sha256-{digest}'" in named, "a block the page contains is not allowed to run"
+    assert "'unsafe-inline'" not in named
+
+
+def test_the_policy_travels_with_html_and_not_with_data(served: tuple[int, str, Path]) -> None:
+    from http.client import HTTPConnection
+
+    port, token, _ = served
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/account/me?k={token}")
+    response = connection.getresponse()
+    response.read()
+    assert response.getheader("Content-Security-Policy") is None
+    assert response.getheader("Referrer-Policy") == "no-referrer"
+    connection.close()

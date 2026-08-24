@@ -1028,3 +1028,24 @@ def test_the_way_back_goes_to_the_library(tmp_path: Path) -> None:
         assert '<a class="home" id="home" href="/library" hidden>Library</a>' in html
         assert '"/library"' in html or '"/library?k="' in html
         assert 'home.href = "/" ' not in html
+
+
+ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
+
+
+def test_the_exports_cannot_carry_a_formula() -> None:
+    """A spreadsheet runs a cell opening with =, +, - or @ as a formula.
+
+    An export is a file someone opens somewhere else, and the words in it come from a
+    text targum did not write. Both copies of the writer are checked, because there are
+    two — the reader bakes its own and the words page has another.
+    """
+    import re
+
+    for name in ("reader.js", "words.js"):
+        source = (ASSETS / name).read_text(encoding="utf-8")
+        match = re.search(r"function csvCell\(value\) \{(.*?)\n  \}", source, re.S)
+        assert match, f"{name} has no csvCell to check"
+        guard = match.group(1)
+        assert "^[=+" in guard, f"{name} does not neutralise a leading formula character"
+        assert '"\'" +' in guard or '"\'" +' in guard, f"{name} does not prefix anything"
