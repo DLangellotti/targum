@@ -132,11 +132,13 @@ body.start > .start-main {
   padding: 0.7rem;
   font-size: 1.0625rem;
   color: var(--paper);
-  background: var(--accent);
+  /* The one primary action per view: accent, with the sheen the recipe permits. */
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
   border: none;
   border-radius: 8px;
+  transition: box-shadow 120ms ease;
 }
-.go:hover { filter: brightness(1.08); }
+.go:hover { box-shadow: var(--lift); }
 .go[disabled] { opacity: 0.5; }
 
 .status {
@@ -152,10 +154,19 @@ body.start > .start-main {
 .status b { color: var(--ink); }
 .status .cost { display: block; margin-block-start: 0.35rem; color: var(--ink-soft); }
 .status .bar { height: 3px; margin-block-start: 0.6rem; background: var(--rule); border-radius: 999px; }
-.status .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 300ms ease; }
+.status .bar i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  /* Progress is leaf, and a progress fill is one of the two places the gloss recipe
+     is allowed. One sheen, top-down, light on glass. */
+  background: linear-gradient(var(--gloss), transparent) var(--leaf);
+  transition: width 300ms ease;
+}
 .status .row { display: flex; gap: 0.5rem; margin-block-start: 0.7rem; }
-.status.bad { border-color: var(--error); }
-.status.bad b { color: var(--error); }
+.status.bad { border-color: var(--clay); }
+.status.bad b { color: var(--clay); }
 
 .library { margin-block-start: 3.5rem; }
 .library[hidden] { display: none; }

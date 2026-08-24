@@ -30,13 +30,39 @@
   /* The mark's translation column is its own value on paper: the working accent
      goes muddy at 22px wide, and every brand asset already uses this one. */
   --mark-accent: #a5824f;
-  /* Errors are distinguishable by colour as well as by wording. It splits like the
-     accent — deep on paper, pale on ink — and it is a brick red at hue 6-11 deg:
-     not Koren's burgundy, not the language-app orange. Chosen so it survives
-     red-green colour blindness beside the accent, which a mid-tone red does not:
-     under protanopia #a84031 sits 2.8 dE from #7a5c38, which is no distance at all.
-     These cuts hold 15-16 dE simulated, and carry AAA on their own surface. */
-  --error: #7c1f14;
+
+  /* Functional colour (§4). Three hues for UI features — feedback, progress, badges,
+     charts — and never in the identity. One hue per moment, flat always, text only at
+     these working cuts. Green and purple are the positions nobody in the category
+     owns; blue and orange stay out. */
+  --leaf: #5a7340;   /* progress, success, known        5.0:1 on paper */
+  --clay: #b4553f;   /* cost, errors, destructive       4.6:1 */
+  --iris: #6b5a8e;   /* phrases, discovery, new         5.7:1 */
+
+  /* The bright set (§4): peak moments only, one hue at a time. These live on ink
+     panels as fills, chips and glyphs. On paper they are allowed only as graphics at
+     3:1 or better — which measured, --sun (2.09:1) and --leaf-bright (2.70:1) do not
+     reach, so those two are ink-panel only. Text at these colours only on ink. */
+  --sun: #e2a33c;          /* streak milestones, the daily spark */
+  --leaf-bright: #7ba646;  /* goal met, personal best */
+  --iris-bright: #8e74c9;  /* rare finds, a perfect week */
+  --rose: #c2517a;         /* records, special events — large glyphs only */
+
+  /* Deep paper (§9) is structural: desks, rails and dividers. Never a text
+     background — text sits on --paper only. */
+  --desk: #ece7de;
+  --rail: #e7e1d6;
+  --divider: #e6e1d8;
+
+  /* The max-contrast pair (§9), for a screen that should feel switched on. 18.6:1. */
+  --page-max: #fffdf9;
+  --ink-max: #121110;
+
+  /* Gloss (§9) is light on glass, never metal: one sheen per element, never on the
+     mark or the lockup, never on a resting text surface. */
+  --gloss: rgb(255 255 255 / 0.14);
+  --gloss-strong: rgb(255 255 255 / 0.22);
+  --lift: 0 2px 10px rgb(0 0 0 / 0.10);
 }
 
 /* Three states, not two. With nothing stamped on <html> the system decides, which is
@@ -54,7 +80,15 @@
     --accent: #c8a778;
     --focus: #b8935e;
     --mark-accent: #c8a778;
-    --error: #f5b0a0;
+    --leaf: #a8c37e;
+    --clay: #e0937d;
+    --iris: #b3a3d6;
+    /* On ink the page is already the panel the bright set was measured against. */
+    --desk: #201e1b;
+    --rail: #322e29;
+    --divider: #322e29;
+    --page-max: #121110;
+    --ink-max: #fffdf9;
   }
 }
 
@@ -68,7 +102,15 @@
     --accent: #c8a778;
     --focus: #b8935e;
     --mark-accent: #c8a778;
-    --error: #f5b0a0;
+    --leaf: #a8c37e;
+    --clay: #e0937d;
+    --iris: #b3a3d6;
+    /* On ink the page is already the panel the bright set was measured against. */
+    --desk: #201e1b;
+    --rail: #322e29;
+    --divider: #322e29;
+    --page-max: #121110;
+    --ink-max: #fffdf9;
 }
 
 * { box-sizing: border-box; }
@@ -436,6 +478,12 @@ body.marking .w[data-status="3"] {
   background: var(--accent);
   border-color: var(--accent);
 }
+/* Finishing a word is an achievement, and §4 gives achievement to leaf. The working
+   levels stay accent — they are what the reader is doing, not what they have done. */
+.vocab-editor .level-9.on {
+  background: var(--leaf);
+  border-color: var(--leaf);
+}
 .vocab-editor .level-9, .vocab-editor .level-0 { font-size: 0.75em; }
 .vocab-editor .note-field {
   width: 100%;
@@ -518,7 +566,9 @@ body.marking .w[data-status="3"] {
 /* Underlined rather than filled, so a saved phrase reads as a note you made and does
    not compete with the difficulty shading it usually overlaps. */
 .picked {
-  border-block-end: 2px solid var(--accent);
+  /* §4 gives phrases their own hue. Iris distinguishes a phrase you cut from a word
+     you kept, which the accent alone never did. */
+  border-block-end: 2px solid var(--iris);
   padding-block-end: 1px;
   cursor: pointer;
 }
@@ -624,7 +674,13 @@ body.marking .w[data-status="3"] {
   margin-inline-end: 0.15rem;
 }
 .list-tabs [role="tab"]:hover { color: var(--ink); background: none; }
-.list-tabs [role="tab"].on { color: var(--ink); background: var(--paper-raised); }
+.list-tabs [role="tab"].on {
+  color: var(--ink);
+  background: var(--paper-raised);
+  /* Interactive means visibly different: beige on beige is what §9 forbids,
+     so the selected tab is marked in ink rather than by tint alone. */
+  box-shadow: inset 0 -2px 0 var(--ink);
+}
 .list-tabs [role="tab"].on b { color: var(--ink); }
 .list-tabs [role="tab"].bumped b { animation: count-bump 380ms cubic-bezier(0.2, 1.4, 0.4, 1); }
 .list-head > .list-close { flex: none; }
@@ -732,12 +788,13 @@ body.marking .w[data-status="3"] {
 }
 .list-mark input { margin: 0; }
 .list-items .kind.is-phrase {
-  border: 1px solid var(--rule);
+  color: var(--iris);
+  border: 1px solid color-mix(in srgb, var(--iris) 45%, transparent);
   border-radius: 4px;
   padding: 0 0.3em;
   font-style: normal;
 }
-.list-items .meaning { grid-column: 1 / -1; color: var(--ink-soft); line-height: 1.4; }
+.list-items .meaning { grid-column: 1 / -1; color: var(--ink); line-height: 1.4; }
 .list-items .drop {
   border: none;
   padding: 0 0.2rem;
