@@ -131,8 +131,37 @@ CREATE TABLE IF NOT EXISTS doc (
   PRIMARY KEY (person, hash)
 );
 
+-- The work queue. Builds used to live in a dictionary on the server and money spent
+-- in a float beside it, so a restart lost every running build and handed the budget
+-- back to whoever asked next. Both belong on disk, and `claimed` is the whole spend
+-- accounting: what is still committed is the sum of it, so there is no second counter
+-- to drift away from the truth.
+CREATE TABLE IF NOT EXISTS job (
+  id       TEXT    PRIMARY KEY,
+  owner    INTEGER,
+  home     TEXT    NOT NULL,
+  source   TEXT    NOT NULL,
+  options  TEXT    NOT NULL DEFAULT '{}',
+  stage    TEXT    NOT NULL DEFAULT 'reading',
+  title    TEXT    NOT NULL DEFAULT '',
+  language TEXT    NOT NULL DEFAULT '',
+  segments INTEGER NOT NULL DEFAULT 0,
+  estimate REAL    NOT NULL DEFAULT 0,
+  done     INTEGER NOT NULL DEFAULT 0,
+  total    INTEGER NOT NULL DEFAULT 0,
+  message  TEXT    NOT NULL DEFAULT '',
+  error    TEXT    NOT NULL DEFAULT '',
+  reader   TEXT    NOT NULL DEFAULT '',
+  lemmas   INTEGER NOT NULL DEFAULT 0,
+  meanings REAL    NOT NULL DEFAULT 0,
+  blocked  TEXT    NOT NULL DEFAULT '',
+  claimed  REAL    NOT NULL DEFAULT 0,
+  made     INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
 CREATE INDEX IF NOT EXISTS phrase_since ON phrase (person, revision);
+CREATE INDEX IF NOT EXISTS job_claimed  ON job    (claimed);
 CREATE INDEX IF NOT EXISTS doc_since    ON doc    (person, revision);
 CREATE INDEX IF NOT EXISTS link_person  ON link   (person);
 CREATE INDEX IF NOT EXISTS session_seen ON session(seen);
@@ -487,3 +516,83 @@ class Store:
                 "DELETE FROM session WHERE seen < ?",
                 (now() - SESSION_DAYS * 24 * 60 * 60 * 1000,),
             )
+
+    # -- the work queue ---------------------------------------------------------
+
+    def save_job(self, fields: dict[str, Any]) -> None:
+        """Write a build's whole state, so a restart can say what became of it."""
+        columns = ", ".join(fields)
+        holes = ", ".join("?" for _ in fields)
+        updates = ", ".join(f"{name} = excluded.{name}" for name in fields if name != "id")
+        with self.write() as db:
+            db.execute(
+                f"INSERT INTO job ({columns}) VALUES ({holes}) "
+                f"ON CONFLICT(id) DO UPDATE SET {updates}",
+                tuple(fields.values()),
+            )
+
+    def jobs(self) -> list[dict[str, Any]]:
+        rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
+        return [dict(row) for row in rows]
+
+    def committed(self, since: int) -> float:
+        """What is still spoken for, counting only the window the budget covers.
+
+        Derived rather than kept: a separate running total is a second source of truth,
+        and the two drift the first time a process dies between updating them.
+        """
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job WHERE claimed > 0 AND made >= ?",
+            (since,),
+        ).fetchone()
+        return float(row["spent"])
+
+    def claim(self, job_id: str, amount: float, ceiling: float, since: int) -> bool:
+        """Take money from the budget, or refuse — in one transaction.
+
+        Two builds starting together would otherwise both read the same balance and
+        both pass, which is exactly how a budget is overrun. `BEGIN IMMEDIATE` makes
+        the second one wait rather than race, and it holds across processes as well as
+        threads, which a lock in one server never did.
+        """
+        with self.write() as db:
+            row = db.execute(
+                "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                "WHERE claimed > 0 AND made >= ?",
+                (since,),
+            ).fetchone()
+            if float(row["spent"]) + amount > ceiling:
+                return False
+            db.execute("UPDATE job SET claimed = ? WHERE id = ?", (amount, job_id))
+            return True
+
+    def unclaim(self, job_id: str) -> None:
+        """Give back what a failed build never spent."""
+        with self.write() as db:
+            db.execute("UPDATE job SET claimed = 0 WHERE id = ?", (job_id,))
+
+    def interrupt_running(self) -> list[str]:
+        """Mark builds that were mid-flight when the process died.
+
+        Called once at start-up. A build cannot be resumed from the middle — the work
+        happened in a thread that no longer exists — but it can be told the truth about
+        itself instead of sitting at "working" forever.
+
+        **Its claim is kept, deliberately.** A build that was working had very likely
+        started paying for batches, and nothing on disk records how much, because usage
+        is not plumbed through yet. Releasing the claim would hand the budget back for
+        money that really was spent, so a crash loop could spend without limit — which
+        is the hole this whole change exists to close. Over-counting a build that died
+        early costs a reader one refusal; under-counting costs money. The claim ages out
+        of the window on its own within the day.
+        """
+        with self.write() as db:
+            rows = db.execute("SELECT id FROM job WHERE stage = 'working'").fetchall()
+            db.execute(
+                "UPDATE job SET stage = 'failed', error = ? WHERE stage = 'working'",
+                (
+                    "targum restarted while this was building. Start it again — "
+                    "anything already translated is cached, so it will not be paid for twice.",
+                ),
+            )
+        return [row["id"] for row in rows]

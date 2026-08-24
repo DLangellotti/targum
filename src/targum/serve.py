@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import errno
 import json
+import queue
 import secrets
 import threading
 import traceback
@@ -26,7 +27,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .accounts import Person, Store, plausible
+from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
 from .models import SegmentedDocument, Style
@@ -53,6 +54,17 @@ NO_KEY = (
 # billed amounts, so they are deliberately conservative.
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
+
+# The budget used to last as long as the process, which meant restarting handed it back
+# in full. It is a rolling day instead: it survives a restart, and it does not brick the
+# machine a week later the way a permanent total would. A4 replaces it with a per-account
+# monthly limit; until then this is the ceiling on what one box will spend in a day.
+BUDGET_HOURS = 24
+
+# Builds run one at a time. Stanza and LaBSE are large enough that two at once is worse
+# than two in sequence, and a thread per request is a way for one visitor to exhaust the
+# machine — which mattered less on a laptop than it does on a box anyone can reach.
+WORKERS = 1
 
 
 # The dead end anyone reaches by bookmarking the address or leaving a tab open over a
@@ -157,6 +169,7 @@ class Job:
     # request to ask, so both travel with the job rather than being looked up later.
     owner: int | None = None
     home: Path | None = None
+    made: int = field(default_factory=now)
 
     def state(self) -> dict[str, Any]:
         return {
@@ -185,15 +198,105 @@ class Library:
     """Everything built so far, and the jobs building more."""
 
     def __init__(
-        self, out: Path, max_cost: float = MAX_COST, budget: float = SESSION_BUDGET
+        self,
+        out: Path,
+        max_cost: float = MAX_COST,
+        budget: float = SESSION_BUDGET,
+        store: Store | None = None,
     ) -> None:
         self.out = out
         self.adopt()
         self.max_cost = max_cost
         self.budget = budget
-        self.committed = 0.0
+        self.store = store
+        self._committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
+        self.queue: queue.Queue[str] = queue.Queue()
+        self._workers: list[threading.Thread] = []
+        if store is not None:
+            self._recover(store)
+
+    # -- durability -------------------------------------------------------------
+
+    def _recover(self, store: Store) -> None:
+        """Read back what the last run was doing.
+
+        A build cannot be picked up from the middle: the work was in a thread that no
+        longer exists. What it can do is stop lying about itself — a job left at
+        "working" would sit there forever — and hand back the money it never spent.
+        """
+        store.interrupt_running()
+        for row in store.jobs():
+            job = Job(
+                id=str(row["id"]),
+                source=str(row["source"]),
+                title=str(row["title"]),
+                language=str(row["language"]),
+                segments=int(row["segments"]),
+                estimate=float(row["estimate"]),
+                stage=str(row["stage"]),
+                done=int(row["done"]),
+                total=int(row["total"]),
+                message=str(row["message"]),
+                error=str(row["error"]),
+                reader=str(row["reader"]),
+                lemmas=int(row["lemmas"]),
+                meanings=float(row["meanings"]),
+                blocked=str(row["blocked"]),
+                options=json.loads(row["options"] or "{}"),
+                owner=row["owner"],
+                home=Path(str(row["home"])),
+            )
+            self.jobs[job.id] = job
+
+    def remember(self, job: Job) -> None:
+        """Put a job's current state on disk. Cheap, and safe to call often."""
+        if self.store is None:
+            return
+        self.store.save_job(
+            {
+                "id": job.id,
+                "owner": job.owner,
+                "home": str(job.home or self.out),
+                "source": job.source,
+                "options": json.dumps(job.options, ensure_ascii=False),
+                "stage": job.stage,
+                "title": job.title,
+                "language": job.language,
+                "segments": job.segments,
+                "estimate": job.estimate,
+                "done": job.done,
+                "total": job.total,
+                "message": job.message,
+                "error": job.error,
+                "reader": job.reader,
+                "lemmas": job.lemmas,
+                "meanings": job.meanings,
+                "blocked": job.blocked,
+                "made": job.made,
+            }
+        )
+
+    # -- the queue --------------------------------------------------------------
+
+    def start_workers(self, count: int = WORKERS) -> None:
+        for _ in range(count):
+            worker = threading.Thread(target=self._drain, daemon=True)
+            worker.start()
+            self._workers.append(worker)
+
+    def _drain(self) -> None:
+        while True:
+            job = self.jobs.get(self.queue.get())
+            if job is not None:
+                self.run(job)
+            self.queue.task_done()
+
+    def enqueue(self, job: Job) -> None:
+        job.stage = "queued"
+        self.remember(job)
+        self.queue.put(job.id)
 
     def home(self, person: Person | None) -> Path:
         """Where this person's readers live.
@@ -233,10 +336,22 @@ class Library:
     def remaining(self) -> float:
         return max(0.0, self.budget - self.committed)
 
+    @property
+    def committed(self) -> float:
+        if self.store is None:
+            return self._committed
+        return self.store.committed(self._since())
+
+    @staticmethod
+    def _since() -> int:
+        return now() - BUDGET_HOURS * 60 * 60 * 1000
+
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
+        if self.store is not None:
+            return self.store.unclaim(job.id)
         with self.lock:
-            self.committed = max(0.0, self.committed - job.estimate)
+            self._committed = max(0.0, self._committed - job.estimate)
 
     def why_blocked(self, estimate: float) -> str:
         """Whether this build may go ahead, in words the page can show."""
@@ -332,10 +447,18 @@ class Library:
         Two builds started at once would otherwise both see the same money left and
         both pass, which is exactly how a budget gets overrun.
         """
+        if job.estimate > self.max_cost:
+            return self.why_blocked(job.estimate)
+        if self.store is not None:
+            # One transaction decides and spends. It holds across processes as well as
+            # threads, which the lock below never did.
+            if self.store.claim(job.id, job.estimate, self.budget, self._since()):
+                return ""
+            return self.why_blocked(self.budget + 1)
         with self.lock:
             blocked = self.why_blocked(job.estimate)
             if not blocked:
-                self.committed += job.estimate
+                self._committed += job.estimate
             return blocked
 
     @staticmethod
@@ -356,21 +479,24 @@ class Library:
     def run(self, job: Job) -> None:
         try:
             job.stage = "working"
+            self.remember(job)
             builder = self._builder(job)
             builder.notify = lambda message: setattr(job, "message", message)
 
             def progress(done: int) -> None:
                 job.done += done
 
-            def ready(result: Result) -> None:
+            def ready(result: Result) -> None:  # noqa: D401
                 # The page is watching for this and navigates as soon as it sees it.
                 # Looking up word meanings carries on in this thread afterwards, into a
                 # reader that is already open.
                 job.reader = f"{result.out_dir.name}/reader/index.html"
                 job.stage = "done"
                 job.message = ""
+                self.remember(job)
 
             builder.run(on_progress=progress, on_ready=ready)
+            self.remember(job)
         except TargumError as error:
             self._blame(job, error.message)
         except Exception:
@@ -391,6 +517,7 @@ class Library:
         """
         if job.stage == "done":
             job.message = message
+            self.remember(job)
             return
         job.error = message
         job.stage = "failed"
@@ -398,6 +525,7 @@ class Library:
         # little or none of it, and without this three failures in a row exhaust a
         # session budget that paid for nothing.
         self.release(job)
+        self.remember(job)
 
     def _builder(self, job: Job) -> Build:
         options = job.options
@@ -726,7 +854,9 @@ class Handler(BaseHTTPRequestHandler):
             home=self.library.home(person),
         )
         self.library.jobs[job.id] = job
+        self.library.remember(job)
         self.library.prepare(job)
+        self.library.remember(job)
         self._json(job.state())
 
     def _build(self, payload: dict[str, Any]) -> None:
@@ -746,7 +876,7 @@ class Handler(BaseHTTPRequestHandler):
             job.blocked = blocked
             job.stage = "blocked"
             return self._json(job.state(), 402)
-        threading.Thread(target=self.library.run, args=(job,), daemon=True).start()
+        self.library.enqueue(job)
         self._json(job.state())
 
     def _gloss_word(self, payload: dict[str, Any]) -> None:
@@ -862,10 +992,14 @@ def start(
     from .translate.anthropic_provider import AnthropicProvider
 
     token = secrets.token_urlsafe(12)
-    library = Library(out, max_cost=max_cost, budget=budget)
     usable, _ = AnthropicProvider().available()
     keeping = Store(store or default_store())
     keeping.sweep()
+    # The store comes first: the library reads back what the last run was doing, so a
+    # build caught mid-flight stops claiming to be working and keeps its claim on the
+    # budget rather than handing it back for money it had probably already spent.
+    library = Library(out, max_cost=max_cost, budget=budget, store=keeping)
+    library.start_workers()
 
     handler = type(
         "TargumHandler",
