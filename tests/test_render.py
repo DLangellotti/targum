@@ -1349,3 +1349,46 @@ def test_the_known_count_reads_the_same_way_on_a_hebrew_page() -> None:
     rules = css.split(".bar-title .known {", 1)[1].split("}", 1)[0]
     assert "direction: ltr" in rules
     assert "unicode-bidi: isolate" in rules
+
+
+def test_a_word_card_opens_beside_its_word() -> None:
+    """It was pinned to the foot of the window wherever you tapped, so marking a word in
+    the first line meant crossing the page to press a button about it and crossing back.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "placeNear(card, word.getBoundingClientRect());" in script
+    # The phrase card already did this; one placer now, so the two cannot drift.
+    assert script.count("function placeNear(") == 1
+    assert "placeNear(chip, rect)" in script
+
+    css = _reader_css()
+    rules = css.split(".gloss-card {", 1)[1].split("}", 1)[0]
+    assert "position: absolute" in rules, "it has to scroll with the word"
+    assert "inset-block-end" not in rules, "no longer pinned to the window"
+
+
+def test_the_level_keys_only_borrow_the_letters_while_a_card_is_open() -> None:
+    """`k` is previous-sentence and `i` is interlinear. Taking them outright would break
+    two shortcuts that have nothing to do with words; the card borrows them and gives
+    them straight back."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    assert "if (!lookedUp || !card || card.hidden) return false;" in script, "scoped"
+    # And the letters still do their old job, which is only true if the switch is intact.
+    keys = script[script.index("switch (event.key) {") :]
+    assert 'case "k":' in keys and 'case "i":' in keys
+
+    # A bare lookup would treat "constructor" as a level.
+    assert "hasOwnProperty.call(KEYED_STATUS, key)" in script
+
+
+def test_the_level_keys_are_written_down() -> None:
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>1 2 3</dt>" in template
+    assert "known, or ignore it" in template

@@ -485,16 +485,15 @@ body.marking .w[data-status="3"] {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
+/* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute
+   rather than fixed so it scrolls with the word it belongs to. */
 .gloss-card {
-  position: fixed;
+  position: absolute;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
   align-items: start;
-  inset-block-end: 1.25rem;
-  inset-inline: 0;
-  margin-inline: auto;
-  width: fit-content;
+  width: max-content;
   z-index: 20;
   max-width: min(30rem, calc(100vw - 2rem));
   padding: 0.7rem 1rem;
