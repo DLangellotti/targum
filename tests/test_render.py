@@ -1080,3 +1080,34 @@ def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
 
     assert "catalogue" not in building, "the catalogue must not widen the switcher"
     assert "readers" in building and "kept()" in building
+
+
+def test_the_about_page_shows_thirty_days_and_no_inline_styles() -> None:
+    """Thirty, not ninety: ninety days of empty squares says "abandoned" about a project
+    that is three days old.
+
+    And no `style="..."` attributes anywhere. The content policy names style blocks by
+    hash rather than allowing inline generally, so an attribute is delivered and then
+    silently ignored — which is how the first version of the bars on this page came out
+    invisible.
+    """
+    import re
+
+    from targum.about import DAYS
+    from targum.render.builder import about_page
+
+    assert DAYS == 30
+    page = about_page()
+    assert page.count('class="day level-') >= DAYS
+    assert not re.search(r'<[^>]+\sstyle="', page), "inline style attributes will not apply"
+
+
+def test_the_activity_shading_never_rounds_an_empty_day_up() -> None:
+    """A day with nothing on it must read as nothing, not as a faint success."""
+    from targum.render.builder import about_page
+
+    assert about_page()  # renders
+    from targum.render import builder
+
+    source = (Path(builder.__file__)).read_text(encoding="utf-8")
+    assert "if not count or not busiest:" in source

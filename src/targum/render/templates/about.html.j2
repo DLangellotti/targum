@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What has been built — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('about.css') }}
+{%- for name, count in work.areas %}
+.areas li:nth-child({{ loop.index }}) .bar { --share: {{ (count / work.areas[0][1] * 100) | round | int }}%; }
+{%- endfor %}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="about">
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <h1>targum is under construction</h1>
+  <p class="lede">Here is the work so far. The pipeline is open source under the MIT
+    licence and always will be, so rather than describe the state it is in, this page
+    reads it out of the repository.</p>
+  <p class="lede"><a href="https://github.com/DLangellotti/targum">The code is on
+    GitHub</a>, and <a href="https://pypi.org/project/targum/">targum is on PyPI</a> —
+    you can run the whole thing yourself today with your own API key.</p>
+
+  {% if work.commits %}
+  <section>
+    <h2>The last {{ days }} days</h2>
+    <p class="figures">
+      <b>{{ work.commits }}</b> {{ 'change' if work.commits == 1 else 'changes' }}
+      · <b>{{ work.shipping_days }}</b>
+      {{ 'day' if work.shipping_days == 1 else 'days' }} shipping
+    </p>
+    {#- One square a day. Colour says how much landed, and an empty day is left as the
+        quiet grey it was rather than dressed up. -#}
+    <ol class="calendar" aria-label="Changes per day over the last {{ days }} days">
+      {% for day, count in work.days %}
+      <li class="day level-{{ level(count, work.busiest) }}"
+          title="{{ day }} — {{ count }} {{ 'change' if count == 1 else 'changes' }}"></li>
+      {% endfor %}
+    </ol>
+    <p class="key"><span class="less">Less</span>
+      {% for n in [0, 1, 2, 3, 4] %}<i class="day level-{{ n }}"></i>{% endfor %}
+      <span class="more">More</span></p>
+  </section>
+
+  <section>
+    <h2>Where the work went</h2>
+    <ul class="areas">
+      {% for name, count in work.areas %}
+      <li><span class="what">{{ name }}</span><span class="bar"></span><b>{{ count }}</b></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section>
+    <h2>Recently shipped</h2>
+    {% for when, count, items in work.weeks %}
+    <h3>Week of {{ when }} <span class="count">{{ count }}
+      {{ 'change' if count == 1 else 'changes' }}</span></h3>
+    <ul class="shipped">
+      {% for item in items %}<li>{{ item }}</li>{% endfor %}
+    </ul>
+    {% endfor %}
+  </section>
+  {% else %}
+  <section>
+    <p class="lede">This copy of targum was installed from a package rather than
+      cloned, so there is no history here to read. It is all on GitHub.</p>
+  </section>
+  {% endif %}
+</main>
+
+<footer class="foot">
+  <a href="/">targum</a>
+  <a href="https://github.com/DLangellotti/targum">Source</a>
+  <a href="https://pypi.org/project/targum/">PyPI</a>
+  <span>MIT</span>
+</footer>
+</body>
+</html>

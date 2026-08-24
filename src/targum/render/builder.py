@@ -175,6 +175,24 @@ def start_page(token: str, limit: float, budget: float, no_key: str = "") -> str
     )
 
 
+def about_page() -> str:
+    """What has been built, read out of the repository.
+
+    targum is open source, so the honest way to say what state it is in is to show the
+    work. Nothing here is written by hand: the numbers, the calendar and the list of
+    what shipped all come from `git log`.
+    """
+    from ..about import DAYS, work
+
+    def level(count: int, busiest: int) -> int:
+        """Which of five shades a day gets. Zero stays zero rather than rounding up."""
+        if not count or not busiest:
+            return 0
+        return min(4, 1 + int(3 * (count - 1) / max(1, busiest - 1)))
+
+    return _environment().get_template("about.html.j2").render(work=work(), days=DAYS, level=level)
+
+
 def holding_page() -> str:
     """What a stranger sees while the product is not open yet.
 
