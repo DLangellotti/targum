@@ -154,7 +154,8 @@ body.start > .start-main {
 .status .bar { height: 3px; margin-block-start: 0.6rem; background: var(--rule); border-radius: 999px; }
 .status .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width 300ms ease; }
 .status .row { display: flex; gap: 0.5rem; margin-block-start: 0.7rem; }
-.status.bad { border-color: var(--ink-soft); }
+.status.bad { border-color: var(--error); }
+.status.bad b { color: var(--error); }
 
 .library { margin-block-start: 3.5rem; }
 .library[hidden] { display: none; }

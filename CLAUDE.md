@@ -18,8 +18,15 @@ The half no tests can reach, and which matters as much:
 - **One accent hue, and it is rationed.** Reserved for the single primary action in a
   view and for what the reader has kept. Selection is quiet ink, never accent. The
   accent is never body text and never a large field.
-- **The reader is a reader, not a player.** No mascots, no flags, no streaks, badges or
-  scores. The only progress worth showing: the page gets quieter as you learn it.
+- **The reader is a reader, not a player.** No mascots, no flags. The guidelines also
+  rule out streaks, badges and scores; David's position (2026-08-24) is that these are
+  unbuilt rather than forbidden, so treat them as a product decision he has not taken
+  yet, not a prohibition. The progress worth showing today: the page gets quieter as
+  you learn it.
+- **Errors are distinguishable by colour**, using `--error` — a brick red that splits
+  per theme like the accent. It was chosen against simulated protanopia and
+  deuteranopia, because a mid-tone red is indistinguishable from the warm accent under
+  both. If it is ever re-picked, re-run that check; contrast alone will not catch it.
 - **Bilingual parity.** Hebrew and Latin share a screen at the same font-size — never
   scale Hebrew down. Parity comes from leading: 1.75 Latin, 1.95 Hebrew.
 - **RTL is structural.** Logical CSS properties throughout, so every layout mirrors
