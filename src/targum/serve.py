@@ -769,6 +769,10 @@ class Library:
             # translation does not show up beside the difference in the bill. The CLI
             # keeps the provider default: that is somebody spending their own key.
             model=HOSTED_MODEL,
+            # Whose build this is, which scopes the cache for anything that is not a
+            # public text. Without it one person's uploaded book would be translated
+            # once and served to everyone who happened to upload the same file.
+            owner=f"p{job.owner}" if job.owner else "",
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
             difficulty=bool(options.get("words")),
