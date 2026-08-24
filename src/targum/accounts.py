@@ -59,13 +59,17 @@ ASKS_PER_HOUR = 5
 SESSION_DAYS = 90
 
 # 2: person.leaving, for a deletion that waits out a grace period.
-SCHEMA_VERSION = 2
+# 3: job.spent, what a build really cost once the API said so.
+SCHEMA_VERSION = 3
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
 # by hand or the first query naming it fails against every database but a brand new one
 # — which is exactly what a test suite full of temporary files does not catch.
-MIGRATIONS: tuple[tuple[int, str], ...] = ((2, "ALTER TABLE person ADD COLUMN leaving INTEGER"),)
+MIGRATIONS: tuple[str, ...] = (
+    "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
+)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS person (
@@ -181,6 +185,7 @@ CREATE TABLE IF NOT EXISTS job (
   meanings REAL    NOT NULL DEFAULT 0,
   blocked  TEXT    NOT NULL DEFAULT '',
   claimed  REAL    NOT NULL DEFAULT 0,
+  spent    REAL    NOT NULL DEFAULT 0,
   made     INTEGER NOT NULL DEFAULT 0
 );
 
@@ -289,26 +294,26 @@ class Store:
         self._local = threading.local()
         # Not inside `write()`: executescript issues its own COMMIT first, which ends
         # the transaction out from under whoever opened it.
-        was = int(self.db.execute("PRAGMA user_version").fetchone()[0])
         self.db.executescript(SCHEMA)
-        self._migrate(was)
+        self._migrate()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
-    def _migrate(self, was: int) -> None:
+    def _migrate(self) -> None:
         """Bring a database written by an older targum up to date.
 
-        A fresh file is created at the current version by SCHEMA and needs none of
-        this; `was` is 0 for it, so every step still runs, and each one is written to
-        be harmless when the column is already there.
+        Every statement runs every time, and each is written to fail harmlessly when it
+        has already been applied. The obvious alternative — skip anything at or below
+        the recorded version — was here first and was a trap: a migration that is added
+        but never reached still lets the version stamp advance, and the file is then
+        marked as migrated while missing a column. That failure is silent until the
+        first query naming the column, which is a long way from the cause.
+
+        A few no-op ALTERs on open cost nothing and cannot get this wrong.
         """
-        for version, statement in MIGRATIONS:
-            if was >= version:
-                continue
+        for statement in MIGRATIONS:
             try:
                 self.db.execute(statement)
             except sqlite3.OperationalError as error:
-                # Already applied by a newer targum that then wrote an older version
-                # number, or by SCHEMA itself on a fresh file.
                 if "duplicate column" not in str(error).lower():
                     raise
 
@@ -646,36 +651,79 @@ class Store:
         rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
         return [dict(row) for row in rows]
 
-    def committed(self, since: int) -> float:
+    def committed(self, since: int, owner: int | None = -1) -> float:
         """What is still spoken for, counting only the window the budget covers.
 
         Derived rather than kept: a separate running total is a second source of truth,
         and the two drift the first time a process dies between updating them.
+
+        `owner` of -1 means everyone — the whole box, which is the ceiling that keeps
+        one machine from running away. Anything else is that one account.
         """
-        row = self.db.execute(
-            "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job WHERE claimed > 0 AND made >= ?",
-            (since,),
-        ).fetchone()
+        if owner == -1:
+            row = self.db.execute(
+                "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                "WHERE claimed > 0 AND made >= ?",
+                (since,),
+            ).fetchone()
+        else:
+            row = self.db.execute(
+                "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                (since, owner),
+            ).fetchone()
         return float(row["spent"])
 
-    def claim(self, job_id: str, amount: float, ceiling: float, since: int) -> bool:
-        """Take money from the budget, or refuse — in one transaction.
+    def claim(
+        self,
+        job_id: str,
+        amount: float,
+        ceiling: float,
+        since: int,
+        *,
+        owner: int | None = None,
+        per_account: float | None = None,
+    ) -> str:
+        """Take money from both budgets, or say which one refused — in one transaction.
 
         Two builds starting together would otherwise both read the same balance and
         both pass, which is exactly how a budget is overrun. `BEGIN IMMEDIATE` makes
         the second one wait rather than race, and it holds across processes as well as
         threads, which a lock in one server never did.
+
+        Two ceilings, because they stop different things. The per-account one is what a
+        reader is allowed; the whole-box one is what stops every reader at once from
+        emptying the card, and no per-account limit can do that on its own.
         """
         with self.write() as db:
+            if per_account is not None:
+                mine = db.execute(
+                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                    (since, owner),
+                ).fetchone()
+                if float(mine["spent"]) + amount > per_account:
+                    return "account"
             row = db.execute(
                 "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
                 "WHERE claimed > 0 AND made >= ?",
                 (since,),
             ).fetchone()
             if float(row["spent"]) + amount > ceiling:
-                return False
+                return "everyone"
             db.execute("UPDATE job SET claimed = ? WHERE id = ?", (amount, job_id))
-            return True
+            return ""
+
+    def settle(self, job_id: str, spent: float) -> None:
+        """Replace what a build reserved with what it really cost.
+
+        Claiming takes the estimate up front, because the decision to allow a build has
+        to be made before it runs. Settling is the other half: once the API has said
+        what it charged, the ledger holds that instead of a guess, and the budget stops
+        being an approximation of itself.
+        """
+        with self.write() as db:
+            db.execute("UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id))
 
     def unclaim(self, job_id: str) -> None:
         """Give back what a failed build never spent."""

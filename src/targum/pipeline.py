@@ -32,6 +32,7 @@ from .models import (
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
 from .translate import build as build_provider
+from .usage import Usage
 
 Notify = Callable[[str], None]
 Progress = Callable[[int], None]
@@ -65,6 +66,8 @@ class Result:
     vocalization: Vocalization | None = None
     pages: list[Path] = field(default_factory=list)
     reused: list[str] = field(default_factory=list)
+    # What this build really cost, from the API's own numbers rather than the estimate.
+    spent: Usage = field(default_factory=Usage)
 
     @property
     def index(self) -> Path:
@@ -122,6 +125,7 @@ class Build:
             provider_name, model=model, batch_size=batch_size, effort=effort
         )
         self.model = getattr(self.provider, "model", None)
+        self._glosser: Any = None
         self._out = out
         self._out_root = out_root
         self._resolved_out: Path | None = None
@@ -393,6 +397,9 @@ class Build:
         from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
 
         provider = AnthropicGlosses(self.model)
+        # Kept so what the meanings cost is counted with the rest. Glossing runs on its
+        # own provider instance, so without this its spend is simply invisible.
+        self._glosser = provider
         # By far the longest stage on a real article: one lookup per distinct dictionary
         # form, six hundred of them on a news piece. Said out loud and counted as it
         # goes, because a progress bar that stopped moving several minutes ago is
@@ -436,6 +443,13 @@ class Build:
         return f"{language_name(self.target_language)} (machine, {self.style.value})"
 
     # -- driving -----------------------------------------------------------
+
+    @property
+    def spent(self) -> Usage:
+        """What this build has really cost so far, across every provider it used."""
+        total = getattr(self.provider, "spent", None) or Usage()
+        glossing = getattr(self._glosser, "spent", None) if self._glosser else None
+        return total + glossing if glossing else total
 
     def plan(self) -> Plan:
         document = self.ingest()
@@ -500,6 +514,7 @@ class Build:
             vocalization=vocalization,
             pages=build_reader(None, clean=True),
             reused=self.reused,
+            spent=self.spent,
         )
         if on_ready:
             on_ready(result)
@@ -511,9 +526,11 @@ class Build:
             # open. Losing the meanings is worth saying; it is not worth taking back a
             # book someone is reading.
             self.notify(f"{error.message} Building without word meanings.")
+            result.spent = self.spent
             return result
         if result.glossary is not None:
             # Bake them into the files too, so opening this reader again does not depend
             # on a server being there to hand them over.
             result.pages = build_reader(result.glossary, clean=False)
+        result.spent = self.spent
         return result

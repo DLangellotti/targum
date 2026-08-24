@@ -712,7 +712,9 @@ def test_an_older_database_gains_the_columns_it_is_missing(tmp_path: Path) -> No
     assert store.purge() == []
     store.forget(person)
     assert store.peek_sign_in("nonsense") is None
-    assert int(store.db.execute("PRAGMA user_version").fetchone()[0]) == 2
+    from targum.accounts import SCHEMA_VERSION
+
+    assert int(store.db.execute("PRAGMA user_version").fetchone()[0]) == SCHEMA_VERSION
 
 
 def test_opening_a_current_database_twice_is_fine(tmp_path: Path) -> None:
