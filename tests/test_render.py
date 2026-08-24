@@ -1119,3 +1119,49 @@ def test_the_activity_shading_never_rounds_an_empty_day_up() -> None:
 
     source = (Path(builder.__file__)).read_text(encoding="utf-8")
     assert "if not count or not busiest:" in source
+
+
+def test_a_pair_is_not_separated_by_a_blank_line() -> None:
+    """The gap between pairs used to be a whole line of empty space.
+
+    §5 of the guidelines sets reading at 1.0625rem with leading 1.95 on Hebrew, so a
+    Hebrew line is about 2.07rem. `.pair` carried 1.35rem of margin plus the 0.35rem of
+    padding on each side of it, which comes to 2.05rem — a paragraph break spent between
+    every sentence, and between every verse of a chapter.
+
+    Pinned as a fraction of a line rather than as a number, because the number only means
+    anything against the leading.
+    """
+    from targum.render.builder import ASSETS
+
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    line = 1.0625 * 1.95  # a Hebrew line, per §5
+
+    def margin(block: str) -> float:
+        rules = css.split(block, 1)[1].split("}", 1)[0]
+        found = re.search(r"margin-block-end:\s*([\d.]+)rem", rules)
+        assert found is not None, block
+        return float(found.group(1))
+
+    padding = 0.35 * 2  # both sides, and it stays: it is the hover row's breathing space
+    prose = margin(".pair {\n") + padding
+    assert prose < line * 0.6, "a paragraph break, not a blank line"
+
+    # A verse is not a paragraph. Spacing pesukim apart makes a chapter read as a list.
+    verses = margin("body.verses .pair {") + padding
+    assert verses < prose, "tighter again where a pair is one pasuk"
+    assert verses < line * 0.5
+
+
+def test_only_a_verse_text_is_spaced_like_verses() -> None:
+    """Asked of the source rather than guessed from the content — the same way
+    `biblical.for_source()` picks the difficulty bands, and for the same reason."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "{% if verse_by_verse %} verses{% endif %}" in template
+
+    builder = (Path(__file__).resolve().parents[1] / "src/targum/render/builder.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"verse_by_verse": document.source.startswith("sefaria:")' in builder

@@ -284,16 +284,30 @@ main {
 }
 .heading:first-child { margin-block-start: 0; }
 
+/* The vertical rhythm.
+ *
+ * §5 sets the reading face at 1.0625rem with leading 1.95 on Hebrew, so a Hebrew line is
+ * about 33px. The gap between two pairs used to be 1.35rem of margin plus the 0.35rem of
+ * padding each side of it carries for the hover highlight — 32.8px, which is a full blank
+ * line between every pair. That is a paragraph break spent on every sentence.
+ *
+ * The padding stays: it is what keeps the hover row from looking clamped around its text.
+ * The margin does the work, and it is now the smaller half of a line rather than a whole
+ * one, so consecutive pairs read as continuous text. */
 .pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 var(--gap);
-  margin-block-end: 1.35rem;
+  margin-block-end: 0.35rem;
   padding: 0.35rem 0.6rem;
   border-radius: 5px;
   outline: none;
   transition: background-color 120ms ease;
 }
+/* Tighter again where a pair is one pasuk rather than one paragraph. A chapter of Tanakh
+   is continuous text that happens to be numbered; spacing its verses apart turns it into
+   a list of separate sayings, which is the one thing the layout must not say. */
+body.verses .pair { margin-block-end: 0.15rem; }
 
 /* The pairing has to be visible, or a learner cannot trust it. */
 .pair:hover, .pair:focus-visible { background: var(--paper-raised); }
