@@ -360,13 +360,32 @@
     });
   }
 
+  /* Everything about the person who was signed in, off this browser.
+   *
+   * A keep-list rather than a drop-list, and that is the whole point: the drop-list
+   * this replaces named six keys and missed six others, including `targum:master` and
+   * `targum:saved:` — the vocabulary store from before it was reshaped, still holding
+   * the words — and `targum:language`, which is a record of what someone reads. A list
+   * of things to delete goes stale every time a key is added; a list of things to keep
+   * fails safe instead.
+   *
+   * The theme is the only survivor. It is a display preference rather than anything
+   * about the reader, and resetting somebody's dark mode when they sign out is a small
+   * hostility with nothing to show for it.
+   */
+  var KEEP = ["targum:theme"];
+
   function clearLocal() {
-    names(VOCAB).forEach(drop);
-    names(PICKED).forEach(drop);
-    drop(DOCS);
-    drop(OPENED);
-    drop(GONE);
-    drop(STATE);
+    var doomed = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var name = localStorage.key(i);
+        if (name && name.indexOf("targum:") === 0 && KEEP.indexOf(name) < 0) doomed.push(name);
+      }
+    } catch (e) {
+      return;
+    }
+    doomed.forEach(drop);
   }
 
   function exchange(full) {

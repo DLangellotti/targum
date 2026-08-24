@@ -1049,3 +1049,34 @@ def test_the_exports_cannot_carry_a_formula() -> None:
         guard = match.group(1)
         assert "^[=+" in guard, f"{name} does not neutralise a leading formula character"
         assert '"\'" +' in guard or '"\'" +' in guard, f"{name} does not prefix anything"
+
+
+def test_signing_out_keeps_a_list_of_what_to_keep_not_what_to_drop() -> None:
+    """A drop-list goes stale the moment a key is added; a keep-list fails safe.
+
+    The version this replaces named six keys and missed six others, among them
+    `targum:master` and `targum:saved:` — the vocabulary store from before it was
+    reshaped, still holding the words — and `targum:language`, which is a record of
+    what somebody reads.
+    """
+    source = (ASSETS / "sync.js").read_text(encoding="utf-8")
+    clearing = source[source.index("function clearLocal"): source.index("function exchange")]
+
+    assert 'indexOf("targum:") === 0' in clearing, "it should sweep every targum key"
+    assert "KEEP" in clearing, "and keep only what is named"
+    # Only a display preference survives. Anything about the reader must not.
+    keep = source[source.index("var KEEP = ") : source.index("\n", source.index("var KEEP = "))]
+    assert keep.count('"') == 2, f"exactly one key should survive, found: {keep}"
+    assert "targum:theme" in keep
+
+
+def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
+    """The catalogue holds one Russian novel, and it was putting Russian in front of
+    every visitor who had never touched it — against what lang.js says it does.
+    """
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    building = source[source.index("var codes = [lang.HOME]") :]
+    building = building[: building.index("lang.order")]
+
+    assert "catalogue" not in building, "the catalogue must not widen the switcher"
+    assert "readers" in building and "kept()" in building
