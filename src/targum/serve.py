@@ -1101,6 +1101,7 @@ def start(
     mailer: Mailer | None = None,
     announce: Callable[[str], None] | None = None,
     require_account: bool = False,
+    public_address: str = "",
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
     from .mail import from_environment
@@ -1126,7 +1127,10 @@ def start(
             "token": token,
             "store": keeping,
             "mailer": mailer or from_environment(),
-            "address": f"http://127.0.0.1:{port}",
+            # Where a sign-in link points. Loopback is right for a machine somebody
+            # runs themselves and useless in an email: hosted, the link has to name the
+            # address the reader can actually reach, not the one the server binds to.
+            "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
             "page": start_page(
                 token, library.max_cost, library.budget, no_key="" if usable else NO_KEY
             ),

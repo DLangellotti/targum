@@ -720,3 +720,24 @@ def test_opening_a_current_database_twice_is_fine(tmp_path: Path) -> None:
 
     Store(tmp_path / "x.db")
     Store(tmp_path / "x.db")
+
+
+def test_the_emailed_link_names_an_address_a_reader_can_reach(
+    tmp_path: Path, postbox: Postbox
+) -> None:
+    """Loopback is right for the server and useless in an email.
+
+    Hosted, a link pointing at 127.0.0.1 arrives in an inbox on someone else's laptop
+    and opens their machine, not targum.
+    """
+    from targum.serve import Handler
+
+    for given, expected in (
+        ("https://targum.page", "https://targum.page/account/enter"),
+        ("https://targum.page/", "https://targum.page/account/enter"),
+        ("", "http://127.0.0.1:8420/account/enter"),
+    ):
+        address = (given or "http://127.0.0.1:8420").rstrip("/")
+        assert f"{address}/account/enter" == expected
+
+    assert Handler.require_account is False
