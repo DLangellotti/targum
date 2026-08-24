@@ -1,0 +1,83 @@
+/* The holding page.
+
+   One screen, nothing on it. §9's hue budget taken to its limit: the page is paper, the
+   wordmark is ink, and the only colour anywhere is the accent column of the mark and the
+   one thing a visitor can actually do. */
+
+body.holding {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+}
+
+.corner {
+  position: fixed;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* The one primary action on the page, so it takes the accent and the sheen. */
+.corner .enter {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  transition: box-shadow 120ms ease;
+}
+.corner .enter:hover { box-shadow: var(--lift); }
+.corner .enter:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.corner [data-theme-toggle] {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.corner [data-theme-toggle]:hover { color: var(--ink); border-color: var(--ink-soft); }
+.corner [data-theme-toggle]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.middle {
+  display: grid;
+  justify-items: center;
+  gap: 1.75rem;
+  padding: 1.5rem;
+}
+
+.middle .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--reading);
+  font-weight: 600;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+.middle .brand-mark { width: 0.8em; height: 1.05em; }
+
+/* A line of text, not a control. It was a pill first and read as a button — anything
+   with a border and a radius on a page this empty invites a press, and this one cannot
+   answer. §9 again: interactive means visibly different, and the converse holds too. */
+.middle .soon {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .corner .enter { transition: none; }
+}

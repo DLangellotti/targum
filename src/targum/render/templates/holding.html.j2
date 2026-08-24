@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('holding.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="holding">
+{#- What a stranger sees. Not the product and not a sales page: the identity, an honest
+    word about where it is, and the door for the people who already have a key. -#}
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="middle">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+  {#- A state, not an action, and now it looks like one. As a pill it read as a button
+      on a page with nothing else to press, which is a promise the page cannot keep. -#}
+  <p class="soon">Coming soon</p>
+</main>
+</body>
+</html>
