@@ -51,6 +51,8 @@ PALETTE = {
     "#4a453e": "chart off, dark",
     "#2a2622": "chart grid, dark",
     "#3a3530": "chart axis, dark",
+    "#7c1f14": "error, light",
+    "#f5b0a0": "error, dark",
 }
 
 # §8. Radii are exact, and never snapped.
@@ -61,6 +63,9 @@ SIZES = {"1.75rem", "1.5rem", "1.5em", "1.0625rem", "0.9375rem", "0.8125rem", "0
 
 
 def hexes(text: str) -> set[str]:
+    # Comments explain the palette and name colours that are deliberately not used.
+    # What matters is what the interface paints with.
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     out = set()
     for raw in re.findall(r"#[0-9a-fA-F]{3,8}\b", text):
         value = raw.lower()
@@ -147,11 +152,13 @@ def test_the_name_is_always_lowercase() -> None:
             assert "Targum" not in line, f"{path.name} capitalises the name: {line.strip()[:60]!r}"
 
 
-def test_no_exclamation_marks_and_no_gamification() -> None:
-    """§6. Nothing is celebrated at the reader; nothing is scored."""
-    banned = re.compile(r"\b(streak|streaks|xp|badge|badges|achievement|congratulations)\b", re.I)
+def test_no_exclamation_marks() -> None:
+    """§6. Nothing is exclaimed at the reader.
+
+    The guidelines pair this with "no gamification vocabulary", which is deliberately
+    not asserted here: David's position is that streaks and scores are unbuilt rather
+    than forbidden, and a test would block the decision rather than record it.
+    """
     for path in PAGES + SCRIPTS + [SERVE]:
-        text = path.read_text(encoding="utf-8")
-        for quoted in re.findall(r'"([^"\\\n]{4,})"', text):
-            assert "!" not in quoted, f"{path.name}: exclamation mark in {quoted[:50]!r}"
-            assert not banned.search(quoted), f"{path.name}: gamification in {quoted[:50]!r}"
+        for line in prose(path):
+            assert "!" not in line, f"{path.name}: exclamation mark in {line.strip()[:50]!r}"

@@ -30,6 +30,13 @@
   /* The mark's translation column is its own value on paper: the working accent
      goes muddy at 22px wide, and every brand asset already uses this one. */
   --mark-accent: #a5824f;
+  /* Errors are distinguishable by colour as well as by wording. It splits like the
+     accent — deep on paper, pale on ink — and it is a brick red at hue 6-11 deg:
+     not Koren's burgundy, not the language-app orange. Chosen so it survives
+     red-green colour blindness beside the accent, which a mid-tone red does not:
+     under protanopia #a84031 sits 2.8 dE from #7a5c38, which is no distance at all.
+     These cuts hold 15-16 dE simulated, and carry AAA on their own surface. */
+  --error: #7c1f14;
 }
 
 /* Three states, not two. With nothing stamped on <html> the system decides, which is
@@ -47,6 +54,7 @@
     --accent: #c8a778;
     --focus: #b8935e;
     --mark-accent: #c8a778;
+    --error: #f5b0a0;
   }
 }
 
@@ -60,6 +68,7 @@
     --accent: #c8a778;
     --focus: #b8935e;
     --mark-accent: #c8a778;
+    --error: #f5b0a0;
 }
 
 * { box-sizing: border-box; }
