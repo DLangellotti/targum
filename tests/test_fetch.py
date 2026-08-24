@@ -175,3 +175,53 @@ def test_gutenberg_us_declaration() -> None:
     assert document.author == "Thomas Jefferson"
     assert document.blocks[0].kind is BlockKind.heading
     assert "PROJECT GUTENBERG" not in " ".join(b.text for b in document.blocks)
+
+
+def test_a_url_that_answers_with_plain_text_is_read_as_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A text file that happens to live on the web is still a text file.
+
+    Running an article extractor over one finds no article and reports that the page has
+    no readable text, which is exactly the wrong answer. Project Ben-Yehuda serves its
+    whole library this way, at `/download/<id>.txt`.
+    """
+    from targum.ingest.url import Fetched, UrlIngester
+
+    body = "First paragraph, in two sentences. Here is the second.\n\nAnd a second paragraph."
+    monkeypatch.setattr(
+        "targum.ingest.url.fetch",
+        lambda url, params=None: Fetched(body, "text/plain; charset=utf-8"),
+    )
+    document = UrlIngester().load("https://example.com/work.txt")
+    assert len(document.blocks) == 2
+    assert document.blocks[0].text.startswith("First paragraph")
+
+
+def test_an_empty_text_file_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum.errors import TargumError
+    from targum.ingest.url import Fetched, UrlIngester
+
+    monkeypatch.setattr(
+        "targum.ingest.url.fetch", lambda url, params=None: Fetched("  ", "text/plain")
+    )
+    with pytest.raises(TargumError, match="No readable text"):
+        UrlIngester().load("https://example.com/empty.txt")
+
+
+@pytest.mark.parametrize(
+    ("content_type", "html"),
+    [
+        ("text/html; charset=utf-8", True),
+        ("application/xhtml+xml", True),
+        ("", True),
+        ("text/plain", False),
+        ("text/plain; charset=utf-8", False),
+        ("text/markdown", False),
+    ],
+)
+def test_what_counts_as_html(content_type: str, html: bool) -> None:
+    """Absent or unrecognised is treated as HTML, which is what the web mostly is."""
+    from targum.ingest.url import Fetched
+
+    assert Fetched("", content_type).is_html is html

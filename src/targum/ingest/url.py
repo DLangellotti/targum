@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -75,6 +76,25 @@ def _reachable(url: str) -> None:
 
 def get(url: str, params: dict[str, str] | None = None) -> str:
     """One place for every outbound request, so the checks cannot be gone around."""
+    return fetch(url, params).text
+
+
+@dataclass(frozen=True)
+class Fetched:
+    """What came back, and what it says it is."""
+
+    text: str
+    content_type: str
+
+    @property
+    def is_html(self) -> bool:
+        # Absent or unrecognised is treated as HTML, which is what the web mostly is and
+        # what the extractor copes with best.
+        kind = self.content_type.split(";")[0].strip().lower()
+        return not kind or "html" in kind or "xml" in kind
+
+
+def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
     import httpx
 
     target = url
@@ -109,7 +129,10 @@ def get(url: str, params: dict[str, str] | None = None) -> str:
                                 f"{url} is too big to read.",
                                 "targum stops at 8 MB. Try a single article.",
                             )
-                    return body.decode(response.charset_encoding or "utf-8", errors="replace")
+                    return Fetched(
+                        body.decode(response.charset_encoding or "utf-8", errors="replace"),
+                        response.headers.get("Content-Type", ""),
+                    )
             except TargumError:
                 raise
             except Exception as exc:
@@ -118,12 +141,41 @@ def get(url: str, params: dict[str, str] | None = None) -> str:
 
 
 class UrlIngester:
-    name = "url/2"
+    name = "url/3"
+
+    def _plain(self, source: str, body: str) -> Document:
+        """A text file fetched over http, read the way a text file on disk is read."""
+        from .base import classify_plain_paragraph, parse_frontmatter
+
+        fields, text = parse_frontmatter(normalize(body))
+        paragraphs: list[Paragraph] = [
+            classify_plain_paragraph(chunk) for chunk in text.split("\n\n") if chunk.strip()
+        ]
+        if not paragraphs:
+            raise TargumError(
+                f"No readable text found at {source}",
+                "The address answered with an empty file.",
+            )
+        return build_document(
+            source,
+            blocks_from_paragraphs(paragraphs),
+            ingester=self.name,
+            language=fields.get("language") or fields.get("lang"),
+            title=fields.get("title"),
+            author=fields.get("author"),
+        )
 
     def load(self, source: str) -> Document:
         import trafilatura
 
-        html = get(source)
+        got = fetch(source)
+        if not got.is_html:
+            # A URL that answers with plain text is a text file that happens to live on
+            # the web, and running an article extractor over it finds no article and
+            # reports that the page has no readable text — which is exactly wrong. Ben
+            # Yehuda serves its whole library this way, at /download/<id>.txt.
+            return self._plain(source, got.text)
+        html = got.text
         # trafilatura decides what on the page is the article. Asking it for HTML
         # rather than text keeps the headings and paragraph boundaries.
         extracted: Any = trafilatura.extract(
