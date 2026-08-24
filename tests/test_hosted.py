@@ -216,8 +216,16 @@ def test_health_reports_the_store_rather_than_only_the_process() -> None:
 # -- the public surface -------------------------------------------------------
 
 
-def test_robots_and_sitemap_are_served(hosted: tuple[int, str]) -> None:
+def test_robots_and_sitemap_follow_whether_the_shelves_are_open(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Shut, a crawler is turned away from the whole site; open, it is given the map."""
     port, _ = hosted
+
+    assert b"Disallow: /\n" in ask(port, "/robots.txt", "targum.page")[1]
+    assert ask(port, "/sitemap.xml", "targum.page")[0] == 404
+
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     status, robots = ask(port, "/robots.txt", "targum.page")
     assert status == 200
     assert b"Sitemap: https://targum.page/sitemap.xml" in robots
@@ -228,13 +236,16 @@ def test_robots_and_sitemap_are_served(hosted: tuple[int, str]) -> None:
     assert b"<urlset" in sitemap
 
 
-def test_the_sitemap_lists_every_text_and_nothing_private(hosted: tuple[int, str]) -> None:
+def test_the_sitemap_lists_every_text_and_nothing_private(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Generated from the catalogue, never kept by hand — a hand-written sitemap is
     wrong the first time somebody adds an entry and forgets, and being wrong here is
     invisible until the traffic does not arrive."""
     from targum.catalogue import CATALOGUE
 
     port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     found = re.findall(r"<loc>(.*?)</loc>", ask(port, "/sitemap.xml", "targum.page")[1].decode())
     paths = {url.removeprefix("https://targum.page") for url in found}
     for entry in CATALOGUE:
@@ -243,10 +254,13 @@ def test_the_sitemap_lists_every_text_and_nothing_private(hosted: tuple[int, str
         assert private not in paths, f"{private} should not be advertised"
 
 
-def test_a_text_only_answers_on_its_own_shelf(hosted: tuple[int, str]) -> None:
+def test_a_text_only_answers_on_its_own_shelf(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Otherwise every text would exist at two addresses, which splits whatever ranking
     it earns and puts a novel at a Beit Midrash URL."""
     port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     assert ask(port, "/library/il-declaration", "targum.page")[0] == 200
     assert ask(port, "/beit-midrash/il-declaration", "targum.page")[0] == 404
     assert ask(port, "/library/no-such-text", "targum.page")[0] == 404

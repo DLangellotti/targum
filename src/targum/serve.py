@@ -15,6 +15,7 @@ import base64
 import contextlib
 import errno
 import json
+import os
 import queue
 import re
 import secrets
@@ -131,10 +132,20 @@ OPEN_TO_STRANGERS = frozenset(
     {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
 )
 
-# The public shelves, and every text on them. These are the only pages a search engine
-# will ever see, and the whole reason the catalogue is worth compiling: somebody looking
-# for a specific text should be able to find it, not meet a page saying "Coming soon".
+# The public shelves, and every text on them. Built, tested, and deliberately shut:
+# nothing is open to strangers until there is something worth arriving at and a
+# whitelist deciding who may come in.
+#
+# Shut means shut all the way down. A robots.txt that invites a crawler while every
+# page it reaches says "Coming soon" is worse than none at all — what gets indexed is
+# the holding page, and that is then what ranks for the product's own name later. So
+# while this is off the sitemap is gone and robots refuses the whole site.
 PUBLIC_TEXT = re.compile(r"^/(library|beit-midrash)/([a-z0-9][a-z0-9-]{0,63})$")
+
+
+def shelves_are_public() -> bool:
+    """Whether strangers may see the catalogue. Off unless the deployment says so."""
+    return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
@@ -1061,6 +1072,10 @@ class Handler(BaseHTTPRequestHandler):
         would answer with the door anyway. Naming the private routes here keeps crawlers
         from spending their budget on pages that will never be worth an index entry.
         """
+        if not shelves_are_public():
+            # Every page a crawler could reach is the holding page. Letting it in now
+            # means "Coming soon" is what ranks for targum later.
+            return "User-agent: *\nDisallow: /\n"
         lines = [
             "User-agent: *",
             "Allow: /$",
@@ -1131,10 +1146,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
         if route == "/sitemap.xml":
+            if not shelves_are_public():
+                return self._send(404, b"not found", "text/plain")
             return self._send(200, self._sitemap().encode("utf-8"), "application/xml")
-        # A text's own page, always public and never behind the account check. It carries
-        # a sample rather than the whole text, so there is nothing here to protect.
-        naming = PUBLIC_TEXT.match(route)
+        # A text's own page. It carries a sample rather than the whole text, so there is
+        # nothing here to protect — but it stays shut with the rest until the catalogue
+        # is opened, because a shop window onto an empty shop is not worth having.
+        naming = PUBLIC_TEXT.match(route) if shelves_are_public() else None
         if naming is not None:
             from . import catalogue as catalogue_module
 
@@ -1150,6 +1168,8 @@ class Handler(BaseHTTPRequestHandler):
             from .catalogue import Shelf
 
             if self._person() is None and not self._authorised():
+                if not shelves_are_public():
+                    return self._send(200, holding_page().encode("utf-8"), HTML)
                 page = shelf_page(Shelf(route.lstrip("/")), self.address)
                 return self._send(200, page.encode("utf-8"), HTML)
             # One app page with a switcher, rather than two that drift apart.
