@@ -24,6 +24,7 @@ from .models import (
     Annotation,
     Document,
     Glossary,
+    Segment,
     SegmentedDocument,
     Style,
     Translation,
@@ -84,6 +85,7 @@ class Build:
         style: Style = Style.natural,
         provider_name: str = "anthropic",
         model: str | None = None,
+        owner: str = "",
         out: Path | None = None,
         out_root: Path | None = None,
         force: bool = False,
@@ -125,6 +127,9 @@ class Build:
             provider_name, model=model, batch_size=batch_size, effort=effort
         )
         self.model = getattr(self.provider, "model", None)
+        # Whose build this is. Only used to scope the cache for a text that is not
+        # public, so one person's upload is never re-served to another.
+        self.owner = owner
         self._glosser: Any = None
         self._out = out
         self._out_root = out_root
@@ -207,16 +212,39 @@ class Build:
         segmented.write(path)
         return segmented
 
-    def cache_key(self, segmented: SegmentedDocument) -> str:
+    # Sources whose text is public, and whose translation may therefore be shared.
+    # A translation is expensive and identical for everybody, so two subscribers reading
+    # the same Gutenberg novel should pay for it once between them. An uploaded file is
+    # somebody's own and is not shared, which is the position A7 has to take anyway —
+    # and it costs almost nothing, because the overlap that makes sharing worth having
+    # happens precisely where texts are public. Two people uploading the same private
+    # file is not a thing that happens.
+    PUBLIC_SOURCES = ("gutenberg:", "wikisource:", "http://", "https://", "catalogue:")
+
+    def shared_source(self) -> bool:
+        return str(self.source).startswith(self.PUBLIC_SOURCES)
+
+    def cache_key(self, segmented: SegmentedDocument, segments: list[Segment] | None = None) -> str:
+        """The key for a run of segments — a chapter, or the whole text.
+
+        Keyed on the segments' own text rather than on the document, so a book that was
+        translated as far as chapter four keeps those four chapters when the fifth is
+        asked for, and so two readers of the same book share every chapter they have both
+        reached. Keyed on the document, as it was, a part-translated book cached under a
+        key nothing would ever ask for again.
+        """
+        run = segments if segments is not None else segmented.segments
         return self.cache.key(
             "translate",
-            document=segmented.document_hash,
             source=segmented.language,
             target=self.target_language,
             provider=self.provider_name,
             model=self.model,
             style=self.style.value,
-            segments=[segment.id for segment in segmented.segments],
+            # The text itself, so identical prose keys the same wherever it came from.
+            text=[segment.text for segment in run],
+            # Private texts get a key nobody else can arrive at.
+            owner="" if self.shared_source() else self.owner,
         )
 
     def cached(self, segmented: SegmentedDocument) -> Translation | None:
@@ -229,30 +257,35 @@ class Build:
             # rather than invalidating paid-for work over a rename.
             on_disk.name = self._translation_name()
             return on_disk
-        stored = self.cache.get("translate", self.cache_key(segmented))
-        if isinstance(stored, dict):
-            self.reused.append("translation (cache)")
-            translation = Translation.model_validate(stored)
-            translation.name = self._translation_name()
-            # A run's own directory always holds every artifact, cache hit or not.
-            translation.write(self.translation_path(self.resolved_out))
-            return translation
+        # The shared cache is not consulted here any more. It holds runs of segments — a
+        # chapter at a time — rather than whole documents, so it is read in `_translated`
+        # where the run is known. What is left here is this build's own artifact.
         return None
 
     def translate(
-        self, segmented: SegmentedDocument, on_progress: Progress | None = None
+        self,
+        segmented: SegmentedDocument,
+        on_progress: Progress | None = None,
+        only: list[Segment] | None = None,
     ) -> Translation:
+        """Translate the whole text, or one run of it.
+
+        `only` is a chapter. A book is translated a chapter at a time — nobody reads a
+        novel the week they open it, and paying up front for chapters a reader will
+        never reach is the single largest avoidable cost in the product.
+        """
         cached = self.cached(segmented)
-        if cached is not None:
+        if cached is not None and only is None:
             return cached
 
-        mapping = self.provider.translate(
-            segmented.segments,
-            segmented.language,
-            self.target_language,
-            self.style,
-            on_progress,
-        )
+        run = only if only is not None else segmented.segments
+        mapping = dict(cached.segments) if cached is not None else {}
+
+        # Whatever this run already has, from a previous sitting or from somebody else
+        # who read the same book. Only the rest is paid for.
+        owed = [segment for segment in run if segment.id not in mapping]
+        if owed:
+            mapping |= self._translated(segmented, owed, on_progress)
         translation = Translation(
             name=self._translation_name(),
             document_hash=segmented.document_hash,
@@ -264,8 +297,40 @@ class Build:
             segments=mapping,
         )
         translation.write(self.translation_path(self.resolved_out))
-        self.cache.put("translate", self.cache_key(segmented), translation.model_dump(mode="json"))
         return translation
+
+    def _translated(
+        self,
+        segmented: SegmentedDocument,
+        owed: list[Segment],
+        on_progress: Progress | None,
+    ) -> dict[str, str]:
+        """One run of segments, from the cache where possible and the API where not.
+
+        The cache is consulted per run rather than per document, so a book stopped at
+        chapter four keeps those four when the fifth is asked for. Each run is written
+        back under its own key, which is also what makes a build resumable: an
+        interrupted chapter costs a chapter, not a book.
+        """
+        key = self.cache_key(segmented, owed)
+        # `force` means force: it has to reach past the shared cache too, or "redo this
+        # properly" quietly hands back the same answer that was being questioned.
+        stored = None if self.force else self.cache.get("translate", key)
+        if isinstance(stored, dict) and isinstance(stored.get("segments"), dict):
+            self.reused.append("translation (cache)")
+            if on_progress:
+                on_progress(len(owed))
+            return {str(k): str(v) for k, v in stored["segments"].items()}
+
+        fresh: dict[str, str] = self.provider.translate(
+            owed,
+            segmented.language,
+            self.target_language,
+            self.style,
+            on_progress,
+        )
+        self.cache.put("translate", key, {"segments": fresh})
+        return fresh
 
     @property
     def aligner(self) -> align_module.Aligner:
