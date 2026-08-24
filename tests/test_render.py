@@ -1060,7 +1060,7 @@ def test_signing_out_keeps_a_list_of_what_to_keep_not_what_to_drop() -> None:
     what somebody reads.
     """
     source = (ASSETS / "sync.js").read_text(encoding="utf-8")
-    clearing = source[source.index("function clearLocal"): source.index("function exchange")]
+    clearing = source[source.index("function clearLocal") : source.index("function exchange")]
 
     assert 'indexOf("targum:") === 0' in clearing, "it should sweep every targum key"
     assert "KEEP" in clearing, "and keep only what is named"
