@@ -147,6 +147,7 @@ def shelves_are_public() -> bool:
     """Whether strangers may see the catalogue. Off unless the deployment says so."""
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
+
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
 
