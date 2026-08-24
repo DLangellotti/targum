@@ -1,4 +1,4 @@
-/* The start page. Reads a file or a link, prices the translation, and only spends
+/* Adding a text targum does not have. Reads a file or a link, prices the translation, and only spends
    once you have seen the number. */
 
 (function () {

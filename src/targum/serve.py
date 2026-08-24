@@ -945,6 +945,7 @@ class Handler(BaseHTTPRequestHandler):
     library: Library
     token: str
     page: str
+    adding: str
     words: str
     shelf: str
     store: Store
@@ -1119,6 +1120,36 @@ class Handler(BaseHTTPRequestHandler):
             f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
         )
 
+    def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
+        """Say how much of each targum the reader already knows.
+
+        Added in place rather than returned, and silently skipped for anyone signed out or
+        any text without word-level annotation — the page shows what it showed before
+        rather than a zero, because "0% known" and "not measured" are very different
+        claims to make about a book.
+
+        One vocabulary query per language, not per text: a shelf of twenty Hebrew books
+        asks once and measures all twenty against the answer.
+        """
+        person = self._person()
+        if person is None:
+            return
+        from . import coverage as coverage_module
+
+        vocabulary: dict[str, dict[str, int]] = {}
+        for reader in readers:
+            language = str(reader.get("language") or "")
+            name = str(reader.get("name") or "")
+            # The folder is resolved here rather than carried in the payload: an absolute
+            # path on the server is not something a browser has any business being told.
+            if not language or not name:
+                continue
+            if language not in vocabulary:
+                vocabulary[language] = self.store.marked(person, language)
+            measured = coverage_module.against(home / name, vocabulary[language])
+            if measured is not None:
+                reader.update(measured.state())
+
     def _health(self) -> None:
         """Whether the process is alive and can still reach the one file that matters.
 
@@ -1215,6 +1246,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_reader(route[len("/reader/") :])
         if route == "/":
             return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/add":
+            return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/words":
             return self._send(200, self.words.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
@@ -1222,9 +1255,11 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
+            mine = self.library.readers(home)
+            self._measure(home, mine)
             return self._json(
                 {
-                    "readers": self.library.readers(home),
+                    "readers": mine,
                     "trash": self.library.readers(home, trashed=True),
                 }
             )
@@ -1641,7 +1676,7 @@ def start(
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
     from .mail import from_environment
-    from .render.builder import library_page, start_page, words_page
+    from .render.builder import add_page, learn_page, library_page, words_page
     from .translate.anthropic_provider import AnthropicProvider
 
     # The start-up key is a single-user mechanism: it proves you can read the terminal
@@ -1674,9 +1709,8 @@ def start(
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
-            "page": start_page(
-                token, library.max_cost, library.budget, no_key="" if usable else NO_KEY
-            ),
+            "page": learn_page(token),
+            "adding": add_page(token, no_key="" if usable else NO_KEY),
             "words": words_page(token),
             "shelf": library_page(token),
         },

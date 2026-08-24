@@ -1,24 +1,27 @@
-/* The page you land on. Deliberately the same palette and type as a reader, so the
-   tool looks like one thing rather than a form bolted to a book. */
+/* Bringing a text targum does not have.
+
+   Not the page anybody lands on any more — Learn is — so this no longer has to introduce
+   the product. Same palette and type as a reader, so the tool still looks like one thing
+   rather than a form bolted to a book. */
 
 /* The header spans the page like it does everywhere else; only the column under it
    is narrow. `justify-items` rather than `place-items`, so a full-width header can
    still stretch while the column stays centred. */
-body.start {
+body.add {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   min-height: 100vh;
 }
-body.start > .site-head { justify-self: stretch; }
+body.add > .site-head { justify-self: stretch; }
 /* The column starts where the header's name starts, so the whole site shares one
    left edge rather than centring each page on its own width. */
-body.start > .start-main {
+body.add > .add-main {
   justify-self: start;
   margin-inline-start: max(0px, calc((100% - 62rem) / 2));
 }
 
-.start-main {
+.add-main {
   width: min(34rem, 100%);
   /* 1.25rem to the side, the same as the header, so the two share a left edge. */
   padding: 1.5rem 1.25rem 6rem;
@@ -168,93 +171,6 @@ body.start > .start-main {
 .status.bad { border-color: var(--clay); }
 .status.bad b { color: var(--clay); }
 
-.library { margin-block-start: 3.5rem; }
-.library[hidden] { display: none; }
-
-/* Heading and exports share the first line; the counts get the second, so a learner
-   reading two languages does not squeeze the header into three. */
-.library-head {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 0.3rem 1rem;
-  padding-block-end: 0.5rem;
-  border-block-end: 1px solid var(--rule);
-}
-.library h2 {
-  grid-column: 1;
-  margin: 0;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.library-sum { grid-column: 1; grid-row: 2; color: var(--ink-soft); font-size: 0.8125rem; }
-/* Directly under the button it explains, not adrift at the other end of the row. */
-.library-note {
-  grid-column: 2;
-  grid-row: 2;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  text-align: end;
-  opacity: 0.8;
-}
-.library-note[hidden] { display: none; }
-.library-export { grid-column: 2; grid-row: 1; display: flex; gap: 0.35rem; }
-.library-export button { padding: 0.15rem 0.5rem; font-size: 0.6875rem; }
-
-.library ul { list-style: none; margin: 0; padding: 0; }
-.library li { border-block-end: 1px solid var(--rule); }
-
-/* A row is one tap target: the title, then how far through it you are.
-   Pinned to left-to-right, because the row is part of an English page. The title sits
-   in a <bdi>, so a Hebrew headline reads right to left inside a box that still starts
-   at the left, rather than throwing the whole row over to the other side. */
-.library a {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0.5rem;
-  margin-inline: -0.5rem;
-  border-radius: 6px;
-  color: var(--ink);
-  text-decoration: none;
-  direction: ltr;
-  text-align: left;
-}
-.library a:hover { background: var(--paper-raised); }
-
-.book-main { display: grid; gap: 0.2rem; min-width: 0; }
-.book-title { font-size: 1.0625rem; line-height: 1.35; }
-.book-title bdi { display: inline-block; max-width: 100%; }
-.book-meta { color: var(--ink-soft); font-size: 0.8125rem; white-space: nowrap; }
-.book-lang {
-  flex: none;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* A way through to everything kept, from the page that lists everything built. */
-.library-words {
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-  text-decoration: none;
-  border-block-end: 1px solid var(--rule);
-  white-space: nowrap;
-}
-.library-words:hover { color: var(--ink); }
-
-/* A way through to the picked texts, from the sentence that mentions them. */
-.hint .to-library { color: var(--ink); text-decoration: none; border-block-end: 1px solid var(--rule); }
-.hint .to-library:hover { border-color: var(--accent); }
-
-/* Everything honours prefers-reduced-motion: the progress bar jumps to its width
-   rather than travelling there. */
 @media (prefers-reduced-motion: reduce) {
   .status .bar i,
   .drop { transition: none; }

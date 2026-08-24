@@ -26,11 +26,12 @@
     if (href && href.indexOf("?") === -1) link.setAttribute("href", href + suffix);
   });
 
-  // The link says Library, so it goes to the library — not the start page. The same
-  // rule reader.js follows for the section pages.
+  // The link says Learn, so it goes there: somebody leaving a text wants their own
+  // shelf and what they were part way through, not the catalogue. The same rule
+  // reader.js follows for the section pages.
   var home = document.getElementById("home");
   if (home) {
-    home.href = "/library" + suffix;
+    home.href = "/" + suffix;
     home.hidden = false;
   }
 })();

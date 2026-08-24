@@ -3,23 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>targum</title>
+<title>Add a text — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('start.css') }}{{ asset('library.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('add.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
-<body class="start">
-{% set here = 'read' %}
+<body class="add">
+{% set here = 'add' %}
 {% include '_nav.html.j2' %}
-<main class="start-main">
-  <p class="lede">Hebrew, with the translation beside it.</p>
+<main class="add-main">
+  {#- This page used to be the front door and opened by saying what targum is. Reached
+      from the nav by somebody who already has an account and a shelf, that reads as a
+      stranger's greeting to a regular. It says what it is for instead. -#}
+  <h1 class="lede">Add a text</h1>
+  {#- Said before anything is priced. Most of what anybody wants is already on a shelf,
+      and finding that out after paying is the wrong order round. -#}
+  <p class="hint">Most things are already in the
+    <a class="to-library" href="/library">Library</a>, translated and free.</p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>
   {% endif %}
 
   <section class="step">
-    <h2>What do you want to read?</h2>
+    <h2>The text</h2>
 
     <div class="drop" id="drop" tabindex="0">
       <p class="drop-label">Drop a book or an article here</p>
@@ -35,11 +42,10 @@
       <input type="text" id="source" placeholder="https://…" spellcheck="false">
     </label>
     <p class="hint">Articles and wiki pages. No logins, paywalls or PDFs.</p>
-    <p class="hint">Or something <a class="to-library" href="/library">picked for you</a>.</p>
   </section>
 
   <section class="step">
-    <h2>Which languages?</h2>
+    <h2>Languages</h2>
     <div class="options">
       <label class="field short">
         <span>I am reading</span>
@@ -66,12 +72,11 @@
 {% include '_foot.html.j2' %}
 <script>
 window.TARGUM_KEY = "{{ token }}";
-window.TARGUM_LIMIT = {{ limit }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 </script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
-<script>{{ asset('start.js') }}</script>
+<script>{{ asset('add.js') }}</script>
 </body>
 </html>

@@ -22,19 +22,10 @@
     <p class="empty" id="picked-empty" hidden></p>
   </section>
 
-  <section class="panel">
-    <h2>Your targums</h2>
-    <p class="note" id="shelf-note"></p>
-    <ul class="books" id="library-list"></ul>
-  </section>
-
-  {#- Only there when there is something in it. An empty trash is a drawer nobody needs
-      to be shown, and a permanent one invites tidying for its own sake. -#}
-  <section class="panel trash" id="trash-panel" hidden>
-    <h2>Trash</h2>
-    <p class="note">Kept for seven days.</p>
-    <ul class="books" id="trash-list"></ul>
-  </section>
+  {#- Somebody who has just failed to find what they wanted is exactly who needs the
+      add page. A link, not a form: this page's job is browsing, and a pricing-and-
+      progress flow living inside it would have made both jobs worse. -#}
+  <p class="elsewhere">Not here? <a href="/add">Add a text of your own</a>.</p>
 </main>
 {% include '_foot.html.j2' %}
 

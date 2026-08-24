@@ -740,6 +740,18 @@ class Store:
         ]
         return out
 
+    def marked(self, person: Person, language: str) -> dict[str, int]:
+        """Every dictionary form this person has marked in one language, and how well.
+
+        One query per language rather than one per text: a shelf of twenty books in Hebrew
+        asks this once and measures all twenty against the answer.
+        """
+        rows = self.db.execute(
+            "SELECT lemma, status FROM word WHERE person = ? AND language = ? AND gone = 0",
+            (person.id, language.split("-")[0].lower()),
+        )
+        return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
+
     def counts(self, person: Person) -> dict[str, int]:
         """What someone has, for the sake of saying so on the page."""
         out = {}

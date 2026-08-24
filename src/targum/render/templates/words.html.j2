@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Your words — targum</title>
+<title>Words — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="words">
-{% set here = 'words' %}{% set title = 'Your words' %}
+{% set here = 'words' %}{% set title = 'Words' %}
 {% include '_nav.html.j2' %}
 
 <main id="page" hidden>
@@ -100,6 +100,7 @@
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 </script>
+<script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>

@@ -1654,7 +1654,7 @@
   if (home) {
     if (served && passKey) {
       // The link says Library, so it goes to the library — not the start page.
-      home.href = keyed("/library");
+      home.href = keyed("/");
       home.hidden = false;
       // Section-to-section links are relative and would drop the key, and with it
       // access: the next chapter would answer 403.
