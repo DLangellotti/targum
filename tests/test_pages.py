@@ -164,7 +164,7 @@ def test_open_it_opens_the_text() -> None:
     """It used to go to the library index — the page the text happens to sit on rather
     than the text it had just named. Every catalogue text has its own page now."""
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    assert 'keyed("/" + entry.shelf + "/" + entry.id)' in source
+    assert 'keyed("/library/" + entry.id)' in source
 
 
 def test_translate_it_anyway_works_for_a_dropped_file() -> None:
@@ -176,17 +176,27 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
 
 
-# -- the library is a room, and says which one -----------------------------------
+# -- one catalogue, and what each text is ----------------------------------------
 
 
-def test_the_library_heading_follows_the_shelf() -> None:
-    """It is a page now rather than a panel, so the heading is the room. It read
-    "Library" with the Beit Midrash open, which is the one thing a reader keeping Tanakh
-    apart from secular material would notice first."""
+def test_the_library_is_one_list() -> None:
+    """There were two shelves with a tab switcher between them. A reader had to know
+    which room a text was in before they could find it, which is backwards for the one
+    page whose whole job is finding something."""
+    library = PAGES["library"]
+    assert 'id="shelves"' not in library, "no room switcher"
+    assert "Beit Midrash" not in library
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert 'document.getElementById("page-title")' in source
-    assert 'document.title = name + " — targum"' in source, "and the bookmark too"
-    assert 'id="page-title"' in PAGES["library"], "the heading it writes into"
+    assert "SHELVES" not in source and "drawShelves" not in source
+
+
+def test_a_card_says_what_the_text_is() -> None:
+    """The visible half of the tagging. With Tanakh and a novel in one list, the reader
+    who cares which is which needs the card to say so — and it is the same tag a Beit
+    Midrash mode would filter by, so the two cannot drift."""
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert "var TAGS = { tanakh:" in source
+    assert 'el("span", "tag", named)' in source, "using the chip the card CSS already has"
 
 
 def test_the_library_has_one_heading() -> None:

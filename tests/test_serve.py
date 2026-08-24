@@ -890,7 +890,7 @@ def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> No
         server.shutdown()
 
 
-def test_the_shelves_are_shut(tmp_path: Path) -> None:
+def test_the_catalogue_is_shut(tmp_path: Path) -> None:
     """Nothing is open to strangers yet, and that is a decision rather than an oversight.
 
     The public surface is built and tested — see the test below — but it stays closed
@@ -898,7 +898,7 @@ def test_the_shelves_are_shut(tmp_path: Path) -> None:
     """
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/library", "/beit-midrash", "/library/il-declaration"):
+        for route in ("/library", "/library/il-declaration", "/library/ruth"):
             status, body, _ = call(port, "GET", route)
             assert b"The Land of Israel" not in body, f"{route} leaked a text"
             if status == 200:
@@ -927,24 +927,23 @@ def test_a_shut_site_tells_crawlers_to_stay_out(tmp_path: Path) -> None:
         server.shutdown()
 
 
-def test_the_shelves_open_when_the_deployment_says_so(
+def test_the_catalogue_opens_when_the_deployment_says_so(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The machinery is proven now so that opening it later is one variable, not a build.
 
-    Signed out, a shelf is its public index: the texts and no more than the texts — no
+    Signed out, /library is the public index: the texts and no more than the texts — no
     shelf of somebody's own builds, no trash, nothing belonging to a person.
     """
     monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/library", "/beit-midrash"):
-            status, body, _ = call(port, "GET", route)
-            assert status == 200, route
-            assert b"Coming soon" not in body, f"{route} is the shop window now"
-            assert b'href="/account/signin"' in body, f"{route} has no way in"
-            assert b"Your targums" not in body, f"{route} leaked the product"
-            assert b"Trash" not in body, f"{route} leaked the product"
+        status, body, _ = call(port, "GET", "/library")
+        assert status == 200
+        assert b"Coming soon" not in body, "/library is the shop window now"
+        assert b'href="/account/signin"' in body, "/library has no way in"
+        assert b"Your targums" not in body, "/library leaked the product"
+        assert b"Trash" not in body, "/library leaked the product"
 
         status, body, _ = call(port, "GET", "/library/il-declaration")
         assert status == 200 and b"The Land of Israel" in body

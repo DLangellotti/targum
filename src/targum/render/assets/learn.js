@@ -60,11 +60,6 @@
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
     link.href = keyed(link.getAttribute("href"));
   });
-  // The two shelf links carry which room to open in, so "the Beit Midrash" lands there.
-  Array.prototype.forEach.call(document.querySelectorAll("[data-shelf]"), function (link) {
-    link.href = keyed("/library") + (keyed("/library").indexOf("?") < 0 ? "?" : "&") +
-      "shelf=" + link.getAttribute("data-shelf");
-  });
 
   function named(code) {
     return names[code] || (code || "").toUpperCase();

@@ -30,57 +30,9 @@
   var names = window.TARGUM_LANGUAGES || {};
   var catalogue = window.TARGUM_CATALOGUE || [];
   var lang = window.TargumLang;
-
-  /* --- which room -----------------------------------------------------------
-   *
-   * Tanakh is a separate shelf from everything else. Not tidiness: the registers differ
-   * enough that a difficulty band built for one is wrong for the other, and some readers
-   * would rather not be shown secular material at all.
-   *
-   * The preference is on the account rather than in this browser. It has to be, for the
-   * plainest reason: `sync.js` deletes every `targum:*` key but the theme on sign-out,
-   * deliberately, so a local one would be forgotten every time somebody signed out on
-   * their own machine.
-   */
-  var SHELVES = [
-    { id: "library", name: "Library" },
-    { id: "beit-midrash", name: "Beit Midrash" },
-  ];
-  var shelf = "library";
-
-  function shelvesWithAnything() {
-    return SHELVES.filter(function (room) {
-      return catalogue.some(function (entry) {
-        return entry.shelf === room.id;
-      });
-    });
-  }
-
-  function drawShelves(onPick) {
-    var host = document.getElementById("shelves");
-    if (!host) return;
-    var rooms = shelvesWithAnything();
-    // One room is not a choice, and a control offering it is furniture. Same rule the
-    // language switcher already follows.
-    host.hidden = rooms.length < 2;
-    if (host.hidden) return;
-    host.textContent = "";
-    rooms.forEach(function (room) {
-      var tab = el("button", room.id === shelf ? "on" : "", room.name);
-      tab.type = "button";
-      tab.setAttribute("role", "tab");
-      tab.setAttribute("aria-selected", room.id === shelf ? "true" : "false");
-      tab.onclick = function () {
-        if (room.id === shelf) return;
-        shelf = room.id;
-        if (window.TargumSync && window.TargumSync.setShelf) {
-          window.TargumSync.setShelf(shelf);
-        }
-        onPick();
-      };
-      host.appendChild(tab);
-    });
-  }
+  // What a text is, for the card. The catalogue is one list; these say which entries a
+  // reader who wants only Jewish texts came for.
+  var TAGS = { tanakh: "Tanakh", judaica: "Judaica" };
 
   function named(code) {
     return names[code] || (code || "").toUpperCase();
@@ -241,7 +193,11 @@
     var bdi = el("bdi", null, entry.title);
     title.appendChild(bdi);
     head.appendChild(title);
-    // No language tag on the card: the page is one language, and it says which at the top.
+    // No language tag: the page is one language, and it says which at the top. What the
+    // text *is* does go here, though — Tanakh and a novel share this list now, and the
+    // reader who cares which is which is the one this tag exists for.
+    var named = TAGS[(entry.tags || [])[0]];
+    if (named) head.appendChild(el("span", "tag", named));
     item.appendChild(head);
 
     item.appendChild(el("p", "byline", entry.author));
@@ -270,31 +226,13 @@
     return item;
   }
 
-  function roomName() {
-    var found = SHELVES.filter(function (room) {
-      return room.id === shelf;
-    })[0];
-    return found ? found.name : "Library";
-  }
-
-  // The page is a room now, not a panel on a page, so the heading and the browser tab
-  // both have to say which room — otherwise a bookmarked Beit Midrash comes back
-  // titled "Library", and so does the h1 above the tabs.
-  function nameTheRoom() {
-    var name = roomName();
-    var heading = document.getElementById("page-title");
-    if (heading) heading.textContent = name;
-    document.title = name + " — targum";
-  }
-
   function drawPicked(code) {
-    nameTheRoom();
     var host = document.getElementById("catalogue");
     var empty = document.getElementById("picked-empty");
     var note = document.getElementById("picked-note");
     host.textContent = "";
     var mine = catalogue.filter(function (entry) {
-      return base(entry.language) === code && entry.shelf === shelf;
+      return base(entry.language) === code;
     });
     mine.forEach(function (entry) {
       host.appendChild(card(entry));
@@ -353,22 +291,8 @@
     var chosen = lang.current(codes);
     var betaNote = document.getElementById("beta-note");
 
-    // What the account remembers, and what the address asked for. The address wins,
-    // because a link to /beit-midrash should land there whatever was chosen last.
-    var remembered = window.TargumSync && window.TargumSync.shelf && window.TargumSync.shelf();
-    var asked = new URLSearchParams(location.search).get("shelf");
-    if (asked && SHELVES.some(function (r) { return r.id === asked; })) {
-      shelf = asked;
-      if (window.TargumSync && window.TargumSync.setShelf) window.TargumSync.setShelf(asked);
-    } else if (remembered && SHELVES.some(function (r) { return r.id === remembered; })) {
-      shelf = remembered;
-    }
-
     function show(code) {
       chosen = code;
-      drawShelves(function () {
-        show(chosen);
-      });
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       betaNote.hidden = !lang.beta(code);
       if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);

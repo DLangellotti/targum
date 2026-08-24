@@ -70,7 +70,7 @@ body.learn main[hidden] {
   text-decoration: none;
 }
 
-/* Nothing yet — which is the onboarding now, so it points at the shelves rather than at
+/* Nothing yet — which is the onboarding now, so it points at the Library rather than at
    a form. */
 body.learn .nothing {
   max-width: 34rem;

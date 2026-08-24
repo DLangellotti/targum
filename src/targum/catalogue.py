@@ -22,17 +22,25 @@ from functools import cache
 from pathlib import Path
 
 
-class Shelf(StrEnum):
-    """Which room a text belongs in.
+class Tag(StrEnum):
+    """What a text *is*, rather than where it is filed.
 
-    Tanakh is kept apart from everything else, and not only for tidiness. The registers
-    differ enough that difficulty bands built for one are wrong for the other; some
-    readers do not wish to be shown secular material at all; and the two may one day be
-    paid for differently. All three want this to be data rather than a heading.
+    There was a Beit Midrash shelf here once, and splitting the catalogue in two turned
+    out to be the wrong shape: a reader looking for something to read wants one list, and
+    a Tanakh is not hidden from them by being in a room they have to know to enter.
+
+    What the split was really for survives, and is the reason this is data rather than a
+    heading: some readers — ultra-Orthodox ones especially — would rather not be shown
+    secular material at all. Tagging says which texts those readers came for, so a Beit
+    Midrash mode can one day show only them. Nothing filters on this today.
     """
 
-    library = "library"
-    beit_midrash = "beit-midrash"
+    #: The twenty-four books.
+    tanakh = "tanakh"
+    #: Jewish and religious, but not Tanakh — liturgy, Mishnah, rabbinic commentary.
+    #: Nothing in the catalogue carries it yet; it is here so `tanakh` is a vocabulary
+    #: rather than a synonym for the whole idea.
+    judaica = "judaica"
 
 
 @dataclass(frozen=True)
@@ -97,7 +105,7 @@ class Entry:
     source: str
     blurb: str
     words: int
-    shelf: Shelf = Shelf.library
+    tags: frozenset[Tag] = frozenset()
     translations: list[Rendering] = field(default_factory=list)
 
     @property
@@ -119,7 +127,7 @@ class Entry:
             "source": self.source,
             "blurb": self.blurb,
             "words": self.words,
-            "shelf": self.shelf.value,
+            "tags": sorted(tag.value for tag in self.tags),
             "translations": [
                 {
                     "name": t.name,
@@ -199,7 +207,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Ruth",
         blurb="Four chapters, and the shortest way in: one family, one harvest, plain narrative.",
         words=1129,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -218,7 +226,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Esther",
         blurb="Read whole every Purim. Court intrigue, and not one mention of God.",
         words=2609,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -237,7 +245,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Song of Songs",
         blurb="Love poetry, and the Hebrew repays every minute it takes.",
         words=1142,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -256,7 +264,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Lamentations",
         blurb="Five acrostics on the fall of Jerusalem. The alphabet is visible down the page.",
         words=1405,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -275,7 +283,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Ecclesiastes",
         blurb="Everything you have heard quoted in English, in the Hebrew it was written in.",
         words=2594,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -294,7 +302,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Psalms",
         blurb="A hundred and fifty, and you can begin at any one of them.",
         words=17255,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -316,7 +324,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Proverbs",
         blurb="Self-contained verses, which makes it the easiest thing here to read a little of.",
         words=6080,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -333,9 +341,9 @@ CATALOGUE: list[Entry] = [
         author="Ketuvim · Job",
         language="he",
         source="sefaria:Job",
-        blurb="The hardest Hebrew on the shelf, and for many people the reason to learn it.",
+        blurb="The hardest Hebrew in the catalogue, and for many people the reason to learn it.",
         words=7164,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -354,7 +362,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Genesis",
         blurb="Where it begins, and the chapters everybody knows are near the front.",
         words=17676,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -373,7 +381,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Exodus",
         blurb="Slavery, departure, and the law. The narrative half reads easiest.",
         words=14282,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -392,7 +400,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Leviticus",
         blurb="The priestly law, in the register it was set down in.",
         words=10078,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -411,7 +419,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Numbers",
         blurb="Forty years of wandering, two censuses, and Balaam's donkey.",
         words=14137,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -430,7 +438,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Deuteronomy",
         blurb="Moses saying it again before the end. The book the rest of the Tanakh quotes most.",
         words=12404,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -449,7 +457,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Judges",
         blurb="Before the kings: twelve leaders, and the years between them.",
         words=8453,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -468,7 +476,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:I Samuel",
         blurb="Samuel, Saul, and the young David.",
         words=11424,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -487,7 +495,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:II Samuel",
         blurb="David reigning, and paying for it.",
         words=9399,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -506,7 +514,7 @@ CATALOGUE: list[Entry] = [
         source="sefaria:I Kings",
         blurb="Solomon, the Temple, and a kingdom splitting in two.",
         words=11255,
-        shelf=Shelf.beit_midrash,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -520,14 +528,14 @@ CATALOGUE: list[Entry] = [
 ]
 
 
-def on(shelf: Shelf) -> list[Entry]:
-    """Everything on one shelf, in catalogue order.
+def beit_midrash() -> list[Entry]:
+    """What a reader who wants only Jewish texts would be left with.
 
-    The list itself stays flat. `matching()` below has to see every entry whichever
-    shelf it sits on, or the guard that stops somebody paying for a text that is already
-    free would quietly stop covering half the catalogue.
+    The catalogue is one list and stays one list; this is the predicate a Beit Midrash
+    mode would filter by, defined now so the tagging can be shown to be sufficient for
+    it. Nothing in the product calls this yet.
     """
-    return [entry for entry in CATALOGUE if entry.shelf is shelf]
+    return [entry for entry in CATALOGUE if entry.tags]
 
 
 def by_id(entry_id: str) -> Entry | None:
