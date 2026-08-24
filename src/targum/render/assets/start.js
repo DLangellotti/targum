@@ -5,6 +5,20 @@
   "use strict";
 
   var key = window.TARGUM_KEY;
+  /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
+     riding in every URL is a bearer token in browser history, on a shared screen, and in
+     a Referer. Local it stays, because there it proves the page came from the terminal
+     that started the process. Both cases are this one branch. */
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
   var languageNames = window.TARGUM_LANGUAGES || {};
 
   function named(code) {
@@ -18,9 +32,9 @@
   var chosen = null;
 
   function ask(path, body) {
-    return fetch(path + "?k=" + encodeURIComponent(key), {
+    return fetch(keyed(path), {
       method: body ? "POST" : "GET",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (response) {
       return response.json();
@@ -257,7 +271,7 @@
     go.type = "button";
     go.textContent = "Open it";
     go.onclick = function () {
-      window.location.href = "/library?k=" + encodeURIComponent(key);
+      window.location.href = keyed("/library");
     };
     row.appendChild(go);
     var anyway = document.createElement("button");
@@ -368,7 +382,7 @@
         if (state.stage === "done") {
           clearInterval(timer);
           window.location.href =
-            "/reader/" + state.reader + "?k=" + encodeURIComponent(key);
+            keyed("/reader/" + state.reader);
         }
       });
     }, 700);
@@ -377,6 +391,6 @@
   /* --- getting about ------------------------------------------------------- */
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a, .to-library"), function (link) {
-    link.href = link.getAttribute("href") + "?k=" + encodeURIComponent(key);
+    link.href = keyed(link.getAttribute("href"));
   });
 })();

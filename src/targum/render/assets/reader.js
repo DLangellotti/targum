@@ -247,9 +247,9 @@
     if (!lemma || !served || !passKey) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
-    fetch("/gloss?k=" + encodeURIComponent(passKey), {
+    fetch(keyed("/gloss"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": passKey },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ lemma: lemma, source: language, target: targetLanguage || "en" }),
     })
       .then(function (response) {
@@ -1654,7 +1654,7 @@
   if (home) {
     if (served && passKey) {
       // The link says Library, so it goes to the library — not the start page.
-      home.href = "/library?k=" + encodeURIComponent(passKey);
+      home.href = keyed("/library");
       home.hidden = false;
       // Section-to-section links are relative and would drop the key, and with it
       // access: the next chapter would answer 403.
@@ -1662,7 +1662,7 @@
       Array.prototype.forEach.call(carried, function (link) {
         var href = link.getAttribute("href");
         if (href && href.indexOf("?") === -1) {
-          link.setAttribute("href", href + "?k=" + encodeURIComponent(passKey));
+          link.setAttribute("href", keyed(href));
         }
       });
     }
@@ -1738,8 +1738,8 @@
 
     function ask() {
       if (Date.now() > giveUpAt) return stop();
-      fetch("/glossary/" + encodeURIComponent(folder) + "?k=" + encodeURIComponent(passKey), {
-        headers: { "X-Targum-Key": passKey },
+      fetch(keyed("/glossary/" + encodeURIComponent(folder)), {
+        headers: keyHeaders(),
       })
         .then(function (response) {
           return response.json();
@@ -1807,7 +1807,7 @@
 
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
-  var key = new URLSearchParams(location.search).get("k");
+  var key = passKey;
   if (!link || !key) return;
 
   // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
@@ -1829,9 +1829,9 @@
     if (asked || through() < ENOUGH) return;
     asked = true;
     window.removeEventListener("scroll", maybe);
-    fetch("/chapter?k=" + encodeURIComponent(key), {
+    fetch(keyed("/chapter"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ name: name, number: Number(link.getAttribute("data-next")) }),
     }).catch(function () {});
   }

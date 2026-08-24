@@ -7,6 +7,7 @@ things that only break once there is a domain in front of it.
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from http.client import HTTPConnection
@@ -115,6 +116,75 @@ def test_a_stranger_host_is_still_refused(hosted: tuple[int, str]) -> None:
     port, session = hosted
     status, _ = ask(port, "/library", "evil.example.com", session)
     assert status == 403
+
+
+# -- the start-up key ---------------------------------------------------------
+
+
+def test_hosted_mints_no_start_up_key(hosted: tuple[int, str]) -> None:
+    """It proves you can read a terminal. Hosted there is no terminal and no such person."""
+    port, session = hosted
+    _, body = ask(port, "/", "targum.page", session)
+    assert b'TARGUM_KEY = ""' in body, "the page should be handed no key at all"
+
+
+def test_no_page_hands_a_reader_a_key_in_a_url(hosted: tuple[int, str]) -> None:
+    """A key in the address is a bearer token in browser history and in a Referer."""
+    port, session = hosted
+    for path in ("/", "/library", "/words"):
+        page = ask(port, path, "targum.page", session)[1].decode("utf-8", "replace")
+        for hit in re.finditer(r"\?k=", page):
+            around = page[max(0, hit.start() - 40) : hit.start()]
+            assert "key ?" in around or "key\n" in around or "(key" in around, (
+                f"{path} emits a literal ?k= rather than a conditional: ...{around[-40:]}"
+            )
+
+
+def test_an_empty_key_authorises_nobody() -> None:
+    """The trap in taking the key away.
+
+    Hosted the key is the empty string, and `compare_digest("", "")` is True — so a
+    comparison that guards only the value would authorise every anonymous request
+    instead of none. `_authorised` has to test the token itself first.
+    """
+    source = Path("src/targum/serve.py").read_text()
+    assert "if self.token and secrets.compare_digest(given, self.token):" in source
+
+
+@pytest.mark.parametrize("query", ["", "?k=", "?k=guessed", "?k=%20"])
+def test_no_key_gets_a_stranger_through_the_door(hosted: tuple[int, str], query: str) -> None:
+    port, _ = hosted
+    status, body = ask(port, "/words" + query, "targum.page")
+    assert status == 200
+    assert b"Coming soon" in body, "a stranger should meet the holding page, whatever they guess"
+
+
+def test_run_locally_the_key_is_still_there(tmp_path: Path) -> None:
+    """The mechanism is right for the case it was built for and stays.
+
+    One person, one machine, nobody else able to reach it, and reading the terminal is
+    the same as being the person sitting at it.
+    """
+    announced: list[str] = []
+    port = 8492
+    threading.Thread(
+        target=lambda: serve.start(
+            out=tmp_path / "out",
+            port=port,
+            open_browser=False,
+            store=tmp_path / "local.db",
+            announce=announced.append,
+        ),
+        daemon=True,
+    ).start()
+    for _ in range(60):
+        if announced:
+            break
+        time.sleep(0.1)
+    assert announced and "?k=" in announced[0]
+    key = announced[0].split("k=")[1]
+    assert ask(port, "/", "127.0.0.1")[0] == 403, "no key, no entry, on a single-user machine"
+    assert ask(port, f"/?k={key}", "127.0.0.1")[0] == 200
 
 
 # -- health -----------------------------------------------------------------

@@ -989,7 +989,10 @@ class Handler(BaseHTTPRequestHandler):
             return False
         query = parse_qs(urlparse(self.path).query)
         given = query.get("k", [""])[0] or (self.headers.get("X-Targum-Key") or "")
-        if secrets.compare_digest(given, self.token):
+        # `self.token` guards the comparison rather than only the value. Hosted the key
+        # is the empty string, and `compare_digest("", "")` is True — so without this,
+        # taking the key away would authorise every anonymous request instead of none.
+        if self.token and secrets.compare_digest(given, self.token):
             return True
         # A signed-in session is a stronger claim than the start-up key, and it is the
         # one thing here that survives a restart. Before this, someone who had signed in
@@ -1235,7 +1238,8 @@ class Handler(BaseHTTPRequestHandler):
         _, session = got
         from .accounts import SESSION_DAYS
 
-        self._go(f"/?k={self.token}&signin=welcome", self._session_cookie(session, SESSION_DAYS))
+        where = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
+        self._go(where, self._session_cookie(session, SESSION_DAYS))
 
     def _sign_out(self) -> None:
         self.store.sign_out(self._cookie(SESSION_COOKIE) or None)
@@ -1498,7 +1502,13 @@ def start(
     from .render.builder import library_page, start_page, words_page
     from .translate.anthropic_provider import AnthropicProvider
 
-    token = secrets.token_urlsafe(12)
+    # The start-up key is a single-user mechanism: it proves you can read the terminal
+    # this process was started from, which is the same as proving you are the person
+    # sitting at the machine. Hosted there is no terminal and no such person, accounts
+    # are what identify anybody, and a key in the address would only be a bearer token
+    # riding in every URL — through browser history, over a shared screen, and out in a
+    # Referer. So hosted has no key at all, and `_authorised()` falls to the session.
+    token = "" if require_account else secrets.token_urlsafe(12)
     usable, _ = AnthropicProvider().available()
     keeping = Store(store or default_store())
     keeping.sweep()
@@ -1540,7 +1550,13 @@ def start(
             f"Port {port} is already in use.",
             f"Another targum may already be running. Stop it, or: targum serve --port {port + 1}",
         ) from error
-    address = f"http://127.0.0.1:{port}/?k={token}"
+    # Hosted, the address a reader is given is the one in the email and the one on the
+    # certificate — not a loopback address with a key on it.
+    address = (
+        f"{public_address.rstrip('/')}/"
+        if require_account
+        else f"http://127.0.0.1:{port}/?k={token}"
+    )
     if announce:
         announce(address)
     if open_browser:

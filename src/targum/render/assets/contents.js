@@ -1,9 +1,15 @@
 /* The contents page, when it is being served rather than opened off the disk.
  *
- * Section links are relative, and a served reader is behind a key held in the address.
- * Without this the first chapter anyone clicks answers 403, which is the whole of what
- * a multi-section book does on its first click. Opened from a file:// path there is no
- * key and no library, and every link already works, so this does nothing at all.
+ * Section links are relative, and a served reader run locally is behind a key held in
+ * the address. Without carrying it, the first chapter anyone clicks answers 403 — which
+ * is the whole of what a multi-section book does on its first click. Opened from a
+ * file:// path there is no key and no library, and every link already works, so this
+ * does nothing at all.
+ *
+ * Hosted there is no key either, and the session cookie carries the reader instead. So
+ * the key is optional here and its absence is not a reason to stop: an earlier version
+ * returned early without one, which off a hosted box left the whole contents page inert
+ * — no chapter tree, no Translate, no Prepare all.
  */
 (function () {
   "use strict";
@@ -11,10 +17,8 @@
   var served = location.protocol === "http:" || location.protocol === "https:";
   if (!served) return;
 
-  var key = new URLSearchParams(location.search).get("k");
-  if (!key) return;
-
-  var suffix = "?k=" + encodeURIComponent(key);
+  var key = new URLSearchParams(location.search).get("k") || "";
+  var suffix = key ? "?k=" + encodeURIComponent(key) : "";
 
   var links = document.querySelectorAll(".toc a");
   Array.prototype.forEach.call(links, function (link) {
@@ -42,9 +46,12 @@
   "use strict";
   if (location.protocol === "file:") return;
 
-  var key = new URLSearchParams(location.search).get("k");
+  // No key hosted, where the session cookie identifies the reader; a key locally, where
+  // it is what proves the page came from the terminal that started the server. Only the
+  // rows are worth stopping for.
+  var key = new URLSearchParams(location.search).get("k") || "";
   var rows = document.querySelectorAll("[data-chapter]");
-  if (!key || !rows.length) return;
+  if (!rows.length) return;
 
   // The folder name is the segment before /reader/ in the path.
   // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
@@ -53,10 +60,21 @@
   var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
   if (!name) return;
 
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+
   function ask(path, body) {
-    return fetch(path + "?k=" + encodeURIComponent(key), {
+    return fetch(keyed(path), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     }).then(function (r) {
       return r.json();
@@ -90,7 +108,7 @@
 
   function watch(id, button) {
     var timer = setInterval(function () {
-      fetch("/job/" + id + "?k=" + encodeURIComponent(key))
+      fetch(keyed("/job/" + id))
         .then(function (r) {
           return r.json();
         })
@@ -107,7 +125,7 @@
     }, 1500);
   }
 
-  fetch("/readers?k=" + encodeURIComponent(key))
+  fetch(keyed("/readers"))
     .then(function (r) {
       return r.json();
     })
@@ -142,7 +160,7 @@
   press.onclick = function () {
     press.disabled = true;
     press.textContent = "Preparing…";
-    fetch("/chapter?k=" + encodeURIComponent(key), {
+    fetch(keyed("/chapter"), {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Targum-Key": key },
       body: JSON.stringify({ name: name, all: true }),
@@ -153,7 +171,7 @@
       .then(function (job) {
         if (!job.id) return location.reload();
         var timer = setInterval(function () {
-          fetch("/job/" + job.id + "?k=" + encodeURIComponent(key))
+          fetch(keyed("/job/" + job.id))
             .then(function (r) {
               return r.json();
             })

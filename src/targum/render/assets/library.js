@@ -13,6 +13,20 @@
   "use strict";
 
   var key = window.TARGUM_KEY;
+  /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
+     riding in every URL is a bearer token in browser history, on a shared screen, and in
+     a Referer. Local it stays, because there it proves the page came from the terminal
+     that started the process. Both cases are this one branch. */
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
   var names = window.TARGUM_LANGUAGES || {};
   var catalogue = window.TARGUM_CATALOGUE || [];
   var lang = window.TargumLang;
@@ -22,9 +36,9 @@
   }
 
   function ask(path, body) {
-    return fetch(path + "?k=" + encodeURIComponent(key), {
+    return fetch(keyed(path), {
       method: body ? "POST" : "GET",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (response) {
       return response.json();
@@ -43,7 +57,7 @@
   }
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
-    link.href = link.getAttribute("href") + "?k=" + encodeURIComponent(key);
+    link.href = keyed(link.getAttribute("href"));
   });
 
   /* --- building one --------------------------------------------------------- */
@@ -113,7 +127,7 @@
           status.textContent = say(state.message) || "Almost there…";
           if (state.stage === "done") {
             clearInterval(timer);
-            window.location.href = "/reader/" + state.reader + "?k=" + encodeURIComponent(key);
+            window.location.href = keyed("/reader/" + state.reader);
             resolve();
           }
         });
@@ -245,7 +259,7 @@
     mine.forEach(function (reader) {
       var item = document.createElement("li");
       var link = document.createElement("a");
-      link.href = "/reader/" + reader.name + "/reader/index.html?k=" + encodeURIComponent(key);
+      link.href = keyed("/reader/" + reader.name + "/reader/index.html");
 
       var title = document.createElement("bdi");
       title.setAttribute("lang", reader.language || "und");
@@ -312,7 +326,7 @@
 
       var name = document.createElement("a");
       name.href =
-        "/reader/" + reader.name + "/reader/" + chapter.file + "?k=" + encodeURIComponent(key);
+        keyed("/reader/" + reader.name + "/reader/" + chapter.file);
       name.appendChild(document.createTextNode(chapter.number + ". "));
       var title = document.createElement("bdi");
       title.setAttribute("lang", reader.language || "und");
