@@ -1792,3 +1792,50 @@
     window.TargumSync.start();
   }
 })();
+
+/* --- the next chapter, bought before it is needed ---------------------------
+ *
+ * A book is paid for a chapter at a time. Waiting until somebody finishes one puts a
+ * minute of dead time at every boundary — translating a chapter takes well under a
+ * minute and reading one takes ten — so the next is started once they are most of the
+ * way through this one. Nothing is bought from a reader who leaves early, and nobody
+ * waits at the turn of a page.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+
+  var pager = document.querySelector(".pager[data-chapter]");
+  var link = pager && pager.querySelector("[data-next]");
+  var key = new URLSearchParams(location.search).get("k");
+  if (!link || !key) return;
+
+  // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
+  // the build are both called "reader", so it is the *last* one the name sits before.
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  // Far enough in that they are reading it rather than glancing at it.
+  var ENOUGH = 0.6;
+  var asked = false;
+
+  function through() {
+    var height = document.documentElement.scrollHeight - window.innerHeight;
+    return height > 0 ? window.scrollY / height : 1;
+  }
+
+  function maybe() {
+    if (asked || through() < ENOUGH) return;
+    asked = true;
+    window.removeEventListener("scroll", maybe);
+    fetch("/chapter?k=" + encodeURIComponent(key), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      body: JSON.stringify({ name: name, number: Number(link.getAttribute("data-next")) }),
+    }).catch(function () {});
+  }
+
+  window.addEventListener("scroll", maybe, { passive: true });
+  maybe();
+})();
