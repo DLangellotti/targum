@@ -1137,20 +1137,34 @@ def test_a_pair_is_not_separated_by_a_blank_line() -> None:
     css = (ASSETS / "reader.css").read_text(encoding="utf-8")
     line = 1.0625 * 1.95  # a Hebrew line, per §5
 
-    def margin(block: str) -> float:
-        rules = css.split(block, 1)[1].split("}", 1)[0]
-        found = re.search(r"margin-block-end:\s*([\d.]+)rem", rules)
-        assert found is not None, block
-        return float(found.group(1))
+    def gap(*blocks: str) -> float:
+        """The space between two pairs: the margin, plus the padding on each side of it.
 
-    padding = 0.35 * 2  # both sides, and it stays: it is the hover row's breathing space
-    prose = margin(".pair {\n") + padding
+        Read rather than assumed, because the padding turned out to be most of the
+        answer — cutting the margin alone still left a visible step between one-line
+        pesukim, and no amount of margin-tuning could close it.
+        """
+        margin, padding = 1.35, 0.35
+        for block in blocks:
+            rules = css.split(block, 1)[1].split("}", 1)[0]
+            if found := re.search(r"margin-block-end:\s*([\d.]+)rem", rules):
+                margin = float(found.group(1))
+            if found := re.search(r"padding(?:-block)?:\s*([\d.]+)rem", rules):
+                padding = float(found.group(1))
+        return margin + padding * 2
+
+    prose = gap(".pair {\n")
     assert prose < line * 0.6, "a paragraph break, not a blank line"
 
     # A verse is not a paragraph. Spacing pesukim apart makes a chapter read as a list.
-    verses = margin("body.verses .pair {") + padding
+    verses = gap(".pair {\n", "body.verses .pair {")
     assert verses < prose, "tighter again where a pair is one pasuk"
-    assert verses < line * 0.5
+
+    # And with the translation hidden there is no pairing left for the space to serve,
+    # so it goes almost entirely: one-line verses should run as continuous text.
+    alone = gap(".pair {\n", "body.verses .pair {", ".mode-source .pair { margin")
+    assert alone < verses
+    assert alone < line * 0.2, "source-only should read as a chapter, not as a list"
 
 
 def test_only_a_verse_text_is_spaced_like_verses() -> None:
