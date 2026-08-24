@@ -10,10 +10,15 @@ the text and break every token offset the reader draws from.
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Sequence
 from typing import Protocol
 
 from ..errors import SkeletonChanged
-from ..models import Segment
+from ..models import BlockKind, Segment
+
+# A label rather than a sentence: never sent to a diacritizer, and never counted when
+# deciding whether a document was published with vowels.
+_LABELS = frozenset({BlockKind.heading, BlockKind.byline})
 
 # Derived from Unicode rather than written out by hand, because the Hebrew block
 # interleaves combining marks with punctuation: maqaf, paseq, sof pasuq and nun hafukha
@@ -108,6 +113,31 @@ def is_fully_pointed(text: str) -> bool:
     if not spans:
         return False
     return all(any(marks for _, marks in units[start:end]) for start, end in spans)
+
+
+# Below this share of bare prose, a document is a pointed edition rather than a bare one,
+# and its own pointing is the authority. Half is a wide margin on purpose: the question
+# is not "is anything missing" but "was this published with vowels".
+MOSTLY_POINTED = 0.5
+
+
+def wants_pointing(segments: Sequence[Segment]) -> bool:
+    """Whether a diacritizer has anything useful to add to this document.
+
+    Not "is every word pointed", which a Tanakh never is and never should be. The
+    Masoretic text carries ketiv/qere — a written form left deliberately consonantal
+    beside the pointed form it is read as, like `מידע [מוֹדַע]` in Ruth 2:1. Treating
+    those bare words as an omission would have a model invent vowels for the one form
+    tradition insists is unvowelled, and print the guess as if it were the text.
+
+    So the question is asked of the document rather than the word: a text that is mostly
+    pointed was published pointed, and what is bare in it is the editor's doing.
+    """
+    prose = [segment for segment in segments if segment.kind not in _LABELS]
+    if not prose:
+        return False
+    bare = sum(1 for segment in prose if not is_fully_pointed(segment.text))
+    return bare / len(prose) > MOSTLY_POINTED
 
 
 def splice(source: str, model: str) -> tuple[str, bool]:

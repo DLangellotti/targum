@@ -223,7 +223,14 @@ class Build:
     # and it costs almost nothing, because the overlap that makes sharing worth having
     # happens precisely where texts are public. Two people uploading the same private
     # file is not a thing that happens.
-    PUBLIC_SOURCES = ("gutenberg:", "wikisource:", "http://", "https://", "catalogue:")
+    PUBLIC_SOURCES = (
+        "gutenberg:",
+        "wikisource:",
+        "sefaria:",
+        "http://",
+        "https://",
+        "catalogue:",
+    )
 
     def shared_source(self) -> bool:
         return str(self.source).startswith(self.PUBLIC_SOURCES)
@@ -366,24 +373,40 @@ class Build:
             self._aligner = align_module.Aligner()
         return self._aligner
 
-    def aligned(self, segmented: SegmentedDocument) -> list[Translation]:
+    def aligned(self, source: Document, segmented: SegmentedDocument) -> list[Translation]:
         """Ingest, segment and align every supplied translation."""
+        from .align import parallel
+
         out: list[Translation] = []
+        mine = parallel.parallel_key(source)
         for path in self.translation_files:
             document = ingest.load(str(path))
             target = segment_document(document, self.segmenter)
             name = document.title or (path.stem if isinstance(path, Path) else str(path))
 
+            # Some pairs do not need matching: both sides were published against the same
+            # verse numbering, so the correspondence is stated rather than inferred. Both
+            # must say so and say the same thing — never guessed from the shapes.
+            theirs = parallel.parallel_key(document)
+            declared = mine is not None and mine == theirs
+            if mine is not None and theirs is not None and mine != theirs:
+                self.notify(f"{name} covers a different range; matching it instead.")
+
             key = self.cache.key(
                 "align",
                 document=segmented.document_hash,
                 translation=target.document_hash,
-                aligner=self.aligner.name,
+                aligner=parallel.NAME if declared else self.aligner.name,
             )
             stored = self.cache.get("align", key)
             if isinstance(stored, dict):
                 alignment = Alignment.model_validate(stored)
                 self.reused.append(f"alignment ({name})")
+            elif declared:
+                # No embeddings, no model, nothing downloaded: the publisher already
+                # numbered both sides and this copies that down.
+                alignment = parallel.pair(segmented, target, name)
+                self.cache.put("align", key, alignment.model_dump(mode="json"))
             else:
                 self.notify(f"Matching {name} to the source…")
                 alignment = self.aligner.align(segmented, target, name)
@@ -453,9 +476,7 @@ class Build:
                 return existing
 
         engine = self._vocalizer
-        if engine is None and any(
-            not vocalize_module.is_fully_pointed(segment.text) for segment in segmented.segments
-        ):
+        if engine is None and vocalize_module.wants_pointing(segmented.segments):
             engine = vocalize_module.build()
         key = self.cache.key(
             "vocalize",
@@ -599,7 +620,7 @@ class Build:
             translations.append(
                 plan.cached_translation or self.translate(segmented, on_progress, only=only)
             )
-        translations.extend(self.aligned(segmented))
+        translations.extend(self.aligned(plan.document, segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
 

@@ -7,8 +7,11 @@ from typing import Protocol
 from ..ids import segment_id
 from ..models import Block, BlockKind, Document, Segment, SegmentedDocument
 
-# A title or a byline is one unit however it punctuates.
-UNSPLIT = frozenset({BlockKind.heading, BlockKind.byline})
+# A title or a byline is one unit however it punctuates. So is a verse: scripture is
+# numbered by verse and the published translations are numbered the same way, so a verse
+# is the unit both sides agree on. Let the segmenter split one long verse into two and
+# that agreement is gone — which is the whole basis on which a Tanakh pairs for nothing.
+UNSPLIT = frozenset({BlockKind.heading, BlockKind.byline, BlockKind.verse})
 
 
 class Segmenter(Protocol):

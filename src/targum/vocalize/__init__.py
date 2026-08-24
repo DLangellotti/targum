@@ -7,8 +7,10 @@ what the reader shows.
 
 from __future__ import annotations
 
+import logging
+
 from ..errors import SkeletonChanged, TargumError
-from ..models import SegmentedDocument, Vocalization
+from ..models import BlockKind, SegmentedDocument, Vocalization
 from .base import (
     LETTERS,
     MARKS,
@@ -20,8 +22,11 @@ from .base import (
     splice,
     strip_nikkud,
     supports,
+    wants_pointing,
 )
 from .nakdimon import NakdimonVocalizer
+
+LOG = logging.getLogger(__name__)
 
 __all__ = [
     "NakdimonVocalizer",
@@ -38,6 +43,7 @@ __all__ = [
     "names",
     "supports",
     "vocalize_document",
+    "wants_pointing",
 ]
 
 SOURCE_ONLY = "source"
@@ -57,6 +63,10 @@ def build(name: str = DEFAULT) -> Vocalizer:
     return builder()
 
 
+# A label rather than a sentence: never sent to a diacritizer.
+LABELS = frozenset({BlockKind.heading, BlockKind.byline})
+
+
 def vocalize_document(
     segmented: SegmentedDocument, engine: Vocalizer | None = None
 ) -> Vocalization:
@@ -66,10 +76,25 @@ def vocalize_document(
     trusted for those words. Where a source is pointed throughout, no model is consulted
     at all — which is what lets a Tanakh build work with no engine installed.
     """
-    unfinished = [segment for segment in segmented.segments if not is_fully_pointed(segment.text)]
+    # Headings and bylines are labels, not prose. Nobody wants vowel points on a chapter
+    # number, and asking for them is how a Tanakh — pointed throughout, and the one case
+    # this is meant to need no engine for — ends up loading one anyway. Sefaria's
+    # "רות א׳" was enough to make Nakdimon assert and take the whole build down with it.
+    unfinished = [
+        segment
+        for segment in segmented.segments
+        if segment.kind not in LABELS and not is_fully_pointed(segment.text)
+    ]
     guesses: dict[str, str] = {}
     if engine is not None and unfinished:
-        guesses = engine.vocalize(unfinished, segmented.language)
+        try:
+            guesses = engine.vocalize(unfinished, segmented.language)
+        except Exception as error:  # noqa: BLE001 - a third-party model, not our code
+            # Losing the vowels is a disappointment; losing the build is an afternoon.
+            # Nakdimon raises bare AssertionErrors on input it dislikes, so this cannot
+            # be narrowed to a useful exception type.
+            LOG.warning("the diacritizer failed, leaving the source's own pointing: %s", error)
+            guesses = {}
 
     pointed: dict[str, str] = {}
     machine: list[str] = []
