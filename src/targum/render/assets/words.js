@@ -74,6 +74,22 @@
 
   /* --- what is in the browser ---------------------------------------------- */
 
+  // The chart kit, the growth line, the tiles and the collector live in charts.js —
+  // Learn draws the same numbers, and two copies of a chart drift.
+  //
+  // Bound here rather than beside the charts further down, because `collect` is called
+  // during start-up: `var` hoists the name but not the value, so reading it from a
+  // declaration below meant `charts` was undefined and the page threw on load.
+  var charts = window.TargumCharts;
+  var el = charts.el;
+  var svg = charts.svg;
+  var plural = charts.plural;
+  var shortDate = charts.shortDate;
+  var dayOf = charts.dayOf;
+  var tipFor = charts.tipFor;
+  var drawGrowth = charts.growth;
+  var drawTiles = charts.tiles;
+
   // Words are filed per language; phrases per text, with the text index saying which
   // language each belongs to. Gathered here into one shape per language.
   var collect = charts.collect;
@@ -148,17 +164,6 @@
 
   /* --- small helpers -------------------------------------------------------- */
 
-  // The chart kit, the growth line and the tiles live in charts.js — Learn draws the same
-  // numbers, and two copies of a chart drift.
-  var charts = window.TargumCharts;
-  var el = charts.el;
-  var svg = charts.svg;
-  var plural = charts.plural;
-  var shortDate = charts.shortDate;
-  var dayOf = charts.dayOf;
-  var tipFor = charts.tipFor;
-  var drawGrowth = charts.growth;
-  var drawTiles = charts.tiles;
 
   /* --- the charts ----------------------------------------------------------- */
 
