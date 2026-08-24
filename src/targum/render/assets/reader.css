@@ -172,6 +172,31 @@ body {
 .bar-title a { color: inherit; text-decoration: none; border-block-end: 1px solid var(--rule); }
 .bar-title a:hover { color: var(--ink); }
 
+/* How much of this text you can already read. A real count of a real thing, so it takes
+   the ledger treatment §9 asks for: the reading face, tabular figures, and leaf — which
+   §4 names as the colour of "known". Not gold: gold is where you act. */
+/* Its own direction, isolated. `.bar-title` takes the page's, so on a Hebrew text this
+   line came out "of 142 known 0" — the numbers and the English words reordered around
+   each other. It is an English phrase wherever it appears. */
+.bar-title .known {
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.bar-title .known[hidden] { display: none; }
+.bar-title .known b {
+  font-family: var(--reading);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--leaf);
+}
+
+/* The narrow bar has room for the title or the count, not both, and the title is the
+   one that says where you are. */
+@media (max-width: 40rem) {
+  .bar-title .known { display: none; }
+}
+
 .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .group { display: flex; gap: 0.25rem; align-items: center; }
 
@@ -417,17 +442,27 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
 
 .method { display: none; }
 
-/* Every word is tappable, but nothing is decorated until you have said something about
-   it. The page should read as a page, not as a worksheet.
+/* What you have said travels with the word across every text in the language, so these
+   marks are how a book you have never opened still shows what you already know.
 
-   What you have said travels with the word across every text in the language, so these
-   marks are how a book you have never opened still shows what you already know. The
-   tint fades as a word moves up the scale and goes altogether once it is known: the
-   page gets quieter as you learn it, which is the only progress bar worth having. */
+   Every word is tappable in both modes — marking is about what the page shows you, not
+   about what it lets you do. */
 .w { border-radius: 4px; cursor: pointer; }
 
+/* Marking turns the scale on, and the scale starts before you have said anything.
+   A word you have never marked is the loudest thing on the page; saying anything at all
+   about it makes it quieter, and knowing it makes it disappear. So the way to clear a
+   page is to read it, and the page tells you how far you have got without a number.
+
+   One hue for the whole scale, because it is one scale. §4 caps the accent wash at 22%,
+   which is what the top step takes; the underline is the tell that you have touched a
+   word at all, so a never-met word carries none. Only paint here — no box changes — so
+   switching cannot rebreak a line. */
+body.marking .w:not([data-status]) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
 body.marking .w[data-status="1"] {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);
 }
 body.marking .w[data-status="2"] {
@@ -445,7 +480,10 @@ body.marking .w[data-status="3"] {
 
 /* --- what a word means --------------------------------------------------- */
 
-.w:hover, .w.looked-up { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.w:hover, .w.looked-up {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+}
 
 .gloss-card {
   position: fixed;
@@ -783,7 +821,7 @@ body.marking .w[data-status="3"] {
 /* English chrome inside a panel that inherits the page's direction. Left as-is, a line
    opening with a number — "34% known here" — has the number reordered to the far end.
    Set on the text rather than on .list, whose own inset-inline-end places the panel. */
-.list-stats, .list-mark, .list-empty { direction: ltr; text-align: start; }
+.list-stats, .list-empty { direction: ltr; text-align: start; }
 
 .list-stats {
   margin: 0.1rem 0 0.5rem;
@@ -791,16 +829,6 @@ body.marking .w[data-status="3"] {
   font-size: 0.6875rem;
   line-height: 1.4;
 }
-.list-mark {
-  display: flex;
-  gap: 0.4rem;
-  align-items: center;
-  margin-block-end: 0.7rem;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  cursor: pointer;
-}
-.list-mark input { margin: 0; }
 .list-items .kind.is-phrase {
   color: var(--iris);
   border: 1px solid color-mix(in srgb, var(--iris) 45%, transparent);
