@@ -882,6 +882,35 @@
 
   // How well you know this word, and what you want it to say. The same control serves
   // the card, the list beside the text and the words page, so the three never drift.
+  // Setting a level from the keyboard, on whichever word the card is open for. Does the
+  // same as pressing the button: the card is rebuilt rather than patched, so every
+  // control in it agrees about which level is now set.
+  var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };
+
+  function markLookedUp(key) {
+    if (!lookedUp || !card || card.hidden) return false;
+    // Asked of the object's own keys: `KEYED_STATUS["constructor"]` is a function, and
+    // every other key on the page would have gone through this branch holding one.
+    if (!Object.prototype.hasOwnProperty.call(KEYED_STATUS, key)) return false;
+    var status = KEYED_STATUS[key];
+    var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
+    if (!lemmas[index]) return false;
+    setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
+    var word = lookedUp;
+    redraw();
+    // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
+    // Find its replacement by lemma in the same sentence rather than holding a
+    // reference to a node that is no longer in the page.
+    var pair = word.closest ? word.closest(".pair") : null;
+    var again =
+      pair && pair.parentNode
+        ? pair.querySelector('.w[data-lemma="' + index + '"]')
+        : null;
+    if (again) showCard(again);
+    else hideCard();
+    return true;
+  }
+
   function statusRow(index, surface, band) {
     var lemma = lemmas[index];
     return TargumVocab.editor({
@@ -1042,6 +1071,7 @@
       card.appendChild(caveat);
     }
     card.hidden = false;
+    placeNear(card, word.getBoundingClientRect());
   }
 
   /* --- keeping a phrase ---------------------------------------------------- */
@@ -1125,26 +1155,34 @@
     return touching.length === 1 ? touching[0] : null;
   }
 
-  function place(rect) {
-    chip.hidden = false;
-    chip.style.translate = "0 0";
-    chip.style.transform = "none";
-    chip.style.left = "0px";
-    chip.style.top = "0px";
+  // A card next to the thing it is about. The word card used to sit pinned to the
+  // bottom of the window wherever you tapped, so marking a word in the first line meant
+  // crossing the whole page to press a button about it, and again to come back.
+  function placeNear(element, rect) {
+    element.hidden = false;
+    element.style.translate = "0 0";
+    element.style.transform = "none";
+    element.style.left = "0px";
+    element.style.top = "0px";
 
-    var box = chip.getBoundingClientRect();
+    var box = element.getBoundingClientRect();
 
-    // Centred on the selection but kept inside the window. A selection near the edge
-    // of an RTL page is at the right, and a card centred on it would hang off it.
+    // Centred on the word but kept inside the window. A word near the edge of an RTL
+    // page is at the right, and a card centred on it would hang off it.
     var wanted = rect.left + rect.width / 2 - box.width / 2;
     var limit = window.innerWidth - box.width - 12;
-    chip.style.left = Math.max(12, Math.min(wanted, limit)) + window.scrollX + "px";
+    element.style.left = Math.max(12, Math.min(wanted, limit)) + window.scrollX + "px";
 
-    // Above the selection where there is room, below it where there is not. A card
-    // for a phrase near the top of the page would otherwise be cut off by the window.
-    var above = rect.top - box.height - 8;
-    var top = above >= 8 ? above : rect.bottom + 8;
-    chip.style.top = top + window.scrollY + "px";
+    // Below where there is room, above where there is not — and never over the word
+    // itself, which is the one thing you are looking at while you decide.
+    var below = rect.bottom + 8;
+    var room = window.innerHeight - below - 12;
+    var top = box.height <= room ? below : Math.max(8, rect.top - box.height - 8);
+    element.style.top = top + window.scrollY + "px";
+  }
+
+  function place(rect) {
+    placeNear(chip, rect);
   }
 
   // Whether the selection is the whole sentence, give or take the whitespace at its
@@ -1629,6 +1667,14 @@
   document.addEventListener("keydown", function (event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
+
+    // While a word card is open the number and letter keys belong to it. `k` and `i`
+    // already mean previous-sentence and interlinear, and they still do the moment the
+    // card is closed — the card is the only thing that borrows them.
+    if (markLookedUp(event.key)) {
+      event.preventDefault();
+      return;
+    }
 
     switch (event.key) {
       case "ArrowDown":
