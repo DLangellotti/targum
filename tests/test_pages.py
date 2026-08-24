@@ -247,3 +247,87 @@ def test_every_script_parses() -> None:
         if done.returncode != 0:
             broken.append(f"{script.name}: {done.stderr.strip().splitlines()[-1]}")
     assert not broken, "\n".join(broken)
+
+
+def test_the_collector_reads_all_three_stores() -> None:
+    """The one function both pages depend on, run rather than grepped.
+
+    Everything else here reads the built HTML as a string, which is how a charts.js that
+    did not parse at all shipped green. This loads it the way a browser does — with a
+    stub localStorage holding one word, one phrase and the document index that says
+    which language the phrase belongs to — and checks what comes back.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    store = {
+        "targum:docs": json.dumps({"h1": {"title": "judenstaat", "language": "he"}}),
+        "targum:vocab:he": json.dumps(
+            {
+                "מילה": {"status": 9, "surface": "מילה", "band": "easy", "at": 100},
+                "ספר": {"status": 2, "surface": "ספר", "band": "hard", "at": 200},
+            }
+        ),
+        "targum:picked:h1": json.dumps({"s1": [{"text": "בית ספר", "status": 9, "at": 300}]}),
+    }
+    harness = """
+const fs = require('fs');
+const store = JSON.parse(process.argv[2]);
+const keys = Object.keys(store);
+const localStorage = {
+  length: keys.length,
+  key: i => keys[i],
+  getItem: k => (k in store ? store[k] : null),
+};
+const make = () => ({ style: {}, dataset: {}, children: [],
+  classList: { add() {}, remove() {} }, appendChild(c) { this.children.push(c); return c },
+  setAttribute() {}, addEventListener() {},
+  getBoundingClientRect: () => ({ width: 600, height: 200 }) });
+const document = { createElement: make, createElementNS: make, getElementById: make,
+                   querySelector: () => null, querySelectorAll: () => [], addEventListener() {} };
+const window = { localStorage, document };
+new Function('window', 'document', 'localStorage',
+             fs.readFileSync(process.argv[1], 'utf8'))(window, document, localStorage);
+if (!window.TargumCharts) throw new Error('TargumCharts was never assigned');
+const he = window.TargumCharts.collect().he;
+console.log(JSON.stringify({
+  words: he.words.map(w => [w.lemma, w.status, w.at]),
+  phrases: he.phrases.map(p => [p.term, p.title]),
+}));
+"""
+    done = subprocess.run(
+        [node, "-e", harness, "--", str(ASSETS / "charts.js"), json.dumps(store)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert done.returncode == 0, done.stderr
+    got = json.loads(done.stdout)
+
+    # Words come from targum:vocab:<language>, oldest first, keeping their status.
+    assert got["words"] == [["מילה", 9, 100], ["ספר", 2, 200]]
+    # A phrase lives under its text, not its language, so the document index is what
+    # says it is Hebrew — and what gives it a title to show.
+    assert got["phrases"] == [["בית ספר", "judenstaat"]]
+
+
+@pytest.mark.parametrize("page", ["words", "learn"])
+def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
+    """`var` hoists the name and not the value.
+
+    words.js read `charts.collect` during start-up but declared `var charts` a hundred
+    lines further down, beside the drawing code. The name existed, held `undefined`, and
+    the page threw on load — with charts.js present, correct, and loaded first, which is
+    what made it look like a loading-order problem it was not.
+    """
+    source = (ASSETS / f"{page}.js").read_text(encoding="utf-8")
+    bound = source.index("var charts = window.TargumCharts;")
+    # `charts.js` is the filename, and both files name it in a comment above the bind.
+    first = re.search(r"\bcharts\.(?!js\b)\w+", source)
+    assert first is not None, f"{page}.js no longer uses the shared kit"
+    assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
