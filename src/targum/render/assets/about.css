@@ -1,0 +1,167 @@
+/* What has been built.
+
+   The one page that is allowed to be a wall of information. §9's hue budget still
+   holds: paper and ink carry it, and the only colour is leaf on the calendar — which
+   §4 gives to progress, and this page is nothing but. */
+
+body.about {
+  margin: 0;
+  padding: 0 1.5rem 4rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: system-ui, sans-serif;
+}
+
+.about .corner {
+  position: absolute;
+  inset-block-start: 1rem;
+  inset-inline-end: 1.5rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.about .corner .enter {
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.about .corner [data-theme-toggle] {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.sheet { max-width: 40rem; margin: 0 auto; padding-block-start: 4.5rem; }
+
+.about .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-block-end: 2.5rem;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--reading);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+}
+.about .brand-mark { width: 0.85em; height: 1.1em; }
+
+.about h1 {
+  margin: 0 0 0.8rem;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.about h2 {
+  margin: 0 0 0.8rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.about h3 {
+  margin: 1.6rem 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.about h3 .count {
+  margin-inline-start: 0.5rem;
+  color: var(--ink-soft);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.about section { margin-block-start: 3rem; }
+.about .lede { margin: 0 0 0.9rem; line-height: 1.7; color: var(--ink); }
+.about a { color: var(--accent); }
+
+.figures { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.8125rem; }
+.figures b {
+  color: var(--ink);
+  font-size: 1.5rem;
+  font-family: var(--reading);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One square a day, thirty of them. */
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 22rem;
+}
+.day {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--rule);
+}
+.day.level-0 { background: var(--rule); }
+.day.level-1 { background: color-mix(in srgb, var(--leaf) 32%, var(--paper)); }
+.day.level-2 { background: color-mix(in srgb, var(--leaf) 55%, var(--paper)); }
+.day.level-3 { background: color-mix(in srgb, var(--leaf) 78%, var(--paper)); }
+.day.level-4 { background: var(--leaf); }
+
+.key {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0.6rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.key i { width: 11px; height: 11px; display: block; }
+.key .less { margin-inline-end: 0.2rem; }
+.key .more { margin-inline-start: 0.2rem; }
+
+.areas { list-style: none; margin: 0; padding: 0; }
+.areas li {
+  display: grid;
+  grid-template-columns: 14rem 1fr 3ch;
+  gap: 0.75rem;
+  align-items: center;
+  padding-block: 0.3rem;
+  font-size: 0.8125rem;
+}
+.areas .bar {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--share),
+    var(--rule) var(--share)
+  );
+}
+.areas b { color: var(--ink); font-variant-numeric: tabular-nums; text-align: end; }
+
+.shipped { margin: 0; padding-inline-start: 1.1rem; }
+.shipped li { margin-block: 0.35rem; line-height: 1.6; }
+
+.foot {
+  max-width: 40rem;
+  margin: 4rem auto 0;
+  padding-block-start: 1.2rem;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  gap: 1.2rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.foot a { color: var(--ink-soft); text-decoration: none; }
+.foot a:hover { color: var(--ink); }
+
+@media (max-width: 34rem) {
+  .areas li { grid-template-columns: 1fr 3ch; }
+  .areas .bar { display: none; }
+}

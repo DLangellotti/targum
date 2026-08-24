@@ -81,3 +81,16 @@ body.holding {
 @media (prefers-reduced-motion: reduce) {
   .corner .enter { transition: none; }
 }
+
+/* Quiet, at the bottom, out of the way of a page whose whole point is emptiness. */
+.holding .foot {
+  position: fixed;
+  inset-block-end: 1.25rem;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  gap: 1.2rem;
+  font-size: 0.6875rem;
+}
+.holding .foot a { color: var(--ink-soft); text-decoration: none; }
+.holding .foot a:hover { color: var(--ink); }

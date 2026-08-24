@@ -34,7 +34,7 @@ from .errors import TargumError
 from .mail import Mailer
 from .models import SegmentedDocument, Style
 from .pipeline import Build, Result
-from .render.builder import holding_page, signin_page
+from .render.builder import about_page, holding_page, signin_page
 
 MAX_UPLOAD = 32 * 1024 * 1024
 SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -96,7 +96,7 @@ ACCOUNT_BUDGET = 3.00
 # making them make an account to read their own files would be absurd. So it is a
 # switch, off by default, and the hosted deployment is what turns it on.
 OPEN_TO_STRANGERS = frozenset(
-    {"/account/signin", "/account/enter", "/account/sign-in", "/account/me"}
+    {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me"}
 )
 
 MAX_COST = 2.00
@@ -856,6 +856,8 @@ class Handler(BaseHTTPRequestHandler):
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
+        if route == "/about":
+            return self._send(200, about_page().encode("utf-8"), HTML)
         if route == "/account/signin":
             return self._send(200, signin_page().encode("utf-8"), HTML)
         if route == "/account/enter":

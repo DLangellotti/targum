@@ -914,3 +914,24 @@ def test_the_door_is_still_reachable_without_an_account(tmp_path: Path) -> None:
         assert b"Coming soon" not in body
     finally:
         server.shutdown()
+
+
+def test_the_about_page_is_open_to_strangers(tmp_path: Path) -> None:
+    """It is the one page whose whole point is being readable without an account."""
+    port, _, server = hosted(tmp_path)
+    try:
+        status, body, _ = call(port, "GET", "/about")
+        assert status == 200
+        assert b"under construction" in body
+        assert b"Coming soon" not in body, "the holding page must not swallow it"
+    finally:
+        server.shutdown()
+
+
+def test_the_holding_page_links_to_it(tmp_path: Path) -> None:
+    port, _, server = hosted(tmp_path)
+    try:
+        _, body, _ = call(port, "GET", "/")
+        assert b'href="/about"' in body
+    finally:
+        server.shutdown()
