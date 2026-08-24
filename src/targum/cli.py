@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -124,6 +125,29 @@ def serve(
             f"session. You see the price before anything is spent.[/dim]"
         )
 
+    # Hosted is configuration, not a different program. Set these in the deployment's
+    # environment and `targum serve` is the public server; leave them and it is the
+    # local one it has always been.
+    public = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()
+    hosted = os.environ.get("TARGUM_REQUIRE_ACCOUNT", "").strip().lower() in {"1", "true", "yes"}
+    if hosted and not os.environ.get("TARGUM_SMTP_HOST", "").strip():
+        # Otherwise the door is shut and there is no way to knock: every route asks
+        # for an account, and the only way to get one is a link nobody can send.
+        fail(
+            TargumError(
+                "targum is set to require an account but has no way to send email.",
+                "Set TARGUM_SMTP_HOST and its companions, or unset TARGUM_REQUIRE_ACCOUNT.",
+            )
+        )
+    if hosted and not public:
+        fail(
+            TargumError(
+                "targum is set to require an account but does not know its own address.",
+                "Set TARGUM_PUBLIC_ADDRESS=https://targum.page, or the sign-in links it "
+                "emails will point at the server's own loopback address.",
+            )
+        )
+
     try:
         start(
             directory,
@@ -133,6 +157,8 @@ def serve(
             max_cost=max_cost,
             budget=budget,
             announce=announce,
+            require_account=hosted,
+            public_address=public,
         )
     except TargumError as error:
         fail(error)

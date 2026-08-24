@@ -72,7 +72,13 @@ class SmtpMailer:
         note["Subject"] = SUBJECT
         note["From"] = self.sender
         note["To"] = to
-        note.set_content(BODY.format(link=link))
+        # Sent as 7-bit rather than quoted-printable, which is the default and which
+        # wraps at 76 characters. A sign-in link is 79: quoted-printable puts a soft
+        # break inside the token, and although a correct client rejoins it, plenty of
+        # them linkify only as far as the break — which is a link that does not work,
+        # in the one email where that is the whole product failing. The body is ASCII
+        # and short, and `test_the_link_is_never_wrapped` is what keeps it that way.
+        note.set_content(BODY.format(link=link), cte="7bit")
         with smtplib.SMTP(self.host, self.port, timeout=20) as server:
             server.starttls()
             if self.user:
