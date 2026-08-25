@@ -1492,11 +1492,23 @@ def test_a_reader_can_be_asked_where_the_time_went() -> None:
     assert 'indexOf("debug=timing") >= 0' in script
     assert "location.search + location.hash" in script
     assert "var began = performance.now();" in script
+    # And through a key, because asking for it through the address failed twice: a
+    # reader already carries a key in its query, so `?debug=timing` on the end makes a
+    # second `?`. A diagnostic whose address must be hand-edited is one that does not
+    # work when it is needed.
+    assert 'case "t":' in script
+    assert "showTimings(!readout || readout.hidden)" in script
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>t</dt>" in template, "and it is written down like every other key"
     # Measured from the top of the file, or it is measuring the wrong span.
     assert script.index("var began") < script.index("function markSegment")
-    # Silent unless asked.
+    # Recorded always, shown only when asked. Four numbers and a string cost nothing to
+    # keep, and a diagnostic that has to be switched on before the thing goes wrong is
+    # one you never have when it does.
     took = script[script.index("function took(what)") :]
-    assert took[: took.index("\n  }")].index("if (!timing) return;") >= 0
+    took = took[: took.index("\n  }")]
+    assert "timings.push(" in took
+    assert "if (timing) showTimings(true);" in took, "and shown at once if asked up front"
 
 
 def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:

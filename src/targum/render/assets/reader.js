@@ -25,20 +25,27 @@
   // which is the worst way for a diagnostic to fail.
   var timing = (location.search + location.hash).indexOf("debug=timing") >= 0;
   var began = performance.now();
+  var timings = [];
   var readout = null;
 
+  // Always recorded — it is four numbers and a string — and shown on request. Asking for
+  // it through the address failed twice: a reader already carries a key in its query, so
+  // `?debug=timing` on the end makes a second `?`, and a diagnostic whose address has to
+  // be edited by hand is one that does not work when it is needed. Pressing `t` cannot
+  // be got wrong.
   function took(what) {
-    if (!timing) return;
-    var line = what + ": " + Math.round(performance.now() - began) + "ms";
-    console.log("targum · " + line);
-    // On the page as well as in the console, so it can be read — and photographed —
-    // without opening the developer tools.
+    timings.push(what + ": " + Math.round(performance.now() - began) + "ms");
+    if (timing) showTimings(true);
+  }
+
+  function showTimings(open) {
     if (!readout) {
       readout = document.createElement("pre");
       readout.className = "timing";
       document.body.appendChild(readout);
     }
-    readout.textContent += line + "\n";
+    readout.hidden = !open;
+    readout.textContent = timings.join("\n") + "\n";
   }
 
   // Whether a server is behind this page, and the key it was handed. A reader opened
@@ -1891,6 +1898,10 @@
         applyMode();
         settle();
         save();
+        return;
+      case "t":
+        // Not stored and not a preference: a question you ask once.
+        showTimings(!readout || readout.hidden);
         return;
       case "m":
         prefs.marking = !prefs.marking;
