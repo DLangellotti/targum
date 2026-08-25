@@ -12,8 +12,14 @@
      chance. The CLM faces are the good ones where they are installed; the two after
      them ship with macOS and Windows respectively. */
   --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
-             "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT",
              "Times New Roman", serif;
+  /* The same faces §5 names, in their own stack rather than appended to the Latin one.
+     Appended, every pointed Hebrew cluster walked four Latin faces before reaching a
+     face that could carry it — and a base letter with its marks is one cluster to
+     resolve, not one character. Measured on the Declaration: 901ms to first frame
+     against 5ms. The reader was not slow; the page could not be laid out. */
+  --reading-hebrew: "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew",
+                    "New Peninim MT", David, serif;
   --measure: 34rem;
   --size: 1.0625rem;
   --leading: 1.75;
@@ -114,6 +120,11 @@
 }
 
 * { box-sizing: border-box; }
+
+/* Hebrew is set from its own stack. Every element that holds source text carries a
+   `lang`, so this reaches the text without reaching the chrome around it — and a
+   Russian or Latin source still takes the reading stack above. */
+:lang(he) { font-family: var(--reading-hebrew); }
 
 body {
   margin: 0;

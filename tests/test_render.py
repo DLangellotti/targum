@@ -1552,3 +1552,22 @@ def test_the_page_is_never_marked_further_than_it_is_read() -> None:
     # And the walk stops at the first pair below the fold rather than crossing the rest.
     visible = script[script.index("function markVisible()") :]
     assert "break;" in visible[: visible.index("\n  }")]
+
+
+def test_hebrew_is_set_from_its_own_stack() -> None:
+    """The reader was never slow; the page could not be laid out.
+
+    §5 names Latin faces then Hebrew ones, and they were one stack — so every pointed
+    Hebrew cluster walked Iowan Old Style, Palatino Linotype, Palatino and Georgia before
+    reaching a face that could carry a letter with its marks. Measured on the Declaration:
+    901ms to first frame, against 5ms once Hebrew had a stack of its own. Hiding the
+    nikud fixed it too, which is what identified it.
+    """
+    css = _reader_css()
+    latin = css[css.index("--reading:") : css.index("--reading-hebrew")]
+    for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
+        assert face not in latin, f"{face} in the Latin stack is the whole cost"
+    hebrew = css[css.index("--reading-hebrew:") : css.index("--measure:")]
+    for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
+        assert face in hebrew, f"{face} is named by §5 and has to stay somewhere"
+    assert ":lang(he) { font-family: var(--reading-hebrew); }" in css
