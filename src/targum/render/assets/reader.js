@@ -19,12 +19,26 @@
    * Silent otherwise. It exists because a page that felt slow measured fast everywhere
    * it could be measured, and guessing at that is how the wrong thing gets optimised.
    */
-  var timing = new URLSearchParams(location.search).get("debug") === "timing";
+  // Matched against the raw address rather than parsed out of it. A reader is opened
+  // with a key already in the query, so `?debug=timing` on the end makes a second `?`
+  // and a parser reads the whole lot as the key — the switch then does nothing, silently,
+  // which is the worst way for a diagnostic to fail.
+  var timing = (location.search + location.hash).indexOf("debug=timing") >= 0;
   var began = performance.now();
+  var readout = null;
 
   function took(what) {
     if (!timing) return;
-    console.log("targum · " + what + ": " + Math.round(performance.now() - began) + "ms");
+    var line = what + ": " + Math.round(performance.now() - began) + "ms";
+    console.log("targum · " + line);
+    // On the page as well as in the console, so it can be read — and photographed —
+    // without opening the developer tools.
+    if (!readout) {
+      readout = document.createElement("pre");
+      readout.className = "timing";
+      document.body.appendChild(readout);
+    }
+    readout.textContent += line + "\n";
   }
 
   // Whether a server is behind this page, and the key it was handed. A reader opened
