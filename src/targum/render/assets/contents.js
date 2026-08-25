@@ -152,6 +152,12 @@
   var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
   if (!name) return;
 
+  // Its own, because this is its own scope. It was calling the one above and could not
+  // reach it — the same way the reader called a `keyed` it never had.
+  function keyed(path) {
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
   function show() {
     var waiting = document.querySelectorAll("[data-chapter].waiting").length;
     var box = press.parentNode;

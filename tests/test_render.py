@@ -1571,3 +1571,30 @@ def test_hebrew_is_set_from_its_own_stack() -> None:
     for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
         assert face in hebrew, f"{face} is named by §5 and has to stay somewhere"
     assert ":lang(he) { font-family: var(--reading-hebrew); }" in css
+
+
+def test_every_scope_defines_the_helpers_it_calls() -> None:
+    """`keyed` and `keyHeaders` were called five times in reader.js and defined nowhere.
+
+    The first served page load threw `keyed is not defined` two milliseconds in, and
+    everything after it — the type size, the reading mode, the marking, the vowels, the
+    word list, the sync — never ran. It was invisible three ways: unreachable on a page
+    opened off the disk, silent in a console nobody had open, and indistinguishable from
+    slowness, because a reader that half-starts looks like a reader that is thinking.
+
+    Checked per IIFE, not per file: the next-chapter block is its own scope and was
+    reaching into the reader's for both of them.
+    """
+    from targum.render.builder import ASSETS
+
+    shared = ("keyed", "keyHeaders")
+    for path in sorted(ASSETS.glob("*.js")):
+        source = path.read_text(encoding="utf-8")
+        # Top-level IIFEs start at column zero; nothing else in these files does.
+        scopes = re.split(r"^\(function \(\) \{", source, flags=re.M)[1:] or [source]
+        for n, scope in enumerate(scopes):
+            body = re.sub(r"/\*.*?\*/", "", scope, flags=re.S)
+            body = re.sub(r"^\s*//.*$", "", body, flags=re.M)
+            for name in shared:
+                if re.search(rf"\b{name}\(", body) and f"function {name}(" not in body:
+                    raise AssertionError(f"{path.name} scope {n + 1} calls {name} without it")
