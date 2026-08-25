@@ -33,8 +33,18 @@
   // `?debug=timing` on the end makes a second `?`, and a diagnostic whose address has to
   // be edited by hand is one that does not work when it is needed. Pressing `t` cannot
   // be got wrong.
+  var lastTook = 0;
+
+  // Two numbers, because one was ambiguous and cost a round trip to find out: when this
+  // happened, counted from the first line of the reader, and how long since the line
+  // before it. A timestamp alone cannot say whether five seconds went inside the step it
+  // is printed against or in the wait before it.
   function took(what) {
-    timings.push(what + ": " + Math.round(performance.now() - began) + "ms");
+    var at = performance.now() - began;
+    timings.push(
+      what + ": " + Math.round(at) + "ms (+" + Math.round(at - lastTook) + "ms)"
+    );
+    lastTook = at;
     if (timing) showTimings(true);
   }
 
@@ -623,6 +633,9 @@
     // asking where things are is free, and a screenful is not always twelve pairs.
     requestAnimationFrame(function () {
       if (generation !== pending) return;
+      // Two lines: the wait for the browser's own first layout, and the marking done in
+      // it. They were one number, and one number could not tell them apart.
+      took("browser laid the page out and gave us a frame");
       markVisible();
       took("marks drawn on the rest of the screen");
     });
@@ -2074,6 +2087,7 @@
   took("marks drawn on what is on screen");
   showTab(prefs.listTab);
   waitForMeanings();
+  took("reader.js finished; the browser now lays the page out");
 
   /* --- the account, if there is one ----------------------------------------- */
 
