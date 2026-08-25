@@ -369,6 +369,83 @@ def restore(
 
 
 @app.command()
+def warm(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="The model these were translated with."),
+    ] = None,
+) -> None:
+    """Seed the shared cache from work already paid for, so nobody pays twice.
+
+    A translation is cached under the exact run of segments it was asked for. Bought from
+    the command line, a book is one run — the whole thing. Served, it is bought a chapter
+    at a time, so the reader's build asks for a key that was never written and pays for a
+    chapter of a book that is already translated and sitting on the disk.
+
+    This writes the chapter-shaped keys from the translations already on disk. Nothing is
+    fetched and nothing is spent: the English is the English that was bought.
+    """
+    from .cache import Cache
+    from .catalogue import BOUGHT_WITH
+    from .models import Document, SegmentedDocument, Translation, read_artifact
+    from .pipeline import Build
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
+
+    cache = Cache()
+    folders = [f for f in sorted(root.rglob("document.json"))]
+    warmed = runs = 0
+    for document_path in folders:
+        folder = document_path.parent
+        document = read_artifact(Document, document_path)
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            continue
+        machine = [
+            t
+            for path in sorted((folder / "translations").glob("*.json"))
+            if (t := read_artifact(Translation, path)) is not None and t.provider != "aligned"
+        ]
+        if not machine:
+            continue
+        translation = machine[0]
+        builder = Build(
+            document.source,
+            target_language=translation.target_language,
+            source_language=segmented.language,
+            style=Style.natural,
+            provider_name=translation.provider,
+            model=model or translation.model or BOUGHT_WITH,
+            owner="",
+        )
+        here = 0
+        for number in range(1, 500):
+            run = builder.chapter_segments(segmented, number)
+            if not run:
+                break
+            have = {s.id: translation.segments[s.id] for s in run if translation.segments.get(s.id)}
+            if len(have) != len(run):
+                continue  # a chapter that was never finished is not one to promise
+            cache.put("translate", builder.cache_key(segmented, run), {"segments": have})
+            here += 1
+        if here:
+            warmed += 1
+            runs += here
+            console.print(f"[dim]  {document.title or folder.name} ({here} chapters)[/dim]")
+    console.print(
+        f"[green]Seeded {runs} chapter{'' if runs == 1 else 's'} from {warmed} "
+        f"targum{'' if warmed == 1 else 's'}.[/green] "
+        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+    )
+
+
+@app.command()
 def rebuild(
     out: Annotated[
         Path | None,

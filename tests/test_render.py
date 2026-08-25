@@ -894,19 +894,24 @@ def test_the_reader_agrees_with_python_on_what_a_mark_is() -> None:
     assert sorted(json.loads(result.stdout)) == sorted(MARKS)
 
 
-def test_the_catalogue_pairs_a_text_with_a_published_translation() -> None:
-    """The catalogue is the cheap half of targum: a text somebody has already translated.
+def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
+    """The catalogue is the cheap half of targum, and there are two ways to be cheap.
 
-    Building one asks no model for anything, so every entry has to actually carry a
-    translation. Wikisource is full of index pages that look like texts, which is why
-    entries are checked by fetching before they are written down.
+    Most entries carry a `Rendering`: somebody published a translation, and a build asks
+    no model for anything. The rest were translated once, by us, and paid for once — free
+    to the second reader because public sources share a cache. That only holds if the
+    build names the model the first one used, since the key is keyed on it. So an entry
+    has to be one or the other, and never neither: neither means every reader pays.
+
+    Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
     from targum.render.builder import library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
-        assert entry.translations, entry.id
+        assert entry.translations or entry.model, f"{entry.id} would cost a reader money"
+        assert not (entry.translations and entry.model), f"{entry.id} claims to be both"
         assert entry.words > 100, entry.id  # an index page, not a text
         assert by_id(entry.id) is entry
 
@@ -919,7 +924,19 @@ def test_the_catalogue_pairs_a_text_with_a_published_translation() -> None:
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title
         assert sent["language"] == entry.language
-        assert sent["translations"], entry.id
+        assert sent["translations"] == [
+            {
+                "name": t.name,
+                "source": t.source,
+                "note": t.note,
+                "publisher": t.publisher,
+                "licence": t.licence,
+            }
+            for t in entry.translations
+        ], entry.id
+        # The model is not the browser's business, and asking for one would be a way to
+        # spend somebody else's money. The server reads it back from the catalogue.
+        assert "model" not in sent, entry.id
 
 
 def test_a_catalogued_source_is_recognised_however_it_is_typed() -> None:
@@ -1618,7 +1635,9 @@ def test_no_scope_reads_a_constant_from_another_one() -> None:
                 continue
             # Read as a bare name, never as somebody's property.
             if re.search(rf"(?<![.\w]){const}\b", body):
-                stray.append(f"{name} scope {n} reads {const}, declared in {owner} scope {owner_scope}")
+                stray.append(
+                    f"{name} scope {n} reads {const}, declared in {owner} scope {owner_scope}"
+                )
     assert not stray, "a constant crossed a scope:\n  " + "\n  ".join(sorted(stray))
 
 
@@ -1716,3 +1735,106 @@ def test_the_mark_is_the_way_back(tmp_path: Path) -> None:
     # A link wherever there is a Learn page, which hosted means without a key: there the
     # cookie identifies the reader and `keyed` is the identity.
     assert "if (home && served) {" in script
+
+
+def test_a_bought_text_names_the_model_that_makes_it_free() -> None:
+    """Public sources share a cache, so the second reader of a text targum translated
+    pays nothing — but the key is keyed on the model among other things, and a hosted
+    build asks for Sonnet. The prose canon was bought on Opus. Without this the whole
+    book would be translated again, per reader, silently.
+    """
+    from targum.catalogue import BOUGHT_WITH, CATALOGUE
+
+    bought = [e for e in CATALOGUE if e.model]
+    assert bought, "the prose canon is in the catalogue"
+    assert {e.model for e in bought} == {BOUGHT_WITH}, "one place says what bought them"
+
+    from targum.render.builder import ASSETS
+
+    server = (ASSETS.parents[1] / "serve.py").read_text(encoding="utf-8")
+    # Read from the catalogue, never from the request.
+    assert "entry = catalogue_module.matching(job.source)" in server
+    assert "model=(entry.model if entry and entry.model else HOSTED_MODEL)," in server
+    assert '"model"' not in server.split("def _builder")[1].split("def ")[1][:400]
+
+
+def test_the_upsell_only_fires_when_there_is_something_better() -> None:
+    """A bought text has no published translation to point at. Offering it as an
+    alternative to itself left the catalogue's own button unable to build it."""
+    from targum.render.builder import ASSETS
+
+    server = (ASSETS.parents[1] / "serve.py").read_text(encoding="utf-8")
+    assert "if already is not None and already.translations:" in server
+
+
+def test_a_bought_book_is_free_to_the_second_reader(tmp_path: Path) -> None:
+    """The whole argument for buying a text once: public sources share a cache.
+
+    It holds a translation under the exact run of segments it was asked for. Bought from
+    the command line a book is one run — the whole thing — and served it is bought a
+    chapter at a time, so a reader's build asked for a key that was never written and
+    paid again for a book already sitting on the disk. `targum warm` writes the
+    chapter-shaped keys from the English already bought.
+
+    Checked here on a book made up for the purpose, so it does not depend on what happens
+    to be in anybody's cache.
+    """
+    from targum.cache import Cache
+    from targum.models import BlockKind, Segment, SegmentedDocument
+    from targum.pipeline import Build
+    from targum.translate.base import Style
+
+    segments = []
+    for c in (1, 2):
+        segments.append(
+            Segment(
+                id=f"h{c}",
+                block_id=f"b{c}",
+                block_index=c,
+                index=len(segments),
+                text=f"Chapter {c}",
+                kind=BlockKind.heading,
+                level=1,
+            )
+        )
+        for n in range(3):
+            segments.append(
+                Segment(
+                    id=f"s{c}-{n}",
+                    block_id=f"b{c}",
+                    block_index=c,
+                    index=len(segments),
+                    text=f"line {n} of chapter {c}",
+                    kind=BlockKind.paragraph,
+                )
+            )
+    segmented = SegmentedDocument(
+        document_hash="b", language="he", segmenter="t/1", segments=segments
+    )
+
+    def build(model: str) -> Build:
+        return Build(
+            "https://example.org/book.txt",
+            target_language="en",
+            source_language="he",
+            style=Style.natural,
+            model=model,
+            owner="",
+        )
+
+    cache = Cache(tmp_path / "cache")
+    bought, hosted = build("claude-opus-5"), build("claude-sonnet-5")
+    chapter = bought.chapter_segments(segmented, 1)
+    assert chapter, "the book has chapters"
+
+    # What `warm` writes: the chapter run, under the model it was bought with.
+    cache.put(
+        "translate",
+        bought.cache_key(segmented, chapter),
+        {"segments": {s.id: "x" for s in chapter}},
+    )
+
+    assert cache.get("translate", bought.cache_key(segmented, chapter)) is not None
+    # And the same request under the hosted default finds nothing, which is the whole
+    # reason the catalogue names the model.
+    assert cache.get("translate", hosted.cache_key(segmented, chapter)) is None

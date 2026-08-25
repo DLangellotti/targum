@@ -108,6 +108,17 @@ class Entry:
     tags: frozenset[Tag] = frozenset()
     translations: list[Rendering] = field(default_factory=list)
 
+    #: The model this text's English was bought with, where nobody had published one.
+    #:
+    #: An entry is one of two things. Most carry a `Rendering`: somebody translated the
+    #: text and a build asks no model for anything. The rest were translated once, by us,
+    #: and paid for once — the cache is keyed on the model among other things, so a build
+    #: that does not name the same model would translate the whole book again at the
+    #: reader's expense. Naming it here is what makes the second kind free too, and it is
+    #: read from the catalogue rather than from the request: a model that arrived in a
+    #: payload would be a way to spend somebody else's money.
+    model: str = ""
+
     @property
     def sample(self) -> list[Line]:
         """The opening, both languages, for the public page.
@@ -128,6 +139,8 @@ class Entry:
             "blurb": self.blurb,
             "words": self.words,
             "tags": sorted(tag.value for tag in self.tags),
+            # Not the model: the page has no use for it and it is not the browser's to
+            # ask for. The server reads it back from here when a build starts.
             "translations": [
                 {
                     "name": t.name,
@@ -140,6 +153,11 @@ class Entry:
             ],
         }
 
+
+#: What the prose canon's English was translated with, once, in August 2026. Named in one
+#: place because the cache is keyed on it: a build that says anything else buys the book
+#: again.
+BOUGHT_WITH = "claude-opus-5"
 
 CATALOGUE: list[Entry] = [
     Entry(
@@ -524,6 +542,94 @@ CATALOGUE: list[Entry] = [
                 licence="CC-BY",
             )
         ],
+    ),
+    # --- Modern Hebrew prose, translated once and paid for once -------------------
+    #
+    # The other half of the catalogue. Nobody has published an English these are worth
+    # reading beside, so targum bought one: Opus 5, once, in August 2026. Public sources
+    # cache with no owner, so the second reader of any of them pays nothing — provided
+    # the build names the model the first one used, which is what `model` below is for.
+    #
+    # All six are on Ben Yehuda, whose plain-text downloads carry no title of their own:
+    # the first line of the file is the title and the author, as prose. The title here is
+    # what names the targum on somebody's shelf.
+    Entry(
+        id="judenstaat",
+        title="מדינת היהודים",
+        author="בנימין זאב הרצל, תרגם מיכל ברקוביץ, 1896",
+        language="he",
+        source="https://benyehuda.org/download/6600.txt",
+        blurb=(
+            "The pamphlet that started it, in the Hebrew it was read in at the time. "
+            "Short, argued rather than dreamt, and still surprising."
+        ),
+        words=20173,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mendele-binyamin",
+        title="מסעות בנימין השלישי",
+        author="מנדלי מוכר ספרים, 1878",
+        language="he",
+        source="https://benyehuda.org/download/6408.txt",
+        blurb=(
+            "A Jewish Don Quixote who sets out from a small town to find the lost tribes "
+            "and gets about as far as the next province. The funniest book on this shelf."
+        ),
+        words=24387,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mendele-kabtzanim",
+        title="ספר הקבצנים",
+        author="מנדלי מוכר ספרים, 1909",
+        language="he",
+        source="https://benyehuda.org/download/4094.txt",
+        blurb=(
+            "The book that taught modern Hebrew prose how to describe poverty without "
+            "either flinching or sentimentalising. Mendele's own Hebrew of his Yiddish."
+        ),
+        words=42966,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mapu-ahavat-tzion",
+        title="אהבת ציון",
+        author="אברהם מאפו, 1853",
+        language="he",
+        source="https://benyehuda.org/download/957.txt",
+        blurb=(
+            "The first modern Hebrew novel: a romance set in the days of Isaiah, written "
+            "in deliberate Biblical Hebrew. Easier than it sounds if you have read Tanakh."
+        ),
+        words=55342,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="herzl-altneuland",
+        title="תל־אביב",
+        author="בנימין זאב הרצל, תרגם נחום סוקולוב, 1902",
+        language="he",
+        source="https://benyehuda.org/download/7260.txt",
+        blurb=(
+            "Herzl's novel of the country he expected, and the translation that gave Tel "
+            "Aviv its name. Sokolow's Hebrew is the period's, not ours."
+        ),
+        words=62932,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="brenner-shkhol",
+        title="שכול וכשלון",
+        author="יוסף חיים ברנר, 1920",
+        language="he",
+        source="https://benyehuda.org/download/869.txt",
+        blurb=(
+            "Bereavement and failure, and it means both. The hardest and best of the "
+            "early novels, written in a Hebrew that was still being made up as it went."
+        ),
+        words=66040,
+        model=BOUGHT_WITH,
     ),
 ]
 
