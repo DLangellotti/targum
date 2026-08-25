@@ -1035,3 +1035,86 @@ def test_the_about_page_is_reachable_from_inside_the_app() -> None:
 
     for page in (library_page("k"), learn_page("k"), words_page("k"), add_page("k")):
         assert 'href="/about"' in page
+
+
+def _book(folder: Path, chapters: int, translated: int) -> None:
+    """A book on disk with `translated` of its `chapters` already paid for."""
+    from targum.models import BlockKind, Segment, SegmentedDocument, Translation
+
+    segments, ids = [], []
+    for c in range(1, chapters + 1):
+        segments.append(
+            Segment(
+                id=f"h{c}",
+                block_id=f"b{c}",
+                block_index=c,
+                index=len(segments),
+                text=f"Chapter {c}",
+                kind=BlockKind.heading,
+                level=1,
+            )
+        )
+        for n in range(3):
+            segments.append(
+                Segment(
+                    id=f"s{c}-{n}",
+                    block_id=f"b{c}",
+                    block_index=c,
+                    index=len(segments),
+                    text=f"line {n}",
+                    kind=BlockKind.paragraph,
+                )
+            )
+            ids.append((c, f"s{c}-{n}"))
+    folder.mkdir(parents=True, exist_ok=True)
+    SegmentedDocument(
+        document_hash="book", language="he", segmenter="t/1", segments=segments
+    ).write(folder / "segments.json")
+    (folder / "reader").mkdir(exist_ok=True)
+    (folder / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps({"title": "A Book", "language": "he", "content_hash": "book"}),
+        encoding="utf-8",
+    )
+    done = {sid: "translated" for c, sid in ids if c <= translated}
+    done |= {f"h{c}": "Chapter" for c in range(1, translated + 1)}
+    Translation(
+        name="English",
+        document_hash="book",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments=done,
+    ).write(folder / "translations" / "null.natural.en.json")
+
+
+def test_a_chapter_already_translated_is_not_bought_again(
+    served: tuple[int, str, Path],
+) -> None:
+    """The regression that costs money.
+
+    The reader asks for the next chapter once you are 60% through this one, every time,
+    knowing nothing about what is on disk. A catalogue text is free and arrives complete,
+    so every one of its chapters is ready from the start — and every prefetch against one
+    was a purchase waiting to happen. It happened: Song of Songs 4 was machine-translated
+    for $0.023 beside the published Metsudah text that already covered it, and the reader
+    then offered a choice between them.
+    """
+    port, key, out = served
+    _book(out / "local" / "book-he", chapters=3, translated=1)
+
+    status, answer, _ = call(port, "POST", f"/chapter?k={key}", {"name": "book-he", "number": 1})
+    assert status == 200
+    assert answer == {"ready": True}, "chapter 1 is already translated"
+    assert "id" not in answer, "and no job was made to translate it again"
+
+
+def test_a_chapter_that_is_missing_is_still_bought(served: tuple[int, str, Path]) -> None:
+    """Or the guard has turned the feature off rather than fixed it."""
+    port, key, out = served
+    _book(out / "local" / "book-he", chapters=3, translated=1)
+
+    status, answer, _ = call(port, "POST", f"/chapter?k={key}", {"name": "book-he", "number": 3})
+    assert status == 200
+    assert answer.get("id"), "chapter 3 has no translation, so it is a job"
+    assert answer.get("ready") is not True

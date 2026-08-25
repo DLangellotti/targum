@@ -1516,11 +1516,22 @@ class Handler(BaseHTTPRequestHandler):
             number = 0 if whole else int(payload.get("number") or 0)
         except (TypeError, ValueError):
             return self._json({"error": "not found"}, 404)
+        # What is already here, whichever way it was asked for. `all` had this check and
+        # one chapter did not, so the reader's prefetch — which asks for the next chapter
+        # at 60% of this one, every time, knowing nothing about what is on disk — bought
+        # a chapter of Song of Songs that the published translation already covered.
+        # A catalogue text is free and arrives complete, so every one of its chapters is
+        # ready from the start and every prefetch against it was a purchase waiting to
+        # happen. Readiness is derived from the artifacts by `chapters()`, so this asks
+        # the only thing that can answer it.
+        standing = self.library.chapters(folder)
         waiting: list[int] = []
         if whole:
-            waiting = [c["number"] for c in self.library.chapters(folder) if not c["ready"]]
+            waiting = [c["number"] for c in standing if not c["ready"]]
             if not waiting:
                 return self._json({"ready": True})
+        elif any(c["number"] == number and c["ready"] for c in standing):
+            return self._json({"ready": True})
 
         person = self._person()
         job = Job(
