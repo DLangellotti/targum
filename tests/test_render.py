@@ -1522,7 +1522,7 @@ def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "var DEFAULTS = 1;" in script
+    assert "var DEFAULTS = 2;" in script
     assert "var RESET = { marking: true };" in script
     assert "if ((prefs.defaults || 0) < DEFAULTS) {" in script
     # Stored, or it re-applies on every load and the reader can never turn it off.

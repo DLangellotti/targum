@@ -133,7 +133,11 @@
   // be changed for somebody who has not got one — which, a day in, is nobody. When this
   // moves, the handful of settings named beside it are taken from the code once and the
   // reader's own choices after that are kept as they always were.
-  var DEFAULTS = 1;
+  // 2, not 1: the first pass turned marking on for browsers that had it off, and then
+  // it got turned off again in one of them. Bumping this asks once more. It is blunt —
+  // it overrides somebody who chose the quiet page on purpose — which is the price of
+  // being able to change a default at all, and the reason to move it rarely.
+  var DEFAULTS = 2;
   var RESET = { marking: true };
 
   try {
