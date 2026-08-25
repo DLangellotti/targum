@@ -16,7 +16,7 @@ from .base import (
 
 
 class PlainTextIngester:
-    name = "text/4"
+    name = "text/5"
 
     def load(self, source: str) -> Document:
         path = Path(source)
@@ -35,4 +35,5 @@ class PlainTextIngester:
             language=fields.get("language") or fields.get("lang"),
             title=title,
             author=author,
+            structure=True,
         )

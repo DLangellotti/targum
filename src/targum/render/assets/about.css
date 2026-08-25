@@ -66,20 +66,6 @@ body.about {
   font-size: 1.5rem;
   font-weight: 600;
 }
-.about h3 {
-  margin: 1.6rem 0 0.5rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.about h3 .count {
-  margin-inline-start: 0.5rem;
-  color: var(--ink-soft);
-  font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
-}
 .about section { margin-block-start: 3rem; }
 .about .lede { margin: 0 0 0.9rem; line-height: 1.7; color: var(--ink); }
 .about a { color: var(--accent); }
@@ -128,11 +114,19 @@ body.about {
 .areas { list-style: none; margin: 0; padding: 0; }
 .areas li {
   display: grid;
-  grid-template-columns: 14rem 1fr 3ch;
+  grid-template-columns: 9rem 1fr 4ch;
   gap: 0.75rem;
   align-items: center;
   padding-block: 0.3rem;
   font-size: 0.8125rem;
+}
+/* A path is a path. §5 puts ui-monospace on keys, hexes and counts; this is the same
+   kind of thing — something you could go and open, set so it reads as one. */
+.areas .what {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 .areas .bar {
   height: 6px;
@@ -145,8 +139,18 @@ body.about {
 }
 .areas b { color: var(--ink); font-variant-numeric: tabular-nums; text-align: end; }
 
-.shipped { margin: 0; padding-inline-start: 1.1rem; }
-.shipped li { margin-block: 0.35rem; line-height: 1.6; }
+/* A dated list, not a changelog. It was bulleted under a heading per week carrying a
+   change count, which was more furniture than text. */
+.log { list-style: none; margin: 0; padding: 0; font-size: 0.8125rem; }
+.log li {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.75rem;
+  padding-block: 0.3rem;
+  line-height: 1.6;
+}
+.log time { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.log-more { margin: 1rem 0 0; font-size: 0.8125rem; }
 
 .foot {
   max-width: 40rem;

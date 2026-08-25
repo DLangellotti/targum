@@ -208,14 +208,11 @@ body.public {
   line-height: 1.5;
 }
 
-.public .empty,
-.public .elsewhere {
+/* `.elsewhere` was the line pointing at the other shelf. There is no other shelf. */
+.public .empty {
   margin: 0 0 2rem;
   color: var(--ink-soft);
   font-size: 0.9375rem;
-}
-.public .elsewhere a {
-  color: var(--accent);
 }
 
 .public .foot {

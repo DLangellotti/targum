@@ -30,6 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 align = ["sentence-transformers>=3.0"]
+covers = ["pillow>=10.0"]
 difficulty = ["wordfreq>=3.1"]
 
 [project.urls]

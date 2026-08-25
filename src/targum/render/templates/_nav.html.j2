@@ -50,13 +50,6 @@
     <button type="button" data-theme-toggle aria-label="Switch theme"></button>
   </div>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
-  {%- if here == 'library' %}
-  {#- Which room. Tanakh is kept apart from everything else: the registers differ, and
-      some readers would rather not be shown secular material at all. Same pill shape as
-      the language tabs below it, and hidden outright when there is only one room with
-      anything in it. -#}
-  <div class="shelves" id="shelves" role="tablist" aria-label="Shelf" hidden></div>
-  {%- endif %}
   {%- if here in ('learn', 'library', 'words') %}
   <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>
   <p class="beta-note" id="beta-note" hidden></p>

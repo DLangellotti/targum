@@ -1,12 +1,18 @@
-/* The library: what we have picked out, and what the reader has open.
+/* The library: everything there is to read, in one list you can sort and sift.
  *
- * A picked text arrives with a translation somebody published, so opening one is only
- * a matter of fetching two texts and matching them up. Nothing about that is the
- * reader's business, and none of it belongs in what the page says.
+ * It used to be a grid of cards holding the catalogue, with the reader's own texts on
+ * another page entirely. Two shapes for one question — what shall I read — and neither
+ * of them answerable in a hurry: a card cannot be sorted, and twenty-six of them are a
+ * wall. This is one row per text, and the controls above the list act on all of them as
+ * you type.
  *
- * One language at a time. Someone reading Hebrew should not have to look past a
- * Russian novel to find their own shelf, and the language they pick here is the one
- * their words page opens on.
+ * A picked text arrives with a translation somebody published, so opening one is only a
+ * matter of fetching two texts and matching them up. Nothing about that is the reader's
+ * business, and none of it belongs in what the page says.
+ *
+ * One language at a time. Someone reading Hebrew should not have to look past a Russian
+ * novel to find their own shelf, and the language they pick here is the one their words
+ * page opens on.
  */
 
 (function () {
@@ -27,64 +33,54 @@
     if (key) head["X-Targum-Key"] = key;
     return head;
   }
+
   var names = window.TARGUM_LANGUAGES || {};
   var catalogue = window.TARGUM_CATALOGUE || [];
   var lang = window.TargumLang;
 
-  /* --- which room -----------------------------------------------------------
-   *
-   * Tanakh is a separate shelf from everything else. Not tidiness: the registers differ
-   * enough that a difficulty band built for one is wrong for the other, and some readers
-   * would rather not be shown secular material at all.
-   *
-   * The preference is on the account rather than in this browser. It has to be, for the
-   * plainest reason: `sync.js` deletes every `targum:*` key but the theme on sign-out,
-   * deliberately, so a local one would be forgotten every time somebody signed out on
-   * their own machine.
-   */
-  var SHELVES = [
-    { id: "library", name: "Library" },
-    { id: "beit-midrash", name: "Beit Midrash" },
+  // What a text is. Six words a reader would actually filter by, and the seventh —
+  // an article — is what their own shelf is mostly made of.
+  var KINDS = [
+    ["prose", "Prose"],
+    ["poetry", "Poetry"],
+    ["novel", "Novels"],
+    ["story", "Stories"],
+    ["essay", "Essays"],
+    ["document", "Documents"],
+    ["article", "Articles"],
   ];
-  var shelf = "library";
 
-  function shelvesWithAnything() {
-    return SHELVES.filter(function (room) {
-      return catalogue.some(function (entry) {
-        return entry.shelf === room.id;
-      });
-    });
-  }
+  var REGISTERS = [
+    ["biblical", "Biblical"],
+    ["modern", "Modern"],
+  ];
 
-  function drawShelves(onPick) {
-    var host = document.getElementById("shelves");
-    if (!host) return;
-    var rooms = shelvesWithAnything();
-    // One room is not a choice, and a control offering it is furniture. Same rule the
-    // language switcher already follows.
-    host.hidden = rooms.length < 2;
-    if (host.hidden) return;
-    host.textContent = "";
-    rooms.forEach(function (room) {
-      var tab = el("button", room.id === shelf ? "on" : "", room.name);
-      tab.type = "button";
-      tab.setAttribute("role", "tab");
-      tab.setAttribute("aria-selected", room.id === shelf ? "true" : "false");
-      tab.onclick = function () {
-        if (room.id === shelf) return;
-        shelf = room.id;
-        if (window.TargumSync && window.TargumSync.setShelf) {
-          window.TargumSync.setShelf(shelf);
-        }
-        onPick();
-      };
-      host.appendChild(tab);
-    });
-  }
+  var LENGTHS = [
+    ["", "Any"],
+    ["short", "Under 20 min"],
+    ["hour", "20 min – 2 hr"],
+    ["long", "Over 2 hr"],
+  ];
 
-  function named(code) {
-    return names[code] || (code || "").toUpperCase();
-  }
+  // The share of running words a reader would have to look up, in three steps. The
+  // numbers behind them are measured off each text: see scripts/measure_difficulty.py.
+  var LEVELS = [
+    ["", "Any"],
+    ["easy", "Easier"],
+    ["mid", "Middling"],
+    ["hard", "Harder"],
+  ];
+
+  var WHERE = [
+    ["", "Everything"],
+    ["mine", "On my shelf"],
+    ["new", "Not built yet"],
+  ];
+
+  // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
+  // two fifths, so a bar drawn from zero would be four identical bars.
+  var FLOOR = 12;
+  var CEILING = 40;
 
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -96,59 +92,314 @@
     });
   }
 
-  function post(path, body) {
-    return ask(path, body).then(function (answer) {
-      if (answer && answer.error) throw new Error(answer.error);
-      return answer;
-    });
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   }
 
-  function reload() {
-    location.reload();
+  function base(code) {
+    return (code || "").split("-")[0].toLowerCase();
+  }
+
+  function stored(name) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function remember(name, value) {
+    try {
+      localStorage.setItem(name, JSON.stringify(value));
+    } catch (e) {}
   }
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
     link.href = keyed(link.getAttribute("href"));
   });
 
-  /* --- building one --------------------------------------------------------- */
+  /* --- what the list holds --------------------------------------------------- */
 
-  function entryFor(id) {
-    for (var i = 0; i < catalogue.length; i++) if (catalogue[i].id === id) return catalogue[i];
-    return null;
+  function level(share) {
+    if (!share) return "";
+    if (share <= 20) return "easy";
+    return share <= 28 ? "mid" : "hard";
   }
 
-  function build(card, entry) {
-    var status = card.querySelector(".card-status");
-    var button = card.querySelector("[data-build]");
-    button.disabled = true;
-    status.hidden = false;
-    status.textContent = "Getting ready…";
+  function lengthOf(minutes) {
+    if (minutes < 20) return "short";
+    return minutes <= 120 ? "hour" : "long";
+  }
 
-    ask("/prepare", {
-      source: entry.source,
-      to: "en",
-      from: entry.language,
-      words: true,
-      gloss: false,
-      // Every published translation this text has. The reader switches between them.
-      translations: entry.translations.map(function (t) {
-        return t.source;
-      }),
-    })
-      .then(function (job) {
-        if (job.error) throw new Error(job.error);
-        if (job.blocked) throw new Error(job.blocked);
-        status.textContent = "Lining up…";
-        return ask("/build", { id: job.id }).then(function () {
-          return watch(job.id, status);
-        });
-      })
-      .catch(function (problem) {
-        status.textContent = String(problem.message || problem);
-        button.disabled = false;
+  function said(minutes) {
+    if (minutes < 60) return minutes + " min";
+    var hours = Math.round(minutes / 60);
+    return hours + " hr";
+  }
+
+  // One row per text, from two places. A catalogue entry the reader has already built
+  // is one row and not two: the catalogue is where it came from, the shelf is where it
+  // is now, and the row says both.
+  function rows(readers) {
+    var mine = {};
+    var out = [];
+    readers.forEach(function (reader) {
+      if (reader.entry) mine[reader.entry] = reader;
+    });
+    catalogue.forEach(function (entry) {
+      var built = mine[entry.id];
+      out.push({
+        id: entry.id,
+        entry: entry,
+        title: entry.title,
+        author: entry.author,
+        language: entry.language,
+        kind: entry.kind,
+        register: entry.register,
+        difficulty: entry.difficulty,
+        minutes: entry.minutes,
+        built: built || null,
+        drawn: !!(built && built.drawn),
+        opened: built ? built.opened || 0 : 0,
       });
+    });
+    readers.forEach(function (reader) {
+      if (reader.entry && mine[reader.entry]) return;
+      out.push({
+        id: reader.name,
+        entry: null,
+        title: reader.title,
+        author: "",
+        language: reader.language,
+        kind: reader.kind,
+        register: reader.register,
+        difficulty: reader.difficulty,
+        minutes: reader.minutes,
+        built: reader,
+        opened: reader.opened || 0,
+      });
+    });
+    return out;
   }
+
+  /* --- drawing one ----------------------------------------------------------- */
+
+  function gauge(share) {
+    var box = el("span", "gauge");
+    if (!share) {
+      box.appendChild(el("span", "col count", "—"));
+      return box;
+    }
+    var track = el("span", "track");
+    var fill = el("span", "fill");
+    var reach = Math.max(6, Math.min(100, ((share - FLOOR) / (CEILING - FLOOR)) * 100));
+    fill.style.inlineSize = reach + "%";
+    track.appendChild(fill);
+    box.appendChild(track);
+    box.appendChild(el("span", "col count", share + "%"));
+    return box;
+  }
+
+  function named(list, value) {
+    for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
+    return "";
+  }
+
+  function draw(row) {
+    var item = el("li");
+    item.setAttribute("data-row", row.id);
+
+    var open = el(row.built ? "a" : "button", "row-open");
+    if (row.built) {
+      open.href = keyed("/reader/" + row.built.name + "/reader/index.html");
+    } else {
+      open.type = "button";
+      open.setAttribute("data-build", row.id);
+    }
+
+    open.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(row.id)), {
+        title: row.title,
+        language: row.language,
+      })
+    );
+
+    var what = el("span", "what");
+    var title = el("span", "row-title");
+    title.setAttribute("lang", row.language);
+    var bdi = el("bdi", null, row.title);
+    title.appendChild(bdi);
+    what.appendChild(title);
+    if (row.author) what.appendChild(el("span", "row-by", row.author));
+    open.appendChild(what);
+
+    open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
+    open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
+    open.appendChild(el("span", "col count", said(row.minutes)));
+    var hard = gauge(row.difficulty);
+    hard.className = "gauge drop";
+    open.appendChild(hard);
+
+    var state = el("span", "row-state", row.built ? "On your shelf" : "Build it");
+    if (row.built) state.className = "row-state mine";
+    open.appendChild(state);
+
+    item.appendChild(open);
+
+    // Only where there is something to draw: a text on the shelf, from the library's own
+    // catalogue — a cover is drawn from what the catalogue says a text is — and with no
+    // cover yet. And only where this deployment has a key to draw with.
+    if (canDraw && row.built && row.entry && !row.drawn) {
+      var draw = el("button", "draw", "Draw cover");
+      draw.type = "button";
+      draw.setAttribute("data-draw", row.built.name);
+      item.appendChild(draw);
+    }
+    return item;
+  }
+
+  /* --- sorting and sifting ---------------------------------------------------- */
+
+  var SORTS = {
+    title: function (row) {
+      return row.title || "";
+    },
+    kind: function (row) {
+      return named(KINDS, row.kind);
+    },
+    register: function (row) {
+      return named(REGISTERS, row.register);
+    },
+    minutes: function (row) {
+      return row.minutes || 0;
+    },
+    difficulty: function (row) {
+      return row.difficulty || 0;
+    },
+    state: function (row) {
+      return row.built ? 0 : 1;
+    },
+  };
+
+  var COLUMNS = [
+    ["", ""],
+    ["title", "Text"],
+    ["kind", "Kind"],
+    ["register", "Hebrew"],
+    ["minutes", "Length"],
+    ["difficulty", "Looked up"],
+    ["state", "Where"],
+  ];
+
+  // Whether the server can draw at all, answered by the server. A deployment with no
+  // image key offers nothing rather than offering and failing.
+  var canDraw = false;
+
+  var view = stored("targum:library");
+  if (!view.sort) view.sort = "state";
+  if (!view.dir) view.dir = 1;
+  if (!view.kind) view.kind = "";
+  if (!view.register) view.register = "";
+
+  function matches(row, code) {
+    if (base(row.language) !== code) return false;
+    if (view.kind && row.kind !== view.kind) return false;
+    if (view.register && row.register !== view.register) return false;
+    if (view.length && lengthOf(row.minutes) !== view.length) return false;
+    if (view.level && level(row.difficulty) !== view.level) return false;
+    if (view.where === "mine" && !row.built) return false;
+    if (view.where === "new" && row.built) return false;
+    if (view.find) {
+      // The blurb and the name the text is filed under are in this on purpose. A reader
+      // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
+      // titles and the bylines are both in Hebrew, and the only Latin a text carries is
+      // the sentence describing it and its own id.
+      var hay = [row.title, row.author, row.entry ? row.entry.blurb : "", row.id]
+        .join(" ")
+        .toLowerCase();
+      if (hay.indexOf(view.find.toLowerCase()) < 0) return false;
+    }
+    return true;
+  }
+
+  function sorted(list) {
+    var pick = SORTS[view.sort] || SORTS.title;
+    return list.slice().sort(function (a, b) {
+      var left = pick(a);
+      var right = pick(b);
+      var order;
+      if (typeof left === "number") order = left - right;
+      else order = String(left).localeCompare(String(right));
+      // A tie falls back to the title, so the list never shuffles under a reader who
+      // sorted by something half of it shares.
+      if (!order) order = String(a.title).localeCompare(String(b.title));
+      return order * view.dir;
+    });
+  }
+
+  /* --- the controls ----------------------------------------------------------- */
+
+  function chips(host, options, field, redraw) {
+    host.textContent = "";
+    var all = [["", "All"]].concat(options);
+    all.forEach(function (pair) {
+      var chip = el("button", "chip", pair[1]);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", view[field] === pair[0] ? "true" : "false");
+      chip.addEventListener("click", function () {
+        view[field] = pair[0];
+        redraw();
+      });
+      host.appendChild(chip);
+    });
+  }
+
+  function choices(select, options, field, redraw) {
+    select.textContent = "";
+    options.forEach(function (pair) {
+      var option = el("option", null, pair[1]);
+      option.value = pair[0];
+      if ((view[field] || "") === pair[0]) option.selected = true;
+      select.appendChild(option);
+    });
+    select.onchange = function () {
+      view[field] = select.value;
+      redraw();
+    };
+  }
+
+  function heading(redraw) {
+    var host = document.getElementById("rows-head");
+    host.textContent = "";
+    COLUMNS.forEach(function (pair) {
+      if (!pair[0]) {
+        host.appendChild(el("span"));
+        return;
+      }
+      var button = el("button", pair[0] === "kind" || pair[0] === "register" ? "drop" : null);
+      button.type = "button";
+      button.appendChild(document.createTextNode(pair[1]));
+      if (pair[0] === "difficulty") button.className = "drop";
+      if (view.sort === pair[0]) {
+        button.setAttribute("aria-sort", view.dir > 0 ? "ascending" : "descending");
+        button.appendChild(el("span", "arrow", view.dir > 0 ? " ↑" : " ↓"));
+      }
+      button.addEventListener("click", function () {
+        if (view.sort === pair[0]) view.dir = -view.dir;
+        else {
+          view.sort = pair[0];
+          view.dir = 1;
+        }
+        redraw();
+      });
+      host.appendChild(button);
+    });
+  }
+
+  /* --- building one ----------------------------------------------------------- */
 
   // The pipeline narrates itself in its own words. This is the reader's.
   var PLAIN = {
@@ -165,20 +416,20 @@
     return "Almost there…";
   }
 
-  function watch(id, status) {
+  function watch(id, state) {
     return new Promise(function (resolve) {
       var timer = setInterval(function () {
-        ask("/job/" + id).then(function (state) {
-          if (state.error) {
+        ask("/job/" + id).then(function (job) {
+          if (job.error) {
             clearInterval(timer);
-            status.textContent = state.error;
+            state.textContent = job.error;
             resolve();
             return;
           }
-          status.textContent = say(state.message) || "Almost there…";
-          if (state.stage === "done") {
+          state.textContent = say(job.message) || "Almost there…";
+          if (job.stage === "done") {
             clearInterval(timer);
-            window.location.href = keyed("/reader/" + state.reader);
+            window.location.href = keyed("/reader/" + job.reader);
             resolve();
           }
         });
@@ -186,109 +437,78 @@
     });
   }
 
-  document.addEventListener("click", function (event) {
-    var button = event.target.closest ? event.target.closest("[data-build]") : null;
-    if (!button) return;
-    var card = button.closest(".card");
-    var entry = entryFor(button.getAttribute("data-build"));
-    if (entry) build(card, entry);
-  });
-
-  /* --- what you have already ------------------------------------------------ */
-
-  function ago(stamp) {
-    var minutes = Math.round((Date.now() - stamp) / 60000);
-    if (minutes < 2) return "just now";
-    if (minutes < 60) return minutes + " minutes ago";
-    var hours = Math.round(minutes / 60);
-    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
-    var days = Math.round(hours / 24);
-    return days === 1 ? "yesterday" : days + " days ago";
+  function build(open, entry) {
+    var state = open.querySelector(".row-state");
+    open.disabled = true;
+    state.textContent = "Getting ready…";
+    ask("/prepare", {
+      source: entry.source,
+      to: "en",
+      from: entry.language,
+      words: true,
+      gloss: false,
+      // Every published translation this text has. The reader switches between them.
+      translations: entry.translations.map(function (t) {
+        return t.source;
+      }),
+    })
+      .then(function (job) {
+        if (job.error) throw new Error(job.error);
+        if (job.blocked) throw new Error(job.blocked);
+        state.textContent = "Lining up…";
+        return ask("/build", { id: job.id }).then(function () {
+          return watch(job.id, state);
+        });
+      })
+      .catch(function (problem) {
+        state.textContent = String(problem.message || problem);
+        open.disabled = false;
+      });
   }
 
-  function stored(name) {
-    try {
-      return JSON.parse(localStorage.getItem(name) || "{}");
-    } catch (e) {
-      return {};
-    }
+  function drawCovers(button, name) {
+    button.disabled = true;
+    button.textContent = "Drawing…";
+    ask("/cover", { name: name, chapters: true })
+      .then(function (job) {
+        if (job.error) throw new Error(job.error);
+        if (!job.id) {
+          button.textContent = "Drawn";
+          return;
+        }
+        return new Promise(function (resolve) {
+          var timer = setInterval(function () {
+            ask("/job/" + job.id).then(function (state) {
+              if (state.error) {
+                clearInterval(timer);
+                button.textContent = state.error;
+                resolve();
+                return;
+              }
+              // Counted rather than guessed at: a book with thirty-five chapters worth
+              // drawing takes minutes, and a button that only says "Drawing…" for that
+              // long is indistinguishable from one that has died.
+              if (state.total > 1) button.textContent = state.done + " of " + state.total;
+              if (state.stage === "done") {
+                clearInterval(timer);
+                resolve();
+              }
+            });
+          }, 900);
+        });
+      })
+      .then(function () {
+        // Drawn now, so the row shows it. The tiles ask for the image again from
+        // scratch, which is the only way past a browser that has cached the 404.
+        location.reload();
+      })
+      .catch(function (problem) {
+        button.textContent = String(problem.message || problem);
+        button.disabled = false;
+      });
   }
 
-  function base(code) {
-    return (code || "").split("-")[0].toLowerCase();
-  }
-
-  /* --- the picked texts ------------------------------------------------------ */
-
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
-
-  function minutes(words) {
-    return Math.max(1, Math.round(words / 130));
-  }
-
-  function card(entry) {
-    var item = el("li", "card");
-    item.setAttribute("data-entry", entry.id);
-
-    var head = el("div", "card-head");
-    var title = el("h3");
-    title.setAttribute("lang", entry.language);
-    var bdi = el("bdi", null, entry.title);
-    title.appendChild(bdi);
-    head.appendChild(title);
-    // No language tag on the card: the page is one language, and it says which at the top.
-    item.appendChild(head);
-
-    item.appendChild(el("p", "byline", entry.author));
-    item.appendChild(el("p", "blurb", entry.blurb));
-    item.appendChild(
-      el("p", "facts", "about " + minutes(entry.words) + " minutes of reading")
-    );
-
-    var list = el("ul", "renderings");
-    entry.translations.forEach(function (t) {
-      var row = el("li");
-      row.appendChild(el("b", null, t.name));
-      if (t.note) row.appendChild(document.createTextNode(" — " + t.note));
-      list.appendChild(row);
-    });
-    item.appendChild(list);
-
-    var button = el("button", "go build", "Start reading");
-    button.type = "button";
-    button.setAttribute("data-build", entry.id);
-    item.appendChild(button);
-
-    var status = el("p", "card-status");
-    status.hidden = true;
-    item.appendChild(status);
-    return item;
-  }
-
-  function drawPicked(code) {
-    var host = document.getElementById("catalogue");
-    var empty = document.getElementById("picked-empty");
-    var note = document.getElementById("picked-note");
-    host.textContent = "";
-    var mine = catalogue.filter(function (entry) {
-      return base(entry.language) === code && entry.shelf === shelf;
-    });
-    mine.forEach(function (entry) {
-      host.appendChild(card(entry));
-    });
-    empty.hidden = mine.length > 0;
-    note.hidden = mine.length === 0;
-    if (!mine.length) {
-      empty.textContent =
-        "Nothing picked out in " + named(code) + " yet.";
-    }
-  }
-
+  /* --- putting it together ----------------------------------------------------- */
 
   function kept() {
     var found = [];
@@ -303,17 +523,81 @@
     return found;
   }
 
-  /* --- putting it together --------------------------------------------------- */
-
   ask("/readers").then(function (data) {
     var readers = data.readers || [];
-    var trash = data.trash || [];
+    canDraw = !!data.covers;
     var opened = stored("targum:opened");
     readers.forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
     });
-    readers.sort(function (a, b) {
-      return b.opened - a.opened || b.built * 1000 - a.built * 1000;
+
+    var everything = rows(readers);
+    var host = document.getElementById("catalogue");
+    var empty = document.getElementById("picked-empty");
+    var tally = document.getElementById("tally");
+    var find = document.getElementById("find");
+    var clear = document.getElementById("clear");
+    var chosen;
+
+    function redraw() {
+      remember("targum:library", view);
+      chips(document.getElementById("register-chips"), REGISTERS, "register", redraw);
+      chips(document.getElementById("kind-chips"), KINDS, "kind", redraw);
+      choices(document.getElementById("length"), LENGTHS, "length", redraw);
+      choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
+      choices(document.getElementById("where"), WHERE, "where", redraw);
+      heading(redraw);
+
+      var showing = sorted(
+        everything.filter(function (row) {
+          return matches(row, chosen);
+        })
+      );
+      host.textContent = "";
+      showing.forEach(function (row) {
+        host.appendChild(draw(row));
+      });
+      empty.hidden = showing.length > 0;
+      if (!showing.length) empty.textContent = "Nothing here matches that.";
+      var total = everything.filter(function (row) {
+        return base(row.language) === chosen;
+      }).length;
+      tally.textContent =
+        showing.length === total
+          ? total + (total === 1 ? " text" : " texts")
+          : showing.length + " of " + total;
+      clear.hidden = !(
+        view.find ||
+        view.kind ||
+        view.register ||
+        view.length ||
+        view.level ||
+        view.where
+      );
+    }
+
+    find.value = view.find || "";
+    find.addEventListener("input", function () {
+      view.find = find.value.trim();
+      redraw();
+    });
+    clear.addEventListener("click", function () {
+      view.find = view.kind = view.register = view.length = view.level = view.where = "";
+      find.value = "";
+      redraw();
+    });
+
+    host.addEventListener("click", function (event) {
+      var drawing = event.target.closest ? event.target.closest("[data-draw]") : null;
+      if (drawing) return drawCovers(drawing, drawing.getAttribute("data-draw"));
+      var button = event.target.closest ? event.target.closest("[data-build]") : null;
+      if (!button) return;
+      for (var i = 0; i < everything.length; i++) {
+        if (everything[i].id === button.getAttribute("data-build") && everything[i].entry) {
+          build(button, everything[i].entry);
+          return;
+        }
+      }
     });
 
     // Hebrew is always on offer, whether or not anything is on the shelf in it.
@@ -321,58 +605,39 @@
     // The languages after it are the reader's own: what they have built, and what they
     // have kept words in. The catalogue deliberately does not add to this list. It
     // holds one Russian novel, and letting it in put Russian in front of every visitor
-    // who had never touched it — which is the opposite of what this switcher is for,
-    // and flatly against what lang.js says it does: someone who never touches another
-    // language should never see a switcher at all. The catalogue is then shown filtered
-    // to whichever language is chosen, the same as the shelf.
+    // who had never touched it — which is the opposite of what this switcher is for.
     var codes = [lang.HOME];
     readers.concat(kept()).forEach(function (thing) {
       var code = base(thing.language);
       if (code && codes.indexOf(code) < 0) codes.push(code);
     });
     codes = lang.order(codes, names);
-
-    var chosen = lang.current(codes);
+    chosen = lang.current(codes);
     var betaNote = document.getElementById("beta-note");
-
-    // What the account remembers, and what the address asked for. The address wins,
-    // because a link to /beit-midrash should land there whatever was chosen last.
-    var remembered = window.TargumSync && window.TargumSync.shelf && window.TargumSync.shelf();
-    var asked = new URLSearchParams(location.search).get("shelf");
-    if (asked && SHELVES.some(function (r) { return r.id === asked; })) {
-      shelf = asked;
-      if (window.TargumSync && window.TargumSync.setShelf) window.TargumSync.setShelf(asked);
-    } else if (remembered && SHELVES.some(function (r) { return r.id === remembered; })) {
-      shelf = remembered;
-    }
 
     function show(code) {
       chosen = code;
-      drawShelves(function () {
-        show(chosen);
-      });
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
-      betaNote.hidden = !lang.beta(code);
-      if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
-      drawPicked(code);
+      if (betaNote) {
+        betaNote.hidden = !lang.beta(code);
+        if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
+      }
+      redraw();
     }
 
     show(chosen);
 
-    // The shelf is sorted by when you last opened each text, and that is one of the
-    // things the account keeps. Signing in on a second machine should therefore
-    // reorder the shelf to match where you actually are in your reading.
+    // The shelf is ordered by when each text was last opened, and that is one of the
+    // things the account keeps. Signing in on a second machine should therefore reorder
+    // the list to match where the reader actually is in their reading.
     if (window.TargumSync) {
       window.TargumSync.onChange(function (changed) {
         if (!changed) return;
-        var opened = stored("targum:opened");
-        readers.forEach(function (reader) {
-          reader.opened = opened[reader.document] || 0;
+        var seen = stored("targum:opened");
+        everything.forEach(function (row) {
+          if (row.built) row.opened = seen[row.built.document] || 0;
         });
-        readers.sort(function (a, b) {
-          return b.opened - a.opened || b.built * 1000 - a.built * 1000;
-        });
-        show(chosen);
+        redraw();
       });
       window.TargumSync.start();
     }

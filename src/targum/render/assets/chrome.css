@@ -1,0 +1,146 @@
+/* The chrome every page wears: the header bar, the brand, the nav, the shelf tabs and
+   the account menu. It lived in library.css, which meant the add page — the one page
+   that has no catalogue and so had no reason to load a file called "library" — rendered
+   its header entirely unstyled, brand mark at 675px across.
+
+   Anything that belongs to `_nav.html.j2` belongs here. Nothing else does. */
+
+/* --- the header every page wears ------------------------------------------
+   One bar, one order: the name, then where you can go, then the light switch. The
+   three pages had drifted into three different arrangements of the same three
+   things, which made moving between them feel like moving between three sites. */
+
+.site-head {
+  padding-block-start: 1.6rem;
+  /* Pinned rather than inherited: the start page sets its own body font, and the same
+     header rendered in two faces sat six pixels apart between pages. */
+  font-family: system-ui, sans-serif;
+}
+.site-head-row,
+.site-head h1,
+.site-head .langs,
+.site-head .beta-note {
+  width: 100%;
+  max-width: 62rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+.site-head-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  /* Clear space is what the mark asks of whatever surrounds it, not of the name it is
+     joined to. The drawn lockup's own gap measures 0.14em, but that is set against a
+     84-unit name: at 1.2rem the same ratio closes up, so this is the optical match. */
+  gap: 0.3em;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+.brand-mark {
+  /* Tied to the text it sits beside, so the lockup holds together at any type size.
+     Both drawn from the lockup: a 72-unit mark against a 84-unit name. */
+  height: 0.857em;
+  width: 0.667em;
+  flex: none;
+}
+/* Only the name answers the hover: the mark's ink column follows `color`, and letting
+   it go accent would leave both columns the same colour — the one thing the two-colour
+   mark is not allowed to be. */
+.brand:hover span { color: var(--accent); }
+.site-head h1 {
+  margin-block: 1.5rem 0;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.site-head [data-theme-toggle] { margin-inline-start: 0; }
+
+@media (max-width: 40rem) {
+  .site-head { padding-block-start: 1rem; }
+  .site-head h1 { font-size: 1.5rem; }
+  .site-head-row { gap: 0.5rem; }
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  margin-inline-start: auto;
+  font-size: 0.8125rem;
+}
+.site-nav a {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.site-nav a:hover { color: var(--ink); background: var(--paper-raised); }
+.site-nav a.on { color: var(--paper); background: var(--ink-soft); }
+
+/* --- the account, in the corner of every page -----------------------------
+   Small on purpose. Signing in is worth offering once and then getting out of the
+   way; a reading app whose most prominent control is its account menu has its
+   priorities the wrong way round. */
+
+.account { position: relative; }
+.account > button {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.account > button:hover { color: var(--ink); }
+.account > button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
+
+.account-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 0.4rem);
+  z-index: 20;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
+  text-align: start;
+}
+.account-panel[hidden] { display: none; }
+.account-panel p { margin: 0 0 0.7rem; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.5; }
+.account-panel .whom { color: var(--ink); font-size: 0.9375rem; margin-block-end: 0.2rem; }
+.account-panel form { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.account-panel input {
+  flex: 1 1 9rem;
+  min-width: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-raised);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.account-panel form button,
+.account-panel .signed-in button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.account-panel .said { margin: 0.6rem 0 0; color: var(--accent); }
+.account-panel .said[hidden] { display: none; }
+.account-panel [hidden] { display: none; }
