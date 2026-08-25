@@ -86,6 +86,10 @@ class Build:
         *,
         target_language: str,
         source_language: str | None = None,
+        # What to call it, where the source will not say. Ben Yehuda's plain-text
+        # downloads put the title and the author in the first line as prose, so nothing
+        # parses one out and a book lands on a shelf named after its file.
+        title: str = "",
         style: Style = Style.natural,
         provider_name: str = "anthropic",
         model: str | None = None,
@@ -113,6 +117,7 @@ class Build:
         self.source_language = source_language
         self.style = style
         self.provider_name = provider_name
+        self.title = title
         self.force = force
         self.notify = notify or (lambda _message: None)
         self.cache = Cache()
@@ -147,7 +152,9 @@ class Build:
             # A file is known by its name; anything fetched by link or identifier is
             # known by its title, since "wikisource:he:..." makes a poor folder.
             path = Path(self.source)
-            name = slug(path.stem if path.is_file() else (document.title or path.stem))
+            name = slug(
+                path.stem if path.is_file() else (self.title or document.title or path.stem)
+            )
             root = self._out_root or (Path.cwd() / "targum-out")
             self._resolved_out = self._out or (root / f"{name}-{document.language}")
         return self._resolved_out
@@ -169,6 +176,10 @@ class Build:
 
     def ingest(self) -> Document:
         fresh = ingest.load(self.source, language=self.source_language)
+        # Where the source will not name itself, the caller may. Only ever as a fallback:
+        # a title parsed out of the text is the text's own and beats anything passed in.
+        if self.title and not fresh.title:
+            fresh.title = self.title
         path = self.out_dir(fresh) / "document.json"
         if not self.force:
             existing = read_artifact(Document, path)

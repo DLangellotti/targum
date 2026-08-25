@@ -898,6 +898,13 @@ class Library:
 
     def _builder(self, job: Job) -> Build:
         options = job.options
+
+        # What the catalogue says about this source, if it is one of ours. Read here
+        # rather than taken from the request: the model decides what a build costs, and
+        # one that arrived in a payload would be a way to spend somebody else's money.
+        from . import catalogue as catalogue_module
+
+        entry = catalogue_module.matching(job.source)
         return Build(
             job.source,
             target_language=options.get("to", "en"),
@@ -910,7 +917,11 @@ class Library:
             # $12.64 on Opus against $7.58 on Sonnet, and the difference in a reader's
             # translation does not show up beside the difference in the bill. The CLI
             # keeps the provider default: that is somebody spending their own key.
-            model=HOSTED_MODEL,
+            # Sonnet, unless the catalogue says this text's English was bought with
+            # something else. The cache is keyed on the model, so a book we translated
+            # once on Opus would be translated again — at a reader's expense — by a build
+            # that quietly asked for Sonnet instead.
+            model=(entry.model if entry and entry.model else HOSTED_MODEL),
             # Whose build this is, which scopes the cache for anything that is not a
             # public text. Without it one person's uploaded book would be translated
             # once and served to everyone who happened to upload the same file.
@@ -921,6 +932,10 @@ class Library:
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
             translations=[str(t) for t in options.get("translations") or []],
+            # Ben Yehuda's plain-text downloads carry no title: the first line of the file
+            # is the title and the author, as prose. Without this a book lands on somebody's
+            # shelf called "6600".
+            title=entry.title if entry else "",
         )
 
 
@@ -1457,11 +1472,16 @@ class Handler(BaseHTTPRequestHandler):
 
         # Somebody has already translated this one, and that translation is better and
         # free. Said before anything is priced, not after it has been paid for.
+        #
+        # Only where there is something better to offer, though. Half the catalogue is
+        # texts nobody published an English for, which targum translated once and paid for
+        # once — those have no `Rendering` to point at, and offering one as an alternative
+        # to itself would leave the catalogue's own button unable to build them.
         if not payload.get("translations") and not payload.get("force_machine"):
             from . import catalogue as catalogue_module
 
             already = catalogue_module.matching(source)
-            if already is not None:
+            if already is not None and already.translations:
                 return self._json({"catalogue": already.state()})
 
         person = self._person()
