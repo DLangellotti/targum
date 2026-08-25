@@ -288,3 +288,20 @@ class TestVocalizeDocument:
     def test_it_records_which_engine_pointed_the_text(self) -> None:
         result = vocalize_document(_document(BARE), FakeEngine())
         assert (result.vocalizer, result.model) == ("fake/1", "fake-model")
+
+
+def test_one_sentence_it_dislikes_does_not_cost_the_document_its_vowels() -> None:
+    """Nakdimon raises bare AssertionErrors on input it dislikes, and the catch was
+    around the whole call. One bad sentence in Judenstaat threw away the pointing for the
+    other 1,079: the document came out 123 of 1,080 pointed — every one of those from
+    pointing already in the source — and nothing said so.
+    """
+    import pathlib
+
+    from targum.vocalize import nakdimon
+
+    source = pathlib.Path(nakdimon.__file__).read_text(encoding="utf-8")
+    body = source[source.index("def vocalize(") :]
+    loop = body[body.index("for segment in segments:") : body.index("return out")]
+    assert "try:" in loop and "except" in loop, "the guard belongs inside the loop"
+    assert "failed += 1" in loop, "and a sentence that fails is counted, not silent"
