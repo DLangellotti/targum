@@ -48,6 +48,20 @@
     if (timing) showTimings(true);
   }
 
+  // Anything that throws goes in the readout too. A reader that half-starts looks like
+  // a reader that is slow: the marks never appear, the preference never applies, and
+  // the only sign is a line missing from a list nobody is reading.
+  window.addEventListener("error", function (event) {
+    took(
+      "ERROR " +
+        (event.message || "?") +
+        " — " +
+        String(event.filename || "").split("/").pop() +
+        ":" +
+        event.lineno
+    );
+  });
+
   function showTimings(open) {
     if (!readout) {
       readout = document.createElement("pre");
