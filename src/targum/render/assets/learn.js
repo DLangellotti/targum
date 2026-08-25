@@ -178,6 +178,16 @@
       var name = document.createElement("a");
       name.href =
         keyed("/reader/" + reader.name + "/reader/" + chapter.file);
+      // A chapter that names something may have a cover of its own; the rest fall back
+      // to the book's on the server, so every row carries the same one either way.
+      var cover = window.TargumCovers.chapterName(reader.entry || reader.name, chapter.number);
+      name.appendChild(
+        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(cover)), {
+          title: chapter.title || reader.title,
+          language: reader.language,
+          className: "thumb tiny",
+        })
+      );
       name.appendChild(document.createTextNode(chapter.number + ". "));
       var title = document.createElement("bdi");
       title.setAttribute("lang", reader.language || "und");

@@ -1093,6 +1093,24 @@
   // path — they share the keys instead. Set by `showPick`, cleared when it closes.
   var pickLevel = null;
 
+  // Hover is the browser's, and it does not let go until the pointer moves. Marking a
+  // word from the keyboard while the pointer rests on it left the word highlighted as
+  // though it were still being looked up — known, and still lit. Turn hover off for the
+  // page when a key changes a word, and give it back at the first move.
+  var hovering = true;
+
+  function stopHover() {
+    if (!hovering) return;
+    hovering = false;
+    body.classList.add("no-hover");
+  }
+
+  document.addEventListener("mousemove", function () {
+    if (hovering) return;
+    hovering = true;
+    body.classList.remove("no-hover");
+  });
+
   function markLookedUp(key) {
     // Asked of the object's own keys: `KEYED_STATUS["constructor"]` is a function, and
     // every other key on the page would have gone through this branch holding one.
@@ -1104,6 +1122,7 @@
       var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
       if (!lemmas[index]) return false;
       setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
+      stopHover();
       var word = lookedUp;
       redraw();
       // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
@@ -1120,6 +1139,7 @@
     }
 
     if (pickLevel && chip && !chip.hidden) {
+      stopHover();
       pickLevel(status);
       return true;
     }
@@ -1379,6 +1399,9 @@
     element.style.transform = "none";
     element.style.left = "0px";
     element.style.top = "0px";
+    // Cleared before measuring, or the cap a previous word needed is still on and the
+    // card measures shorter than it is.
+    element.style.maxHeight = "";
 
     var box = element.getBoundingClientRect();
 
@@ -1390,9 +1413,18 @@
 
     // Below where there is room, above where there is not — and never over the word
     // itself, which is the one thing you are looking at while you decide.
-    var below = rect.bottom + 8;
-    var room = window.innerHeight - below - 12;
-    var top = box.height <= room ? below : Math.max(8, rect.top - box.height - 8);
+    //
+    // A long card — a verb with a root, a note, a caveat — can be taller than either
+    // side of a word in the middle of the window. Growing upwards from a floor of 8px
+    // is what used to put it back over the word. It takes the roomier side instead and
+    // scrolls inside whatever that side has.
+    var under = window.innerHeight - rect.bottom - 8 - 12;
+    var over = rect.top - 8 - 12;
+    var below = box.height <= under || under >= over;
+    var room = Math.max(below ? under : over, 0);
+    if (box.height > room) element.style.maxHeight = room + "px";
+    var height = Math.min(box.height, room);
+    var top = below ? rect.bottom + 8 : rect.top - 8 - height;
     element.style.top = top + window.scrollY + "px";
   }
 

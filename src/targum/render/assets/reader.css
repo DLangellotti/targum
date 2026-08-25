@@ -520,7 +520,11 @@ body.marking .w[data-status="3"] {
 
 /* --- what a word means --------------------------------------------------- */
 
-.w:hover, .w.looked-up {
+/* A pointer sitting still keeps hovering: mark a word from the keyboard without moving
+   the mouse and the word you have just finished with goes on wearing the look-up
+   highlight until you move. `no-hover` drops the hover half until the pointer moves. */
+.w.looked-up,
+body:not(.no-hover) .w:hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
 }
@@ -690,6 +694,9 @@ body.marking .w[data-status="3"] {
 .pick-card[hidden] { display: none; }
 /* Pressing the card is never the start of a new selection. */
 .pick-card, .gloss-card { -webkit-user-select: none; user-select: none; }
+/* `placeNear()` caps the height when neither side of the word can hold the whole card.
+   Scrolling is what the cap costs; covering the word is what it buys. */
+.pick-card, .gloss-card { overflow-y: auto; }
 .pick-card [dir] { display: block; text-align: start; }
 .pick-card .phrase { display: block; color: var(--ink); font-weight: 600; }
 .pick-card .reading { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); }

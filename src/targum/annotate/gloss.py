@@ -12,7 +12,7 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -132,15 +132,55 @@ class AnthropicGlosses:
         return out
 
 
-def unique_lemmas(annotation: Annotation, *, min_band: int = 1) -> list[str]:
-    """Every distinct lemma worth glossing, rarest-first so a cut list keeps the useful end."""
+def unique_lemmas(
+    annotation: Annotation, *, min_band: int = 1, only: Collection[str] | None = None
+) -> list[str]:
+    """Every distinct lemma worth glossing, rarest-first so a cut list keeps the useful end.
+
+    `only` narrows it to a set of segments — the chapters a build is actually buying.
+    Meanings are the expensive half of a build, and looking them up for a whole novel
+    when one chapter of it was bought is how a long book came to cost more than the cap
+    allowed and could never be opened at all.
+    """
     best: dict[str, int] = {}
-    for tokens in annotation.tokens.values():
+    for segment_id, tokens in annotation.tokens.items():
+        if only is not None and segment_id not in only:
+            continue
         for token in tokens:
             # An unrated word is still a word worth looking up.
             if token.band >= min_band or (token.band == 0 and min_band <= 1):
                 best[token.lemma] = max(best.get(token.lemma, 0), token.band)
     return [lemma for lemma, _ in sorted(best.items(), key=lambda item: (-item[1], item[0]))]
+
+
+def gloss_key(cache: Cache, lemma: str, source: str, target: str, provider: str) -> str:
+    """One place the cache key is spelled, so pricing and paying cannot disagree."""
+    return cache.key("gloss", lemma=lemma, source=source, target=target, provider=provider)
+
+
+def unpaid(
+    lemmas: Collection[str],
+    source_language: str,
+    target_language: str,
+    provider: str,
+    cache: Cache | None = None,
+) -> list[str]:
+    """The lemmas nobody has looked up yet.
+
+    Glosses are cached per lemma across every text, so most of a second Hebrew book is
+    already bought. An estimate that counts them anyway quotes a price for work that is
+    about to be free, which is the difference between a book opening and a book being
+    refused.
+    """
+    cache = cache or Cache()
+    missing: list[str] = []
+    for lemma in lemmas:
+        stored = cache.get(
+            "gloss", gloss_key(cache, lemma, source_language, target_language, provider)
+        )
+        if not (isinstance(stored, dict) and stored.get("gloss")):
+            missing.append(lemma)
+    return missing
 
 
 def estimate(lemma_count: int, model: str) -> float:
@@ -194,6 +234,7 @@ def build_glossary(
     provider: GlossProvider,
     *,
     min_band: int = 1,
+    only: Collection[str] | None = None,
     cache: Cache | None = None,
     on_progress: Progress | None = None,
     on_batch: Callable[[Glossary], None] | None = None,
@@ -205,19 +246,13 @@ def build_glossary(
     at the end meant every word showed a blank card for as long as the whole run took.
     """
     cache = cache or Cache()
-    wanted = unique_lemmas(annotation, min_band=min_band)
+    wanted = unique_lemmas(annotation, min_band=min_band, only=only)
 
     entries: dict[str, str] = {}
     parts: dict[str, str] = {}
     missing: list[str] = []
     for lemma in wanted:
-        key = cache.key(
-            "gloss",
-            lemma=lemma,
-            source=annotation.language,
-            target=target_language,
-            provider=provider.name,
-        )
+        key = gloss_key(cache, lemma, annotation.language, target_language, provider.name)
         stored = cache.get("gloss", key)
         if isinstance(stored, dict) and stored.get("gloss"):
             entries[lemma] = str(stored["gloss"])
@@ -246,13 +281,7 @@ def build_glossary(
             parts[lemma] = part
             cache.put(
                 "gloss",
-                cache.key(
-                    "gloss",
-                    lemma=lemma,
-                    source=annotation.language,
-                    target=target_language,
-                    provider=provider.name,
-                ),
+                gloss_key(cache, lemma, annotation.language, target_language, provider.name),
                 {"gloss": gloss, "part_of_speech": part},
             )
         if on_batch:

@@ -367,3 +367,57 @@ def test_a_root_that_cannot_be_had_is_not_invented(lemma: str, binyan: str) -> N
 def test_no_binyan_means_no_root() -> None:
     assert root_of("כתב", None) is None
     assert root_of("", "פעל") is None
+
+
+def in_segments(lemmas: dict[str, list[str]]) -> Annotation:
+    """An annotation where each segment has its own words."""
+    return Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={
+            segment: [Token(start=0, end=1, surface=lemma, lemma=lemma, band=3) for lemma in words]
+            for segment, words in lemmas.items()
+        },
+    )
+
+
+def test_only_narrows_the_lookup_to_what_is_being_bought() -> None:
+    """Meanings are the expensive half of a build. Looking them up for a whole novel
+    when one chapter of it was bought is what made a long book cost more than the cap
+    allowed, so it could never be opened at all."""
+    annotation = in_segments({"s1": ["ארץ"], "s2": ["שלום"], "s3": ["מלך"]})
+
+    assert sorted(unique_lemmas(annotation)) == ["ארץ", "מלך", "שלום"]
+    assert unique_lemmas(annotation, only={"s1"}) == ["ארץ"]
+    assert sorted(unique_lemmas(annotation, only={"s1", "s3"})) == ["ארץ", "מלך"]
+
+
+def test_a_build_pays_only_for_the_chapter_it_bought(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    cache = Cache(tmp_path / "cache")
+    provider = FakeGlosses()
+    annotation = in_segments({"s1": ["ארץ"], "s2": ["שלום"], "s3": ["מלך"]})
+
+    glossary, paid = build_glossary(annotation, "en", provider, only={"s1"}, cache=cache)
+    assert paid == 1
+    assert list(glossary.entries) == ["ארץ"]
+
+    # And the rest arrives when the rest is bought.
+    _, later = build_glossary(annotation, "en", provider, only={"s1", "s2"}, cache=cache)
+    assert later == 1
+
+
+def test_a_lemma_already_looked_up_is_not_quoted_for(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Glosses are cached per lemma across every text, so most of a second Hebrew book
+    is already bought. Quoting for it prices work that is about to be free."""
+    from targum.annotate.gloss import unpaid
+
+    cache = Cache(tmp_path / "cache")
+    provider = FakeGlosses()
+    assert unpaid(["ארץ", "שלום"], "he", "en", provider.name, cache) == ["ארץ", "שלום"]
+
+    build_glossary(annotation_with({"ארץ": 2}), "en", provider, cache=cache)
+
+    assert unpaid(["ארץ", "שלום"], "he", "en", provider.name, cache) == ["שלום"]

@@ -55,7 +55,7 @@ _DOCUMENT_SUFFIXES = (".xhtml", ".html", ".htm")
 
 
 class EpubIngester:
-    name = "epub/3"
+    name = "epub/4"
 
     def load(self, source: str) -> Document:
         path = Path(source)
