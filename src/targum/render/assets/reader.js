@@ -77,6 +77,27 @@
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
 
+  /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
+     riding in every URL is a bearer token in browser history, on a shared screen, and in
+     a Referer. Local it stays, because there it proves the page came from the terminal
+     that started the process. Both cases are this one branch.
+
+     These are the same two helpers every other page has. The reader called them and
+     never had them: `home.href = keyed("/")` threw on the first served page load, and
+     everything after it — the type size, the reading mode, the marking, the vowels, the
+     word list, the sync — never ran. On a page opened off the disk it is unreachable, so
+     it never showed up there. */
+  function keyed(path) {
+    if (!passKey) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(passKey);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (passKey) head["X-Targum-Key"] = passKey;
+    return head;
+  }
+
   var pairs = Array.prototype.slice.call(main.querySelectorAll(".pair"));
   var dataNode = document.getElementById("targum-data");
   var data = {};
@@ -2141,8 +2162,20 @@
 
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
-  var key = passKey;
+  // Its own, because this is its own scope: it read `passKey` and called `keyed` across
+  // the boundary, and neither was ever in reach.
+  var key = new URLSearchParams(location.search).get("k");
   if (!link || !key) return;
+
+  function keyed(path) {
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    head["X-Targum-Key"] = key;
+    return head;
+  }
 
   // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
   // the build are both called "reader", so it is the *last* one the name sits before.
