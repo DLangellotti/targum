@@ -537,7 +537,6 @@
   // laid the page out forces it to; and handing all 400 to an IntersectionObserver cost
   // 337ms, in `observe()` alone. Frames are cheaper than either.
   var AHEAD = 12; // pairs to mark before the first paint — about a screenful
-  var PER_FRAME = 24;
   var pending = 0;
   // Whether the page has been through this once. The first pass is the only one that
   // runs before the browser has laid anything out, and so the only one that cannot
@@ -555,25 +554,21 @@
     if (cell) markSegment(cell);
   }
 
-  // The rest of the chapter, a slice at a time, so the browser gets to paint between
-  // them. `pending` is the generation: a redraw that starts while one of these is in
-  // flight abandons it rather than letting two walk the page at once.
-  function markOnward(rest, from, generation) {
-    if (generation !== pending) return;
-    var stop = Math.min(from + PER_FRAME, rest.length);
-    for (var i = from; i < stop; i++) markPair(rest[i]);
-    if (stop < rest.length) {
-      requestAnimationFrame(function () {
-        markOnward(rest, stop, generation);
-      });
-    } else {
-      took("every mark on the page drawn");
+  // Everything in view, and a little either side. Cheap: the pairs are in document
+  // order, so it stops at the first one past the bottom rather than walking the rest of
+  // the chapter, and a pair already drawn this pass costs one property read.
+  function markVisible() {
+    var margin = window.innerHeight / 2;
+    for (var n = 0; n < pairs.length; n++) {
+      var box = pairs[n].getBoundingClientRect();
+      if (box.bottom < -margin) continue;
+      if (box.top > window.innerHeight + margin) break;
+      markPair(pairs[n]);
     }
   }
 
-  // Scrolling faster than the fill. The background pass walks the chapter in order, so
-  // a reader who jumps to the middle can arrive somewhere it has not reached yet; this
-  // marks what is under them straight away and lets the pass carry on behind.
+  // Scrolling into a part of the chapter that has not been marked yet. Throttled to one
+  // pass a frame, because a scroll fires far more often than that.
   var catching = false;
 
   function catchUp() {
@@ -581,13 +576,7 @@
     catching = true;
     requestAnimationFrame(function () {
       catching = false;
-      var margin = window.innerHeight / 2;
-      for (var n = 0; n < pairs.length; n++) {
-        var box = pairs[n].getBoundingClientRect();
-        if (box.bottom < -margin) continue;
-        if (box.top > window.innerHeight + margin) break;
-        markPair(pairs[n]);
-      }
+      markVisible();
     });
   }
 
@@ -612,18 +601,30 @@
     drawn = true;
 
     var ordered = pairs.slice(first).concat(pairs.slice(0, first));
-    var now = ordered.slice(0, AHEAD);
-    now.forEach(markPair);
-    renderList();
 
-    var rest = ordered.slice(AHEAD);
-    if (!rest.length) return;
+    // With no frames to schedule into, everything at once — the reader's standing rule
+    // is that a missing API degrades rather than breaks.
     if (!window.requestAnimationFrame) {
-      rest.forEach(markPair);
+      ordered.forEach(markPair);
+      renderList();
       return;
     }
+
+    // A screenful, and no more. The rest of the chapter is marked when it is scrolled
+    // to, by `catchUp` — and never, for the part nobody reaches.
+    //
+    // It used to fill the whole page in the background, a slice per frame. That was
+    // measured at 1,539ms on a real chapter in a real browser: work for text that was
+    // mostly never looked at, competing with the scrolling of the text that was.
+    ordered.slice(0, AHEAD).forEach(markPair);
+    renderList();
+
+    // Whatever else is on screen, once the browser has laid the page out — by then
+    // asking where things are is free, and a screenful is not always twelve pairs.
     requestAnimationFrame(function () {
-      markOnward(rest, 0, generation);
+      if (generation !== pending) return;
+      markVisible();
+      took("marks drawn on the rest of the screen");
     });
   }
 
@@ -1713,6 +1714,8 @@
 
   window.addEventListener("resize", placeSlide);
   window.addEventListener("scroll", catchUp, { passive: true });
+  // A wider window shows pairs that were not on screen a moment ago.
+  window.addEventListener("resize", catchUp);
 
   // Vowel points off by default, in every text. A pointed source is shown bare until
   // asked otherwise, which is the same offer made to an unpointed one.
