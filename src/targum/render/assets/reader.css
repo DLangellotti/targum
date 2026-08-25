@@ -1003,3 +1003,22 @@ body.marking .w[data-status="3"] {
 }
 .contents .whole button:hover { color: var(--ink); border-color: var(--ink-soft); }
 .contents .whole button:disabled { opacity: 0.6; cursor: default; }
+
+/* The timing readout, when a reader is opened with `debug=timing` in its address. Not
+   part of the design: it is a diagnostic, and it should look like one. */
+.timing {
+  position: fixed;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 100;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 4px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  white-space: pre;
+  direction: ltr;
+}

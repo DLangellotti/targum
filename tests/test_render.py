@@ -1486,7 +1486,11 @@ def test_a_reader_can_be_asked_where_the_time_went() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert 'get("debug") === "timing"' in script
+    # Matched on the raw address, not parsed: a reader already carries a key in its
+    # query, so `?debug=timing` appended to it makes a second `?` and a parser reads the
+    # whole lot as the key. The switch then does nothing, silently.
+    assert 'indexOf("debug=timing") >= 0' in script
+    assert "location.search + location.hash" in script
     assert "var began = performance.now();" in script
     # Measured from the top of the file, or it is measuring the wrong span.
     assert script.index("var began") < script.index("function markSegment")
