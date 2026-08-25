@@ -1493,3 +1493,26 @@ def test_a_reader_can_be_asked_where_the_time_went() -> None:
     # Silent unless asked.
     took = script[script.index("function took(what)") :]
     assert took[: took.index("\n  }")].index("if (!timing) return;") >= 0
+
+
+def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
+    """`prefs` loads stored values over the defaults, so a preference already in a
+    browser beats a new default forever — which means a default can only be changed for
+    somebody who has not got one. A day after shipping, that is nobody.
+
+    Marking was shipped off, then changed to on, and the second change reached no one who
+    had already opened a reader. The generation stamp is what makes a default changeable.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var DEFAULTS = 1;" in script
+    assert "var RESET = { marking: true };" in script
+    assert "if ((prefs.defaults || 0) < DEFAULTS) {" in script
+    # Stored, or it re-applies on every load and the reader can never turn it off.
+    reset = script[script.index("if ((prefs.defaults || 0) < DEFAULTS) {") :][:300]
+    assert "prefs.defaults = DEFAULTS;" in reset
+    assert "save();" in reset
+    # And `defaults` has to be a known key, or the stored value is discarded on load.
+    prefs = script[script.index("var prefs = {") : script.index("var DEFAULTS")]
+    assert "defaults: 0," in prefs

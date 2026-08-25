@@ -94,11 +94,27 @@
     // setting. A pointed poem opens pointed; a news article whose points were all
     // guessed opens bare. Only what you choose yourself is remembered here.
     nikkudBy: {},
+    // Which generation of the defaults this browser has seen. See below.
+    defaults: 0,
   };
+
+  // A preference already in a browser beats a new default forever, so a default can only
+  // be changed for somebody who has not got one — which, a day in, is nobody. When this
+  // moves, the handful of settings named beside it are taken from the code once and the
+  // reader's own choices after that are kept as they always were.
+  var DEFAULTS = 1;
+  var RESET = { marking: true };
+
   try {
     var stored = JSON.parse(localStorage.getItem(STORE) || "{}");
     for (var key in stored) if (key in prefs) prefs[key] = stored[key];
   } catch (e) {}
+
+  if ((prefs.defaults || 0) < DEFAULTS) {
+    for (var changed in RESET) prefs[changed] = RESET[changed];
+    prefs.defaults = DEFAULTS;
+    save();
+  }
 
   function save() {
     try {
