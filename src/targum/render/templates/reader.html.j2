@@ -113,7 +113,7 @@
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
-  <div class="pair head{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
     <h{{ level }} class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% if segment.id in pointed %}
     <h{{ level }} class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</h{{ level }}>
@@ -121,7 +121,7 @@
     <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
   </div>
   {% elif segment.kind.value == 'byline' %}
-  <div class="pair byline{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
@@ -129,7 +129,7 @@
     <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
   </div>
   {% else %}
-  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>

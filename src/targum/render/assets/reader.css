@@ -403,8 +403,14 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
    on <body> rather than a hidden attribute on each cell, so the toggle is a single flip
    and the default survives with no JavaScript at all. */
 .src.pointed { display: none; }
-body.nikkud .src.plain { display: none; }
-body.nikkud .src.pointed { display: revert; }
+/* Scoped to `.points` — a pair that actually has a pointed form. A vocalizer does not
+   always reach every sentence: Nakdimon skips what it cannot do anything with, so a
+   document can be a third pointed and two thirds bare. Hiding the bare form regardless
+   left those pairs with no source at all, and the translation fell into the first grid
+   column, which on an RTL page is the right one. The page looked mirrored; it was
+   missing. */
+body.nikkud .pair.points .src.plain { display: none; }
+body.nikkud .pair.points .src.pointed { display: revert; }
 
 /* Where the vowels were guessed at rather than read off the source. Marked only while
    they are on show, and only on the source cell, since that is what they are about.

@@ -1838,3 +1838,25 @@ def test_a_bought_book_is_free_to_the_second_reader(tmp_path: Path) -> None:
     # And the same request under the hosted default finds nothing, which is the whole
     # reason the catalogue names the model.
     assert cache.get("translate", hosted.cache_key(segmented, chapter)) is None
+
+
+def test_a_sentence_with_no_points_still_shows_its_source(tmp_path: Path) -> None:
+    """A vocalizer does not always reach every sentence — Judenstaat came out 123 of 1080
+    pointed. The stylesheet hid the bare form whenever vowels were on, so those pairs had
+    no source at all, and the translation fell into the first grid column, which on an RTL
+    page is the right one. It read as a mirrored, broken layout; it was a missing one.
+    """
+    pointed_one, bare_one = hebrew(0, BARE_TEXT), hebrew(1, BARE_TEXT + " ב")
+    html = render_with_vocalization(
+        tmp_path,
+        [pointed_one, bare_one],
+        vocalization_for([pointed_one], {pointed_one.id: POINTED_TEXT}, [pointed_one.id]),
+    )
+    pairs = dict(re.findall(r'<div class="(pair[^"]*)" data-id="([^"]+)"', html))
+    pairs = {sid: cls for cls, sid in pairs.items()}
+    assert "points" in pairs[pointed_one.id], "this one has a pointed form"
+    assert "points" not in pairs[bare_one.id], "and this one does not"
+
+    css = _reader_css()
+    assert "body.nikkud .pair.points .src.plain { display: none; }" in css
+    assert "body.nikkud .src.plain { display: none; }" not in css, "never unconditionally"

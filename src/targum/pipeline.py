@@ -322,10 +322,16 @@ class Build:
         return translation
 
     def _first_chapters(self, segmented: SegmentedDocument, count: int) -> list[Segment] | None:
-        """The segments of the first `count` sections, or None when there is one section.
+        """What this build will translate now: the first `count` sections, and anything
+        already paid for.
 
         A text that does not divide into chapters is translated whole: the machinery for
         paying by the chapter is worth nothing on an article, which costs five cents.
+
+        The rationing is about money, so it only applies to chapters that cost something.
+        A book whose English is already in the shared cache — the prose canon, bought once
+        — arrives whole, rather than opening at chapter one with a row of Translate
+        buttons against work that has been done and paid for.
         """
         from .render.builder import split_sections
 
@@ -333,6 +339,11 @@ class Build:
         if len(sections) < 2:
             return None
         wanted = {sid for section in sections[:count] for sid in section.segment_ids}
+        if not self.force:
+            for section in sections[count:]:
+                run = self.chapter_segments(segmented, section.number)
+                if run and self.cache.get("translate", self.cache_key(segmented, run)) is not None:
+                    wanted |= set(section.segment_ids)
         return [segment for segment in segmented.segments if segment.id in wanted]
 
     def chapter_segments(self, segmented: SegmentedDocument, number: int) -> list[Segment]:
