@@ -12,6 +12,16 @@
 
   // Legacy records imported by the vocab migration carry `at: 0`; this keeps them out of
   // anything dated rather than putting the whole library on the first day of 2024.
+  // A day, in milliseconds. It lived in words.js and was used from here: when the chart
+  // kit moved out, the constant it draws with stayed behind, and `drawGrowth` threw
+  // `DAY is not defined` on any page with words on it.
+  var DAY = 86400000;
+
+  // The status a word reaches when it is finished with. Its own, like every other IIFE
+  // that needs it — reader.js and words.js each declare it too. It was being read from
+  // words.js across a scope boundary, which threw the moment a tile was counted.
+  var KNOWN = 9;
+
   var EARLIEST = Date.UTC(2024, 0, 1);
 
   var STATUS = {

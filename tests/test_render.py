@@ -1579,6 +1579,49 @@ def test_hebrew_is_set_from_its_own_stack() -> None:
     assert ":lang(he) { font-family: var(--reading-hebrew); }" in css
 
 
+def test_no_scope_reads_a_constant_from_another_one() -> None:
+    """`DAY` was declared in words.js and used in charts.js. Separate IIFEs, so the chart
+    kit threw `DAY is not defined` on any page that had words on it — the words page drew
+    nothing, and Learn's growth chart would have gone the same way.
+
+    Third of these in a day: `keyed`, `keyHeaders`, `DAY`. All the same shape — something
+    moved between files and left a name behind — and none is a syntax error, so
+    `node --check` is blind to them. This looks only for a name *declared in one scope and
+    read in another*, which is the shape itself rather than a guess at what is global.
+    """
+    from targum.render.builder import ASSETS
+
+    def scopes_of(source: str) -> list[str]:
+        parts = re.split(r"^\(function \(\) \{", source, flags=re.M)[1:]
+        out = []
+        for part in parts:
+            body = re.sub(r"/\*.*?\*/", "", part, flags=re.S)
+            out.append(re.sub(r"^\s*//.*$", "", body, flags=re.M))
+        return out
+
+    scoped: list[tuple[str, int, str]] = []
+    for path in sorted(ASSETS.glob("*.js")):
+        for n, body in enumerate(scopes_of(path.read_text(encoding="utf-8"))):
+            scoped.append((path.name, n + 1, body))
+
+    # Every SHOUTED constant, and the one scope that declares it.
+    declared: dict[str, tuple[str, int]] = {}
+    for name, n, body in scoped:
+        for const in re.findall(r"\bvar\s+([A-Z][A-Z0-9_]{2,})\s*=", body):
+            declared[const] = (name, n)
+
+    stray = []
+    for name, n, body in scoped:
+        mine = set(re.findall(r"\bvar\s+([A-Z][A-Z0-9_]{2,})\s*=", body))
+        for const, (owner, owner_scope) in declared.items():
+            if const in mine:
+                continue
+            # Read as a bare name, never as somebody's property.
+            if re.search(rf"(?<![.\w]){const}\b", body):
+                stray.append(f"{name} scope {n} reads {const}, declared in {owner} scope {owner_scope}")
+    assert not stray, "a constant crossed a scope:\n  " + "\n  ".join(sorted(stray))
+
+
 def test_every_scope_defines_the_helpers_it_calls() -> None:
     """`keyed` and `keyHeaders` were called five times in reader.js and defined nowhere.
 

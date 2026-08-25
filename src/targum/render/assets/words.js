@@ -43,7 +43,6 @@
     "very hard",
     "extremely hard",
   ];
-  var DAY = 86400000;
   // targum did not exist before this, so a date earlier than it is a number that was
   // never a date. Treated as undated rather than drawn: one bad value would otherwise
   // stretch the chart back to 1970 and build twenty thousand days of nothing.
