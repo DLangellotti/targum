@@ -1437,8 +1437,8 @@ def test_the_page_marks_what_you_are_looking_at_first() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
-    assert "now.forEach(markPair);" in redraw, "a screenful, before anything is painted"
-    assert "markOnward(rest, 0, generation)" in redraw, "the rest across later frames"
+    assert "ordered.slice(0, AHEAD).forEach(markPair);" in redraw, "a screenful, now"
+    assert "markVisible();" in redraw, "the rest of the screen once it is laid out"
     # Ordered from the pair you are looking at, not from the top of the document.
     assert "pairs.slice(first).concat(pairs.slice(0, first))" in redraw
 
@@ -1464,7 +1464,7 @@ def test_lazy_marking_degrades_rather_than_breaks() -> None:
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
     assert "if (!window.requestAnimationFrame) {" in redraw
-    assert "rest.forEach(markPair);" in redraw, "everything, immediately, as before"
+    assert "ordered.forEach(markPair);" in redraw, "everything, immediately, as before"
 
 
 def test_no_count_on_the_page_reads_the_dom() -> None:
@@ -1532,3 +1532,23 @@ def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
     # And `defaults` has to be a known key, or the stored value is discarded on load.
     prefs = script[script.index("var prefs = {") : script.index("var DEFAULTS")]
     assert "defaults: 0," in prefs
+
+
+def test_the_page_is_never_marked_further_than_it_is_read() -> None:
+    """It used to fill the whole chapter in the background, a slice per frame. Measured
+    at 1,539ms on a real chapter in a real browser — work for text that was mostly never
+    looked at, competing with the scrolling of the text that was.
+
+    What is on screen is marked; scrolling marks what it reaches; the rest is never done.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function markOnward" not in script, "no background fill"
+    assert "PER_FRAME" not in script
+    # Scrolling and resizing are the two ways a pair arrives on screen.
+    assert 'window.addEventListener("scroll", catchUp, { passive: true });' in script
+    assert 'window.addEventListener("resize", catchUp);' in script
+    # And the walk stops at the first pair below the fold rather than crossing the rest.
+    visible = script[script.index("function markVisible()") :]
+    assert "break;" in visible[: visible.index("\n  }")]
