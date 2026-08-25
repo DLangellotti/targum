@@ -776,7 +776,9 @@ def test_both_forms_are_rendered_and_only_the_bare_one_shows(tmp_path: Path) -> 
     body_class = re.search(r'<body class="([^"]*)"', html)
     assert body_class is not None and "nikkud" not in body_class.group(1)
     controls = html.split("<header", 1)[1].split("</header>", 1)[0]
-    assert 'data-nikkud="on"' in controls
+    # One button that is on or off, not two to choose between: a switch, not a scale.
+    assert "data-nikkud-toggle" in controls
+    assert controls.count("data-nikkud") == 1
 
 
 def test_the_pointed_cell_differs_from_the_bare_one_only_by_its_marks(tmp_path: Path) -> None:
@@ -1034,7 +1036,11 @@ def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
     contents, section = render(document, segmented, [translation], tmp_path / "reader")[:2]
     for page in (contents, section):
         html = page.read_text(encoding="utf-8")
-        assert '<a class="home" id="home" href="/" hidden>Learn</a>' in html
+        # The mark in the corner is the way back — the oldest convention there is, and
+        # it was sitting inert beside a link that said the same thing.
+        assert '<a class="bar-brand" id="home" href="/"' in html
+        assert 'title="Your Learn page"' in html
+        assert ">Learn</a>" not in html, "the word beside it said it twice"
         assert '"/library"' not in html, "the way out is not the catalogue any more"
 
 
@@ -1598,3 +1604,72 @@ def test_every_scope_defines_the_helpers_it_calls() -> None:
             for name in shared:
                 if re.search(rf"\b{name}\(", body) and f"function {name}(" not in body:
                     raise AssertionError(f"{path.name} scope {n + 1} calls {name} without it")
+
+
+def _reader_controls(tmp_path: Path) -> str:
+    """The header of a rendered reader, which is where every control lives."""
+    segment = hebrew(0, BARE_TEXT)
+    html = render_with_vocalization(
+        tmp_path,
+        [segment],
+        vocalization_for([segment], {segment.id: POINTED_TEXT}, [segment.id]),
+    )
+    return html.split("<header", 1)[1].split("</header>", 1)[0]
+
+
+def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) -> None:
+    """§7: icons are line diagrams of what the thing does, not a library and not a word.
+    A control small enough to be a glyph needs the words on hover instead."""
+    controls = _reader_controls(tmp_path)
+    buttons = re.findall(r"<button\b.*?</button>", controls, re.S)
+
+    def control(marker: str) -> str:
+        found = [b for b in buttons if marker in b]
+        assert len(found) == 1, f"{marker}: expected one button, found {len(found)}"
+        return found[0]
+
+    vowels = control("data-nikkud-toggle")
+    assert "<svg" in vowels and ">Vowels<" not in vowels and ">No vowels<" not in vowels
+    assert "title=" in vowels, "the words move to the hover"
+    assert "aria-label=" in vowels, "and stay for anyone not hovering"
+
+    # The marking control only renders on a text that has words to mark, so it is read
+    # from the template rather than from a fixture built without annotation.
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
+    assert mark is not None
+    assert "<svg" in mark.group(0) and ">Mark<" not in mark.group(0)
+    assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
+
+
+def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None:
+    """It is a thing that is on or off. Two buttons made a scale out of it."""
+    controls = _reader_controls(tmp_path)
+    assert controls.count("data-nikkud") == 1
+    assert 'data-nikkud="on"' not in controls and 'data-nikkud="off"' not in controls
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "prefs.nikkud = !prefs.nikkud;" in script, "it toggles rather than being set"
+    assert 'aria-pressed", prefs.nikkud ? "true" : "false"' in script
+
+
+def test_the_mark_is_the_way_back(tmp_path: Path) -> None:
+    """The oldest convention on the web, and it was sitting inert beside a link that
+    said the same thing. Two drawings of it, so a reader opened off the disk shows a mark
+    rather than a link to nowhere."""
+    controls = _reader_controls(tmp_path)
+    assert '<a class="bar-brand" id="home" href="/"' in controls
+    assert 'id="home-plain"' in controls, "the unlinked one, for a page off the disk"
+    assert ">Learn</a>" not in controls, "the word beside it said it twice"
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "if (homePlain) homePlain.hidden = true;" in script
+    # A link wherever there is a Learn page, which hosted means without a key: there the
+    # cookie identifies the reader and `keyed` is the identity.
+    assert "if (home && served) {" in script

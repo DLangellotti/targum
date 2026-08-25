@@ -11,15 +11,28 @@
 <body class="mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
 <header class="bar">
   {#- The mark holds the corner on its own: at this size the identity is the monogram,
-      not the lockup, and the bar already carries the title beside it. -#}
-  <span class="bar-brand" role="img" aria-label="targum">
+      not the lockup, and the bar already carries the title beside it.
+
+      It is also the way back. A mark in the corner going home is the oldest convention
+      on the web, and it was sitting inert next to a link that said "Learn" — the same
+      journey, twice, in the narrowest part of the bar. `id="home"` moves onto it, so the
+      reader wires it exactly as before: a link only where there is somewhere to go, and
+      carrying the key it was served with. -#}
+  <a class="bar-brand" id="home" href="/" title="Your Learn page" aria-label="targum — Learn" hidden>
+    <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+  </a>
+  {#- Off the disk there is no Learn page, so the mark is a mark rather than a dead
+      link. Same drawing, no href. -#}
+  <span class="bar-brand" id="home-plain" role="img" aria-label="targum">
     <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
       <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
       <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
     </svg>
   </span>
   <div class="bar-title">
-    <a class="home" id="home" href="/" hidden>Learn</a>
     {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
     {#- How much of this text you can already read. Filled in by the reader from the
         words it has, and hidden outright on a text that carries none. -#}
@@ -53,10 +66,21 @@
       </select>
     </label>
     {% endif %}
+    {#- One button, not two: it is a thing that is on or off, and two buttons for that
+        made a scale out of a switch. The drawing is a letter with its points beneath —
+        §7 wants a line diagram of what the thing does, and this is literally it. -#}
     {% if has_nikkud %}
-    <div class="group" role="group" aria-label="Vowel points">
-      <button type="button" data-nikkud="off" class="on" title="Read without vowel points (n)">No vowels</button>
-      <button type="button" data-nikkud="on"{% if mark_guessed %} title="Vowel points. Where this text left a word bare, targum guessed — about 90% right on modern Hebrew, less on classical. Guessed sentences are marked."{% elif source_pointed %} title="Vowel points, as this text writes them (n)"{% else %} title="Vowel points, guessed by targum — about 90% right on modern Hebrew, less on classical (n)"{% endif %}>Vowels</button>
+    <div class="group">
+      <button type="button" data-nikkud-toggle aria-pressed="false"
+              {%- if mark_guessed %} title="Vowel points (n). Where this text left a word bare, targum guessed — about 90% right on modern Hebrew, less on classical. Guessed sentences are marked."
+              {%- elif source_pointed %} title="Vowel points, as this text writes them (n)"
+              {%- else %} title="Vowel points, guessed by targum — about 90% right on modern Hebrew, less on classical (n)"{% endif %}
+              aria-label="Vowel points">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M4 3.5h8M8 3.5v6"/>
+          <path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/>
+        </svg>
+      </button>
     </div>
     {% endif %}
     {#- Reading, or marking. Off is reading: the page is just a page. Only offered on a
@@ -64,7 +88,13 @@
     {% if words %}
     <div class="group">
       <button type="button" data-marking aria-pressed="false"
-              title="Mark words as you read (m)">Mark</button>
+              title="Highlight the words you have not learned yet, and clear them as you mark them (m)"
+              aria-label="Highlight what you have not learned">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 3.5h11M2.5 12.5h11"/>
+          <rect x="2" y="6.3" width="12" height="3.4" rx="1.2"/>
+        </svg>
+      </button>
     </div>
     {% endif %}
     <div class="group" role="group" aria-label="Type size">
