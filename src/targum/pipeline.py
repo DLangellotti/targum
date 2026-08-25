@@ -53,6 +53,9 @@ class Plan:
     # chapter at a time, so the two differ and the page needs both to say anything true.
     chapters: int = 1
     buying: int = 0
+    # The segments that number counts. Kept rather than recomputed, so what the page
+    # prices and what the build buys cannot come apart.
+    buying_segments: list[Segment] = field(default_factory=list)
 
     @property
     def needs_payment(self) -> bool:
@@ -208,6 +211,14 @@ class Build:
                 if self.source_language:
                     existing.language = self.source_language
                 return existing
+            if existing is not None and self.title and not existing.title:
+                # A name is not part of the text, so an artifact written before anyone
+                # knew the name is not stale — it is nameless. Five books were built from
+                # plain .txt files this way and opened with nothing at the top of the
+                # page; re-ingesting to fix that would change nothing but the metadata
+                # and would risk the translation keyed to it.
+                existing.title = self.title
+                existing.write(path)
             if existing is not None:
                 self.reused.append("document")
                 return existing
@@ -537,10 +548,23 @@ class Build:
         vocalization.write(path)
         return vocalization
 
-    def glossary(self, annotation: Annotation | None) -> Glossary | None:
+    def glossary(
+        self, annotation: Annotation | None, only: list[Segment] | None = None
+    ) -> Glossary | None:
+        """What the words mean, for the part of the text that was bought.
+
+        `only` is the same run the translation was bought for. Meanings are the expensive
+        half of a build and were looked up for the whole document however little of it
+        had been paid for, so a novel bought a chapter at a time was glossed twenty times
+        over in advance — Altneuland priced its first chapter at $0.21 and its meanings at
+        $4.23, and the cap then refused the pair and the book could not be opened at all.
+        The rest arrives as the rest is bought, and a lemma already looked up is free.
+        """
         if not self.gloss or annotation is None:
             return None
         from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
+
+        wanted = {segment.id for segment in only} if only is not None else None
 
         provider = AnthropicGlosses(self.model)
         # Kept so what the meanings cost is counted with the rest. Glossing runs on its
@@ -550,7 +574,7 @@ class Build:
         # form, six hundred of them on a news piece. Said out loud and counted as it
         # goes, because a progress bar that stopped moving several minutes ago is
         # indistinguishable from a hang.
-        total = len(unique_lemmas(annotation))
+        total = len(unique_lemmas(annotation, only=wanted))
         done = 0
         self.notify(f"Looking up {total} word meanings…")
 
@@ -571,6 +595,7 @@ class Build:
             annotation,
             self.target_language,
             provider,
+            only=wanted,
             cache=self.cache,
             on_progress=progress,
             on_batch=publish,
@@ -621,6 +646,7 @@ class Build:
             )
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
+            plan.buying_segments = list(buying)
         return plan
 
     def run(
@@ -690,7 +716,7 @@ class Build:
             on_ready(result)
 
         try:
-            result.glossary = self.glossary(annotation)
+            result.glossary = self.glossary(annotation, only=only)
         except TargumError as error:
             # The reader is already written and, where this is serving a page, already
             # open. Losing the meanings is worth saying; it is not worth taking back a

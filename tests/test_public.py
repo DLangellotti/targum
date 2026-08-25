@@ -151,3 +151,49 @@ def test_samples_belong_to_entries_that_exist() -> None:
     raw = json.loads(Path("src/targum/samples.json").read_text(encoding="utf-8"))
     known = {entry.id for entry in CATALOGUE}
     assert set(raw) <= known, f"samples for unknown entries: {set(raw) - known}"
+
+
+def test_every_text_is_classified_and_measured() -> None:
+    """The library sorts and filters on these three, and a filter is only worth having
+    if what is behind it is true. Difficulty in particular is counted off the whole text
+    by `scripts/measure_difficulty.py` rather than judged by eye — an entry added with
+    the field left at zero is one the library cannot place."""
+    from targum.catalogue import CATALOGUE, Kind, Register
+
+    for entry in CATALOGUE:
+        assert isinstance(entry.kind, Kind), entry.id
+        assert isinstance(entry.register, Register), entry.id
+        assert entry.difficulty, f"{entry.id} has never been measured"
+        # A share of running words, so anything outside these is a bug in the counting
+        # rather than an unusually hard book.
+        assert 5 <= entry.difficulty <= 60, entry.id
+        assert entry.minutes >= 1, entry.id
+        if entry.language.startswith("he"):
+            assert entry.register is not Register.none, entry.id
+
+
+def test_hebrew_poetry_reads_harder_than_hebrew_narrative() -> None:
+    """A sanity check on the measurement rather than on any one number: whatever the
+    scale is doing, Psalms cannot come out easier than Genesis."""
+    from targum.catalogue import CATALOGUE, Kind
+
+    def hardest(kind: Kind) -> float:
+        found = [
+            e.difficulty for e in CATALOGUE if e.kind is kind and e.register.value == "biblical"
+        ]
+        return sum(found) / len(found)
+
+    assert hardest(Kind.poetry) > hardest(Kind.prose)
+
+
+def test_a_cover_prompt_says_what_the_brand_never_draws() -> None:
+    """An image model asked for a Hebrew book cover returns a scroll, a candelabrum and a
+    flag every time, and §10 names all three as things this brand does not do."""
+    from targum.catalogue import CATALOGUE, cover_prompt
+
+    prompt = cover_prompt(CATALOGUE[0])
+    said = prompt.lower()
+    for banned in ("no flags", "no lettering", "no gradients", "ritual objects", "no maps"):
+        assert banned in said
+    # And it is about this text, not a generic cover.
+    assert CATALOGUE[0].title in prompt and CATALOGUE[0].blurb in prompt

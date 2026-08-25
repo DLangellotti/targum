@@ -3,54 +3,246 @@
    account menu it used to carry are in chrome.css — every page wears those, including
    the ones with no catalogue. */
 
-/* --- the catalogue -------------------------------------------------------- */
+/* --- the library, as a list ----------------------------------------------- */
 
-.cards {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: 0.9rem;
-}
-.card {
+/* Cards were the wrong shape once there was more than a screenful. A card says "look at
+   this one"; twenty-six of them say nothing at all, and none of them can be sorted. A
+   row can: same information, one line each, and the controls above act on all of them
+   as you type. */
+
+.sift {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 0.4rem;
-  padding: 1rem 1.1rem 1.1rem;
+  margin-block-end: 0.9rem;
+}
+.find {
+  flex: 1 1 11rem;
+  min-inline-size: 7rem;
+  padding: 0.3rem 0.6rem;
   border: 1px solid var(--rule);
-  border-radius: 8px;
+  border-radius: 4px;
   background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
 }
-.card-head { display: flex; align-items: baseline; gap: 0.6rem; }
-.card-head h3 {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-.card .tag {
-  margin-inline-start: auto;
+.find:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.2rem; }
+.chip {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
   color: var(--ink-soft);
   font-size: 0.6875rem;
+  cursor: pointer;
+}
+.chip:hover { color: var(--ink); border-color: var(--ink-soft); }
+/* §4: selection in UI is quiet ink, never the accent — the accent is for the one
+   primary action in a view and for what the reader has kept. A chosen filter is
+   neither; it is where you are. */
+.chip[aria-pressed="true"] {
+  background: var(--ink-soft);
+  border-color: var(--ink-soft);
+  color: var(--paper);
+}
+
+.pick { display: flex; align-items: center; gap: 0.3rem; color: var(--ink-soft); }
+.pick > span {
+  font-size: 0.6875rem;
   letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.card .byline { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; font-style: italic; }
-.card .blurb { margin: 0.2rem 0 0; line-height: 1.5; }
-.card .facts { margin: 0; color: var(--ink-soft); font-size: 0.6875rem; }
-
-.renderings { list-style: none; margin: 0.2rem 0 0; padding: 0; font-size: 0.8125rem; }
-.renderings li {
-  padding-inline-start: 0.7rem;
-  border-inline-start: 2px solid var(--rule);
+.pick select {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.6875rem;
+}
+.clear {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
   color: var(--ink-soft);
-  line-height: 1.45;
+  font-size: 0.6875rem;
+  cursor: pointer;
 }
-.renderings b { color: var(--ink); font-weight: 600; }
+.clear:hover { color: var(--ink); border-color: var(--ink-soft); }
+.clear[hidden] { display: none; }
 
-.card .build { margin-block-start: auto; width: 100%; }
-.card-status { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.45; }
-.card-status[hidden] { display: none; }
+/* The row grid, shared by the header and every row so the columns line up without a
+   table. Logical units throughout: the whole thing mirrors in Hebrew. */
+.rows-head,
+.rows .row-open {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4rem 4rem 3.5rem 4.5rem 5rem;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.rows-head {
+  padding: 0.3rem 0.5rem;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+}
+.rows-head button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: start;
+  cursor: pointer;
+}
+.rows-head button:hover { color: var(--ink); }
+.rows-head button[aria-sort] { color: var(--ink); }
+.rows-head .arrow { font-size: 0.6875rem; }
+
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows > li { display: flex; align-items: center; gap: 0.4rem; }
+.rows > li > .row-open { flex: 1; min-inline-size: 0; }
+
+/* Quiet until it is wanted, like every other row control here: ink on hover rather than
+   a beige button on beige, which §9 forbids outright. */
+.draw {
+  flex: none;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.draw:hover { color: var(--ink); border-color: var(--ink-soft); }
+.draw:disabled { opacity: 0.6; cursor: default; }
+.rows > li + li {
+  border-block-start: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+
+.rows .row-open {
+  inline-size: 100%;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+/* §8: row hovers are a 7–10% accent wash. */
+.rows .row-open:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.rows .row-open:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* A drawn cover where there is one, and the text's own first letter where there is
+   not — a Hebrew letterform as pure form, which §10 allows and which beats a grey box
+   with nothing in it. */
+.thumb {
+  inline-size: 2.25rem;
+  block-size: 3rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-raised);
+}
+.thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.thumb .glyph {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ink-soft);
+}
+
+/* Beside a chapter, where the row is one line of text. Small enough to sit on that
+   line without setting it, since a chapter's cover is usually its book's. */
+.thumb.tiny {
+  inline-size: 1.1rem;
+  block-size: 1.5rem;
+  flex: none;
+  vertical-align: -0.35rem;
+  margin-inline-end: 0.4rem;
+  display: inline-grid;
+}
+.thumb.tiny .glyph { font-size: 0.6875rem; }
+
+.what { min-inline-size: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.row-title {
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-by {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.col { color: var(--ink-soft); font-size: 0.6875rem; }
+.col.label { letter-spacing: 0.06em; text-transform: uppercase; }
+/* Counts are numbers, and §5 gives numbers the monospace with tabular figures so a
+   column of them lines up. */
+.col.count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
+}
+
+/* How much of a text a reader would have to look up, drawn rather than named: the
+   number is a share, and a share is a length. Ink, not a hue — this is neither
+   progress nor achievement, and §9 rations the hue to where the reader acts. */
+.gauge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.gauge .track {
+  flex: none;
+  inline-size: 2rem;
+  block-size: 3px;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.gauge .fill {
+  display: block;
+  block-size: 100%;
+  border-radius: 999px;
+  background: var(--ink-soft);
+}
+.rows .row-open:hover .gauge .fill { background: var(--ink); }
+
+.row-state { color: var(--ink-soft); font-size: 0.6875rem; }
+.row-state.mine { color: var(--ink); }
+.rows .row-open:hover .row-state { color: var(--ink); }
+
+.tally { margin: 0.7rem 0 0; color: var(--ink-soft); font-size: 0.6875rem; }
+
+/* Narrow: the two labels go first, then the gauge. What a reader keeps on a phone is
+   the title, how long it is, and whether they already have it. */
+@media (max-width: 46rem) {
+  .rows-head,
+  .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 3.5rem 5rem; }
+  .rows-head .drop,
+  .rows .drop { display: none; }
+}
 
 /* --- the shelf ------------------------------------------------------------ */
 

@@ -302,3 +302,158 @@ def test_clearing_the_cache_is_refused_on_a_hosted_box(
     monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT")
     allowed = CliRunner().invoke(app, ["cache", "clear"])
     assert allowed.exit_code == 0, "a machine somebody runs themselves keeps the old behaviour"
+
+
+def test_repair_separates_glued_words_without_paying(tmp_path: Path) -> None:
+    """A text built before ingest learned to repair spacing still carries the glue.
+
+    Everything downstream is keyed to the Hebrew, so a sentence one space longer is a
+    sentence nothing has ever translated — rebuilding it from the source would buy the
+    English again. This carries the English across instead.
+    """
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import (
+        Block,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Translation,
+        read_artifact,
+    )
+
+    glued = "מיכל ברקוביץהקדמה"
+    clean = "מיכל ברקוביץ הקדמה"
+
+    out = tmp_path / "targum-out"
+    folder = out / "p1" / "herzl-he"
+    folder.mkdir(parents=True)
+
+    document = Document(
+        source="https://benyehuda.org/download/6600.txt",
+        title="A Book",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=glued)],
+    )
+    document.content_hash = document.recompute_hash()
+    was = document.content_hash
+    segment = Segment(id="0000.000-aaa", block_id="b0000", block_index=0, index=0, text=glued)
+    segmented = SegmentedDocument(
+        document_hash=was, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=was,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "Michal Berkowitz. Introduction"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+
+    result = CliRunner().invoke(app, ["repair", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "nothing was spent" in result.output.lower()
+
+    repaired = read_artifact(Document, folder / "document.json")
+    assert repaired is not None
+    assert repaired.blocks[0].text == clean
+    # The hash the blocks imply, so nothing downstream reads stale text against it.
+    assert repaired.content_hash == repaired.recompute_hash() != was
+
+    resegmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert resegmented is not None
+    assert resegmented.segments[0].text == clean
+    assert resegmented.document_hash == repaired.content_hash
+
+    carried = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert carried is not None
+    # The English is what was paid for and is untouched; only its key moved.
+    assert carried.segments == {segment.id: "Michal Berkowitz. Introduction"}
+    assert carried.document_hash == repaired.content_hash
+
+    assert (folder / "reader" / "index.html").is_file()
+
+
+def test_repair_leaves_a_clean_text_alone(tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import Block, BlockKind, Document, read_artifact
+
+    out = tmp_path / "targum-out"
+    folder = out / "p1" / "clean-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source="m",
+        title="A Book",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text="הוא הלך הביתה")],
+    )
+    document.content_hash = document.recompute_hash()
+    document.write(folder / "document.json")
+
+    result = CliRunner().invoke(app, ["repair", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "in 0 targums" in result.output
+
+    after = read_artifact(Document, folder / "document.json")
+    assert after is not None and after.content_hash == document.content_hash
+
+
+def test_building_a_catalogue_text_reads_its_title_and_model_from_the_catalogue(
+    tmp_path: Path, monkeypatch
+) -> None:  # type: ignore[no-untyped-def]
+    """Two things the server has always read from the catalogue and the command line did
+    not.
+
+    The title, because a plain .txt carries none — five books were built with no name at
+    the top of the reader. And the model, because the cache is keyed on it: a build that
+    names a different one translates the whole book again at the reader's expense, which
+    is a way to pay twice for a book already bought.
+    """
+    from targum import cli
+    from targum.catalogue import CATALOGUE
+    from targum.errors import TargumError
+
+    entry = next(e for e in CATALOGUE if e.model and not e.translations)
+    seen: dict[str, object] = {}
+
+    def spy(source, **options):  # type: ignore[no-untyped-def]
+        seen.update(options)
+        raise TargumError("stop here")
+
+    monkeypatch.setattr(cli, "Build", spy)
+    from typer.testing import CliRunner
+
+    CliRunner().invoke(
+        cli.app, ["build", entry.source, "--to", "en", "--out", str(tmp_path / "out")]
+    )
+
+    assert seen.get("title") == entry.title
+    assert seen.get("model") == entry.model
+
+
+def test_a_text_the_catalogue_does_not_know_is_left_alone(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from targum import cli
+    from targum.errors import TargumError
+
+    seen: dict[str, object] = {}
+
+    def spy(source, **options):  # type: ignore[no-untyped-def]
+        seen.update(options)
+        raise TargumError("stop here")
+
+    monkeypatch.setattr(cli, "Build", spy)
+    from typer.testing import CliRunner
+
+    source = tmp_path / "mine.txt"
+    source.write_text("שלום עולם\n", encoding="utf-8")
+    CliRunner().invoke(cli.app, ["build", str(source), "--to", "en"])
+
+    assert seen.get("title") == "", "nothing invented for a text nobody catalogued"

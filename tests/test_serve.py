@@ -7,6 +7,7 @@ much as the answer.
 
 from __future__ import annotations
 
+import gzip
 import io
 import json
 import threading
@@ -1118,3 +1119,334 @@ def test_a_chapter_that_is_missing_is_still_bought(served: tuple[int, str, Path]
     assert status == 200
     assert answer.get("id"), "chapter 3 has no translation, so it is a job"
     assert answer.get("ready") is not True
+
+
+def test_a_page_is_compressed_for_a_browser_that_takes_it(served: tuple[int, str, Path]) -> None:
+    """A reader page is around 180 kB, most of it the same stylesheet and script every
+    other page carries. In production Caddy compresses; served straight from here,
+    nothing else will."""
+    port, key, out = served
+    build = out / "local" / "book-he" / "reader"
+    build.mkdir(parents=True)
+    page = "<html><body>" + ("שלום עולם " * 4000) + "</body></html>"
+    (build / "index.html").write_text(page, encoding="utf-8")
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "GET",
+            f"/reader/book-he/reader/index.html?k={key}",
+            headers={"Accept-Encoding": "gzip"},
+        )
+        response = connection.getresponse()
+        body = response.read()
+        assert response.status == 200
+        assert response.getheader("Content-Encoding") == "gzip"
+        assert response.getheader("Vary") == "Accept-Encoding"
+        assert len(body) < len(page.encode("utf-8")) / 2
+        assert gzip.decompress(body).decode("utf-8") == page
+    finally:
+        connection.close()
+
+
+def test_a_browser_that_does_not_ask_gets_it_whole(served: tuple[int, str, Path]) -> None:
+    port, key, out = served
+    build = out / "local" / "book-he" / "reader"
+    build.mkdir(parents=True)
+    page = "<html><body>" + ("שלום עולם " * 4000) + "</body></html>"
+    (build / "index.html").write_text(page, encoding="utf-8")
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "GET",
+            f"/reader/book-he/reader/index.html?k={key}",
+            headers={"Accept-Encoding": "identity"},
+        )
+        response = connection.getresponse()
+        body = response.read()
+        assert response.getheader("Content-Encoding") is None
+        assert body.decode("utf-8") == page
+    finally:
+        connection.close()
+
+
+def test_a_shelf_row_says_what_the_text_is(tmp_path: Path) -> None:
+    """The library sorts and filters on these, and it draws them for the reader's own
+    texts as well as for catalogue ones — an article somebody pasted in this morning is
+    in the same list as Genesis."""
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "article-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source="https://www.ynet.co.il/news/article/x",
+        title="A News Article",
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text=" ".join(["מלה"] * 260))],
+    )
+    document.content_hash = document.recompute_hash()
+    segment = Segment(id="s1", block_id="b0", block_index=0, index=0, text="מלה")
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "word"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+
+    row = Library(out).readers(out / "local")[0]
+
+    assert row["kind"] == "article", "a web address is a piece of journalism"
+    assert row["register"] == "modern"
+    assert row["words"] == 260
+    assert row["minutes"] == 2, "260 words at 130 a minute"
+
+
+def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
+    """Its difficulty is measured off the whole text by a script that runs for minutes.
+    Nothing worked out at page-draw time could be better than that."""
+    from targum.catalogue import CATALOGUE
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    entry = next(e for e in CATALOGUE if e.id == "psalms")
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "psalms-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source=entry.source,
+        title=entry.title,
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text="שלום")],
+    )
+    document.content_hash = document.recompute_hash()
+    segment = Segment(id="s1", block_id="b0", block_index=0, index=0, text="שלום")
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+
+    row = Library(out).readers(out / "local")[0]
+
+    assert row["entry"] == "psalms"
+    assert row["kind"] == "poetry" and row["register"] == "biblical"
+    assert row["difficulty"] == entry.difficulty
+    assert row["minutes"] == entry.minutes, "the whole book, not the one line built here"
+
+
+def test_a_cover_is_served_and_only_from_the_covers_directory(
+    served: tuple[int, str, Path],
+) -> None:
+    port, key, out = served
+    thumbs = out / "thumbs"
+    thumbs.mkdir()
+    (thumbs / "psalms.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
+    (out / "secret.png").write_bytes(b"not yours")
+
+    def fetch(path: str) -> tuple[int, bytes]:
+        # Not `get`: a cover is bytes, and that helper reads every body as JSON.
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    status, body = fetch(f"/thumb/psalms?k={key}")
+    assert status == 200
+    assert body.startswith(b"\x89PNG")
+
+    missing, _ = fetch(f"/thumb/nothing-here?k={key}")
+    assert missing == 404, "a text with no cover drawn yet is not an error"
+
+    climbing, _ = fetch(f"/thumb/..%2Fsecret?k={key}")
+    assert climbing == 404
+
+
+def built_catalogue_text(out: Path, entry_id: str, titles: list[str]) -> Path:
+    """One catalogue text on disk, with chapters, as a build would leave it."""
+    from targum.catalogue import CATALOGUE
+    from targum.models import (
+        Block,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Translation,
+    )
+
+    entry = next(e for e in CATALOGUE if e.id == entry_id)
+    folder = out / "local" / f"{entry_id}-he"
+    folder.mkdir(parents=True, exist_ok=True)
+    blocks, segments = [], []
+    for index, title in enumerate(titles):
+        blocks.append(Block(id=f"h{index}", kind=BlockKind.heading, level=2, text=title))
+        blocks.append(Block(id=f"b{index}", kind=BlockKind.paragraph, text="שלום עולם"))
+        segments.append(
+            Segment(
+                id=f"s{index}h",
+                block_id=f"h{index}",
+                block_index=index * 2,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=title,
+            )
+        )
+        segments.append(
+            Segment(
+                id=f"s{index}b",
+                block_id=f"b{index}",
+                block_index=index * 2 + 1,
+                index=0,
+                text="שלום עולם",
+            )
+        )
+    document = Document(source=entry.source, title=entry.title, language="he", blocks=blocks)
+    document.content_hash = document.recompute_hash()
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=segments
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir(exist_ok=True)
+    Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "x" for segment in segments},
+    ).write(folder / "translations" / "null.natural.en.json")
+    (folder / "reader").mkdir(exist_ok=True)
+    (folder / "reader" / "index.html").write_text("<p>x</p>", encoding="utf-8")
+    return folder
+
+
+def test_only_chapters_that_name_something_are_drawn(tmp_path: Path) -> None:
+    """A hundred and fifty psalms are numbered rather than titled, and "Psalms, chapter
+    1" is not a subject anything could draw. Those fall back to the book's cover, which
+    costs nothing and matches it exactly."""
+    out = tmp_path / "targum-out"
+    folder = built_catalogue_text(out, "judenstaat", ["פתח דבר", "פרק א", "השאלה היהודית"])
+
+    entry, plan = Library(out).cover_plan(folder, chapters=True)
+
+    assert entry is not None and entry.id == "judenstaat"
+    names = [name for name, _ in plan]
+    assert names[0] == "judenstaat", "the book comes first, so its chapters can match it"
+    assert len(names) == 3, "the numbered chapter is not drawn"
+    assert all(name.startswith("judenstaat-c") for name in names[1:])
+
+
+def test_a_text_the_catalogue_does_not_describe_is_not_drawn(tmp_path: Path) -> None:
+    """A cover is drawn from what the catalogue says a text is. Something pasted in this
+    morning has no title, no author and no describing sentence to draw from."""
+    from targum.models import Block, BlockKind, Document
+
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "mine-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source="https://example.invalid/x",
+        title="Mine",
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text="שלום")],
+    )
+    document.content_hash = document.recompute_hash()
+    document.write(folder / "document.json")
+
+    entry, plan = Library(out).cover_plan(folder, chapters=True)
+
+    assert entry is None and plan == []
+
+
+def test_a_chapter_is_drawn_in_the_style_of_its_book(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """The cover goes first and is handed to every chapter after it as a reference. That
+    is what makes a set look like a set — more than any amount of describing a palette."""
+    from targum import covers as covers_module
+    from targum.serve import Job
+
+    asked: list[tuple[str, bytes | None]] = []
+
+    def picture(shade: int) -> bytes:
+        """A real image, because what comes back is really decoded and shrunk."""
+        from io import BytesIO
+
+        from PIL import Image
+
+        kept = BytesIO()
+        Image.new("RGB", (1024, 1536), (shade, shade, shade)).save(kept, format="PNG")
+        return kept.getvalue()
+
+    class Fake:
+        name = "fake/1"
+        price = 0.04
+
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def draw(self, prompt: str, reference: bytes | None = None) -> bytes:
+            asked.append((prompt, reference))
+            return picture(len(asked))
+
+    monkeypatch.setattr(covers_module, "build", Fake)
+
+    out = tmp_path / "targum-out"
+    folder = built_catalogue_text(out, "judenstaat", ["פתח דבר", "השאלה היהודית"])
+    library = Library(out)
+    entry, plan = library.cover_plan(folder, chapters=True)
+    job = Job(id="j1", source=entry.source, options={"cover": entry.id, "plan": plan})
+
+    library.run_covers(job)
+
+    assert job.stage == "done"
+    assert len(asked) == 3, "the book and both of its chapters"
+    assert asked[0][1] is None, "a book has nothing to match"
+    # The cover as it came back, not the tile kept from it: a 320px thumbnail is a poor
+    # thing to hand an image model as a reference.
+    assert asked[1][1] == picture(1), "and every chapter matches the book"
+    assert asked[2][1] == picture(1)
+
+    kept = out / "thumbs" / "judenstaat.webp"
+    assert kept.is_file()
+    assert kept.stat().st_size < len(picture(1)) / 10, "and what is kept is a tile"
+    assert job.spent == pytest.approx(3 * 0.04), "what was drawn, not what was reserved"
+
+
+def test_nothing_is_drawn_without_a_key(served: tuple[int, str, Path]) -> None:
+    """The one provider here that is not Anthropic, and the app runs fine without it:
+    every tile falls back to the text's own first letter."""
+    from targum import covers
+
+    assert covers.build().available()[0] is False
+    port, key, out = served
+    built_catalogue_text(out, "judenstaat", ["פתח דבר"])
+    status, body, _ = call(port, "POST", f"/cover?k={key}", {"name": "judenstaat-he"})
+    assert status == 400
+    assert "OPENAI_API_KEY" in str(body.get("error", ""))

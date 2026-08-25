@@ -198,3 +198,86 @@ def test_a_url_keeps_its_double_slash() -> None:
         cli.ingest.load = original  # type: ignore[assignment]
 
     assert seen == ["https://example.invalid/a"]
+
+
+def test_plain_text_section_titles_become_headings(tmp_path: Path) -> None:
+    """A text with no markup still has a shape, and the reader needs it.
+
+    Ben Yehuda's .txt of Der Judenstaat is four hundred paragraphs and not one heading:
+    every section title sits in the file as an ordinary line, so the reader had no
+    contents page and no chapters.
+    """
+    source = tmp_path / "book.txt"
+    # Four paragraphs under each title, because the pass steps back where short lines
+    # are the shape of the text rather than the exception to it.
+    body = "\n\n".join([" ".join(["מלה"] * 30)] * 4)
+    source.write_text(
+        f"הקדמה\n\n{body}\n\nהשאלה היהודית\n\n{body}\n",
+        encoding="utf-8",
+    )
+
+    document = ingest.load(str(source))
+
+    headings = [block for block in document.blocks if block.kind is BlockKind.heading]
+    assert [block.text for block in headings] == ["הקדמה", "השאלה היהודית"]
+    assert all(block.level == 2 for block in headings)
+
+
+def test_a_poem_is_not_a_pile_of_headings(tmp_path: Path) -> None:
+    """Short line after short line is verse, and nothing here can tell a title from a
+    line. The pass steps back rather than marking every line of a poem a chapter."""
+    source = tmp_path / "poem.txt"
+    source.write_text(
+        "\n\n".join(["אל הציפור", "שלום רב שובך", "ציפורה נחמדת", "מארצות החם"]), encoding="utf-8"
+    )
+
+    document = ingest.load(str(source))
+
+    assert not any(
+        block.kind is BlockKind.heading and (block.level or 1) > 1 for block in document.blocks
+    )
+
+
+def test_a_source_that_marks_its_headings_is_believed(tmp_path: Path) -> None:
+    """Markdown says where its headings are. Guessing over the top of that would replace
+    what is known with what is likely."""
+    source = tmp_path / "text.md"
+    body = " ".join(["word"] * 30)
+    source.write_text(
+        f"# Title\n\n## Section\n\n{body}\n\nA short line here\n\n{body}\n", encoding="utf-8"
+    )
+
+    document = ingest.load(str(source))
+
+    headings = [block.text for block in document.blocks if block.kind is BlockKind.heading]
+    assert headings == ["Title", "Section"]
+
+
+def test_a_title_run_onto_the_line_above_it_becomes_its_own_heading(tmp_path: Path) -> None:
+    """Ben Yehuda's Der Judenstaat opens with the translator's name and the word הקדמה
+    on one line with nothing between them. Separating the two words is the spacing
+    repair; knowing the second is a title and not the last word of the byline is this."""
+    source = tmp_path / "book.txt"
+    body = "\n\n".join([" ".join(["מלה"] * 30)] * 4)
+    source.write_text(
+        f"מדינת היהודים מאת בנימין זאב הרצל תורגם מגרמנית מאת מיכל ברקוביץהקדמה\n\n{body}\n",
+        encoding="utf-8",
+    )
+
+    document = ingest.load(str(source))
+
+    assert document.blocks[0].kind is BlockKind.paragraph
+    assert document.blocks[0].text.endswith("מיכל ברקוביץ")
+    assert document.blocks[1].kind is BlockKind.heading
+    assert document.blocks[1].text == "הקדמה"
+
+
+def test_a_paragraph_about_an_introduction_is_left_whole(tmp_path: Path) -> None:
+    source = tmp_path / "book.txt"
+    body = "\n\n".join([" ".join(["מלה"] * 30)] * 4)
+    source.write_text(f"הוא ישב וכתב במשך שבועות ארוכים את ההקדמה.\n\n{body}\n", encoding="utf-8")
+
+    document = ingest.load(str(source))
+
+    assert len(document.blocks) == 5
+    assert document.blocks[0].kind is BlockKind.paragraph

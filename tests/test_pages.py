@@ -190,13 +190,22 @@ def test_the_library_is_one_list() -> None:
     assert "SHELVES" not in source and "drawShelves" not in source
 
 
-def test_a_card_says_what_the_text_is() -> None:
-    """The visible half of the tagging. With Tanakh and a novel in one list, the reader
-    who cares which is which needs the card to say so — and it is the same tag a Beit
-    Midrash mode would filter by, so the two cannot drift."""
+def test_a_row_says_what_the_text_is() -> None:
+    """The visible half of the classification. With Tanakh, a novel and this morning's
+    news in one list, the reader who cares which is which needs the row to say so — and
+    it has to be the same vocabulary the catalogue is written in, so the two cannot
+    drift."""
+    from targum.catalogue import Kind, Register
+
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert "var TAGS = { tanakh:" in source
-    assert 'el("span", "tag", named)' in source, "using the chip the card CSS already has"
+    for kind in Kind:
+        assert f'["{kind.value}", ' in source, f"the library cannot name a {kind.value}"
+    for register in Register:
+        if register.value:
+            assert f'["{register.value}", ' in source
+    # And filters by both, which is the point of naming them.
+    assert "view.kind && row.kind !== view.kind" in source
+    assert "view.register && row.register !== view.register" in source
 
 
 def test_the_library_has_one_heading() -> None:
@@ -341,3 +350,56 @@ def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
     first = re.search(r"\bcharts\.(?!js\b)\w+", source)
     assert first is not None, f"{page}.js no longer uses the shared kit"
     assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
+
+
+def test_the_library_is_a_list_you_can_sift() -> None:
+    """Cards were the wrong shape once there was more than a screenful: a card cannot be
+    sorted, and twenty-six of them are a wall."""
+    library = PAGES["library"]
+    for control in ("find", "register-chips", "kind-chips", "length", "difficulty", "where"):
+        assert f'id="{control}"' in library, f"the library cannot filter by {control}"
+    assert 'id="rows-head"' in library, "and the columns sort"
+    assert 'class="cards"' not in library, "the card grid is gone"
+
+
+def test_a_row_carries_a_cover_and_falls_back_to_the_text() -> None:
+    """The covers are drawn one at a time and arrive over months. A library with none of
+    them yet has to look deliberate rather than broken."""
+    library = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert 'keyed("/thumb/"' in library, "it asks for a cover"
+
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert "glyph.textContent = letter" in covers, "and draws the first letter meanwhile"
+    swap = covers[covers.index("image.onload") : covers.index("image.src")]
+    assert "box.textContent" in swap, "the letter is replaced only once the image loaded"
+
+
+def test_the_cover_tile_is_defined_once() -> None:
+    """Two pages draw one — the library's rows and Learn's chapters. A second copy is a
+    tile that drifts: one page would keep a fix and the other would not."""
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert "function tile(" in covers
+    for page in ("library.js", "learn.js"):
+        source = (ASSETS / page).read_text(encoding="utf-8")
+        assert "function thumb(" not in source, f"{page} should use the shared tile"
+        assert "TargumCovers.tile(" in source, f"{page} does not draw one"
+
+
+@pytest.mark.parametrize("page", ["library", "learn"])
+def test_a_page_that_draws_covers_loads_them_first(page: str) -> None:
+    html = PAGES[page]
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    body = covers[covers.index("function tile(") :][:60]
+    assert body in html, f"{page} does not inline covers.js"
+    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    assert html.index(body) < html.index(own), "and before the page that uses it"
+
+
+def test_a_chapter_asks_for_its_own_cover_and_settles_for_its_book() -> None:
+    """Most chapters in this library are numbered rather than titled — a hundred and
+    fifty psalms — and a number is not a subject anything could draw. Only chapters that
+    name something get their own; the rest fall back on the server."""
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert 'return book + "-c" + padded' in covers
+    learn = (ASSETS / "learn.js").read_text(encoding="utf-8")
+    assert "TargumCovers.chapterName(" in learn
