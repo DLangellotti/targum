@@ -30,9 +30,13 @@
   // shelf and what they were part way through, not the catalogue. The same rule
   // reader.js follows for the section pages.
   var home = document.getElementById("home");
+  var homePlain = document.getElementById("home-plain");
   if (home) {
     home.href = "/" + suffix;
     home.hidden = false;
+    // Two drawings of the same mark, one a link and one not, so a book opened off the
+    // disk shows the mark rather than a link to nowhere.
+    if (homePlain) homePlain.hidden = true;
   }
 })();
 

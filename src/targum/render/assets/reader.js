@@ -1774,10 +1774,13 @@
   function applyNikkud() {
     if (prefs.nikkudBy && documentId) prefs.nikkudBy[documentId] = !!prefs.nikkud;
     body.classList.toggle("nikkud", !!prefs.nikkud);
-    Array.prototype.forEach.call(document.querySelectorAll("[data-nikkud]"), function (button) {
-      var on = button.getAttribute("data-nikkud") === "on";
-      button.classList.toggle("on", on === !!prefs.nikkud);
-    });
+    Array.prototype.forEach.call(
+      document.querySelectorAll("[data-nikkud-toggle]"),
+      function (button) {
+        button.classList.toggle("on", !!prefs.nikkud);
+        button.setAttribute("aria-pressed", prefs.nikkud ? "true" : "false");
+      }
+    );
     hideCard();
     redraw();
   }
@@ -1863,9 +1866,8 @@
         save();
         return;
       }
-      var nikkud = button.getAttribute("data-nikkud");
-      if (nikkud) {
-        prefs.nikkud = nikkud === "on";
+      if (button.hasAttribute("data-nikkud-toggle")) {
+        prefs.nikkud = !prefs.nikkud;
         applyNikkud();
         save();
         return;
@@ -1989,21 +1991,22 @@
   // straight off the disk has no library page behind it, and the key it was served
   // with is the one it carries in its own address.
   var home = document.getElementById("home");
-  if (home) {
-    if (served && passKey) {
-      // The link says Library, so it goes to the library — not the start page.
-      home.href = keyed("/");
-      home.hidden = false;
-      // Section-to-section links are relative and would drop the key, and with it
-      // access: the next chapter would answer 403.
-      var carried = document.querySelectorAll(".pager a, .bar-title .up");
-      Array.prototype.forEach.call(carried, function (link) {
-        var href = link.getAttribute("href");
-        if (href && href.indexOf("?") === -1) {
-          link.setAttribute("href", keyed(href));
-        }
-      });
-    }
+  var homePlain = document.getElementById("home-plain");
+  if (home && served) {
+    home.href = keyed("/");
+    home.hidden = false;
+    // Two drawings of the same mark, one a link and one not, so a reader opened off the
+    // disk shows the mark rather than a link to nowhere.
+    if (homePlain) homePlain.hidden = true;
+    // Section-to-section links are relative and would drop the key, and with it access:
+    // the next chapter would answer 403. No key hosted, where `keyed` is the identity.
+    var carried = document.querySelectorAll(".pager a, .bar-title .up");
+    Array.prototype.forEach.call(carried, function (link) {
+      var href = link.getAttribute("href");
+      if (href && href.indexOf("?") === -1) {
+        link.setAttribute("href", keyed(href));
+      }
+    });
   }
 
   /* --- word meanings, once they arrive ------------------------------------- */

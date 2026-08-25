@@ -174,8 +174,16 @@ body {
 
 /* Full ink, not the controls' soft grey: the mark is the one thing here that is not a
    control, and the two columns need their difference in weight to read as the mark. */
+/* The mark, and the way back. Full ink, not the controls' soft grey: it is the one
+   thing here that is not a control, and the two columns need their difference in weight
+   to read as the mark. */
 .bar-brand { display: flex; flex: none; color: var(--ink); }
 .bar-brand svg { display: block; height: 1.05rem; width: 0.82rem; }
+.bar-brand[hidden] { display: none; }
+/* A link, but never a decorated one: §2 says the mark is flat and unadorned wherever it
+   appears, so going home is signalled by the cursor and the title, not by an underline. */
+a.bar-brand { text-decoration: none; border: 0; }
+a.bar-brand:hover { color: var(--accent); }
 
 .bar-title { display: flex; gap: 0.75rem; align-items: baseline; color: var(--ink-soft); }
 .bar-title .home { white-space: nowrap; }
@@ -247,6 +255,21 @@ body {
   stroke-linecap: round;
 }
 .modes button svg .faint { opacity: 0.55; }
+
+/* The same drawing rules for the toggles that are icons rather than words. `.dots` is
+   how nikkud are drawn: a zero-length line with a round cap is a dot, which keeps the
+   whole icon one stroked path set rather than a mix of strokes and fills. */
+.bar .group button svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bar .group button svg .dots { stroke-width: 2; }
 .modes .slide {
   position: absolute;
   z-index: 0;
