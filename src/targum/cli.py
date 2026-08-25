@@ -7,6 +7,7 @@ import sqlite3
 import sys
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
@@ -369,6 +370,279 @@ def restore(
 
 
 @app.command()
+def warm(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="The model these were translated with."),
+    ] = None,
+) -> None:
+    """Seed the shared cache from work already paid for, so nobody pays twice.
+
+    A translation is cached under the exact run of segments it was asked for. Bought from
+    the command line, a book is one run — the whole thing. Served, it is bought a chapter
+    at a time, so the reader's build asks for a key that was never written and pays for a
+    chapter of a book that is already translated and sitting on the disk.
+
+    This writes the chapter-shaped keys from the translations already on disk. Nothing is
+    fetched and nothing is spent: the English is the English that was bought.
+    """
+    from .cache import Cache
+    from .catalogue import BOUGHT_WITH
+    from .models import Document, SegmentedDocument, Translation, read_artifact
+    from .pipeline import Build
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
+
+    cache = Cache()
+    folders = [f for f in sorted(root.rglob("document.json"))]
+    warmed = runs = 0
+    for document_path in folders:
+        folder = document_path.parent
+        document = read_artifact(Document, document_path)
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            continue
+        machine = [
+            t
+            for path in sorted((folder / "translations").glob("*.json"))
+            if (t := read_artifact(Translation, path)) is not None and t.provider != "aligned"
+        ]
+        if not machine:
+            continue
+        translation = machine[0]
+        builder = Build(
+            document.source,
+            target_language=translation.target_language,
+            source_language=segmented.language,
+            style=Style.natural,
+            provider_name=translation.provider,
+            model=model or translation.model or BOUGHT_WITH,
+            owner="",
+        )
+        here = 0
+        for number in range(1, 500):
+            run = builder.chapter_segments(segmented, number)
+            if not run:
+                break
+            have = {s.id: translation.segments[s.id] for s in run if translation.segments.get(s.id)}
+            if len(have) != len(run):
+                continue  # a chapter that was never finished is not one to promise
+            cache.put("translate", builder.cache_key(segmented, run), {"segments": have})
+            here += 1
+        if here:
+            warmed += 1
+            runs += here
+            console.print(f"[dim]  {document.title or folder.name} ({here} chapters)[/dim]")
+    console.print(
+        f"[green]Seeded {runs} chapter{'' if runs == 1 else 's'} from {warmed} "
+        f"targum{'' if warmed == 1 else 's'}.[/green] "
+        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+    )
+
+
+def _targums(where: Path) -> list[Path]:
+    """Every targum under a library root, whichever home it sits in.
+
+    Targums used to live directly under the root and now live one level down, in a
+    directory per person. Looking only at the top finds the homes themselves and
+    reports every one of them as having no text — which is what this did.
+    """
+    found: list[Path] = []
+    for entry in where.iterdir():
+        if not entry.is_dir():
+            continue
+        if (entry / "document.json").is_file():
+            found.append(entry)
+        else:
+            found.extend(child for child in entry.iterdir() if child.is_dir())
+    return found
+
+
+@app.command()
+def repair(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Put back the spacing and the structure a source dropped, in texts already built.
+
+    Two repairs, both of which ingest now does on the way in, and neither of which a
+    text built beforehand has had. Words its source ran together are separated, and a
+    text that arrived as plain prose with its section titles sitting in it as ordinary
+    paragraphs gets those titles marked, which is what gives a reader its contents page.
+
+    Rebuilding from the source would do both and would cost money: every stage is keyed
+    to the Hebrew, so a sentence one space longer is a sentence nothing has translated.
+    So the English is carried across by hand instead. Marking a heading does not change
+    a word, and the sentence that gained a space is still the sentence its English was
+    bought for; the two stages that do have to be redone — dictionary forms and vowel
+    points — run on this machine, for the changed sentences only. Nothing is fetched and
+    nothing is spent.
+    """
+    from .annotate import Annotator, biblical
+    from .ingest.base import infer_headings
+    from .ingest.spacing import unglue as respace
+    from .models import (
+        Alignment,
+        Annotation,
+        Block,
+        Document,
+        Glossary,
+        SegmentedDocument,
+        Translation,
+        Vocalization,
+        read_artifact,
+    )
+    from .render import render as render_reader
+    from .vocalize import build as build_vocalizer
+    from .vocalize import vocalize_document, wants_pointing
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
+
+    done = words = titles = 0
+    for folder in sorted(_targums(root)):
+        if folder.name == "uploads":
+            continue
+        document = read_artifact(Document, folder / "document.json")
+        if document is None:
+            continue
+        blocks = [
+            block.model_copy(update={"text": respace(block.text, document.language)})
+            for block in document.blocks
+        ]
+        repaired = sum(
+            len(new.text.split()) - len(old.text.split())
+            for new, old in zip(blocks, document.blocks, strict=True)
+        )
+
+        # Only where the source had no markup to state its structure with. What a text
+        # arrived as is recorded on the artifact, so this does not have to guess — except
+        # for artifacts written before the plain path had a name of its own, where the
+        # address ending in .txt is what says it.
+        arrived_as = document.ingester.split("/")[0]
+        plain = arrived_as in ("text", "url-text") or (
+            arrived_as == "url" and urlparse(document.source).path.endswith(".txt")
+        )
+        marked = 0
+        if plain:
+            inferred = infer_headings([(b.kind, b.level, b.text) for b in blocks], split=False)
+            blocks = [
+                Block(id=b.id, kind=kind, level=level, text=text)
+                for b, (kind, level, text) in zip(blocks, inferred, strict=True)
+            ]
+            marked = sum(
+                1 for b, old in zip(blocks, document.blocks, strict=True) if b.kind is not old.kind
+            )
+
+        if not repaired and not marked:
+            continue
+
+        document.blocks = blocks
+        document.content_hash = document.recompute_hash()
+        document.write(folder / "document.json")
+
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if segmented is not None:
+            kinds = {block.id: block for block in document.blocks}
+            changed = []
+            for segment in segmented.segments:
+                text = respace(segment.text, segmented.language)
+                if text != segment.text:
+                    segment.text = text
+                    changed.append(segment)
+                block = kinds.get(segment.block_id)
+                if block is not None:
+                    segment.kind, segment.level = block.kind, block.level
+            segmented.document_hash = document.content_hash
+            segmented.write(folder / "segments.json")
+
+            # Only the sentences that moved, and only the stages that run here. Both of
+            # these are keyed to the whole document, so the artifact is patched in place
+            # rather than rebuilt: redoing a book to fix one line in it is the cost this
+            # command exists to avoid.
+            patch = SegmentedDocument(
+                document_hash=document.content_hash,
+                language=segmented.language,
+                segmenter=segmented.segmenter,
+                segments=changed,
+            )
+            annotation = read_artifact(Annotation, folder / "annotation.json")
+            if annotation is not None:
+                if changed:
+                    annotator = Annotator(bands=biblical.for_source(document.source))
+                    annotation.tokens.update(annotator.annotate(patch).tokens)
+                annotation.document_hash = document.content_hash
+                annotation.write(folder / "annotation.json")
+
+            vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+            if vocalization is not None:
+                if changed:
+                    engine = build_vocalizer() if wants_pointing(changed) else None
+                    fresh = vocalize_document(patch, engine)
+                    vocalization.segments.update(fresh.segments)
+                    moved = {segment.id for segment in changed}
+                    vocalization.machine = [
+                        sid for sid in vocalization.machine if sid not in moved
+                    ] + fresh.machine
+                    vocalization.rejected = [
+                        sid for sid in vocalization.rejected if sid not in moved
+                    ] + fresh.rejected
+                vocalization.document_hash = document.content_hash
+                vocalization.write(folder / "vocalization.json")
+
+        # The English itself is untouched. What it is keyed to moved, and that is all
+        # that is written here.
+        translations = []
+        for path in sorted((folder / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            translation.document_hash = document.content_hash
+            translation.write(path)
+            translations.append(translation)
+        for path in sorted((folder / "alignments").glob("*.json")):
+            alignment = read_artifact(Alignment, path)
+            if alignment is None:
+                continue
+            alignment.document_hash = document.content_hash
+            alignment.write(path)
+
+        done += 1
+        words += repaired
+        titles += marked
+        if segmented is not None and translations:
+            render_reader(
+                document,
+                segmented,
+                translations,
+                folder / "reader",
+                annotation=read_artifact(Annotation, folder / "annotation.json"),
+                glossary=read_artifact(Glossary, folder / "glossary.json"),
+                vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+            )
+        console.print(
+            f"[dim]  {document.title or folder.name} — {repaired} word(s), "
+            f"{marked} heading(s)[/dim]"
+        )
+
+    console.print(
+        f"[green]Separated {words} word{'' if words == 1 else 's'} and marked {titles} "
+        f"heading{'' if titles == 1 else 's'} in {done} "
+        f"targum{'' if done == 1 else 's'}.[/green] "
+        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+    )
+
+
+@app.command()
 def rebuild(
     out: Annotated[
         Path | None,
@@ -397,26 +671,9 @@ def rebuild(
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
-    def targums(where: Path) -> list[Path]:
-        """Every targum under a library root, whichever home it sits in.
-
-        Targums used to live directly under the root and now live one level down, in a
-        directory per person. Looking only at the top finds the homes themselves and
-        reports every one of them as having no text — which is what this did.
-        """
-        found: list[Path] = []
-        for entry in where.iterdir():
-            if not entry.is_dir():
-                continue
-            if (entry / "document.json").is_file():
-                found.append(entry)
-            else:
-                found.extend(child for child in entry.iterdir() if child.is_dir())
-        return found
-
     done = 0
     skipped: list[tuple[str, str]] = []
-    for folder in sorted(targums(root)):
+    for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
         document = read_artifact(Document, folder / "document.json")
@@ -531,13 +788,24 @@ def build(
     # message those errors carry never reached anyone.
     try:
         settings = config_module.load()
+        # A text the catalogue knows is described by the catalogue, and two of the things
+        # it knows matter here. Its title, because a plain .txt carries none and a reader
+        # built from the command line then opens with no name at the top of it. And the
+        # model its English was bought with — the cache is keyed on the model, so a build
+        # that names a different one translates the whole book again at the reader's
+        # expense. The server has always read both from here; the command line did not,
+        # and had no way to know it was buying something already paid for.
+        from . import catalogue as catalogue_module
+
+        known = catalogue_module.matching(source)
         builder = Build(
             source,
             target_language=to,
             source_language=source_language,
             style=style,
+            title=known.title if known else "",
             provider_name=provider or settings.provider,
-            model=model or settings.model,
+            model=model or (known.model if known else "") or settings.model,
             out=out or (Path(settings.out) if settings.out else None),
             force=force,
             batch_size=settings.batch_size,

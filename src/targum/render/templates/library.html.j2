@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Library — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="words shelf">
@@ -13,13 +13,33 @@
 {% include '_nav.html.j2' %}
 
 <main>
-  <section class="panel">
-    <h2>Picked for you</h2>
+  {#- One list, not two. What the reader has built and what is waiting to be built are
+      the same question — what shall I read — and splitting them into a shelf and a
+      catalogue meant answering it twice, in two different shapes. -#}
+  <section class="panel" id="picked">
     <p class="note" id="picked-note">
-      Translated by someone who spent years with it.
+      Tap a text to read it. Anything not on your shelf is built when you tap it.
     </p>
-    <ul class="cards" id="catalogue"></ul>
+
+    {#- The controls are the page. A library of a hundred texts is only as good as the
+        speed of getting to the one you want, so they sit above the list and act on it
+        as you type. -#}
+    <div class="sift">
+      <input
+        id="find" class="find" type="search" autocomplete="off" spellcheck="false"
+        placeholder="Search a title or an author" aria-label="Search the library">
+      <div class="chips" id="register-chips" role="group" aria-label="Which Hebrew"></div>
+      <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
+      <label class="pick"><span>Length</span><select id="length"></select></label>
+      <label class="pick"><span>Words</span><select id="difficulty"></select></label>
+      <label class="pick"><span>Show</span><select id="where"></select></label>
+      <button type="button" class="clear" id="clear" hidden>Clear</button>
+    </div>
+
+    <div class="rows-head" id="rows-head" role="row"></div>
+    <ul class="rows" id="catalogue"></ul>
     <p class="empty" id="picked-empty" hidden></p>
+    <p class="tally" id="tally"></p>
   </section>
 
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
@@ -37,6 +57,7 @@ window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
 <script>{{ asset('library.js') }}</script>
 </body>
 </html>

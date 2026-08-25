@@ -12,6 +12,16 @@
 
   // Legacy records imported by the vocab migration carry `at: 0`; this keeps them out of
   // anything dated rather than putting the whole library on the first day of 2024.
+  // A day, in milliseconds. It lived in words.js and was used from here: when the chart
+  // kit moved out, the constant it draws with stayed behind, and `drawGrowth` threw
+  // `DAY is not defined` on any page with words on it.
+  var DAY = 86400000;
+
+  // The status a word reaches when it is finished with. Its own, like every other IIFE
+  // that needs it — reader.js and words.js each declare it too. It was being read from
+  // words.js across a scope boundary, which threw the moment a tile was counted.
+  var KNOWN = 9;
+
   var EARLIEST = Date.UTC(2024, 0, 1);
 
   var STATUS = {
@@ -259,6 +269,93 @@
     tile(entry.phrases.length, entry.phrases.length === 1 ? "phrase" : "phrases");
   }
 
+  /* --- what is in the browser ------------------------------------------------
+   *
+   * Shared for the same reason the charts are: two pages want the same vocabulary in the
+   * same shape, and the second copy is the one that stops matching.
+   */
+
+  function read(name, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || fallback) || JSON.parse(fallback);
+    } catch (e) {
+      return JSON.parse(fallback);
+    }
+  }
+
+  function collect() {
+    var docs = read("targum:docs", "{}");
+    // The index the reader writes now, and the one it wrote before. A phrase kept
+    // before the change is only in the older one, and without this it has no language
+    // and never reaches the page.
+    var older = read("targum:master", "{}");
+    function about(hash) {
+      var now = docs[hash] || {};
+      var was = older[hash] || {};
+      return { language: now.language || was.language || "", title: now.title || was.title || "" };
+    }
+    var byLanguage = {};
+
+    function slot(code) {
+      if (!byLanguage[code]) byLanguage[code] = { code: code, words: [], phrases: [] };
+      return byLanguage[code];
+    }
+
+    for (var i = 0; i < localStorage.length; i++) {
+      var name = localStorage.key(i);
+      if (!name) continue;
+
+      if (name.indexOf("targum:vocab:") === 0) {
+        var code = name.slice("targum:vocab:".length);
+        var vocab = read(name, "{}");
+        Object.keys(vocab).forEach(function (lemma) {
+          var item = vocab[lemma] || {};
+          slot(code).words.push({
+            lemma: lemma,
+            term: item.surface || lemma,
+            meaning: item.meaning || "",
+            note: item.note || "",
+            band: item.band || "",
+            status: item.status,
+            at: item.at || 0,
+          });
+        });
+      }
+
+      if (name.indexOf("targum:picked:") === 0) {
+        var hash = name.slice("targum:picked:".length);
+        var doc = about(hash);
+        if (!doc.language) continue;
+        var segments = read(name, "{}");
+        Object.keys(segments).forEach(function (segmentId) {
+          (segments[segmentId] || []).forEach(function (pick) {
+            slot(doc.language).phrases.push({
+              store: name,
+              segmentId: segmentId,
+              index: (segments[segmentId] || []).indexOf(pick),
+              term: pick.text || "",
+              meaning: pick.meaning || "",
+              note: pick.note || "",
+              status: pick.status === undefined ? null : pick.status,
+              title: doc.title || "a text",
+              at: pick.at || 0,
+            });
+          });
+        });
+      }
+    }
+
+    Object.keys(byLanguage).forEach(function (code) {
+      byLanguage[code].words.sort(function (a, b) {
+        return a.at - b.at;
+      });
+      byLanguage[code].phrases.sort(function (a, b) {
+        return a.at - b.at;
+      });
+    });
+    return byLanguage;
+  }
+
   window.TargumCharts = {
     el: el,
     svg: svg,
@@ -268,6 +365,8 @@
     tipFor: tipFor,
     growth: drawGrowth,
     tiles: drawTiles,
+    collect: collect,
+    read: read,
     EARLIEST: EARLIEST,
     STATUS: STATUS,
   };

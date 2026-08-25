@@ -16,23 +16,65 @@ at the word counts, and only then write them down.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cache
 from pathlib import Path
 
 
-class Shelf(StrEnum):
-    """Which room a text belongs in.
+class Tag(StrEnum):
+    """What a text *is*, rather than where it is filed.
 
-    Tanakh is kept apart from everything else, and not only for tidiness. The registers
-    differ enough that difficulty bands built for one are wrong for the other; some
-    readers do not wish to be shown secular material at all; and the two may one day be
-    paid for differently. All three want this to be data rather than a heading.
+    There was a Beit Midrash shelf here once, and splitting the catalogue in two turned
+    out to be the wrong shape: a reader looking for something to read wants one list, and
+    a Tanakh is not hidden from them by being in a room they have to know to enter.
+
+    What the split was really for survives, and is the reason this is data rather than a
+    heading: some readers — ultra-Orthodox ones especially — would rather not be shown
+    secular material at all. Tagging says which texts those readers came for, so a Beit
+    Midrash mode can one day show only them. Nothing filters on this today.
     """
 
-    library = "library"
-    beit_midrash = "beit-midrash"
+    #: The twenty-four books.
+    tanakh = "tanakh"
+    #: Jewish and religious, but not Tanakh — liturgy, Mishnah, rabbinic commentary.
+    #: Nothing in the catalogue carries it yet; it is here so `tanakh` is a vocabulary
+    #: rather than a synonym for the whole idea.
+    judaica = "judaica"
+
+
+class Kind(StrEnum):
+    """What sort of thing a text is, which is the first question a reader asks of a list.
+
+    Not a genre taxonomy — six values a reader would actually filter by. Scripture is
+    split from poetry on purpose: Psalms and Genesis are both in the Tanakh and are not
+    the same reading, and a reader with twenty minutes wants to know which they are
+    about to get.
+    """
+
+    prose = "prose"
+    poetry = "poetry"
+    novel = "novel"
+    story = "story"
+    essay = "essay"
+    document = "document"
+    #: Journalism. Nothing in the catalogue is one; a reader's own shelf is full of them.
+    article = "article"
+
+
+class Register(StrEnum):
+    """Which Hebrew this is, which decides whether a reader can read it at all.
+
+    Someone fluent in the news is not fluent in Samuel, and the reverse is commoner
+    still. The distinction matters more here than in most languages, so it is a field
+    rather than something to be inferred from a tag downstream.
+    """
+
+    biblical = "biblical"
+    modern = "modern"
+    #: Anything not in Hebrew, where the axis does not apply.
+    none = ""
 
 
 @dataclass(frozen=True)
@@ -97,8 +139,35 @@ class Entry:
     source: str
     blurb: str
     words: int
-    shelf: Shelf = Shelf.library
+    tags: frozenset[Tag] = frozenset()
     translations: list[Rendering] = field(default_factory=list)
+
+    #: What it is and which Hebrew it is in. Both are what the library filters on.
+    kind: Kind = Kind.prose
+    register: Register = Register.none
+
+    #: How hard the words are, on the reader's own six-band scale, measured rather than
+    #: judged: the band at which half the running text is covered, counted off the same
+    #: annotation the reader marks words with. 0 where nothing has been measured yet.
+    #: `scripts/measure_difficulty.py` prints these; they are written down here so a
+    #: library page costs no lemmatiser to draw.
+    difficulty: int = 0
+
+    @property
+    def minutes(self) -> int:
+        """How long this takes to read, at the 130 words a minute a learner manages."""
+        return max(1, round(self.words / 130))
+
+    #: The model this text's English was bought with, where nobody had published one.
+    #:
+    #: An entry is one of two things. Most carry a `Rendering`: somebody translated the
+    #: text and a build asks no model for anything. The rest were translated once, by us,
+    #: and paid for once — the cache is keyed on the model among other things, so a build
+    #: that does not name the same model would translate the whole book again at the
+    #: reader's expense. Naming it here is what makes the second kind free too, and it is
+    #: read from the catalogue rather than from the request: a model that arrived in a
+    #: payload would be a way to spend somebody else's money.
+    model: str = ""
 
     @property
     def sample(self) -> list[Line]:
@@ -119,7 +188,13 @@ class Entry:
             "source": self.source,
             "blurb": self.blurb,
             "words": self.words,
-            "shelf": self.shelf.value,
+            "minutes": self.minutes,
+            "kind": self.kind.value,
+            "register": self.register.value,
+            "difficulty": self.difficulty,
+            "tags": sorted(tag.value for tag in self.tags),
+            # Not the model: the page has no use for it and it is not the browser's to
+            # ask for. The server reads it back from here when a build starts.
             "translations": [
                 {
                     "name": t.name,
@@ -133,6 +208,94 @@ class Entry:
         }
 
 
+#: What a drawn cover has to obey, which is most of §10 of the brand guidelines said in
+#: the second person. An image model asked for "a Hebrew book cover" will return a scroll,
+#: a menorah and a flag every time, and all three are named in the guidelines as things
+#: this brand never does — texts, not countries; a letterform may be pure form, never an
+#: identity signal. The palette is named in hex because "warm" is not a colour.
+COVER_RULES = (
+    "Flat matte illustration, no gradients, no metallic sheen, no drop shadows. "
+    "Warm off-white paper (#fbf9f5), near-black ink (#1c1a17), and one muted brown-gold "
+    "(#7a5c38) used sparingly. No lettering, no numerals, no calligraphy, no logos, no "
+    "watermark. No religious or ritual objects of any tradition, no scrolls, no candelabra, "
+    "no flags, no maps of any country, no mascots or characters. No faces. "
+    "Portrait (2:3), printed endpaper rather than photograph, calm and unhurried."
+)
+
+
+def cover_prompt(entry: Entry) -> str:
+    """What to ask an image model for, for one text.
+
+    The subject comes from the text itself — its title, who wrote it, and the sentence
+    the catalogue already uses to describe it — and the rest is the brand telling the
+    model what not to do. Kept here rather than in the script that runs it so a cover
+    and the entry it belongs to cannot drift apart.
+    """
+    kind = {
+        Kind.prose: "a narrative",
+        Kind.poetry: "a book of poetry",
+        Kind.novel: "a novel",
+        Kind.story: "a short story",
+        Kind.essay: "an essay",
+        Kind.document: "a founding document",
+        Kind.article: "an article",
+    }[entry.kind]
+    return (
+        f"A cover image for {kind}: {entry.title} — {entry.author}. {entry.blurb} "
+        f"Read the sentence above for its subject and mood, and draw that: "
+        f"one still image, a landscape, an interior, or an abstract arrangement of shapes. "
+        f"{COVER_RULES}"
+    )
+
+
+#: A chapter numeral, in any of the forms a Hebrew book writes one: א׳, כ״ב, פרק ג,
+#: chapter 4, IV, 12. A title that is only this names nothing — `תהילים א׳` is "Psalms 1",
+#: and it is the book's name with a number after it.
+_NUMBERED = re.compile(
+    r"^(?:(?:פרק|chapter|section|part)\s+)?"
+    # A Hebrew numeral puts its mark before the last letter once it passes ten: א׳ is 1
+    # and ל״ב is 32, so the mark is not a suffix and cannot be matched as one.
+    r"(?:[IVXLC]{1,7}|\d{1,3}|[\u05D0-\u05EA]{1,3}(?:[\u05F3\u05F4\"'][\u05D0-\u05EA]{0,2})?)"
+    r"[.:]?$",
+    re.I,
+)
+
+
+def names_something(title: str, book: str) -> bool:
+    """Whether a chapter title is a subject or only a number.
+
+    This is what decides whether a chapter is worth drawing. Most of the library's
+    chapters are numerals — a hundred and fifty psalms, fifty chapters of Genesis — and
+    asking an image model for "Psalms, chapter 1" gets an invention, confidently drawn.
+    Herzl writes `השאלה היהודית` at the top of his, and that is a picture.
+    """
+    line = " ".join(title.split())
+    if book and line.startswith(book):
+        line = line[len(book) :].strip()
+    return bool(line) and not _NUMBERED.match(line)
+
+
+def chapter_prompt(entry: Entry, title: str) -> str:
+    """What to ask for, for one chapter of a text that already has a cover.
+
+    Consistency is not a thing to describe twice: the rules below are the same rules the
+    cover was drawn to, and the drawing script hands the finished cover back as a
+    reference image. What changes is the subject, which is the chapter's own title.
+    """
+    return (
+        f"One image in a set, for a chapter of {entry.title} by {entry.author}. "
+        f"The set already has a cover; this must sit beside it as obviously the same hand "
+        f"and the same series — same palette, same flatness, same weight of mark. "
+        f'The chapter is called "{title}". Draw its subject, not the book\'s. '
+        f"{COVER_RULES}"
+    )
+
+
+#: What the prose canon's English was translated with, once, in August 2026. Named in one
+#: place because the cache is keyed on it: a build that says anything else buys the book
+#: again.
+BOUGHT_WITH = "claude-opus-5"
+
 CATALOGUE: list[Entry] = [
     Entry(
         id="il-declaration",
@@ -145,6 +308,9 @@ CATALOGUE: list[Entry] = [
             "Short, and every sentence of it is quoted somewhere."
         ),
         words=655,
+        kind=Kind.document,
+        register=Register.modern,
+        difficulty=18,
         translations=[
             Rendering(
                 name="Official English",
@@ -164,6 +330,9 @@ CATALOGUE: list[Entry] = [
             "which makes it an easy way in: you can guess ahead and check yourself."
         ),
         words=998,
+        kind=Kind.document,
+        register=Register.modern,
+        difficulty=20,
         translations=[
             Rendering(
                 name="The English original",
@@ -183,6 +352,9 @@ CATALOGUE: list[Entry] = [
             "Long enough to be a real reading project rather than an afternoon."
         ),
         words=13806,
+        kind=Kind.story,
+        register=Register.none,
+        difficulty=24,
         translations=[
             Rendering(
                 name="Louise and Aylmer Maude",
@@ -199,7 +371,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Ruth",
         blurb="Four chapters, and the shortest way in: one family, one harvest, plain narrative.",
         words=1129,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=24,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -218,7 +393,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Esther",
         blurb="Read whole every Purim. Court intrigue, and not one mention of God.",
         words=2609,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=17,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -237,7 +415,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Song of Songs",
         blurb="Love poetry, and the Hebrew repays every minute it takes.",
         words=1142,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.poetry,
+        register=Register.biblical,
+        difficulty=31,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -256,7 +437,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Lamentations",
         blurb="Five acrostics on the fall of Jerusalem. The alphabet is visible down the page.",
         words=1405,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.poetry,
+        register=Register.biblical,
+        difficulty=33,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -275,7 +459,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Ecclesiastes",
         blurb="Everything you have heard quoted in English, in the Hebrew it was written in.",
         words=2594,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=18,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Five Megillot, Lakewood, N.J., 2001",
@@ -294,7 +481,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Psalms",
         blurb="A hundred and fifty, and you can begin at any one of them.",
         words=17255,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.poetry,
+        register=Register.biblical,
+        difficulty=35,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -316,7 +506,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Proverbs",
         blurb="Self-contained verses, which makes it the easiest thing here to read a little of.",
         words=6080,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.poetry,
+        register=Register.biblical,
+        difficulty=32,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -333,9 +526,12 @@ CATALOGUE: list[Entry] = [
         author="Ketuvim · Job",
         language="he",
         source="sefaria:Job",
-        blurb="The hardest Hebrew on the shelf, and for many people the reason to learn it.",
+        blurb="The hardest Hebrew in the catalogue, and for many people the reason to learn it.",
         words=7164,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.poetry,
+        register=Register.biblical,
+        difficulty=33,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Rashi Ketuvim by Rabbi Shraga Silverstein",
@@ -354,7 +550,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Genesis",
         blurb="Where it begins, and the chapters everybody knows are near the front.",
         words=17676,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=23,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -373,7 +572,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Exodus",
         blurb="Slavery, departure, and the law. The narrative half reads easiest.",
         words=14282,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=27,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -392,7 +594,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Leviticus",
         blurb="The priestly law, in the register it was set down in.",
         words=10078,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=28,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -411,7 +616,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Numbers",
         blurb="Forty years of wandering, two censuses, and Balaam's donkey.",
         words=14137,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=26,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -430,7 +638,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Deuteronomy",
         blurb="Moses saying it again before the end. The book the rest of the Tanakh quotes most.",
         words=12404,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=27,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="Metsudah Chumash, Metsudah Publications, 2009",
@@ -449,7 +660,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:Judges",
         blurb="Before the kings: twelve leaders, and the years between them.",
         words=8453,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=23,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -468,7 +682,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:I Samuel",
         blurb="Samuel, Saul, and the young David.",
         words=11424,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=25,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -487,7 +704,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:II Samuel",
         blurb="David reigning, and paying for it.",
         words=9399,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=22,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -506,7 +726,10 @@ CATALOGUE: list[Entry] = [
         source="sefaria:I Kings",
         blurb="Solomon, the Temple, and a kingdom splitting in two.",
         words=11255,
-        shelf=Shelf.beit_midrash,
+        kind=Kind.prose,
+        register=Register.biblical,
+        difficulty=22,
+        tags=frozenset({Tag.tanakh}),
         translations=[
             Rendering(
                 name="The Metsudah Tanach series, Lakewood, N.J",
@@ -517,17 +740,123 @@ CATALOGUE: list[Entry] = [
             )
         ],
     ),
+    # --- Modern Hebrew prose, translated once and paid for once -------------------
+    #
+    # The other half of the catalogue. Nobody has published an English these are worth
+    # reading beside, so targum bought one: Opus 5, once, in August 2026. Public sources
+    # cache with no owner, so the second reader of any of them pays nothing — provided
+    # the build names the model the first one used, which is what `model` below is for.
+    #
+    # All six are on Ben Yehuda, whose plain-text downloads carry no title of their own:
+    # the first line of the file is the title and the author, as prose. The title here is
+    # what names the targum on somebody's shelf.
+    Entry(
+        id="judenstaat",
+        title="מדינת היהודים",
+        author="בנימין זאב הרצל, תרגם מיכל ברקוביץ, 1896",
+        language="he",
+        source="https://benyehuda.org/download/6600.txt",
+        blurb=(
+            "The pamphlet that started it, in the Hebrew it was read in at the time. "
+            "Short, argued rather than dreamt, and still surprising."
+        ),
+        words=20173,
+        kind=Kind.essay,
+        register=Register.modern,
+        difficulty=19,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mendele-binyamin",
+        title="מסעות בנימין השלישי",
+        author="מנדלי מוכר ספרים, 1878",
+        language="he",
+        source="https://benyehuda.org/download/6408.txt",
+        blurb=(
+            "A Jewish Don Quixote who sets out from a small town to find the lost tribes "
+            "and gets about as far as the next province. The funniest book on this shelf."
+        ),
+        words=24387,
+        kind=Kind.novel,
+        register=Register.modern,
+        difficulty=24,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mendele-kabtzanim",
+        title="ספר הקבצנים",
+        author="מנדלי מוכר ספרים, 1909",
+        language="he",
+        source="https://benyehuda.org/download/4094.txt",
+        blurb=(
+            "The book that taught modern Hebrew prose how to describe poverty without "
+            "either flinching or sentimentalising. Mendele's own Hebrew of his Yiddish."
+        ),
+        words=42966,
+        kind=Kind.novel,
+        register=Register.modern,
+        difficulty=26,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="mapu-ahavat-tzion",
+        title="אהבת ציון",
+        author="אברהם מאפו, 1853",
+        language="he",
+        source="https://benyehuda.org/download/957.txt",
+        blurb=(
+            "The first modern Hebrew novel: a romance set in the days of Isaiah, written "
+            "in deliberate Biblical Hebrew. Easier than it sounds if you have read Tanakh."
+        ),
+        words=55342,
+        kind=Kind.novel,
+        register=Register.modern,
+        difficulty=25,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="herzl-altneuland",
+        title="תל־אביב",
+        author="בנימין זאב הרצל, תרגם נחום סוקולוב, 1902",
+        language="he",
+        source="https://benyehuda.org/download/7260.txt",
+        blurb=(
+            "Herzl's novel of the country he expected, and the translation that gave Tel "
+            "Aviv its name. Sokolow's Hebrew is the period's, not ours."
+        ),
+        words=62932,
+        kind=Kind.novel,
+        register=Register.modern,
+        difficulty=19,
+        model=BOUGHT_WITH,
+    ),
+    Entry(
+        id="brenner-shkhol",
+        title="שכול וכשלון",
+        author="יוסף חיים ברנר, 1920",
+        language="he",
+        source="https://benyehuda.org/download/869.txt",
+        blurb=(
+            "Bereavement and failure, and it means both. The hardest and best of the "
+            "early novels, written in a Hebrew that was still being made up as it went."
+        ),
+        words=66040,
+        kind=Kind.novel,
+        register=Register.modern,
+        difficulty=17,
+        model=BOUGHT_WITH,
+    ),
 ]
 
 
-def on(shelf: Shelf) -> list[Entry]:
-    """Everything on one shelf, in catalogue order.
+def beit_midrash() -> list[Entry]:
+    """What a reader who wants only Jewish texts would be left with.
 
-    The list itself stays flat. `matching()` below has to see every entry whichever
-    shelf it sits on, or the guard that stops somebody paying for a text that is already
-    free would quietly stop covering half the catalogue.
+    The catalogue is one list and stays one list; this is the predicate a Beit Midrash
+    mode would filter by, defined now so the tagging can be shown to be sufficient for
+    it. Nothing in the product calls this yet.
     """
-    return [entry for entry in CATALOGUE if entry.shelf is shelf]
+    return [entry for entry in CATALOGUE if entry.tags]
 
 
 def by_id(entry_id: str) -> Entry | None:

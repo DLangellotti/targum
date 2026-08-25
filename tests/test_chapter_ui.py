@@ -230,3 +230,42 @@ def test_an_article_is_priced_whole(tmp_path: Path) -> None:
     assert plan.chapters == 1
     assert plan.segmented is not None
     assert plan.buying == len(plan.segmented.segments), "an article is bought whole"
+
+
+def test_a_book_glosses_only_the_chapter_it_bought(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Translation is rationed by the chapter and meanings were not, so a novel bought a
+    chapter at a time was glossed whole in advance. Altneuland's first chapter costs
+    $0.21 to translate and was quoted $4.23 of meanings; the cap refused the pair and the
+    book could not be opened at all."""
+    from targum.models import Style
+    from targum.pipeline import Build
+
+    text = "\n\n".join(
+        f"## Chapter {n}\n\n" + "\n\n".join(f"Sentence {n}.{m}." for m in range(30))
+        for n in range(1, 6)
+    )
+    source = tmp_path / "novel.md"
+    source.write_text(text, encoding="utf-8")
+
+    asked: dict[str, object] = {}
+
+    def spy(self, annotation, only=None):  # type: ignore[no-untyped-def]
+        asked["only"] = None if only is None else [segment.id for segment in only]
+        return None
+
+    monkeypatch.setattr(Build, "glossary", spy)
+
+    build = Build(
+        str(source),
+        target_language="en",
+        style=Style.natural,
+        provider_name="null",
+        out_root=tmp_path / "out",
+        difficulty=False,
+        gloss=True,
+    )
+    result = build.run(chapters=1)
+
+    assert asked["only"] is not None, "a book was glossed whole"
+    assert result.segmented is not None
+    assert 0 < len(asked["only"]) < len(result.segmented.segments)  # type: ignore[arg-type]

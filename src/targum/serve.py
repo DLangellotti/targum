@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import errno
+import gzip
 import json
 import os
 import queue
@@ -25,7 +26,7 @@ import traceback
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import cache
+from functools import cache, lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -34,7 +35,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
-from .models import SegmentedDocument, Style
+from .models import Segment, SegmentedDocument, Style
 from .pipeline import Build, Result
 from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
 
@@ -140,7 +141,7 @@ OPEN_TO_STRANGERS = frozenset(
 # page it reaches says "Coming soon" is worse than none at all — what gets indexed is
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
-PUBLIC_TEXT = re.compile(r"^/(library|beit-midrash)/([a-z0-9][a-z0-9-]{0,63})$")
+PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
 
 
 def shelves_are_public() -> bool:
@@ -151,6 +152,11 @@ def shelves_are_public() -> bool:
 # What somebody who has not been invited is told. Honest about the state of things and
 # says nothing about who is on the list.
 NOT_OPEN = "targum is not open yet."
+
+#: What a drawn cover may be saved as. No SVG: these arrive from an image model and an
+#: SVG is a script that runs, which is not a thing to serve from a directory anybody can
+#: drop files into. Both halves of the app read this — one plans covers, one serves them.
+THUMBS = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "image/jpeg"))
 
 MAX_COST = 2.00
 SESSION_BUDGET = 10.00
@@ -640,6 +646,84 @@ class Library:
             for section in sections
         ]
 
+    #: What a text this reader added is, worked out from where it came from. A catalogue
+    #: text says what it is itself; everything else has only its address to go on, and an
+    #: address is enough for the one distinction that matters here — an article somebody
+    #: pasted in this morning against a book.
+    OWN_KINDS = (("http://", "article"), ("https://", "article"), ("sefaria:", "prose"))
+
+    @staticmethod
+    @lru_cache(maxsize=512)
+    def _own_difficulty(path: str, changed: float, language: str) -> int:
+        """How hard a text nobody catalogued is, counted the same way the catalogue is.
+
+        Keyed on the file's own modification time, so a rebuilt text is recounted and an
+        unchanged one is counted once for the life of the process. Reading a whole
+        annotation is not free — a book's worth is megabytes — and the library page is
+        drawn every time somebody opens it.
+        """
+        from .annotate.frequency import FrequencyBands
+        from .models import Annotation, read_artifact
+
+        annotation = read_artifact(Annotation, Path(path))
+        if annotation is None:
+            return 0
+        bands = FrequencyBands()
+        code = language.split("-")[0].lower()
+        if not bands.supports(code):
+            return 0
+        looked_up = total = 0
+        seen: dict[str, int] = {}
+        for tokens in annotation.tokens.values():
+            for token in tokens:
+                band = seen.get(token.lemma)
+                if band is None:
+                    band = seen[token.lemma] = bands.band(token.lemma, code)
+                total += 1
+                looked_up += band >= 4
+        return round(looked_up / total * 100) if total else 0
+
+    def _shape(self, folder: Path, source: str, language: str, words: int) -> dict[str, Any]:
+        """What this text is, for a library that sorts and filters by it.
+
+        A catalogue text is described by the catalogue: those numbers are measured off
+        the whole text by `scripts/measure_difficulty.py` and are better than anything
+        that could be worked out here. Everything else is the reader's own.
+        """
+        from . import catalogue as catalogue_module
+
+        entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
+        if entry is not None:
+            return {
+                "kind": entry.kind.value,
+                "register": entry.register.value,
+                "difficulty": entry.difficulty,
+                "minutes": entry.minutes,
+                "entry": entry.id,
+                "drawn": any(
+                    (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
+                ),
+            }
+        kind = "prose"
+        for prefix, named in self.OWN_KINDS:
+            if source.startswith(prefix):
+                kind = named
+                break
+        annotation = folder / "annotation.json"
+        difficulty = (
+            self._own_difficulty(str(annotation), annotation.stat().st_mtime, language)
+            if annotation.is_file()
+            else 0
+        )
+        return {
+            "kind": kind,
+            "register": "biblical" if source.startswith("sefaria:") else "modern",
+            "difficulty": difficulty,
+            "minutes": max(1, round(words / 130)),
+            "entry": "",
+            "drawn": False,
+        }
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -655,6 +739,8 @@ class Library:
             title = folder.name
             language = ""
             content_hash = ""
+            source = ""
+            words = 0
             sections = len(list((folder / "reader").glob("sec-*.html"))) or 1
             chapters = self.chapters(folder)
             document = folder / "document.json"
@@ -663,6 +749,8 @@ class Library:
                     data = json.loads(document.read_text(encoding="utf-8"))
                     title = data.get("title") or title
                     language = data.get("language", "")
+                    source = data.get("source", "")
+                    words = sum(len(str(b.get("text", "")).split()) for b in data.get("blocks", []))
                     # The same identity the reader keeps its word list under, so the
                     # page can say how far through each text you are.
                     content_hash = data.get("content_hash", "")
@@ -674,6 +762,8 @@ class Library:
                     "title": title,
                     "language": language,
                     "document": content_hash,
+                    "words": words,
+                    **self._shape(folder, source, language, words),
                     "sections": sections,
                     "chapters": chapters,
                     "readyChapters": sum(1 for c in chapters if c["ready"]),
@@ -687,6 +777,13 @@ class Library:
             )
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
+
+    @staticmethod
+    def can_draw() -> bool:
+        """Whether this deployment has an image key. A page with none never offers."""
+        from . import covers as covers_module
+
+        return covers_module.ready()
 
     def prepare(self, job: Job) -> None:
         """Ingest and segment, which costs nothing, then price the rest."""
@@ -716,7 +813,7 @@ class Library:
                 # which means lemmatizing first. Only worth the wait once the
                 # translation itself has cleared the cap.
                 job.stage = "looking up words"
-                cost, job.lemmas = self._gloss_cost(builder, plan.segmented)
+                cost, job.lemmas = self._gloss_cost(builder, plan.segmented, plan.buying_segments)
                 job.meanings = cost
                 job.estimate += cost
                 job.blocked = self.why_blocked(job.estimate)
@@ -757,21 +854,57 @@ class Library:
             return blocked
 
     @staticmethod
-    def _gloss_cost(builder: Build, segmented: SegmentedDocument) -> tuple[float, int]:
-        """What the word meanings will cost, and how many there are.
+    def _gloss_cost(
+        builder: Build, segmented: SegmentedDocument, buying: list[Segment]
+    ) -> tuple[float, int]:
+        """What the word meanings will cost, for the chapters being bought.
 
-        The count is worth returning rather than discarding: it is what lets the page
-        say how long they will keep arriving for after the reader opens.
+        Two things this used to do to every text it priced, both of them over the whole
+        book however little of it was being bought. It quoted for meanings the build
+        would not look up yet — Altneuland's first chapter costs $0.21 to translate and
+        was quoted $4.23 of meanings, which the cap then refused, so a long book could
+        not be opened at all. And it lemmatised five thousand sentences inside the
+        request that draws the card: forty-eight seconds of Stanza before the page could
+        say anything.
+
+        The count is worth returning rather than discarding: it is what lets the page say
+        how long they will keep arriving for after the reader opens.
         """
-        from .annotate.gloss import estimate, unique_lemmas
+        from .annotate import Annotator, biblical
+        from .annotate.gloss import AnthropicGlosses, estimate, unique_lemmas, unpaid
 
-        annotation = builder.annotate(segmented)
-        if annotation is None:
+        run = SegmentedDocument(
+            document_hash=segmented.document_hash,
+            language=segmented.language,
+            segmenter=segmented.segmenter,
+            segments=buying or segmented.segments,
+        )
+        # Deliberately not `builder.annotate`, which writes annotation.json: a file
+        # covering one chapter, written under the whole document's name, would be reused
+        # by the build that follows and leave every other chapter unmarked.
+        try:
+            annotation = Annotator(bands=biblical.for_source(builder.source)).annotate(run)
+        except TargumError:
+            # Word help is worth saying goodbye to out loud; it is not worth a card that
+            # will not draw. The build itself says so when it gets there.
             return 0.0, 0
-        lemmas = len(unique_lemmas(annotation))
-        return estimate(lemmas, builder.model or ""), lemmas
+        glosser = AnthropicGlosses(builder.model)
+        # A lemma looked up for another text is already bought. Quoting for it again
+        # prices work that is about to be free.
+        owed = unpaid(
+            unique_lemmas(annotation),
+            segmented.language,
+            builder.target_language,
+            glosser.name,
+            builder.cache,
+        )
+        return estimate(len(owed), glosser.model), len(owed)
 
     def run(self, job: Job) -> None:
+        # Covers first: a cover job carries no source to ingest, and everything below
+        # would try to read its folder name as a file.
+        if job.options.get("cover"):
+            return self.run_covers(job)
         # On the list, not on `chapter`: preparing a whole book sets no single chapter
         # number, and a falsy 0 sent this down the ordinary build path — which then tried
         # to ingest the folder name as though it were a file.
@@ -813,6 +946,117 @@ class Library:
                 job,
                 "Something went wrong. The Terminal has the detail.",
             )
+
+    def cover_plan(self, folder: Path, chapters: bool) -> tuple[Any, list[tuple[str, str]]]:
+        """The catalogue entry this text is, and every image worth drawing for it.
+
+        Catalogue texts only. A cover is drawn from what the catalogue says a text is —
+        its title, its author, the sentence describing it — and a text somebody pasted in
+        this morning has none of that. It is also why covers can be shared between
+        readers: the catalogue is the same catalogue for everyone.
+
+        Most chapters are left out. See `catalogue.names_something`: a hundred and fifty
+        psalms are numbered rather than titled, and a number is not a subject anything
+        could draw. Those fall back to the book's cover when they are asked for.
+        """
+        from . import catalogue as catalogue_module
+        from .catalogue import chapter_prompt, cover_prompt, names_something
+        from .models import Document, read_artifact
+
+        document = read_artifact(Document, folder / "document.json")
+        entry = catalogue_module.matching(document.source) if document else None
+        if entry is None:
+            return None, []
+
+        where = self.out / "thumbs"
+        wanted: list[tuple[str, str]] = []
+        if not any((where / (entry.id + suffix)).is_file() for suffix, _ in THUMBS):
+            wanted.append((entry.id, cover_prompt(entry)))
+        if chapters:
+            for chapter in self.chapters(folder):
+                title = str(chapter.get("title") or "")
+                name = f"{entry.id}-c{int(chapter['number']):03d}"
+                if not names_something(title, entry.title):
+                    continue
+                if any((where / (name + suffix)).is_file() for suffix, _ in THUMBS):
+                    continue
+                wanted.append((name, chapter_prompt(entry, title)))
+        return entry, wanted
+
+    def run_covers(self, job: Job) -> None:
+        """Draw a book's cover, then the chapters that have something of their own.
+
+        The cover is drawn first and handed to every chapter after it as a reference —
+        which is what makes a set look like a set. A chapter is therefore never drawn
+        before its book, and if the book's own cover fails there is nothing to match.
+        """
+        from . import covers as covers_module
+
+        illustrator = covers_module.build()
+        usable, detail = illustrator.available()
+        if not usable:
+            return self._blame(job, detail)
+
+        where = self.out / "thumbs"
+        plan: list[tuple[str, str]] = job.options.get("plan") or []
+        entry_id = str(job.options.get("cover") or "")
+        job.stage = "working"
+        job.total = len(plan)
+        self.remember(job)
+
+        drawn = 0
+        # The book's cover as it came back, full size, for its chapters to be drawn
+        # against. What gets kept on disk is a 320px tile — plenty to look at and thin
+        # enough for a page, but a poor thing to hand an image model as a reference.
+        # Only for the length of this run: a chapter drawn later matches the tile.
+        original: bytes | None = None
+
+        def owed() -> float:
+            """What the answers said it cost, or the reservation rate if they did not.
+
+            An image is billed by tokens rather than by the picture, so `drawn × price`
+            was a receipt only while the price was flat. The illustrator counts what came
+            back; this falls through to the old arithmetic for one that cannot.
+            """
+            counted = float(getattr(illustrator, "spent", 0.0) or 0.0)
+            return counted or drawn * illustrator.price
+
+        try:
+            for name, prompt in plan:
+                job.message = "Drawing…"
+                self.remember(job)
+                reference = None
+                if name != entry_id:
+                    reference = original or next(
+                        (
+                            (where / (entry_id + suffix)).read_bytes()
+                            for suffix, _ in THUMBS
+                            if (where / (entry_id + suffix)).is_file()
+                        ),
+                        None,
+                    )
+                    if reference is None:
+                        # Its book was never drawn, so there is nothing for this to look
+                        # like. Skipping beats drawing an orphan that matches nothing.
+                        continue
+                where.mkdir(parents=True, exist_ok=True)
+                drawing = illustrator.draw(prompt, reference)
+                if name == entry_id:
+                    original = drawing
+                (where / f"{name}.webp").write_bytes(covers_module.shrink(drawing))
+                drawn += 1
+                job.done = drawn
+                self.remember(job)
+        except TargumError as error:
+            job.spent = owed()
+            self.settle(job)
+            return self._blame(job, error.message)
+
+        job.spent = owed()
+        self.settle(job)
+        job.stage = "done"
+        job.message = ""
+        self.remember(job)
 
     def run_chapter(self, job: Job) -> None:
         """Buy one more chapter of a book already on disk.
@@ -898,6 +1142,13 @@ class Library:
 
     def _builder(self, job: Job) -> Build:
         options = job.options
+
+        # What the catalogue says about this source, if it is one of ours. Read here
+        # rather than taken from the request: the model decides what a build costs, and
+        # one that arrived in a payload would be a way to spend somebody else's money.
+        from . import catalogue as catalogue_module
+
+        entry = catalogue_module.matching(job.source)
         return Build(
             job.source,
             target_language=options.get("to", "en"),
@@ -910,7 +1161,11 @@ class Library:
             # $12.64 on Opus against $7.58 on Sonnet, and the difference in a reader's
             # translation does not show up beside the difference in the bill. The CLI
             # keeps the provider default: that is somebody spending their own key.
-            model=HOSTED_MODEL,
+            # Sonnet, unless the catalogue says this text's English was bought with
+            # something else. The cache is keyed on the model, so a book we translated
+            # once on Opus would be translated again — at a reader's expense — by a build
+            # that quietly asked for Sonnet instead.
+            model=(entry.model if entry and entry.model else HOSTED_MODEL),
             # Whose build this is, which scopes the cache for anything that is not a
             # public text. Without it one person's uploaded book would be translated
             # once and served to everyone who happened to upload the same file.
@@ -921,6 +1176,10 @@ class Library:
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
             translations=[str(t) for t in options.get("translations") or []],
+            # Ben Yehuda's plain-text downloads carry no title: the first line of the file
+            # is the title and the author, as prose. Without this a book lands on somebody's
+            # shelf called "6600".
+            title=entry.title if entry else "",
         )
 
 
@@ -947,7 +1206,7 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     words: str
-    shelf: str
+    catalogue: str
     store: Store
     mailer: Mailer
     address: str
@@ -1035,15 +1294,38 @@ class Handler(BaseHTTPRequestHandler):
         allowed = " ".join(dict.fromkeys(hashes))
         return f"{POLICY}; script-src {allowed}; style-src {allowed}"
 
-    def _send(self, status: int, body: bytes, kind: str) -> None:
+    # A reader page is around 180 kB, most of it the same stylesheet and script every
+    # other page carries, and gzip takes it to a third of that. In front of the deployed
+    # server Caddy already does this, so this is for the copy running on a laptop, which
+    # has nothing in front of it at all. Below a packet there is nothing to win.
+    COMPRESSIBLE = ("text/html", "application/json", "text/plain", "image/svg+xml")
+    COMPRESS_OVER = 1400
+
+    def _worth_zipping(self, body: bytes, kind: str) -> bool:
+        return (
+            len(body) >= self.COMPRESS_OVER
+            and kind.startswith(self.COMPRESSIBLE)
+            and "gzip" in self.headers.get("Accept-Encoding", "")
+        )
+
+    def _send(self, status: int, body: bytes, kind: str, cache: str = "no-store") -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        # Read off the page as written. The policy names this page's own inline blocks
+        # by their hash, so it has to be taken before the bytes are compressed.
+        policy = self._policy(body) if kind.startswith("text/html") else None
+        zipped = self._worth_zipping(body, kind)
+        if zipped:
+            body = gzip.compress(body, 6)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if zipped:
+            self.send_header("Content-Encoding", "gzip")
+        self.send_header("Vary", "Accept-Encoding")
+        self.send_header("Cache-Control", cache)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
-        if kind.startswith("text/html"):
-            self.send_header("Content-Security-Policy", self._policy(body))
+        if policy is not None:
+            self.send_header("Content-Security-Policy", policy)
         self.end_headers()
         self.wfile.write(body)
 
@@ -1087,7 +1369,6 @@ class Handler(BaseHTTPRequestHandler):
             "Allow: /$",
             "Allow: /about",
             "Allow: /library",
-            "Allow: /beit-midrash",
             "Disallow: /account/",
             "Disallow: /reader/",
             "Disallow: /readers",
@@ -1108,12 +1389,10 @@ class Handler(BaseHTTPRequestHandler):
         arrive.
         """
         from . import catalogue as catalogue_module
-        from .catalogue import Shelf
 
         where = self.address or ""
-        paths = ["/", "/about"]
-        paths += [f"/{shelf.value}" for shelf in Shelf]
-        paths += [f"/{entry.shelf.value}/{entry.id}" for entry in catalogue_module.CATALOGUE]
+        paths = ["/", "/about", "/library"]
+        paths += [f"/library/{entry.id}" for entry in catalogue_module.CATALOGUE]
         urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
         return (
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1192,25 +1471,20 @@ class Handler(BaseHTTPRequestHandler):
         if naming is not None:
             from . import catalogue as catalogue_module
 
-            entry = catalogue_module.by_id(naming.group(2))
-            if entry is None or entry.shelf.value != naming.group(1):
+            entry = catalogue_module.by_id(naming.group(1))
+            if entry is None:
                 return self._send(404, b"not found", "text/plain")
             return self._send(200, text_page(entry, self.address).encode("utf-8"), HTML)
         # The shelves answer to whoever is asking. Signed out that is the public index —
         # the shop window, and the thing a search engine indexes. Signed in it is the
         # product. Same address either way, because a text somebody found on Google
         # should still be there after they sign in to read it.
-        if route in ("/library", "/beit-midrash"):
-            from .catalogue import Shelf
-
+        if route == "/library":
             if self._person() is None and not self._authorised():
                 if not shelves_are_public():
                     return self._send(200, holding_page().encode("utf-8"), HTML)
-                page = shelf_page(Shelf(route.lstrip("/")), self.address)
+                page = shelf_page(self.address)
                 return self._send(200, page.encode("utf-8"), HTML)
-            # One app page with a switcher, rather than two that drift apart.
-            if route == "/beit-midrash":
-                return self._go("/library?shelf=beit-midrash")
 
         if self._needs_account(route):
             # Data routes answer as data. Anything a person could be looking at gets a
@@ -1244,6 +1518,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith("/thumb/"):
+            return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
             return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/add":
@@ -1251,7 +1527,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/words":
             return self._send(200, self.words.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
-            return self._send(200, self.shelf.encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(200, self.catalogue.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -1261,6 +1537,9 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "readers": mine,
                     "trash": self.library.readers(home, trashed=True),
+                    # Whether this deployment can draw a cover at all. A page with no
+                    # image key offers nothing rather than offering and failing.
+                    "covers": self.library.can_draw(),
                 }
             )
         if route == "/account/me":
@@ -1329,21 +1608,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._gloss_word(payload)
         if route == "/chapter":
             return self._chapter(payload)
+        if route == "/cover":
+            return self._cover(payload)
         if route == "/trash":
             return self._trash(payload)
         if route == "/restore":
             return self._restore(payload)
         if route == "/account/sign-in":
             return self._sign_in(payload)
-        if route == "/account/shelf":
-            person = self._person()
-            if person is None:
-                return self._json({"error": "Sign in first."}, 401)
-            try:
-                self.store.choose_shelf(person, str(payload.get("shelf") or ""))
-            except ValueError as error:
-                return self._json({"error": str(error)}, 400)
-            return self._json({"shelf": str(payload.get("shelf") or "")})
         if route == "/account/sign-out":
             return self._sign_out()
         if route == "/account/forget":
@@ -1362,7 +1634,6 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "signedIn": True,
                 "email": person.email,
-                "shelf": person.shelf,
                 "revision": self.store.revision(person),
                 "counts": self.store.counts(person),
             }
@@ -1475,11 +1746,16 @@ class Handler(BaseHTTPRequestHandler):
 
         # Somebody has already translated this one, and that translation is better and
         # free. Said before anything is priced, not after it has been paid for.
+        #
+        # Only where there is something better to offer, though. Half the catalogue is
+        # texts nobody published an English for, which targum translated once and paid for
+        # once — those have no `Rendering` to point at, and offering one as an alternative
+        # to itself would leave the catalogue's own button unable to build them.
         if not payload.get("translations") and not payload.get("force_machine"):
             from . import catalogue as catalogue_module
 
             already = catalogue_module.matching(source)
-            if already is not None:
+            if already is not None and already.translations:
                 return self._json({"catalogue": already.state()})
 
         person = self._person()
@@ -1516,6 +1792,51 @@ class Handler(BaseHTTPRequestHandler):
         self.library.enqueue(job)
         self._json(job.state())
 
+    def _cover(self, payload: dict[str, Any]) -> None:
+        """Draw the covers for one text, from the key this deployment runs with.
+
+        Priced and claimed against the same budget as everything else that costs money,
+        and refused by the same sentences when there is none left. A reader is never
+        shown the number — see the guidelines on what the product says about cost — but
+        the ceiling is real and this is inside it.
+        """
+        from . import covers as covers_module
+
+        home = self._home()
+        folder = self.library.within(home, str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+
+        illustrator = covers_module.build()
+        usable, detail = illustrator.available()
+        if not usable:
+            return self._json({"error": detail}, 400)
+
+        entry, plan = self.library.cover_plan(folder, bool(payload.get("chapters")))
+        if entry is None:
+            return self._json({"error": "Covers are drawn for the library's own texts."}, 400)
+        if not plan:
+            return self._json({"drawn": 0, "message": "Already drawn."})
+
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=entry.source,
+            title=entry.title,
+            language=entry.language,
+            owner=person.id if person else None,
+            home=home,
+            options={"cover": entry.id, "plan": plan, "chapters": bool(payload.get("chapters"))},
+            estimate=len(plan) * illustrator.price,
+            total=len(plan),
+        )
+        blocked = self.library.claim(job)
+        if blocked:
+            return self._json({"error": blocked}, 400)
+        self.library.jobs[job.id] = job
+        self.library.enqueue(job)
+        self._json(job.state())
+
     def _chapter(self, payload: dict[str, Any]) -> None:
         """Translate one chapter of a targum already on disk, and rewrite its page.
 
@@ -1534,11 +1855,22 @@ class Handler(BaseHTTPRequestHandler):
             number = 0 if whole else int(payload.get("number") or 0)
         except (TypeError, ValueError):
             return self._json({"error": "not found"}, 404)
+        # What is already here, whichever way it was asked for. `all` had this check and
+        # one chapter did not, so the reader's prefetch — which asks for the next chapter
+        # at 60% of this one, every time, knowing nothing about what is on disk — bought
+        # a chapter of Song of Songs that the published translation already covered.
+        # A catalogue text is free and arrives complete, so every one of its chapters is
+        # ready from the start and every prefetch against it was a purchase waiting to
+        # happen. Readiness is derived from the artifacts by `chapters()`, so this asks
+        # the only thing that can answer it.
+        standing = self.library.chapters(folder)
         waiting: list[int] = []
         if whole:
-            waiting = [c["number"] for c in self.library.chapters(folder) if not c["ready"]]
+            waiting = [c["number"] for c in standing if not c["ready"]]
             if not waiting:
                 return self._json({"ready": True})
+        elif any(c["number"] == number and c["ready"] for c in standing):
+            return self._json({"ready": True})
 
         person = self._person()
         job = Job(
@@ -1642,6 +1974,35 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ready": False})
         self._json({"ready": True, "entries": entries})
 
+    def _serve_thumb(self, name: str) -> None:
+        """The cover drawn for one text, where somebody has made one.
+
+        Missing is the ordinary case and not an error: the library draws the text's own
+        first letter until an image exists, so a library with no covers at all looks
+        deliberate rather than broken. See `scripts/thumbnails.py` for where they come
+        from and `catalogue.cover_prompt` for what they are asked to be.
+
+        A chapter falls back to its book. Most chapters in this library are numbered
+        rather than titled — a hundred and fifty psalms — and a number is not a subject
+        anything could draw, so only chapters that name something get their own image.
+        The rest show the book's, which is both free and exactly as consistent with it as
+        a reader could ask for.
+        """
+        root = (self.library.out / "thumbs").resolve()
+        wanted = unquote(name)
+        for candidate in (wanted, re.sub(r"-c\d+$", "", wanted)):
+            for suffix, kind in THUMBS:
+                target = (root / (candidate + suffix)).resolve()
+                if root not in target.parents or not target.is_file():
+                    continue
+                # The one thing here worth a browser keeping. Everything else this
+                # server sends is somebody's reading — no-store, and rightly. A cover is
+                # a picture of a book, the same picture for every reader, and refetching
+                # it on every visit to the library is the whole page's weight again.
+                # Private rather than public: it still travelled a signed-in connection.
+                return self._send(200, target.read_bytes(), kind, cache="private, max-age=86400")
+        return self._send(404, b"not found", "text/plain")
+
     def _serve_reader(self, relative: str) -> None:
         """This person's readers, and nothing else — not even another person's."""
         root = self._home().resolve()
@@ -1712,7 +2073,7 @@ def start(
             "page": learn_page(token),
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "words": words_page(token),
-            "shelf": library_page(token),
+            "catalogue": library_page(token),
         },
     )
     try:

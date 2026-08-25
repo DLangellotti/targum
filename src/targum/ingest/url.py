@@ -141,7 +141,12 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
 
 
 class UrlIngester:
-    name = "url/3"
+    name = "url/4"
+
+    # A .txt served over http is a text file that happens to live on the web, and the
+    # artifact says so: what a text arrived as decides what may later be inferred about
+    # it. A page's markup states its structure; a plain file has none to state.
+    plain_name = "url-text/1"
 
     def _plain(self, source: str, body: str) -> Document:
         """A text file fetched over http, read the way a text file on disk is read."""
@@ -159,10 +164,11 @@ class UrlIngester:
         return build_document(
             source,
             blocks_from_paragraphs(paragraphs),
-            ingester=self.name,
+            ingester=self.plain_name,
             language=fields.get("language") or fields.get("lang"),
             title=fields.get("title"),
             author=fields.get("author"),
+            structure=True,
         )
 
     def load(self, source: str) -> Document:

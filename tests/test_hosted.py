@@ -255,20 +255,27 @@ def test_the_sitemap_lists_every_text_and_nothing_private(
     found = re.findall(r"<loc>(.*?)</loc>", ask(port, "/sitemap.xml", "targum.page")[1].decode())
     paths = {url.removeprefix("https://targum.page") for url in found}
     for entry in CATALOGUE:
-        assert f"/{entry.shelf.value}/{entry.id}" in paths, entry.id
+        assert f"/library/{entry.id}" in paths, entry.id
     for private in ("/words", "/readers", "/health", "/account/signin"):
         assert private not in paths, f"{private} should not be advertised"
 
 
-def test_a_text_only_answers_on_its_own_shelf(
+def test_every_text_answers_at_one_address(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Otherwise every text would exist at two addresses, which splits whatever ranking
-    it earns and puts a novel at a Beit Midrash URL."""
+    """There were two shelves and so two URL shapes, and a text at two addresses splits
+    whatever ranking it earns. One list, one address, whatever the text is."""
     port, _ = hosted
     monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     assert ask(port, "/library/il-declaration", "targum.page")[0] == 200
-    assert ask(port, "/beit-midrash/il-declaration", "targum.page")[0] == 404
+    assert ask(port, "/library/ruth", "targum.page")[0] == 200, "Tanakh included"
+    # The Beit Midrash shelf is gone, so its addresses are simply unknown routes now.
+    # What matters is that no second copy of the text is served from one.
+    from targum.catalogue import by_id
+
+    ruth = by_id("ruth")
+    assert ruth is not None
+    assert ruth.title.encode() not in ask(port, "/beit-midrash/ruth", "targum.page")[1]
     assert ask(port, "/library/no-such-text", "targum.page")[0] == 404
 
 
@@ -278,55 +285,6 @@ def test_the_front_door_is_still_shut(hosted: tuple[int, str]) -> None:
     for route in ("/", "/words"):
         status, body = ask(port, route, "targum.page")
         assert status == 200 and b"Coming soon" in body, route
-
-
-# -- which shelf somebody reads in --------------------------------------------
-
-
-def test_the_shelf_choice_outlives_a_sign_out(tmp_path: Path) -> None:
-    """The whole reason it is on the account rather than in the browser.
-
-    `sync.js` deletes every `targum:*` key but the theme on sign-out — deliberately,
-    after a bug that left a previous reader's words behind — so a local preference would
-    be forgotten every time somebody signed out on their own machine, and a new device
-    would show them the shelf they asked not to see.
-    """
-    store = Store(tmp_path / "shelf.db")
-    signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
-    assert signed_in is not None
-    person, session = signed_in
-    assert person.shelf == "", "undecided is not the same as choosing the Library"
-
-    store.choose_shelf(person, "beit-midrash")
-    store.sign_out(session)
-
-    again = store.finish_sign_in(store.start_sign_in("reader@example.com"))
-    assert again is not None
-    assert again[0].shelf == "beit-midrash"
-    # And on a device that has never held any browser storage at all.
-    assert store.whoever(again[1]).shelf == "beit-midrash"  # type: ignore[union-attr]
-
-
-def test_only_a_shelf_that_exists_can_be_chosen(tmp_path: Path) -> None:
-    """It arrives from a request, so it is checked rather than trusted."""
-    store = Store(tmp_path / "shelf.db")
-    signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
-    assert signed_in is not None
-    person = signed_in[0]
-    for junk in ("../etc", "Library", "beit midrash", "'; DROP TABLE person; --"):
-        with pytest.raises(ValueError):
-            store.choose_shelf(person, junk)
-    for good in ("library", "beit-midrash", ""):
-        store.choose_shelf(person, good)
-
-
-def test_the_account_tells_the_page_which_shelf(hosted: tuple[int, str]) -> None:
-    """The page is baked once and shared, so this is the only way a per-person choice
-    can reach it."""
-    port, session = hosted
-    status, body = ask(port, "/account/me", "targum.page", session)
-    assert status == 200
-    assert "shelf" in json.loads(body)
 
 
 # -- who may open an account --------------------------------------------------

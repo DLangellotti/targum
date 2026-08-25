@@ -12,10 +12,91 @@
   var main = document.getElementById("reader");
   if (!main) return;
 
+  /* --- where the time went, when asked ---------------------------------------
+   *
+   * Open a reader with `?debug=timing` and it says how long each part of starting up
+   * took, in the browser that has the problem rather than in the one measuring it.
+   * Silent otherwise. It exists because a page that felt slow measured fast everywhere
+   * it could be measured, and guessing at that is how the wrong thing gets optimised.
+   */
+  // Matched against the raw address rather than parsed out of it. A reader is opened
+  // with a key already in the query, so `?debug=timing` on the end makes a second `?`
+  // and a parser reads the whole lot as the key — the switch then does nothing, silently,
+  // which is the worst way for a diagnostic to fail.
+  var timing = (location.search + location.hash).indexOf("debug=timing") >= 0;
+  var began = performance.now();
+  var timings = [];
+  var readout = null;
+
+  // Always recorded — it is four numbers and a string — and shown on request. Asking for
+  // it through the address failed twice: a reader already carries a key in its query, so
+  // `?debug=timing` on the end makes a second `?`, and a diagnostic whose address has to
+  // be edited by hand is one that does not work when it is needed. Pressing `t` cannot
+  // be got wrong.
+  var lastTook = 0;
+
+  // Two numbers, because one was ambiguous and cost a round trip to find out: when this
+  // happened, counted from the first line of the reader, and how long since the line
+  // before it. A timestamp alone cannot say whether five seconds went inside the step it
+  // is printed against or in the wait before it.
+  function took(what) {
+    var at = performance.now() - began;
+    timings.push(
+      what + ": " + Math.round(at) + "ms (+" + Math.round(at - lastTook) + "ms)"
+    );
+    lastTook = at;
+    if (timing) showTimings(true);
+  }
+
+  // Anything that throws goes in the readout too. A reader that half-starts looks like
+  // a reader that is slow: the marks never appear, the preference never applies, and
+  // the only sign is a line missing from a list nobody is reading.
+  window.addEventListener("error", function (event) {
+    took(
+      "ERROR " +
+        (event.message || "?") +
+        " — " +
+        String(event.filename || "").split("/").pop() +
+        ":" +
+        event.lineno
+    );
+  });
+
+  function showTimings(open) {
+    if (!readout) {
+      readout = document.createElement("pre");
+      readout.className = "timing";
+      document.body.appendChild(readout);
+    }
+    readout.hidden = !open;
+    readout.textContent = timings.join("\n") + "\n";
+  }
+
   // Whether a server is behind this page, and the key it was handed. A reader opened
   // straight off the disk has neither, and everything that needs them is skipped.
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
+
+  /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
+     riding in every URL is a bearer token in browser history, on a shared screen, and in
+     a Referer. Local it stays, because there it proves the page came from the terminal
+     that started the process. Both cases are this one branch.
+
+     These are the same two helpers every other page has. The reader called them and
+     never had them: `home.href = keyed("/")` threw on the first served page load, and
+     everything after it — the type size, the reading mode, the marking, the vowels, the
+     word list, the sync — never ran. On a page opened off the disk it is unreachable, so
+     it never showed up there. */
+  function keyed(path) {
+    if (!passKey) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(passKey);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (passKey) head["X-Targum-Key"] = passKey;
+    return head;
+  }
 
   var pairs = Array.prototype.slice.call(main.querySelectorAll(".pair"));
   var dataNode = document.getElementById("targum-data");
@@ -67,19 +148,43 @@
     translation: null,
     list: null,
     nikkud: false,
-    // Whether words you have marked are tinted where they appear. Kept because a page
-    // covered in marks is a worksheet, and some days you want to just read.
-    mark: true,
+    // Reading, or marking. Off is reading: no tints, and every word an ordinary word.
+    //
+    // On by default. It was off for a day, on the argument that a page covered in marks
+    // is a worksheet — but a reader who has to find a key before the product does its one
+    // distinctive thing has to know the key is there. The quiet page is one keystroke
+    // away and the choice sticks, which is the right way round for a default.
+    marking: true,
     listTab: "words",
     // Per document, because whose vowels these are is a fact about the text, not a
     // setting. A pointed poem opens pointed; a news article whose points were all
     // guessed opens bare. Only what you choose yourself is remembered here.
     nikkudBy: {},
+    // Which generation of the defaults this browser has seen. See below.
+    defaults: 0,
   };
+
+  // A preference already in a browser beats a new default forever, so a default can only
+  // be changed for somebody who has not got one — which, a day in, is nobody. When this
+  // moves, the handful of settings named beside it are taken from the code once and the
+  // reader's own choices after that are kept as they always were.
+  // 2, not 1: the first pass turned marking on for browsers that had it off, and then
+  // it got turned off again in one of them. Bumping this asks once more. It is blunt —
+  // it overrides somebody who chose the quiet page on purpose — which is the price of
+  // being able to change a default at all, and the reason to move it rarely.
+  var DEFAULTS = 2;
+  var RESET = { marking: true };
+
   try {
     var stored = JSON.parse(localStorage.getItem(STORE) || "{}");
     for (var key in stored) if (key in prefs) prefs[key] = stored[key];
   } catch (e) {}
+
+  if ((prefs.defaults || 0) < DEFAULTS) {
+    for (var changed in RESET) prefs[changed] = RESET[changed];
+    prefs.defaults = DEFAULTS;
+    save();
+  }
 
   function save() {
     try {
@@ -465,14 +570,114 @@
     });
   }
 
-  function redraw() {
-    pairs.forEach(function (pair) {
-      var segmentId = pair.getAttribute("data-id");
-      // Only the cell on show is worth marking; the other is redrawn when it appears.
-      var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
-      if (cell) markSegment(cell);
+  // Marking a pair turns a few text nodes into a few hundred inline spans, so doing it
+  // to a whole chapter at once is several thousand elements before the browser paints
+  // anything — and every one of them re-shapes a line of Hebrew. The work is the same
+  // either way; what changes here is when it happens, so the marks on the part you are
+  // looking at are not queued behind the marks on the part you are not.
+  //
+  // Nothing that counts anything reads the DOM — `lemmasHere`, `coverage` and
+  // `wordEntries` all read the embedded word data — so every number on the page is the
+  // same whichever pairs have been drawn.
+  //
+  // Two things were tried first and measured worse on a 400-pair chapter, both against
+  // 106ms for simply marking the lot: reading every pair's rectangle up front to find
+  // the visible ones cost 366ms, because asking for a rectangle before the browser has
+  // laid the page out forces it to; and handing all 400 to an IntersectionObserver cost
+  // 337ms, in `observe()` alone. Frames are cheaper than either.
+  var AHEAD = 12; // pairs to mark before the first paint — about a screenful
+  var pending = 0;
+  // Whether the page has been through this once. The first pass is the only one that
+  // runs before the browser has laid anything out, and so the only one that cannot
+  // afford to ask where anything is.
+  var drawn = false;
+
+  // Drawn once per pass, whichever way the pair was reached — the background fill and a
+  // scroll can both arrive at the same one, and marking rebuilds the cell from scratch.
+  function markPair(pair) {
+    if (pair.__targumDrawn === pending) return;
+    pair.__targumDrawn = pending;
+    var segmentId = pair.getAttribute("data-id");
+    // Only the cell on show is worth marking; the other is redrawn when it appears.
+    var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
+    if (cell) markSegment(cell);
+  }
+
+  // Everything in view, and a little either side. Cheap: the pairs are in document
+  // order, so it stops at the first one past the bottom rather than walking the rest of
+  // the chapter, and a pair already drawn this pass costs one property read.
+  function markVisible() {
+    var margin = window.innerHeight / 2;
+    for (var n = 0; n < pairs.length; n++) {
+      var box = pairs[n].getBoundingClientRect();
+      if (box.bottom < -margin) continue;
+      if (box.top > window.innerHeight + margin) break;
+      markPair(pairs[n]);
+    }
+  }
+
+  // Scrolling into a part of the chapter that has not been marked yet. Throttled to one
+  // pass a frame, because a scroll fires far more often than that.
+  var catching = false;
+
+  function catchUp() {
+    if (catching) return;
+    catching = true;
+    requestAnimationFrame(function () {
+      catching = false;
+      markVisible();
     });
+  }
+
+  function redraw() {
+    pending += 1;
+    var generation = pending;
+
+    // Where to start. On the first pass the page is at the top and there is nothing laid
+    // out to measure; afterwards the layout is current, reading it is cheap, and a mark
+    // made by a keypress has to land in the frame the key was pressed in.
+    var first = 0;
+    if (drawn) {
+      var margin = window.innerHeight;
+      for (var n = 0; n < pairs.length; n++) {
+        var box = pairs[n].getBoundingClientRect();
+        if (box.bottom > -margin) {
+          first = n;
+          break;
+        }
+      }
+    }
+    drawn = true;
+
+    var ordered = pairs.slice(first).concat(pairs.slice(0, first));
+
+    // With no frames to schedule into, everything at once — the reader's standing rule
+    // is that a missing API degrades rather than breaks.
+    if (!window.requestAnimationFrame) {
+      ordered.forEach(markPair);
+      renderList();
+      return;
+    }
+
+    // A screenful, and no more. The rest of the chapter is marked when it is scrolled
+    // to, by `catchUp` — and never, for the part nobody reaches.
+    //
+    // It used to fill the whole page in the background, a slice per frame. That was
+    // measured at 1,539ms on a real chapter in a real browser: work for text that was
+    // mostly never looked at, competing with the scrolling of the text that was.
+    ordered.slice(0, AHEAD).forEach(markPair);
     renderList();
+
+    // Whatever else is on screen, once the browser has laid the page out — by then
+    // asking where things are is free, and a screenful is not always twelve pairs.
+    requestAnimationFrame(function () {
+      if (generation !== pending) return;
+      // Two lines: the wait for the browser's own first layout, and the marking done in
+      // it. They were one number, and one number could not tell them apart.
+      took("browser laid the page out and gave us a frame");
+      markVisible();
+      took("marks drawn on the rest of the screen");
+    });
   }
 
   /* --- the list ------------------------------------------------------------ */
@@ -568,7 +773,7 @@
   }
 
   var listStats = document.getElementById("list-stats");
-  var listMark = document.getElementById("list-mark");
+  var headerKnown = document.getElementById("known");
 
   // How much of what is in front of you you have already dealt with. The reason to
   // know it is choosing what to read next, so it counts this text and not the language.
@@ -586,27 +791,53 @@
   }
 
   function renderStats() {
-    if (!listStats) return;
     var counts = coverage();
+    // Ignored words are neither known nor waiting, so they come out of the total rather
+    // than counting against you. Ignore means "this is not vocabulary" — a name, a
+    // numeral, a word from another language — and counting it as known would make the
+    // figure something you could raise without learning anything.
+    var scored = counts.total - counts.ignored;
+
+    // In the header, beside the title: how much of this text you can already read. The
+    // words are counted here and the knowing is counted across the language, so a word
+    // first met in another text already counts the moment you open this one.
+    if (headerKnown) {
+      headerKnown.hidden = !scored;
+      if (scored) {
+        // Built rather than written, so the two figures can carry the ledger treatment
+        // the guidelines ask for and the words around them cannot.
+        headerKnown.textContent = "";
+        var whole = document.createElement("b");
+        whole.textContent = String(counts.known);
+        var all = document.createElement("b");
+        all.textContent = String(scored);
+        headerKnown.appendChild(whole);
+        headerKnown.appendChild(document.createTextNode(" of "));
+        headerKnown.appendChild(all);
+        headerKnown.appendChild(document.createTextNode(" known"));
+      }
+    }
+
+    if (!listStats) return;
     if (!counts.total) {
       listStats.textContent = "";
       return;
     }
-    // Ignored words are neither known nor waiting, so they come out of the total
-    // rather than counting against you.
-    var scored = counts.total - counts.ignored;
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
     listStats.textContent =
       share + "% known here · " + counts.fresh + " you have not marked yet";
   }
 
-  if (listMark) {
-    listMark.checked = prefs.mark !== false;
-    body.classList.toggle("marking", listMark.checked);
-    listMark.addEventListener("change", function () {
-      prefs.mark = listMark.checked;
-      body.classList.toggle("marking", listMark.checked);
-      save();
+  // Reading or marking. One class on the body, and nothing is redrawn: every word is
+  // already wrapped in its span whichever mode you are in, so the difference is paint —
+  // which is what keeps the lines from rebreaking as you switch, and what makes the text
+  // you copy the same string either way.
+  function applyMarking() {
+    var on = !!prefs.marking;
+    body.classList.toggle("marking", on);
+    Array.prototype.forEach.call(document.querySelectorAll("[data-marking]"), function (button) {
+      button.classList.toggle("on", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
     });
   }
 
@@ -852,6 +1083,69 @@
 
   // How well you know this word, and what you want it to say. The same control serves
   // the card, the list beside the text and the words page, so the three never drift.
+  // Setting a level from the keyboard, on whichever word the card is open for. Does the
+  // same as pressing the button: the card is rebuilt rather than patched, so every
+  // control in it agrees about which level is now set.
+  var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };
+
+  // How to set a level on the phrase card while it is open. A phrase is saved by its
+  // offsets into one sentence and a word by its lemma, so the two cards cannot share a
+  // path — they share the keys instead. Set by `showPick`, cleared when it closes.
+  var pickLevel = null;
+
+  // Hover is the browser's, and it does not let go until the pointer moves. Marking a
+  // word from the keyboard while the pointer rests on it left the word highlighted as
+  // though it were still being looked up — known, and still lit. Turn hover off for the
+  // page when a key changes a word, and give it back at the first move.
+  var hovering = true;
+
+  function stopHover() {
+    if (!hovering) return;
+    hovering = false;
+    body.classList.add("no-hover");
+  }
+
+  document.addEventListener("mousemove", function () {
+    if (hovering) return;
+    hovering = true;
+    body.classList.remove("no-hover");
+  });
+
+  function markLookedUp(key) {
+    // Asked of the object's own keys: `KEYED_STATUS["constructor"]` is a function, and
+    // every other key on the page would have gone through this branch holding one.
+    if (!Object.prototype.hasOwnProperty.call(KEYED_STATUS, key)) return false;
+    var status = KEYED_STATUS[key];
+
+    // Whichever card is open. The word card wins if somehow both are.
+    if (lookedUp && card && !card.hidden) {
+      var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
+      if (!lemmas[index]) return false;
+      setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
+      stopHover();
+      var word = lookedUp;
+      redraw();
+      // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
+      // Find its replacement by lemma in the same sentence rather than holding a
+      // reference to a node that is no longer in the page.
+      var pair = word.closest ? word.closest(".pair") : null;
+      var again =
+        pair && pair.parentNode
+          ? pair.querySelector('.w[data-lemma="' + index + '"]')
+          : null;
+      if (again) showCard(again);
+      else hideCard();
+      return true;
+    }
+
+    if (pickLevel && chip && !chip.hidden) {
+      stopHover();
+      pickLevel(status);
+      return true;
+    }
+    return false;
+  }
+
   function statusRow(index, surface, band) {
     var lemma = lemmas[index];
     return TargumVocab.editor({
@@ -1012,6 +1306,7 @@
       card.appendChild(caveat);
     }
     card.hidden = false;
+    placeNear(card, word.getBoundingClientRect());
   }
 
   /* --- keeping a phrase ---------------------------------------------------- */
@@ -1095,26 +1390,46 @@
     return touching.length === 1 ? touching[0] : null;
   }
 
-  function place(rect) {
-    chip.hidden = false;
-    chip.style.translate = "0 0";
-    chip.style.transform = "none";
-    chip.style.left = "0px";
-    chip.style.top = "0px";
+  // A card next to the thing it is about. The word card used to sit pinned to the
+  // bottom of the window wherever you tapped, so marking a word in the first line meant
+  // crossing the whole page to press a button about it, and again to come back.
+  function placeNear(element, rect) {
+    element.hidden = false;
+    element.style.translate = "0 0";
+    element.style.transform = "none";
+    element.style.left = "0px";
+    element.style.top = "0px";
+    // Cleared before measuring, or the cap a previous word needed is still on and the
+    // card measures shorter than it is.
+    element.style.maxHeight = "";
 
-    var box = chip.getBoundingClientRect();
+    var box = element.getBoundingClientRect();
 
-    // Centred on the selection but kept inside the window. A selection near the edge
-    // of an RTL page is at the right, and a card centred on it would hang off it.
+    // Centred on the word but kept inside the window. A word near the edge of an RTL
+    // page is at the right, and a card centred on it would hang off it.
     var wanted = rect.left + rect.width / 2 - box.width / 2;
     var limit = window.innerWidth - box.width - 12;
-    chip.style.left = Math.max(12, Math.min(wanted, limit)) + window.scrollX + "px";
+    element.style.left = Math.max(12, Math.min(wanted, limit)) + window.scrollX + "px";
 
-    // Above the selection where there is room, below it where there is not. A card
-    // for a phrase near the top of the page would otherwise be cut off by the window.
-    var above = rect.top - box.height - 8;
-    var top = above >= 8 ? above : rect.bottom + 8;
-    chip.style.top = top + window.scrollY + "px";
+    // Below where there is room, above where there is not — and never over the word
+    // itself, which is the one thing you are looking at while you decide.
+    //
+    // A long card — a verb with a root, a note, a caveat — can be taller than either
+    // side of a word in the middle of the window. Growing upwards from a floor of 8px
+    // is what used to put it back over the word. It takes the roomier side instead and
+    // scrolls inside whatever that side has.
+    var under = window.innerHeight - rect.bottom - 8 - 12;
+    var over = rect.top - 8 - 12;
+    var below = box.height <= under || under >= over;
+    var room = Math.max(below ? under : over, 0);
+    if (box.height > room) element.style.maxHeight = room + "px";
+    var height = Math.min(box.height, room);
+    var top = below ? rect.bottom + 8 : rect.top - 8 - height;
+    element.style.top = top + window.scrollY + "px";
+  }
+
+  function place(rect) {
+    placeNear(chip, rect);
   }
 
   // Whether the selection is the whole sentence, give or take the whitespace at its
@@ -1200,25 +1515,33 @@
       return pick;
     }
 
-    return TargumVocab.editor({
-      status: pick ? pick.status : undefined,
-      note: pick ? pick.note || "" : "",
-      placeholder: "Your own reading",
-      onStatus: function (value) {
-        var item = ensure();
-        if (value !== null) item.status = value;
-        stamp(item);
-        remember();
-        redraw();
-      },
-      onNote: function (text) {
-        var item = ensure();
-        item.note = text;
-        stamp(item);
-        remember();
-        redraw();
-      },
-    });
+    // The element and the doing, separately: the keys set a level on the open card, and
+    // a phrase is saved by offsets into one sentence rather than by lemma, so they
+    // cannot share the word's path.
+    function apply(value) {
+      var item = ensure();
+      if (value !== null) item.status = value;
+      stamp(item);
+      remember();
+      redraw();
+    }
+
+    return {
+      element: TargumVocab.editor({
+        status: pick ? pick.status : undefined,
+        note: pick ? pick.note || "" : "",
+        placeholder: "Your own reading",
+        onStatus: apply,
+        onNote: function (text) {
+          var item = ensure();
+          item.note = text;
+          stamp(item);
+          remember();
+          redraw();
+        },
+      }),
+      apply: apply,
+    };
   }
 
   // Pressing the mouse down on the card must not count as starting a new selection.
@@ -1237,9 +1560,16 @@
     var picked = currentSelection();
     if (!picked || !picked.text) {
       chip.hidden = true;
+      pickLevel = null;
       return;
     }
+    showPick(picked);
+  });
 
+  // Built as a function rather than inline in the handler, because setting a level from
+  // the keyboard has to draw the card again to show which one is now set — the editor
+  // reads its pressed state once, when it is made.
+  function showPick(picked) {
     var token = soleToken(picked);
     if (token) {
       var index = token[4];
@@ -1247,13 +1577,19 @@
       // Dragging across one word is not a phrase, whatever the gesture was. It gets the
       // word's own card, with the same scale and the same field as tapping it.
       var surface = segmentText(picked.segmentId).slice(token[0], token[1]);
+      var band = levelNames[token[2]] || "";
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",
         note: lemma && lemma !== surface ? "dictionary form " + lemma : "",
-        editor: statusRow(index, surface, levelNames[token[2]] || ""),
+        editor: statusRow(index, surface, band),
       });
       place(picked.rect);
+      pickLevel = function (status) {
+        setStatus(index, surface, band, status);
+        redraw();
+        showPick(picked);
+      };
       return;
     }
 
@@ -1267,6 +1603,7 @@
     // The whole sentence has a translation already; a part of one does not.
     var whole = coversSegment(picked);
     var reading = whole ? translationFor(picked.segmentId) : wordByWord(picked);
+    var editing = phraseEditor(picked, existing, reading);
     pickCard({
       title: picked.text,
       reading: reading,
@@ -1275,7 +1612,7 @@
         : reading
           ? "word by word — the sentence is in parallel"
           : "",
-      editor: phraseEditor(picked, existing, reading),
+      editor: editing.element,
       action: existing > -1 ? "take it off the list" : "",
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
@@ -1299,11 +1636,16 @@
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
         chip.hidden = true;
+        pickLevel = null;
         redraw();
       },
     });
     place(picked.rect);
-  });
+    pickLevel = function (status) {
+      editing.apply(status);
+      showPick(picked);
+    };
+  }
 
   /* --- export -------------------------------------------------------------- */
 
@@ -1455,16 +1797,22 @@
   }
 
   window.addEventListener("resize", placeSlide);
+  window.addEventListener("scroll", catchUp, { passive: true });
+  // A wider window shows pairs that were not on screen a moment ago.
+  window.addEventListener("resize", catchUp);
 
   // Vowel points off by default, in every text. A pointed source is shown bare until
   // asked otherwise, which is the same offer made to an unpointed one.
   function applyNikkud() {
     if (prefs.nikkudBy && documentId) prefs.nikkudBy[documentId] = !!prefs.nikkud;
     body.classList.toggle("nikkud", !!prefs.nikkud);
-    Array.prototype.forEach.call(document.querySelectorAll("[data-nikkud]"), function (button) {
-      var on = button.getAttribute("data-nikkud") === "on";
-      button.classList.toggle("on", on === !!prefs.nikkud);
-    });
+    Array.prototype.forEach.call(
+      document.querySelectorAll("[data-nikkud-toggle]"),
+      function (button) {
+        button.classList.toggle("on", !!prefs.nikkud);
+        button.setAttribute("aria-pressed", prefs.nikkud ? "true" : "false");
+      }
+    );
     hideCard();
     redraw();
   }
@@ -1535,6 +1883,12 @@
         showKeys(keysCard ? keysCard.hidden : false);
         return;
       }
+      if (button.hasAttribute("data-marking")) {
+        prefs.marking = !prefs.marking;
+        applyMarking();
+        save();
+        return;
+      }
       var mode = button.getAttribute("data-mode");
       if (mode) {
         if (mode === prefs.mode) return;
@@ -1544,9 +1898,8 @@
         save();
         return;
       }
-      var nikkud = button.getAttribute("data-nikkud");
-      if (nikkud) {
-        prefs.nikkud = nikkud === "on";
+      if (button.hasAttribute("data-nikkud-toggle")) {
+        prefs.nikkud = !prefs.nikkud;
         applyNikkud();
         save();
         return;
@@ -1563,7 +1916,9 @@
       return;
     }
 
-    // A word answers the same way whichever mode you are reading in.
+    // A word answers the same way whichever mode you are in. Marking changes what the
+    // page shows you, never what it lets you do — you have to be able to mark a word to
+    // clear it, and the whole point of the mode is clearing them.
     var word = event.target.closest ? event.target.closest(".w") : null;
     if (word) {
       showCard(word);
@@ -1591,6 +1946,14 @@
   document.addEventListener("keydown", function (event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
+
+    // While a word card is open the number and letter keys belong to it. `k` and `i`
+    // already mean previous-sentence and interlinear, and they still do the moment the
+    // card is closed — the card is the only thing that borrows them.
+    if (markLookedUp(event.key)) {
+      event.preventDefault();
+      return;
+    }
 
     switch (event.key) {
       case "ArrowDown":
@@ -1625,6 +1988,15 @@
         settle();
         save();
         return;
+      case "t":
+        // Not stored and not a preference: a question you ask once.
+        showTimings(!readout || readout.hidden);
+        return;
+      case "m":
+        prefs.marking = !prefs.marking;
+        applyMarking();
+        save();
+        return;
       case "s":
         if (listBox) showList(!!listBox.hidden);
         return;
@@ -1651,21 +2023,22 @@
   // straight off the disk has no library page behind it, and the key it was served
   // with is the one it carries in its own address.
   var home = document.getElementById("home");
-  if (home) {
-    if (served && passKey) {
-      // The link says Library, so it goes to the library — not the start page.
-      home.href = keyed("/");
-      home.hidden = false;
-      // Section-to-section links are relative and would drop the key, and with it
-      // access: the next chapter would answer 403.
-      var carried = document.querySelectorAll(".pager a, .bar-title .up");
-      Array.prototype.forEach.call(carried, function (link) {
-        var href = link.getAttribute("href");
-        if (href && href.indexOf("?") === -1) {
-          link.setAttribute("href", keyed(href));
-        }
-      });
-    }
+  var homePlain = document.getElementById("home-plain");
+  if (home && served) {
+    home.href = keyed("/");
+    home.hidden = false;
+    // Two drawings of the same mark, one a link and one not, so a reader opened off the
+    // disk shows the mark rather than a link to nowhere.
+    if (homePlain) homePlain.hidden = true;
+    // Section-to-section links are relative and would drop the key, and with it access:
+    // the next chapter would answer 403. No key hosted, where `keyed` is the identity.
+    var carried = document.querySelectorAll(".pager a, .bar-title .up");
+    Array.prototype.forEach.call(carried, function (link) {
+      var href = link.getAttribute("href");
+      if (href && href.indexOf("?") === -1) {
+        link.setAttribute("href", keyed(href));
+      }
+    });
   }
 
   /* --- word meanings, once they arrive ------------------------------------- */
@@ -1760,8 +2133,21 @@
     setTimeout(ask, wait);
   }
 
+  if (timing) {
+    requestAnimationFrame(function () {
+      took(
+        "first frame — " +
+          document.querySelectorAll(".w").length +
+          " words drawn, " +
+          document.querySelectorAll(".w[data-status]").length +
+          " of them marked"
+      );
+    });
+  }
+
   applyType();
   applyMode();
+  applyMarking();
   showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
   // leaving it set would hide every sentence on the page.
@@ -1772,8 +2158,10 @@
     prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
   }
   applyNikkud();
+  took("marks drawn on what is on screen");
   showTab(prefs.listTab);
   waitForMeanings();
+  took("reader.js finished; the browser now lays the page out");
 
   /* --- the account, if there is one ----------------------------------------- */
 
@@ -1784,10 +2172,12 @@
   // something actually arrived.
   if (served && window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
+      took("the account answered" + (changed ? "" : ", with nothing new"));
       if (!changed) return;
       vocab = read(VOCAB, "{}");
       picks = read(PICKED, "{}");
       redraw();
+      took("marks redrawn from the account");
     });
     window.TargumSync.start();
   }
@@ -1807,8 +2197,20 @@
 
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
-  var key = passKey;
+  // Its own, because this is its own scope: it read `passKey` and called `keyed` across
+  // the boundary, and neither was ever in reach.
+  var key = new URLSearchParams(location.search).get("k");
   if (!link || !key) return;
+
+  function keyed(path) {
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    head["X-Targum-Key"] = key;
+    return head;
+  }
 
   // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
   // the build are both called "reader", so it is the *last* one the name sits before.

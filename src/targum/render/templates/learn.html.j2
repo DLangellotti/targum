@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 {#- `words` as well as `learn`, because the chart palette (--step-1..4) is defined on
@@ -51,8 +51,8 @@
   <section class="panel elsewhere">
     <h2>Something new</h2>
     <p class="note">
-      <a href="/library" data-shelf="beit-midrash">The Beit Midrash</a> for Tanakh, the
-      <a href="/library" data-shelf="library">Library</a> for everything else.
+      Tanakh, novels, essays — the <a href="/library">Library</a> has them all,
+      translated and free.
     </p>
   </section>
 
@@ -65,11 +65,10 @@
 </main>
 
 {#- The first thing a new reader sees, so it is the onboarding now. It points at the
-    shelves rather than at the upload form, which is the whole change. -#}
+    Library rather than at the upload form, which is the whole change. -#}
 <section class="nothing" id="nothing" hidden>
   <p class="lede">Nothing here yet.</p>
-  <p>Pick something from the <a href="/library">Library</a> or the
-    <a href="/library" data-shelf="beit-midrash">Beit Midrash</a> — both are free.</p>
+  <p>Pick something from the <a href="/library">Library</a> — it is free.</p>
   <p class="hint">Or <a href="/add">add a text of your own</a>.</p>
 </section>
 
@@ -79,10 +78,12 @@
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 </script>
+<script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 </body>
 </html>

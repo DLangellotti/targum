@@ -273,7 +273,7 @@
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
       // has its own page now, so the button can go where it says it goes.
-      window.location.href = keyed("/" + entry.shelf + "/" + entry.id);
+      window.location.href = keyed("/library/" + entry.id);
     };
     row.appendChild(go);
     var anyway = document.createElement("button");

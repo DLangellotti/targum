@@ -32,7 +32,7 @@ def _flatten(text: str) -> str:
 class MarkdownIngester:
     # Bump this whenever the blocks this produces change. It is what tells a rerun
     # that an old document.json is stale rather than hand-edited.
-    name = "markdown/4"
+    name = "markdown/5"
 
     def load(self, source: str) -> Document:
         path = Path(source)

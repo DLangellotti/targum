@@ -27,7 +27,7 @@
   <ul class="texts">
     {%- for entry in entries %}
     <li>
-      <a href="/{{ entry.shelf.value }}/{{ entry.id }}">
+      <a href="/library/{{ entry.id }}">
         <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
       </a>
       <span class="byline">{{ entry.author }}</span>
@@ -39,10 +39,6 @@
   {#- Said plainly rather than dressed up. An empty shelf that pretends otherwise is
       worse than one that admits it, and this one fills up shortly. -#}
   <p class="empty">Nothing here yet.</p>
-  {%- endif %}
-
-  {%- if other %}
-  <p class="elsewhere">Also: <a href="/{{ other.value }}">{{ other_name }}</a></p>
   {%- endif %}
 </main>
 

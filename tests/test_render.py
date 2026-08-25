@@ -489,11 +489,16 @@ def test_the_words_page_stands_on_its_own() -> None:
     assert 'id="growth"' in html  # kept over time
     assert 'id="bands"' in html  # how common they are
 
-    script = (ASSETS / "words.js").read_text(encoding="utf-8")
-    # The same three stores the reader writes, and no fourth copy of anything.
+    # The same three stores the reader writes, and no fourth copy of anything. The
+    # reading of them lives in charts.js, because Learn draws the same numbers from the
+    # same shape and a second collector is the one that stops matching.
+    script = (ASSETS / "charts.js").read_text(encoding="utf-8")
     assert '"targum:vocab:"' in script
     assert '"targum:picked:"' in script
     assert '"targum:docs"' in script
+    for page in ("words.js", "learn.js"):
+        source = (ASSETS / page).read_text(encoding="utf-8")
+        assert "function collect(" not in source, f"{page} should share the collector"
 
     css = (ASSETS / "words.css").read_text(encoding="utf-8")
     # One ordered ramp, stepped for each surface rather than flipped: on paper the
@@ -771,7 +776,9 @@ def test_both_forms_are_rendered_and_only_the_bare_one_shows(tmp_path: Path) -> 
     body_class = re.search(r'<body class="([^"]*)"', html)
     assert body_class is not None and "nikkud" not in body_class.group(1)
     controls = html.split("<header", 1)[1].split("</header>", 1)[0]
-    assert 'data-nikkud="on"' in controls
+    # One button that is on or off, not two to choose between: a switch, not a scale.
+    assert "data-nikkud-toggle" in controls
+    assert controls.count("data-nikkud") == 1
 
 
 def test_the_pointed_cell_differs_from_the_bare_one_only_by_its_marks(tmp_path: Path) -> None:
@@ -887,19 +894,24 @@ def test_the_reader_agrees_with_python_on_what_a_mark_is() -> None:
     assert sorted(json.loads(result.stdout)) == sorted(MARKS)
 
 
-def test_the_catalogue_pairs_a_text_with_a_published_translation() -> None:
-    """The catalogue is the cheap half of targum: a text somebody has already translated.
+def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
+    """The catalogue is the cheap half of targum, and there are two ways to be cheap.
 
-    Building one asks no model for anything, so every entry has to actually carry a
-    translation. Wikisource is full of index pages that look like texts, which is why
-    entries are checked by fetching before they are written down.
+    Most entries carry a `Rendering`: somebody published a translation, and a build asks
+    no model for anything. The rest were translated once, by us, and paid for once — free
+    to the second reader because public sources share a cache. That only holds if the
+    build names the model the first one used, since the key is keyed on it. So an entry
+    has to be one or the other, and never neither: neither means every reader pays.
+
+    Words are checked because Wikisource is full of index pages that look like texts.
     """
     from targum.catalogue import CATALOGUE, by_id
     from targum.render.builder import library_page
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
-        assert entry.translations, entry.id
+        assert entry.translations or entry.model, f"{entry.id} would cost a reader money"
+        assert not (entry.translations and entry.model), f"{entry.id} claims to be both"
         assert entry.words > 100, entry.id  # an index page, not a text
         assert by_id(entry.id) is entry
 
@@ -912,7 +924,19 @@ def test_the_catalogue_pairs_a_text_with_a_published_translation() -> None:
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title
         assert sent["language"] == entry.language
-        assert sent["translations"], entry.id
+        assert sent["translations"] == [
+            {
+                "name": t.name,
+                "source": t.source,
+                "note": t.note,
+                "publisher": t.publisher,
+                "licence": t.licence,
+            }
+            for t in entry.translations
+        ], entry.id
+        # The model is not the browser's business, and asking for one would be a way to
+        # spend somebody else's money. The server reads it back from the catalogue.
+        assert "model" not in sent, entry.id
 
 
 def test_a_catalogued_source_is_recognised_however_it_is_typed() -> None:
@@ -1029,7 +1053,11 @@ def test_the_way_back_goes_to_learn(tmp_path: Path) -> None:
     contents, section = render(document, segmented, [translation], tmp_path / "reader")[:2]
     for page in (contents, section):
         html = page.read_text(encoding="utf-8")
-        assert '<a class="home" id="home" href="/" hidden>Learn</a>' in html
+        # The mark in the corner is the way back — the oldest convention there is, and
+        # it was sitting inert beside a link that said the same thing.
+        assert '<a class="bar-brand" id="home" href="/"' in html
+        assert 'title="Your Learn page"' in html
+        assert ">Learn</a>" not in html, "the word beside it said it twice"
         assert '"/library"' not in html, "the way out is not the catalogue any more"
 
 
@@ -1114,3 +1142,721 @@ def test_the_activity_shading_never_rounds_an_empty_day_up() -> None:
 
     source = (Path(builder.__file__)).read_text(encoding="utf-8")
     assert "if not count or not busiest:" in source
+
+
+def test_a_pair_is_not_separated_by_a_blank_line() -> None:
+    """The gap between pairs used to be a whole line of empty space.
+
+    §5 of the guidelines sets reading at 1.0625rem with leading 1.95 on Hebrew, so a
+    Hebrew line is about 2.07rem. `.pair` carried 1.35rem of margin plus the 0.35rem of
+    padding on each side of it, which comes to 2.05rem — a paragraph break spent between
+    every sentence, and between every verse of a chapter.
+
+    Pinned as a fraction of a line rather than as a number, because the number only means
+    anything against the leading.
+    """
+    from targum.render.builder import ASSETS
+
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    line = 1.0625 * 1.95  # a Hebrew line, per §5
+
+    def gap(*blocks: str) -> float:
+        """The space between two pairs: the margin, plus the padding on each side of it.
+
+        Read rather than assumed, because the padding turned out to be most of the
+        answer — cutting the margin alone still left a visible step between one-line
+        pesukim, and no amount of margin-tuning could close it.
+        """
+        margin, padding = 1.35, 0.35
+        for block in blocks:
+            rules = css.split(block, 1)[1].split("}", 1)[0]
+            if found := re.search(r"margin-block-end:\s*([\d.]+)rem", rules):
+                margin = float(found.group(1))
+            if found := re.search(r"padding(?:-block)?:\s*([\d.]+)rem", rules):
+                padding = float(found.group(1))
+        return margin + padding * 2
+
+    prose = gap(".pair {\n")
+    assert prose < line * 0.6, "a paragraph break, not a blank line"
+
+    # A verse is not a paragraph. Spacing pesukim apart makes a chapter read as a list.
+    verses = gap(".pair {\n", "body.verses .pair {")
+    assert verses < prose, "tighter again where a pair is one pasuk"
+
+    # And with the translation hidden there is no pairing left for the space to serve,
+    # so it goes almost entirely: one-line verses should run as continuous text.
+    alone = gap(".pair {\n", "body.verses .pair {", ".mode-source .pair { margin")
+    assert alone < verses
+    assert alone < line * 0.2, "source-only should read as a chapter, not as a list"
+
+
+def test_only_a_verse_text_is_spaced_like_verses() -> None:
+    """Asked of the source rather than guessed from the content — the same way
+    `biblical.for_source()` picks the difficulty bands, and for the same reason."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "{% if verse_by_verse %} verses{% endif %}" in template
+
+    builder = (Path(__file__).resolve().parents[1] / "src/targum/render/builder.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"verse_by_verse": document.source.startswith("sefaria:")' in builder
+
+
+# -- reading, or marking ---------------------------------------------------------
+
+
+def _reader_css() -> str:
+    from targum.render.builder import ASSETS
+
+    return (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+
+def test_marking_is_what_a_text_opens_in() -> None:
+    """It was off for a day, on the argument that a page covered in marks is a worksheet.
+    A reader who has to find a key before the product does its one distinctive thing has
+    to know the key is there; the quiet page is one keystroke away and the choice sticks.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    prefs = script[script.index("var prefs = {") : script.index("try {", script.index("var prefs"))]
+    assert re.search(r"\bmarking:\s*true\b", prefs), "marking is the default"
+    assert "mark: true" not in prefs, "the old half-measure is gone"
+
+
+def test_the_marking_class_is_not_one_applymode_eats() -> None:
+    """`applyMode()` strips every `mode-*` token off body.className to swap the reading
+    mode. A marking class named `mode-…` would vanish the first time somebody pressed
+    p, o or i — silently, and only for people who use those keys."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'classList.toggle("marking"' in script
+    assert 'classList.toggle("mode-marking"' not in script
+    stripper = re.search(r"body\.className\.replace\((/[^)]+/g)", script)
+    assert stripper is not None, "applyMode no longer strips the way this test reads it"
+    assert re.match(stripper.group(1)[1:-2], "marking") is None
+
+
+def test_nothing_about_reading_mode_can_reflow_the_page() -> None:
+    """Switching must not rebreak a line. Every rule that differs between the two modes
+    is a paint property, so the boxes are identical and the text cannot move."""
+    css = _reader_css()
+    block = css[css.index(".w { border-radius") : css.index("/* --- what a word means")]
+    allowed = {"border-radius", "cursor", "background", "box-shadow"}
+
+    # Parsed by declaration block rather than by line: these rules are written one to a
+    # line as often as not, and an anchored regex silently skips those — which would let
+    # exactly the property this test exists to catch through.
+    seen = []
+    for chunk in re.findall(r"\{([^}]*)\}", block):
+        for declaration in chunk.split(";"):
+            name = declaration.split(":", 1)[0].strip()
+            if name:
+                seen.append(name)
+    assert len(seen) >= 6, "the rules moved; this is reading the wrong slice"
+    for prop in seen:
+        assert prop in allowed, f"{prop} changes a box, so switching modes would reflow"
+
+
+def test_a_word_is_markable_in_both_modes() -> None:
+    """Marking changes what the page shows you, never what it lets you do.
+
+    You have to be able to mark a word in order to clear it, and clearing them is the
+    whole point of the mode — so gating the card on the mode would make the mode
+    impossible to get out of.
+    """
+    css = _reader_css()
+    assert ".w { border-radius: 4px; cursor: pointer; }" in css, "tappable either way"
+    assert "body.marking .w { cursor" not in css
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    handler = script[script.index("/* --- clicks ---") : script.index("/* --- keyboard ---")]
+    assert "prefs.marking &&" not in handler, "a tap opens the card in either mode"
+    picking = script[script.index('document.addEventListener("mouseup"') :][:600]
+    assert "prefs.marking" not in picking, "so does a selection"
+
+
+def test_a_word_you_have_never_marked_is_the_loudest_thing_on_the_page() -> None:
+    """The point of the mode: everything you do not know starts lit, and you put it out
+    by marking it. A scale that only began once you had already said something told you
+    nothing about the words you had not.
+    """
+    css = _reader_css()
+    assert "body.marking .w:not([data-status])" in css, "never-marked words carry the top step"
+
+    # One hue, and monotone down the scale, or it does not read as one scale.
+    def wash(selector: str) -> int:
+        rules = css.split(selector, 1)[1].split("}", 1)[0]
+        found = re.search(r"background:.*?var\(--accent\) (\d+)%", rules)
+        return int(found.group(1)) if found else 0
+
+    fresh = wash("body.marking .w:not([data-status])")
+    one = wash('body.marking .w[data-status="1"]')
+    two = wash('body.marking .w[data-status="2"]')
+    assert fresh > one > two > 0, "saying anything about a word must make it quieter"
+    # §4 caps the accent wash at 22%.
+    assert fresh <= 22 and two >= 12, "every step stays inside the sanctioned wash range"
+
+    # Known and ignored take no wash at all — the page empties as you learn it.
+    assert 'body.marking .w[data-status="9"]' not in css
+    assert 'body.marking .w[data-status="0"]' not in css
+
+
+def test_the_words_are_wrapped_in_both_modes_so_copying_is_the_same() -> None:
+    """The spans are what a status hangs off, and they stay in the page either way —
+    reading mode is CSS. If it ever became a re-render, the copied string would differ
+    between modes and nothing would say so.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    body = script[script.index("function markSegment(cell)") : script.index("function redraw()")]
+    assert "prefs.marking" not in body, "marking up must not depend on the mode"
+
+
+def test_the_shortcut_is_listed_like_every_other_one() -> None:
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>m</dt>" in template
+    assert "data-marking" in template
+
+
+# -- how much of this you can already read ----------------------------------------
+
+
+def test_the_header_counts_the_words_here_and_the_knowing_everywhere() -> None:
+    """Words are kept per language, so a word first met in another text already counts
+    the moment you open this one. That is what makes the number answer "how hard is this
+    for me" rather than "how far through this text am I"."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    # coverage() walks lemmasHere() — this text — and asks statusOf(), which reads the
+    # language-wide store. Both halves come from that one call.
+    assert "var counts = coverage();" in stats
+    assert "counts.known" in stats
+
+
+def test_ignored_words_leave_the_total_rather_than_counting_as_known() -> None:
+    """Ignore means "this is not vocabulary" — a name, a numeral, a word from another
+    language. Counting it as known would make the figure one you could raise by ignoring
+    things, which is not what the label claims.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var scored = counts.total - counts.ignored;" in script
+    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    assert "counts.known + counts.ignored" not in stats
+
+
+def test_a_text_with_no_words_shows_no_count() -> None:
+    """ "0 of 0 known" is worse than saying nothing. Some builds carry no annotation."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "headerKnown.hidden = !scored;" in script
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert '<span class="known" id="known" hidden></span>' in template
+
+
+def test_the_known_count_reads_the_same_way_on_a_hebrew_page() -> None:
+    """`.bar-title` takes the page's direction, so on a Hebrew text this line came out
+    "of 142 known 0" — an English phrase reordered around its own numbers."""
+    css = _reader_css()
+    rules = css.split(".bar-title .known {", 1)[1].split("}", 1)[0]
+    assert "direction: ltr" in rules
+    assert "unicode-bidi: isolate" in rules
+
+
+def test_a_word_card_opens_beside_its_word() -> None:
+    """It was pinned to the foot of the window wherever you tapped, so marking a word in
+    the first line meant crossing the page to press a button about it and crossing back.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "placeNear(card, word.getBoundingClientRect());" in script
+    # The phrase card already did this; one placer now, so the two cannot drift.
+    assert script.count("function placeNear(") == 1
+    assert "placeNear(chip, rect)" in script
+
+    css = _reader_css()
+    rules = css.split(".gloss-card {", 1)[1].split("}", 1)[0]
+    assert "position: absolute" in rules, "it has to scroll with the word"
+    assert "inset-block-end" not in rules, "no longer pinned to the window"
+
+
+def test_the_level_keys_only_borrow_the_letters_while_a_card_is_open() -> None:
+    """`k` is previous-sentence and `i` is interlinear. Taking them outright would break
+    two shortcuts that have nothing to do with words; the card borrows them and gives
+    them straight back."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    # Only ever while one of the two cards is up.
+    assert "if (lookedUp && card && !card.hidden) {" in script, "the word card"
+    assert "if (pickLevel && chip && !chip.hidden) {" in script, "and the phrase card"
+    # And the letters still do their old job, which is only true if the switch is intact.
+    keys = script[script.index("switch (event.key) {") :]
+    assert 'case "k":' in keys and 'case "i":' in keys
+
+    # A bare lookup would treat "constructor" as a level.
+    assert "hasOwnProperty.call(KEYED_STATUS, key)" in script
+
+
+def test_the_level_keys_are_written_down() -> None:
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>1 2 3</dt>" in template
+    assert "known, or ignore it" in template
+
+
+def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
+    """Same keys, different saving: a word is filed by lemma and travels between texts,
+    a phrase is offsets into one sentence and stays with it. The two cards share the
+    keys rather than the path.
+
+    The card is drawn again afterwards because `TargumVocab.editor` reads its pressed
+    state once, when it is built — without that, the level would be saved and the button
+    would go on looking unpressed.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function showPick(picked)" in script, "rebuildable, so the card can restate"
+    body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
+    assert body.count("showPick(picked);") == 2, "each redraws it"
+    # And it stops being live the moment the card goes: both places that hide the card
+    # clear it, or the keys would go on marking a phrase you can no longer see.
+    hides = [line for line in script.splitlines() if "chip.hidden = true;" in line]
+    assert len(hides) == 2
+    for spot in (
+        "chip.hidden = true;\n      pickLevel = null;",
+        "chip.hidden = true;\n        pickLevel = null;",
+    ):
+        assert spot in script, spot
+
+
+def test_the_page_marks_what_you_are_looking_at_first() -> None:
+    """Marking a pair turns a few text nodes into hundreds of inline spans, and doing the
+    whole chapter before the browser paints means every line of Hebrew is re-shaped
+    before the first mark can be seen. The work is the same; the order is not.
+
+    Measured on a 400-pair chapter: marks on screen at 60ms, against 330ms to mark the
+    page — and the 330ms is a headless browser with no fonts to shape and no display.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
+    assert "ordered.slice(0, AHEAD).forEach(markPair);" in redraw, "a screenful, now"
+    assert "markVisible();" in redraw, "the rest of the screen once it is laid out"
+    # Ordered from the pair you are looking at, not from the top of the document.
+    assert "pairs.slice(first).concat(pairs.slice(0, first))" in redraw
+
+
+def test_the_marking_pass_cannot_run_twice_over_itself() -> None:
+    """A redraw while a fill is in flight, a scroll that reaches a pair the fill has not,
+    and a scroll frame over a pair already done — all three arrive at the same pair.
+    Marking rebuilds the cell from scratch, so doing it twice is wasted work and doing it
+    from two passes at once would interleave them.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "if (generation !== pending) return;" in script, "an old fill abandons itself"
+    assert "if (pair.__targumDrawn === pending) return;" in script, "and a pair is done once"
+
+
+def test_lazy_marking_degrades_rather_than_breaks() -> None:
+    """The reader's standing rule. With no requestAnimationFrame the whole page is marked
+    at once, which is what it always did."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
+    assert "if (!window.requestAnimationFrame) {" in redraw
+    assert "ordered.forEach(markPair);" in redraw, "everything, immediately, as before"
+
+
+def test_no_count_on_the_page_reads_the_dom() -> None:
+    """What makes lazy marking safe. If any figure were counted from the spans, drawing
+    fewer of them would quietly change what the reader is told."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    for name in ("function lemmasHere()", "function coverage()", "function wordEntries()"):
+        body = script[script.index(name) :]
+        body = body[: body.index("\n  }\n")]
+        assert "querySelector" not in body, f"{name} must not count spans"
+        assert "getElementsBy" not in body, f"{name} must not count spans"
+
+
+def test_a_reader_can_be_asked_where_the_time_went() -> None:
+    """A page that felt slow measured fast everywhere it could be measured. Guessing at
+    that is how the wrong thing gets optimised."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    # Matched on the raw address, not parsed: a reader already carries a key in its
+    # query, so `?debug=timing` appended to it makes a second `?` and a parser reads the
+    # whole lot as the key. The switch then does nothing, silently.
+    assert 'indexOf("debug=timing") >= 0' in script
+    assert "location.search + location.hash" in script
+    assert "var began = performance.now();" in script
+    # And through a key, because asking for it through the address failed twice: a
+    # reader already carries a key in its query, so `?debug=timing` on the end makes a
+    # second `?`. A diagnostic whose address must be hand-edited is one that does not
+    # work when it is needed.
+    assert 'case "t":' in script
+    assert "showTimings(!readout || readout.hidden)" in script
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>t</dt>" in template, "and it is written down like every other key"
+    # Measured from the top of the file, or it is measuring the wrong span.
+    assert script.index("var began") < script.index("function markSegment")
+    # Recorded always, shown only when asked. Four numbers and a string cost nothing to
+    # keep, and a diagnostic that has to be switched on before the thing goes wrong is
+    # one you never have when it does.
+    took = script[script.index("function took(what)") :]
+    took = took[: took.index("\n  }")]
+    assert "timings.push(" in took
+    assert "if (timing) showTimings(true);" in took, "and shown at once if asked up front"
+
+
+def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
+    """`prefs` loads stored values over the defaults, so a preference already in a
+    browser beats a new default forever — which means a default can only be changed for
+    somebody who has not got one. A day after shipping, that is nobody.
+
+    Marking was shipped off, then changed to on, and the second change reached no one who
+    had already opened a reader. The generation stamp is what makes a default changeable.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "var DEFAULTS = 2;" in script
+    assert "var RESET = { marking: true };" in script
+    assert "if ((prefs.defaults || 0) < DEFAULTS) {" in script
+    # Stored, or it re-applies on every load and the reader can never turn it off.
+    reset = script[script.index("if ((prefs.defaults || 0) < DEFAULTS) {") :][:300]
+    assert "prefs.defaults = DEFAULTS;" in reset
+    assert "save();" in reset
+    # And `defaults` has to be a known key, or the stored value is discarded on load.
+    prefs = script[script.index("var prefs = {") : script.index("var DEFAULTS")]
+    assert "defaults: 0," in prefs
+
+
+def test_the_page_is_never_marked_further_than_it_is_read() -> None:
+    """It used to fill the whole chapter in the background, a slice per frame. Measured
+    at 1,539ms on a real chapter in a real browser — work for text that was mostly never
+    looked at, competing with the scrolling of the text that was.
+
+    What is on screen is marked; scrolling marks what it reaches; the rest is never done.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function markOnward" not in script, "no background fill"
+    assert "PER_FRAME" not in script
+    # Scrolling and resizing are the two ways a pair arrives on screen.
+    assert 'window.addEventListener("scroll", catchUp, { passive: true });' in script
+    assert 'window.addEventListener("resize", catchUp);' in script
+    # And the walk stops at the first pair below the fold rather than crossing the rest.
+    visible = script[script.index("function markVisible()") :]
+    assert "break;" in visible[: visible.index("\n  }")]
+
+
+def test_hebrew_is_set_from_its_own_stack() -> None:
+    """The reader was never slow; the page could not be laid out.
+
+    §5 names Latin faces then Hebrew ones, and they were one stack — so every pointed
+    Hebrew cluster walked Iowan Old Style, Palatino Linotype, Palatino and Georgia before
+    reaching a face that could carry a letter with its marks. Measured on the Declaration:
+    901ms to first frame, against 5ms once Hebrew had a stack of its own. Hiding the
+    nikud fixed it too, which is what identified it.
+    """
+    css = _reader_css()
+    latin = css[css.index("--reading:") : css.index("--reading-hebrew")]
+    for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
+        assert face not in latin, f"{face} in the Latin stack is the whole cost"
+    hebrew = css[css.index("--reading-hebrew:") : css.index("--measure:")]
+    for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
+        assert face in hebrew, f"{face} is named by §5 and has to stay somewhere"
+    assert ":lang(he) { font-family: var(--reading-hebrew); }" in css
+
+
+def test_no_scope_reads_a_constant_from_another_one() -> None:
+    """`DAY` was declared in words.js and used in charts.js. Separate IIFEs, so the chart
+    kit threw `DAY is not defined` on any page that had words on it — the words page drew
+    nothing, and Learn's growth chart would have gone the same way.
+
+    Third of these in a day: `keyed`, `keyHeaders`, `DAY`. All the same shape — something
+    moved between files and left a name behind — and none is a syntax error, so
+    `node --check` is blind to them. This looks only for a name *declared in one scope and
+    read in another*, which is the shape itself rather than a guess at what is global.
+    """
+    from targum.render.builder import ASSETS
+
+    def scopes_of(source: str) -> list[str]:
+        parts = re.split(r"^\(function \(\) \{", source, flags=re.M)[1:]
+        out = []
+        for part in parts:
+            body = re.sub(r"/\*.*?\*/", "", part, flags=re.S)
+            out.append(re.sub(r"^\s*//.*$", "", body, flags=re.M))
+        return out
+
+    scoped: list[tuple[str, int, str]] = []
+    for path in sorted(ASSETS.glob("*.js")):
+        for n, body in enumerate(scopes_of(path.read_text(encoding="utf-8"))):
+            scoped.append((path.name, n + 1, body))
+
+    # Every SHOUTED constant, and the one scope that declares it.
+    declared: dict[str, tuple[str, int]] = {}
+    for name, n, body in scoped:
+        for const in re.findall(r"\bvar\s+([A-Z][A-Z0-9_]{2,})\s*=", body):
+            declared[const] = (name, n)
+
+    stray = []
+    for name, n, body in scoped:
+        mine = set(re.findall(r"\bvar\s+([A-Z][A-Z0-9_]{2,})\s*=", body))
+        for const, (owner, owner_scope) in declared.items():
+            if const in mine:
+                continue
+            # Read as a bare name, never as somebody's property.
+            if re.search(rf"(?<![.\w]){const}\b", body):
+                stray.append(
+                    f"{name} scope {n} reads {const}, declared in {owner} scope {owner_scope}"
+                )
+    assert not stray, "a constant crossed a scope:\n  " + "\n  ".join(sorted(stray))
+
+
+def test_every_scope_defines_the_helpers_it_calls() -> None:
+    """`keyed` and `keyHeaders` were called five times in reader.js and defined nowhere.
+
+    The first served page load threw `keyed is not defined` two milliseconds in, and
+    everything after it — the type size, the reading mode, the marking, the vowels, the
+    word list, the sync — never ran. It was invisible three ways: unreachable on a page
+    opened off the disk, silent in a console nobody had open, and indistinguishable from
+    slowness, because a reader that half-starts looks like a reader that is thinking.
+
+    Checked per IIFE, not per file: the next-chapter block is its own scope and was
+    reaching into the reader's for both of them.
+    """
+    from targum.render.builder import ASSETS
+
+    shared = ("keyed", "keyHeaders")
+    for path in sorted(ASSETS.glob("*.js")):
+        source = path.read_text(encoding="utf-8")
+        # Top-level IIFEs start at column zero; nothing else in these files does.
+        scopes = re.split(r"^\(function \(\) \{", source, flags=re.M)[1:] or [source]
+        for n, scope in enumerate(scopes):
+            body = re.sub(r"/\*.*?\*/", "", scope, flags=re.S)
+            body = re.sub(r"^\s*//.*$", "", body, flags=re.M)
+            for name in shared:
+                if re.search(rf"\b{name}\(", body) and f"function {name}(" not in body:
+                    raise AssertionError(f"{path.name} scope {n + 1} calls {name} without it")
+
+
+def _reader_controls(tmp_path: Path) -> str:
+    """The header of a rendered reader, which is where every control lives."""
+    segment = hebrew(0, BARE_TEXT)
+    html = render_with_vocalization(
+        tmp_path,
+        [segment],
+        vocalization_for([segment], {segment.id: POINTED_TEXT}, [segment.id]),
+    )
+    return html.split("<header", 1)[1].split("</header>", 1)[0]
+
+
+def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) -> None:
+    """§7: icons are line diagrams of what the thing does, not a library and not a word.
+    A control small enough to be a glyph needs the words on hover instead."""
+    controls = _reader_controls(tmp_path)
+    buttons = re.findall(r"<button\b.*?</button>", controls, re.S)
+
+    def control(marker: str) -> str:
+        found = [b for b in buttons if marker in b]
+        assert len(found) == 1, f"{marker}: expected one button, found {len(found)}"
+        return found[0]
+
+    vowels = control("data-nikkud-toggle")
+    assert "<svg" in vowels and ">Vowels<" not in vowels and ">No vowels<" not in vowels
+    assert "title=" in vowels, "the words move to the hover"
+    assert "aria-label=" in vowels, "and stay for anyone not hovering"
+
+    # The marking control only renders on a text that has words to mark, so it is read
+    # from the template rather than from a fixture built without annotation.
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
+    assert mark is not None
+    assert "<svg" in mark.group(0) and ">Mark<" not in mark.group(0)
+    assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
+
+
+def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None:
+    """It is a thing that is on or off. Two buttons made a scale out of it."""
+    controls = _reader_controls(tmp_path)
+    assert controls.count("data-nikkud") == 1
+    assert 'data-nikkud="on"' not in controls and 'data-nikkud="off"' not in controls
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "prefs.nikkud = !prefs.nikkud;" in script, "it toggles rather than being set"
+    assert 'aria-pressed", prefs.nikkud ? "true" : "false"' in script
+
+
+def test_the_mark_is_the_way_back(tmp_path: Path) -> None:
+    """The oldest convention on the web, and it was sitting inert beside a link that
+    said the same thing. Two drawings of it, so a reader opened off the disk shows a mark
+    rather than a link to nowhere."""
+    controls = _reader_controls(tmp_path)
+    assert '<a class="bar-brand" id="home" href="/"' in controls
+    assert 'id="home-plain"' in controls, "the unlinked one, for a page off the disk"
+    assert ">Learn</a>" not in controls, "the word beside it said it twice"
+
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "if (homePlain) homePlain.hidden = true;" in script
+    # A link wherever there is a Learn page, which hosted means without a key: there the
+    # cookie identifies the reader and `keyed` is the identity.
+    assert "if (home && served) {" in script
+
+
+def test_a_bought_text_names_the_model_that_makes_it_free() -> None:
+    """Public sources share a cache, so the second reader of a text targum translated
+    pays nothing — but the key is keyed on the model among other things, and a hosted
+    build asks for Sonnet. The prose canon was bought on Opus. Without this the whole
+    book would be translated again, per reader, silently.
+    """
+    from targum.catalogue import BOUGHT_WITH, CATALOGUE
+
+    bought = [e for e in CATALOGUE if e.model]
+    assert bought, "the prose canon is in the catalogue"
+    assert {e.model for e in bought} == {BOUGHT_WITH}, "one place says what bought them"
+
+    from targum.render.builder import ASSETS
+
+    server = (ASSETS.parents[1] / "serve.py").read_text(encoding="utf-8")
+    # Read from the catalogue, never from the request.
+    assert "entry = catalogue_module.matching(job.source)" in server
+    assert "model=(entry.model if entry and entry.model else HOSTED_MODEL)," in server
+    assert '"model"' not in server.split("def _builder")[1].split("def ")[1][:400]
+
+
+def test_the_upsell_only_fires_when_there_is_something_better() -> None:
+    """A bought text has no published translation to point at. Offering it as an
+    alternative to itself left the catalogue's own button unable to build it."""
+    from targum.render.builder import ASSETS
+
+    server = (ASSETS.parents[1] / "serve.py").read_text(encoding="utf-8")
+    assert "if already is not None and already.translations:" in server
+
+
+def test_a_bought_book_is_free_to_the_second_reader(tmp_path: Path) -> None:
+    """The whole argument for buying a text once: public sources share a cache.
+
+    It holds a translation under the exact run of segments it was asked for. Bought from
+    the command line a book is one run — the whole thing — and served it is bought a
+    chapter at a time, so a reader's build asked for a key that was never written and
+    paid again for a book already sitting on the disk. `targum warm` writes the
+    chapter-shaped keys from the English already bought.
+
+    Checked here on a book made up for the purpose, so it does not depend on what happens
+    to be in anybody's cache.
+    """
+    from targum.cache import Cache
+    from targum.models import BlockKind, Segment, SegmentedDocument
+    from targum.pipeline import Build
+    from targum.translate.base import Style
+
+    segments = []
+    for c in (1, 2):
+        segments.append(
+            Segment(
+                id=f"h{c}",
+                block_id=f"b{c}",
+                block_index=c,
+                index=len(segments),
+                text=f"Chapter {c}",
+                kind=BlockKind.heading,
+                level=1,
+            )
+        )
+        for n in range(3):
+            segments.append(
+                Segment(
+                    id=f"s{c}-{n}",
+                    block_id=f"b{c}",
+                    block_index=c,
+                    index=len(segments),
+                    text=f"line {n} of chapter {c}",
+                    kind=BlockKind.paragraph,
+                )
+            )
+    segmented = SegmentedDocument(
+        document_hash="b", language="he", segmenter="t/1", segments=segments
+    )
+
+    def build(model: str) -> Build:
+        return Build(
+            "https://example.org/book.txt",
+            target_language="en",
+            source_language="he",
+            style=Style.natural,
+            model=model,
+            owner="",
+        )
+
+    cache = Cache(tmp_path / "cache")
+    bought, hosted = build("claude-opus-5"), build("claude-sonnet-5")
+    chapter = bought.chapter_segments(segmented, 1)
+    assert chapter, "the book has chapters"
+
+    # What `warm` writes: the chapter run, under the model it was bought with.
+    cache.put(
+        "translate",
+        bought.cache_key(segmented, chapter),
+        {"segments": {s.id: "x" for s in chapter}},
+    )
+
+    assert cache.get("translate", bought.cache_key(segmented, chapter)) is not None
+    # And the same request under the hosted default finds nothing, which is the whole
+    # reason the catalogue names the model.
+    assert cache.get("translate", hosted.cache_key(segmented, chapter)) is None
+
+
+def test_a_sentence_with_no_points_still_shows_its_source(tmp_path: Path) -> None:
+    """A vocalizer does not always reach every sentence — Judenstaat came out 123 of 1080
+    pointed. The stylesheet hid the bare form whenever vowels were on, so those pairs had
+    no source at all, and the translation fell into the first grid column, which on an RTL
+    page is the right one. It read as a mirrored, broken layout; it was a missing one.
+    """
+    pointed_one, bare_one = hebrew(0, BARE_TEXT), hebrew(1, BARE_TEXT + " ב")
+    html = render_with_vocalization(
+        tmp_path,
+        [pointed_one, bare_one],
+        vocalization_for([pointed_one], {pointed_one.id: POINTED_TEXT}, [pointed_one.id]),
+    )
+    pairs = dict(re.findall(r'<div class="(pair[^"]*)" data-id="([^"]+)"', html))
+    pairs = {sid: cls for cls, sid in pairs.items()}
+    assert "points" in pairs[pointed_one.id], "this one has a pointed form"
+    assert "points" not in pairs[bare_one.id], "and this one does not"
+
+    css = _reader_css()
+    assert "body.nikkud .pair.points .src.plain { display: none; }" in css
+    assert "body.nikkud .src.plain { display: none; }" not in css, "never unconditionally"

@@ -53,24 +53,28 @@
       <span class="more">More</span></p>
   </section>
 
+  {#- Paths, not prose. The number is files changed, which is only a number worth
+      printing if the heading says what it counts. -#}
   <section>
-    <h2>Where it went</h2>
+    <h2>Files changed</h2>
     <ul class="areas">
       {% for name, count in work.areas %}
-      <li><span class="what">{{ name }}</span><span class="bar"></span><b>{{ count }}</b></li>
+      <li><code class="what">{{ name }}</code><span class="bar"></span><b>{{ count }}</b></li>
       {% endfor %}
     </ul>
   </section>
 
   <section>
-    <h2>Recently shipped</h2>
-    {% for when, count, items in work.weeks %}
-    <h3>Week of {{ when }} <span class="count">{{ count }}
-      {{ 'change' if count == 1 else 'changes' }}</span></h3>
-    <ul class="shipped">
-      {% for item in items %}<li>{{ item }}</li>{% endfor %}
-    </ul>
-    {% endfor %}
+    <h2>Latest commits</h2>
+    <ol class="log">
+      {#- The date only where it changes. Ten rows all stamped the same day is a column
+          of repeated text pretending to be information. -#}
+      {% for iso, when, subject in work.recent %}
+      <li>{% if loop.first or loop.previtem[1] != when %}<time datetime="{{ iso }}">{{ when }}</time>
+        {%- else %}<span></span>{% endif %}{{ subject }}</li>
+      {% endfor %}
+    </ol>
+    <p class="log-more"><a href="https://github.com/DLangellotti/targum/commits">Full log</a></p>
   </section>
   {% else %}
   <section>

@@ -145,10 +145,16 @@ def test_the_growth_chart_is_defined_once() -> None:
 
 @pytest.mark.parametrize("page", ["words", "learn"])
 def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
+    """The first version of this said `"charts.js" in html or "TargumCharts" in html`,
+    which passes on any page whose own script merely *mentions* the global — so Learn
+    shipped without charts.js at all and the assertion stayed green. Look for the
+    definition, not the name."""
     html = PAGES[page]
-    assert "charts.js" in html or "TargumCharts" in html
-    if "charts.js" in html and f"{page}.js" in html:
-        assert html.index("charts.js") < html.index(f"{page}.js"), "order matters"
+    charts = (ASSETS / "charts.js").read_text(encoding="utf-8")
+    body = charts[charts.index("window.TargumCharts =") :][:80]
+    assert body in html, f"{page} does not inline charts.js"
+    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    assert html.index(body) < html.index(own), "and before the page that uses them"
 
 
 # -- the upsell, and the two things it got wrong ---------------------------------
@@ -158,7 +164,7 @@ def test_open_it_opens_the_text() -> None:
     """It used to go to the library index — the page the text happens to sit on rather
     than the text it had just named. Every catalogue text has its own page now."""
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
-    assert 'keyed("/" + entry.shelf + "/" + entry.id)' in source
+    assert 'keyed("/library/" + entry.id)' in source
 
 
 def test_translate_it_anyway_works_for_a_dropped_file() -> None:
@@ -168,3 +174,232 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     retry = source[source.index("anyway.onclick") : source.index("row.appendChild(anyway)")]
     assert "readFile(chosen)" in retry, "a file has to be able to take this branch"
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
+
+
+# -- one catalogue, and what each text is ----------------------------------------
+
+
+def test_the_library_is_one_list() -> None:
+    """There were two shelves with a tab switcher between them. A reader had to know
+    which room a text was in before they could find it, which is backwards for the one
+    page whose whole job is finding something."""
+    library = PAGES["library"]
+    assert 'id="shelves"' not in library, "no room switcher"
+    assert "Beit Midrash" not in library
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert "SHELVES" not in source and "drawShelves" not in source
+
+
+def test_a_row_says_what_the_text_is() -> None:
+    """The visible half of the classification. With Tanakh, a novel and this morning's
+    news in one list, the reader who cares which is which needs the row to say so — and
+    it has to be the same vocabulary the catalogue is written in, so the two cannot
+    drift."""
+    from targum.catalogue import Kind, Register
+
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    for kind in Kind:
+        assert f'["{kind.value}", ' in source, f"the library cannot name a {kind.value}"
+    for register in Register:
+        if register.value:
+            assert f'["{register.value}", ' in source
+    # And filters by both, which is the point of naming them.
+    assert "view.kind && row.kind !== view.kind" in source
+    assert "view.register && row.register !== view.register" in source
+
+
+def test_the_library_has_one_heading() -> None:
+    """ "Picked for you" was a panel title on a page that also held the reader's shelf
+    and their trash. With nothing else on the page it only repeated the h1."""
+    library = PAGES["library"]
+    assert "Picked for you" not in library
+    assert len(re.findall(r"<h2\b", library)) == 0
+
+
+# -- the header every page wears --------------------------------------------------
+
+
+def test_every_page_styles_its_own_header() -> None:
+    """The add page loaded no file called "library", because it has no catalogue — and
+    the header rules lived in library.css, so its brand mark rendered 675px across and
+    its header a thousand tall. Nothing failed; it just looked broken.
+
+    Anything belonging to `_nav.html.j2` belongs in chrome.css, which is why this asserts
+    against the rules rather than against the filename.
+    """
+    for name, page in PAGES.items():
+        for rule in (".site-head", ".brand-mark", ".site-nav", ".account-panel"):
+            assert rule in page, f"{name} wears the header but does not style {rule}"
+
+
+def test_the_chrome_is_not_in_the_library() -> None:
+    """Where it was, and where it must not go back to."""
+    library = (ASSETS / "library.css").read_text(encoding="utf-8")
+    for rule in (".site-head {", ".brand-mark {", ".site-nav {", ".account-panel {"):
+        assert rule not in library, f"{rule} belongs in chrome.css"
+
+
+# -- every script parses ----------------------------------------------------------
+
+
+def test_every_script_parses() -> None:
+    """reader.js had this check; nothing else did.
+
+    Splitting the charts out of words.js left its closing brace behind in one file and
+    missing from the other. charts.js then failed to parse, `window.TargumCharts` was
+    never assigned, and the words page threw on its first line and rendered a header
+    over an empty screen. Every test passed: they all read the HTML as a string, and the
+    broken script was inlined into it perfectly.
+    """
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    broken = []
+    for script in sorted(ASSETS.glob("*.js")):
+        done = subprocess.run(
+            [node, "--check", str(script)], capture_output=True, text=True, timeout=30
+        )
+        if done.returncode != 0:
+            broken.append(f"{script.name}: {done.stderr.strip().splitlines()[-1]}")
+    assert not broken, "\n".join(broken)
+
+
+def test_the_collector_reads_all_three_stores() -> None:
+    """The one function both pages depend on, run rather than grepped.
+
+    Everything else here reads the built HTML as a string, which is how a charts.js that
+    did not parse at all shipped green. This loads it the way a browser does — with a
+    stub localStorage holding one word, one phrase and the document index that says
+    which language the phrase belongs to — and checks what comes back.
+    """
+    import json
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    store = {
+        "targum:docs": json.dumps({"h1": {"title": "judenstaat", "language": "he"}}),
+        "targum:vocab:he": json.dumps(
+            {
+                "מילה": {"status": 9, "surface": "מילה", "band": "easy", "at": 100},
+                "ספר": {"status": 2, "surface": "ספר", "band": "hard", "at": 200},
+            }
+        ),
+        "targum:picked:h1": json.dumps({"s1": [{"text": "בית ספר", "status": 9, "at": 300}]}),
+    }
+    harness = """
+const fs = require('fs');
+const store = JSON.parse(process.argv[2]);
+const keys = Object.keys(store);
+const localStorage = {
+  length: keys.length,
+  key: i => keys[i],
+  getItem: k => (k in store ? store[k] : null),
+};
+const make = () => ({ style: {}, dataset: {}, children: [],
+  classList: { add() {}, remove() {} }, appendChild(c) { this.children.push(c); return c },
+  setAttribute() {}, addEventListener() {},
+  getBoundingClientRect: () => ({ width: 600, height: 200 }) });
+const document = { createElement: make, createElementNS: make, getElementById: make,
+                   querySelector: () => null, querySelectorAll: () => [], addEventListener() {} };
+const window = { localStorage, document };
+new Function('window', 'document', 'localStorage',
+             fs.readFileSync(process.argv[1], 'utf8'))(window, document, localStorage);
+if (!window.TargumCharts) throw new Error('TargumCharts was never assigned');
+const he = window.TargumCharts.collect().he;
+console.log(JSON.stringify({
+  words: he.words.map(w => [w.lemma, w.status, w.at]),
+  phrases: he.phrases.map(p => [p.term, p.title]),
+}));
+"""
+    done = subprocess.run(
+        [node, "-e", harness, "--", str(ASSETS / "charts.js"), json.dumps(store)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert done.returncode == 0, done.stderr
+    got = json.loads(done.stdout)
+
+    # Words come from targum:vocab:<language>, oldest first, keeping their status.
+    assert got["words"] == [["מילה", 9, 100], ["ספר", 2, 200]]
+    # A phrase lives under its text, not its language, so the document index is what
+    # says it is Hebrew — and what gives it a title to show.
+    assert got["phrases"] == [["בית ספר", "judenstaat"]]
+
+
+@pytest.mark.parametrize("page", ["words", "learn"])
+def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
+    """`var` hoists the name and not the value.
+
+    words.js read `charts.collect` during start-up but declared `var charts` a hundred
+    lines further down, beside the drawing code. The name existed, held `undefined`, and
+    the page threw on load — with charts.js present, correct, and loaded first, which is
+    what made it look like a loading-order problem it was not.
+    """
+    source = (ASSETS / f"{page}.js").read_text(encoding="utf-8")
+    bound = source.index("var charts = window.TargumCharts;")
+    # `charts.js` is the filename, and both files name it in a comment above the bind.
+    first = re.search(r"\bcharts\.(?!js\b)\w+", source)
+    assert first is not None, f"{page}.js no longer uses the shared kit"
+    assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
+
+
+def test_the_library_is_a_list_you_can_sift() -> None:
+    """Cards were the wrong shape once there was more than a screenful: a card cannot be
+    sorted, and twenty-six of them are a wall."""
+    library = PAGES["library"]
+    for control in ("find", "register-chips", "kind-chips", "length", "difficulty", "where"):
+        assert f'id="{control}"' in library, f"the library cannot filter by {control}"
+    assert 'id="rows-head"' in library, "and the columns sort"
+    assert 'class="cards"' not in library, "the card grid is gone"
+
+
+def test_a_row_carries_a_cover_and_falls_back_to_the_text() -> None:
+    """The covers are drawn one at a time and arrive over months. A library with none of
+    them yet has to look deliberate rather than broken."""
+    library = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert 'keyed("/thumb/"' in library, "it asks for a cover"
+
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert "glyph.textContent = letter" in covers, "and draws the first letter meanwhile"
+    swap = covers[covers.index("image.onload") : covers.index("image.src")]
+    assert "box.textContent" in swap, "the letter is replaced only once the image loaded"
+
+
+def test_the_cover_tile_is_defined_once() -> None:
+    """Two pages draw one — the library's rows and Learn's chapters. A second copy is a
+    tile that drifts: one page would keep a fix and the other would not."""
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert "function tile(" in covers
+    for page in ("library.js", "learn.js"):
+        source = (ASSETS / page).read_text(encoding="utf-8")
+        assert "function thumb(" not in source, f"{page} should use the shared tile"
+        assert "TargumCovers.tile(" in source, f"{page} does not draw one"
+
+
+@pytest.mark.parametrize("page", ["library", "learn"])
+def test_a_page_that_draws_covers_loads_them_first(page: str) -> None:
+    html = PAGES[page]
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    body = covers[covers.index("function tile(") :][:60]
+    assert body in html, f"{page} does not inline covers.js"
+    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    assert html.index(body) < html.index(own), "and before the page that uses it"
+
+
+def test_a_chapter_asks_for_its_own_cover_and_settles_for_its_book() -> None:
+    """Most chapters in this library are numbered rather than titled — a hundred and
+    fifty psalms — and a number is not a subject anything could draw. Only chapters that
+    name something get their own; the rest fall back on the server."""
+    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    assert 'return book + "-c" + padded' in covers
+    learn = (ASSETS / "learn.js").read_text(encoding="utf-8")
+    assert "TargumCovers.chapterName(" in learn

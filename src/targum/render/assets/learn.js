@@ -28,11 +28,6 @@
     if (key) head["X-Targum-Key"] = key;
     return head;
   }
-  var names = window.TARGUM_LANGUAGES || {};
-  var catalogue = window.TARGUM_CATALOGUE || [];
-  var lang = window.TargumLang;
-
-
   var charts = window.TargumCharts;
   var lang = window.TargumLang;
   var names = window.TARGUM_LANGUAGES || {};
@@ -64,11 +59,6 @@
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
     link.href = keyed(link.getAttribute("href"));
-  });
-  // The two shelf links carry which room to open in, so "the Beit Midrash" lands there.
-  Array.prototype.forEach.call(document.querySelectorAll("[data-shelf]"), function (link) {
-    link.href = keyed("/library") + (keyed("/library").indexOf("?") < 0 ? "?" : "&") +
-      "shelf=" + link.getAttribute("data-shelf");
   });
 
   function named(code) {
@@ -188,6 +178,16 @@
       var name = document.createElement("a");
       name.href =
         keyed("/reader/" + reader.name + "/reader/" + chapter.file);
+      // A chapter that names something may have a cover of its own; the rest fall back
+      // to the book's on the server, so every row carries the same one either way.
+      var cover = window.TargumCovers.chapterName(reader.entry || reader.name, chapter.number);
+      name.appendChild(
+        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(cover)), {
+          title: chapter.title || reader.title,
+          language: reader.language,
+          className: "thumb tiny",
+        })
+      );
       name.appendChild(document.createTextNode(chapter.number + ". "));
       var title = document.createElement("bdi");
       title.setAttribute("lang", reader.language || "und");
@@ -361,7 +361,7 @@
 
   function drawWords(code) {
     var panel = document.getElementById("words-panel");
-    var store = kept()[code];
+    var store = charts.collect()[code];
     if (!store || !store.words.length) {
       panel.hidden = true;
       return;
@@ -387,17 +387,17 @@
         return b.opened - a.opened || b.built * 1000 - a.built * 1000;
       });
 
+      // `kept()` is a list of {language}, not a map — reading it with Object.keys put a
+      // language called "0" in the switcher.
       var vocabulary = kept();
       var codes = [lang.HOME];
-      readers.concat(Object.keys(vocabulary).map(function (code) {
-        return { language: code };
-      })).forEach(function (thing) {
+      readers.concat(vocabulary).forEach(function (thing) {
         var code = base(thing.language);
         if (code && codes.indexOf(code) < 0) codes.push(code);
       });
       codes = lang.order(codes, names);
 
-      var nothing = !readers.length && !Object.keys(vocabulary).length;
+      var nothing = !readers.length && !vocabulary.length;
       document.getElementById("nothing").hidden = !nothing;
       document.getElementById("page").hidden = nothing;
       if (nothing) return;
@@ -411,7 +411,11 @@
           return base(reader.language) === code;
         });
         drawCarry(mine[0]);
-        drawShelf(code, readers);
+        // The rest of the shelf. Repeating the one above it would be a list whose first
+        // row is the thing already filling the top of the page.
+        drawShelf(code, readers.filter(function (reader) {
+          return reader !== mine[0];
+        }));
         drawTrash(code, trash);
         drawWords(code);
       }

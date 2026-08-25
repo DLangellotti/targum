@@ -30,9 +30,13 @@
   // shelf and what they were part way through, not the catalogue. The same rule
   // reader.js follows for the section pages.
   var home = document.getElementById("home");
+  var homePlain = document.getElementById("home-plain");
   if (home) {
     home.href = "/" + suffix;
     home.hidden = false;
+    // Two drawings of the same mark, one a link and one not, so a book opened off the
+    // disk shows the mark rather than a link to nowhere.
+    if (homePlain) homePlain.hidden = true;
   }
 })();
 
@@ -151,6 +155,12 @@
   var parts = location.pathname.split("/");
   var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
   if (!name) return;
+
+  // Its own, because this is its own scope. It was calling the one above and could not
+  // reach it — the same way the reader called a `keyed` it never had.
+  function keyed(path) {
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
 
   function show() {
     var waiting = document.querySelectorAll("[data-chapter].waiting").length;
