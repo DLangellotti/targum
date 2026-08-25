@@ -1190,14 +1190,16 @@ def _reader_css() -> str:
     return (ASSETS / "reader.css").read_text(encoding="utf-8")
 
 
-def test_reading_is_what_a_text_opens_in() -> None:
-    """Somebody opening a text came to read it. A page lit up word by word is a thing
-    you ask for."""
+def test_marking_is_what_a_text_opens_in() -> None:
+    """It was off for a day, on the argument that a page covered in marks is a worksheet.
+    A reader who has to find a key before the product does its one distinctive thing has
+    to know the key is there; the quiet page is one keystroke away and the choice sticks.
+    """
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     prefs = script[script.index("var prefs = {") : script.index("try {", script.index("var prefs"))]
-    assert re.search(r"\bmarking:\s*false\b", prefs), "reading is the default"
+    assert re.search(r"\bmarking:\s*true\b", prefs), "marking is the default"
     assert "mark: true" not in prefs, "the old half-measure is gone"
 
 
@@ -1421,3 +1423,73 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
         "chip.hidden = true;\n        pickLevel = null;",
     ):
         assert spot in script, spot
+
+
+def test_the_page_marks_what_you_are_looking_at_first() -> None:
+    """Marking a pair turns a few text nodes into hundreds of inline spans, and doing the
+    whole chapter before the browser paints means every line of Hebrew is re-shaped
+    before the first mark can be seen. The work is the same; the order is not.
+
+    Measured on a 400-pair chapter: marks on screen at 60ms, against 330ms to mark the
+    page — and the 330ms is a headless browser with no fonts to shape and no display.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
+    assert "now.forEach(markPair);" in redraw, "a screenful, before anything is painted"
+    assert "markOnward(rest, 0, generation)" in redraw, "the rest across later frames"
+    # Ordered from the pair you are looking at, not from the top of the document.
+    assert "pairs.slice(first).concat(pairs.slice(0, first))" in redraw
+
+
+def test_the_marking_pass_cannot_run_twice_over_itself() -> None:
+    """A redraw while a fill is in flight, a scroll that reaches a pair the fill has not,
+    and a scroll frame over a pair already done — all three arrive at the same pair.
+    Marking rebuilds the cell from scratch, so doing it twice is wasted work and doing it
+    from two passes at once would interleave them.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "if (generation !== pending) return;" in script, "an old fill abandons itself"
+    assert "if (pair.__targumDrawn === pending) return;" in script, "and a pair is done once"
+
+
+def test_lazy_marking_degrades_rather_than_breaks() -> None:
+    """The reader's standing rule. With no requestAnimationFrame the whole page is marked
+    at once, which is what it always did."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
+    assert "if (!window.requestAnimationFrame) {" in redraw
+    assert "rest.forEach(markPair);" in redraw, "everything, immediately, as before"
+
+
+def test_no_count_on_the_page_reads_the_dom() -> None:
+    """What makes lazy marking safe. If any figure were counted from the spans, drawing
+    fewer of them would quietly change what the reader is told."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    for name in ("function lemmasHere()", "function coverage()", "function wordEntries()"):
+        body = script[script.index(name) :]
+        body = body[: body.index("\n  }\n")]
+        assert "querySelector" not in body, f"{name} must not count spans"
+        assert "getElementsBy" not in body, f"{name} must not count spans"
+
+
+def test_a_reader_can_be_asked_where_the_time_went() -> None:
+    """A page that felt slow measured fast everywhere it could be measured. Guessing at
+    that is how the wrong thing gets optimised."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'get("debug") === "timing"' in script
+    assert "var began = performance.now();" in script
+    # Measured from the top of the file, or it is measuring the wrong span.
+    assert script.index("var began") < script.index("function markSegment")
+    # Silent unless asked.
+    took = script[script.index("function took(what)") :]
+    assert took[: took.index("\n  }")].index("if (!timing) return;") >= 0

@@ -12,6 +12,21 @@
   var main = document.getElementById("reader");
   if (!main) return;
 
+  /* --- where the time went, when asked ---------------------------------------
+   *
+   * Open a reader with `?debug=timing` and it says how long each part of starting up
+   * took, in the browser that has the problem rather than in the one measuring it.
+   * Silent otherwise. It exists because a page that felt slow measured fast everywhere
+   * it could be measured, and guessing at that is how the wrong thing gets optimised.
+   */
+  var timing = new URLSearchParams(location.search).get("debug") === "timing";
+  var began = performance.now();
+
+  function took(what) {
+    if (!timing) return;
+    console.log("targum · " + what + ": " + Math.round(performance.now() - began) + "ms");
+  }
+
   // Whether a server is behind this page, and the key it was handed. A reader opened
   // straight off the disk has neither, and everything that needs them is skipped.
   var served = /^https?:$/.test(location.protocol);
@@ -67,13 +82,13 @@
     translation: null,
     list: null,
     nikkud: false,
-    // Reading, or marking. Off is reading: no tints, no hover, no card, and every word
-    // an ordinary word — a page covered in marks is a worksheet, and most of the time
-    // you want to just read. It was `mark` and it only took the colours off; the cursor,
-    // the hover and the card all stayed, so the page still behaved like a worksheet.
+    // Reading, or marking. Off is reading: no tints, and every word an ordinary word.
     //
-    // Off by default. Somebody opening a text for the first time came to read it.
-    marking: false,
+    // On by default. It was off for a day, on the argument that a page covered in marks
+    // is a worksheet — but a reader who has to find a key before the product does its one
+    // distinctive thing has to know the key is there. The quiet page is one keystroke
+    // away and the choice sticks, which is the right way round for a default.
+    marking: true,
     listTab: "words",
     // Per document, because whose vowels these are is a fact about the text, not a
     // setting. A pointed poem opens pointed; a news article whose points were all
@@ -469,14 +484,110 @@
     });
   }
 
-  function redraw() {
-    pairs.forEach(function (pair) {
-      var segmentId = pair.getAttribute("data-id");
-      // Only the cell on show is worth marking; the other is redrawn when it appears.
-      var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
-      if (cell) markSegment(cell);
+  // Marking a pair turns a few text nodes into a few hundred inline spans, so doing it
+  // to a whole chapter at once is several thousand elements before the browser paints
+  // anything — and every one of them re-shapes a line of Hebrew. The work is the same
+  // either way; what changes here is when it happens, so the marks on the part you are
+  // looking at are not queued behind the marks on the part you are not.
+  //
+  // Nothing that counts anything reads the DOM — `lemmasHere`, `coverage` and
+  // `wordEntries` all read the embedded word data — so every number on the page is the
+  // same whichever pairs have been drawn.
+  //
+  // Two things were tried first and measured worse on a 400-pair chapter, both against
+  // 106ms for simply marking the lot: reading every pair's rectangle up front to find
+  // the visible ones cost 366ms, because asking for a rectangle before the browser has
+  // laid the page out forces it to; and handing all 400 to an IntersectionObserver cost
+  // 337ms, in `observe()` alone. Frames are cheaper than either.
+  var AHEAD = 12; // pairs to mark before the first paint — about a screenful
+  var PER_FRAME = 24;
+  var pending = 0;
+  // Whether the page has been through this once. The first pass is the only one that
+  // runs before the browser has laid anything out, and so the only one that cannot
+  // afford to ask where anything is.
+  var drawn = false;
+
+  // Drawn once per pass, whichever way the pair was reached — the background fill and a
+  // scroll can both arrive at the same one, and marking rebuilds the cell from scratch.
+  function markPair(pair) {
+    if (pair.__targumDrawn === pending) return;
+    pair.__targumDrawn = pending;
+    var segmentId = pair.getAttribute("data-id");
+    // Only the cell on show is worth marking; the other is redrawn when it appears.
+    var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
+    if (cell) markSegment(cell);
+  }
+
+  // The rest of the chapter, a slice at a time, so the browser gets to paint between
+  // them. `pending` is the generation: a redraw that starts while one of these is in
+  // flight abandons it rather than letting two walk the page at once.
+  function markOnward(rest, from, generation) {
+    if (generation !== pending) return;
+    var stop = Math.min(from + PER_FRAME, rest.length);
+    for (var i = from; i < stop; i++) markPair(rest[i]);
+    if (stop < rest.length) {
+      requestAnimationFrame(function () {
+        markOnward(rest, stop, generation);
+      });
+    } else {
+      took("every mark on the page drawn");
+    }
+  }
+
+  // Scrolling faster than the fill. The background pass walks the chapter in order, so
+  // a reader who jumps to the middle can arrive somewhere it has not reached yet; this
+  // marks what is under them straight away and lets the pass carry on behind.
+  var catching = false;
+
+  function catchUp() {
+    if (catching) return;
+    catching = true;
+    requestAnimationFrame(function () {
+      catching = false;
+      var margin = window.innerHeight / 2;
+      for (var n = 0; n < pairs.length; n++) {
+        var box = pairs[n].getBoundingClientRect();
+        if (box.bottom < -margin) continue;
+        if (box.top > window.innerHeight + margin) break;
+        markPair(pairs[n]);
+      }
     });
+  }
+
+  function redraw() {
+    pending += 1;
+    var generation = pending;
+
+    // Where to start. On the first pass the page is at the top and there is nothing laid
+    // out to measure; afterwards the layout is current, reading it is cheap, and a mark
+    // made by a keypress has to land in the frame the key was pressed in.
+    var first = 0;
+    if (drawn) {
+      var margin = window.innerHeight;
+      for (var n = 0; n < pairs.length; n++) {
+        var box = pairs[n].getBoundingClientRect();
+        if (box.bottom > -margin) {
+          first = n;
+          break;
+        }
+      }
+    }
+    drawn = true;
+
+    var ordered = pairs.slice(first).concat(pairs.slice(0, first));
+    var now = ordered.slice(0, AHEAD);
+    now.forEach(markPair);
     renderList();
+
+    var rest = ordered.slice(AHEAD);
+    if (!rest.length) return;
+    if (!window.requestAnimationFrame) {
+      rest.forEach(markPair);
+      return;
+    }
+    requestAnimationFrame(function () {
+      markOnward(rest, 0, generation);
+    });
   }
 
   /* --- the list ------------------------------------------------------------ */
@@ -1564,6 +1675,7 @@
   }
 
   window.addEventListener("resize", placeSlide);
+  window.addEventListener("scroll", catchUp, { passive: true });
 
   // Vowel points off by default, in every text. A pointed source is shown bare until
   // asked otherwise, which is the same offer made to an unpointed one.
@@ -1890,6 +2002,18 @@
     setTimeout(ask, wait);
   }
 
+  if (timing) {
+    requestAnimationFrame(function () {
+      took(
+        "first frame — " +
+          document.querySelectorAll(".w").length +
+          " words drawn, " +
+          document.querySelectorAll(".w[data-status]").length +
+          " of them marked"
+      );
+    });
+  }
+
   applyType();
   applyMode();
   applyMarking();
@@ -1903,6 +2027,7 @@
     prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
   }
   applyNikkud();
+  took("marks drawn on what is on screen");
   showTab(prefs.listTab);
   waitForMeanings();
 
@@ -1915,10 +2040,12 @@
   // something actually arrived.
   if (served && window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
+      took("the account answered" + (changed ? "" : ", with nothing new"));
       if (!changed) return;
       vocab = read(VOCAB, "{}");
       picks = read(PICKED, "{}");
       redraw();
+      took("marks redrawn from the account");
     });
     window.TargumSync.start();
   }
