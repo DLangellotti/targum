@@ -1,6 +1,6 @@
 [project]
 name = "targum"
-version = "0.1.0"
+version = "0.1.0.1"
 description = "Turn a text and its translations into a self-contained HTML bilingual reader"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
