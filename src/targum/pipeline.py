@@ -163,6 +163,15 @@ class Build:
         return self._resolved_out
 
     @property
+    def covers(self) -> Path:
+        """Where drawn covers live: one directory for the library, not one per text.
+
+        A cover belongs to a text rather than to a build of it, and two readers of the
+        same book share the drawing the same way they share its English.
+        """
+        return (self._out_root or (Path.cwd() / "targum-out")) / "thumbs"
+
+    @property
     def resolved_out(self) -> Path:
         if self._resolved_out is None:
             raise RuntimeError("out_dir is resolved during ingest")
@@ -353,7 +362,7 @@ class Build:
         if not self.force:
             for section in sections[count:]:
                 run = self.chapter_segments(segmented, section.number)
-                if run and self.cache.get("translate", self.cache_key(segmented, run)) is not None:
+                if self.bought(segmented, run):
                     wanted |= set(section.segment_ids)
         return [segment for segment in segmented.segments if segment.id in wanted]
 
@@ -383,22 +392,63 @@ class Build:
         key = self.cache_key(segmented, owed)
         # `force` means force: it has to reach past the shared cache too, or "redo this
         # properly" quietly hands back the same answer that was being questioned.
-        stored = None if self.force else self.cache.get("translate", key)
-        if isinstance(stored, dict) and isinstance(stored.get("segments"), dict):
+        held = {} if self.force else self.held(key)
+        wanted = [segment for segment in owed if segment.id not in held]
+
+        if not wanted:
             self.reused.append("translation (cache)")
             if on_progress:
                 on_progress(len(owed))
-            return {str(k): str(v) for k, v in stored["segments"].items()}
+            return held
 
+        if held:
+            # A run that died partway is money already spent, and it is written down.
+            # Only the rest is bought. The sentences either side of a batch are its
+            # context, so a resumed run has slightly less of it than a fresh one — which
+            # is a smaller price than translating the first eighty per cent again.
+            self.notify(f"{len(held)} of {len(owed)} sentences were already translated.")
+            if on_progress:
+                on_progress(len(held))
+
+        def keep(done: dict[str, str]) -> None:
+            """Write down every batch as it lands, under the key for the whole run."""
+            self.cache.put("translate", key, {"segments": held | done})
+
+        # Positionally, as every other call to a provider here is: a double in a test
+        # implements this protocol too, and naming the arguments would make its parameter
+        # names part of the contract. Only the new one is a keyword.
         fresh: dict[str, str] = self.provider.translate(
-            owed,
+            wanted,
             segmented.language,
             self.target_language,
             self.style,
             on_progress,
+            on_batch=keep,
         )
-        self.cache.put("translate", key, {"segments": fresh})
-        return fresh
+        whole = held | fresh
+        self.cache.put("translate", key, {"segments": whole})
+        return whole
+
+    def held(self, key: str) -> dict[str, str]:
+        """What has been translated for this run so far, whole or in part.
+
+        A partial entry is the ordinary shape of an interrupted build: batches are
+        written down as they finish, so what is here is what has been paid for.
+        """
+        stored = self.cache.get("translate", key)
+        if isinstance(stored, dict) and isinstance(stored.get("segments"), dict):
+            return {str(k): str(v) for k, v in stored["segments"].items()}
+        return {}
+
+    def bought(self, segmented: SegmentedDocument, run: list[Segment]) -> bool:
+        """Whether every sentence of this run is already paid for.
+
+        Not "is there an entry": since a dying run leaves a partial one, an entry alone
+        no longer means a chapter is free, and treating it as free is how a reader gets
+        charged for something a page told them they already had.
+        """
+        held = self.held(self.cache_key(segmented, run))
+        return bool(run) and all(segment.id in held for segment in run)
 
     @property
     def aligner(self) -> align_module.Aligner:
@@ -460,8 +510,10 @@ class Build:
             out.append(projected)
         return out
 
-    def annotate(self, segmented: SegmentedDocument) -> Annotation | None:
-        """Difficulty bands, when asked for."""
+    def annotate(
+        self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
+    ) -> Annotation | None:
+        """Difficulty bands, when asked for, and how each word is said where that can be had."""
         if not self.difficulty:
             return None
         path = self.resolved_out / "annotation.json"
@@ -474,8 +526,18 @@ class Build:
         # own default, so no other text is affected.
         from .annotate import biblical
 
+        # A reading needs vowels above the word and phonikud installed to turn them into
+        # sounds. Where either is missing the annotation is made without readings and
+        # named for that, so a machine with both redoes the text instead of inheriting
+        # the gap — which costs nothing, since this runs here.
+        pronouncer: annotate_module.Pronouncer | None = None
+        if vocalization is not None and annotate_module.pronounceable(segmented.language):
+            candidate = annotate_module.PhonikudPronouncer()
+            if candidate.available()[0]:
+                pronouncer = candidate
+
         annotator = self._annotator or annotate_module.Annotator(
-            bands=biblical.for_source(self.source)
+            bands=biblical.for_source(self.source), pronouncer=pronouncer
         )
         if not self.force:
             existing = read_artifact(Annotation, path)
@@ -491,7 +553,7 @@ class Build:
                 self.reused.append("difficulty")
                 return existing
         try:
-            annotation = annotator.annotate(segmented)
+            annotation = annotator.annotate(segmented, vocalization)
         except TargumError as error:
             # Losing word help is worth saying out loud; it is not worth losing the
             # reader over, since the translation is the greater part of the work.
@@ -682,8 +744,10 @@ class Build:
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
 
-        annotation = self.annotate(segmented)
+        # Vowels first. The bands do not need them, but the reading of each word is
+        # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
+        annotation = self.annotate(segmented, vocalization)
 
         def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
             self.notify("Building the reader…")
@@ -698,6 +762,7 @@ class Build:
                 clean=clean,
                 # True only on the first pass of a build that ordered one.
                 glossary_pending=self.gloss and glossary is None,
+                covers=self.covers,
             )
 
         result = Result(

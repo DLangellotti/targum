@@ -1,16 +1,16 @@
 [project]
 name = "targum"
-version = "0.1.0"
+version = "0.1.0.1"
 description = "Turn a text and its translations into a self-contained HTML bilingual reader"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.11"
 authors = [{ name = "David Langellotti" }]
 keywords = ["translation", "language-learning", "bilingual", "reader", "hebrew", "russian"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
-  "License :: OSI Approved :: MIT License",
+  "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
   "Programming Language :: Python :: 3.11",
   "Topic :: Education",
   "Topic :: Text Processing :: Linguistic",
@@ -32,6 +32,11 @@ dependencies = [
 align = ["sentence-transformers>=3.0"]
 covers = ["pillow>=10.0"]
 difficulty = ["wordfreq>=3.1"]
+# Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
+# caps Python below 3.13, and the reader that would lose is the one on a Python targum
+# otherwise supports. Without it a text is built with no readings and says so in the
+# annotator's name, so installing it later re-reads every book already on the shelf.
+phonetics = ["phonikud>=0.4"]
 
 [project.urls]
 Homepage = "https://github.com/DLangellotti/targum"
@@ -65,7 +70,14 @@ strict = true
 files = ["src/targum"]
 
 [[tool.mypy.overrides]]
-module = ["stanza.*", "trafilatura.*", "sentence_transformers.*", "wordfreq.*", "nakdimon.*"]
+module = [
+  "stanza.*",
+  "trafilatura.*",
+  "sentence_transformers.*",
+  "wordfreq.*",
+  "nakdimon.*",
+  "phonikud.*",
+]
 ignore_missing_imports = true
 
 

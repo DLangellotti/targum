@@ -208,6 +208,36 @@ def test_the_identity_never_carries_a_sheen() -> None:
             )
 
 
+def test_the_ink_only_brights_never_touch_paper() -> None:
+    """§4. The bright set lives on ink panels; on paper it is allowed only as a graphic at
+    3:1 or better, and two of the four do not reach it.
+
+    `INK_ONLY` recorded that measurement for a year and nothing asserted it, because
+    nothing used the colours. The progress page spends `--leaf-bright` on its one
+    inverted block, which is the moment the rule becomes checkable: a rule with a use is
+    a rule that can drift.
+
+    Selector-based rather than clever. The inverted block carries `.ledger`, and anything
+    painting one of these two outside it is on paper by elimination.
+    """
+    inverted = "ledger"
+    tokens = {"#e2a33c": "--sun", "#7ba646": "--leaf-bright"}
+    for sheet in STYLESHEETS:
+        text = re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
+        for selector, body in re.findall(r"([^{}]+)\{([^}]*)\}", text):
+            # The declarations block, not the :root definitions — naming a value is how
+            # the palette exists at all.
+            if ":root" in selector or selector.strip().startswith("@"):
+                continue
+            for hexed, name in tokens.items():
+                if f"var({name})" not in body and hexed not in body.lower():
+                    continue
+                assert inverted in selector, (
+                    f"{sheet.name}: {name} does not reach 3:1 on paper, and "
+                    f"{selector.strip()[:60]!r} is not the inverted block"
+                )
+
+
 def test_no_gradient_is_a_colour_ramp() -> None:
     """§9. Gloss is light on glass, never metal — never a gold-to-gold ramp."""
     for sheet in STYLESHEETS:

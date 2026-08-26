@@ -7,6 +7,10 @@
  * The copy is deliberately about what the reader gets rather than what the software
  * does. Nobody signs in to "enable server-side persistence"; they sign in so the words
  * they kept on the sofa are there on the train.
+ *
+ * It used to count them back — "Keeping 214 words and 3 phrases for you." A reader who
+ * has signed in does not need telling their words are still there every time they open
+ * the corner, and the page they go to for counts already has better ones.
  */
 
 (function () {
@@ -21,7 +25,6 @@
   var field = document.getElementById("account-email");
   var said = document.getElementById("account-said");
   var whom = document.getElementById("account-whom");
-  var kept = document.getElementById("account-kept");
   var signedOut = panel.querySelector(".signed-out");
   var signedIn = panel.querySelector(".signed-in");
 
@@ -38,31 +41,32 @@
     if (showing && !signedOut.hidden && field) field.focus();
   }
 
-  // A count is the honest version of "your data is safe": it says what is actually up
-  // there, in the units the reader thinks in.
-  function tally(counts) {
-    if (!counts) return "";
-    var parts = [];
-    if (counts.words) parts.push(counts.words + (counts.words === 1 ? " word" : " words"));
-    if (counts.phrases) {
-      parts.push(counts.phrases + (counts.phrases === 1 ? " phrase" : " phrases"));
-    }
-    if (!parts.length) return "Nothing kept yet.";
-    return "Keeping " + parts.join(" and ") + " for you.";
-  }
-
   function draw(who) {
     signedOut.hidden = !!who;
     signedIn.hidden = !who;
-    if (who) {
-      open.textContent = who.email.split("@")[0];
-      open.title = "Signed in as " + who.email;
-      whom.textContent = who.email;
-      kept.textContent = tally(who.counts);
-    } else {
+    open.textContent = "";
+    if (!who) {
+      open.className = "";
       open.textContent = "Sign in";
       open.title = "Sign in";
+      return;
     }
+
+    // The address is nobody else's business on a shared screen, and it never fitted the
+    // corner anyway. Two letters do, and they are the same two whatever the window.
+    open.className = "avatar";
+    open.title = who.name ? who.name + " — " + who.email : who.email;
+    if (who.picture) {
+      var image = new Image();
+      image.alt = "";
+      image.onload = function () {
+        open.textContent = "";
+        open.appendChild(image);
+      };
+      image.src = who.picture;
+    }
+    open.appendChild(document.createTextNode(who.initials || "?"));
+    whom.textContent = who.name ? who.name + " · " + who.email : who.email;
   }
 
   open.addEventListener("click", function () {

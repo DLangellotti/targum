@@ -102,7 +102,7 @@ def test_www_is_not_prefixed_onto_an_address() -> None:
     assert serve.hosts_for("http://127.0.0.1:8420") == frozenset(serve.SAFE_HOSTS)
 
 
-@pytest.mark.parametrize("path", ["/", "/library", "/words"])
+@pytest.mark.parametrize("path", ["/", "/library", "/progress"])
 def test_a_signed_in_reader_is_served_at_the_public_domain(
     hosted: tuple[int, str], path: str
 ) -> None:
@@ -144,7 +144,7 @@ def test_hosted_mints_no_start_up_key(hosted: tuple[int, str]) -> None:
 def test_no_page_hands_a_reader_a_key_in_a_url(hosted: tuple[int, str]) -> None:
     """A key in the address is a bearer token in browser history and in a Referer."""
     port, session = hosted
-    for path in ("/", "/library", "/words"):
+    for path in ("/", "/library", "/progress"):
         page = ask(port, path, "targum.page", session)[1].decode("utf-8", "replace")
         for hit in re.finditer(r"\?k=", page):
             around = page[max(0, hit.start() - 40) : hit.start()]
@@ -167,7 +167,7 @@ def test_an_empty_key_authorises_nobody() -> None:
 @pytest.mark.parametrize("query", ["", "?k=", "?k=guessed", "?k=%20"])
 def test_no_key_gets_a_stranger_through_the_door(hosted: tuple[int, str], query: str) -> None:
     port, _ = hosted
-    status, body = ask(port, "/words" + query, "targum.page")
+    status, body = ask(port, "/progress" + query, "targum.page")
     assert status == 200
     assert b"Coming soon" in body, "a stranger should meet the holding page, whatever they guess"
 
@@ -256,7 +256,7 @@ def test_the_sitemap_lists_every_text_and_nothing_private(
     paths = {url.removeprefix("https://targum.page") for url in found}
     for entry in CATALOGUE:
         assert f"/library/{entry.id}" in paths, entry.id
-    for private in ("/words", "/readers", "/health", "/account/signin"):
+    for private in ("/progress", "/readers", "/health", "/account/signin"):
         assert private not in paths, f"{private} should not be advertised"
 
 
@@ -282,7 +282,7 @@ def test_every_text_answers_at_one_address(
 def test_the_front_door_is_still_shut(hosted: tuple[int, str]) -> None:
     """The shelves opening up must not have opened anything else."""
     port, _ = hosted
-    for route in ("/", "/words"):
+    for route in ("/", "/progress"):
         status, body = ask(port, route, "targum.page")
         assert status == 200 and b"Coming soon" in body, route
 
@@ -532,3 +532,33 @@ def test_the_shelf_never_carries_a_server_path(hosted: tuple[int, str]) -> None:
     for reader in json.loads(ask(port, "/readers", "targum.page", session)[1])["readers"]:
         assert "folder" not in reader
         assert not any(str(value).startswith("/") for value in reader.values())
+
+
+# -- who somebody is -------------------------------------------------------------
+
+
+def test_a_name_is_tidied_and_kept(tmp_path: Path) -> None:
+    """An account was an address and nothing else. A corner pill cannot show an address,
+    and a page that greets you by one is not greeting you."""
+    store = Store(tmp_path / "words.db")
+    store.start_sign_in("someone@example.com")
+    person = store.person_by_email("someone@example.com")
+    assert person is not None
+
+    assert store.rename(person, "  David   Langellotti  ") == "David Langellotti"
+    assert store.profile(person)["name"] == "David Langellotti"
+    assert store.profile(person)["initials"] == "DL"
+
+    # Empty is allowed and means going back to having none.
+    assert store.rename(person, "") == ""
+    assert store.profile(person)["initials"] == "SO", "the address, as it was before"
+
+
+def test_initials_come_from_whatever_there_is() -> None:
+    from targum.accounts import initials
+
+    assert initials("David Langellotti", "x@y.com") == "DL"
+    assert initials("", "djlangellotti@gmail.com") == "DJ"
+    assert initials("", "david.langellotti@x.com") == "DL", "a dot is a name boundary"
+    assert initials("דוד לנגלוטי", "x@y.com") == "דל", "no case to raise, and none needed"
+    assert initials("", "") == "?"

@@ -209,11 +209,33 @@ a.bar-brand:hover { color: var(--accent); }
   font-weight: 600;
   color: var(--leaf);
 }
+/* How many words the arrows still have to walk. Ink, not leaf: §4 gives leaf to
+   progress and to what you know, and work outstanding is neither. Colouring it as an
+   achievement would say the opposite of what the number says. */
+.bar-title .known b.left { color: var(--ink); }
+/* And the one moment it is an achievement. Celebration in type rather than motion. */
+.bar-title .known.done { color: var(--leaf); }
 
 /* The narrow bar has room for the title or the count, not both, and the title is the
    one that says where you are. */
 @media (max-width: 40rem) {
   .bar-title .known { display: none; }
+}
+
+/* Said rather than shown. Marking a word from the keyboard changes a count in the far
+   corner and nothing else, which a screen reader never reaches and a reader watching the
+   word they are on does not look at. This carries the same sentence to anyone listening.
+   Never displayed: `display: none` would take it out of the accessibility tree with it. */
+.spoken {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
@@ -362,6 +384,11 @@ main {
   border-radius: 5px;
   outline: none;
   transition: background-color 120ms ease;
+  /* The bar is sticky, so scrolling a sentence to the top of the window puts it behind
+     the bar. Every way of reaching a sentence goes through `scrollIntoView` — the
+     arrows, the queue, the sentence list — so the clearance belongs here rather than at
+     each of the call sites. */
+  scroll-margin-block-start: 4rem;
 }
 /* Tighter again where a pair is one pasuk rather than one paragraph. A chapter of Tanakh
    is continuous text that happens to be numbered; spacing its verses apart turns it into
@@ -443,6 +470,13 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
   width: fit-content;
   max-width: min(24rem, calc(100vw - 2rem));
   z-index: 30;
+  /* It grows with the list of keys and it is anchored to the bottom, so without a
+     ceiling the first rows run off the top of the window with no way to reach them.
+     Clear of the sticky bar as well as of the bottom edge — the bar wraps on a narrow
+     window, so the room left for it is generous rather than exact. */
+  max-block-size: calc(100vh - 8rem);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.9rem 1.15rem;
   background: var(--paper-raised);
   border: 1px solid var(--rule);
@@ -477,6 +511,41 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
 [dir="rtl"] { line-height: var(--leading-rtl); }
 
 .byline { color: var(--ink-soft); font-style: italic; margin-block-start: -0.75rem; }
+
+/* --- a drawn cover -------------------------------------------------------- */
+
+/* The contents page is where a book is opened and the one page in a reader with room for
+   a picture. Flat and hairlined like every other resting surface: §8 keeps shadows for
+   things that float above the page, and a cover sits on it. */
+.cover {
+  margin: 0 0 1.4rem;
+  inline-size: min(15rem, 45%);
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-raised);
+}
+
+/* On a chapter page it is a stamp rather than a picture — enough to say which book this
+   is, small enough that the eye goes to the first line instead. */
+.plate {
+  margin: 0 0 1.6rem;
+  inline-size: 3.25rem;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper-raised);
+}
+
+.cover img,
+.plate img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+}
 
 /* --- what you kept -------------------------------------------------------- */
 
@@ -527,6 +596,15 @@ body.marking .w[data-status="3"] {
 body:not(.no-hover) .w:hover {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* The word the arrows are on. A tapped word and a walked-to word are not the same
+   thing — one is a question you asked, the other is where the keyboard is standing —
+   so the queued one takes the focus ring on top of the look-up wash. §8's ring, not a
+   colour of its own: this is focus, and focus looks the same everywhere in the app. */
+.w.queued {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
 }
 
 /* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute
@@ -592,6 +670,22 @@ body:not(.no-hover) .w:hover {
 }
 .vocab-editor .note-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
+/* Where the note ends. It was always kept as it was typed, which is right and which
+   nobody could see — the field looked like something you were still in the middle of.
+   §9 wants ink or a hue on anything tappable and forbids a beige button on a beige card;
+   ink rather than accent, because the accent in this card is already spoken for by
+   whichever level is set. `start` and not `left`: the card mirrors with the page. */
+.vocab-editor .note-save {
+  align-self: start;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.8125em;
+  line-height: 1.4;
+}
+
 /* The card is now a small form, so it stacks and its control gets room. */
 .pick-card .vocab-editor .note-field { min-width: 12rem; }
 .pick-card .drop-pick { align-self: start; font-size: 0.8125em; color: var(--ink-soft); }
@@ -614,6 +708,23 @@ body:not(.no-hover) .w:hover {
   font-size: 0.8em;
 }
 .gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
+
+/* How the word is said, under the word itself. The label is metadata and stays muted;
+   the reading is what the reader came to the line for, so it is ink — §9. Left in the
+   UI face rather than the reading face: IPA is notation, not text, and Palatino has no
+   glyph for half of it. */
+.gloss-card .said {
+  display: block;
+  margin-block-start: 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125em;
+}
+.gloss-card .said bdi {
+  color: var(--ink);
+  /* The stress mark is the point of showing this at all, and it is one narrow glyph
+     against a letter. A little air keeps it from reading as part of the letter. */
+  letter-spacing: 0.01em;
+}
 
 /* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
    rather than a tag beside the level, because it is the answer to a different
@@ -654,6 +765,21 @@ body:not(.no-hover) .w:hover {
   margin-block-start: 0.35rem;
   color: var(--ink-soft);
   font-size: 0.8em;
+}
+
+/* What the keys do, under the buttons that do it. Metadata, so muted is honest here —
+   and mono at the label size, because §5 gives keys the monospace face. Always shown:
+   a reader who taps is the one who has not found out there is a faster way, and this
+   is where they are already looking. Its own direction — it is a row of key names,
+   and the reading direction reordered the dots around them on a Hebrew page. */
+.gloss-card .legend {
+  display: block;
+  margin-block-start: 0.45rem;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 /* --- phrases you picked out ---------------------------------------------- */

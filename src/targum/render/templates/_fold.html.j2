@@ -1,0 +1,8 @@
+{#- The half of a folding heading that is the same everywhere: the button, and the
+    chevron in it. The panel's own name and its closing </button> follow at the call
+    site, because a heading is not worth a second include.
+
+    A button rather than <details>: the heading row already holds a search field, a
+    filter and an export, and a <summary> that swallows their clicks is worse than a
+    button that folds only what it says it folds. -#}
+<button type="button" class="fold" aria-expanded="true"><svg class="chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6.5 8 10.5l4-4"/></svg>

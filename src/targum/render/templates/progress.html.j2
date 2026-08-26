@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Progress — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+{#- `words` as well as `progress`, for the same reason Learn carries it: the chart
+    palette (--step-1..4) is defined on `.words`, and the tiles, the growth line and the
+    stacked bar are all drawn with that kit. -#}
+<body class="words progress">
+{% set here = 'progress' %}{% set title = 'Your Progress' %}
+{% include '_nav.html.j2' %}
+
+<main id="page" hidden>
+  {#- The one block on this page that inverts. §9 allows a screen a single one and calls
+      it the wake-up move — spent on one it is striking, spent on three it is a dark
+      theme — so everything below here stays paper and ink. It is also the only surface
+      the bright set is legal on: --leaf-bright does not reach 3:1 against paper. -#}
+  {#- Four numbers, not seven. What a reader wants from this block is the feeling of
+      having got somewhere, and a row of everything countable is a row nobody reads. -#}
+  <section class="ledger" id="ledger" aria-label="What you have built">
+    <div class="counts" id="counts"></div>
+  </section>
+
+  {#- The day strip is seven rows tall and the milestones are two, so the milestones
+      share their column with the ladder rather than leaving a hole beside it. -#}
+  <div class="panels paired">
+    <div class="stack">
+      <section class="panel">
+        <h2>Milestones</h2>
+        <p class="note">Counted from the words you have marked known.</p>
+        <div id="milestones"></div>
+        {#- The rung and the distance to the next one, for a language with no ulpan ladder
+            behind it. Hebrew's is the block under this. -#}
+        <div class="standing" id="standing"></div>
+      </section>
+
+      {#- Hebrew only, and under the milestones because it is the same question asked in
+          the language's own units: how far in am I. -#}
+      <section class="panel" id="rung" hidden>
+        <h2>Ulpan level</h2>
+        <div class="standing" id="rung-standing"></div>
+        {#- Where the rung comes from, said once. §6 is plain about limits, and
+            `annotate/base.py` refuses to call a difficulty band a CEFR level for the same
+            reason: frequency data is not a graded syllabus. -#}
+        <p class="note basis" id="basis" hidden></p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Days reading</h2>
+      <p class="note">Every language together. A day counts when you open a text.</p>
+      <div id="days"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Where they are</h2>
+    <p class="note" id="progress-note"></p>
+    <div id="progress"></div>
+  </section>
+
+  <div class="panels">
+    <section class="panel">
+      <h2>Words saved over time</h2>
+      <p class="note">From when you first marked each.</p>
+      <div id="growth"></div>
+    </section>
+
+    <section class="panel">
+      <h2>How common they are</h2>
+      <p class="note">How often each turns up in everyday use.</p>
+      <div id="bands"></div>
+    </section>
+  </div>
+</main>
+{% include '_foot.html.j2' %}
+
+<p class="nothing" id="nothing" hidden>
+  {#- "your library" meant the catalogue and the reader's own shelf at once, and the
+      link went to the upload page, which was neither. Both have their own page now. -#}
+  Nothing yet. Open something from the <a id="library-link" href="/library">Discover</a>.
+</p>
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+</script>
+<script>{{ asset('charts.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('progress.js') }}</script>
+</body>
+</html>

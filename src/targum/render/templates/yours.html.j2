@@ -3,41 +3,47 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Words — targum</title>
+<title>{{ heading }} — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
-<body class="words">
-{% set here = 'words' %}{% set title = 'Words' %}
+{#- One of Learn's three lists, whole. Learn holds the top of each and caps it, because a
+    landing page with four hundred rows on it is not a landing page; this is where the
+    rest of them are. Same markup and the same scripts, so a row here and a row there
+    cannot drift. -#}
+<body class="words learn yours">
+{% set here = 'learn' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
 
 <main id="page" hidden>
-  <section class="tiles" id="tiles" aria-label="Totals"></section>
-
-  <section class="panel">
-    <h2>Where they are</h2>
-    <p class="note" id="progress-note"></p>
-    <div id="progress"></div>
+  {%- if which == 'texts' %}
+  <section class="panel" id="shelf-panel">
+    <p class="note what-is">A targum is an interactive bilingual text, optimised for
+      language learning.</p>
+    <p class="note" id="shelf-note"></p>
+    <div class="shelf-head" id="shelf-head" role="row" hidden>
+      <span></span>
+      <span>Text</span>
+      <span>Chapters</span>
+      <span>Last opened</span>
+      <span></span>
+    </div>
+    <ul class="books shelf-rows" id="library-list"></ul>
+    <p class="empty" id="shelf-empty" hidden></p>
   </section>
 
-  <div class="panels">
-    <section class="panel">
-      <h2>Words kept over time</h2>
-      <p class="note">From when you first marked each.</p>
-      <div id="growth"></div>
-    </section>
+  <section class="panel trash" id="trash-panel" hidden>
+    <h2>Trash</h2>
+    <p class="note">Kept for seven days.</p>
+    <ul class="books" id="trash-list"></ul>
+  </section>
+  {%- endif %}
 
-    <section class="panel">
-      <h2>How common they are</h2>
-      <p class="note">How often each turns up in everyday use.</p>
-      <div id="bands"></div>
-    </section>
-  </div>
-
+  {%- if which == 'words' %}
   <section class="panel">
     <div class="list-controls">
-      <h2><span id="words-title">Words</span></h2>
+      <h2><span id="words-title">Your Words</span></h2>
       <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
       <select id="status-filter" aria-label="Filter by how well you know them">
         <option value="learning">Still learning</option>
@@ -48,7 +54,8 @@
         <option value="9">Known</option>
         <option value="0">Ignored</option>
       </select>
-      <button type="button" id="export-words">Export</button>
+      {#- Hidden until sync says there is an account to export from. -#}
+      <button type="button" id="export-words" hidden>Export</button>
     </div>
     <div class="table-wrap">
       <table class="rows" id="word-table">
@@ -68,45 +75,43 @@
     <p class="empty" id="words-empty" hidden></p>
     <button type="button" class="more" id="more" hidden></button>
   </section>
+  {%- endif %}
 
+  {%- if which == 'phrases' %}
   <section class="panel">
     <div class="list-controls">
-      <h2><span id="phrases-title">Phrases</span></h2>
-      <button type="button" id="export-phrases">Export</button>
+      <h2><span id="phrases-title">Your Phrases</span></h2>
+      <button type="button" id="export-phrases" hidden>Export</button>
     </div>
     <p class="note">Phrases stay with their text.</p>
     <div id="phrase-list"></div>
     <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
   </section>
+  {%- endif %}
 
-  {#- The two Export buttons above give you what you are looking at, which is right for
-      a spreadsheet and wrong for leaving. This one is everything, in one file, with no
-      filter applied and nobody to ask. -#}
-  <section class="panel take" id="take" hidden>
-    <div class="list-controls">
-      <h2>Everything</h2>
-      <button type="button" id="export-all">Download</button>
-    </div>
-    <p class="note">Every word and phrase, in every language, and what you have built.</p>
-  </section>
+  <p class="back"><a href="/" data-back>Learn</a></p>
 </main>
-{% include '_foot.html.j2' %}
 
-<p class="nothing" id="nothing" hidden>
-  {#- "your library" meant the catalogue and the reader's own shelf at once, and the
-      link went to the upload page, which was neither. Both have their own page now. -#}
-  Nothing yet. Open something from the <a id="library-link" href="/library">Library</a>.
-</p>
+<section class="nothing" id="nothing" hidden>
+  <p class="lede">Nothing here yet.</p>
+  <p>Pick something from <a href="/library">Discover</a>.</p>
+</section>
+
+{% include '_foot.html.j2' %}
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+window.TARGUM_LIST = "{{ which }}";
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('lists.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
-<script>{{ asset('words.js') }}</script>
+<script>{{ asset('covers.js') }}</script>
+<script>{{ asset('shelf.js') }}</script>
+<script>{{ asset('yours.js') }}</script>
 </body>
 </html>

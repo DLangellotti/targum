@@ -32,6 +32,7 @@
   var PICKED = "targum:picked:";
   var DOCS = "targum:docs";
   var OPENED = "targum:opened";
+  var DAYS = "targum:days"; // { "2026-08-25": 1 } — a set, written by the reader
 
   // A tombstone is a few bytes and a delete is rare, but a browser that has been in use
   // for years should not carry every word it ever unmarked. Anything this old has long
@@ -91,6 +92,21 @@
     return Number(record.seen || record.at || 0) || 0;
   }
 
+  // The reader's own local day, as `reader.js` writes it. Two copies of one rule, which
+  // is what separate IIFEs cost — but they have to agree: if this one said UTC, the day
+  // the reader just wrote would not match the day this filters for, and it would sit in
+  // the browser unpushed until the next full exchange.
+  function today() {
+    var now = new Date();
+    return (
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(now.getDate()).padStart(2, "0")
+    );
+  }
+
   /* --- what this browser has, in the shape the account speaks --------------- */
 
   function localWords(since) {
@@ -109,6 +125,7 @@
           meaning: word.meaning || "",
           note: word.note || "",
           band: word.band || "",
+          learned: word.learned ? 1 : 0,
           at: word.at || 0,
           seen: touchedAt(word),
         });
@@ -180,6 +197,32 @@
     return out;
   }
 
+  // Every day this browser knows about, or just today.
+  //
+  // The other collectors filter on `since` by comparing each record's own `seen` stamp
+  // against the watermark. A day has no such stamp — the value beside it is a constant,
+  // and deriving one from the day string would be a UTC midnight standing in for the
+  // reader's, which is the wrong day for half the world. So the rule is positional
+  // instead: on a full exchange send everything, and on any other send today, because
+  // today's is the only entry this browser can have written since it last pushed.
+  function localDays(since) {
+    var days = read(DAYS, "{}");
+    var keys = Object.keys(days);
+    if (since) {
+      keys = keys.filter(function (day) {
+        return day === today();
+      });
+    }
+    // `seen: 0`, deliberately. The account's merge rule is "an older edit does not
+    // overwrite a newer one", compared on `seen` — so a zero means the first push of a
+    // day writes it and every push after that is skipped rather than rewriting the same
+    // row under a fresh revision all afternoon. A day has no edit time to report anyway:
+    // it either happened or it did not.
+    return keys.map(function (day) {
+      return { day: day, count: 1, seen: 0 };
+    });
+  }
+
   function tombstones(since) {
     var gone = read(GONE, "{}");
     var words = [];
@@ -226,6 +269,8 @@
         meaning: row.meaning || "",
         note: row.note || "",
         band: row.band || "",
+        // Rebuilt from a named list, so anything not named here is dropped on every sync.
+        learned: row.learned ? 1 : 0,
         at: row.at || 0,
         seen: row.seen || 0,
       };
@@ -320,6 +365,21 @@
     return touched;
   }
 
+  // A union, and nothing else. There is no `gone` branch and no `remember()` call: a day
+  // somebody read on is not a thing they can take back, so the only direction this moves
+  // is more.
+  function applyDays(rows) {
+    var days = read(DAYS, "{}");
+    var touched = false;
+    rows.forEach(function (row) {
+      if (!row.day || days[row.day]) return;
+      days[row.day] = 1;
+      touched = true;
+    });
+    if (touched) write(DAYS, days);
+    return touched;
+  }
+
   /* --- deletes -------------------------------------------------------------- */
 
   function remember(name, when) {
@@ -398,6 +458,7 @@
       words: localWords(since).concat(dead.words),
       phrases: localPhrases(since).concat(dead.phrases),
       docs: localDocs(since),
+      days: localDays(since),
     };
     busy = true;
     return ask("/sync", body)
@@ -409,6 +470,7 @@
         var changed = applyWords(answer.words || []);
         changed = applyPhrases(answer.phrases || []) || changed;
         changed = applyDocs(answer.docs || []) || changed;
+        changed = applyDays(answer.days || []) || changed;
         write(STATE, { email: was.email, revision: answer.revision, pushed: mark });
         if (again) {
           again = false;

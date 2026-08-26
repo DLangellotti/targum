@@ -167,6 +167,7 @@ def learn_page(token: str) -> str:
     Nothing about the reader is baked in. The shelf comes from `/readers` and the words
     from the browser's own stores, which is what lets one rendered page serve everybody.
     """
+    from ..catalogue import CATALOGUE
     from ..translate.prompts import OFFERED, language_name
 
     return (
@@ -174,6 +175,49 @@ def learn_page(token: str) -> str:
         .get_template("learn.html.j2")
         .render(
             token=token,
+            languages=[(code, language_name(code)) for code in OFFERED],
+            # Enough of the catalogue to suggest the next thing to read, and no more: an
+            # id to link to, a title and a line about it, and the two numbers that say
+            # whether it is the right size and the right difficulty for this reader.
+            catalogue=[
+                {
+                    "id": entry.id,
+                    "title": entry.title,
+                    "language": entry.language,
+                    "blurb": entry.blurb,
+                    "difficulty": entry.difficulty,
+                    "minutes": entry.minutes,
+                }
+                for entry in CATALOGUE
+            ],
+        )
+    )
+
+
+#: What each of the three list pages is called, in the order Learn shows them. The route
+#: names are code — "texts" rather than "targums" — and the heading is the copy.
+LISTS = {"texts": "Your targums", "words": "Your Words", "phrases": "Your Phrases"}
+
+
+def list_page(token: str, which: str) -> str:
+    """One of Learn's three lists, whole.
+
+    Learn caps every list it draws, because a page somebody lands on with four hundred
+    rows on it is not a landing page. This is where the rest of a list is, and it is the
+    same template three times rather than three templates: the difference between them is
+    which section is rendered, and nothing else.
+    """
+    from ..translate.prompts import OFFERED, language_name
+
+    if which not in LISTS:
+        raise KeyError(which)
+    return (
+        _environment()
+        .get_template("yours.html.j2")
+        .render(
+            token=token,
+            which=which,
+            heading=LISTS[which],
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )
@@ -191,13 +235,33 @@ def add_page(token: str, no_key: str = "") -> str:
     refused with — and it matters more here than it used to, this now being the only page
     that spends anything.
     """
-    from ..translate.prompts import OFFERED, language_name
+    from ..translate.prompts import INTO, OFFERED, READING, language_name, stage_label
 
     return (
         _environment()
         .get_template("add.html.j2")
         .render(
             token=token,
+            # What an upload may be, and what it may become. Narrower than `languages`
+            # below, which is every language the rest of the app knows how to show.
+            reading=[
+                {
+                    "code": code,
+                    "name": language_name(code),
+                    "stage": stage,
+                    "label": stage_label(stage),
+                }
+                for code, stage in READING
+            ],
+            into=[
+                {
+                    "code": code,
+                    "name": language_name(code),
+                    "stage": stage,
+                    "label": stage_label(stage),
+                }
+                for code, stage in INTO
+            ],
             no_key=no_key,
             languages=[(code, language_name(code)) for code in OFFERED],
         )
@@ -247,7 +311,7 @@ def signin_page(*, landing: str = "", token: str = "", expired: bool = False) ->
     )
 
 
-def words_page(token: str) -> str:
+def progress_page(token: str) -> str:
     """Everything kept, with what it adds up to.
 
     Built from the browser's own store like the start page, because that is where a
@@ -257,7 +321,7 @@ def words_page(token: str) -> str:
 
     return (
         _environment()
-        .get_template("words.html.j2")
+        .get_template("progress.html.j2")
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
@@ -323,6 +387,16 @@ def text_page(entry: Entry, address: str = "") -> str:
     )
 
 
+def you_page(token: str) -> str:
+    """Who you are, how you read, and the two things that end an account.
+
+    Built like the other app pages: the server hands over the page and the browser asks
+    who is looking. Nothing about a person is baked into it, so one page serves everyone
+    and a signed-out visitor gets a sentence rather than an empty form.
+    """
+    return _environment().get_template("you.html.j2").render(token=token)
+
+
 def library_page(token: str) -> str:
     """Texts worth reading, and the ones you have already built.
 
@@ -344,6 +418,84 @@ def library_page(token: str) -> str:
     )
 
 
+#: What a drawn cover may have been saved as, newest format first.
+COVER_SUFFIXES = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "image/jpeg"))
+
+#: How wide a cover rides on a chapter page. The contents page carries the whole 320px
+#: tile once; a chapter page carries one on every page of a book, so it gets a smaller
+#: one — a hundred and fifty psalms would otherwise add three megabytes to a reader for
+#: an image the size of a thumbnail.
+PLATE_WIDTH = 128
+
+
+def cover_bytes(covers: Path | None, name: str) -> bytes | None:
+    """A drawn cover, whatever it was saved as, or None where nobody has drawn one."""
+    if covers is None or not name:
+        return None
+    for suffix, _ in COVER_SUFFIXES:
+        found = covers / f"{name}{suffix}"
+        if found.is_file():
+            return found.read_bytes()
+    return None
+
+
+def cover_uri(covers: Path | None, name: str) -> str:
+    """A cover as a `data:` URI, because a reader fetches nothing.
+
+    The whole point of a built reader is that it is one file that works off a disk, on a
+    plane, in an e-reader's browser. An image it had to go and get would be the first
+    thing in it that could fail — so covers ride inside the page, the same way the icons
+    already do.
+    """
+    raw = cover_bytes(covers, name)
+    if raw is None:
+        return ""
+    return f"data:image/webp;base64,{base64.b64encode(raw).decode('ascii')}"
+
+
+def plate_uri(covers: Path | None, name: str) -> str:
+    """The same cover, small enough to sit on every page of a book.
+
+    Kept beside the original once made, so a book of a hundred and fifty chapters shrinks
+    one image rather than a hundred and fifty. Without Pillow there is no small one to
+    make, and a chapter page simply goes without — the contents page still has the whole
+    thing, and nothing looks broken.
+    """
+    if covers is None or not name:
+        return ""
+    small = covers / "small" / f"{name}.webp"
+    if not small.is_file():
+        raw = cover_bytes(covers, name)
+        if raw is None:
+            return ""
+        try:
+            from ..covers import shrink
+        except ImportError:  # pragma: no cover - covers is a package, not an extra
+            return ""
+        try:
+            made = shrink(raw, width=PLATE_WIDTH)
+        except Exception:
+            # Pillow missing, or an image it cannot read. A reader without a plate is a
+            # reader; a build that died over a decoration is not.
+            return ""
+        small.parent.mkdir(parents=True, exist_ok=True)
+        small.write_bytes(made)
+    return f"data:image/webp;base64,{base64.b64encode(small.read_bytes()).decode('ascii')}"
+
+
+def cover_name(document: Document) -> str:
+    """Which cover belongs to this text.
+
+    Covers are drawn for the library's own texts and named by the catalogue's id, which
+    is what lets one drawing serve every reader who builds that text. Anything else has
+    none, and asks for none.
+    """
+    from .. import catalogue as catalogue_module
+
+    entry = catalogue_module.matching(document.source)
+    return entry.id if entry else ""
+
+
 def render(
     document: Document,
     segmented: SegmentedDocument,
@@ -354,6 +506,7 @@ def render(
     vocalization: Vocalization | None = None,
     clean: bool = True,
     glossary_pending: bool = False,
+    covers: Path | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
@@ -398,9 +551,12 @@ def render(
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
 
+    drawn = cover_name(document)
     shared = {
         "document": document,
         "title": document.title or "targum",
+        # The whole tile, once, on the page that lists the chapters.
+        "cover": cover_uri(covers, drawn),
         "sections": sections,
         "source_language": segmented.language,
         "source_direction": source_direction,
@@ -465,6 +621,13 @@ def render(
         # word that is not a Hebrew verb, and for the verbs whose root could not be had.
         roots: list[str] = []
         binyanim: list[str] = []
+        # How a word is said belongs to the occurrence, not to the dictionary form — that
+        # is the whole reason it is worth having — so it cannot ride beside the lemmas.
+        # It rides in its own table instead, with an index on each token: a chapter has
+        # far fewer distinct spellings than tokens, and the same word said twice is
+        # stored once.
+        sounds: list[str] = [""]
+        sound_at: dict[str, int] = {"": 0}
         words: dict[str, list[list[int]]] = {}
         if annotation is not None:
             for sid in section.segment_ids:
@@ -482,6 +645,9 @@ def render(
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
                     # source had no marks the map is the identity and this costs nothing.
+                    if token.ipa and token.ipa not in sound_at:
+                        sound_at[token.ipa] = len(sounds)
+                        sounds.append(token.ipa)
                     start, end = map_span(token.start, token.end, to_bare[sid])
                     rows.append(
                         [
@@ -490,12 +656,18 @@ def render(
                             token.band,
                             1 if token.split else 0,
                             lemma_at[token.lemma],
+                            sound_at.get(token.ipa or "", 0),
                         ]
                     )
                 words[sid] = rows
         glosses = [glossary.entries.get(lemma, "") for lemma in lemmas] if glossary else []
+        # A chapter's own cover where one was drawn for it, and the book's where it was
+        # not — which is most of them, since a numbered chapter is not a subject anything
+        # could draw.
+        chapter_cover = f"{drawn}-c{section.number:03d}" if drawn else ""
         html = env.get_template("reader.html.j2").render(
             **shared,
+            plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
             words=bool(words),
             segments=segments,
@@ -511,6 +683,9 @@ def render(
                     "lemmas": lemmas,
                     "roots": roots,
                     "binyanim": binyanim,
+                    # Left out entirely where nothing was read, rather than shipping a
+                    # table holding one empty string in every reader that has no Hebrew.
+                    **({"sounds": sounds} if len(sounds) > 1 else {}),
                     "glosses": glosses,
                     "levelNames": BAND_NAMES,
                     # Which text this is. Lists are kept per document, not per

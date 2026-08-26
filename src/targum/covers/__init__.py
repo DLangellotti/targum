@@ -48,8 +48,12 @@ KEPT_WIDTH = 320
 TIMEOUT = 180.0
 
 
-def shrink(image: bytes) -> bytes:
-    """One drawn image, down to what a tile actually shows."""
+def shrink(image: bytes, width: int = KEPT_WIDTH) -> bytes:
+    """One drawn image, down to what is actually shown.
+
+    Twice at two sizes: the library's tile, and the smaller plate a reader carries on
+    every page of a book.
+    """
     import io
 
     from PIL import Image
@@ -57,7 +61,7 @@ def shrink(image: bytes) -> bytes:
     small = Image.open(io.BytesIO(image))
     # `Image.LANCZOS` is a shim Pillow keeps for old code and does not declare; the
     # enumeration is where the filter actually lives.
-    small.thumbnail((KEPT_WIDTH, KEPT_WIDTH * 4), Image.Resampling.LANCZOS)
+    small.thumbnail((width, width * 4), Image.Resampling.LANCZOS)
     kept = io.BytesIO()
     small.convert("RGB").save(kept, format="WEBP", quality=82, method=6)
     return kept.getvalue()

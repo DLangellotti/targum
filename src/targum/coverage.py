@@ -22,6 +22,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .paths import write_atomic
+
 # Statuses that count as knowing a word. The learning ladder (1-3) is deliberately not
 # here: a word somebody is halfway through learning is a word the text will still cost
 # them something to read.
@@ -80,7 +82,7 @@ def lemmas(folder: Path) -> list[str]:
     out = sorted(distinct)
 
     try:
-        cached.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+        write_atomic(cached, json.dumps(out, ensure_ascii=False))
     except OSError:
         # A read-only or full disk costs the cache, not the answer.
         pass

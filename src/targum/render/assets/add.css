@@ -22,14 +22,16 @@ body.add > .add-main {
 }
 
 .add-main {
-  width: min(34rem, 100%);
-  /* 1.25rem to the side, the same as the header, so the two share a left edge. */
-  padding: 1.5rem 1.25rem 6rem;
+  width: min(62rem, 100%);
+  /* 1.25rem to the side, the same as the header, so the two share a left edge. The
+     six rems that used to sit under this were room for a column nothing reaches the
+     bottom of any more. */
+  padding: 1.5rem 1.25rem 2rem;
   font-family: system-ui, sans-serif;
 }
 
 .add .lede {
-  margin: 0 0 2.5rem;
+  margin: 0 0 1.75rem;
   font-family: var(--reading);
   font-size: 1.75rem;
   font-weight: 600;
@@ -37,11 +39,21 @@ body.add > .add-main {
   color: var(--ink);
 }
 
+/* Two columns while there is room for two, one below that. What the page asks for is
+   small; asking for it in single file was what made it long. */
+.add-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 1.25rem 2rem;
+  align-items: start;
+}
+.add-grid .beside { display: flex; flex-direction: column; }
+
 .drop {
   display: grid;
   gap: 0.4rem;
   place-items: center;
-  padding: 2.5rem 1rem;
+  padding: 1.5rem 1rem;
   border: 1px dashed var(--rule);
   border-radius: 8px;
   background: color-mix(in srgb, var(--paper-raised) 60%, transparent);
@@ -71,7 +83,7 @@ body.add > .add-main {
 /* Said before anything is priced, so it sits with the heading rather than with the
    form. The link is the only accent above the fold — the button below it is the page's
    primary action and keeps its own. */
-.add .lede + .hint { margin: -1.75rem 0 2.5rem; }
+.add .lede + .hint { margin: -1.25rem 0 1.75rem; }
 .to-library { color: var(--accent); }
 /* Two hints in a row sat on top of each other: the rule above pulls each one up under
    the field it explains, and with no bottom margin the second climbed into the first. */
@@ -106,7 +118,7 @@ body.add > .add-main {
 .hint br { content: ""; display: block; margin-block-start: 0.5rem; }
 .hint code { background: var(--paper-raised); padding: 0.05rem 0.3rem; border-radius: 4px; }
 
-.step { margin-block-end: 2.5rem; }
+.step { margin-block-end: 1.5rem; }
 .step h2 {
   margin: 0 0 0.9rem;
   font-size: 0.8125rem;
@@ -116,7 +128,7 @@ body.add > .add-main {
   letter-spacing: 0.06em;
 }
 
-.options { display: flex; flex-wrap: wrap; gap: 0.9rem 1.25rem; align-items: end; margin-block-end: 1.5rem; }
+.options { display: flex; flex-wrap: wrap; gap: 0.7rem 1rem; align-items: end; margin-block-end: 0.9rem; }
 .field.short { margin: 0; width: 11rem; }
 .field.wide { margin: 0; width: 13rem; }
 .hint.plain { margin-block-start: 1.1rem; }
@@ -180,3 +192,44 @@ body.add > .add-main {
   .status .bar i,
   .drop { transition: none; }
 }
+
+/* The text, pasted rather than saved to a file and dropped in. Same box as the link
+   field, taller, and it keeps the reading face: what goes in here is Hebrew. */
+.add textarea {
+  inline-size: 100%;
+  min-block-size: 5rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+.add textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* One line, one box, one question: draw a picture for this or do not. */
+.tick {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+}
+
+/* The type selector for `.drop` otherwise beats the user-agent [hidden] rule, which is
+   how a drop zone for a translation nobody said they had stayed on the page. */
+.add .drop[hidden] { display: none; }
+
+/* The switch, and the line under it that says what the switch just chose. */
+.add .segmented { margin-block-end: 0.5rem; }
+.add #how-note { margin-block-start: 0; }
+
+/* The second drop zone is the smaller offer: it is only there once somebody has said
+   they have a translation, and it should not tower over the text they came to add. */
+.drop.small { padding: 1rem 0.9rem; }
+.drop.small .drop-label { font-size: 0.9375rem; }
+
+/* §4: selection in UI is quiet ink, never the accent — and never the browser's blue,
+   which is what a checkbox is until it is told otherwise. */
+.tick { margin-block-start: 0.2rem; }
+.tick input { accent-color: var(--ink); }
