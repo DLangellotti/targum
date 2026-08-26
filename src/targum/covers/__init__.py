@@ -67,6 +67,21 @@ def shrink(image: bytes, width: int = KEPT_WIDTH) -> bytes:
     return kept.getvalue()
 
 
+def named(image: bytes) -> tuple[str, str]:
+    """What to call a reference image, and what to say it is.
+
+    `edits` reads the type the upload declares, not the bytes behind it. The reference a
+    chapter is drawn against is whatever the book left on disk, which is the kept WEBP
+    tile — so declaring PNG for everything is right only in the one run where the book's
+    own drawing is still in hand.
+    """
+    if image[:4] == b"RIFF" and image[8:12] == b"WEBP":
+        return "cover.webp", "image/webp"
+    if image[:3] == b"\xff\xd8\xff":
+        return "cover.jpg", "image/jpeg"
+    return "cover.png", "image/png"
+
+
 def can_shrink() -> bool:
     try:
         import PIL  # noqa: F401
@@ -181,6 +196,7 @@ class OpenAIImages:
                         },
                     )
                 )
+            filename, kind = named(reference)
             return self._answer(
                 client.post(
                     self.EDIT,
@@ -192,7 +208,7 @@ class OpenAIImages:
                         "quality": QUALITY,
                         "n": 1,
                     },
-                    files={"image": ("cover.png", reference, "image/png")},
+                    files={"image": (filename, reference, kind)},
                 )
             )
 
