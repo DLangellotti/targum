@@ -2454,7 +2454,12 @@
   // Answers false wherever there is no button to press, and the key falls through to the
   // page. A key that silently does nothing reads as a broken page.
   function askMeaning() {
-    if (!asking()) {
+    // The word the arrows are on, or failing that whichever card is already up — the
+    // same two `markLookedUp` chooses between, and for the same reason. Tapping a word
+    // leaves the queue, so a card opened with the pointer has no `standing` behind it,
+    // and requiring one made `g` the one key on the card's legend that the reader most
+    // likely to be reading that legend could not use.
+    if (!asking() && !(lookedUp && card && !card.hidden)) {
       if (!standing) return false;
       openCard();
     }
