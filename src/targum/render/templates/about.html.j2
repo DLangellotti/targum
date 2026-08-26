@@ -3,12 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>What has been built — targum</title>
+<title>under construction — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('about.css') }}
-{%- for name, count in work.areas %}
-.areas li:nth-child({{ loop.index }}) .bar { --share: {{ (count / work.areas[0][1] * 100) | round | int }}%; }
-{%- endfor %}</style>
+<style>{{ asset('reader.css') }}{{ asset('about.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="about">
@@ -17,6 +14,9 @@
   <button type="button" data-theme-toggle aria-label="Switch theme"></button>
 </div>
 
+{#- This page described targum at length: what it does, what had shipped, what it could
+    not do yet. None of it was what somebody arriving early needs to be told. The state
+    of the thing is the calendar, and the rest is on GitHub. -#}
 <main class="sheet">
   <a class="brand" href="/" aria-label="targum">
     <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
@@ -27,67 +27,30 @@
   </a>
 
   <h1>targum is under construction</h1>
-  <p class="lede">The work so far, read out of the repository.</p>
-  <p class="lede">Open source, AGPL-3.0, on
-    <a href="https://github.com/DLangellotti/targum">GitHub</a> and
-    <a href="https://pypi.org/project/targum/">PyPI</a>. Run it yourself.</p>
 
   {% if work.commits %}
-  <section>
-    <h2>Last {{ days }} days</h2>
-    <p class="figures">
-      <b>{{ work.commits }}</b> {{ 'change' if work.commits == 1 else 'changes' }}
-      · <b>{{ work.shipping_days }}</b>
-      {{ 'day' if work.shipping_days == 1 else 'days' }} shipping
-    </p>
-    {#- One square a day. Colour says how much landed, and an empty day is left as the
-        quiet grey it was rather than dressed up. -#}
-    <ol class="calendar" aria-label="Changes per day, last {{ days }} days">
-      {% for day, count in work.days %}
-      <li class="day level-{{ level(count, work.busiest) }}"
-          title="{{ day }} — {{ count }} {{ 'change' if count == 1 else 'changes' }}"></li>
-      {% endfor %}
-    </ol>
-    <p class="key"><span class="less">Less</span>
-      {% for n in [0, 1, 2, 3, 4] %}<i class="day level-{{ n }}"></i>{% endfor %}
-      <span class="more">More</span></p>
-  </section>
-
-  {#- Paths, not prose. The number is files changed, which is only a number worth
-      printing if the heading says what it counts. -#}
-  <section>
-    <h2>Files changed</h2>
-    <ul class="areas">
-      {% for name, count in work.areas %}
-      <li><code class="what">{{ name }}</code><span class="bar"></span><b>{{ count }}</b></li>
-      {% endfor %}
-    </ul>
-  </section>
-
-  <section>
-    <h2>Latest commits</h2>
-    <ol class="log">
-      {#- The date only where it changes. Ten rows all stamped the same day is a column
-          of repeated text pretending to be information. -#}
-      {% for iso, when, subject in work.recent %}
-      <li>{% if loop.first or loop.previtem[1] != when %}<time datetime="{{ iso }}">{{ when }}</time>
-        {%- else %}<span></span>{% endif %}{{ subject }}</li>
-      {% endfor %}
-    </ol>
-    <p class="log-more"><a href="https://github.com/DLangellotti/targum/commits">Full log</a></p>
-  </section>
-  {% else %}
-  <section>
-    <p class="lede">No repository here. It is all on GitHub.</p>
-  </section>
+  {#- The day the count ends on, not "the last 30 days": served from a wheel these
+      numbers are as old as the deploy, and the sentence has to stay true for as long
+      as the wheel does. -#}
+  <p class="figures">
+    <b>{{ work.commits }}</b> {{ 'change' if work.commits == 1 else 'changes' }}
+    in the {{ days }} days to {{ work.through }}
+  </p>
+  {#- One square a day. Colour says how much landed, and an empty day is left as the
+      quiet grey it was rather than dressed up. -#}
+  <ol class="calendar" aria-label="Changes per day, last {{ days }} days">
+    {% for day, count in work.days %}
+    <li class="day level-{{ level(count, work.busiest) }}"
+        title="{{ day }} — {{ count }} {{ 'change' if count == 1 else 'changes' }}"></li>
+    {% endfor %}
+  </ol>
+  <p class="key"><span class="less">Less</span>
+    {% for n in [0, 1, 2, 3, 4] %}<i class="day level-{{ n }}"></i>{% endfor %}
+    <span class="more">More</span></p>
   {% endif %}
-</main>
 
-<footer class="foot">
-  <a href="/">targum</a>
-  <a href="https://github.com/DLangellotti/targum">Source</a>
-  <a href="https://pypi.org/project/targum/">PyPI</a>
-  <span>AGPL-3.0</span>
-</footer>
+  <p class="log-more">The work is on
+    <a href="https://github.com/DLangellotti/targum">GitHub</a>.</p>
+</main>
 </body>
 </html>

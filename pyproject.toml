@@ -53,6 +53,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/targum"]
+# Written by `about.stamp()` just before the build and ignored by git, so hatchling —
+# which leaves VCS-ignored files out — has to be told to pack it. It is how the about
+# page has anything to say on a box, where there is a wheel and no repository.
+artifacts = ["/src/targum/activity.json"]
 
 [tool.ruff]
 line-length = 100
