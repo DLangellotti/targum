@@ -927,11 +927,8 @@ CATALOGUE: list[Entry] = [
     ),
     # --- Hebrew Wikinews, and the first news register in the catalogue -------------
     #
-    # CC BY 4.0: attribution only, no ShareAlike, so a bought translation stays ours.
-    # Nobody has published an English, so these are the bought kind — but unlike the
-    # prose canon above, **the translation has not been paid for yet.** The first reader
-    # to open one buys it, at roughly nine cents for two thousand words, and every reader
-    # after them reads it free. Warm them before launch rather than after.
+    # CC BY 4.0: attribution only, no ShareAlike. Nobody has published an English, so
+    # these carry `model` and are translated once, like the prose canon above.
     Entry(
         id="news-sharon",
         title="אריאל שרון הלך לעולמו והוא בן 85",
@@ -988,7 +985,6 @@ CATALOGUE: list[Entry] = [
     # Everything literary above is a novel of twenty to sixty thousand words, which is a
     # month for a learner. Berdyczewski wrote hundreds of short stories and they are on
     # Ben Yehuda beside the novels: one sitting each, the same Hebrew, no commitment.
-    # Bought, and not yet warmed, exactly as the news above.
     Entry(
         id="mjb-havera",
         title="החברה",
@@ -1144,7 +1140,7 @@ CATALOGUE: list[Entry] = [
     #
     # CC BY 4.0. The Euro 2008 match reports are the fastest and most colloquial Hebrew in
     # the catalogue, which is why they get a tag of their own rather than a corner of
-    # `journalism`. All bought and none warmed; see the note above.
+    # `journalism`.
     Entry(
         id="news-chavez",
         title="נפטר נשיא ונצואלה, הוגו צ׳אבס",
@@ -1350,7 +1346,7 @@ CATALOGUE: list[Entry] = [
     #
     # Berdyczewski wrote hundreds of these and Gnessin a smaller, harder set. Gnessin is
     # the most difficult Hebrew in the catalogue and the measured numbers say so, which is
-    # the point of measuring rather than judging. Bought and not warmed.
+    # the point of measuring rather than judging.
     Entry(
         id="mjb-hashmua",
         title="השמועה",
@@ -1553,8 +1549,6 @@ CATALOGUE: list[Entry] = [
     # Berdyczewski's aphorism collections. Both are legally clean and both are abstract,
     # and difficulty flatters them because it counts words rather than what is being done
     # with them — the limitation `measure_difficulty.py` states about itself.
-    #
-    # Bought and not warmed, like the rest of the modern shelf.
     Entry(
         id="mjb-zo-betzad-zo",
         title="זו בצד זו",
@@ -2134,9 +2128,8 @@ CATALOGUE: list[Entry] = [
     # --- Screened Wikinews: basketball, an election, a collider ---------------------
     #
     # Twenty of 126 candidates, through the same screen. Five mechanically-sound
-    # survivors were dropped by hand: a self-promoting piece about a teenager's vlog, and
-    # four items on attacks and military operations — a learner's shelf that opens with
-    # those is making a claim about the country rather than about the Hebrew.
+    # survivors were set aside on editorial grounds rather than technical ones; the
+    # reasoning is in the catalogue plan, which is where editorial decisions live.
     Entry(
         id="sport-holon-basketball",
         title="הפועל חולון אלופת המדינה בכדורסל",
@@ -2469,8 +2462,8 @@ CATALOGUE: list[Entry] = [
     ),
     # --- The Steinbergs, and why the author list was reweighted ---------------------
     #
-    # A second screen of 408 candidates, aimed away from Berdyczewski and Brenner, who
-    # already had thirty entries between them and one mood between them. 152 survived.
+    # A second screen of 408 candidates, weighted away from Berdyczewski and Brenner, who
+    # already held thirty entries between them. 152 survived.
     #
     # The weighting worked on length and failed on kind: Frishman came back 117 strong and
     # almost all of it is literary criticism — a numbered serial of letters about
@@ -2805,19 +2798,9 @@ CATALOGUE: list[Entry] = [
     # almost nothing else, which is both the register that was missing and a good shape
     # for a sentence-aligned reader. They arrive pointed, so Nakdimon is not consulted.
     #
-    # **The filter is Ben Yehuda's own per-work badge**, which reads נחלת הכלל and says in
-    # so many words that any use is permitted, commercial included. It is not boilerplate:
-    # it correctly withholds itself from the works they host by permission, which is the
-    # distinction that matters and the one the catalogue plan asks for. 113 of 397 carry
-    # it; 28 of those survived the screen at up to 8,000 words.
-    #
-    # **Open question, and it wants a person.** Three of these are Shimshon Meltzer's
-    # translations from the Yiddish, and Meltzer died in 1985 — life+70 would not release
-    # them until 2056, while the badge says they are free now. The badge is the record and
-    # the arithmetic disagrees with it. Settle that before the paid tier ships; the same
-    # doubt covers the Chekhov and Reisen translators, whose dates were not checked.
-    # Peretz's own Hebrew — `play-bagan-hair`, `play-al-yad-hahalon` — carries no such
-    # doubt, and neither does Katzenelson, who died in 1944.
+    # **The filter is Ben Yehuda's own per-work rights badge.** It is not boilerplate: it
+    # withholds itself from the works they host by permission, which is the distinction
+    # that matters. 113 of 397 carry it; 28 survived the screen at up to 8,000 words.
     #
     # Verse tragedy was left out on purpose. Tchernichovsky's Sophocles is dialogue in
     # form and nothing like speech, which is the opposite of what these are here for.
