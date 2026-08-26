@@ -16,7 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --extra difficulty
+      # The same extras CI installs. A release that runs a narrower suite than the
+      # checks on the commit it was cut from is a release nothing has actually checked.
+      - run: uv sync --extra difficulty --extra phonetics --extra covers
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
