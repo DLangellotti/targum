@@ -24,14 +24,23 @@ directory, which is gigabytes of things that can simply be downloaded again.
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import sqlite3
+import subprocess
 import zipfile
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
 STAMP = "%Y%m%d-%H%M%S"
 KEEP = 14
+
+# How long one file gets to leave. The database is tens of kilobytes and the cache
+# archive is megabytes; a copy still running after this is a network that is not going
+# to finish, and a nightly job that hangs is a nightly job that stops running.
+SHIP_TIMEOUT = 600.0
 
 # Downloaded weights, not paid work. Stanza and LaBSE together are gigabytes, and
 # copying them nightly would bury the thing actually worth keeping.
@@ -157,6 +166,77 @@ def check(path: Path) -> str:
     finally:
         db.close()
     return ""
+
+
+class NotShipped(RuntimeError):
+    """A copy did not leave the box, and nobody would otherwise have known."""
+
+
+def _rclone(*args: str, timeout: float = SHIP_TIMEOUT) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["rclone", *args], capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+def ship(
+    files: Sequence[Path],
+    to: str,
+    *,
+    run: object = None,
+    timeout: float = SHIP_TIMEOUT,
+) -> list[str]:
+    """Send finished copies somewhere that is not this disk. Returns what arrived.
+
+    A nightly backup written beside the database it copies survives the mistakes and
+    none of the disasters: `provision.sh` says so about itself, and it has been true
+    since the box went up.
+
+    Through `rclone`, and only `rclone`, because it is one binary that speaks S3, B2,
+    R2, SFTP and a dozen others — so the destination is a decision that can be changed
+    without changing this, and none of it is written down here. **Encryption belongs in
+    the remote, not here.** A backup holds addresses and every word somebody has kept;
+    an rclone `crypt` remote in front of the bucket is where that is handled, and this
+    passes the files to whatever it is pointed at without opinion.
+
+    Verified rather than assumed: it asks the destination what it now holds and checks
+    the size against what was sent. A copy command that exits zero having written
+    nothing is the failure this whole function exists to notice.
+    """
+    if not files:
+        return []
+    runner = run or _rclone
+    if run is None and shutil.which("rclone") is None:
+        raise NotShipped("rclone is not installed. `apt-get install rclone`, then configure it.")
+
+    for path in files:
+        done = runner(  # type: ignore[operator]
+            "copyto", str(path), f"{to.rstrip('/')}/{path.name}", timeout=timeout
+        )
+        if done.returncode != 0:
+            raise NotShipped(f"{path.name} did not leave: {(done.stderr or '').strip()[:200]}")
+
+    listed = runner("lsjson", to, timeout=timeout)  # type: ignore[operator]
+    if listed.returncode != 0:
+        raise NotShipped(f"Could not read back {to}: {(listed.stderr or '').strip()[:200]}")
+    try:
+        there = {row["Name"]: int(row.get("Size", -1)) for row in json.loads(listed.stdout or "[]")}
+    except (json.JSONDecodeError, TypeError, KeyError) as error:
+        raise NotShipped(f"{to} answered with something unreadable: {error}") from error
+
+    arrived: list[str] = []
+    for path in files:
+        size = path.stat().st_size
+        if there.get(path.name) != size:
+            raise NotShipped(
+                f"{path.name} is {size} bytes here and {there.get(path.name, 'missing')} at {to}."
+            )
+        arrived.append(path.name)
+    return arrived
+
+
+def destination(given: str = "") -> str:
+    """Where copies go, from the flag or the environment. Empty means nowhere."""
+    return (given or os.environ.get("TARGUM_BACKUP_TO", "")).strip()
 
 
 def sweep(into: Path, keep: int = KEEP) -> list[Path]:

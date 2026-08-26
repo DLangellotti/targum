@@ -10,6 +10,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from targum.accounts import Store
 from targum.serve import Job, Library
 from targum.usage import Usage
@@ -248,3 +250,122 @@ def test_every_column_the_code_names_exists_after_opening_an_old_file(tmp_path: 
     store.save_job({"id": "j", "home": "/x", "source": "s", "made": 1})
     store.settle("j", 1.5)
     assert store.committed(0) == 1.5
+
+
+# -- the ledger, read back ------------------------------------------------------
+
+
+def test_an_admin_is_invited_by_being_made_one(tmp_path: Path) -> None:
+    """An admin who cannot sign in is not an admin, and having to say it twice is a way
+    of getting it half done."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "targum.db")
+    store.make_admin("boss@example.invalid")
+
+    assert store.is_admin("boss@example.invalid")
+    assert store.may_join("boss@example.invalid"), "made an admin, still could not get in"
+
+
+def test_taking_admin_away_leaves_the_invitation(tmp_path: Path) -> None:
+    """Two different statements: whether somebody may be here, and whether the spend
+    rails apply to them. Undoing the second must not quietly undo the first."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "targum.db")
+    store.make_admin("boss@example.invalid")
+
+    assert store.unadmin("boss@example.invalid") is True
+    assert store.is_admin("boss@example.invalid") is False
+    assert store.may_join("boss@example.invalid"), "the invitation went with the admin flag"
+
+
+def test_admin_survives_being_uninvited(tmp_path: Path) -> None:
+    """`uninvite` deliberately leaves an existing account alone, which is why admin is a
+    table of its own rather than a column on the guest list."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "targum.db")
+    store.make_admin("boss@example.invalid")
+    store.uninvite("boss@example.invalid")
+
+    assert store.is_admin("boss@example.invalid")
+
+
+def test_a_person_carries_whether_the_rails_apply(tmp_path: Path) -> None:
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "targum.db")
+    store.make_admin("boss@example.invalid")
+    store.invite("reader@example.invalid")
+
+    boss = store.finish_sign_in(store.start_sign_in("boss@example.invalid"))
+    reader = store.finish_sign_in(store.start_sign_in("reader@example.invalid"))
+
+    assert boss is not None and boss[0].admin is True
+    assert reader is not None and reader[0].admin is False
+
+    # And the same again from a session cookie, which is how every later request asks.
+    assert store.whoever(boss[1]) is not None
+    assert store.whoever(boss[1]).admin is True  # type: ignore[union-attr]
+
+
+def test_the_ledger_says_what_was_charged_and_what_is_held(tmp_path: Path) -> None:
+    """Two different facts. `spent` is what the API really charged, which reconciles
+    against an invoice. `claimed` is what the ceilings count — the same figure once a
+    build settles, its estimate while one runs, nothing for one that handed it back."""
+    from targum.accounts import Store, now
+
+    store = Store(tmp_path / "targum.db")
+    store.invite("reader@example.invalid")
+    store.start_sign_in("reader@example.invalid")
+    who = store.db.execute(
+        "SELECT id FROM person WHERE email = ?", ("reader@example.invalid",)
+    ).fetchone()["id"]
+
+    store.save_job({"id": "settled", "owner": who, "home": "/tmp", "source": "x", "made": now()})
+    store.settle("settled", 1.25)
+    store.save_job(
+        {
+            "id": "running",
+            "owner": who,
+            "home": "/tmp",
+            "source": "x",
+            "made": now(),
+            "claimed": 2.0,
+        }
+    )
+
+    rows = store.spending(0)
+    assert len(rows) == 1
+    assert rows[0]["email"] == "reader@example.invalid"
+    assert rows[0]["jobs"] == 2
+    assert rows[0]["spent"] == pytest.approx(1.25), "only the settled build has really cost"
+    assert rows[0]["claimed"] == pytest.approx(3.25), "the running one is held against the cap"
+
+
+def test_work_with_no_account_behind_it_still_counts(tmp_path: Path) -> None:
+    """Built before there were accounts, or by somebody since forgotten. The money was
+    real either way, and a total that quietly drops it is wrong about the bill."""
+    from targum.accounts import Store, now
+
+    store = Store(tmp_path / "targum.db")
+    store.save_job({"id": "orphan", "owner": None, "home": "/tmp", "source": "x", "made": now()})
+    store.settle("orphan", 0.75)
+
+    rows = store.spending(0)
+    assert len(rows) == 1
+    assert rows[0]["email"] is None
+    assert rows[0]["spent"] == pytest.approx(0.75)
+
+
+def test_the_ledger_keeps_to_its_window(tmp_path: Path) -> None:
+    from targum.accounts import Store, now
+
+    store = Store(tmp_path / "targum.db")
+    old = now() - 60 * 24 * 60 * 60 * 1000
+    store.save_job({"id": "old", "owner": None, "home": "/tmp", "source": "x", "made": old})
+    store.settle("old", 5.0)
+
+    assert store.spending(0)[0]["spent"] == pytest.approx(5.0)
+    assert store.spending(now() - 24 * 60 * 60 * 1000) == []

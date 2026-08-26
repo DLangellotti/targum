@@ -2507,4 +2507,114 @@ def test_the_arrows_come_round_rather_than_stop_with_work_left() -> None:
     assert "return step(from, forward) || step(null, forward);" in script
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script
-    assert "if (!goTo(onward(from, true), true, open)) {" in script
+    # `false`: a card is spent by the level it was answered with, so what the arrows
+    # carry on to the next word is the queue and not the window.
+    assert "if (!goTo(onward(from, true), true, false)) {" in script
+
+
+def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
+    """The card is a question, and a level is the answer to it — so it leaves rather than
+    riding the arrows on to the next word, which put a window between the reader and the
+    page they were walking for as long as they went on marking.
+
+    Not in the frame the key was pressed in, though. A card that vanished on the keystroke
+    took the level it had just taken with it, and a chapter cleared a word at a time was a
+    window blinking forty times. It holds the answer for a beat, then fades — and §8, so a
+    reader who asked for stillness gets the beat and nothing moving.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+    assert "if (open) spendCard();" in script, "a level said on an open card spends it"
+    spend = script[script.index("function spendCard() {") : script.index("function stopFade() {")]
+    assert "letGo();" in spend, "the word is let go of at once; only the card waits"
+    assert 'card.classList.add("going");' in spend
+    assert "fading = setTimeout(hideCard, FADE);" in spend
+
+    beat = re.search(r"var LINGER = (\d+);", script)
+    fade = re.search(r"var FADE = (\d+);", script)
+    assert beat and fade, "reader.js no longer names the two waits the way this test reads them"
+    assert 400 <= int(beat[1]) <= 1200, "long enough to read the level, short enough to be gone"
+    assert f"transition: opacity {fade[1]}ms ease" in css, "the sheet and the script must agree"
+
+    still = css.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
+    assert ".gloss-card.going { transition: none; }" in still
+
+
+def test_the_about_page_is_not_a_list_of_commits() -> None:
+    """The page says how much has landed and never what each change was. A commit subject
+    is written for whoever maintains the code — "Bind the chart kit before start-up reads
+    it" — and a page that prints those is a changelog wearing a product page's clothes.
+    The word itself is for maintainers too: thirty days of work are thirty days of
+    changes."""
+    from targum.render.builder import about_page
+
+    # The words on the page, not the markup: the link to the history is allowed to point
+    # at a URL with "commits" in it, because that is where the history lives.
+    words = re.sub(r"<[^>]+>", " ", about_page())
+    for inside_baseball in ("commit", "refactor", "changelog", ".py", "src/"):
+        assert inside_baseball not in words, f"{inside_baseball!r} is for maintainers"
+
+
+def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:
+    """It described targum at length — what it does, what had shipped, what it could not
+    do yet — and none of that is what somebody arriving early needs to be told. What is
+    left is the state of the thing, the evidence for it, and where the work is."""
+    from targum.render.builder import about_page
+
+    page = about_page()
+    assert "targum is under construction" in page
+    assert 'href="https://github.com/DLangellotti/targum"' in page
+    for gone in ("What it does", "Recently shipped", "What it cannot do yet", "reading app"):
+        assert gone not in page, f"{gone!r} was cut from this page"
+
+
+def test_the_about_page_keeps_its_numbers_where_there_is_no_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page is served from a wheel on the box, and a wheel has no `git log` to read.
+    Without a stamp the whole calendar disappears in production and nowhere else, which
+    is the kind of fault that is only ever found by looking at the live page.
+    """
+    from targum import about
+    from targum.render.builder import about_page
+
+    live = about.work()
+    if not live.days:
+        pytest.skip("no repository to read the numbers out of")
+
+    monkeypatch.setattr(about, "STAMP", tmp_path / "activity.json")
+    assert about.stamp() is not None, "there is a repository, so there is a stamp"
+    # A directory with no `.git` in it is what the package sits in once it is installed.
+    monkeypatch.setattr(about, "_root", lambda: tmp_path)
+    assert about.work().commits == live.commits, "the stamp is what the box reads"
+
+    page = about_page()
+    assert page.count('class="day level-') >= about.DAYS
+    assert f"<b>{live.commits}</b>" in page
+
+
+def test_the_about_page_names_the_day_its_count_ends_on() -> None:
+    """ "In the last 30 days" is true of a wheel for about a day. The numbers are stamped
+    when it is built and served until the next deploy, so the sentence has to name the
+    day it counted to rather than implying today."""
+    from targum import about
+    from targum.render.builder import about_page
+
+    found = about.work()
+    if not found.days:
+        pytest.skip("no repository to read the numbers out of")
+    assert found.through in about_page()
+    assert "in the last" not in about_page()
+
+
+def test_the_stamp_is_packed_into_the_wheel() -> None:
+    """It is ignored by git so it cannot be committed stale, and hatchling leaves
+    VCS-ignored files out of a build unless it is told otherwise. Miss the second half
+    and the first half silently empties the page on the box."""
+    root = Path(__file__).resolve().parents[1]
+    assert "src/targum/activity.json" in (root / ".gitignore").read_text(encoding="utf-8")
+    packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'artifacts = ["/src/targum/activity.json"]' in packaging

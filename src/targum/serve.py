@@ -26,6 +26,7 @@ import traceback
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from functools import cache, lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -122,6 +123,17 @@ POLICY = (
 # settles what a tier actually allows, in texts and pages rather than dollars, once the
 # real numbers from `usage` have been watched for a while.
 ACCOUNT_BUDGET = 3.00
+
+# What one reader is allowed in a calendar month. The daily rail above is a rate limit —
+# it stops one afternoon running away — and for a while it was standing in for a plan
+# limit as well, which it is bad at: thirty days of $3.00 is $90.00, and nobody agreed to
+# that. This is the number a reader is actually held to.
+#
+# A calendar month rather than a rolling thirty days, because it is the one a refusal can
+# name — "back on the 1st" is a date somebody can plan around, where "back in a few days"
+# is a shrug. It costs a month boundary where readers get their allowance back at once,
+# which for an alpha of a handful of people is not a thundering herd.
+MONTH_BUDGET = 10.00
 
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
@@ -275,6 +287,10 @@ class Job:
     # request to ask, so both travel with the job rather than being looked up later.
     owner: int | None = None
     home: Path | None = None
+    # Whether the person who asked for it is held to the per-account spend rails. Read
+    # at claim time and never written down: it is a fact about who they are now, not
+    # about this job, and a job recovered after a restart has already been claimed.
+    admin: bool = False
     # What it really cost, once the API has said. Zero until it has.
     spent: float = 0.0
     # How many chapters the text has. One means it is not a book.
@@ -309,6 +325,13 @@ class Job:
 # would treat a text called "poem-he" as somebody's home and leave it unadopted, which
 # is to say invisible.
 HOME = re.compile(r"p\d+")
+
+# Either kind of home, in front of an uploaded text's cover — `p` and a number for
+# somebody signed in, `local` for the machine's own signed-out shelf. A name arriving
+# with one of these already on it is asking for a file by somebody else's key rather
+# than its own; `_serve_thumb` puts the asker's own home on and never reads a name that
+# came carrying one.
+OWNED = re.compile(r"(?:p\d+|local)-")
 
 
 def free_name(home: Path, name: str) -> Path:
@@ -352,11 +375,13 @@ class Library:
         budget: float = SESSION_BUDGET,
         store: Store | None = None,
         account_budget: float | None = ACCOUNT_BUDGET,
+        month_budget: float | None = MONTH_BUDGET,
     ) -> None:
         self.out = out
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
+        self.month_budget = month_budget
         self.store = store
         self.adopt()
         self.empty_trash()
@@ -536,6 +561,25 @@ class Library:
     def _since() -> int:
         return now() - BUDGET_HOURS * 60 * 60 * 1000
 
+    @staticmethod
+    def _month_from() -> int:
+        """Midnight UTC on the first of this month, in the milliseconds `job.made` uses.
+
+        UTC rather than the box's zone: the box moves and the ledger does not, and a
+        budget that resets an hour early because somebody changed a timezone is a bug
+        nobody would find.
+        """
+        today = datetime.now(UTC)
+        first = datetime(today.year, today.month, 1, tzinfo=UTC)
+        return int(first.timestamp() * 1000)
+
+    @staticmethod
+    def _month_ends() -> str:
+        """When this month's allowance comes back, as a date a refusal can name."""
+        today = datetime.now(UTC)
+        year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+        return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
+
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent."""
         if self.store is not None:
@@ -548,6 +592,34 @@ class Library:
         with self.lock:
             self._committed = max(0.0, self._committed - job.estimate)
 
+    def already_over(self, job: Job) -> str:
+        """Whether this person is out of money before the work is priced.
+
+        `claim` is the real gate: it reserves an estimate inside a transaction, so two
+        builds cannot both pass on the same balance. Buying a chapter cannot use it,
+        because pricing one means lemmatising it and that is Stanza inside the request
+        that a reader is waiting on.
+
+        So this is the weaker check that path can afford: not "is there room for this",
+        which needs a price, but "is there any room at all". It cannot stop a reader
+        going over — the chapter that takes them past the line still runs — but it stops
+        the one after it, and a chapter is small. Without it the cap does not apply to
+        the way a book is actually bought, and the reader prefetches the next chapter at
+        60% of this one, so that path spends on its own.
+        """
+        if job.admin or self.store is None:
+            return ""
+        day = self._since()
+        if self.store.committed(day) >= self.budget:
+            return self._out_of("everyone")
+        if self.month_budget is not None:
+            if self.store.committed(self._month_from(), job.owner) >= self.month_budget:
+                return self._out_of("month")
+        if self.account_budget is not None:
+            if self.store.committed(day, job.owner) >= self.account_budget:
+                return self._out_of("account")
+        return ""
+
     def _out_of(self, whose: str) -> str:
         """Which ceiling stopped this, and when it lifts.
 
@@ -555,6 +627,13 @@ class Library:
         indistinguishable from the product being broken.
         """
         when = f"in {BUDGET_HOURS} hours"
+        if whose == "month":
+            # A date rather than a duration: this one is a month away, and "in 30 days"
+            # is a number somebody has to do arithmetic on to plan around.
+            return (
+                f"You have read your fill for this month. Back on {self._month_ends()}. "
+                "The library is always free."
+            )
         if whose == "account":
             return f"You have read your fill for now. Back {when}. The library is always free."
         return f"targum is at its limit. Try again {when}, or read from the library."
@@ -851,13 +930,20 @@ class Library:
         if self.store is not None:
             # One transaction decides and spends. It holds across processes as well as
             # threads, which the lock below never did.
+            # An admin is not held to the per-account rails. They exist to stop a reader
+            # running up somebody else's bill, and the person paying it is not that
+            # reader. The box ceiling below is not waived: that one is the runaway guard,
+            # and a loop at three in the morning does not care whose account it is on.
+            admin = bool(job.admin)
             refused = self.store.claim(
                 job.id,
                 job.estimate,
                 self.budget,
                 self._since(),
                 owner=job.owner,
-                per_account=self.account_budget,
+                per_account=None if admin else self.account_budget,
+                month_from=self._month_from(),
+                per_month=None if admin else self.month_budget,
             )
             if not refused:
                 return ""
@@ -986,8 +1072,16 @@ class Library:
         entry = catalogue_module.matching(document.source)
         where = self.out / "thumbs"
         if entry is None:
+            # An upload's cover carries its owner as well as its name. `thumbs/` is one
+            # directory for the whole box, and a folder name is unique only within one
+            # shelf — `free_name` keeps two of a reader's own texts apart and knows
+            # nothing of anybody else's. Filed under the bare name, two readers who each
+            # upload something called "notes" share one file: the second is told it is
+            # already drawn, and shown the first reader's picture of the first reader's
+            # text. A catalogue cover stays unprefixed, because that one really is the
+            # same picture for everyone.
             mine = Drawable(
-                id=folder.name,
+                id=f"{folder.parent.name}-{folder.name}",
                 source=document.source,
                 title=document.title or folder.name,
                 language=document.language,
@@ -1848,6 +1942,7 @@ class Handler(BaseHTTPRequestHandler):
             source=source,
             options=payload,
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=self.library.home(person),
         )
         self.library.jobs[job.id] = job
@@ -1909,6 +2004,7 @@ class Handler(BaseHTTPRequestHandler):
             title=entry.title,
             language=entry.language,
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=home,
             options={"cover": entry.id, "plan": plan, "chapters": bool(payload.get("chapters"))},
             estimate=len(plan) * illustrator.price,
@@ -1962,8 +2058,14 @@ class Handler(BaseHTTPRequestHandler):
             source=str(folder),
             options={"chapters": waiting if whole else [number], "folder": folder.name},
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=home,
         )
+        blocked = self.library.already_over(job)
+        if blocked:
+            job.blocked = blocked
+            job.stage = "blocked"
+            return self._json(job.state(), 402)
         self.library.jobs[job.id] = job
         self.library.remember(job)
         self.library.enqueue(job)
@@ -2098,7 +2200,18 @@ class Handler(BaseHTTPRequestHandler):
         """
         root = (self.library.out / "thumbs").resolve()
         wanted = unquote(name)
-        for candidate in (wanted, re.sub(r"-c\d+$", "", wanted)):
+        if OWNED.match(wanted):
+            # An upload's cover is asked for by the text's own name; the home in front
+            # of it is put there below, from whoever is asking. A name that arrives
+            # already carrying one is asking for another reader's, and the fact that
+            # `thumbs/` is one directory for the whole box is what would answer.
+            return self._send(404, b"not found", "text/plain")
+        # The asker's own first, so a reader who called an upload "genesis" gets their
+        # own picture rather than the catalogue's. A chapter falls back to its book, and
+        # both halves of that are tried the same way round.
+        mine = self._home().name
+        chapterless = re.sub(r"-c\d+$", "", wanted)
+        for candidate in (f"{mine}-{wanted}", wanted, f"{mine}-{chapterless}", chapterless):
             for suffix, kind in THUMBS:
                 target = (root / (candidate + suffix)).resolve()
                 if root not in target.parents or not target.is_file():

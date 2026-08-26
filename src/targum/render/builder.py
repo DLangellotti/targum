@@ -269,11 +269,10 @@ def add_page(token: str, no_key: str = "") -> str:
 
 
 def about_page() -> str:
-    """What has been built, read out of the repository.
+    """That targum is under construction, and how much has landed lately.
 
-    targum is open source, so the honest way to say what state it is in is to show the
-    work. Nothing here is written by hand: the numbers, the calendar and the list of
-    what shipped all come from `git log`.
+    Nothing here is written by hand: the count and the calendar both come from `git
+    log`, and the rest of what this page used to say is on GitHub.
     """
     from ..about import DAYS, work
 
