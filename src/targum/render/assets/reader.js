@@ -1243,12 +1243,52 @@
   var standing = null;
 
   function hideCard() {
+    stopFade();
     if (card) card.hidden = true;
+    letGo();
+  }
+
+  // The card lets go of the word it was about. Its own function because a card that has
+  // been answered lets go at once and leaves a moment later, so the two are no longer
+  // one thing.
+  function letGo() {
     if (lookedUp) {
       lookedUp.classList.remove("looked-up");
       lookedUp.removeAttribute("aria-describedby");
     }
     lookedUp = null;
+  }
+
+  // A card that has been answered. Saying a level answers the question the card was
+  // opened to ask, so it goes rather than riding the arrows on to the next word — but
+  // not in the frame the key was pressed in: a reader clearing a chapter a word at a
+  // time would have a window blinking at them forty times. It holds still long enough
+  // for the level it has just taken to be read, and then fades.
+  //
+  // The word is let go of straight away. What fades is chrome nobody is reading any
+  // more, and a card that still claimed a word could be handed back to `showCard` after
+  // the redraw had replaced the span it named.
+  var LINGER = 700;
+  // Matches `.gloss-card.going` in reader.css, which is where the fade itself lives.
+  var FADE = 220;
+  var fading = null;
+
+  function spendCard() {
+    if (!card || card.hidden) return;
+    stopFade();
+    letGo();
+    fading = setTimeout(function () {
+      card.classList.add("going");
+      fading = setTimeout(hideCard, FADE);
+    }, LINGER);
+  }
+
+  // Nothing on its way out. Said by every path that puts a card up or takes one down, so
+  // a card that is leaving and a card that has just been asked for are never both up.
+  function stopFade() {
+    if (fading) clearTimeout(fading);
+    fading = null;
+    if (card) card.classList.remove("going");
   }
 
   // Out of the queue altogether. A word is not focusable in its own right — it is a span
@@ -1329,6 +1369,10 @@
       // word marked with a pointer.
       var pair = word.closest ? word.closest(".pair") : null;
       redraw();
+      // The card asked what the word means and the level is an answer, so it is spent:
+      // it fades where it stands rather than being carried on to the next word. See
+      // `spendCard` — the next word is walked to without one, and Enter asks again.
+      if (open) spendCard();
       // Reached with the arrows: say the word and take the next one, so a page is
       // cleared at one key a word. Forward is always the way the text reads — the
       // arrows decide which key that is, the queue does not.
@@ -1338,10 +1382,12 @@
       // carries you over it without a case of its own.
       if (from) {
         // Nothing further. Close up, and let the header say the chapter is clear.
-        if (!goTo(onward(from, true), true, open)) {
+        if (!goTo(onward(from, true), true, false)) {
           var last = pair;
           leaveQueue();
-          hideCard();
+          // Unless it is already going, which is the last word of a chapter answered
+          // from an open card: it gets the same beat as every word before it.
+          if (!fading) hideCard();
           if (last && last.focus) last.focus();
         }
         return true;
@@ -1353,8 +1399,12 @@
         pair && pair.parentNode
           ? pair.querySelector('.w[data-lemma="' + index + '"]')
           : null;
-      if (again) showCard(again);
-      else hideCard();
+      // Rebuilt before it is spent, so what the reader watches leave is the card with
+      // the level they just said on it rather than the question it answered.
+      if (again) {
+        showCard(again);
+        spendCard();
+      } else hideCard();
       return true;
     }
 
@@ -2431,7 +2481,9 @@
     );
     if (!span) return false;
     leaveQueue();
-    if (!open) hideCard();
+    // A card on its way out is left to go at its own pace: the reader answered it and
+    // stepped on, and the point of the beat is that they see it happen.
+    if (!open && !fading) hideCard();
     standing = span;
     place = { segment: entry.segment, start: entry.start };
     span.classList.add("queued");
@@ -2603,7 +2655,10 @@
         }
         // The card next, and you stay where you are — the two are separate things, and
         // one key that did both would cost you your place to close a window.
-        if (card && !card.hidden) {
+        // A card that is already leaving is not a layer to be closed: Escape would
+        // read as doing nothing, and the reader would have to press it twice to get
+        // out of the queue.
+        if (card && !card.hidden && !fading) {
           hideCard();
           if (standing && standing.focus) standing.focus({ preventScroll: true });
           return;

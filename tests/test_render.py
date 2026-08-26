@@ -2507,4 +2507,37 @@ def test_the_arrows_come_round_rather_than_stop_with_work_left() -> None:
     assert "return step(from, forward) || step(null, forward);" in script
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script
-    assert "if (!goTo(onward(from, true), true, open)) {" in script
+    # `false`: a card is spent by the level it was answered with, so what the arrows
+    # carry on to the next word is the queue and not the window.
+    assert "if (!goTo(onward(from, true), true, false)) {" in script
+
+
+def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
+    """The card is a question, and a level is the answer to it — so it leaves rather than
+    riding the arrows on to the next word, which put a window between the reader and the
+    page they were walking for as long as they went on marking.
+
+    Not in the frame the key was pressed in, though. A card that vanished on the keystroke
+    took the level it had just taken with it, and a chapter cleared a word at a time was a
+    window blinking forty times. It holds the answer for a beat, then fades — and §8, so a
+    reader who asked for stillness gets the beat and nothing moving.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+    assert "if (open) spendCard();" in script, "a level said on an open card spends it"
+    spend = script[script.index("function spendCard() {") : script.index("function stopFade() {")]
+    assert "letGo();" in spend, "the word is let go of at once; only the card waits"
+    assert 'card.classList.add("going");' in spend
+    assert "fading = setTimeout(hideCard, FADE);" in spend
+
+    beat = re.search(r"var LINGER = (\d+);", script)
+    fade = re.search(r"var FADE = (\d+);", script)
+    assert beat and fade, "reader.js no longer names the two waits the way this test reads them"
+    assert 400 <= int(beat[1]) <= 1200, "long enough to read the level, short enough to be gone"
+    assert f"transition: opacity {fade[1]}ms ease" in css, "the sheet and the script must agree"
+
+    still = css.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
+    assert ".gloss-card.going { transition: none; }" in still
