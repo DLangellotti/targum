@@ -121,3 +121,51 @@ def test_it_will_not_draw_what_it_cannot_shrink(monkeypatch) -> None:  # type: i
     usable, detail = covers.build().available()
     assert usable is False
     assert "covers" in detail
+
+
+def test_a_chapter_is_drawn_against_the_tile_that_is_really_on_disk() -> None:
+    """`edits` reads the type an upload declares, not the bytes behind it, and the only
+    thing a cover run leaves on disk is a WEBP tile. A chapter drawn in a later run than
+    its book hands that tile back as its reference — under its own name, or the endpoint
+    refuses a picture it was told was a PNG."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    tile = BytesIO()
+    Image.new("RGB", (320, 480), (200, 180, 140)).save(tile, format="WEBP")
+    assert covers.named(tile.getvalue()) == ("cover.webp", "image/webp")
+
+    fresh = BytesIO()
+    Image.new("RGB", (16, 16), (0, 0, 0)).save(fresh, format="PNG")
+    assert covers.named(fresh.getvalue()) == ("cover.png", "image/png")
+
+    photograph = BytesIO()
+    Image.new("RGB", (16, 16), (0, 0, 0)).save(photograph, format="JPEG")
+    assert covers.named(photograph.getvalue()) == ("cover.jpg", "image/jpeg")
+
+
+def test_the_reference_goes_up_under_its_own_type(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """The whole point of `edits` is that the book's cover goes with the request. What
+    the request says that file is has to match what it is."""
+    sent: dict[str, Any] = {}
+
+    class Client:
+        def __enter__(self) -> Client:
+            return self
+
+        def __exit__(self, *_: Any) -> None:
+            return None
+
+        def post(self, url: str, **kwargs: Any) -> Answer:
+            sent.update(kwargs)
+            return Answer(drawn(input_tokens=1, output_tokens=1))
+
+    import httpx
+
+    monkeypatch.setenv("OPENAI_API_KEY", "x")
+    monkeypatch.setattr(httpx, "Client", lambda **_: Client())
+    covers.OpenAIImages().draw("a chapter", reference=b"RIFF\x00\x00\x00\x00WEBPsomething")
+
+    assert sent["files"]["image"][0] == "cover.webp"
+    assert sent["files"]["image"][2] == "image/webp"
