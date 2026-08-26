@@ -1471,7 +1471,9 @@ def test_a_text_the_catalogue_never_heard_of_is_drawn_from_itself(tmp_path: Path
     """A catalogue cover is drawn from what the catalogue says a text is — its author,
     the sentence describing it — and an upload has none of that. It has a title and an
     opening, which is enough, and the picture is filed under its own folder rather than a
-    catalogue id: it belongs to one text on one shelf."""
+    catalogue id — with the shelf in front of it, because `thumbs/` is one directory for
+    the whole box and a folder name is unique only within one home. It belongs to one
+    text on one shelf, and the name has to say which."""
     from targum.models import Block, BlockKind, Document
 
     out = tmp_path / "targum-out"
@@ -1488,8 +1490,8 @@ def test_a_text_the_catalogue_never_heard_of_is_drawn_from_itself(tmp_path: Path
 
     entry, plan = Library(out).cover_plan(folder, chapters=True)
 
-    assert entry is not None and entry.id == "mine-he"
-    assert [name for name, _ in plan] == ["mine-he"], "the book, and no chapters"
+    assert entry is not None and entry.id == "local-mine-he"
+    assert [name for name, _ in plan] == ["local-mine-he"], "the book, and no chapters"
     assert "Mine" in plan[0][1] and "שלום" in plan[0][1]
     assert "no lettering" in plan[0][1].lower(), "and the brand's rules, the same as any"
 
@@ -1712,3 +1714,69 @@ def test_working_out_the_language_is_still_allowed(
         cookie=cookie,
     )
     assert status == 200, answer
+
+
+def test_an_uploaded_texts_cover_is_not_the_whole_boxs(tmp_path: Path) -> None:
+    """`thumbs/` is one directory for the whole box, and a folder name is unique only
+    within one shelf: `free_name` keeps two of a reader's own texts apart and knows
+    nothing of anybody else's. Two readers who each upload something called "notes" must
+    not share one file — the second would be told it was already drawn and shown the
+    first reader's picture of the first reader's text."""
+    from targum.models import Block, Document
+    from targum.serve import Library
+
+    library = Library(tmp_path)
+    plans = []
+    for home in ("p3", "p7"):
+        folder = tmp_path / home / "notes"
+        folder.mkdir(parents=True)
+        Document(
+            source="upload:notes",
+            title="Notes",
+            language="he",
+            blocks=[Block(id="b1", text="שלום")],
+        ).write(folder / "document.json")
+        mine, plan = library.cover_plan(folder, chapters=False)
+        plans.append((mine.id, plan))
+
+    assert plans[0][0] == "p3-notes" and plans[1][0] == "p7-notes"
+    assert plans[0][1] and plans[1][1], "neither reader is told the other's is theirs"
+
+
+def test_a_catalogue_cover_is_still_shared(tmp_path: Path) -> None:
+    """The prefix is only for uploads. A catalogue text is the same text for everyone,
+    so its cover is drawn once and shown to all of them."""
+    from targum.catalogue import CATALOGUE
+    from targum.serve import OWNED
+
+    for entry in CATALOGUE:
+        assert not OWNED.match(entry.id), f"{entry.id} reads as somebody's upload"
+
+
+def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path]) -> None:
+    """The route puts the asker's own home on the name. Asking for a name that already
+    carries one is asking for a file by somebody else's key, and `thumbs/` being one
+    directory for the whole box is what would answer."""
+    port, key, out = served
+    thumbs = out / "thumbs"
+    thumbs.mkdir(exist_ok=True)
+    (thumbs / "p3-notes.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
+    (thumbs / "local-notes.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"1" * 40)
+
+    def fetch(path: str) -> tuple[int, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    borrowed, _ = fetch(f"/thumb/p3-notes?k={key}")
+    assert borrowed == 404, "another reader's upload is not reachable by its own key"
+
+    # This server answers signed out, so `local` is the home it puts on — the reader
+    # asks for the text's name and gets their own file, never the other one.
+    own, body = fetch(f"/thumb/notes?k={key}")
+    assert own == 200
+    assert body.endswith(b"1" * 40), "the asker's own, not the p3 shelf's"

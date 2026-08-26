@@ -310,6 +310,13 @@ class Job:
 # is to say invisible.
 HOME = re.compile(r"p\d+")
 
+# Either kind of home, in front of an uploaded text's cover — `p` and a number for
+# somebody signed in, `local` for the machine's own signed-out shelf. A name arriving
+# with one of these already on it is asking for a file by somebody else's key rather
+# than its own; `_serve_thumb` puts the asker's own home on and never reads a name that
+# came carrying one.
+OWNED = re.compile(r"(?:p\d+|local)-")
+
 
 def free_name(home: Path, name: str) -> Path:
     """A name in this home that nothing is using yet.
@@ -986,8 +993,16 @@ class Library:
         entry = catalogue_module.matching(document.source)
         where = self.out / "thumbs"
         if entry is None:
+            # An upload's cover carries its owner as well as its name. `thumbs/` is one
+            # directory for the whole box, and a folder name is unique only within one
+            # shelf — `free_name` keeps two of a reader's own texts apart and knows
+            # nothing of anybody else's. Filed under the bare name, two readers who each
+            # upload something called "notes" share one file: the second is told it is
+            # already drawn, and shown the first reader's picture of the first reader's
+            # text. A catalogue cover stays unprefixed, because that one really is the
+            # same picture for everyone.
             mine = Drawable(
-                id=folder.name,
+                id=f"{folder.parent.name}-{folder.name}",
                 source=document.source,
                 title=document.title or folder.name,
                 language=document.language,
@@ -2098,7 +2113,18 @@ class Handler(BaseHTTPRequestHandler):
         """
         root = (self.library.out / "thumbs").resolve()
         wanted = unquote(name)
-        for candidate in (wanted, re.sub(r"-c\d+$", "", wanted)):
+        if OWNED.match(wanted):
+            # An upload's cover is asked for by the text's own name; the home in front
+            # of it is put there below, from whoever is asking. A name that arrives
+            # already carrying one is asking for another reader's, and the fact that
+            # `thumbs/` is one directory for the whole box is what would answer.
+            return self._send(404, b"not found", "text/plain")
+        # The asker's own first, so a reader who called an upload "genesis" gets their
+        # own picture rather than the catalogue's. A chapter falls back to its book, and
+        # both halves of that are tried the same way round.
+        mine = self._home().name
+        chapterless = re.sub(r"-c\d+$", "", wanted)
+        for candidate in (f"{mine}-{wanted}", wanted, f"{mine}-{chapterless}", chapterless):
             for suffix, kind in THUMBS:
                 target = (root / (candidate + suffix)).resolve()
                 if root not in target.parents or not target.is_file():
