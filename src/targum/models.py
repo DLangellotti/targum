@@ -8,7 +8,6 @@ never serve a stale artifact against new code.
 from __future__ import annotations
 
 import json
-import os
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypeVar
@@ -16,6 +15,7 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, Field
 
 from .ids import content_hash
+from .paths import write_atomic
 
 # 2: M2 added source_hash and ingester to Document, and the byline block kind.
 # 3: M3 added Link and Alignment. M4 added Token and Annotation.
@@ -53,19 +53,10 @@ class Artifact(BaseModel):
         """Write it whole, or not at all.
 
         The glossary is rewritten every batch while a reader is polling for it, so a
-        half-written file is a thing someone can actually read. Writing beside the
-        target and renaming makes every read see one complete version or the previous
-        one; rename is atomic within a directory on every platform targum runs on.
+        half-written file is a thing someone can actually read.
         """
-        path.parent.mkdir(parents=True, exist_ok=True)
         body = json.dumps(self.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n"
-        temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-        try:
-            temporary.write_text(body, encoding="utf-8")
-            temporary.replace(path)
-        finally:
-            temporary.unlink(missing_ok=True)
-        return path
+        return write_atomic(path, body)
 
 
 A = TypeVar("A", bound=Artifact)
@@ -168,6 +159,11 @@ class Token(Artifact):
     # done honestly — see annotate/hebrew.py.
     binyan: str | None = None
     root: str | None = None
+    # How this occurrence is said, in IPA with the stress marked. On the token rather
+    # than on the lemma because the reading is a property of the occurrence: בצל is
+    # batsˈal in one sentence and btsˈel in the next, and the lemma cannot say which.
+    # Absent where the word has no vowels to read — see annotate/pronounce.py.
+    ipa: str | None = None
 
 
 class Annotation(Artifact):

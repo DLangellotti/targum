@@ -21,6 +21,17 @@
   // that needs it — reader.js and words.js each declare it too. It was being read from
   // words.js across a scope boundary, which threw the moment a tile was counted.
   var KNOWN = 9;
+  var IGNORED = 0;
+
+  // Ignore means "this is not vocabulary" — a name, a numeral, a word from another
+  // language. A word you ignored is not a word you kept, so nothing that counts what you
+  // have counts it and nothing that draws it draws it. Dismissing something and then
+  // being shown a tally of it is not dismissing it.
+  function kept(words) {
+    return (words || []).filter(function (word) {
+      return word.status !== IGNORED;
+    });
+  }
 
   var EARLIEST = Date.UTC(2024, 0, 1);
 
@@ -29,7 +40,6 @@
     2: { name: "getting there", slot: "--step-2" },
     3: { name: "nearly there", slot: "--step-3" },
     9: { name: "known", slot: "--step-4" },
-    0: { name: "ignored", slot: "--off" },
   };
 
   function el(tag, className, text) {
@@ -85,7 +95,7 @@
 
   function drawGrowth(host, words) {
     host.textContent = "";
-    var dated = words.filter(function (word) {
+    var dated = kept(words).filter(function (word) {
       return word.at > EARLIEST;
     });
     if (dated.length < 2) {
@@ -146,7 +156,7 @@
       role: "img",
       "aria-label":
         plural(running, "word") +
-        " kept between " +
+        " saved between " +
         shortDate(points[0].day) +
         " and " +
         shortDate(points[points.length - 1].day),
@@ -229,7 +239,7 @@
         shortDate(point.day) +
           "<br><b>" +
           point.total +
-          "</b> kept" +
+          "</b> saved" +
           (point.added ? " · " + point.added + " that day" : ""),
         (px(index) / W) * hostBox.width,
         (py(point.total) / H) * hostBox.height
@@ -241,32 +251,36 @@
     });
   }
 
-  function drawTiles(host, entry) {
-    host.textContent = "";
-    var words = entry.words;
+  /* Every figure the ledger says about one language, counted once. This used to draw its
+   * own row of tiles under the ledger, which meant the same words were counted twice on
+   * one page in two different shapes — and said twice, since "phrases saved" was in both.
+   */
+  function totals(entry) {
+    var words = kept(entry.words);
     var known = 0;
     var learning = 0;
+    var learned = 0;
     var recent = 0;
     var weekAgo = Date.now() - 7 * DAY;
     words.forEach(function (word) {
       if (word.status === KNOWN) known += 1;
       else if (word.status >= 1 && word.status <= 3) learning += 1;
+      // Saved at a level below known and now known: a word targum taught somebody, rather
+      // than one they opened a text already having and ticked off. The flag is written
+      // when the word crosses, because nothing in a finished record can say afterwards
+      // which of the two it was.
+      if (word.status === KNOWN && word.learned) learned += 1;
       if (word.at > weekAgo && word.at > EARLIEST) recent += 1;
     });
-    var scored = known + learning;
-
-    function tile(value, label, extra) {
-      var box = el("div", "tile");
-      box.appendChild(el("b", null, String(value)));
-      box.appendChild(el("span", null, label));
-      if (extra) box.appendChild(el("span", "delta", extra));
-      host.appendChild(box);
-    }
-
-    tile(words.length, "words kept", recent ? "+" + recent + " this week" : "");
-    tile(known, "known", scored ? Math.round((known / scored) * 100) + "% of the way" : "");
-    tile(learning, "still learning");
-    tile(entry.phrases.length, entry.phrases.length === 1 ? "phrase" : "phrases");
+    return {
+      saved: words.length,
+      learned: learned,
+      known: known,
+      learning: learning,
+      recent: recent,
+      texts: entry.texts || 0,
+      phrases: entry.phrases.length,
+    };
   }
 
   /* --- what is in the browser ------------------------------------------------
@@ -297,7 +311,7 @@
     var byLanguage = {};
 
     function slot(code) {
-      if (!byLanguage[code]) byLanguage[code] = { code: code, words: [], phrases: [] };
+      if (!byLanguage[code]) byLanguage[code] = { code: code, words: [], phrases: [], texts: 0 };
       return byLanguage[code];
     }
 
@@ -317,6 +331,10 @@
             note: item.note || "",
             band: item.band || "",
             status: item.status,
+            // Named here or dropped here. This is the third list of field names a word
+            // passes through — the store, the sync, and this — and each one silently
+            // loses whatever it does not mention.
+            learned: item.learned ? 1 : 0,
             at: item.at || 0,
           });
         });
@@ -345,6 +363,16 @@
       }
     }
 
+    // How many texts in each language have been opened. Counted into the slots that
+    // already exist rather than through `slot()`, on purpose: a language you opened
+    // something in but never marked a word in has nothing to show, and minting a slot
+    // for it would put an empty language in the switcher and empty charts under it.
+    var opened = read("targum:opened", "{}");
+    Object.keys(opened).forEach(function (hash) {
+      var code = about(hash).language;
+      if (code && byLanguage[code]) byLanguage[code].texts += 1;
+    });
+
     Object.keys(byLanguage).forEach(function (code) {
       byLanguage[code].words.sort(function (a, b) {
         return a.at - b.at;
@@ -356,16 +384,41 @@
     return byLanguage;
   }
 
+  // The days somebody read on, oldest first. Global rather than per-language, because a
+  // day is not in a language: you can read Hebrew in the morning and Russian at night,
+  // and that is one day either way.
+  //
+  // Read here and written only by the reader. This runs on pages whose test harness
+  // gives it a localStorage with no `setItem` at all, so a write in this file throws
+  // where a read does not.
+  function days() {
+    return Object.keys(read("targum:days", "{}")).sort();
+  }
+
+  /* How many of these are finished with. Learn says it at the top of the page and the
+     ledger counts it too, and the two must never be able to disagree. */
+  function known(words) {
+    var count = 0;
+    (words || []).forEach(function (word) {
+      if (word.status === KNOWN) count += 1;
+    });
+    return count;
+  }
+
   window.TargumCharts = {
     el: el,
+    kept: kept,
+    KNOWN: KNOWN,
     svg: svg,
     plural: plural,
     shortDate: shortDate,
     dayOf: dayOf,
     tipFor: tipFor,
     growth: drawGrowth,
-    tiles: drawTiles,
+    totals: totals,
     collect: collect,
+    days: days,
+    known: known,
     read: read,
     EARLIEST: EARLIEST,
     STATUS: STATUS,

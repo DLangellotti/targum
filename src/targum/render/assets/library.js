@@ -38,16 +38,24 @@
   var catalogue = window.TARGUM_CATALOGUE || [];
   var lang = window.TargumLang;
 
-  // What a text is. Six words a reader would actually filter by, and the seventh —
-  // an article — is what their own shelf is mostly made of.
+  /* What a text is, called what a reader would call it — which is not always what the
+     catalogue calls it. "Prose" is the catalogue's word for the narrative books of the
+     Tanakh, and beside "Novels" and "Stories", which are also prose, it says nothing to
+     anybody. "News" is what an article is.
+
+     Ordered by how much of the catalogue each one holds, so the first chips a reader
+     meets are the ones with fifty texts behind them rather than the ones with two. Fixed
+     rather than recomputed: a row of filters that rearranges itself as you use it is a
+     row you have to read every time. */
   var KINDS = [
-    ["prose", "Prose"],
-    ["poetry", "Poetry"],
-    ["novel", "Novels"],
     ["story", "Stories"],
+    ["article", "News"],
+    ["novel", "Novels"],
     ["essay", "Essays"],
+    ["prose", "Narrative"],
+    ["poetry", "Poetry"],
     ["document", "Documents"],
-    ["article", "Articles"],
+    ["play", "Plays"],
   ];
 
   var REGISTERS = [
@@ -71,10 +79,13 @@
     ["hard", "Harder"],
   ];
 
+  /* The two halves of the page. The catalogue is everybody's; an upload is yours and
+     nobody else can reach it. Tabs rather than a filter: they are not two settings of one
+     list, they are two lists, and as a select called "Access" the second one was a thing
+     nobody found. */
   var WHERE = [
-    ["", "Everything"],
-    ["mine", "On my shelf"],
-    ["new", "Not built yet"],
+    ["library", "Library"],
+    ["mine", "Your Uploads"],
   ];
 
   // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
@@ -243,9 +254,11 @@
     hard.className = "gauge drop";
     open.appendChild(hard);
 
-    var state = el("span", "row-state", row.built ? "On your shelf" : "Build it");
-    if (row.built) state.className = "row-state mine";
-    open.appendChild(state);
+    /* Where a build narrates itself. It used to say Public or Private, which the two
+       tabs say once at the top now — but it is also what `build()` writes into, and a
+       row with nothing to write into threw the moment anybody pressed one. Empty until
+       there is something to say, and its column collapses to nothing while it is. */
+    open.appendChild(el("span", "row-state"));
 
     item.appendChild(open);
 
@@ -279,9 +292,6 @@
     difficulty: function (row) {
       return row.difficulty || 0;
     },
-    state: function (row) {
-      return row.built ? 0 : 1;
-    },
   };
 
   var COLUMNS = [
@@ -290,8 +300,11 @@
     ["kind", "Kind"],
     ["register", "Hebrew"],
     ["minutes", "Length"],
-    ["difficulty", "Looked up"],
-    ["state", "Where"],
+    // What the number under it means, said the way somebody choosing a text would ask
+    // it. "Looked up" is the measurement's name, not the reader's question.
+    ["difficulty", "New words"],
+    // Unlabelled: the column a build narrates itself in, empty the rest of the time.
+    ["", ""],
   ];
 
   // Whether the server can draw at all, answered by the server. A deployment with no
@@ -299,20 +312,28 @@
   var canDraw = false;
 
   var view = stored("targum:library");
-  if (!view.sort) view.sort = "state";
+  // Easiest first. The default was by access, which sorted the catalogue into public and
+  // private — a fact about who may read a text rather than about whether this reader
+  // can. Somebody arriving at forty texts in a language they are learning is asking
+  // which of them they can read now, and that is what the list answers.
+  if (!view.sort) view.sort = "difficulty";
   if (!view.dir) view.dir = 1;
   if (!view.kind) view.kind = "";
   if (!view.register) view.register = "";
+  if (!view.where) view.where = "library";
 
-  function matches(row, code) {
+  /* Whether one row survives the filters. `using` lets a caller ask the question against
+     a different set of them — see `present()`, which asks it with one filter lifted. */
+  function matches(row, code, using) {
+    var state = using || view;
     if (base(row.language) !== code) return false;
-    if (view.kind && row.kind !== view.kind) return false;
-    if (view.register && row.register !== view.register) return false;
-    if (view.length && lengthOf(row.minutes) !== view.length) return false;
-    if (view.level && level(row.difficulty) !== view.level) return false;
-    if (view.where === "mine" && !row.built) return false;
-    if (view.where === "new" && row.built) return false;
-    if (view.find) {
+    if (state.kind && row.kind !== state.kind) return false;
+    if (state.register && row.register !== state.register) return false;
+    if (state.length && lengthOf(row.minutes) !== state.length) return false;
+    if (state.level && level(row.difficulty) !== state.level) return false;
+    if (state.where === "mine" && row.entry) return false;
+    if (state.where !== "mine" && !row.entry) return false;
+    if (state.find) {
       // The blurb and the name the text is filed under are in this on purpose. A reader
       // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
       // titles and the bylines are both in Hebrew, and the only Latin a text carries is
@@ -320,7 +341,7 @@
       var hay = [row.title, row.author, row.entry ? row.entry.blurb : "", row.id]
         .join(" ")
         .toLowerCase();
-      if (hay.indexOf(view.find.toLowerCase()) < 0) return false;
+      if (hay.indexOf(state.find.toLowerCase()) < 0) return false;
     }
     return true;
   }
@@ -342,11 +363,35 @@
 
   /* --- the controls ----------------------------------------------------------- */
 
-  function chips(host, options, field, redraw) {
+  /* Which values of one field the rest of the filters leave standing.
+   *
+   * Computed against everything except the field being drawn, so choosing a kind never
+   * removes the other kinds from the row it lives in — that would be a filter that eats
+   * itself. */
+  function present(rows, field, code) {
+    var seen = {};
+    rows.forEach(function (row) {
+      var pretend = {};
+      for (var key in view) pretend[key] = view[key];
+      pretend[field] = "";
+      if (matches(row, code, pretend)) seen[row[field]] = true;
+    });
+    return seen;
+  }
+
+  function chips(host, options, field, redraw, shape, seen) {
     host.textContent = "";
-    var all = [["", "All"]].concat(options);
+    var offered = seen
+      ? options.filter(function (pair) {
+          return seen[pair[0]];
+        })
+      : options;
+    // Nothing to choose between is not a choice: one kind left, or none, and the row of
+    // chips is the word "All" on its own.
+    if (seen && offered.length < 2) offered = [];
+    var all = offered.length ? [["", "All"]].concat(offered) : [];
     all.forEach(function (pair) {
-      var chip = el("button", "chip", pair[1]);
+      var chip = el("button", shape || "chip", pair[1]);
       chip.type = "button";
       chip.setAttribute("aria-pressed", view[field] === pair[0] ? "true" : "false");
       chip.addEventListener("click", function () {
@@ -354,6 +399,27 @@
         redraw();
       });
       host.appendChild(chip);
+    });
+  }
+
+  /* The one control that changes which list you are looking at rather than what it is
+     narrowed to. Underlined rather than pilled: the page already has pills for the
+     language above it and chips for the filters below, and a third row of the same shape
+     would be a third thing to tell apart. */
+  function tabs(host, options, field, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    options.forEach(function (pair) {
+      var tab = el("button", "tab", pair[1]);
+      tab.type = "button";
+      tab.setAttribute("role", "tab");
+      var on = (view[field] || options[0][0]) === pair[0];
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.addEventListener("click", function () {
+        view[field] = pair[0];
+        redraw();
+      });
+      host.appendChild(tab);
     });
   }
 
@@ -541,11 +607,21 @@
 
     function redraw() {
       remember("targum:library", view);
-      chips(document.getElementById("register-chips"), REGISTERS, "register", redraw);
-      chips(document.getElementById("kind-chips"), KINDS, "kind", redraw);
+      chips(document.getElementById("register-chips"), REGISTERS, "register", redraw, "segment");
+      // Only the kinds that are actually in front of this reader. A row of seven chips
+      // where three of them find nothing — and one of them is "Documents" — is seven
+      // things to read and four dead ends.
+      chips(
+        document.getElementById("kind-chips"),
+        KINDS,
+        "kind",
+        redraw,
+        "chip",
+        present(everything, "kind", chosen)
+      );
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
       choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
-      choices(document.getElementById("where"), WHERE, "where", redraw);
+      tabs(document.getElementById("where"), WHERE, "where", redraw);
       heading(redraw);
 
       var showing = sorted(
@@ -557,23 +633,41 @@
       showing.forEach(function (row) {
         host.appendChild(draw(row));
       });
+      pointAt();
+      // Counted within the list being looked at, not across both: "2 of 116" under Your
+      // Uploads would be counting somebody's two texts against everybody's catalogue.
+      var here = everything.filter(function (row) {
+        return base(row.language) === chosen && (view.where === "mine" ? !row.entry : row.entry);
+      });
       empty.hidden = showing.length > 0;
-      if (!showing.length) empty.textContent = "Nothing here matches that.";
-      var total = everything.filter(function (row) {
-        return base(row.language) === chosen;
-      }).length;
+      if (!showing.length) {
+        // An empty tab and an empty filter are different things to be told.
+        empty.textContent = here.length
+          ? "Nothing here matches that."
+          : view.where === "mine"
+            ? "Nothing uploaded yet."
+            : "Nothing here yet.";
+      }
+      var total = here.length;
       tally.textContent =
         showing.length === total
           ? total + (total === 1 ? " text" : " texts")
           : showing.length + " of " + total;
-      clear.hidden = !(
-        view.find ||
-        view.kind ||
-        view.register ||
-        view.length ||
-        view.level ||
-        view.where
-      );
+      clear.hidden = !(view.find || view.kind || view.register || view.length || view.level);
+    }
+
+    /* Learn suggests something to read and links here with the id in the hash. Finding it
+       is the reader's problem otherwise: this catalogue is forty rows and the thing they
+       were sent for could be anywhere in it. Marked and scrolled to, never pressed —
+       what pressing an unbuilt row does is start spending, and nothing arrives at a page
+       with permission to do that. */
+    function pointAt() {
+      var wanted = decodeURIComponent((location.hash || "").slice(1));
+      if (!wanted) return;
+      var row = host.querySelector('[data-row="' + wanted.replace(/"/g, "") + '"]');
+      if (!row) return;
+      row.classList.add("pointed");
+      if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
     }
 
     find.value = view.find || "";
@@ -582,7 +676,9 @@
       redraw();
     });
     clear.addEventListener("click", function () {
-      view.find = view.kind = view.register = view.length = view.level = view.where = "";
+      // Not `where`: Clear empties the filters, and which of the two lists you are
+      // looking at is not one of them.
+      view.find = view.kind = view.register = view.length = view.level = "";
       find.value = "";
       redraw();
     });

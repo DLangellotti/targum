@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from targum.accounts import Store, now
+from targum.cache import Cache
+from targum.paths import write_atomic
 from targum.serve import BUDGET_HOURS, Job, Library
 
 
@@ -133,3 +137,44 @@ def test_two_claims_at_once_cannot_both_pass(tmp_path: Path) -> None:
     assert lib.claim(job(lib, 3.0, id="a")) == ""
     assert lib.claim(job(lib, 3.0, id="b")) != ""
     assert lib.committed == 3.0
+
+
+def test_a_cache_entry_is_never_half_written(tmp_path: Path) -> None:
+    """A torn entry reads as a miss, and a miss is a book bought a second time.
+
+    The failure needs two processes to see, so it is staged instead: writing over an
+    entry that is already there must leave either the old value or the new one, and
+    the target must never be the file the bytes land in.
+    """
+    cache = Cache(tmp_path)
+    cache.put("translate", "abc123", {"segments": ["first"]})
+    landed: list[Path] = []
+    real = Path.write_text
+
+    def watched(self: Path, *args: object, **kw: object) -> int:
+        landed.append(self)
+        return real(self, *args, **kw)  # type: ignore[arg-type]
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(Path, "write_text", watched)
+        cache.put("translate", "abc123", {"segments": ["second"]})
+
+    assert cache.get("translate", "abc123") == {"segments": ["second"]}
+    assert landed and cache._path("translate", "abc123") not in landed
+    assert list(tmp_path.rglob(".*.tmp")) == []
+
+
+def test_a_failed_write_leaves_the_previous_version(tmp_path: Path) -> None:
+    target = tmp_path / "glossary.json"
+    write_atomic(target, "the old one")
+
+    def explode(self: Path, *args: object, **kw: object) -> int:
+        raise OSError("disk full")
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(Path, "write_text", explode)
+        with pytest.raises(OSError):
+            write_atomic(target, "the new one")
+
+    assert target.read_text(encoding="utf-8") == "the old one"
+    assert list(tmp_path.glob(".*.tmp")) == []

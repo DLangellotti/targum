@@ -68,6 +68,20 @@
   .site-head { padding-block-start: 1rem; }
   .site-head h1 { font-size: 1.5rem; }
   .site-head-row { gap: 0.5rem; }
+  .site-head-row,
+  .site-head h1,
+  .site-head .langs,
+  .site-head .beta-note { padding-inline: 1rem; }
+}
+
+/* Under about 27rem the five things in the bar — name, three places, upload, account,
+   light switch — no longer fit on one line, and the row is what pushed the whole page
+   into a sideways scroll. It wraps instead: the name keeps the first line, everything
+   else takes the second. */
+@media (max-width: 27rem) {
+  .site-head-row { flex-wrap: wrap; row-gap: 0.6rem; }
+  .brand { flex: 1 0 100%; }
+  .site-nav { margin-inline-start: 0; }
 }
 
 .site-nav {
@@ -87,6 +101,18 @@
 .site-nav a:hover { color: var(--ink); background: var(--paper-raised); }
 .site-nav a.on { color: var(--paper); background: var(--ink-soft); }
 
+.upload {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.upload:hover { color: var(--ink); border-color: var(--ink-soft); }
+.upload.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
+
 /* --- the account, in the corner of every page -----------------------------
    Small on purpose. Signing in is worth offering once and then getting out of the
    way; a reading app whose most prominent control is its account menu has its
@@ -104,6 +130,30 @@
   text-overflow: ellipsis;
 }
 .account > button:hover { color: var(--ink); }
+
+/* Signed in, the button is a circle rather than a name: an address is too long for a
+   corner and is nobody else's business on a shared screen. A picture fills it where a
+   sign-in provider has handed one over; initials fill it where none has. */
+.account > button.avatar {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+.account > button.avatar:hover { color: var(--ink); border-color: var(--ink-soft); }
+.account > button.avatar img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  display: block;
+}
 .account > button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
 
 .account-panel {
@@ -141,6 +191,65 @@
   font-size: 0.8125rem;
 }
 .account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+/* The one link in the panel, which had no rule at all and so came out as a browser
+   default: underlined, and blue — a hue the palette does not have and §4 does not allow.
+   Quiet ink beside the button, the same way the footer's links read. */
+.account-panel .to-you {
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
 .account-panel .said { margin: 0.6rem 0 0; color: var(--accent); }
 .account-panel .said[hidden] { display: none; }
 .account-panel [hidden] { display: none; }
+
+/* --- a segmented switch ----------------------------------------------------
+   Two or three answers to one question, in one track, so it reads as a switch between
+   things rather than as more pills among the filters. Discover asks which Hebrew with
+   it; the upload page asks where a translation comes from. Here rather than in either,
+   because a copy of it in the second file is the copy that stops matching. */
+.switch-set { display: flex; align-items: center; gap: 0.35rem; }
+.switch-label {
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised);
+}
+.segment {
+  padding: 0.2rem 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+.segment:hover { color: var(--ink); }
+/* §4: selection in UI is quiet ink, never the accent. */
+.segment[aria-pressed="true"] { background: var(--ink-soft); color: var(--paper); }
+
+/* --- the footer every page wears ------------------------------------------
+   The about page is the open-source half made visible, and it should be reachable from
+   the product and not only from the door. Here rather than in library.css, which the
+   upload page has no reason to load — and so wore three unstyled blue links, invisible
+   only because that page used to be too long to reach the bottom of. */
+.site-foot {
+  max-width: 46rem;
+  margin: 3rem auto 0;
+  padding: 1.2rem 1rem 2rem;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  gap: 1.2rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.site-foot a { color: var(--ink-soft); text-decoration: none; }
+.site-foot a:hover { color: var(--ink); }

@@ -2,11 +2,16 @@
     and the light switch. It is one file because copies of a navigation bar drift apart —
     they had already drifted into three different orders once.
 
-    The order is how often somebody wants each one. Learn is most visits; Library is
-    finding the next thing; Words is deliberate study; Add is rare and used to be first,
-    back when bringing your own text was the only way to have anything at all.
+    The order is how often somebody wants each one. Learn is most visits; Discover is
+    finding the next thing; Your Progress is deliberate study. Uploading a text is not a
+    place at all — it is a thing you do, rarely — so it sits in the corner with the
+    account rather than in the row of pages.
 
-    Set `here` to "learn", "library", "words" or "add" before including this. -#}
+    Your Progress was called Words until it became an account of what a reader has built
+    rather than a list of what they had kept. It is the only two-word label here, which
+    is why the row wraps rather than scrolls under a narrow window.
+
+    Set `here` to "learn", "library", "progress" or "add" before including this. -#}
 <header class="site-head">
   <div class="site-head-row">
     {#- The lockup, assembled live rather than dropped in as lockup.svg: the name is
@@ -22,10 +27,12 @@
     </a>
     <nav class="site-nav" aria-label="Pages">
       <a href="/" data-nav="learn"{% if here == 'learn' %} class="on" aria-current="page"{% endif %}>Learn</a>
-      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
-      <a href="/words" data-nav="words"{% if here == 'words' %} class="on" aria-current="page"{% endif %}>Words</a>
-      <a href="/add" data-nav="add"{% if here == 'add' %} class="on" aria-current="page"{% endif %}>Add</a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Discover</a>
+      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
     </nav>
+    {#- Not one of the places you can be: a thing you do, and rarely. It sits with the
+        account and the light switch rather than in the row of pages. -#}
+    <a class="upload{% if here == 'add' %} on{% endif %}" href="/add" data-nav="add"{% if here == 'add' %} aria-current="page"{% endif %}>Upload Text</a>
     <div class="account" id="account">
       <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
         Sign in
@@ -41,7 +48,7 @@
         </div>
         <div class="signed-in" hidden>
           <p class="whom" id="account-whom"></p>
-          <p class="kept" id="account-kept"></p>
+          <a class="to-you" href="/you">Your profile</a>
           <button type="button" id="account-out">Sign out</button>
         </div>
         <p class="said" id="account-said" hidden></p>
@@ -50,7 +57,7 @@
     <button type="button" data-theme-toggle aria-label="Switch theme"></button>
   </div>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
-  {%- if here in ('learn', 'library', 'words') %}
+  {%- if here in ('learn', 'library', 'progress') %}
   <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>
   <p class="beta-note" id="beta-note" hidden></p>
   {%- endif %}

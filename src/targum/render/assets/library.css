@@ -81,11 +81,14 @@
 .rows-head,
 .rows .row-open {
   display: grid;
-  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4rem 4rem 3.5rem 4.5rem 5rem;
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 4.5rem 4rem 6.25rem auto;
   align-items: center;
   gap: 0.7rem;
 }
 
+/* A heading and its sort arrow are one label: wrapped, "New words ↑" puts the arrow on
+   a line of its own and the row below stops lining up with anything. */
+.rows-head button { white-space: nowrap; }
 .rows-head {
   padding: 0.3rem 0.5rem;
   border-block-end: 1px solid var(--rule);
@@ -178,7 +181,14 @@
 }
 .thumb.tiny .glyph { font-size: 0.6875rem; }
 
-.what { min-inline-size: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.what {
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+.what > * { max-inline-size: 100%; }
 .row-title {
   font-family: var(--reading);
   font-size: 1.0625rem;
@@ -229,8 +239,8 @@
 }
 .rows .row-open:hover .gauge .fill { background: var(--ink); }
 
+/* Empty most of the time — an `auto` track with nothing in it is no width at all. */
 .row-state { color: var(--ink-soft); font-size: 0.6875rem; }
-.row-state.mine { color: var(--ink); }
 .rows .row-open:hover .row-state { color: var(--ink); }
 
 .tally { margin: 0.7rem 0 0; color: var(--ink-soft); font-size: 0.6875rem; }
@@ -239,9 +249,84 @@
    the title, how long it is, and whether they already have it. */
 @media (max-width: 46rem) {
   .rows-head,
-  .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 3.5rem 5rem; }
+  .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 4rem 5rem; }
   .rows-head .drop,
   .rows .drop { display: none; }
+}
+
+/* --- the shelf, as a table ------------------------------------------------- */
+
+/* The same row the library draws, with the columns this page has: what it is, how much
+   of it is bought, when it was last open. It was a stack of two-line entries with the
+   controls floating off to the right, which is three alignments in one row and reads as
+   none. */
+.shelf-head,
+.books.shelf-rows li {
+  display: grid;
+  /* Every track a fixed size or a fraction, and none of them `auto`. Each row is its
+     own grid, so an `auto` track sized to its own content — a row with a Chapters button
+     is wider there than one without, which left a different remainder for the title and
+     put every row's columns in a different place. The header, whose last cell is empty,
+     lined up with none of them. */
+  grid-template-columns: 2.25rem minmax(6rem, 3fr) 5rem 7.5rem 9.75rem;
+  align-items: center;
+  gap: 0.7rem;
+}
+.shelf-head {
+  padding: 0.3rem 0.5rem;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.shelf-head[hidden] { display: none; }
+
+.books.shelf-rows li {
+  padding: 0.4rem 0.5rem;
+  border-block-end: none;
+  border-radius: 5px;
+}
+.books.shelf-rows li + li {
+  border-block-start: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+/* §8: a row hover is a 7–10% accent wash. */
+.books.shelf-rows li:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* `display: contents` so the cells inside the link are laid out by the row's own grid.
+   The link still covers them; the controls beside it stay their own targets. */
+.books.shelf-rows li > a {
+  display: contents;
+  color: inherit;
+  text-decoration: none;
+}
+.books.shelf-rows li > a:hover .book-title { color: var(--accent); }
+
+/* Narrow: the two middle columns go and the row is cover, title, controls. They were
+   fixed tracks — 5rem, 7.5rem, 9.75rem — which is 27rem of row before the title has
+   anything, so under about 36rem the page itself scrolled sideways rather than the row.
+   What survives is what a phone is for: which text, and the way into it. */
+@media (max-width: 46rem) {
+  .shelf-head { display: none; }
+  .books.shelf-rows li {
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  }
+  .books.shelf-rows li .cell.count,
+  .books.shelf-rows li .cell.when { display: none; }
+}
+.shelf-rows .cell {
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+}
+.shelf-rows .cell.count {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.shelf-rows .row-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.3rem;
 }
 
 /* --- the shelf ------------------------------------------------------------ */
@@ -250,14 +335,32 @@
 .books li { border-block-end: 1px solid color-mix(in srgb, var(--rule) 60%, transparent); }
 .books a {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  align-items: center;
+  gap: 0.6rem;
   padding: 0.6rem 0;
   color: inherit;
   text-decoration: none;
 }
+/* The title and its line stack; the tile sits beside them both. `.what` is the same
+   two-line block the library's rows use, so a text looks the same on either page. */
+.books .what { gap: 0.15rem; }
 .books a:hover { color: var(--accent); }
 .books .book-title { font-family: var(--reading); font-size: 1.0625rem; }
+/* `justify-self: start`, not the grid's default stretch. A stretched cell is as wide as
+   its column, and a Hebrew title inside one aligns to its own right edge — which is what
+   put a hand's width of nothing between every cover and its title. Shrink the box to the
+   words and place it at the column's start, and the text still reads right-to-left
+   inside it. */
+.shelf-rows .book-title {
+  display: block;
+  justify-self: start;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
 .books .book-meta { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* --- offered instead of paying for a translation -------------------------- */
@@ -302,21 +405,6 @@
 .trash .gone { flex: 1; min-width: 0; display: block; }
 .trash .book-title { color: var(--ink-soft); }
 .trash .book-meta { display: block; color: var(--clay); }
-
-/* The footer inside the app. The about page is the open-source half made visible, and
-   it should be reachable from the product and not only from the door. */
-.site-foot {
-  max-width: 46rem;
-  margin: 3rem auto 0;
-  padding: 1.2rem 1rem 2rem;
-  border-block-start: 1px solid var(--rule);
-  display: flex;
-  gap: 1.2rem;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-}
-.site-foot a { color: var(--ink-soft); text-decoration: none; }
-.site-foot a:hover { color: var(--ink); }
 
 /* --- a book, opened into its chapters -------------------------------------- */
 
@@ -374,3 +462,41 @@
 }
 .chapters .get:hover { color: var(--ink); border-color: var(--ink-soft); }
 .chapters .get:disabled { opacity: 0.6; cursor: default; }
+
+/* The row Learn sent somebody here for. A hairline in the accent rather than a wash: the
+   wash is what a hover means, and this is not a hover. */
+.rows li.pointed {
+  outline: 1px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+
+/* --- the two lists ---------------------------------------------------------
+   Not a filter: the catalogue is everybody's and an upload is yours, and those are two
+   lists rather than two settings of one. Underlined rather than pilled, because the page
+   already wears pills for the language above and chips for the filters below. */
+
+.tabs {
+  display: flex;
+  gap: 1.25rem;
+  margin-block-end: 0.9rem;
+  border-block-end: 1px solid var(--rule);
+}
+.tab {
+  padding: 0.35rem 0;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.tab:hover { color: var(--ink); }
+/* §4: selection in UI is quiet ink, never the accent. */
+.tab[aria-selected="true"] {
+  border-block-end-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}

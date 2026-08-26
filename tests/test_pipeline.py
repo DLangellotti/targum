@@ -14,6 +14,7 @@ from targum.models import (
     Style,
     Token,
     Translation,
+    Vocalization,
     read_artifact,
 )
 from targum.pipeline import Build, Result
@@ -239,7 +240,11 @@ class FakeAnnotator:
 
     name = "fake/1"
 
-    def annotate(self, segmented: SegmentedDocument) -> Annotation:
+    # The vocalization is offered to every annotator now, because a word's reading is
+    # worked out from its vowels. This one has no use for it and says so by ignoring it.
+    def annotate(
+        self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
+    ) -> Annotation:
         return Annotation(
             document_hash=segmented.document_hash,
             language=segmented.language,
@@ -411,3 +416,105 @@ def test_the_second_pass_leaves_no_stale_section_files(
 
     assert before == after
     assert sorted(p.name for p in (out / "reader").glob("*.html")) == after
+
+
+class Dies:
+    """Translates a batch, writes it down, and then falls over.
+
+    Stands in for the ordinary way a long run ends badly: a network that drops, a laptop
+    that sleeps, a rate limit at sentence four hundred.
+    """
+
+    name = "dies"
+    needs_key = False
+    default_model = None
+
+    def __init__(self, size: int = 2, batches_before_dying: int = 1) -> None:
+        self.size = size
+        self.batches_before_dying = batches_before_dying
+        self.asked: list[list[str]] = []
+
+    def available(self) -> tuple[bool, bool | str]:
+        return True, "falls over on purpose"
+
+    def translate(  # type: ignore[no-untyped-def]
+        self, segments, source_language, target_language, style, on_progress=None, on_batch=None
+    ):
+        from targum.errors import ProviderError
+
+        self.asked.append([segment.id for segment in segments])
+        done: dict[str, str] = {}
+        for number, start in enumerate(range(0, len(segments), self.size)):
+            if number >= self.batches_before_dying:
+                raise ProviderError("The provider fell over.", "mid-run")
+            done |= {s.id: f"[en] {s.text}" for s in segments[start : start + self.size]}
+            if on_batch:
+                on_batch(dict(done))
+        return done
+
+
+def test_an_interrupted_run_writes_down_what_it_paid_for(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """A book that died at 80% used to re-translate from zero. Every batch that came back
+    had been paid for and nothing but the whole run was ever written down."""
+    from targum.errors import ProviderError
+
+    builder = build(source, tmp_path / "out", fake_segmenter)
+    plan = builder.plan()
+    assert plan.segmented is not None
+    builder.provider = Dies()  # type: ignore[assignment]
+
+    with pytest.raises(ProviderError):
+        builder.run(plan)
+
+    held = builder.held(builder.cache_key(plan.segmented))
+    assert held, "the batch that succeeded is on the ledger"
+    assert len(held) < len(plan.segmented.segments), "and only that batch"
+
+
+def test_the_next_attempt_buys_only_what_is_missing(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    from targum.errors import ProviderError
+
+    first = build(source, tmp_path / "out", fake_segmenter)
+    plan = first.plan()
+    assert plan.segmented is not None
+    first.provider = Dies()  # type: ignore[assignment]
+    with pytest.raises(ProviderError):
+        first.run(plan)
+    paid = set(first.held(first.cache_key(plan.segmented)))
+
+    # A second attempt, with a provider that survives, on the same cache.
+    second = build(source, tmp_path / "out2", fake_segmenter)
+    finishes = Dies(batches_before_dying=99)
+    second.provider = finishes  # type: ignore[assignment]
+    result = second.run()
+
+    asked = set(finishes.asked[0])
+    assert asked, "it still had something to do"
+    assert not (asked & paid), "and never asked again for a sentence already bought"
+    assert set(result.translation.segments) >= paid | asked, "the reader gets all of it"
+
+
+def test_a_chapter_is_only_free_when_all_of_it_is_bought(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """`bought` used to be "is there a cache entry". Once a dying run leaves a partial
+    one, an entry alone stopped meaning a chapter was paid for — and calling it free is
+    how a reader gets charged for what a page told them they already had."""
+    builder = build(source, tmp_path / "out", fake_segmenter)
+    plan = builder.plan()
+    assert plan.segmented is not None
+    run = plan.segmented.segments
+
+    assert builder.bought(plan.segmented, run) is False, "nothing bought yet"
+
+    part = {segment.id: "x" for segment in run[:1]}
+    builder.cache.put("translate", builder.cache_key(plan.segmented, run), {"segments": part})
+    assert builder.bought(plan.segmented, run) is False, "a partial entry is not a purchase"
+
+    whole = {segment.id: "x" for segment in run}
+    builder.cache.put("translate", builder.cache_key(plan.segmented, run), {"segments": whole})
+    assert builder.bought(plan.segmented, run) is True

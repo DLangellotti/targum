@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="words you">
+{% set here = 'you' %}{% set title = 'You' %}
+{% include '_nav.html.j2' %}
+
+<main>
+  {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}
+  <section class="panel" id="stranger" hidden>
+    <p class="note">Sign in from the corner and this page fills itself in.</p>
+  </section>
+
+  <section class="panel" id="who" hidden>
+    <div class="who-head">
+      <span class="avatar-large" id="you-avatar"></span>
+      <div class="who-what">
+        <label class="field">
+          <span>Name</span>
+          <input type="text" id="you-name" maxlength="60" autocomplete="name"
+                 placeholder="What to call you" spellcheck="false">
+        </label>
+        <p class="you-email" id="you-email"></p>
+      </div>
+    </div>
+    <p class="said" id="you-said" hidden></p>
+  </section>
+
+  <section class="panel" id="reading" hidden>
+    <h2>Your reading</h2>
+    <p class="tally" id="you-kept"></p>
+    <p class="elsewhere"><a href="/progress">Your Progress</a> has the whole of it.</p>
+  </section>
+
+  {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
+  <section class="panel" id="ending" hidden>
+    <h2>Your account</h2>
+    <div class="row">
+      <a class="go-quiet" id="you-export" href="/account/export">Download your words</a>
+      <button type="button" class="go-quiet" id="you-out">Sign out</button>
+      <button type="button" class="go-quiet danger" id="you-forget">Delete account</button>
+    </div>
+    <p class="said" id="you-ending-said" hidden></p>
+  </section>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('you.js') }}</script>
+</body>
+</html>

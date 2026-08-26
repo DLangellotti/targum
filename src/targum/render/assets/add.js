@@ -27,9 +27,12 @@
   var drop = document.getElementById("drop");
   var fileInput = document.getElementById("file");
   var sourceInput = document.getElementById("source");
+  var pasted = document.getElementById("pasted");
   var go = document.getElementById("go");
   var status = document.getElementById("status");
   var chosen = null;
+  //: The translation the reader brought, if they brought one.
+  var theirs = null;
 
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -110,26 +113,144 @@
 
   if (unchoose) unchoose.onclick = forget;
 
-  // Typing a link puts the file down. Leaving the filename on screen while the link is
-  // what gets used left no way to tell which of the two would win.
+  // Typing a link puts the file down, and so does pasting the text. Leaving the filename
+  // on screen while something else is what gets used left no way to tell which would win.
   sourceInput.addEventListener("input", function () {
     if (sourceInput.value.trim() && chosen) forget();
   });
+  if (pasted) {
+    pasted.addEventListener("input", function () {
+      if (!pasted.value.trim()) return;
+      if (chosen) forget();
+      sourceInput.value = "";
+    });
+  }
+
+  /* --- the translation, where the reader has one ----------------------------- */
+
+  /* Same drop zone, same three states, one text down. Its own copy rather than a shared
+     one: the two zones hold different files and say different things, and a version of
+     this that took both had four arguments and told you less than this does. */
+  (function () {
+    var half = document.getElementById("have-translation");
+    var zone = document.getElementById("drop-translation");
+    var field = document.getElementById("translation");
+    var choose = document.getElementById("choose-translation");
+    var undo = document.getElementById("unchoose-translation");
+    var how = document.getElementById("how");
+    var note = document.getElementById("how-note");
+    if (!zone || !field || !how) return;
+
+    var LABEL = zone.querySelector(".drop-label").textContent;
+    var NOTE = zone.querySelector(".drop-note").textContent;
+
+    function show() {
+      var picked = theirs !== null;
+      zone.querySelector(".drop-label").textContent = picked ? theirs.name : LABEL;
+      zone.querySelector(".drop-note").textContent = picked
+        ? Math.round(theirs.size / 1024) + " KB"
+        : NOTE;
+      choose.hidden = picked;
+      undo.hidden = !picked;
+    }
+
+    function take(file) {
+      theirs = file;
+      show();
+    }
+
+    choose.onclick = function () {
+      field.click();
+    };
+    field.onchange = function () {
+      if (field.files[0]) take(field.files[0]);
+    };
+    undo.onclick = function () {
+      theirs = null;
+      field.value = "";
+      show();
+    };
+    ["dragenter", "dragover"].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        event.preventDefault();
+        zone.classList.add("over");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        event.preventDefault();
+        zone.classList.remove("over");
+      });
+    });
+    zone.addEventListener("drop", function (event) {
+      var file = event.dataTransfer && event.dataTransfer.files[0];
+      if (file) take(file);
+    });
+
+    Array.prototype.forEach.call(how.querySelectorAll("[data-how]"), function (press) {
+      press.addEventListener("click", function () {
+        var mine = press.getAttribute("data-how") === "mine";
+        Array.prototype.forEach.call(how.querySelectorAll("[data-how]"), function (other) {
+          other.setAttribute(
+            "aria-pressed",
+            other === press ? "true" : "false"
+          );
+        });
+        half.hidden = !mine;
+        note.textContent = mine
+          ? "targum lines it up with the Hebrew, sentence by sentence."
+          : "targum translates it, sentence by sentence.";
+        // Switching back to Make one puts down whatever was brought: leaving it attached
+        // would send a translation the reader had just said they did not want to use.
+        if (!mine) {
+          var typed = document.getElementById("pasted-translation");
+          if (typed) typed.value = "";
+          if (theirs) {
+            theirs = null;
+            field.value = "";
+            show();
+          }
+        }
+      });
+    });
+  })();
 
   /* --- building ------------------------------------------------------------ */
 
   // The language chosen here is the one the library and the words page open on.
+  //
+  // The note under it says how far along that language is, in the word the picker beside
+  // it uses. `TargumLang.betaNote` is not enough here: it calls everything that is not
+  // Hebrew beta, and it names a language from a list this page does not carry — Aramaic
+  // came out of it as "ARC".
   (function () {
     var from = document.getElementById("from");
     var note = document.getElementById("from-beta");
-    var names = window.TARGUM_LANGUAGES || {};
     var lang = window.TargumLang;
-    var was = lang.current(Object.keys(names));
+    var stages = window.TARGUM_READING || [];
+    var was = lang.current(
+      stages.map(function (row) {
+        return row.code;
+      })
+    );
     if (was) from.value = was;
+
     function say() {
       var code = from.value;
-      note.hidden = !code || !lang.beta(code);
-      if (!note.hidden) note.textContent = lang.betaNote(code, names);
+      var found = null;
+      stages.forEach(function (row) {
+        if (row.code === code) found = row;
+      });
+      note.hidden = !found || found.stage === "alpha";
+      if (!note.hidden) {
+        // Both say experimental, which is what the picker says. This is where the two
+        // part company: one has no word levels at all, the other simply is not Hebrew.
+        note.textContent =
+          found.name +
+          (found.stage === "R&D"
+            ? " is experimental: no word levels yet, and everything works best in Hebrew."
+            : " is experimental. Everything works best in Hebrew.");
+      }
       if (code) lang.set(code);
     }
     from.addEventListener("change", say);
@@ -140,6 +261,22 @@
   // sync runs here only so the header can say who is signed in, and so that a browser
   // that lands here first still claims what it has been keeping.
   if (window.TargumSync) window.TargumSync.start();
+
+  /* Pasted text is a file like any other; the server has one door for a text and this
+     is how something on a clipboard walks through it. Named for its first line, because
+     a title is the one thing a paste has no way of carrying. */
+  function fromPaste(text) {
+    var first = text.split("\n").find(function (line) {
+      return line.trim();
+    });
+    var name = (first || "pasted").trim().slice(0, 60).replace(/[\\/:*?"<>|]+/g, " ");
+    return {
+      name: name + ".txt",
+      // The escape rather than the character: a browser's own base64 refuses anything
+      // above U+00FF, and every text this page is for is Hebrew.
+      content: btoa(unescape(encodeURIComponent(text))),
+    };
+  }
 
   function options() {
     return {
@@ -197,20 +334,51 @@
     go.disabled = true;
     say(waiting());
 
+    /* Whatever the reader gave, and then — if they brought a translation — that too,
+       read in the same way and sent alongside. */
+    function withTranslation(body) {
+      var typed = document.getElementById("pasted-translation");
+      var text = typed ? typed.value.trim() : "";
+      if (!theirs && text) {
+        var file = fromPaste(text);
+        body.translationName = file.name;
+        body.translationContent = file.content;
+        return Promise.resolve(body);
+      }
+      if (!theirs) return Promise.resolve(body);
+      return readFile(theirs).then(function (content) {
+        body.translationName = theirs.name;
+        body.translationContent = content;
+        return body;
+      });
+    }
+
+    var text = pasted ? pasted.value.trim() : "";
     if (chosen) {
       prepared = readFile(chosen).then(function (content) {
         payload.name = chosen.name;
         payload.content = content;
-        return ask("/prepare", payload);
+        return withTranslation(payload).then(function (body) {
+          return ask("/prepare", body);
+        });
+      });
+    } else if (text) {
+      var file = fromPaste(text);
+      payload.name = file.name;
+      payload.content = file.content;
+      prepared = withTranslation(payload).then(function (body) {
+        return ask("/prepare", body);
       });
     } else {
       payload.source = sourceInput.value.trim();
       if (!payload.source) {
         go.disabled = false;
-        say(line("Paste a link, drop a file, or give an id."), true);
+        say(line("Paste a link, drop a file, paste the text, or give an id."), true);
         return;
       }
-      prepared = ask("/prepare", payload);
+      prepared = withTranslation(payload).then(function (body) {
+        return ask("/prepare", body);
+      });
     }
 
     prepared
@@ -248,8 +416,8 @@
     return start + "about " + minutes + " minutes.";
   }
 
-  // This text is already in the library with a translation somebody published, which
-  // is both better than a machine one and free. Said before anything is priced.
+  // This text is already in the library with a translation somebody published, which is
+  // better than a machine one. Said before anything else happens.
   function instead(entry) {
     var box = document.createDocumentFragment();
     var head = document.createElement("p");
@@ -262,7 +430,7 @@
           (entry.translations.length === 1
             ? "a translation"
             : entry.translations.length + " translations") +
-          " somebody published. Better than a machine, and free."
+          " somebody published. Better than a machine."
       )
     );
     var row = document.createElement("div");
@@ -402,8 +570,16 @@
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
           clearInterval(timer);
-          window.location.href =
-            keyed("/reader/" + state.reader);
+          // A cover, always, and after the text is readable rather than before it: it is
+          // a picture for the shelf and nobody should wait on a picture to start reading.
+          // Asked for and left running — the server has the job either way.
+          var name = String(state.reader || "").split("/")[0];
+          var drawing = name
+            ? ask("/cover", { name: name }).catch(function () {})
+            : Promise.resolve();
+          drawing.then(function () {
+            window.location.href = keyed("/reader/" + state.reader);
+          });
         }
       });
     }, 700);
