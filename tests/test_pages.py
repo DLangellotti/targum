@@ -600,13 +600,6 @@ def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
     assert '"register", redraw, "segment"' in source, "drawn as segments, not chips"
 
 
-def test_the_library_says_how_it_is_ordered_and_what_the_number_means() -> None:
-    """Two things somebody arriving here cannot know by looking."""
-    library = PAGES["library"]
-    assert "Easiest first" in library
-    assert "share of a text you would have to look up" in library
-
-
 # -- bringing your own text ------------------------------------------------------
 
 

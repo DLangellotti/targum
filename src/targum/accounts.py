@@ -93,6 +93,22 @@ CREATE TABLE IF NOT EXISTS invited (
 );
 """
 
+# Who is not a reader but the person running the box. An address here is exempt from the
+# per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
+# a reader running up somebody else's bill, and the person paying it is not that reader.
+#
+# An address rather than a column on `person`, for the same reason `invited` is a table:
+# it has to be settable before anybody has signed in, and it has to survive `uninvite`,
+# which deliberately leaves an existing account alone. Nobody's own address is written
+# down here in the source — this repository is public — so the first admin is made from
+# the command line on the box, the same way the first invitation is.
+ADMIN = """
+CREATE TABLE IF NOT EXISTS admin (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+"""
+
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
@@ -298,6 +314,10 @@ def plausible(email: str) -> bool:
 class Person:
     id: int
     email: str
+    #: Whether the spend rails apply to them. Resolved from the `admin` table when the
+    #: person is loaded, rather than stored on the row: it is a fact about who runs the
+    #: box, not about the account.
+    admin: bool = False
 
 
 # The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
@@ -381,6 +401,7 @@ class Store:
         # the transaction out from under whoever opened it.
         self.db.executescript(SCHEMA)
         self.db.executescript(INVITED)
+        self.db.executescript(ADMIN)
         self._migrate()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -465,7 +486,7 @@ class Store:
         row = self.db.execute(
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
         ).fetchone()
-        return Person(row["id"], row["email"]) if row else None
+        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
 
     # -- who somebody is ---------------------------------------------------
 
@@ -546,6 +567,42 @@ class Store:
     def invitations(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM invited ORDER BY at")]
 
+    def make_admin(self, email: str) -> str:
+        """Put an address beyond the spend rails, and on the guest list while we are here.
+
+        Both, because an admin who cannot sign in is not an admin. Making somebody an
+        admin is a statement that they may be here, and having to say it twice is a way
+        of getting it half done.
+        """
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO admin (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def unadmin(self, email: str) -> bool:
+        """Put an address back under the rails. The invitation and the account stay."""
+        with self.write() as db:
+            return db.execute("DELETE FROM admin WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    def admins(self) -> list[str]:
+        return [row["email"] for row in self.db.execute("SELECT email FROM admin ORDER BY at")]
+
+    def is_admin(self, email: str) -> bool:
+        address = tidy(email)
+        if not address:
+            return False
+        found = self.db.execute("SELECT 1 FROM admin WHERE email = ?", (address,)).fetchone()
+        return found is not None
+
     def may_join(self, email: str) -> bool:
         """Whether this address may open an account here.
 
@@ -599,7 +656,7 @@ class Store:
             "AND person.leaving IS NULL",
             (digest(token), cutoff),
         ).fetchone()
-        return Person(row["id"], row["email"]) if row else None
+        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
 
     def finish_sign_in(self, token: str) -> tuple[Person, str] | None:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
@@ -624,7 +681,7 @@ class Store:
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), who["id"], now(), now()),
             )
-        return Person(who["id"], who["email"]), session
+        return Person(who["id"], who["email"], self.is_admin(who["email"])), session
 
     def whoever(self, session: str | None) -> Person | None:
         """The person holding this session, or nobody.
@@ -648,7 +705,7 @@ class Store:
         if now() - row["seen"] > 60_000:
             with self.write() as db:
                 db.execute("UPDATE session SET seen = ? WHERE hash = ?", (now(), digest(session)))
-        return Person(row["id"], row["email"])
+        return Person(row["id"], row["email"], self.is_admin(row["email"]))
 
     def sign_out(self, session: str | None) -> None:
         if not session:
@@ -905,6 +962,32 @@ class Store:
             ).fetchone()
         return float(row["spent"])
 
+    def spending(self, since: int) -> list[dict[str, Any]]:
+        """What every account has cost since a moment, most expensive first.
+
+        Two numbers, because they answer different questions. `spent` is what the API
+        really charged, once it said — the one that reconciles against a bill. `claimed`
+        is what the ceilings actually count, which is the same figure after a build
+        settles, the estimate while one is still running, and nothing at all for a build
+        that failed and handed its reservation back.
+
+        Left joined, so work done before there were accounts — or by somebody since
+        forgotten — still shows up rather than quietly leaving the total short.
+        """
+        rows = self.db.execute(
+            "SELECT person.email AS email, "
+            "       COUNT(job.id) AS jobs, "
+            "       COALESCE(SUM(job.spent), 0) AS spent, "
+            "       COALESCE(SUM(job.claimed), 0) AS claimed, "
+            "       MAX(job.made) AS last "
+            "FROM job LEFT JOIN person ON person.id = job.owner "
+            "WHERE job.made >= ? "
+            "GROUP BY job.owner "
+            "ORDER BY spent DESC, claimed DESC",
+            (since,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def claim(
         self,
         job_id: str,
@@ -914,17 +997,26 @@ class Store:
         *,
         owner: int | None = None,
         per_account: float | None = None,
+        month_from: int | None = None,
+        per_month: float | None = None,
     ) -> str:
-        """Take money from both budgets, or say which one refused — in one transaction.
+        """Take money from every budget, or say which one refused — in one transaction.
 
         Two builds starting together would otherwise both read the same balance and
         both pass, which is exactly how a budget is overrun. `BEGIN IMMEDIATE` makes
         the second one wait rather than race, and it holds across processes as well as
         threads, which a lock in one server never did.
 
-        Two ceilings, because they stop different things. The per-account one is what a
-        reader is allowed; the whole-box one is what stops every reader at once from
+        Three ceilings, because they stop three different things. The per-account day is
+        a rate limit: it stops one afternoon running away. The per-account month is the
+        plan limit — what a reader is actually allowed — and until it existed the daily
+        rail was doing that job badly, since thirty days of it is thirty times the number
+        anybody had agreed to. The whole-box day is what stops every reader at once from
         emptying the card, and no per-account limit can do that on its own.
+
+        Any of them may be `None`, which is how an admin passes: the rails exist to stop
+        a reader running up somebody else's bill, and the person paying it is not that
+        reader. The box ceiling is not waived for anybody — it is the runaway guard.
         """
         with self.write() as db:
             if per_account is not None:
@@ -935,6 +1027,14 @@ class Store:
                 ).fetchone()
                 if float(mine["spent"]) + amount > per_account:
                     return "account"
+            if per_month is not None and month_from is not None:
+                monthly = db.execute(
+                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                    (month_from, owner),
+                ).fetchone()
+                if float(monthly["spent"]) + amount > per_month:
+                    return "month"
             row = db.execute(
                 "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
                 "WHERE claimed > 0 AND made >= ?",

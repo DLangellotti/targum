@@ -630,6 +630,12 @@ body:not(.no-hover) .w:hover {
   text-align: start;
 }
 .gloss-card[hidden] { display: none; }
+
+/* A card that has been answered and is leaving. Saying a level closes the card it was
+   said in, but not in the frame the key was pressed in — it holds the level it took for
+   a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
+   beat and then nothing. The timings are `LINGER` and `FADE` in reader.js. */
+.gloss-card.going { opacity: 0; transition: opacity 220ms ease; }
 .gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
 .gloss-card .form { color: var(--ink-soft); font-size: 0.8125em; }
 
@@ -1045,6 +1051,7 @@ body:not(.no-hover) .w:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .list-items li, .list-tabs [role="tab"].bumped b { animation: none; }
+  .gloss-card.going { transition: none; }
   #reader.settled { animation: none; }
   .modes.ready .slide { transition: none; }
 }
