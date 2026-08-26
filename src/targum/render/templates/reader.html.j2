@@ -46,7 +46,7 @@
           <path d="M2.5 4h4M2.5 8h4M2.5 12h4M9.5 4h4M9.5 8h4M9.5 12h4"/>
         </svg>
       </button>
-      <button type="button" data-mode="inter" aria-label="Interlinear" title="Translation under each line (i)">
+      <button type="button" data-mode="inter" aria-label="Interlinear" title="Translation under each line (l)">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 3.5h11M2.5 9.5h11"/>
           <path d="M2.5 6.2h6M2.5 12.2h6" class="faint"/>
@@ -103,17 +103,26 @@
       <button type="button" data-type="looser" aria-label="Line spacing" title="Line spacing">↕</button>
     </div>
     <div class="group">
-      <button type="button" data-keys aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
       <button type="button" data-theme-toggle aria-label="Switch theme"></button>
     </div>
   </div>
 </header>
 
+{#- What a keystroke just did, for anyone who is listening rather than looking. Marking a
+    word moves a ring and a number in the far corner; neither is announced, and a reader
+    working the queue by keyboard alone got no confirmation of anything at all. -#}
+<p class="spoken" id="spoken" role="status" aria-live="polite"></p>
+
 <main id="reader">
+{#- Small on purpose. A chapter page is for reading, and an image that competed with the
+    text would be a decoration; this is a mark, the size of a stamp, that says which book
+    you are in. Its own cover where the chapter has one, the book's where it has not. -#}
+{% if plate %}<figure class="plate"><img src="{{ plate }}" alt=""></figure>{% endif %}
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
-  <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     <h{{ level }} class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% if segment.id in pointed %}
     <h{{ level }} class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</h{{ level }}>
@@ -121,7 +130,7 @@
     <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
   </div>
   {% elif segment.kind.value == 'byline' %}
-  <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
@@ -129,7 +138,7 @@
     <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
   </div>
   {% else %}
-  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="0">
+  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
@@ -176,26 +185,36 @@
 
 <div id="pick-chip" class="pick-card" hidden></div>
 {% if words %}<div id="gloss-card" class="gloss-card" hidden></div>{% endif %}
+{#- Before the scripts, not after them. `reader.js` asks for this by id as it loads, and
+    for as long as it sat below the script tag the answer was null: the `?` key and the `?`
+    button in the bar both went to a card that was never found, so the one page that says
+    which keys exist could not be opened by either. -#}
+<div class="keys-card" id="keys" hidden role="group" aria-label="Keyboard shortcuts">
+  {#- In the order a reader reaches for them, not by category: the walk and the levels are
+      most of a session, the modes are set once and left. `t` is not here — it reports how
+      long the page took to draw, which is for whoever is building targum rather than for
+      whoever is reading. -#}
+  <dl>
+    {% if words %}<dt>&larr; &rarr;</dt><dd>forward through the words you have not finished with; back through the words as they are written</dd>
+    <dt>k</dt><dd>known</dd>
+    <dt>1 2 3</dt><dd>just met it, getting there, nearly know it</dd>
+    <dt>i</dt><dd>ignore it — a name, a numeral, a word from another language</dd>
+    <dt>Enter</dt><dd>what the word you are on means</dd>
+    <dt>g</dt><dd>look this word up, when nothing is known about it yet</dd>
+    <dt>u</dt><dd>take back the last level, and stand on that word again</dd>
+    <dt>Esc</dt><dd>close this, then a word, then your saved words, then the queue</dd>
+    <dt>s</dt><dd>your saved words</dd>
+    <dt>m</dt><dd>mark words as you read</dd>
+    {% else %}<dt>Esc</dt><dd>close this</dd>{% endif %}
+    {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
+    <dt>p</dt><dd>parallel</dd>
+    <dt>l</dt><dd>interlinear — the translation under each line</dd>
+    <dt>o</dt><dd>source only</dd>
+  </dl>
+</div>
 <script type="application/json" id="targum-data">{{ data }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('reader.js') }}</script>
-<div class="keys-card" id="keys" hidden role="dialog" aria-label="Keyboard shortcuts">
-  <dl>
-    <dt>j</dt><dd>next sentence</dd>
-    <dt>k</dt><dd>previous sentence</dd>
-    <dt>&larr; &rarr;</dt><dd>next and previous, whichever way this text reads</dd>
-    <dt>p</dt><dd>parallel</dd>
-    <dt>o</dt><dd>source only</dd>
-    <dt>i</dt><dd>interlinear — the translation under each line</dd>
-    {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
-    {% if words %}<dt>m</dt><dd>mark words as you read</dd>
-    <dt>s</dt><dd>your saved words</dd>
-    <dt>1 2 3</dt><dd>with a word open — just met, getting there, nearly there</dd>
-    <dt>k &nbsp;i</dt><dd>with a word open — known, or ignore it</dd>{% endif %}
-    <dt>t</dt><dd>how long this page took to draw</dd>
-    <dt>Esc</dt><dd>close this, or a word</dd>
-  </dl>
-</div>
 </body>
 </html>

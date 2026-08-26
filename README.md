@@ -56,6 +56,14 @@ it is bare, points are guessed on request by
 [Nakdimon](https://github.com/elazarg/nakdimon) — roughly 90% right on modern Hebrew,
 55–73% on classical. Guessed sentences are marked.
 
+Those vowels are also what lets a word say how it is said. Install with
+`uv tool install "targum[phonetics]"` and tapping a word shows its reading, stress
+marked — בָּצָל is `batsˈal` and בְּצֵל is `btsˈel`, the same four letters read two ways,
+and which one it is depends on the sentence rather than the dictionary. Read on your
+machine by [Phonikud](https://phonikud.github.io/), and only ever for a word that has
+vowels above it: a word with no reading shows none. Vocal shva is the weak point, so
+בְּאֶרֶץ comes out a syllable short.
+
 ## What leaves your machine
 
 Translating a text, and looking up a word, sends that text to Anthropic.
@@ -78,4 +86,10 @@ PDFs, logins, paywalls, and pages that are really web apps.
 
 ---
 
-MIT.
+## Licence
+
+AGPL-3.0-or-later. Copyright © 2026 David Langellotti.
+
+Read it, run it, change it. The one condition that bites: if you run a changed version
+as a service other people use, they are entitled to your changes. Full terms in
+[LICENSE](LICENSE).

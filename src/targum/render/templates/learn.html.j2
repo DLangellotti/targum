@@ -8,52 +8,155 @@
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
-{#- `words` as well as `learn`, because the chart palette (--step-1..4) is defined on
-    `.words` and the tiles and the growth line are drawn with the same kit as the words
-    page. -#}
+{#- `words` as well as `learn`: the panels, the list controls, the word table and the
+    status pips all come from words.css, and the pip colours (--step-1..4) are defined on
+    `.words` itself. -#}
 <body class="words learn">
 {% set here = 'learn' %}
 {% set title = '' %}
 {% include '_nav.html.j2' %}
 
 <main id="page" hidden>
-  {#- What you came back for. First and largest, because most visits are somebody
-      returning to something rather than looking for something new. -#}
-  <section class="panel carry" id="carry" hidden>
-    <h2>Carry on</h2>
-    <a class="carry-link" id="carry-link" href="/">
-      <bdi class="carry-title" id="carry-title"></bdi>
-    </a>
-    <p class="carry-meta" id="carry-meta"></p>
-    <p class="carry-known" id="carry-known" hidden></p>
-  </section>
+  {#- How much of the language you have. First thing on the page, and a real count of a
+      real thing rather than a score — §6: no invented currency. -#}
+  <p class="known-line" id="known-line"></p>
 
+  {#- What you were in the middle of, and beside it what to do when you are not. The
+      card carries the accent because it is the one primary action here; the list beside
+      it is quiet. -#}
+  {#- Each box is one link rather than a box with a link in it: the whole card is the
+      target, which is what anybody moving a mouse at it expects. That is also why the
+      cover and the title inside this one are no longer anchors — an anchor inside an
+      anchor is not a thing a browser can make sense of. -#}
+  <div class="doors">
+    <a class="door carry" id="carry" href="/" hidden>
+      <h2>Continue Reading</h2>
+      <div class="card-body">
+        {#- The same cover the shelf and the library show, at the one size on this page
+            worth giving it. Aria-hidden: the title beside it says the same thing. -#}
+        <span class="card-cover" id="carry-cover" aria-hidden="true"></span>
+        <div class="card-what">
+          <bdi class="card-title" id="carry-title"></bdi>
+          <p class="card-meta" id="carry-meta"></p>
+          <p class="carry-known" id="carry-known" hidden></p>
+        </div>
+      </div>
+    </a>
+
+    {#- Beside it, what to do next. A list rather than two more boxes: two boxes the
+        size of the one on the left are two thirds empty, and the things in them are not
+        the same weight as carrying on with a book. -#}
+    {#- The same card as Continue Reading, because it is the same kind of offer: a book,
+        its picture, and a reason to open it. A line of text in a list was not something
+        anybody was going to take up. -#}
+    <a class="door suggest" id="suggest" href="/library" hidden>
+      <h2>Suggested</h2>
+      <div class="card-body">
+        <span class="card-cover" id="suggest-cover" aria-hidden="true"></span>
+        <div class="card-what">
+          <bdi class="card-title" id="suggest-title"></bdi>
+          <p class="card-meta" id="suggest-why"></p>
+          <p class="suggest-blurb" id="suggest-blurb"></p>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  {#- Under both cards rather than beside one of them: these three are the same weight as
+      each other and a lighter weight than either card, and a column of them next to a
+      card left the page with one long side and one short one. -#}
+  <nav class="next" aria-label="What next">
+    <a class="step" href="/library" data-door="library">
+      <span class="step-what">Explore the Library</span>
+      <span class="step-why">Tanakh, novels, essays, news.</span>
+    </a>
+    <a class="step" href="/add" data-door="add">
+      <span class="step-what">Upload Text</span>
+      <span class="step-why">Paste anything in Hebrew and read it.</span>
+    </a>
+    <a class="step" href="/progress" data-door="progress">
+      <span class="step-what">Your Progress</span>
+      <span class="step-why" id="step-progress">What you have built.</span>
+    </a>
+  </nav>
+
+  {#- Three lists, each one foldable and each one capped. This is a landing page: what
+      belongs here is the top of a list and the way to the rest of it. -#}
   <section class="panel" id="shelf-panel">
     <div class="list-controls">
-      <h2>Your targums</h2>
+      <h2>{% include '_fold.html.j2' %}<span>Your targums</span></button></h2>
+      <a class="see-all" id="shelf-more" href="/texts" hidden></a>
     </div>
-    <p class="note" id="shelf-note"></p>
-    <ul class="books" id="library-list"></ul>
-    <p class="empty" id="shelf-empty" hidden></p>
+    <div class="fold-body" id="shelf-body">
+      {#- What the word means, said once, where somebody first meets it. Not "a text you
+          have built": most reading is somebody opening a text that was already built, by
+          them or by anybody else, with its words already looked up. -#}
+      <p class="note what-is">A targum is an interactive bilingual text, optimised for
+        language learning.</p>
+      <p class="note" id="shelf-note"></p>
+      <div class="shelf-head" id="shelf-head" role="row" hidden>
+        <span></span>
+        <span>Text</span>
+        <span>Chapters</span>
+        <span>Last opened</span>
+        <span></span>
+      </div>
+      <ul class="books shelf-rows" id="library-list"></ul>
+      <p class="empty" id="shelf-empty" hidden></p>
+    </div>
   </section>
 
-  {#- The glance, not the study. The table, the filters and the exports stay on the words
-      page, which is somewhere you go on purpose. -#}
-  <section class="panel" id="words-panel" hidden>
+  {#- Everything you are learning, on the page you land on. Both lists were on Your
+      Progress, which put half of learning next to the charts. -#}
+  <section class="panel">
     <div class="list-controls">
-      <h2>Your words</h2>
-      <a class="to-words" href="/words">All of them</a>
+      <h2>{% include '_fold.html.j2' %}<span id="words-title">Your Words</span></button></h2>
+      <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
+      <select id="status-filter" aria-label="Filter by how well you know them">
+        <option value="learning">Still learning</option>
+        <option value="all">All</option>
+        <option value="1">1 · just met</option>
+        <option value="2">2 · getting there</option>
+        <option value="3">3 · nearly there</option>
+        <option value="9">Known</option>
+        <option value="0">Ignored</option>
+      </select>
+      {#- Hidden until sync says there is an account to export from. -#}
+      <button type="button" id="export-words" hidden>Export</button>
+      <a class="see-all" id="words-more" href="/words" hidden></a>
     </div>
-    <div class="tiles" id="tiles"></div>
-    <div class="chart" id="growth"></div>
+    <div class="fold-body" id="words-body">
+    <div class="table-wrap">
+      <table class="rows" id="word-table">
+        <thead>
+          <tr>
+            <th scope="col">Word</th>
+            <th scope="col">Dictionary form</th>
+            <th scope="col">Meaning</th>
+            <th scope="col">How common</th>
+            <th scope="col">How well</th>
+            <th scope="col">Kept</th>
+          </tr>
+        </thead>
+        <tbody id="word-rows"></tbody>
+      </table>
+    </div>
+    <p class="empty" id="words-empty" hidden></p>
+    <button type="button" class="more" id="more" hidden></button>
+    </div>
   </section>
 
-  <section class="panel elsewhere">
-    <h2>Something new</h2>
-    <p class="note">
-      Tanakh, novels, essays — the <a href="/library">Library</a> has them all,
-      translated and free.
-    </p>
+  <section class="panel">
+    <div class="list-controls">
+      <h2>{% include '_fold.html.j2' %}<span id="phrases-title">Your Phrases</span></button></h2>
+      <button type="button" id="export-phrases" hidden>Export</button>
+      <a class="see-all" id="phrases-more" href="/phrases" hidden></a>
+    </div>
+    <div class="fold-body" id="phrases-body">
+      <p class="note">Phrases stay with their text.</p>
+      <div id="phrase-list"></div>
+      <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
+    </div>
   </section>
 
   {#- Only there when there is something in it. -#}
@@ -68,7 +171,7 @@
     Library rather than at the upload form, which is the whole change. -#}
 <section class="nothing" id="nothing" hidden>
   <p class="lede">Nothing here yet.</p>
-  <p>Pick something from the <a href="/library">Library</a> — it is free.</p>
+  <p>Pick something from <a href="/library">Discover</a>.</p>
   <p class="hint">Or <a href="/add">add a text of your own</a>.</p>
 </section>
 
@@ -77,13 +180,16 @@
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('lists.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
+<script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 </body>
 </html>

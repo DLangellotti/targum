@@ -6,10 +6,23 @@ on:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    # `requires-python = ">=3.11"` was a claim nothing exercised: every run until now
+    # took whatever the runner defaulted to, which was 3.12. Either the floor is tested
+    # or it is not the floor. `fail-fast: false` so a break on one version still reports
+    # the other.
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --extra difficulty
+      # `phonetics` is here so the readings are exercised rather than skipped. It caps
+      # Python below 3.13, so adding 3.13 to the matrix above means dropping this extra
+      # from that leg — the failure is a resolution error, which is loud but obscure.
+      - run: uv sync --extra difficulty --extra phonetics
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy

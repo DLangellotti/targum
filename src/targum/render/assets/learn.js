@@ -1,9 +1,9 @@
-/* Learn — the page you land on.
+/* Learn — the page you land on, and everything you are learning.
  *
- * What you came back for, then what you have, then what you know. In that order, because
- * most visits are somebody returning to a text rather than looking for a new one, and
- * because the reader is a reader rather than a player: the numbers sit under the thing
- * you came to do, not over it.
+ * How many words you know, then three doors — carry on, find something, bring your own —
+ * then your shelf, then the words and phrases themselves. The count is one line rather
+ * than a panel of numbers: the reader is a reader rather than a player, and the charts
+ * that make an account of it live on Your Progress.
  *
  * Everything here is drawn from what already exists. `targum:opened` says which text you
  * had open last and already syncs; `/readers` says what is on your shelf and, since
@@ -29,6 +29,8 @@
     return head;
   }
   var charts = window.TargumCharts;
+  var lists = window.TargumLists;
+  var shelf = window.TargumShelf;
   var lang = window.TargumLang;
   var names = window.TARGUM_LANGUAGES || {};
 
@@ -57,25 +59,70 @@
     location.reload();
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll(".site-nav a"), function (link) {
-    link.href = keyed(link.getAttribute("href"));
-  });
+  Array.prototype.forEach.call(
+    document.querySelectorAll(".site-nav a, .doors a[data-door], .see-all"),
+    function (link) {
+      link.href = keyed(link.getAttribute("href"));
+    }
+  );
+
+  /* How much of each list this page holds. Learn is where you land, not where you study:
+     what belongs here is the top of each list and the way to the rest of it. */
+  var SHELF = 5;
+  var WORDS = 10;
+  var PHRASES = 5;
+
+  /* --- folding a panel away --------------------------------------------------
+   *
+   * Three lists on one page is a long page, and which of them somebody wants open is
+   * theirs to decide rather than ours to guess. Kept in this browser: it is a state of a
+   * screen, not a fact about a person.
+   */
+
+  var FOLDED = "targum:folded";
+
+  function folded() {
+    try {
+      return JSON.parse(localStorage.getItem(FOLDED) || "{}");
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function folds() {
+    var shut = folded();
+    Array.prototype.forEach.call(document.querySelectorAll(".fold"), function (press) {
+      var panel = press.closest("section");
+      var body = panel && panel.querySelector(".fold-body");
+      if (!body) return;
+      press.setAttribute("aria-controls", body.id);
+
+      function show(open) {
+        press.setAttribute("aria-expanded", open ? "true" : "false");
+        body.hidden = !open;
+      }
+
+      show(!shut[body.id]);
+      press.addEventListener("click", function () {
+        var open = press.getAttribute("aria-expanded") !== "true";
+        show(open);
+        var now = folded();
+        if (open) delete now[body.id];
+        else now[body.id] = 1;
+        try {
+          localStorage.setItem(FOLDED, JSON.stringify(now));
+        } catch (e) {}
+      });
+    });
+  }
+
+  folds();
 
   function named(code) {
     return names[code] || (code || "").toUpperCase();
   }
 
   /* --- what you have already ------------------------------------------------ */
-
-  function ago(stamp) {
-    var minutes = Math.round((Date.now() - stamp) / 60000);
-    if (minutes < 2) return "just now";
-    if (minutes < 60) return minutes + " minutes ago";
-    var hours = Math.round(minutes / 60);
-    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
-    var days = Math.round(hours / 24);
-    return days === 1 ? "yesterday" : days + " days ago";
-  }
 
   function stored(name) {
     try {
@@ -85,223 +132,8 @@
     }
   }
 
-  function base(code) {
-    return (code || "").split("-")[0].toLowerCase();
-  }
-
-  /* --- your shelf ------------------------------------------------------------ */
-
-  function drawShelf(code, readers) {
-    var list = document.getElementById("library-list");
-    var note = document.getElementById("shelf-note");
-    list.textContent = "";
-
-    var mine = readers.filter(function (reader) {
-      return base(reader.language) === code;
-    });
-    if (!mine.length) {
-      note.textContent = readers.length
-        ? "Nothing in " + named(code) + " yet. Start one above."
-        : "Nothing here yet. Pick something above.";
-      return;
-    }
-    note.textContent = "Last read first.";
-
-    mine.forEach(function (reader) {
-      var item = document.createElement("li");
-      var link = document.createElement("a");
-      link.href = keyed("/reader/" + reader.name + "/reader/index.html");
-
-      var title = document.createElement("bdi");
-      title.setAttribute("lang", reader.language || "und");
-      title.className = "book-title";
-      title.textContent = reader.title;
-      link.appendChild(title);
-
-      var facts = [];
-      // A book says how much of it is bought. "3 of 20 chapters" is the whole of what
-      // paying by the chapter looks like from here.
-      if (reader.chapters && reader.chapters.length) {
-        facts.push(reader.readyChapters + " of " + reader.chapters.length + " chapters");
-      } else if (reader.sections > 1) {
-        facts.push(reader.sections + " parts");
-      }
-      facts.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
-      var meta = document.createElement("span");
-      meta.className = "book-meta";
-      meta.textContent = facts.join(" · ");
-      link.appendChild(meta);
-
-      item.appendChild(link);
-      if (reader.chapters && reader.chapters.length) item.appendChild(opener(reader, item));
-      item.appendChild(binButton(reader));
-      list.appendChild(item);
-    });
-  }
-
-  /* A book is one row that opens, not twenty rows.
-   *
-   * The alternative — a row per chapter — is honest about what is being bought and makes
-   * a novel look like homework. This keeps the book as one thing and puts its chapters
-   * one press away. */
-  function opener(reader, item) {
-    var press = document.createElement("button");
-    press.type = "button";
-    press.className = "open-chapters";
-    press.setAttribute("aria-expanded", "false");
-    press.title = "Chapters";
-    press.textContent = "Chapters";
-
-    var tree = null;
-    press.onclick = function () {
-      if (tree) {
-        tree.remove();
-        tree = null;
-        press.setAttribute("aria-expanded", "false");
-        return;
-      }
-      tree = chapterTree(reader);
-      item.after(tree);
-      press.setAttribute("aria-expanded", "true");
-    };
-    return press;
-  }
-
-  function chapterTree(reader) {
-    var list = document.createElement("ol");
-    list.className = "chapters";
-
-    reader.chapters.forEach(function (chapter) {
-      var row = document.createElement("li");
-      if (!chapter.ready) row.className = "waiting";
-
-      var name = document.createElement("a");
-      name.href =
-        keyed("/reader/" + reader.name + "/reader/" + chapter.file);
-      // A chapter that names something may have a cover of its own; the rest fall back
-      // to the book's on the server, so every row carries the same one either way.
-      var cover = window.TargumCovers.chapterName(reader.entry || reader.name, chapter.number);
-      name.appendChild(
-        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(cover)), {
-          title: chapter.title || reader.title,
-          language: reader.language,
-          className: "thumb tiny",
-        })
-      );
-      name.appendChild(document.createTextNode(chapter.number + ". "));
-      var title = document.createElement("bdi");
-      title.setAttribute("lang", reader.language || "und");
-      title.textContent = chapter.title;
-      name.appendChild(title);
-      row.appendChild(name);
-
-      if (chapter.ready) {
-        list.appendChild(row);
-        return;
-      }
-      var get = document.createElement("button");
-      get.type = "button";
-      get.className = "get";
-      get.textContent = "Translate";
-      get.onclick = function () {
-        get.disabled = true;
-        get.textContent = "Translating…";
-        post("/chapter", { name: reader.name, number: chapter.number }).then(function (job) {
-          follow(job.id, get);
-        }, function () {
-          get.disabled = false;
-          get.textContent = "Translate";
-        });
-      };
-      row.appendChild(get);
-      list.appendChild(row);
-    });
-    return list;
-  }
-
-  function follow(id, button) {
-    var timer = setInterval(function () {
-      ask("/job/" + id).then(function (job) {
-        if (job.stage === "done") {
-          clearInterval(timer);
-          reload();
-        } else if (job.stage === "failed" || job.blocked) {
-          clearInterval(timer);
-          button.disabled = false;
-          button.textContent = job.error || job.blocked || "That did not work.";
-        }
-      });
-    }, 1500);
-  }
-
-  /* Throwing one away and getting it back.
-   *
-   * Both go through the same shape: press, ask the server, redraw. There is no
-   * confirmation step — the trash is the confirmation, and a dialog asking "are you
-   * sure" before something reversible is a question nobody can answer usefully. */
-  function binButton(reader) {
-    var press = document.createElement("button");
-    press.type = "button";
-    press.className = "bin";
-    press.textContent = "Delete";
-    press.title = "Move to trash";
-    press.onclick = function () {
-      press.disabled = true;
-      post("/trash", { name: reader.name }).then(reload, function () {
-        press.disabled = false;
-      });
-    };
-    return press;
-  }
-
-  function drawTrash(code, trash) {
-    var panel = document.getElementById("trash-panel");
-    var list = document.getElementById("trash-list");
-    if (!panel || !list) return;
-    var mine = trash.filter(function (reader) {
-      return base(reader.language) === code;
-    });
-    panel.hidden = !mine.length;
-    list.textContent = "";
-
-    mine.forEach(function (reader) {
-      var item = document.createElement("li");
-      var title = document.createElement("bdi");
-      title.setAttribute("lang", reader.language || "und");
-      title.className = "book-title";
-      title.textContent = reader.title;
-
-      var meta = document.createElement("span");
-      meta.className = "book-meta";
-      // Said in days rather than a date: what a reader wants to know is how long they
-      // have, not when the clock started.
-      meta.textContent =
-        reader.goesIn > 1
-          ? "goes for good in " + reader.goesIn + " days"
-          : reader.goesIn === 1
-            ? "goes for good tomorrow"
-            : "goes for good today";
-
-      var back = document.createElement("button");
-      back.type = "button";
-      back.className = "restore";
-      back.textContent = "Put back";
-      back.onclick = function () {
-        back.disabled = true;
-        post("/restore", { name: reader.name }).then(reload, function () {
-          back.disabled = false;
-        });
-      };
-
-      var wrap = document.createElement("span");
-      wrap.className = "gone";
-      wrap.appendChild(title);
-      wrap.appendChild(meta);
-      item.appendChild(wrap);
-      item.appendChild(back);
-      list.appendChild(item);
-    });
-  }
+  var ago = shelf.ago;
+  var base = shelf.base;
 
   /* Languages this reader has words in. Signed out with nothing kept, this is empty
      and the switcher does not appear, which is the intended resting state. */
@@ -336,8 +168,18 @@
       return;
     }
     panel.hidden = false;
-    var link = document.getElementById("carry-link");
-    link.href = keyed("/reader/" + reader.name + "/reader/index.html");
+    // The box is the link, so this is the only href on it.
+    panel.href = keyed("/reader/" + reader.name + "/reader/index.html");
+
+    var cover = document.getElementById("carry-cover");
+    cover.textContent = "";
+    cover.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
+        title: reader.title,
+        language: reader.language,
+      })
+    );
+
     var title = document.getElementById("carry-title");
     title.textContent = reader.title;
     title.setAttribute("lang", reader.language);
@@ -357,18 +199,99 @@
     known.textContent = said;
   }
 
-  /* --- what you know --------------------------------------------------------- */
+  /* --- what to read next ------------------------------------------------------
+   *
+   * The catalogue rides in the page, trimmed to an id, a title and two numbers. The
+   * suggestion is made here rather than on the server for the same reason the word
+   * counts are: what this reader has already read is in this browser, and the server
+   * has no business being told about it to answer a question this size.
+   *
+   * "Level" is the difficulty of the hardest thing they have built — measured as the
+   * share of running words a reader has to look up, so it is a fact about the text
+   * rather than a guess about the person. The suggestion is the easiest thing in the
+   * catalogue that is harder than that, which is what a step up means.
+   */
 
-  function drawWords(code) {
-    var panel = document.getElementById("words-panel");
-    var store = charts.collect()[code];
-    if (!store || !store.words.length) {
-      panel.hidden = true;
+  var catalogue = window.TARGUM_CATALOGUE || [];
+
+  function suggest(code, readers) {
+    var link = document.getElementById("suggest");
+    if (!link) return;
+
+    var built = {};
+    readers.forEach(function (reader) {
+      if (reader.entry) built[reader.entry] = true;
+    });
+    var open = catalogue
+      .filter(function (entry) {
+        return base(entry.language) === code && !built[entry.id] && entry.difficulty;
+      })
+      .sort(function (a, b) {
+        return a.difficulty - b.difficulty;
+      });
+    if (!open.length) {
+      link.hidden = true;
       return;
     }
-    panel.hidden = false;
-    charts.tiles(document.getElementById("tiles"), store);
-    charts.growth(document.getElementById("growth"), store.words);
+
+    var level = 0;
+    readers.forEach(function (reader) {
+      if (base(reader.language) === code && reader.difficulty > level) level = reader.difficulty;
+    });
+
+    var pick = null;
+    var why = "";
+    if (!level) {
+      pick = open[0];
+      why = "Where most people start";
+    } else {
+      open.forEach(function (entry) {
+        if (!pick && entry.difficulty > level) pick = entry;
+      });
+      why = pick ? "A step up from what you have read" : "About where you are reading";
+      if (!pick) pick = open[open.length - 1];
+    }
+
+    link.hidden = false;
+    link.href = keyed("/library") + "#" + encodeURIComponent(pick.id);
+
+    // The same tile the shelf and the library draw, which for most of the catalogue is a
+    // cover somebody paid to have drawn and for the rest is the text's own first letter.
+    var cover = document.getElementById("suggest-cover");
+    cover.textContent = "";
+    cover.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(pick.id)), {
+        title: pick.title,
+        language: pick.language,
+      })
+    );
+
+    var title = document.getElementById("suggest-title");
+    title.textContent = pick.title;
+    title.setAttribute("lang", pick.language);
+    document.getElementById("suggest-why").textContent =
+      pick.minutes ? why + " · " + pick.minutes + " min" : why;
+    document.getElementById("suggest-blurb").textContent = pick.blurb || "";
+  }
+
+  /* --- what you know --------------------------------------------------------- */
+
+  function drawKnown(code, store) {
+    var line = document.getElementById("known-line");
+    var known = charts.known(store && store.words);
+    // The same numbers the progress page opens with, said in one line as a reason to go
+    // and look at the rest of them.
+    var days = charts.days().length;
+    document.getElementById("step-progress").textContent = known
+      ? known + (known === 1 ? " word" : " words") + ", " + days + (days === 1 ? " day" : " days")
+      : "What you have built.";
+    // A count of a real thing, and nothing when there is nothing: "You know 0 words" is
+    // a score of zero, which is the arcade the brand rules keep out.
+    // Named, because a reader with Hebrew and Russian has two counts and this line is
+    // only ever about the one the switcher is on.
+    line.textContent = known
+      ? "You know " + known + " " + named(code) + (known === 1 ? " word." : " words.")
+      : "Mark a word while reading and it starts here.";
   }
 
   /* --- putting it together --------------------------------------------------- */
@@ -413,13 +336,28 @@
         drawCarry(mine[0]);
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
-        drawShelf(code, readers.filter(function (reader) {
-          return reader !== mine[0];
-        }));
-        drawTrash(code, trash);
-        drawWords(code);
+        shelf.draw(
+          code,
+          readers.filter(function (reader) {
+            return reader !== mine[0];
+          }),
+          { limit: SHELF, note: "Last read first." }
+        );
+        shelf.trash(code, trash);
+        suggest(code, readers);
+        var store = charts.collect()[code];
+        drawKnown(code, store);
+        lists.draw(code, store, { words: WORDS, phrases: PHRASES });
       }
 
+      lists.mount({
+        languages: names,
+        // A word marked known in the table is a word the line above has to stop
+        // promising. Same number, one place it is counted.
+        onChanged: function () {
+          drawKnown(chosen, charts.collect()[chosen]);
+        },
+      });
       show(chosen);
     })
     .catch(function () {
@@ -432,6 +370,10 @@
     window.TargumSync.onChange(function (changed) {
       if (changed) reload();
     });
-    window.TargumSync.start();
+    // An export comes from the account, so signed out there is nothing to offer and the
+    // two buttons stay away rather than handing back a subset of one browser.
+    window.TargumSync.start().then(function () {
+      lists.offerExports(!!window.TargumSync.who);
+    });
   }
 })();

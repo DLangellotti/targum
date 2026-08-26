@@ -9,6 +9,11 @@ from ..models import Segment, Style
 
 Progress = Callable[[int], None]
 
+#: Handed everything translated so far, after every batch that succeeded. A run that
+#: dies at 80% has cost money for that 80%; without this, nothing but the whole run is
+#: ever written down and the next attempt buys all of it again.
+Batch = Callable[[dict[str, str]], None]
+
 
 class Provider(Protocol):
     """One way of turning source segments into target text.
@@ -29,6 +34,7 @@ class Provider(Protocol):
         target_language: str,
         style: Style,
         on_progress: Progress | None = None,
+        on_batch: Batch | None = None,
     ) -> dict[str, str]: ...
 
 

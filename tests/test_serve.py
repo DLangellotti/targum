@@ -57,8 +57,13 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "library": Library(out),
             "token": token,
             "page": "<html>start</html>",
-            "words": "<html>words</html>",
+            "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
+            "lists": {
+                "texts": "<html>your targums</html>",
+                "words": "<html>your words</html>",
+                "phrases": "<html>your phrases</html>",
+            },
             "store": Store(tmp_path / "words.db"),
             "mailer": ConsoleMailer(postbox),
             "address": f"http://127.0.0.1:{port}",
@@ -155,14 +160,40 @@ def test_a_half_written_file_reads_as_not_yet(served: tuple[int, str, Path]) -> 
     assert (status, body) == (200, {"ready": False})
 
 
-def test_the_words_page_is_behind_the_key(served: tuple[int, str, Path]) -> None:
+def test_the_progress_page_is_behind_the_key(served: tuple[int, str, Path]) -> None:
     """It is a view of everything you have kept, so it is a door like any other."""
     port, token, _ = served
-    status, _ = get(port, "/words")
+    status, _ = get(port, "/progress")
     assert status == 403
-    status, body = get(port, f"/words?k={token}")
+    status, body = get(port, f"/progress?k={token}")
     assert status == 200
-    assert b"words" in body
+    assert b"your progress" in body
+
+
+def test_the_old_words_address_lands_on_the_words(served: tuple[int, str, Path]) -> None:
+    """The page was called Words, then it redirected to Your Progress, and now it is the
+    word list itself. Somebody with the old bookmark wanted the words, and that is what
+    is at this address again."""
+    port, token, _ = served
+    status, body, _ = call(port, "GET", f"/words?k={token}")
+    assert status == 200
+    assert b"your words" in body
+
+    status, _, _ = call(port, "GET", "/words")
+    assert status == 403, "and without a key it is the same shut door it always was"
+
+
+def test_each_list_has_a_page_of_its_own(served: tuple[int, str, Path]) -> None:
+    """Learn caps every list it draws. These are where the rest of each one is."""
+    port, token, _ = served
+    for route, expected in (
+        ("/texts", b"your targums"),
+        ("/words", b"your words"),
+        ("/phrases", b"your phrases"),
+    ):
+        status, body, _ = call(port, "GET", f"{route}?k={token}")
+        assert status == 200, route
+        assert expected in body, route
 
 
 # --- accounts ---------------------------------------------------------------
@@ -321,6 +352,78 @@ def test_words_follow_the_account_to_another_device(
     assert again["words"] == []
 
 
+def test_the_days_you_read_on_follow_the_account(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Twelve days reading has to mean twelve, not twelve on this laptop.
+
+    Days are a set and nothing else: they merge by union, they never carry a tombstone,
+    and pushing the same day twice is not an edit. That last part is the one worth
+    pinning — the rows go up with `seen: 0` precisely so a browser syncing all afternoon
+    rewrites nothing.
+    """
+    port, token, _ = served
+    laptop = sign_in(port, postbox)
+    phone = sign_in(port, postbox)
+
+    status, _, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"since": 0, "days": [{"day": "2026-08-24", "count": 1, "seen": 0}]},
+        cookie=laptop,
+    )
+    assert status == 200
+
+    status, _, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"since": 0, "days": [{"day": "2026-08-25", "count": 1, "seen": 0}]},
+        cookie=phone,
+    )
+    assert status == 200
+
+    # Either browser, asked from scratch, has both days rather than its own.
+    _, got, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=laptop)
+    assert sorted(row["day"] for row in got["days"]) == ["2026-08-24", "2026-08-25"]
+    assert got["counts"]["days"] == 2
+
+    # And a second push of a day already up there changes nothing, so the row does not
+    # come back down to the other browser under a new revision every time.
+    settled = got["revision"]
+    call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"since": settled, "days": [{"day": "2026-08-24", "count": 1, "seen": 0}]},
+        cookie=laptop,
+    )
+    _, after, _ = call(port, "POST", f"/sync?k={token}", {"since": settled}, cookie=phone)
+    assert after["days"] == []
+
+
+def test_a_row_that_is_not_a_record_is_skipped_rather_than_raising(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The allowlist checked that the value was a list and never what was in it, so a
+    list of strings reached the merge and raised on `.get`. A signed-in reader could only
+    do that to themselves, but a 500 is the wrong answer to nonsense."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"since": 0, "words": ["nonsense", None, 7], "days": [{"day": "2026-08-25"}]},
+        cookie=cookie,
+    )
+    assert status == 200
+    assert answer["counts"]["words"] == 0, "the rubbish was dropped"
+    assert answer["counts"]["days"] == 1, "and the record beside it still landed"
+
+
 def test_a_newer_edit_wins_and_a_delete_sticks(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:
@@ -408,13 +511,13 @@ def test_a_session_outlives_a_restart_where_the_key_does_not(
     assert status == 200
     assert payload["signedIn"] is True
 
-    status, body, _ = call(port, "GET", "/words", cookie=cookie)
-    assert status == 200 and b"words" in body
+    status, body, _ = call(port, "GET", "/progress", cookie=cookie)
+    assert status == 200 and b"your progress" in body
 
     # And without either, still nothing — the holding page now, rather than the
     # stale-session error, because once an account exists on a machine "signed out" is
     # a state somebody chose rather than a key that expired.
-    status, body, _ = call(port, "GET", "/words")
+    status, body, _ = call(port, "GET", "/progress")
     assert b"<html>words</html>" not in body, "the words page must not be served"
     assert b"Coming soon" in body or status == 403
 
@@ -860,7 +963,7 @@ def hosted(tmp_path: Path) -> tuple[int, threading.Thread, ThreadingHTTPServer]:
             "mailer": ConsoleMailer(stream=io.StringIO()),
             "address": "https://targum.page",
             "page": "<html>start</html>",
-            "words": "<html>words</html>",
+            "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
         },
     )
@@ -880,7 +983,7 @@ def test_a_stranger_sees_the_holding_page_and_nothing_else(tmp_path: Path) -> No
     """
     port, _, server = hosted(tmp_path)
     try:
-        for route in ("/", "/words"):
+        for route in ("/", "/progress"):
             status, body, _ = call(port, "GET", route)
             assert status == 200, route
             assert b"Coming soon" in body, f"{route} should be the holding page"
@@ -1032,9 +1135,9 @@ def test_signing_out_shows_the_holding_page_once_an_account_exists(tmp_path: Pat
 def test_the_about_page_is_reachable_from_inside_the_app() -> None:
     """It is the open-source half made visible, and a link only on the front door means
     nobody who is signed in ever finds it."""
-    from targum.render.builder import add_page, learn_page, library_page, words_page
+    from targum.render.builder import add_page, learn_page, library_page, progress_page
 
-    for page in (library_page("k"), learn_page("k"), words_page("k"), add_page("k")):
+    for page in (library_page("k"), learn_page("k"), progress_page("k"), add_page("k")):
         assert 'href="/about"' in page
 
 
@@ -1364,9 +1467,11 @@ def test_only_chapters_that_name_something_are_drawn(tmp_path: Path) -> None:
     assert all(name.startswith("judenstaat-c") for name in names[1:])
 
 
-def test_a_text_the_catalogue_does_not_describe_is_not_drawn(tmp_path: Path) -> None:
-    """A cover is drawn from what the catalogue says a text is. Something pasted in this
-    morning has no title, no author and no describing sentence to draw from."""
+def test_a_text_the_catalogue_never_heard_of_is_drawn_from_itself(tmp_path: Path) -> None:
+    """A catalogue cover is drawn from what the catalogue says a text is — its author,
+    the sentence describing it — and an upload has none of that. It has a title and an
+    opening, which is enough, and the picture is filed under its own folder rather than a
+    catalogue id: it belongs to one text on one shelf."""
     from targum.models import Block, BlockKind, Document
 
     out = tmp_path / "targum-out"
@@ -1383,7 +1488,18 @@ def test_a_text_the_catalogue_does_not_describe_is_not_drawn(tmp_path: Path) -> 
 
     entry, plan = Library(out).cover_plan(folder, chapters=True)
 
-    assert entry is None and plan == []
+    assert entry is not None and entry.id == "mine-he"
+    assert [name for name, _ in plan] == ["mine-he"], "the book, and no chapters"
+    assert "Mine" in plan[0][1] and "שלום" in plan[0][1]
+    assert "no lettering" in plan[0][1].lower(), "and the brand's rules, the same as any"
+
+
+def test_a_folder_with_nothing_in_it_is_not_drawn(tmp_path: Path) -> None:
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "empty-he"
+    folder.mkdir(parents=True)
+
+    assert Library(out).cover_plan(folder, chapters=False) == (None, [])
 
 
 def test_a_chapter_is_drawn_in_the_style_of_its_book(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -1450,3 +1566,149 @@ def test_nothing_is_drawn_without_a_key(served: tuple[int, str, Path]) -> None:
     status, body, _ = call(port, "POST", f"/cover?k={key}", {"name": "judenstaat-he"})
     assert status == 400
     assert "OPENAI_API_KEY" in str(body.get("error", ""))
+
+
+# -- who you are, over the wire --------------------------------------------------
+
+
+def test_a_name_is_yours_to_set_and_is_not_the_address(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """An address is what signs you in; a name is what the app calls you. Until one is
+    given, the initials come off the address so the corner is never empty."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox, "yosef.cohen@example.com")
+
+    _, before, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert before["name"] == ""
+    assert before["initials"] == "YC", "the address stands in until a name arrives"
+
+    status, after, _ = call(
+        port, "POST", f"/account/name?k={token}", {"name": "  Yosef  Cohen  "}, cookie=cookie
+    )
+    assert status == 200
+    assert after["name"] == "Yosef Cohen", "tidied on the way in"
+    assert after["initials"] == "YC"
+
+    _, again, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert again["name"] == "Yosef Cohen", "and it stayed"
+
+
+def test_naming_needs_a_session(served: tuple[int, str, Path]) -> None:
+    """The key opens the door to the app; only a session says which account."""
+    port, token, _ = served
+    status, payload, _ = call(port, "POST", f"/account/name?k={token}", {"name": "Nobody"})
+    assert status == 401
+    assert payload["signedIn"] is False
+
+
+# -- bringing your own ------------------------------------------------------------
+
+
+def test_a_translation_you_already_have_is_taken_and_lined_up(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Supplying one is what makes a build free: the pipeline pays for a machine
+    translation only when nothing else was handed to it. What arrives here is written
+    down and named in the job's options, where the builder reads it."""
+    import base64
+
+    port, token, out = served
+    cookie = sign_in(port, postbox)
+    hebrew = base64.b64encode("שלום עולם.\nזה טקסט.".encode()).decode()
+    english = base64.b64encode(b"Hello world.\nThis is a text.").decode()
+
+    status, job, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {
+            "name": "mine.txt",
+            "content": hebrew,
+            "translationName": "mine.en.txt",
+            "translationContent": english,
+            "to": "en",
+            "from": "he",
+        },
+        cookie=cookie,
+    )
+    assert status == 200, job
+    assert not job.get("error"), job
+
+    # Both files are on disk under this deployment's own uploads, never at a path the
+    # request named. The job carries the translation's path in its options, which is
+    # where `Build` reads it from — see `_builder`.
+    written = sorted(path.name for path in out.rglob("uploads/*/*"))
+    assert written == ["mine.en.txt", "mine.txt"]
+    theirs = next(out.rglob("uploads/*/mine.en.txt"))
+    assert theirs.read_bytes() == base64.b64decode(english)
+
+
+def test_a_translation_has_to_be_something_targum_can_read(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    import base64
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {
+            "name": "mine.txt",
+            "content": base64.b64encode("שלום".encode()).decode(),
+            "translationName": "mine.pdf",
+            "translationContent": base64.b64encode(b"%PDF-1.4").decode(),
+        },
+        cookie=cookie,
+    )
+    assert status == 400
+    assert "pdf" in answer["error"].lower()
+
+
+@pytest.mark.parametrize(
+    ("view", "expected"),
+    [
+        ({"to": "de"}, "translates into"),
+        ({"from": "fr"}, "reads"),
+    ],
+)
+def test_a_pair_the_page_does_not_offer_is_refused(
+    served: tuple[int, str, Path], postbox: Postbox, view: dict[str, str], expected: str
+) -> None:
+    """A picker is not a boundary. The page offers three languages in and two out because
+    those are the pairs an upload has been taken end to end in; anything else is refused
+    before a file is written rather than half-built."""
+    import base64
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"name": "mine.txt", "content": base64.b64encode("שלום".encode()).decode(), **view},
+        cookie=cookie,
+    )
+    assert status == 400
+    assert expected in answer["error"]
+
+
+def test_working_out_the_language_is_still_allowed(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Hebrew, Aramaic and Yiddish look alike on a page in a script they share. Somebody
+    with an unlabelled text can hand the question over, and an empty `from` means that."""
+    import base64
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"name": "mine.txt", "content": base64.b64encode("שלום".encode()).decode(), "from": ""},
+        cookie=cookie,
+    )
+    assert status == 200, answer

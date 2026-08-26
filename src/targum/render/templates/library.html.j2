@@ -3,23 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Library — targum</title>
+<title>Discover — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="words shelf">
-{% set here = 'library' %}{% set title = 'Library' %}
+{% set here = 'library' %}{% set title = 'Discover' %}
 {% include '_nav.html.j2' %}
 
 <main>
   {#- One list, not two. What the reader has built and what is waiting to be built are
       the same question — what shall I read — and splitting them into a shelf and a
       catalogue meant answering it twice, in two different shapes. -#}
+  {#- Two halves of one question, and they are not a filter: the catalogue is everybody's
+      and the uploads are yours alone. As a select called "Access" among five other
+      controls, the reader's own texts were a setting nobody found. -#}
+  <div class="tabs" id="where" role="tablist" aria-label="Which texts"></div>
+
   <section class="panel" id="picked">
-    <p class="note" id="picked-note">
-      Tap a text to read it. Anything not on your shelf is built when you tap it.
-    </p>
+    {#- Two things somebody arriving here does not know: that the list is ordered by what
+        they can read now, and what the number in the last column counts. -#}
+    <p class="note" id="picked-note">Tap a text to read it. Easiest first — new words is
+      the share of a text you would have to look up.</p>
 
     {#- The controls are the page. A library of a hundred texts is only as good as the
         speed of getting to the one you want, so they sit above the list and act on it
@@ -28,11 +34,18 @@
       <input
         id="find" class="find" type="search" autocomplete="off" spellcheck="false"
         placeholder="Search a title or an author" aria-label="Search the library">
-      <div class="chips" id="register-chips" role="group" aria-label="Which Hebrew"></div>
+      {#- Biblical and modern Hebrew are not two genres, they are close to two languages,
+          and which one somebody is learning is the first question this page asks. A
+          switch with its own label rather than a third row of pills: as pills it sat
+          beside the kind filter with a second chip also saying "All", and the two read
+          as one row of ten. -#}
+      <div class="switch-set">
+        <span class="switch-label">Hebrew</span>
+        <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
+      </div>
       <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
       <label class="pick"><span>Length</span><select id="length"></select></label>
-      <label class="pick"><span>Words</span><select id="difficulty"></select></label>
-      <label class="pick"><span>Show</span><select id="where"></select></label>
+      <label class="pick"><span>Difficulty</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>Clear</button>
     </div>
 

@@ -47,7 +47,7 @@ class Counting:
     def available(self) -> tuple[bool, str]:
         return True, "counting"
 
-    def translate(self, segments, source, target, style, on_progress=None):  # type: ignore[no-untyped-def]
+    def translate(self, segments, source, target, style, on_progress=None, on_batch=None):  # type: ignore[no-untyped-def]
         self.asked.append(len(segments))
         return {s.id: f"translated {s.text}" for s in segments}
 

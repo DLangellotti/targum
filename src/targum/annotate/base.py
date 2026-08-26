@@ -75,6 +75,25 @@ class Lemmatizer(Protocol):
         """Tokens per segment id, with lemma and offsets but no band yet."""
 
 
+class Pronouncer(Protocol):
+    """Pointed words into how they are said.
+
+    Optional, unlike the lemmatizer: a text with no reading is a text that reads exactly
+    as it did before. The vowels are the input, so this can only ever run after the
+    document has been pointed.
+    """
+
+    @property
+    def name(self) -> str:
+        """Engine identity, recorded on the annotation through the annotator's name."""
+
+    def available(self) -> tuple[bool, str]:
+        """Whether it can run here, and why not when it cannot."""
+
+    def say(self, surfaces: list[str]) -> dict[str, str]:
+        """A reading for each distinct pointed form that has one."""
+
+
 class Bands(Protocol):
     """What makes a lemma hard."""
 

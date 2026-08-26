@@ -135,7 +135,7 @@ def test_a_translation_is_named_wherever_a_text_is_shown() -> None:
 
 
 def test_no_page_leaks_a_route_that_needs_an_account() -> None:
-    private = ("/words", "/readers", "/reader/", "/job/", "/glossary/")
+    private = ("/progress", "/readers", "/reader/", "/job/", "/glossary/")
     pages = [shelf_page(ADDRESS)]
     pages += [text_page(entry, ADDRESS) for entry in CATALOGUE]
     for html in pages:

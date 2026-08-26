@@ -6,7 +6,7 @@ Every test runs through this one, so the suite costs nothing and works offline.
 from __future__ import annotations
 
 from ..models import Segment, Style
-from .base import Progress
+from .base import Batch, Progress
 
 
 class NullProvider:
@@ -24,7 +24,11 @@ class NullProvider:
         target_language: str,
         style: Style,
         on_progress: Progress | None = None,
+        on_batch: Batch | None = None,
     ) -> dict[str, str]:
+        done = {segment.id: segment.text for segment in segments}
+        if on_batch:
+            on_batch(dict(done))
         if on_progress:
             on_progress(len(segments))
-        return {segment.id: segment.text for segment in segments}
+        return done
