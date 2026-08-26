@@ -4,10 +4,11 @@ An EPUB is a zip of XHTML plus a package file naming the reading order. Chapters
 read in spine order, which is the order a reader would turn pages in, rather than the
 order files happen to sit in the archive.
 
-Parsed directly rather than through an EPUB library on purpose: the one mature Python
-option is AGPL-licensed, and this project is MIT with a hosted future, where that
-licence's network clause would bind the whole service. The format is simple enough
-that the dependency bought very little.
+Parsed directly rather than through an EPUB library on purpose. The reason has changed
+and the decision has not: the one mature Python option was ruled out when this project
+was MIT and its AGPL network clause would have bound the whole hosted service. targum is
+itself AGPL now, so that argument is gone — but the format is simple enough that the
+dependency bought very little, and a dependency not taken is one that cannot break.
 """
 
 from __future__ import annotations

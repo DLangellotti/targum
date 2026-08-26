@@ -486,7 +486,7 @@ def repair(
     points — run on this machine, for the changed sentences only. Nothing is fetched and
     nothing is spent.
     """
-    from .annotate import Annotator, biblical
+    from .annotate import Annotator, PhonikudPronouncer, Pronouncer, biblical, pronounceable
     from .ingest.base import infer_headings
     from .ingest.spacing import unglue as respace
     from .models import (
@@ -575,14 +575,10 @@ def repair(
                 segmenter=segmented.segmenter,
                 segments=changed,
             )
-            annotation = read_artifact(Annotation, folder / "annotation.json")
-            if annotation is not None:
-                if changed:
-                    annotator = Annotator(bands=biblical.for_source(document.source))
-                    annotation.tokens.update(annotator.annotate(patch).tokens)
-                annotation.document_hash = document.content_hash
-                annotation.write(folder / "annotation.json")
-
+            # Vowels before words, and for the same reason the pipeline does it in that
+            # order: a sentence's reading is worked out from its pointing, so annotating
+            # first would hand the repaired lines back without one while the rest of the
+            # document kept theirs — a gap in the middle of a book, and nothing naming it.
             vocalization = read_artifact(Vocalization, folder / "vocalization.json")
             if vocalization is not None:
                 if changed:
@@ -598,6 +594,25 @@ def repair(
                     ] + fresh.rejected
                 vocalization.document_hash = document.content_hash
                 vocalization.write(folder / "vocalization.json")
+
+            annotation = read_artifact(Annotation, folder / "annotation.json")
+            if annotation is not None:
+                if changed:
+                    pronouncer: Pronouncer | None = None
+                    if vocalization is not None and pronounceable(segmented.language):
+                        candidate = PhonikudPronouncer()
+                        if candidate.available()[0]:
+                            pronouncer = candidate
+                    annotator = Annotator(
+                        bands=biblical.for_source(document.source), pronouncer=pronouncer
+                    )
+                    annotation.tokens.update(annotator.annotate(patch, vocalization).tokens)
+                    # The whole document's annotator, not the patch's. A file that says
+                    # phonikud read it while a repaired paragraph has no readings is worse
+                    # than one that says nothing did: the first is never redone.
+                    annotation.annotator = annotator.name
+                annotation.document_hash = document.content_hash
+                annotation.write(folder / "annotation.json")
 
         # The English itself is untouched. What it is keyed to moved, and that is all
         # that is written here.
@@ -628,6 +643,7 @@ def repair(
                 annotation=read_artifact(Annotation, folder / "annotation.json"),
                 glossary=read_artifact(Glossary, folder / "glossary.json"),
                 vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+                covers=root / "thumbs",
             )
         console.print(
             f"[dim]  {document.title or folder.name} — {repaired} word(s), "
@@ -698,6 +714,7 @@ def rebuild(
             annotation=read_artifact(Annotation, folder / "annotation.json"),
             glossary=read_artifact(Glossary, folder / "glossary.json"),
             vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+            covers=root / "thumbs",
         )
         done += 1
         console.print(

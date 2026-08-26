@@ -327,6 +327,21 @@ def free_name(home: Path, name: str) -> Path:
     return target
 
 
+@dataclass(frozen=True)
+class Drawable:
+    """A text a cover can be drawn for, whether or not the catalogue has heard of it.
+
+    A catalogue `Entry` answers all four of these already; an upload answers them from
+    its own document. Everything downstream of `cover_plan` asks for exactly this much,
+    so neither has to know which it is holding.
+    """
+
+    id: str
+    source: str
+    title: str
+    language: str
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
 
@@ -948,27 +963,40 @@ class Library:
             )
 
     def cover_plan(self, folder: Path, chapters: bool) -> tuple[Any, list[tuple[str, str]]]:
-        """The catalogue entry this text is, and every image worth drawing for it.
+        """What this text is, and every image worth drawing for it.
 
-        Catalogue texts only. A cover is drawn from what the catalogue says a text is —
-        its title, its author, the sentence describing it — and a text somebody pasted in
-        this morning has none of that. It is also why covers can be shared between
-        readers: the catalogue is the same catalogue for everyone.
+        A catalogue text is drawn from what the catalogue says it is — its title, its
+        author, the sentence describing it — and those covers are shared between readers,
+        because the catalogue is the same catalogue for everyone. An upload has none of
+        that, so its subject is its title and its opening lines, and the picture is filed
+        under the reader's own folder name rather than a catalogue id: it belongs to one
+        text on one shelf.
 
         Most chapters are left out. See `catalogue.names_something`: a hundred and fifty
         psalms are numbered rather than titled, and a number is not a subject anything
         could draw. Those fall back to the book's cover when they are asked for.
         """
         from . import catalogue as catalogue_module
-        from .catalogue import chapter_prompt, cover_prompt, names_something
+        from .catalogue import chapter_prompt, cover_prompt, cover_prompt_for, names_something
         from .models import Document, read_artifact
 
         document = read_artifact(Document, folder / "document.json")
-        entry = catalogue_module.matching(document.source) if document else None
-        if entry is None:
+        if document is None:
             return None, []
-
+        entry = catalogue_module.matching(document.source)
         where = self.out / "thumbs"
+        if entry is None:
+            mine = Drawable(
+                id=folder.name,
+                source=document.source,
+                title=document.title or folder.name,
+                language=document.language,
+            )
+            if any((where / (mine.id + suffix)).is_file() for suffix, _ in THUMBS):
+                return mine, []
+            opening = document.blocks[0].text if document.blocks else ""
+            return mine, [(mine.id, cover_prompt_for(mine.title, opening))]
+
         wanted: list[tuple[str, str]] = []
         if not any((where / (entry.id + suffix)).is_file() for suffix, _ in THUMBS):
             wanted.append((entry.id, cover_prompt(entry)))
@@ -1102,6 +1130,7 @@ class Library:
                 glossary=read(Glossary, folder / "glossary.json"),
                 vocalization=read(Vocalization, folder / "vocalization.json"),
                 clean=False,
+                covers=self.out / "thumbs",
             )
         except TargumError as error:
             return self._blame(job, error.message)
@@ -1205,8 +1234,13 @@ class Handler(BaseHTTPRequestHandler):
     token: str
     page: str
     adding: str
-    words: str
+    progress: str
     catalogue: str
+    you: str
+    #: The three list pages, by route name: everything Learn shows the top of. Empty by
+    #: default so a handler built with only the pages it needs — which is what the tests
+    #: build — serves no list pages rather than failing on the way past them.
+    lists: dict[str, str] = {}
     store: Store
     mailer: Mailer
     address: str
@@ -1372,7 +1406,7 @@ class Handler(BaseHTTPRequestHandler):
             "Disallow: /account/",
             "Disallow: /reader/",
             "Disallow: /readers",
-            "Disallow: /words",
+            "Disallow: /progress",
             "Disallow: /job/",
             "Disallow: /glossary/",
             "Disallow: /health",
@@ -1524,10 +1558,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
-        if route == "/words":
-            return self._send(200, self.words.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/progress":
+            return self._send(200, self.progress.encode("utf-8"), "text/html; charset=utf-8")
+        # Learn holds the top of each of these; this is the rest. `/words` was a redirect
+        # to the progress page for a while, from when the word list lived there — an old
+        # tab pointing here now lands on the word list itself, which is what it wanted.
+        if route.lstrip("/") in self.lists:
+            page = self.lists[route.lstrip("/")]
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
             return self._send(200, self.catalogue.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/you":
+            return self._send(200, self.you.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -1622,6 +1664,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._forget()
         if route == "/sync":
             return self._sync(payload)
+        if route == "/account/name":
+            return self._rename(payload)
         self._json({"error": "not found"}, 404)
 
     # -- accounts -----------------------------------------------------------
@@ -1630,14 +1674,24 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False})
-        self._json(
-            {
-                "signedIn": True,
-                "email": person.email,
-                "revision": self.store.revision(person),
-                "counts": self.store.counts(person),
-            }
-        )
+        answer = {
+            "signedIn": True,
+            "email": person.email,
+            "revision": self.store.revision(person),
+            "counts": self.store.counts(person),
+        }
+        answer.update(self.store.profile(person))
+        self._json(answer)
+
+    def _rename(self, payload: dict[str, Any]) -> None:
+        """What to call them. Empty clears it, and the avatar goes back to the address."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        stored = self.store.rename(person, str(payload.get("name") or ""))
+        answer = {"signedIn": True, "name": stored}
+        answer.update(self.store.profile(person))
+        self._json(answer)
 
     def _form(self) -> dict[str, str]:
         """A form post, read as a form. The landing page is a page, not an app."""
@@ -1724,9 +1778,13 @@ class Handler(BaseHTTPRequestHandler):
             since = int(payload.get("since") or 0)
         except (TypeError, ValueError):
             since = 0
+        # An allowlist of kinds, and every row filtered down to the dicts. The list check
+        # alone let `{"words": ["nonsense"]}` through to the merge, which calls .get on
+        # each row and raised on a string — a signed-in reader breaking their own sync
+        # rather than a hole, but a 500 where a quiet skip belongs.
         changes = {
-            name: list(payload.get(name) or [])
-            for name in ("words", "phrases", "docs")
+            name: [row for row in payload[name] if isinstance(row, dict)]
+            for name in ("words", "phrases", "docs", "days")
             if isinstance(payload.get(name), list)
         }
         if changes:
@@ -1739,10 +1797,36 @@ class Handler(BaseHTTPRequestHandler):
         self._json(answer)
 
     def _prepare(self, payload: dict[str, Any]) -> None:
+        """Price a build, and say what it will take before anything is spent."""
+        from .translate.prompts import INTO, READING, language_name
+
+        # A picker is not a boundary. The page offers three languages in and two out
+        # because those are the pairs an upload has been taken end to end in; a request
+        # naming anything else is refused here rather than half-built.
+        wanted = str(payload.get("to") or "en")
+        if wanted not in {code for code, _ in INTO}:
+            offered = ", ".join(language_name(code) for code, _ in INTO)
+            return self._json({"error": f"targum translates into {offered}."}, 400)
+        # `from` is allowed to be empty: that means work it out from the text. A catalogue
+        # text names its own language and is not somebody's upload, so it is let past.
+        reading = str(payload.get("from") or "")
+        known = {code for code, _ in READING}
+        if reading and reading not in known and not payload.get("translations"):
+            from . import catalogue as catalogue_module
+
+            if catalogue_module.matching(str(payload.get("source") or "")) is None:
+                names = ", ".join(language_name(code) for code, _ in READING)
+                return self._json({"error": f"targum reads {names}."}, 400)
+
         try:
             source = self._source_from(payload)
+            # A reader's own translation is a file like the source is, and it is written
+            # down here so the price — and then the build — is worked out with it in hand.
+            mine = self._translation_from(payload)
         except TargumError as error:
             return self._json({"error": error.message}, 400)
+        if mine:
+            payload = dict(payload, translations=mine)
 
         # Somebody has already translated this one, and that translation is better and
         # free. Said before anything is priced, not after it has been paid for.
@@ -1814,7 +1898,7 @@ class Handler(BaseHTTPRequestHandler):
 
         entry, plan = self.library.cover_plan(folder, bool(payload.get("chapters")))
         if entry is None:
-            return self._json({"error": "Covers are drawn for the library's own texts."}, 400)
+            return self._json({"error": "There is nothing here to draw."}, 400)
         if not plan:
             return self._json({"drawn": 0, "message": "Already drawn."})
 
@@ -1925,31 +2009,55 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Could not look that word up just now."}, 502)
         return self._json({"lemma": lemma, "meaning": meaning})
 
+    #: What a text or a translation may arrive as. An epub is a book; the rest is text.
+    READABLE = frozenset({".txt", ".md", ".markdown", ".epub"})
+
+    def _written(self, name: str, content: str) -> Path:
+        """One uploaded file on disk, under a directory nothing else will land in.
+
+        A directory of its own per upload. Two people — or one person twice — dropping
+        files with the same name used to overwrite each other, because the basename was
+        the whole path.
+        """
+        suffix = Path(name).suffix.lower()
+        if suffix not in self.READABLE:
+            raise TargumError(
+                f"targum cannot read '{suffix}' files. Save it as plain text or "
+                "markdown and drop that in instead."
+            )
+        uploads = self._home() / "uploads" / secrets.token_hex(8)
+        uploads.mkdir(parents=True, exist_ok=True)
+        # Only the file's own name, never a path it carries.
+        path = uploads / Path(name).name
+        path.write_bytes(base64.b64decode(content))
+        return path
+
     def _source_from(self, payload: dict[str, Any]) -> str:
         """A dropped file is written next to the readers; anything else is a source."""
         name = payload.get("name")
         content = payload.get("content")
         if name and content:
-            suffix = Path(str(name)).suffix.lower()
-            if suffix not in {".txt", ".md", ".markdown", ".epub"}:
-                raise TargumError(
-                    f"targum cannot read '{suffix}' files. Save it as plain text or "
-                    "markdown and drop that in instead."
-                )
-            # A directory of its own per upload. Two people — or one person twice —
-            # dropping files with the same name used to overwrite each other, because
-            # the basename was the whole path.
-            uploads = self._home() / "uploads" / secrets.token_hex(8)
-            uploads.mkdir(parents=True, exist_ok=True)
-            # Only the file's own name, never a path it carries.
-            path = uploads / Path(str(name)).name
-            path.write_bytes(base64.b64decode(str(content)))
-            return str(path)
+            return str(self._written(str(name), str(content)))
 
         source = str(payload.get("source", "")).strip()
         if not source:
             raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
+
+    def _translation_from(self, payload: dict[str, Any]) -> list[str]:
+        """A translation the reader already has, written down for the aligner.
+
+        Supplying one is what makes a build free: the pipeline pays for a machine
+        translation only when nothing else was handed to it. What comes back goes into
+        the job's options, where `Build` reads it — and it goes in on the way past the
+        door rather than out of the request, so nothing can name a file it did not
+        upload.
+        """
+        name = payload.get("translationName")
+        content = payload.get("translationContent")
+        if not (name and content):
+            return []
+        return [str(self._written(str(name), str(content)))]
 
     def _serve_glossary(self, folder: str) -> None:
         """The word meanings for one build, once they exist.
@@ -2037,7 +2145,15 @@ def start(
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
     from .mail import from_environment
-    from .render.builder import add_page, learn_page, library_page, words_page
+    from .render.builder import (
+        LISTS,
+        add_page,
+        learn_page,
+        library_page,
+        list_page,
+        progress_page,
+        you_page,
+    )
     from .translate.anthropic_provider import AnthropicProvider
 
     # The start-up key is a single-user mechanism: it proves you can read the terminal
@@ -2071,8 +2187,10 @@ def start(
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
             "page": learn_page(token),
+            "you": you_page(token),
+            "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
-            "words": words_page(token),
+            "progress": progress_page(token),
             "catalogue": library_page(token),
         },
     )

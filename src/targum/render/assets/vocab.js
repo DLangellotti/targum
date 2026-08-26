@@ -130,6 +130,12 @@
     // for blur put the save between the press and its handling, and the press was lost.
     var pending = null;
 
+    // Whether this field has been written in at all since the card was drawn. Sticky on
+    // purpose: comparing the field to what is stored looked like the same question and is
+    // not, because the note saves itself 400ms after you stop typing — so by the time you
+    // reached for a level the two agreed again, and the press read as a second press.
+    var touched = false;
+
     function commitNote() {
       if (!field || !options.onNote) return;
       var text = field.value.trim();
@@ -151,8 +157,11 @@
       if (on) button.classList.add("on");
       button.addEventListener("click", function (event) {
         event.stopPropagation();
+        // Read before committing, because committing is what makes them agree. A level
+        // pressed over a definition you have just written is you saving both — never you
+        // taking the mark off, whatever the level happened to be already.
         commitNote();
-        if (options.onStatus) options.onStatus(on ? null : step.value);
+        if (options.onStatus) options.onStatus(on && !touched ? null : step.value);
       });
       scale.appendChild(button);
     });
@@ -163,7 +172,7 @@
       note.type = "text";
       note.className = "note-field";
       note.value = options.note || "";
-      note.placeholder = options.placeholder || "Your own meaning";
+      note.placeholder = options.placeholder || "Enter text";
       note.setAttribute("aria-label", "Your own meaning");
       note.addEventListener("click", function (event) {
         event.stopPropagation();
@@ -179,6 +188,7 @@
       // On the way out, not on every keystroke: a store written per character is a
       // store written a hundred times for one definition.
       note.addEventListener("input", function () {
+        touched = true;
         clearTimeout(pending);
         pending = setTimeout(commitNote, 400);
       });
@@ -186,6 +196,21 @@
       note.addEventListener("change", commitNote);
       note.addEventListener("blur", commitNote);
       box.appendChild(note);
+
+      // What you typed is kept as you type it, and always was — but a field that saves
+      // silently is a field nobody can tell they have finished with. This says where the
+      // end is. Pressing it does what leaving the field does, and says so.
+      var save = document.createElement("button");
+      save.type = "button";
+      save.className = "note-save";
+      save.textContent = "Save";
+      save.addEventListener("click", function (event) {
+        event.stopPropagation();
+        commitNote();
+        note.blur();
+        if (options.onSaved) options.onSaved();
+      });
+      box.appendChild(save);
     }
     return box;
   }

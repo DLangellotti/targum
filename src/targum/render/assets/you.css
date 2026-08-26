@@ -1,0 +1,72 @@
+/* The profile page. Three panels, in the order somebody wants them: who you are, what
+   you have read, and the two things that end an account. */
+
+.who-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+/* The same circle the corner wears, at the size a page can afford. */
+.avatar-large {
+  flex: none;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.avatar-large img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+
+.who-what { min-inline-size: 0; flex: 1; }
+.field { display: flex; flex-direction: column; gap: 0.25rem; }
+.field > span {
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.field input {
+  inline-size: 100%;
+  max-inline-size: 18rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+}
+.field input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.you-email { margin: 0.5rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; }
+
+/* Quiet by default, and the destructive one takes clay only once it is what you are
+   about to press — §4 keeps clay for cost, errors and things that cannot be undone. */
+.go-quiet {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+.go-quiet:hover { color: var(--ink); border-color: var(--ink-soft); }
+.go-quiet.danger:hover { color: var(--clay); border-color: var(--clay); }
+.go-quiet[data-sure="yes"] { color: var(--clay); border-color: var(--clay); }
+
+/* Reading and the way out --------------------------------------------------- */
+
+.you .tally { font-size: 1.0625rem; }
+
+/* A browser's own link colour is the one hue on the page nobody chose. Ink, with the
+   underline doing the work of saying it is a link. */
+.you .elsewhere { color: var(--ink-soft); }
+.you .elsewhere a { color: var(--ink); text-underline-offset: 2px; }

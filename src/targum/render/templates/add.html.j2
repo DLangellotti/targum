@@ -16,56 +16,97 @@
       from the nav by somebody who already has an account and a shelf, that reads as a
       stranger's greeting to a regular. It says what it is for instead. -#}
   <h1 class="lede">Add a text</h1>
-  {#- Said before anything is priced. Most of what anybody wants is already on a shelf,
-      and finding that out after paying is the wrong order round. -#}
-  <p class="hint">Most things are already in the
-    <a class="to-library" href="/library">Library</a>, translated and free.</p>
+  {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
+      few hundred texts, not most of what anybody wants. -#}
+  <p class="hint">It may already be in
+    <a class="to-library" href="/library">Discover</a>.</p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>
   {% endif %}
 
-  <section class="step">
-    <h2>The text</h2>
+  {#- Two columns, so the whole of it is one screen. It was a column of five stacked
+      sections and the button that starts a build was below the fold on a laptop: what
+      the page asks for is small, and asking for it in single file made it look long. -#}
+  <div class="add-grid">
+    <section class="step">
+      <h2>The text</h2>
 
-    <div class="drop" id="drop" tabindex="0">
-      <p class="drop-label">Drop a book or an article here</p>
-      <p class="drop-note">EPUB, plain text, or markdown</p>
-      <input type="file" id="file" accept=".txt,.md,.markdown,.epub" hidden>
-      <button type="button" id="choose">Choose file</button>
-      <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
-    </div>
+      <div class="drop" id="drop" tabindex="0">
+        <p class="drop-label">Drop a book or an article</p>
+        <p class="drop-note">EPUB, plain text, or markdown</p>
+        <input type="file" id="file" accept=".txt,.md,.markdown,.epub" hidden>
+        <button type="button" id="choose">Choose file</button>
+        <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
+      </div>
 
-    <p class="or">or paste a link</p>
-
-    <label class="field">
-      <input type="text" id="source" placeholder="https://…" spellcheck="false">
-    </label>
-    <p class="hint">Articles and wiki pages. No logins, paywalls or PDFs.</p>
-  </section>
-
-  <section class="step">
-    <h2>Languages</h2>
-    <div class="options">
-      <label class="field short">
-        <span>I am reading</span>
-        <select id="from">
-          {% for code, name in languages %}<option value="{{ code }}"{% if code == 'he' %} selected{% endif %}>{{ name }}{% if code != 'he' %} (beta){% endif %}</option>{% endfor %}
-          <option value="">work it out for me</option>
-        </select>
+      {#- The other two ways in, labelled rather than announced: three "or" lines between
+          three boxes was three lines of chrome for no information. -#}
+      <label class="field">
+        <input type="text" id="source" placeholder="Or paste a link" spellcheck="false">
       </label>
-      <label class="field short">
-        <span>Translate into</span>
-        <select id="to">
-          {% for code, name in languages %}<option value="{{ code }}"{% if code == 'en' %} selected{% endif %}>{{ name }}</option>{% endfor %}
-        </select>
+      <label class="field">
+        <textarea id="pasted" rows="4" spellcheck="false"
+                  placeholder="Or paste the text"></textarea>
       </label>
-    </div>
-    <p class="hint" id="from-beta" hidden></p>
-  </section>
+      <p class="hint">Articles and wiki pages, no logins or PDFs. A pasted text takes its
+        title from its first line.</p>
+    </section>
 
-  <button type="button" id="go" class="go">Read this</button>
-  <p class="hint caps">You will see how long first.</p>
+    <div class="beside">
+      {#- A translation the reader already has is a translation nobody has to make. The
+          aligner lines it up sentence by sentence, the same way the catalogue's published
+          translations are lined up. -#}
+      <section class="step">
+        <h2>The translation</h2>
+        <div class="segmented" id="how" role="group" aria-label="Where the translation comes from">
+          <button type="button" class="segment" data-how="make" aria-pressed="true">Make one</button>
+          <button type="button" class="segment" data-how="mine" aria-pressed="false">I have one</button>
+        </div>
+        <p class="hint" id="how-note">targum translates it, sentence by sentence.</p>
+
+        <div id="have-translation" hidden>
+          <div class="drop small" id="drop-translation" tabindex="0">
+            <p class="drop-label">Drop the translation</p>
+            <p class="drop-note">Plain text or markdown, in reading order</p>
+            <input type="file" id="translation" accept=".txt,.md,.markdown,.epub" hidden>
+            <button type="button" id="choose-translation">Choose file</button>
+            <button type="button" id="unchoose-translation" class="unchoose" hidden>Something else</button>
+          </div>
+          <label class="field">
+            <textarea id="pasted-translation" rows="3" spellcheck="false"
+                      placeholder="Or paste the translation"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <section class="step">
+        <h2>Languages</h2>
+        <div class="options">
+          {#- Three in and two out, each one saying how far along it is. Narrower than
+              what the rest of the app can show: these are the pairs an upload has been
+              taken end to end in. -#}
+          <label class="field short">
+            <span>I am reading</span>
+            <select id="from">
+              {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
+            </select>
+          </label>
+          <label class="field short">
+            <span>Translate into</span>
+            <select id="to">
+              {% for one in into %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
+            </select>
+          </label>
+        </div>
+        <p class="hint" id="from-beta" hidden></p>
+      </section>
+
+      <button type="button" id="go" class="go">Read this</button>
+      <p class="hint caps">You will see how long first.</p>
+    </div>
+  </div>
+
   <div class="status" id="status" hidden></div>
 
 </main>
@@ -73,6 +114,9 @@
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{#- `tojson` rather than quoting these by hand: an ampersand written into a script block
+    comes out as `&amp;`, and "R&D" stopped matching itself. -#}
+window.TARGUM_READING = {{ reading|tojson }};
 </script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>

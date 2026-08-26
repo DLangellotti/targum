@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from ..errors import ProviderError
 from ..models import Segment, Style
 from ..usage import Usage
-from .base import Progress, batches, context_window
+from .base import Batch, Progress, batches, context_window
 from .prompts import language_name, system_prompt
 
 DEFAULT_MODEL = "claude-opus-5"
@@ -146,6 +146,7 @@ class AnthropicProvider:
         target_language: str,
         style: Style,
         on_progress: Progress | None = None,
+        on_batch: Batch | None = None,
     ) -> dict[str, str]:
         system = system_prompt(source_language, target_language, style)
         out: dict[str, str] = {}
@@ -168,6 +169,10 @@ class AnthropicProvider:
                     f"First one: {missing[0].id}",
                 )
             out |= got
+            # Before the progress bar moves, so anything watching this sees work that is
+            # already written down rather than work that is about to be.
+            if on_batch:
+                on_batch(dict(out))
             if on_progress:
                 on_progress(len(batch))
         return out

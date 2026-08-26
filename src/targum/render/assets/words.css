@@ -172,6 +172,9 @@ main {
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
+/* A note with nothing to say takes no room. "Where they are" used to count the words you
+   had ignored; it does not any more, and the gap it left behind should go with it. */
+.panel .note:empty { display: none; }
 
 /* --- charts --------------------------------------------------------------- */
 

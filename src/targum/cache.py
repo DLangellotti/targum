@@ -9,7 +9,7 @@ from typing import Any
 
 from .ids import content_hash
 from .models import SCHEMA_VERSION
-from .paths import cache_dir, ensure
+from .paths import cache_dir, write_atomic
 
 
 class Cache:
@@ -34,9 +34,9 @@ class Cache:
             return None
 
     def put(self, stage: str, key: str, value: Any) -> None:
-        path = self._path(stage, key)
-        ensure(path.parent)
-        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+        """Whole or not at all, because a torn entry reads as a miss and a miss is
+        paid for a second time. Warm workers share this directory."""
+        write_atomic(self._path(stage, key), json.dumps(value, ensure_ascii=False))
 
     def clear(self) -> int:
         """Drop cached work but keep downloaded language models."""

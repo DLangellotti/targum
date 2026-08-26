@@ -112,6 +112,9 @@
   var lemmas = data.lemmas || [];
   var roots = data.roots || [];
   var binyanim = data.binyanim || [];
+  // Absent in every reader with no Hebrew in it, and in one built before there was
+  // anything to read the vowels with.
+  var sounds = data.sounds || [];
   var glosses = data.glosses || [];
   var levelNames = data.levelNames || {};
   var hasGloss = glosses.length > 0;
@@ -123,10 +126,15 @@
   // isolation and neither has to be rebuilt here. Only one is ever on show.
   var plainCell = {};
   var pointedCell = {};
+  // The pair a segment is drawn in. The word queue works in segment ids, because the
+  // words themselves are data rather than page, and this is the one place it has to come
+  // back to the page — to draw a pair's spans and to scroll to it.
+  var pairBySegment = {};
   pairs.forEach(function (pair) {
     var segmentId = pair.getAttribute("data-id");
     plainCell[segmentId] = pair.querySelector(".src.plain");
     pointedCell[segmentId] = pair.querySelector(".src.pointed");
+    pairBySegment[segmentId] = pair;
   });
   var hasNikkud = Object.keys(pointedCell).some(function (id) {
     return !!pointedCell[id];
@@ -225,10 +233,36 @@
 
   // When you last had this text open, so the library can put what you are part way
   // through at the top.
+  //
+  // And the day itself, which is the whole of "12 days reading" on the progress page.
+  // `targum:opened` cannot answer that question — it holds one stamp per text and
+  // overwrites it on every open, so yesterday is gone the moment you come back. This is
+  // a set, and the only thing that writes to it is this line: a day is a day you opened
+  // a text, not a day you marked a word, and dressing one up as the other would make the
+  // number a claim nobody could check.
+  //
+  // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
+  // question about their evening. Built from the parts rather than sliced off an ISO
+  // string, which is UTC and lands on the wrong day either side of midnight.
   try {
     var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
     opened[documentId] = Date.now();
     localStorage.setItem("targum:opened", JSON.stringify(opened));
+
+    var now = new Date();
+    var today =
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(now.getDate()).padStart(2, "0");
+    var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
+    if (!days[today]) {
+      days[today] = 1;
+      localStorage.setItem("targum:days", JSON.stringify(days));
+      // Signed in, this reaches the account a moment later; signed out it is a no-op.
+      if (window.TargumSync) window.TargumSync.touched();
+    }
   } catch (e) {}
 
   function read(name, fallback) {
@@ -406,11 +440,108 @@
 
   // Setting a word to what it already is takes the mark off again, so the same tap
   // both grades a word and undoes a mistake.
+  // What a keystroke did, for anyone listening. The page's only answer to a level was a
+  // ring moving and a count in the opposite corner, and a screen reader was told neither.
+  var spoken = document.getElementById("spoken");
+
+  // Its own words rather than the buttons'. A button says what pressing it will do and
+  // this says what pressing it did, which is a different tense and sometimes a different
+  // word: the ignore button reads "a name or a number", and hearing that back as the
+  // answer to a keystroke tells you nothing about what happened.
+  var SAID = {};
+  SAID[1] = "just met it";
+  SAID[2] = "getting there";
+  SAID[3] = "nearly know it";
+  SAID[KNOWN] = "known";
+  SAID[IGNORED] = "ignored";
+
+  function stepTitle(status) {
+    // Asked of the object's own keys, for the same reason every other lookup here is.
+    if (Object.prototype.hasOwnProperty.call(SAID, status)) return SAID[status];
+    // Saying a level a word already has takes it off again, which is a real answer and
+    // has to be said as one.
+    return "not marked";
+  }
+
+  function say(words) {
+    if (!spoken) return;
+    // Rewritten rather than appended: the same sentence twice running is still news, and
+    // a region that only ever grows is read from the top every time.
+    spoken.textContent = "";
+    spoken.textContent = words;
+  }
+
+  function saidLevel(surface, status) {
+    var counts = coverage();
+    var left = counts.fresh + counts.learning;
+    say(surface + ", " + stepTitle(status) + ". " + left + " left.");
+  }
+
+  // A level is one keystroke wide and there are five of them, so the wrong one is a
+  // matter of time. Every change keeps what it replaced and the word it was said about,
+  // and `u` puts both back. Without it a mis-keyed `k` is unreachable: known takes the
+  // word out of the queue the arrows walk, so there is no way back to it from the
+  // keyboard at all.
+  var undoable = [];
+  var UNDO_DEPTH = 50;
+
+  function recordUndo(index, lemma, surface) {
+    undoable.push({
+      lemma: lemma,
+      surface: surface || lemma,
+      // A copy. The record itself is rewritten in place by the next change to the word,
+      // and a reference would undo to whatever it had become.
+      before: vocab[lemma] ? JSON.parse(JSON.stringify(vocab[lemma])) : null,
+      // Where you were standing when you said it, so undo hands the word back rather
+      // than only the level. Null where the level came from a card a pointer opened.
+      where: place ? { segment: place.segment, lemma: index, start: place.start } : null,
+    });
+    if (undoable.length > UNDO_DEPTH) undoable.shift();
+  }
+
+  function undo() {
+    var last = undoable.pop();
+    if (!last) return false;
+    if (last.before) {
+      vocab[last.lemma] = last.before;
+    } else {
+      delete vocab[last.lemma];
+      if (window.TargumSync) window.TargumSync.forgetWord(language, last.lemma);
+    }
+    remember();
+    saidLevel(last.surface, statusOf(last.lemma));
+    var open = asking();
+    redraw();
+    // Back onto the word it was said about, so the answer can be given again rather than
+    // hunted for. Undoing a level set with a pointer changes the level and nothing else.
+    if (last.where && !focusQueued(last.where, open)) leaveQueue();
+    return true;
+  }
+
+  // Saying a level a word already has takes the mark off again, so the same key both
+  // grades a word and undoes a mistake. Asked here, before anything else has written to
+  // the store, rather than worked out inside `setStatus` from what it finds there.
+  function toggled(index, status) {
+    return statusOf(lemmas[index]) === status ? null : status;
+  }
+
+  // `status` is what the reader asked for, and `null` is "take the mark off". Nothing is
+  // inferred from what is already stored, because `setNote` writes a record at level 1 on
+  // its way past: a `setStatus` that re-read the store saw the level it had just written
+  // itself and took a press of "1" for a second press. Typing a definition and then
+  // saying "just met it" unmarked the word and threw the definition away with it.
+  // Whether this change is a word arriving at known from somewhere below it. Asked
+  // before the record is rewritten, because the answer is in the level it is leaving.
+  function learnedNow(lemma, status) {
+    if (vocab[lemma] && vocab[lemma].learned) return true;
+    return status === KNOWN && isLearning(statusOf(lemma));
+  }
+
   function setStatus(index, surface, band, status) {
     var lemma = lemmas[index];
     if (!lemma) return false;
-    var current = statusOf(lemma);
-    if (current === status) {
+    recordUndo(index, lemma, surface);
+    if (status === null || status === undefined) {
       delete vocab[lemma];
       if (window.TargumSync) window.TargumSync.forgetWord(language, lemma);
     } else {
@@ -421,13 +552,25 @@
         // Whatever you wrote for it stays yours across a change of level.
         note: vocab[lemma] ? vocab[lemma].note || "" : "",
         band: band || (vocab[lemma] ? vocab[lemma].band : "") || "",
+        // A word you carried up from a level below known is one you learned here; a word
+        // you opened a text and ticked off is one you already had. Sticky, because
+        // having learned it is not undone by later changing your mind about the level.
+        learned: learnedNow(lemma, status) ? 1 : 0,
         at: vocab[lemma] ? vocab[lemma].at || nextOrder() : nextOrder(),
         seen: Date.now(),
       };
-      if (isLearning(status) && listBox && listBox.hidden) showList(true);
+      // Where the word went, the first time you keep one — but never in the middle of a
+      // walk. Opening a panel over the translation while somebody is stepping the
+      // chapter a word at a time takes away the thing they are grading against, at the
+      // one moment they are not looking for it. `s` opens it when it is wanted.
+      if (isLearning(status) && !standing && listBox && listBox.hidden) showList(true);
     }
     remember();
-    return statusOf(lemma);
+    var now = statusOf(lemma);
+    // Said here rather than at the keys, so every way of setting a level says the same
+    // thing: the card's buttons, the list beside the text, and the five keys.
+    saidLevel(surface || lemma, now);
+    return now;
   }
 
   function interlinear() {
@@ -790,8 +933,16 @@
     return counts;
   }
 
+  // Whether this chapter has had anything waiting while you were on it. One you open
+  // already finished shows the ordinary count; one you finish yourself is told so.
+  var wasWaiting = false;
+
   function renderStats() {
     var counts = coverage();
+    // What the arrows still have to walk: everything neither known nor ignored. The
+    // queue is built from the same rule, so this is its length without building it.
+    var left = counts.fresh + counts.learning;
+    if (left) wasWaiting = true;
     // Ignored words are neither known nor waiting, so they come out of the total rather
     // than counting against you. Ignore means "this is not vocabulary" — a name, a
     // numeral, a word from another language — and counting it as known would make the
@@ -807,14 +958,32 @@
         // Built rather than written, so the two figures can carry the ledger treatment
         // the guidelines ask for and the words around them cannot.
         headerKnown.textContent = "";
-        var whole = document.createElement("b");
-        whole.textContent = String(counts.known);
-        var all = document.createElement("b");
-        all.textContent = String(scored);
-        headerKnown.appendChild(whole);
-        headerKnown.appendChild(document.createTextNode(" of "));
-        headerKnown.appendChild(all);
-        headerKnown.appendChild(document.createTextNode(" known"));
+        var done = !left && wasWaiting;
+        headerKnown.classList.toggle("done", done);
+        if (done) {
+          // A milestone bragged the brand's way: what is true, in type, once. Not a
+          // banner, and nothing moves.
+          headerKnown.appendChild(document.createTextNode("nothing left to mark here"));
+        } else {
+          var whole = document.createElement("b");
+          whole.textContent = String(counts.known);
+          var all = document.createElement("b");
+          all.textContent = String(scored);
+          headerKnown.appendChild(whole);
+          headerKnown.appendChild(document.createTextNode(" of "));
+          headerKnown.appendChild(all);
+          headerKnown.appendChild(document.createTextNode(" known"));
+          if (left) {
+            // Ink rather than leaf. Leaf is what you know; work still to do is not an
+            // achievement, and colouring it as one would say the opposite of the number.
+            var rest = document.createElement("b");
+            rest.className = "left";
+            rest.textContent = String(left);
+            headerKnown.appendChild(document.createTextNode(" · "));
+            headerKnown.appendChild(rest);
+            headerKnown.appendChild(document.createTextNode(" left"));
+          }
+        }
       }
     }
 
@@ -879,7 +1048,7 @@
     return TargumVocab.editor({
       status: entry.status,
       note: entry.note,
-      placeholder: "Your own reading",
+      placeholder: "Enter text",
       onStatus: function (value) {
         setPhrase(entry, { status: value });
       },
@@ -1064,10 +1233,34 @@
   var card = document.getElementById("gloss-card");
   var lookedUp = null;
 
+  // Where you are in the word queue, and the word itself. Kept apart from `lookedUp`,
+  // because standing on a word and asking what it means are two different things: the
+  // arrows move the first, Enter does the second, and walking a page fires no windows.
+  //
+  // `place` is also what tells `markLookedUp` which of two things to do when you say how
+  // well you know a word: one you walked to hands you the next, one you tapped stays put.
+  var place = null;
+  var standing = null;
+
   function hideCard() {
     if (card) card.hidden = true;
-    if (lookedUp) lookedUp.classList.remove("looked-up");
+    if (lookedUp) {
+      lookedUp.classList.remove("looked-up");
+      lookedUp.removeAttribute("aria-describedby");
+    }
     lookedUp = null;
+  }
+
+  // Out of the queue altogether. A word is not focusable in its own right — it is a span
+  // the marking pass drew — so leaving it in the tab order once you have moved on would
+  // be litter.
+  function leaveQueue() {
+    if (standing) {
+      standing.classList.remove("queued");
+      standing.removeAttribute("tabindex");
+    }
+    standing = null;
+    place = null;
   }
 
   function levelOf(word) {
@@ -1117,18 +1310,45 @@
     if (!Object.prototype.hasOwnProperty.call(KEYED_STATUS, key)) return false;
     var status = KEYED_STATUS[key];
 
-    // Whichever card is open. The word card wins if somehow both are.
-    if (lookedUp && card && !card.hidden) {
-      var index = parseInt(lookedUp.getAttribute("data-lemma"), 10);
+    // The word the arrows are standing on, or failing that whichever card is open — the
+    // word card winning if somehow both are. Saying how well you know a word does not
+    // need the card open: the card is a question you asked, and this is an answer you
+    // already had.
+    var word = standing || (lookedUp && card && !card.hidden ? lookedUp : null);
+    if (word) {
+      var index = parseInt(word.getAttribute("data-lemma"), 10);
       if (!lemmas[index]) return false;
-      setStatus(index, bareSurface(lookedUp), levelOf(lookedUp), status);
+      var surface = bareSurface(word);
+      setStatus(index, surface, levelOf(word), toggled(index, status));
       stopHover();
-      var word = lookedUp;
+      var from = place;
+      var open = asking();
+      // Read before the redraw. `markSegment` replaces the text nodes inside the cell,
+      // so the span is detached afterwards and has no ancestors left to search — asking
+      // a detached word for its sentence answers null, and the card shut itself on every
+      // word marked with a pointer.
+      var pair = word.closest ? word.closest(".pair") : null;
       redraw();
+      // Reached with the arrows: say the word and take the next one, so a page is
+      // cleared at one key a word. Forward is always the way the text reads — the
+      // arrows decide which key that is, the queue does not.
+      //
+      // All five keys move on, not only `k` and `i`. A level means "still learning", so
+      // the word stays in the queue; asking for the first one past where you were
+      // carries you over it without a case of its own.
+      if (from) {
+        // Nothing further. Close up, and let the header say the chapter is clear.
+        if (!goTo(onward(from, true), true, open)) {
+          var last = pair;
+          leaveQueue();
+          hideCard();
+          if (last && last.focus) last.focus();
+        }
+        return true;
+      }
       // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
       // Find its replacement by lemma in the same sentence rather than holding a
       // reference to a node that is no longer in the page.
-      var pair = word.closest ? word.closest(".pair") : null;
       var again =
         pair && pair.parentNode
           ? pair.querySelector('.w[data-lemma="' + index + '"]')
@@ -1152,7 +1372,7 @@
       status: statusOf(lemma),
       note: noteOf(lemma),
       onStatus: function (value) {
-        setStatus(index, surface, band, value === null ? statusOf(lemma) : value);
+        setStatus(index, surface, band, value);
         redraw();
         // Rebuilt rather than patched, so every button in the row agrees about which
         // one is now set.
@@ -1174,6 +1394,23 @@
     if (!pair || span.length !== 2) return word.textContent;
     var text = segmentText(pair.getAttribute("data-id"));
     return text.slice(parseInt(span[0], 10), parseInt(span[1], 10)) || word.textContent;
+  }
+
+  // How the word you tapped is said, for this occurrence and not for its dictionary
+  // form. בצל is batsˈal after "I ate" and btsˈel under a tree; the lemma is the same
+  // word in both and the row drawn here is the only thing that knows which was meant.
+  function readingOf(word) {
+    if (!sounds.length) return "";
+    var pair = word.closest ? word.closest(".pair") : null;
+    var span = (word.getAttribute("data-bare") || "").split(",");
+    if (!pair || span.length !== 2) return "";
+    var rows = wordData[pair.getAttribute("data-id")] || [];
+    var start = parseInt(span[0], 10);
+    var end = parseInt(span[1], 10);
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i][0] === start && rows[i][1] === end) return sounds[rows[i][5]] || "";
+    }
+    return "";
   }
 
   function showCard(word) {
@@ -1201,6 +1438,21 @@
     head.setAttribute("lang", language);
     head.textContent = shown;
     card.appendChild(head);
+
+    // Directly under the word, because it is about the word rather than about its
+    // dictionary form, and because the stress is the half of it a learner cannot get
+    // from the spelling and will not find in any dictionary entry either.
+    var said = readingOf(word);
+    if (said) {
+      var say = document.createElement("span");
+      say.className = "said";
+      say.appendChild(document.createTextNode("said "));
+      var heard = document.createElement("bdi");
+      heard.setAttribute("dir", "ltr");
+      heard.textContent = said;
+      say.appendChild(heard);
+      card.appendChild(say);
+    }
 
     if (lemma !== surface.toLowerCase() && lemma !== surface) {
       var form = document.createElement("span");
@@ -1305,6 +1557,18 @@
       caveat.textContent = "read as a prefix plus a word";
       card.appendChild(caveat);
     }
+
+    // The card teaches its own keys. Shown whether or not you arrived by keyboard,
+    // because a reader who taps is exactly the one who has not found out yet that there
+    // is a faster way through a page — and the place they are already looking is here.
+    // The arrow is the one that goes forward on this page: §7 wants the typed character
+    // per reading direction.
+    var legend = document.createElement("span");
+    legend.className = "legend";
+    legend.textContent =
+      (rtl ? "←" : "→") + " next · k known · 1 2 3 · i ignore · g look up · u back";
+    card.appendChild(legend);
+
     card.hidden = false;
     placeNear(card, word.getBoundingClientRect());
   }
@@ -1428,7 +1692,12 @@
     element.style.top = top + window.scrollY + "px";
   }
 
-  function place(rect) {
+  // Named for what it places. It was `place`, which is also what the word queue calls
+  // the position it is standing on — and `var place = null` and `function place` in one
+  // scope are one binding, not two: the function is hoisted, the assignment runs over it,
+  // and every later call throws. Which is what killed dragging a phrase outright, since
+  // this is the only thing that takes the chip out of `hidden`.
+  function placeChip(rect) {
     placeNear(chip, rect);
   }
 
@@ -1530,7 +1799,7 @@
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? pick.note || "" : "",
-        placeholder: "Your own reading",
+        placeholder: "Enter text",
         onStatus: apply,
         onNote: function (text) {
           var item = ensure();
@@ -1550,6 +1819,13 @@
   // that was under the cursor. Which looks exactly like the button doing nothing.
   if (chip) {
     chip.addEventListener("mousedown", function (event) {
+      // Except on the field. Preventing the default on mousedown is exactly what stops
+      // the browser moving focus, so the blanket that protected the selection also made
+      // the note field impossible to click into: the caret never arrived and nothing you
+      // typed went anywhere. The mouseup below already ignores everything inside the
+      // chip, so the card does not close when the selection collapses under the caret.
+      var to = event.target;
+      if (to && /^(INPUT|SELECT|TEXTAREA)$/.test(to.tagName)) return;
       event.preventDefault();
     });
   }
@@ -1584,9 +1860,9 @@
         note: lemma && lemma !== surface ? "dictionary form " + lemma : "",
         editor: statusRow(index, surface, band),
       });
-      place(picked.rect);
+      placeChip(picked.rect);
       pickLevel = function (status) {
-        setStatus(index, surface, band, status);
+        setStatus(index, surface, band, toggled(index, status));
         redraw();
         showPick(picked);
       };
@@ -1640,7 +1916,7 @@
         redraw();
       },
     });
-    place(picked.rect);
+    placeChip(picked.rect);
     pickLevel = function (status) {
       editing.apply(status);
       showPick(picked);
@@ -1855,9 +2131,14 @@
   // which stop scrolling the moment this file loads.
   var keysCard = document.getElementById("keys");
 
+  var keysButton = document.querySelector("[data-keys]");
+
   function showKeys(open) {
     if (!keysCard) return;
     keysCard.hidden = !open;
+    // The button discloses the panel, so it has to say whether the panel is open. Focus
+    // stays on the word either way: looking up a key must not cost you your place.
+    if (keysButton) keysButton.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   /* --- clicks -------------------------------------------------------------- */
@@ -1920,6 +2201,8 @@
     // page shows you, never what it lets you do — you have to be able to mark a word to
     // clear it, and the whole point of the mode is clearing them.
     var word = event.target.closest ? event.target.closest(".w") : null;
+    // Either way the pointer has taken over from the arrows, and the ring goes with them.
+    leaveQueue();
     if (word) {
       showCard(word);
       return;
@@ -1928,47 +2211,330 @@
     showKeys(false);
   });
 
+  /* --- the word queue ------------------------------------------------------ */
+
+  // The words of this chapter you have not finished with, in reading order, each one
+  // once. Built from the embedded data rather than from the page, for the reason every
+  // other count here is built from it: most of the chapter's spans do not exist yet —
+  // `markSegment` draws a screenful and leaves the rest until it is scrolled to — and
+  // the ones that do are thrown away by the next `redraw`.
+  //
+  // A word is in the queue when it is neither known nor ignored, which is `fresh` plus
+  // `learning` in `coverage()`. The figure in the header and the length of this list are
+  // the same number arrived at twice, so they cannot drift.
+  function buildQueue() {
+    var seen = {};
+    var out = [];
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        var lemma = lemmas[token[4]];
+        // Asked of the object's own keys: a text using the word "constructor" would
+        // otherwise find a function sitting in `seen` and skip every one of them.
+        if (!lemma || Object.prototype.hasOwnProperty.call(seen, lemma)) return;
+        // Claimed at the first appearance whether or not it is queued, so a word you
+        // already know cannot let a later occurrence of itself back in.
+        seen[lemma] = true;
+        var status = statusOf(lemma);
+        if (status === KNOWN || status === IGNORED) return;
+        out.push({ segment: segmentId, lemma: token[4], start: token[0] });
+      });
+    });
+    return out;
+  }
+
+  // Every word of the chapter in reading order, which is what the back key walks.
+  //
+  // No status filter and no deduplication by lemma, both deliberately. A word you have
+  // just marked is precisely the one you are stepping back to look at, so filtering by
+  // status would hide it; and the word before this one is the word before this one
+  // whether or not its dictionary form turned up earlier in the chapter.
+  function buildAll() {
+    var out = [];
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (!lemmas[token[4]]) return;
+        out.push({ segment: segmentId, lemma: token[4], start: token[0] });
+      });
+    });
+    return out;
+  }
+
+  // Forward is the worklist; back is the text. The two are not the same list and were
+  // never symmetrical.
+  //
+  // Forward means "the next word I have not finished with", which is the whole point of
+  // the queue. Back cannot mean that, because dealing with a word takes it out of the
+  // queue: built on the queue, the back key skipped every word the reader had just
+  // marked and landed somewhere earlier in the chapter, walking back *past* their own
+  // work instead of retracing it. The way back to a word you just answered is `u`, which
+  // takes the level off; the way back to the word before this one is this.
+  function queueFor(forward) {
+    return forward ? buildQueue() : buildAll();
+  }
+
+  // Rebuilt on every move rather than kept and patched. A chapter is a few thousand
+  // tokens and the walk does not reach the page at all, which is cheaper than every way
+  // of being wrong about when a saved list went stale.
+  //
+  // Segment ids are opaque, so the order they read in is the order they arrive in.
+  // `builder.py` writes them in document order and a render test pins that.
+  var segmentAt = null;
+
+  function segmentIndex(segmentId) {
+    if (!segmentAt) {
+      segmentAt = {};
+      Object.keys(wordData).forEach(function (id, index) {
+        segmentAt[id] = index;
+      });
+    }
+    return Object.prototype.hasOwnProperty.call(segmentAt, segmentId)
+      ? segmentAt[segmentId]
+      : -1;
+  }
+
+  // Where you are is a position rather than an index into the list, because the list is
+  // rebuilt underneath you: saying "known" takes the word out of the queue and saying
+  // "2" leaves it in. Asking for the first word past this position answers both.
+  function step(from, forward) {
+    var list = queueFor(forward);
+    if (!list.length) return null;
+    if (!from) return forward ? list[0] : list[list.length - 1];
+    var here = segmentIndex(from.segment);
+    for (var n = 0; n < list.length; n++) {
+      var entry = list[forward ? n : list.length - 1 - n];
+      var there = segmentIndex(entry.segment);
+      if (there === -1) continue;
+      var after = there > here || (there === here && entry.start > from.start);
+      var before = there < here || (there === here && entry.start < from.start);
+      if (forward ? after : before) return entry;
+    }
+    return null;
+  }
+
+  // The next word, and round to the beginning when the end is reached with words still
+  // waiting earlier in the chapter — which is what happens whenever you started in the
+  // middle, and starting in the middle is the ordinary case. The header says how many are
+  // left, so stopping dead against an invisible wall would be the page contradicting its
+  // own counter. It cannot spin: every word it lands on is one the queue still holds, and
+  // dealing with a word takes it out.
+  function onward(from, forward) {
+    return step(from, forward) || step(null, forward);
+  }
+
+  // Entering the queue from where you are reading, not from the top of the chapter. On a
+  // chapter you had scrolled halfway into, starting at the first word would read as the
+  // page having lost your place.
+  function enterFrom(forward) {
+    var here = document.activeElement;
+    var pair = here && here.closest ? here.closest(".pair") : null;
+    if (!pair) pair = onScreen();
+    if (!pair) return step(null, forward);
+    // Outside this sentence on the side you came from, so its own words are all still
+    // ahead of you: going forward that is before its first offset, going back its last.
+    var edge = { segment: pair.getAttribute("data-id"), start: forward ? -1 : Infinity };
+    return step(edge, forward) || step(null, forward);
+  }
+
+  function onScreen() {
+    for (var n = 0; n < pairs.length; n++) {
+      if (pairs[n].getBoundingClientRect().bottom > 0) return pairs[n];
+    }
+    return pairs[0] || null;
+  }
+
+  var still = window.matchMedia
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+  var bar = document.querySelector(".bar");
+
+  function behaviour() {
+    // §8: everything honours prefers-reduced-motion, and a page that slides under
+    // somebody who asked it not to is the least forgivable way to break that.
+    return still && still.matches ? "auto" : "smooth";
+  }
+
+  // Scrolling is for a word that is not in front of you. Stepping along a line already on
+  // the screen must not move the page — that is the difference between a queue that feels
+  // like reading and one that feels like a slideshow.
+  //
+  // The word decides and the sentence moves. Asking the sentence whether it is on screen
+  // scrolled the page whenever a long verse happened to run past the fold, with the word
+  // you were standing on in plain sight the whole time; centring the word alone puts the
+  // line it belongs to at the very edge of the window, so you would have to scroll again
+  // to read it.
+  function bring(word, pair) {
+    if (!word.getBoundingClientRect || !pair.scrollIntoView) return;
+    var box = word.getBoundingClientRect();
+    // The bar is sticky, so the top of the window is not the top of the text.
+    var top = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    if (box.top >= top && box.bottom <= window.innerHeight - 16) return;
+    // Unless the sentence is taller than the window, in which case centring it would put
+    // the word off the screen the scroll was meant to bring it on to.
+    var room = window.innerHeight - top - 16;
+    var tall = pair.getBoundingClientRect().height > room;
+    (tall ? word : pair).scrollIntoView({ block: "center", behavior: behaviour() });
+  }
+
+  // What a word means, on the word the arrows are on. Asked for rather than offered: a
+  // card that opened at every step would put a window between a reader and the page they
+  // are walking, forty times in a row.
+  function openCard() {
+    if (!standing || !card) return;
+    var word = standing;
+    // `showCard` puts away whatever was open, which takes the ring off this very word.
+    showCard(word);
+    word.classList.add("queued");
+    word.setAttribute("tabindex", "-1");
+    // So a screen reader says the word and what it means together, rather than reading
+    // out a word from the middle of a sentence with no account of why.
+    if (card.id) word.setAttribute("aria-describedby", card.id);
+    if (word.focus) word.focus({ preventScroll: true });
+  }
+
+  // "Look it up", from the keyboard. It was the only action on the card without a key,
+  // which put the thing a reader most often wants — what does this word mean — behind
+  // the one input they had otherwise put down.
+  //
+  // The button is pressed rather than reimplemented. Every condition for offering it is
+  // already decided in `showCard` — something to ask with, nothing known about the word
+  // already, and not a word that has been asked about and not found — and a second copy
+  // of that reasoning here is a second copy to get wrong. Pressing it also buys the
+  // feedback for free: the same "looking…" on the same disabled button.
+  //
+  // Answers false wherever there is no button to press, and the key falls through to the
+  // page. A key that silently does nothing reads as a broken page.
+  function askMeaning() {
+    if (!asking()) {
+      if (!standing) return false;
+      openCard();
+    }
+    var button = card ? card.querySelector(".look-up") : null;
+    if (!button || button.disabled) return false;
+    button.click();
+    return true;
+  }
+
+  // Stand on a queued word: the ring, the keyboard, and nothing else. `open` carries a
+  // card that was already up on to the next word — you asked the question once, and
+  // walking on does not withdraw it.
+  function focusQueued(entry, open) {
+    var pair = entry ? pairBySegment[entry.segment] : null;
+    if (!pair) return false;
+    // Its spans may never have been drawn: only a screenful is marked up front.
+    markPair(pair);
+    // By offset as well as by lemma. A pair can hold two forms of one dictionary word,
+    // and a saved phrase drawn across a word slices it into several spans — the first
+    // piece is enough, because `bareSurface` reads the whole word back out of
+    // `data-bare` whichever piece you hand it.
+    var span = pair.querySelector(
+      '.w[data-lemma="' + entry.lemma + '"][data-bare^="' + entry.start + ',"]'
+    );
+    if (!span) return false;
+    leaveQueue();
+    if (!open) hideCard();
+    standing = span;
+    place = { segment: entry.segment, start: entry.start };
+    span.classList.add("queued");
+    span.setAttribute("tabindex", "-1");
+    if (span.focus) span.focus({ preventScroll: true });
+    bring(span, pair);
+    if (open) openCard();
+    return true;
+  }
+
+  // On to the next one where a word cannot be reached — a segment the page drew no pair
+  // for, or a cell with no span for it. Skipping a word is a small wrong; falling back
+  // to moving a sentence, which is what happens if this gives up, is a confusing one.
+  // Bounded all the same: the worst thing here would be a loop that never gives the page
+  // back.
+  function goTo(entry, forward, open) {
+    for (var tries = 0; entry && tries < 200; tries += 1) {
+      if (focusQueued(entry, open)) return true;
+      entry = step(entry, forward);
+    }
+    return false;
+  }
+
+  // Whether the card is up on the word being stood on, rather than on one a pointer
+  // opened somewhere else.
+  function asking() {
+    return !!(standing && card && !card.hidden && lookedUp === standing);
+  }
+
+  // An arrow. Answers false where there is no queue to walk at all — a text with no
+  // annotation carries no words to mark, and the arrows go on meaning sentences there
+  // rather than doing nothing.
+  function walk(forward) {
+    if (!card) return false;
+    var entry = place ? onward(place, forward) : enterFrom(forward);
+    // Nothing that way. A card already open stays open: closing it out from under
+    // somebody who pressed an arrow at the end of the chapter answers the wrong question.
+    if (!entry) return !!place;
+    // Stepping through words the page is not painting is a mode you can be lost in. `m`
+    // puts it back.
+    if (!prefs.marking) {
+      prefs.marking = true;
+      applyMarking();
+      save();
+    }
+    // Already true where the card is open: a walk that reached the end of what it can
+    // reach leaves you on the word you were on rather than on nothing.
+    return goTo(entry, forward, asking()) || !!place;
+  }
+
   /* --- keyboard ------------------------------------------------------------ */
 
-  // Right-arrow means forward in Hebrew and backward in English. Read the direction
-  // off the page rather than assuming either one.
+  // Whichever arrow points the way the text reads is the one that goes forward, so on a
+  // Hebrew page that is the left one. Read the direction off the page rather than
+  // assuming either.
   var rtl = (root.getAttribute("dir") || "ltr") === "rtl";
 
-  function move(step) {
-    var index = pairs.indexOf(document.activeElement);
-    var next = pairs[Math.min(pairs.length - 1, Math.max(0, index + step))];
-    if (next) {
-      next.focus();
-      if (next.scrollIntoView) next.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-  }
+  // The ring must not outlive the focus that drew it. Every sentence carries tabindex=0,
+  // so one Tab takes you off the word and onto a sentence somewhere else — and the ring,
+  // the card and `standing` all stayed behind on the word you left. The next `k` then
+  // marked that word known instead of stepping back a sentence, which is what `k` means
+  // once you are on a sentence. Silently, on a word no longer in front of you.
+  //
+  // Anything inside the card is still the word's own business: its level buttons and its
+  // note field are reached by Tab from the word, and that is not leaving.
+  document.addEventListener("focusin", function (event) {
+    if (!standing || event.target === standing) return;
+    if (card && card.contains && card.contains(event.target)) return;
+    leaveQueue();
+    hideCard();
+  });
 
   document.addEventListener("keydown", function (event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
 
+    // A key is the letter on it, whatever the shift and caps lock happened to be. Read
+    // literally, `event.key` is "K" with caps lock down and every letter the reader
+    // answers to is dead — the whole interface, on a state nothing on the page shows.
+    var key = event.key;
+    if (typeof key === "string" && key.length === 1) key = key.toLowerCase();
+
     // While a word card is open the number and letter keys belong to it. `k` and `i`
     // already mean previous-sentence and interlinear, and they still do the moment the
     // card is closed — the card is the only thing that borrows them.
-    if (markLookedUp(event.key)) {
+    if (markLookedUp(key)) {
       event.preventDefault();
       return;
     }
 
-    switch (event.key) {
-      case "ArrowDown":
-      case "j":
-        move(1);
-        break;
-      case "ArrowUp":
-      case "k":
-        move(-1);
-        break;
+    switch (key) {
+      // The whole of the navigation. This page is walked a word at a time and nothing
+      // else — stepping sentences was a second way through the text that shared `k` and
+      // `i` with the levels, and a key that means two things means neither.
+      //
+      // `walk` hands the key back on a text that carries no words to mark. Handing it
+      // back matters: unhandled, the arrows scroll the page, which is what a reader with
+      // nothing to mark wants them to do and what this file used to take away.
       case "ArrowRight":
-        move(rtl ? -1 : 1);
+        if (!walk(!rtl)) return;
         break;
       case "ArrowLeft":
-        move(rtl ? 1 : -1);
+        if (!walk(rtl)) return;
         break;
       case "p":
         prefs.mode = "parallel";
@@ -1982,12 +2548,31 @@
         settle();
         save();
         return;
-      case "i":
+      // `l` rather than `i`: `i` is ignore, on a word, and it cannot also be a mode.
+      // The translation goes under each line, which is where the letter comes from.
+      case "l":
         prefs.mode = "inter";
         applyMode();
         settle();
         save();
         return;
+      // The card is asked for, never offered. Walking the page fires no windows; this is
+      // the second action that opens one, and pressing it again puts it away.
+      case "Enter":
+        if (!standing) return;
+        if (asking()) hideCard();
+        else openCard();
+        break;
+      // The way back from the wrong key. Takes the level off again and puts you back on
+      // the word, as many times as you have said something.
+      // `g` for the gloss, which is what this file, the artifact it reads and the cache
+      // that pays for it all call the thing being asked for.
+      case "g":
+        if (!askMeaning()) return;
+        break;
+      case "u":
+        if (!undo()) return;
+        break;
       case "t":
         // Not stored and not a preference: a question you ask once.
         showTimings(!readout || readout.hidden);
@@ -2009,10 +2594,35 @@
       case "?":
         showKeys(keysCard ? keysCard.hidden : false);
         return;
-      case "Escape":
-        hideCard();
-        showKeys(false);
+      case "Escape": {
+        // One layer a press. Closing the keys and then dropping out of the queue in the
+        // same keystroke costs a reader their place for looking a shortcut up.
+        if (keysCard && !keysCard.hidden) {
+          showKeys(false);
+          return;
+        }
+        // The card next, and you stay where you are — the two are separate things, and
+        // one key that did both would cost you your place to close a window.
+        if (card && !card.hidden) {
+          hideCard();
+          if (standing && standing.focus) standing.focus({ preventScroll: true });
+          return;
+        }
+        // Then the panel, which covers the translation you are grading against. It is a
+        // thing on top of the text, and Escape takes those off before it takes your
+        // place away.
+        if (listBox && !listBox.hidden) {
+          showList(false);
+          if (standing && standing.focus) standing.focus({ preventScroll: true });
+          return;
+        }
+        // Then out of the queue, back onto the sentence the word was in, so the arrows
+        // still know where they are.
+        var back = standing && standing.closest ? standing.closest(".pair") : null;
+        leaveQueue();
+        if (back && back.focus) back.focus();
         return;
+      }
       default:
         return;
     }
@@ -2181,6 +2791,35 @@
     });
     window.TargumSync.start();
   }
+
+  /* --- what a test can reach ------------------------------------------------ */
+
+  /* Every other script here already hangs its module off `window` — TargumLang,
+     TargumCovers, TargumCharts — so this is the same shape rather than a hatch cut for
+     tests. Two things in this file are worth checking without a browser, and both have
+     shipped a bug: where a card lands beside a word, which is arithmetic, and whether a
+     hover survives the keypress that marked the word under it, which is a two-state
+     machine. The rest of the reader rebuilds spans through innerHTML and a TreeWalker
+     and belongs to a real browser. See tests/js/reader.js.
+
+     The word queue is here for the same reason: which words are in it and which one
+     comes next are decided entirely in the embedded data, without asking the page
+     anything. Reaching the word once it is chosen is the half that needs a browser. */
+  window.TargumReader = {
+    placeNear: placeNear,
+    stopHover: stopHover,
+    hovering: function () {
+      return hovering;
+    },
+    queue: buildQueue,
+    step: step,
+    // Saying a level and taking it back. The queue is the assertion: known takes a word
+    // out of it, and `u` has to put the same word back in the same place.
+    level: function (index, status) {
+      return setStatus(index, lemmas[index], "", toggled(index, status));
+    },
+    undo: undo,
+  };
 })();
 
 /* --- the next chapter, bought before it is needed ---------------------------

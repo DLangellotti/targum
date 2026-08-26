@@ -32,6 +32,7 @@ heard of yet, and the phone puts it back on the next sync.
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 import sqlite3
 import threading
@@ -61,7 +62,22 @@ SESSION_DAYS = 90
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
 # 4: job.chapters, how a text divides — one means it is not a book.
-SCHEMA_VERSION = 4
+# 5: the day table, which days somebody read on. A new table rather than a new column,
+#    so it needs no entry in MIGRATIONS below: `CREATE TABLE IF NOT EXISTS` does add a
+#    table that is not there yet, and it is only columns on existing tables it skips.
+# 6: who a person is beyond an address — a display name and a picture. Reading
+#    preferences rode along here for a day and were taken out again: a setting that
+#    lives in two places is a setting that can disagree with itself. They stay in the
+#    browser. A database that ran the old migration keeps two unused columns, which is
+#    cheaper than another migration to drop them.
+# 7: word.learned — whether a word was saved at a level below known and got there. It
+#    is the difference between a word targum taught somebody and a word they already had
+#    and ticked off, and it cannot be worked out after the fact from status and dates.
+#
+# Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
+# invalidates every stage and forces paid re-translation of every text. This one versions
+# the sqlite file behind an account and costs a column.
+SCHEMA_VERSION = 7
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -81,14 +97,27 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE person ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+    # A URL, for the day a sign-in provider hands one over. Empty until then, and the
+    # avatar falls back to initials — which is what it draws either way when the picture
+    # will not load.
+    "ALTER TABLE person ADD COLUMN picture TEXT NOT NULL DEFAULT ''",
+    # Whether a word was worked up to known from a level below it, rather than ticked off
+    # as already known. Nothing can recover this for words marked before it existed, so
+    # it starts at nought for everybody and counts forward.
+    "ALTER TABLE word ADD COLUMN learned INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS person (
-  id       INTEGER PRIMARY KEY,
-  email    TEXT    NOT NULL UNIQUE,
-  made     INTEGER NOT NULL,
-  revision INTEGER NOT NULL DEFAULT 0,
+  id         INTEGER PRIMARY KEY,
+  email      TEXT    NOT NULL UNIQUE,
+  made       INTEGER NOT NULL,
+  revision   INTEGER NOT NULL DEFAULT 0,
+  -- What to call them and what to show, neither of which an email can answer. Both
+  -- empty until somebody says otherwise; the avatar draws initials in the meantime.
+  name       TEXT    NOT NULL DEFAULT '',
+  picture    TEXT    NOT NULL DEFAULT '',
   -- When they asked to be forgotten. Everything goes at the end of the grace period;
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
@@ -128,6 +157,7 @@ CREATE TABLE IF NOT EXISTS word (
   meaning  TEXT    NOT NULL DEFAULT '',
   note     TEXT    NOT NULL DEFAULT '',
   band     TEXT    NOT NULL DEFAULT '',
+  learned  INTEGER NOT NULL DEFAULT 0,
   at       INTEGER NOT NULL DEFAULT 0,
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
@@ -172,6 +202,26 @@ CREATE TABLE IF NOT EXISTS doc (
   PRIMARY KEY (person, hash)
 );
 
+-- The days somebody read on. One row per calendar day, and the day is the reader's own
+-- local one rather than UTC, because "did I read yesterday" is a question about the
+-- reader's evening and not about Greenwich.
+--
+-- `count` is always 1. It is presence, not a tally: `_merge` below is last-write-wins on
+-- `seen`, so a real per-day count would be lost the moment two devices both read on the
+-- same day and the second one pushed a smaller number. A constant makes the merge
+-- harmless, and how many times you opened a text on a Tuesday is not something anything
+-- asks. `gone` is carried because the generic sync code selects it; nothing ever sets
+-- it, because a day that happened cannot un-happen.
+CREATE TABLE IF NOT EXISTS day (
+  person   INTEGER NOT NULL,
+  day      TEXT    NOT NULL,
+  count    INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, day)
+);
+
 -- The work queue. Builds used to live in a dictionary on the server and money spent
 -- in a float beside it, so a restart lost every running build and handed the budget
 -- back to whoever asked next. Both belong on disk, and `claimed` is the whole spend
@@ -206,6 +256,7 @@ CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
 CREATE INDEX IF NOT EXISTS phrase_since ON phrase (person, revision);
 CREATE INDEX IF NOT EXISTS job_claimed  ON job    (claimed);
 CREATE INDEX IF NOT EXISTS doc_since    ON doc    (person, revision);
+CREATE INDEX IF NOT EXISTS day_since    ON day    (person, revision);
 CREATE INDEX IF NOT EXISTS link_person  ON link   (person);
 CREATE INDEX IF NOT EXISTS session_seen ON session(seen);
 """
@@ -249,11 +300,29 @@ class Person:
     email: str
 
 
-# The three kinds of thing a person accumulates, and the columns each one syncs. Kept as
-# data rather than three near-identical functions, because the merge is the same
-# argument three times and the only thing that differs is the shape.
+# The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
+# data rather than four near-identical functions, because the merge is the same
+# argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
-NUMERIC = frozenset({"at", "updated", "opened", "span_start", "span_end"})
+NUMERIC = frozenset({"at", "updated", "opened", "span_start", "span_end", "count"})
+
+
+def initials(name: str, email: str) -> str:
+    """One or two letters for an avatar, from whatever there is to go on.
+
+    A name gives its first letters; an address gives the first letter of the part before
+    the @, and the letter after a dot or underscore where the address has one — which is
+    how most people's addresses are shaped, and it turns djlangellotti into DL rather
+    than into D.
+    """
+    words = [word for word in str(name).split() if word]
+    if words:
+        return "".join(word[0] for word in words[:2]).upper()
+    local = str(email).split("@")[0]
+    parts = [part for part in re.split(r"[._-]+", local) if part]
+    if len(parts) > 1:
+        return (parts[0][0] + parts[1][0]).upper()
+    return local[:2].upper() if local else "?"
 
 
 @dataclass(frozen=True)
@@ -267,7 +336,7 @@ KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
         key=("language", "lemma"),
-        fields=("surface", "status", "meaning", "note", "band", "at"),
+        fields=("surface", "status", "meaning", "note", "band", "learned", "at"),
     ),
     "phrases": Kind(
         table="phrase",
@@ -289,6 +358,9 @@ KINDS: dict[str, Kind] = {
         key=("hash",),
         fields=("title", "language", "updated", "opened"),
     ),
+    # A set, written as a table. The day string is the whole record; see the `day` table
+    # above for why the count beside it is always 1.
+    "days": Kind(table="day", key=("day",), fields=("count",)),
 }
 
 
@@ -394,6 +466,43 @@ class Store:
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
         ).fetchone()
         return Person(row["id"], row["email"]) if row else None
+
+    # -- who somebody is ---------------------------------------------------
+
+    #: Longest display name kept. Room for any real name; short enough that a corner
+    #: pill and a greeting cannot be made to hold a paragraph.
+    NAME_LIMIT = 60
+
+    def profile(self, person: Person) -> dict[str, Any]:
+        """Who this person is, for the corner and the profile page.
+
+        Read separately from `Person` rather than folded into it: a Person is the answer
+        to "who is asking", which every request needs, and this is the answer to "who are
+        they", which two pages need.
+        """
+        row = self.db.execute(
+            "SELECT email, name, picture, made FROM person WHERE id = ?", (person.id,)
+        ).fetchone()
+        if row is None:
+            return {}
+        return {
+            "email": row["email"],
+            "name": row["name"],
+            "picture": row["picture"],
+            "initials": initials(row["name"], row["email"]),
+            "since": row["made"],
+        }
+
+    def rename(self, person: Person, name: str) -> str:
+        """Set what to call them, and return what was stored.
+
+        Empty is allowed and means "go back to having none": the avatar falls back to the
+        address, which is what it did before anybody typed anything.
+        """
+        tidied = " ".join(str(name).split())[: self.NAME_LIMIT]
+        with self.write() as db:
+            db.execute("UPDATE person SET name = ? WHERE id = ?", (tidied, person.id))
+        return tidied
 
     def asking_too_often(self, who: str, limit: int = ASKS_PER_HOUR) -> bool:
         """Whether this address has asked for too many links in the last hour.
@@ -577,7 +686,7 @@ class Store:
             ).fetchall()
             gone = [int(row["id"]) for row in rows]
             for person_id in gone:
-                for table in ("word", "phrase", "doc", "session", "link"):
+                for table in ("word", "phrase", "doc", "day", "session", "link"):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone

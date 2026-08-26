@@ -39,6 +39,31 @@ def system_prompt(source_language: str, target_language: str, style: Style) -> s
 # and so shows meanings without levels. Yiddish has neither and is not offered.
 OFFERED = ("he", "ru", "en", "ar", "fr", "es", "de", "la")
 
+# What somebody may upload, and how far along each one is. Hebrew is what targum was
+# built for and everything works in it. The other two are here because a reader who has
+# Aramaic or Yiddish has nowhere else to take it, and they are honestly labelled: neither
+# has the frequency data that rates a word's difficulty, and Yiddish has no lemmatiser
+# either, so those readers get the text and the translation without the word levels.
+#
+# A picker is not a boundary — see `_prepare`, which checks a request against these.
+READING = (("he", "alpha"), ("arc", "R&D"), ("yi", "R&D"))
+
+# And what it may be turned into. English first because the glossaries are deepest there.
+# Russian is beta rather than R&D: it has been read end to end, it is simply not Hebrew.
+# Both words reach a reader as "Experimental" — see STAGE_LABELS below.
+INTO = (("en", "alpha"), ("ru", "beta"))
+
+# What a reader is shown. "R&D" and "beta" are a real difference — a language with no word
+# levels against one that simply is not Hebrew — but it is a difference about how targum
+# was built, not one anybody choosing from a picker can act on. Both read as experimental;
+# the note under the picker is where the two part company.
+STAGE_LABELS = {"alpha": "alpha", "beta": "Experimental", "R&D": "Experimental"}
+
+
+def stage_label(stage: str) -> str:
+    return STAGE_LABELS.get(stage, stage)
+
+
 _NAMES = {
     "he": "Hebrew",
     "ru": "Russian",
@@ -48,6 +73,7 @@ _NAMES = {
     "de": "German",
     "ar": "Arabic",
     "yi": "Yiddish",
+    "arc": "Aramaic",
     "la": "Latin",
 }
 

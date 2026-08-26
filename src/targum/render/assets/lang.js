@@ -42,9 +42,27 @@
     return codes[0] || HOME;
   }
 
+  /* Which languages the reading pages will show at all. One, for now.
+   *
+   * Everything those pages are made of is Hebrew: the difficulty bands, the word levels,
+   * the ulpan rungs. A Russian view of them was the same page with most of it missing and
+   * a switcher inviting you into it. Nothing is deleted by this — the words are still in
+   * the store and still sync — they are simply not offered until the rest catches up.
+   *
+   * To offer a language again, add its code here. Nothing else has to change: the
+   * switcher draws itself for two and hides itself for one.
+   */
+  var SHOWN = [HOME];
+
+  function offered(codes) {
+    return codes.filter(function (code) {
+      return SHOWN.indexOf((code || "").split("-")[0].toLowerCase()) >= 0;
+    });
+  }
+
   // Hebrew first, then the rest by name.
   function order(codes, names) {
-    return codes.slice().sort(function (a, b) {
+    return offered(codes).sort(function (a, b) {
       if (a === HOME) return -1;
       if (b === HOME) return 1;
       return (names[a] || a).localeCompare(names[b] || b);
@@ -68,8 +86,11 @@
       button.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
       if (beta(code)) {
         var tag = document.createElement("span");
+        // The class is the old word and the text is the one a reader sees. "beta" said
+        // one thing on this tab and "Experimental" said another on the upload picker,
+        // about the same language on the same day.
         tag.className = "beta";
-        tag.textContent = "beta";
+        tag.textContent = "experimental";
         button.appendChild(tag);
       }
       var on = code === chosen;
@@ -83,17 +104,19 @@
     });
   }
 
-  // Said once, where the language is chosen, rather than on every card.
+  // Said once, where the language is chosen, rather than on every card. The same
+  // sentence the upload picker's own note uses, because it is the same claim.
   function betaNote(code, names) {
     return (
       (names[code] || code.toUpperCase()) +
-      " is in beta. Everything works best in Hebrew."
+      " is experimental. Everything works best in Hebrew."
     );
   }
 
   window.TargumLang = {
     HOME: HOME,
     beta: beta,
+    offered: offered,
     set: set,
     current: current,
     order: order,

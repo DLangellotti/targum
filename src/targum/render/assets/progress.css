@@ -1,0 +1,210 @@
+/* Your Progress: the ledger, the milestones and the days.
+ *
+ * Everything else this page draws is the chart kit on `.words`, which Learn borrows too.
+ * What is here is only the part that is new — and most of it is one block.
+ */
+
+/* --- the ledger ------------------------------------------------------------
+ *
+ * §9's wake-up move, spent once. The max-contrast pair rather than plain ink-on-paper,
+ * because this is an engagement screen and the moment should feel switched on: 18.6:1
+ * either way round. Both values are stated here rather than inherited, so the block
+ * stays inverted when the rest of the page turns over — a dark theme flips --paper and
+ * --ink, and a block that followed them would stop being an inversion of anything.
+ */
+
+.progress .ledger {
+  padding: 1.5rem 1.25rem;
+  border-radius: 8px;
+  background: var(--ink-max);
+  color: var(--page-max);
+}
+
+.progress .ledger .counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 1.25rem 0.75rem;
+}
+
+/* A real count of a real thing: the reading face with tabular figures, which is the
+   ledger treatment the brand asks for and the reason these are not a score. */
+.progress .ledger .counts b {
+  display: block;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.progress .ledger .counts span {
+  display: block;
+  margin-block-start: 0.2rem;
+  font-size: 0.8125rem;
+  /* The label under a number is genuinely secondary, which is the one thing muted is
+     for. Mixed towards the panel rather than named, because --ink-soft is a value for
+     paper and this is the other surface. */
+  color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
+}
+
+/* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
+   reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
+   iris for phrases, sun for turning up. The figure takes the hue; its label stays muted,
+   so the block reads as three coloured numbers rather than three coloured paragraphs. */
+.progress .ledger .lit.leaf b { color: var(--leaf-bright); }
+.progress .ledger .lit.iris b { color: var(--iris-bright); }
+.progress .ledger .lit.sun b { color: var(--sun); }
+
+/* Where the rung comes from. The block is the one inversion on the page, so this is
+   mixed towards it rather than named — --ink-soft is a value for paper. */
+.progress .ledger .basis {
+  margin: 0.9rem 0 0;
+  max-inline-size: 34rem;
+  font-size: 0.6875rem;
+  color: color-mix(in srgb, var(--page-max) 55%, var(--ink-max));
+}
+.progress .ledger .basis[hidden] { display: none; }
+
+.progress .ledger .standing {
+  margin-block-start: 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/* The one celebration chip, and the one place --gloss-strong is spent: §9 allows a
+   top-down sheen at 22% on exactly this. One sheen, light on glass, never a ramp.
+
+   Two surfaces now: on the ink block it is --leaf-bright, and on the panels below — where
+   the ulpan rung went — it is --leaf, because the bright set is measured at 2.70:1
+   against paper and is ink-panel only. */
+.progress .panel .reached {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss-strong), transparent) var(--leaf);
+  color: var(--paper);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.progress .panel .standing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-block-start: 0.9rem;
+}
+.progress .panel .standing:empty { margin-block-start: 0; }
+.progress .panel .next { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .panel .next b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.progress .panel .basis { margin-block-start: 0.9rem; max-inline-size: 34rem; }
+.progress .panel .basis[hidden] { display: none; }
+
+.progress .ledger .reached {
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss-strong), transparent) var(--leaf-bright);
+  color: var(--ink-max);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.progress .ledger .next {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: color-mix(in srgb, var(--page-max) 72%, var(--ink-max));
+}
+.progress .ledger .next b {
+  color: var(--page-max);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- milestones ------------------------------------------------------------ */
+
+.progress .marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Reached is ink, because it is a thing that happened and the reader came to read it.
+   Unreached is --off, the same quiet the charts use for a word set aside: it is not a
+   failure and it is never red. */
+.progress .mark {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--off);
+}
+.progress .mark.on {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* --- days reading ---------------------------------------------------------- */
+
+/* One square a day, twelve weeks of them, the same shape the about page uses for
+   commits. Leaf because this is on paper and the bright set is not: --sun is 2.09:1
+   here, which is a graphic nobody can see.
+
+   A wash rather than the full hue, and this is the whole difference between a ledger and
+   a contributions graph. Eighty-four cells with sixty of them saturated is a field of
+   colour, and §9 budgets roughly 5% hue "where the user acts or achieved something,
+   never into decoration" — a grid is decoration by volume however good the news in it
+   is. At 55% the day is still plainly leaf and still plainly read, and the panel stays
+   paper. The count underneath is the part that is meant to be read anyway. */
+.progress .strip {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 26rem;
+}
+.progress .strip li {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  background: var(--rule);
+}
+.progress .strip li.read {
+  background: color-mix(in srgb, var(--leaf) 55%, var(--paper-raised));
+}
+
+.progress .legend-days {
+  margin: 0.9rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+@media (max-width: 40rem) {
+  .progress .ledger { padding: 1.1rem 1rem; }
+  .progress .ledger .counts { gap: 1rem 0.75rem; }
+}
+
+/* The milestone chips run to three lines and the day strip to seven. Stretched to match
+   each other, the chips panel is two thirds empty — so this row is sized to what is in
+   it and the ragged bottom edge is the honest one. */
+.progress .panels.paired {
+  align-items: start;
+}
+/* One column of the paired row, holding two panels. Without it the milestones sat two
+   rows tall beside a strip seven rows tall, and the hole beside them was most of the
+   page. */
+.progress .stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-inline-size: 0;
+}
+
+
+/* §3: Hebrew and Latin share a screen at the same size, so the letter is not a large
+   glyph with a small caption beside it. */
+.progress .ledger .reached .letter,
+.progress .panel .reached .letter { margin-inline-end: 0.4rem; }
+
