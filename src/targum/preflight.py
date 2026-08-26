@@ -150,6 +150,65 @@ def check_api_key() -> Check:
     )
 
 
+def check_covers() -> Check:
+    """Whether a cover can be drawn, which is a thing to know rather than a thing to fix.
+
+    Two halves, and either one missing means the same thing to a reader: the shelf draws
+    each text's own first letter. That is the designed resting state — the page never
+    offers to draw what it cannot — so this never fails a deploy. It says which half is
+    absent, because "covers are off" and "covers are off because nobody installed Pillow"
+    are different afternoons.
+    """
+    from .covers import can_shrink
+
+    key = bool(_env("OPENAI_API_KEY"))
+    pillow = can_shrink()
+    if key and pillow:
+        return Check("covers", True, "a key and something to shrink with")
+    missing = []
+    if not key:
+        missing.append("OPENAI_API_KEY is not set")
+    if not pillow:
+        missing.append("Pillow is not installed")
+    return Check(
+        "covers",
+        False,
+        f"{' and '.join(missing)}.",
+        "The shelf draws each text's first letter, which is the ordinary state.",
+        fatal=False,
+    )
+
+
+def check_backups_leave() -> Check:
+    """Whether the nightly copy goes anywhere but the disk it is a copy of.
+
+    A warning rather than a failure: refusing to start over this would take a working
+    library offline to protect against a disk that has not died yet. But it is the one
+    thing on this list that is invisible until it matters, and the day it matters there
+    is nothing to be done about it.
+    """
+    from .backup import destination
+
+    where = destination()
+    if not where:
+        return Check(
+            "backups leave the box",
+            False,
+            "TARGUM_BACKUP_TO is not set, so copies sit beside the database.",
+            "Set it in /etc/cron.d/targum-backup to an rclone remote.",
+            fatal=False,
+        )
+    if shutil.which("rclone") is None:
+        return Check(
+            "backups leave the box",
+            False,
+            f"{where} is set but rclone is not installed, so nothing has left.",
+            "apt-get install rclone",
+            fatal=False,
+        )
+    return Check("backups leave the box", True, where)
+
+
 def check_invitations(store: Path) -> Check:
     """Whether anybody may open an account here.
 
@@ -235,6 +294,8 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks = [check_address(), check_account_required()]
     checks += check_mail(connect=connect)
     checks.append(check_api_key())
+    checks.append(check_covers())
+    checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)
     checks += [check_disk(store.parent), check_port(port)]
