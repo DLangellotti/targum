@@ -100,6 +100,101 @@
     write("targum:migrated", done);
   }
 
+  /* --- meanings, out of the word and into the pair --------------------------- */
+
+  /* A word belongs to a language; a meaning belongs to a language pair.
+   *
+   * The word record used to carry `meaning` and `note` — one slot each for a fact that
+   * has one answer per language. A reader with an English text and a Russian one had a
+   * single place to put both answers, so the last one written won everywhere: keep a
+   * word while reading in Russian and its Russian meaning became that word's meaning on
+   * every English page, on every device the account reached.
+   *
+   * They move to `targum:meanings:<source>:<target>`, and what was untagged is read as
+   * English: every text built before this defaulted to English, and no build into any
+   * other language is allowed until every reader on the box has been rebuilt — which is
+   * what makes the assumption true rather than convenient.
+   *
+   * Safe to run twice, and it never overwrites a record that was edited more recently
+   * than the one it is moving.
+   */
+  var LEGACY_TARGET = "en";
+
+  function keys(prefix) {
+    var out = [];
+    try {
+      for (var n = 0; n < localStorage.length; n++) {
+        var name = localStorage.key(n);
+        if (name && name.indexOf(prefix) === 0) out.push(name);
+      }
+    } catch (e) {}
+    return out;
+  }
+
+  function intoPair(store, term, meaning, note, at, seen) {
+    if (!meaning && !note) return false;
+    var was = store[term];
+    // An older edit does not overwrite a newer one — the same rule the account merges
+    // by, applied here so that running this after a sync cannot undo one.
+    if (was && (was.seen || 0) >= (seen || 0)) return false;
+    store[term] = {
+      meaning: meaning || (was ? was.meaning : "") || "",
+      note: note || (was ? was.note : "") || "",
+      at: at || (was ? was.at : 0) || 0,
+      seen: seen || Date.now(),
+    };
+    return true;
+  }
+
+  function migrateMeanings() {
+    var done = read("targum:migrated", "{}");
+    if (done.meanings) return;
+
+    keys("targum:vocab:").forEach(function (name) {
+      var source = name.slice("targum:vocab:".length);
+      var words = read(name, "{}");
+      var pair = "targum:meanings:" + source + ":" + LEGACY_TARGET;
+      var store = read(pair, "{}");
+      var touched = false;
+      var emptied = false;
+      Object.keys(words).forEach(function (lemma) {
+        var word = words[lemma] || {};
+        if (intoPair(store, lemma, word.meaning, word.note, word.at, word.seen || word.at)) {
+          touched = true;
+        }
+        // The meaning is a cache and costs nothing to lose, so it goes rather than
+        // sitting in two places disagreeing. The note is handwriting: it stays where it
+        // was, unread, because a dead field is cheaper than a migration bug eating it.
+        if (word.meaning) {
+          delete word.meaning;
+          emptied = true;
+        }
+      });
+      if (touched) write(pair, store);
+      if (emptied) write(name, words);
+    });
+
+    // The answers this browser paid for, filed under the source language alone. Same
+    // fault, one week old.
+    keys("targum:looked:").forEach(function (name) {
+      var source = name.slice("targum:looked:".length);
+      var looked = read(name, "{}");
+      var pair = "targum:meanings:" + source + ":" + LEGACY_TARGET;
+      var store = read(pair, "{}");
+      var touched = false;
+      Object.keys(looked).forEach(function (lemma) {
+        if (intoPair(store, lemma, looked[lemma], "", 0, 1)) touched = true;
+      });
+      if (touched) write(pair, store);
+      try {
+        localStorage.removeItem(name);
+      } catch (e) {}
+    });
+
+    done.meanings = Date.now();
+    write("targum:migrated", done);
+  }
+
   /* --- saying how well you know it, and what you think it means -------------- */
 
   var KNOWN = 9;
@@ -215,8 +310,16 @@
     return box;
   }
 
+  // Both moves, in the order they have to happen: the words find their language first,
+  // and their meanings find their pair second. Every page that shows a word runs this,
+  // so whichever one the reader opens first is the one that does it.
+  function migrateAll(language, documentId) {
+    migrate(language, documentId);
+    migrateMeanings();
+  }
+
   window.TargumVocab = {
-    migrate: migrate,
+    migrate: migrateAll,
     read: read,
     editor: editor,
     STEPS: STEPS,

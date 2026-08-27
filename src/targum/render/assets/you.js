@@ -119,12 +119,20 @@
 
   /* --- putting it together ---------------------------------------------------- */
 
-  ask("/account/me").then(function (who) {
-    show(!!who.signedIn);
-    if (!who.signedIn) return;
-    drawWho(who);
-    at("you-name").addEventListener("input", saveName);
-    ending();
-    if (window.TargumSync) window.TargumSync.start();
-  });
+  ask("/account/me")
+    .then(function (who) {
+      show(!!who.signedIn);
+      if (!who.signedIn) return;
+      drawWho(who);
+      at("you-name").addEventListener("input", saveName);
+      ending();
+      if (window.TargumSync) window.TargumSync.start();
+    })
+    // A server that cannot be reached is a reader who is not signed in as far as this
+    // page can tell, and saying so is the whole of what it can do. Without this the
+    // request failed, nothing was shown, and the page sat blank — not even the line that
+    // tells somebody where to sign in.
+    .catch(function () {
+      show(false);
+    });
 })();

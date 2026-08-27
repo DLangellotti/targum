@@ -582,6 +582,7 @@
 
   function show(code) {
     currentCode = code;
+    window.TargumLang.set(code);
     window.TargumLang.switcher(document.getElementById("langs"), codes, names, code, show);
     var betaNote = document.getElementById("beta-note");
     betaNote.hidden = !window.TargumLang.beta(code);

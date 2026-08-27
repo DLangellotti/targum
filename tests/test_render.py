@@ -368,7 +368,7 @@ def test_gloss_mode_appears_only_with_a_glossary(tmp_path: Path) -> None:
         [translation],
         tmp_path / "r",
         annotation=annotation,
-        glossary=glossary,
+        glossaries={"en": glossary},
     )[0].read_text(encoding="utf-8")
     assert "a block of text" in html
     assert 'id="gloss-card"' in html
@@ -1657,15 +1657,14 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
     assert body.count("showPick(picked);") == 2, "each redraws it"
-    # And it stops being live the moment the card goes: both places that hide the card
-    # clear it, or the keys would go on marking a phrase you can no longer see.
-    hides = [line for line in script.splitlines() if "chip.hidden = true;" in line]
-    assert len(hides) == 2
-    for spot in (
-        "chip.hidden = true;\n      pickLevel = null;",
-        "chip.hidden = true;\n        pickLevel = null;",
-    ):
-        assert spot in script, spot
+    # And it stops being live the moment the card goes. There is one way to put the chip
+    # away and it takes the keys down with it, because the two being separate lines meant
+    # remembering them together at four call sites — and a level pressed at a phrase
+    # nobody can see any more would be saved against it all the same.
+    assert script.count("chip.hidden = true;") == 1, "more than one way to hide the chip"
+    one_way = r"function hideChip\(\) \{\n[^}]*chip\.hidden = true;\n[^}]*pickLevel = null;"
+    assert re.search(one_way, script), "hiding the chip does not take the keys down with it"
+    assert script.count("hideChip()") >= 4, "somewhere hides the chip without going through it"
 
 
 def test_the_page_marks_what_you_are_looking_at_first() -> None:

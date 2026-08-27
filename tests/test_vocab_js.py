@@ -35,6 +35,92 @@ def run(**payload: Any) -> dict[str, Any]:
     return json.loads(done.stdout)
 
 
+def moved(stored: dict[str, Any], runs: int = 1) -> dict[str, Any]:
+    """Run the one-time move `runs` times over that store, and say what is left."""
+    return run(
+        migrate=True,
+        runs=runs,
+        stored={name: json.dumps(value, ensure_ascii=False) for name, value in stored.items()},
+    )["stored"]
+
+
+def test_a_meaning_moves_out_of_the_word_and_into_the_pair() -> None:
+    """A word belongs to a language; a meaning belongs to a language pair.
+
+    Everything built before this was built into English, so what is untagged is read as
+    English. The word keeps its level, its band and its dates — that is the half that
+    must not move, or the same Hebrew word learned through two languages becomes two
+    words and every count doubles.
+    """
+    after = moved(
+        {
+            "targum:vocab:he": {
+                "ספר": {
+                    "status": 2,
+                    "surface": "הספר",
+                    "meaning": "book",
+                    "note": "scroll",
+                    "band": "moderate",
+                    "at": 100,
+                    "seen": 200,
+                }
+            }
+        }
+    )
+
+    assert after["targum:meanings:he:en"] == {
+        "ספר": {"meaning": "book", "note": "scroll", "at": 100, "seen": 200}
+    }
+    word = after["targum:vocab:he"]["ספר"]
+    assert word["status"] == 2 and word["band"] == "moderate" and word["at"] == 100
+    assert "meaning" not in word, "the meaning is a cache and should not sit in two places"
+
+
+def test_the_answers_this_browser_paid_for_move_too() -> None:
+    """`targum:looked:<source>` held bought meanings under the source language alone, so
+    a Russian answer would have been handed to an English reader. It goes."""
+    after = moved({"targum:looked:he": {"אור": "light"}})
+
+    assert after["targum:meanings:he:en"]["אור"]["meaning"] == "light"
+    assert "targum:looked:he" not in after, "the old store was left where it could be read"
+
+
+def test_running_the_move_twice_is_running_it_once() -> None:
+    """Every page runs it on load, and a reader opens more than one page."""
+    store = {
+        "targum:vocab:he": {
+            "ספר": {"status": 2, "meaning": "book", "note": "", "at": 100, "seen": 200}
+        },
+        "targum:looked:he": {"אור": "light"},
+    }
+
+    once = moved(store, runs=1)
+    twice = moved(store, runs=3)
+
+    # Everything but the ledger, whose two entries are wall-clock stamps of when the move
+    # ran and differ between two runs of the harness by design.
+    assert once.pop("targum:migrated").keys() == twice.pop("targum:migrated").keys()
+    assert once == twice
+
+
+def test_the_move_never_overwrites_a_newer_edit() -> None:
+    """A browser that has already synced has the newer answer under the pair; the word's
+    own copy is what it looked like before that edit. The same rule the account merges
+    by, applied here so running this after a sync cannot undo one."""
+    after = moved(
+        {
+            "targum:vocab:he": {
+                "ספר": {"status": 2, "meaning": "book", "note": "", "at": 100, "seen": 100}
+            },
+            "targum:meanings:he:en": {
+                "ספר": {"meaning": "a written book", "note": "", "at": 100, "seen": 900}
+            },
+        }
+    )
+
+    assert after["targum:meanings:he:en"]["ספר"]["meaning"] == "a written book"
+
+
 def test_the_field_offers_a_way_to_finish() -> None:
     """A field that saves silently is a field nobody can tell they have finished with."""
     built = run()

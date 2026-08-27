@@ -115,12 +115,53 @@
   // Absent in every reader with no Hebrew in it, and in one built before there was
   // anything to read the vowels with.
   var sounds = data.sounds || [];
-  var glosses = data.glosses || [];
+  // What the words mean, per target language: `{ en: [...], ru: [...] }`, each table
+  // parallel to `lemmas`. A meaning is written in one language and a text may carry a
+  // translation into two, so there is no such thing as "the" meaning of a word here —
+  // only the meaning in the language the reader is reading it in. `glosses` below is
+  // whichever of these the translation on show calls for.
+  var glossesBy = data.glosses || {};
   var levelNames = data.levelNames || {};
-  var hasGloss = glosses.length > 0;
   // True while the meanings are still being looked up, so a word with no meaning yet
   // can say which of the two it is: not looked up yet, or looked up and not found.
   var meaningsPending = false;
+
+  /* --- which language this is being read in --------------------------------
+   *
+   * The source language is on `<html lang>` and never changes. The target does: a
+   * reader can hold an English translation and a Russian one and switch between them,
+   * and everything that is a language pair rather than a language follows that switch —
+   * the meanings on the cards, the meanings in the list, which glossary is polled for,
+   * and which language a word is looked up in.
+   *
+   * These were read off the first `.tr` cell in the page, a thousand lines below the
+   * first use, and they described `translations[0]` for ever after. `lookUp` read the
+   * target 1,249 lines before it was assigned and worked only because `var` hoists.
+   */
+  var targetLanguage = "";
+  var targetDirection = "";
+  var glosses = [];
+  // Which of the translations is on show. The page opens on the first one.
+  var showing = "t0";
+
+  function useTarget(id) {
+    showing = id;
+    var entry = translationData[id] || {};
+    targetLanguage = entry.language || "";
+    targetDirection = entry.direction || "";
+    // A copy, because `lookUp` and `takeMeanings` write into it and the payload's own
+    // table is the answer for this language rather than a scratch pad.
+    glosses = (glossesBy[targetLanguage] || []).slice();
+  }
+
+  // Anything shown in the language being read into. A card is chrome and runs left to
+  // right, but the text inside it belongs to whichever language it came from, or an
+  // English sentence on a Hebrew page loses its full stop to the wrong end of the line.
+  function inTarget(element) {
+    if (targetLanguage) element.setAttribute("lang", targetLanguage);
+    if (targetDirection) element.setAttribute("dir", targetDirection);
+    return element;
+  }
 
   // Each sentence ships twice, bare and pointed, so both go through the server's bidi
   // isolation and neither has to be rebuilt here. Only one is ever on show.
@@ -153,7 +194,11 @@
     mode: "parallel",
     size: 1.0625,
     leading: 1.75,
-    translation: null,
+    // Which translation you chose, per text. It was one id for every text, and an id is
+    // a position: `t1` is a Russian machine translation in one book and a published
+    // English one in the next, so one remembered choice put a reader in a language they
+    // had picked somewhere else entirely. Per document, the way the vowels already are.
+    translationBy: {},
     list: null,
     nikkud: false,
     // Reading, or marking. Off is reading: no tints, and every word an ordinary word.
@@ -286,6 +331,109 @@
   var vocab = read(VOCAB, "{}");
   var picks = read(PICKED, "{}");
 
+  /* --- what words mean, in the language you read them in ---------------------
+   *
+   * A word belongs to a language; a meaning belongs to a language pair. Hebrew ספר is
+   * one word whether it was met on an English page or a Russian one — one entry in the
+   * vocabulary, one level, one line in every count — but "book" and "книга" are two
+   * different facts, and handing a reader the wrong one is worse than handing them
+   * nothing. So the status lives with the word and the meaning lives here, under the
+   * pair it was written for.
+   *
+   * The answer is also bought once and then belongs to this browser. It used to live in
+   * the page and no further, so every reload asked the server the same question about
+   * the same word and the reader met the "look it up" button on a word they had already
+   * looked up.
+   *
+   * Shared by every text in the pair: meeting a word again in the next article, already
+   * answered, is the whole point of having asked. Kept apart from the vocabulary because
+   * asking what a word means and deciding you know it are different acts — and because
+   * one of them is about a pair of languages and the other is not.
+   */
+  var meaningStores = {};
+
+  function meaningsFor(target) {
+    var into = target || targetLanguage;
+    if (!into) return null;
+    if (!meaningStores[into]) {
+      meaningStores[into] = { name: "targum:meanings:" + language + ":" + into, records: null };
+    }
+    var store = meaningStores[into];
+    if (store.records === null) store.records = read(store.name, "{}");
+    return store;
+  }
+
+  // A dictionary form, or `phrase:<id>` for the reading of a phrase. One store rather
+  // than two: both are the same fact about the same pair, and `targum:gone` already
+  // namespaces the two kinds this way.
+  function meaningRecord(term, target) {
+    var store = meaningsFor(target);
+    return (store && store.records[term]) || null;
+  }
+
+  function meaningOf(term, target) {
+    var record = meaningRecord(term, target);
+    return (record && record.meaning) || "";
+  }
+
+  function noteOn(term, target) {
+    var record = meaningRecord(term, target);
+    return (record && record.note) || "";
+  }
+
+  // Written whole, the way a word record is, so the account's merge has one `seen` to
+  // compare and cannot take half of an edit.
+  function writeMeaning(term, changes, target) {
+    var store = meaningsFor(target);
+    if (!store) return;
+    var was = store.records[term] || {};
+    var now = {
+      meaning: changes.meaning === undefined ? was.meaning || "" : changes.meaning,
+      note: changes.note === undefined ? was.note || "" : changes.note,
+      at: was.at || nextOrder(),
+      seen: Date.now(),
+    };
+    if (!now.meaning && !now.note) delete store.records[term];
+    else store.records[term] = now;
+    try {
+      localStorage.setItem(store.name, JSON.stringify(store.records));
+    } catch (e) {}
+    if (window.TargumSync) window.TargumSync.touched();
+  }
+
+  function keepMeaning(term, meaning, target) {
+    if (meaning && meaning !== meaningOf(term, target)) {
+      writeMeaning(term, { meaning: meaning }, target);
+    }
+  }
+
+  // A phrase's reading and your note on it go in the same store, under the phrase's own
+  // id. The same fact about the same pair — the sentence it was cut from is the source's
+  // and does not move, but what it says in English and what it says in Russian are two
+  // answers — and one store to keep rather than two.
+  //
+  // The id is minted here rather than lazily by the sync, because a phrase that has a
+  // meaning needs a name to file it under at that moment, not at the next sign-in.
+  function phraseTerm(pick) {
+    if (!pick.id) {
+      pick.id = "p" + (pick.at || Date.now()) + "-" + Math.random().toString(36).slice(2, 8);
+    }
+    return "phrase:" + pick.id;
+  }
+
+  // Folded into the page's own table so nothing downstream has to know there are two
+  // sources: `glosses` stays the one answer to what this page knows a word means,
+  // whether the build shipped it or the reader asked for it a fortnight ago.
+  function foldMeanings() {
+    var store = meaningsFor();
+    if (!store) return;
+    lemmas.forEach(function (lemma, index) {
+      if (!glosses[index] && store.records[lemma]) {
+        glosses[index] = store.records[lemma].meaning || "";
+      }
+    });
+  }
+
   function remember() {
     try {
       localStorage.setItem(VOCAB, JSON.stringify(vocab));
@@ -386,10 +534,14 @@
     if (!lemma || !served || !passKey) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
+    // The language asked about, held for the length of the flight. A reader can change
+    // translations while an answer is in the air, and an English meaning filed against
+    // Russian is exactly the thing none of this is allowed to do.
+    var into = targetLanguage || "en";
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: lemma, source: language, target: targetLanguage || "en" }),
+      body: JSON.stringify({ lemma: lemma, source: language, target: into }),
     })
       .then(function (response) {
         return response.json();
@@ -397,8 +549,8 @@
       .then(function (answer) {
         asked[lemma] = false;
         if (answer && answer.meaning) {
-          glosses[index] = answer.meaning;
-          hasGloss = true;
+          keepMeaning(lemma, answer.meaning, into);
+          if (into === targetLanguage) glosses[index] = answer.meaning;
           delete lookup[lemma];
         } else {
           // A lemma the lemmatiser mangled is not a word, and the model is right to
@@ -418,9 +570,11 @@
     return item ? item.status : undefined;
   }
 
+  // What you wrote down that a word means. Beside the meaning targum gave and under the
+  // same pair, because a note is a meaning too: one written in Russian is no more use on
+  // an English page than a Russian gloss would be.
   function noteOf(lemma) {
-    var item = vocab[lemma];
-    return item ? item.note || "" : "";
+    return noteOn(lemma);
   }
 
   // Your own meaning for a word. Writing one against a word you have not marked yet
@@ -433,9 +587,7 @@
       setStatus(index, surface, band, TargumVocab.LEARNING[0]);
     }
     if (!vocab[lemma]) return;
-    vocab[lemma].note = text;
-    vocab[lemma].seen = Date.now();
-    remember();
+    writeMeaning(lemma, { note: text });
   }
 
   // Setting a word to what it already is takes the mark off again, so the same tap
@@ -548,9 +700,6 @@
       vocab[lemma] = {
         status: status,
         surface: vocab[lemma] ? vocab[lemma].surface || surface : surface,
-        meaning: glosses[index] || (vocab[lemma] ? vocab[lemma].meaning : "") || "",
-        // Whatever you wrote for it stays yours across a change of level.
-        note: vocab[lemma] ? vocab[lemma].note || "" : "",
         band: band || (vocab[lemma] ? vocab[lemma].band : "") || "",
         // A word you carried up from a level below known is one you learned here; a word
         // you opened a text and ticked off is one you already had. Sticky, because
@@ -559,6 +708,11 @@
         at: vocab[lemma] ? vocab[lemma].at || nextOrder() : nextOrder(),
         seen: Date.now(),
       };
+      // What the page says it means, kept beside the word under the language it was
+      // said in. The word record used to hold it, which made one slot for a fact that
+      // has one answer per language: keeping a word while reading in Russian overwrote
+      // the English meaning of every text that word appears in.
+      keepMeaning(lemma, glosses[index]);
       // Where the word went, the first time you keep one — but never in the middle of a
       // walk. Opening a panel over the translation while somebody is stepping the
       // chapter a word at a time takes away the thing they are grading against, at the
@@ -845,7 +999,7 @@
   }
 
   function translationFor(segmentId) {
-    var entry = translationData[prefs.translation] || translationData.t0;
+    var entry = translationData[showing] || translationData.t0;
     return entry && entry.text ? entry.text[segmentId] || "" : "";
   }
 
@@ -880,9 +1034,12 @@
         term: item.surface || lemma,
         lemma: lemma,
         status: item.status,
-        note: item.note || "",
+        // Both in the language on show. A meaning kept from a Russian reading is not an
+        // answer to a word met on the English page, and the list beside the text is the
+        // one place a reader compares the two at a glance.
+        note: noteOf(lemma),
         level: item.band || "",
-        meaning: item.note || item.meaning || "",
+        meaning: noteOf(lemma) || meaningOf(lemma),
         at: item.at || 0,
       });
     });
@@ -893,6 +1050,8 @@
     var out = [];
     Object.keys(picks).forEach(function (segmentId) {
       picks[segmentId].forEach(function (pick, index) {
+        var term = phraseTerm(pick);
+        var note = noteOn(term);
         out.push({
           kind: "phrase",
           key: segmentId + ":" + index,
@@ -901,9 +1060,12 @@
           term: pick.text,
           lemma: "",
           status: pick.status === undefined ? null : pick.status,
-          note: pick.note || "",
+          note: note,
           level: "",
-          meaning: pick.note || pick.meaning || translationFor(segmentId),
+          // The sentence's own translation is the last resort, and it is already the
+          // one on show: `translationFor` follows the picker, so a phrase with nothing
+          // written against it reads in the language being read.
+          meaning: note || meaningOf(term) || translationFor(segmentId),
           at: pick.at || 0,
         });
       });
@@ -1057,7 +1219,7 @@
         var list = picks[entry.segmentId];
         var pick = list && list[entry.index];
         if (!pick) return;
-        pick.note = text;
+        writeMeaning(phraseTerm(pick), { note: text });
         stamp(pick);
         remember();
       },
@@ -1227,6 +1389,7 @@
     if (listTab) listTab.hidden = open;
     body.classList.toggle("list-open", open);
     keep(held);
+    relay();
     if (remembered !== false) save();
   }
 
@@ -1631,20 +1794,6 @@
 
   var chip = document.getElementById("pick-chip");
 
-  // The translation's own language and direction, read off the page. A card is chrome
-  // and runs left to right, but the text inside it belongs to whichever language it
-  // came from, or an English sentence on a Hebrew page loses its full stop to the
-  // wrong end of the line.
-  var trCell = main.querySelector(".tr");
-  var targetLanguage = trCell ? trCell.getAttribute("lang") : "";
-  var targetDirection = trCell ? trCell.getAttribute("dir") : "";
-
-  function inTarget(element) {
-    if (targetLanguage) element.setAttribute("lang", targetLanguage);
-    if (targetDirection) element.setAttribute("dir", targetDirection);
-    return element;
-  }
-
   // Where a DOM position falls in the segment's own text. The reader rebuilds these
   // cells constantly, so offsets are the only stable way to record a selection.
   //
@@ -1828,12 +1977,13 @@
         start: picked.start,
         end: picked.end,
         text: picked.text,
-        meaning: reading,
         status: TargumVocab.LEARNING[0],
-        note: "",
         at: nextOrder(),
       });
       list.push(pick);
+      // The span is the phrase and belongs to the source sentence; what it says is a
+      // fact about the pair and goes where the words' meanings go.
+      keepMeaning(phraseTerm(pick), reading);
       if (listBox && listBox.hidden) showList(true);
       return pick;
     }
@@ -1852,12 +2002,12 @@
     return {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
-        note: pick ? pick.note || "" : "",
+        note: pick ? noteOn(phraseTerm(pick)) : "",
         placeholder: "Enter text",
         onStatus: apply,
         onNote: function (text) {
           var item = ensure();
-          item.note = text;
+          writeMeaning(phraseTerm(item), { note: text });
           stamp(item);
           remember();
           redraw();
@@ -1884,13 +2034,20 @@
     });
   }
 
+  // The chip goes, and the keys go with it. A level pressed at a phrase nobody can see
+  // any more would be saved against it all the same, so the two have to be one act
+  // rather than two lines that have to be remembered together at four call sites.
+  function hideChip() {
+    if (chip) chip.hidden = true;
+    pickLevel = null;
+  }
+
   document.addEventListener("mouseup", function (event) {
     if (!chip) return;
     if (chip.contains(event.target)) return;
     var picked = currentSelection();
     if (!picked || !picked.text) {
-      chip.hidden = true;
-      pickLevel = null;
+      hideChip();
       return;
     }
     showPick(picked);
@@ -1965,8 +2122,7 @@
         }
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
-        chip.hidden = true;
-        pickLevel = null;
+        hideChip();
         redraw();
       },
     });
@@ -2028,10 +2184,19 @@
   //
   // Both are this text's, matching what the panel shows. Your whole vocabulary in a
   // language is a different export and lives on the library page, where the library is.
+  // The meaning column is in one language, so the header says which. A file that only
+  // said "meaning" was a column of Russian under an English word for anyone who read in
+  // both and opened it a month later.
+  function meaningColumn() {
+    var entry = translationData[showing] || {};
+    var name = entry.languageName || targetLanguage;
+    return name ? "meaning (" + name + ")" : "meaning";
+  }
+
   function exportWords() {
     download(
       title() + " — words.csv",
-      ["word", "dictionary form", "difficulty", "how well", "meaning"],
+      ["word", "dictionary form", "difficulty", "how well", meaningColumn()],
       wordEntries().map(function (entry) {
         return [
           entry.term,
@@ -2047,7 +2212,7 @@
   function exportPhrases() {
     download(
       title() + " — phrases.csv",
-      ["phrase", "reading"],
+      ["phrase", meaningColumn().replace("meaning", "reading")],
       phraseEntries().map(function (entry) {
         return [entry.term, entry.meaning || ""];
       })
@@ -2107,24 +2272,149 @@
     return (bar ? bar.getBoundingClientRect().height : 0) + 16;
   }
 
-  function hold() {
-    if (!living) return null;
-    // The word the arrows are standing on comes first: walking a chapter is the one time
-    // a reader's place is a word rather than a sentence, and a word is exact.
+  // The sentence in the middle of the reading area, which is where a reader's eye is
+  // rather than where the text happens to begin. Held instead of the sentence at the top
+  // of the window — which is the one they have just finished — a change of layout leaves
+  // them looking at the words they were looking at, with as much of the page they have
+  // read still above as there was before.
+  function middle() {
+    var top = ceiling();
+    var eye = top + (window.innerHeight - top) / 2;
+    for (var n = 0; n < pairs.length; n++) {
+      if (pairs[n].getBoundingClientRect().bottom >= eye) return pairs[n];
+    }
+    // Nothing reaches the middle: the end of a chapter, where the last screenful is
+    // mostly the space under it.
+    return pairs[pairs.length - 1] || null;
+  }
+
+  // What the last change of layout was held by — the sentence, and the word in it where
+  // there was one — kept until the reader moves away from it themselves.
+  //
+  // Every control on the bar can be pressed twice, and without this each press works the
+  // place out afresh. Two things go wrong when it does. A sentence that loses its
+  // translation line is half the height it was, so the middle of the window falls past
+  // its end onto the one after it, and half a dozen presses walk the page down a
+  // paragraph the reader never scrolled. And a change of layout puts away the card a tap
+  // opened, so the word the reader is plainly looking at stops being a word the page
+  // knows about after the first press. Held, one place answers for the whole run of them.
+  //
+  // The word by name rather than by node: a redraw replaces every span in the cell, and
+  // `refind` is what turns the name back into whatever is on the page now.
+  var resting = null;
+  var restingAt = 0;
+  // The element wearing the mark, so it can be taken off again without searching for it.
+  var marked = null;
+
+  // The place, said on the page. Being put back where you were is no use if you cannot
+  // see where that is: the reader has just been carried across a change of layout, or
+  // back into a text they left yesterday, and asking them to read for the line they were
+  // on is asking them to do the work the page was supposed to have done.
+  //
+  // The word where the place is a word, in the ink of a selection — §8, and the one
+  // treatment in the system loud enough to find in a paragraph at a glance. The sentence
+  // where it is not, lifted exactly the way the pointer lifts the sentence under it: a
+  // reader already knows that band means "this one", so it needs no explaining.
+  function rest(pair, lemma, bare) {
+    resting = { pair: pair, lemma: lemma, bare: bare };
+    restingAt = window.scrollY;
+    unmark();
+    // By name rather than by node: a redraw is what draws interlinear, and it replaces
+    // every span in the cell — including the one that was handed in here.
+    marked = refind(resting) || pair;
+    marked.classList.add("here");
+    // A change of layout that moved nothing moves nothing to scroll, and a scroll is what
+    // would otherwise have written this down.
+    note();
+  }
+
+  function unmark() {
+    if (marked) marked.classList.remove("here");
+    marked = null;
+  }
+
+  // The reader has put themselves somewhere: scrolled off the place, tapped a word,
+  // walked the arrows on. Whatever the page was holding for them, they are not in it any
+  // more, and a band left sitting on a sentence nobody is reading is furniture.
+  function forget() {
+    resting = null;
+    unmark();
+  }
+
+  // Where the reader is, written down as they go — the anchor, and the line of the window
+  // it sits on. A resize is the one change of layout this file cannot measure first: the
+  // browser reflows and then says so, and by the time it says so every line has rewrapped
+  // and the offset that meant "this sentence" means somewhere else in the chapter. This
+  // is the last thing that was true before that happened.
+  //
+  // Cheap where it has to be: a reader on a word is answered by the word, and only a
+  // reader who is not pays for the walk down the pairs. Once a frame at most, beside the
+  // marking pass that is already reading the same boxes.
+  var seen = null;
+
+  function note() {
+    var here = anchor();
+    if (!here) return;
+    seen = {
+      pair: here.pair,
+      lemma: here.word ? here.word.getAttribute("data-lemma") : null,
+      bare: here.word ? here.word.getAttribute("data-bare") : null,
+      top: Math.round((here.word || here.pair).getBoundingClientRect().top),
+    };
+  }
+
+  var noting = false;
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      // `keep` scrolls the page itself, and that is the anchor being honoured rather than
+      // the reader leaving it: its scroll lands on the offset recorded beside it, to the
+      // pixel. Anything else is the reader, and the sentence they left is not their place
+      // any more.
+      if (Math.abs(window.scrollY - restingAt) > 1) forget();
+      if (noting) return;
+      noting = true;
+      requestAnimationFrame(function () {
+        noting = false;
+        note();
+      });
+    },
+    { passive: true }
+  );
+
+  // Where the reader is, in two answers of falling exactness: the word they are on, and
+  // failing that the sentence in front of them.
+  //
+  // The word comes first whether the arrows put them on it or a tap did. Walking a
+  // chapter and asking what a word means are different acts, which is why `standing` and
+  // `lookedUp` are kept apart everywhere else in this file — but they are the same act as
+  // far as a place is concerned. Both say the reader's attention is on one word, and a
+  // word is exact where a sentence is a paragraph's worth of guess.
+  function anchor() {
     var word = standing && standing.parentNode ? standing : null;
+    if (!word && lookedUp && lookedUp.parentNode) word = lookedUp;
     var pair = word ? word.closest(".pair") : null;
     var top = ceiling();
     var box = pair ? pair.getBoundingClientRect() : null;
-    // Unless they have scrolled away from it, in which case what is in front of them is
-    // the text at the top of the window — the same sentence `enterFrom` would start at.
+    // Unless they have scrolled away from it, in which case the word is somewhere they
+    // have been and what is in front of them is the text.
     if (!box || box.bottom < top || box.top > window.innerHeight) {
-      word = null;
-      pair = onScreen();
+      var rested = resting && resting.pair.parentNode ? resting : null;
+      word = rested ? refind(rested) : null;
+      pair = rested ? rested.pair : middle();
     }
-    if (!pair) return null;
+    return pair ? { pair: pair, word: word } : null;
+  }
+
+  function hold() {
+    if (!living) return null;
+    var here = anchor();
+    if (!here) return null;
+    var word = here.word;
     return {
-      pair: pair,
-      top: pair.getBoundingClientRect().top,
+      pair: here.pair,
+      top: here.pair.getBoundingClientRect().top,
       word: word,
       wordTop: word ? word.getBoundingClientRect().top : 0,
       // A redraw rebuilds every span in the cell, so the word is held as the two offsets
@@ -2134,11 +2424,18 @@
     };
   }
 
-  // The same sentence, back where it was on the screen. Never smooth: the change of
-  // layout is already carried by `settle`, and a scroll animated on top of it would be a
-  // second movement saying the same thing. Where the page cannot move that far — the last
-  // screenful of a chapter that has just become shorter — the browser stops at the end,
-  // which is the honest answer and the one it gives a scrollbar.
+  // The same sentence, back on the same line of the window. Not the middle of it: the eye
+  // is already somewhere, and moving what it is reading to where the page would rather
+  // have it is a second movement the reader did not ask for. What they asked for was the
+  // translation off, or the type a step larger — the words in front of them are supposed
+  // to stay in front of them. It is also what stops four presses of A+ from walking a
+  // sentence up the window.
+  //
+  // Never smooth: the change of layout is already carried by `settle`, and a scroll
+  // animated on top of it would be a second movement saying the same thing. Where the
+  // page cannot move that far — the last screenful of a chapter that has just become
+  // shorter — the browser stops at the end, which is the honest answer and the one it
+  // gives a scrollbar.
   function keep(held) {
     if (!held || !held.pair.parentNode || !window.scrollTo) return;
     var word = held.word && held.word.parentNode ? held.word : null;
@@ -2152,35 +2449,263 @@
     var moved = Math.round(
       (box ? box.top : held.pair.getBoundingClientRect().top) - (word ? held.wordTop : held.top)
     );
-    if (!moved) return;
-    window.scrollTo(0, window.scrollY + moved);
+    if (moved) window.scrollTo(0, window.scrollY + moved);
+    // What this change was held by, until the reader scrolls off it. The offset inside
+    // `rest` is read back rather than worked out: at the end of a chapter the browser
+    // stops where the page stops, which is a shorter move than the one that was asked for.
+    rest(held.pair, held.lemma, held.bare);
   }
 
-  // The word the arrows were on, after a redraw. `markSegment` rebuilds every span in the
-  // cell, so the node carrying the ring, the tab stop and the focus is detached and the
-  // reader is standing on nothing — in the middle of a walk, in the mode they just asked
-  // for. The queue itself survives, because `place` is offsets rather than a node, so the
-  // word is taken up again where it was.
-  function restand(held) {
-    if (!held || !held.bare || !standing) return;
+  // The held word again, after a redraw. `markSegment` rebuilds every span in the cell, so
+  // the node held before the change is detached and the word survives only as the two
+  // offsets that name it.
+  function refind(held) {
+    if (!held || !held.bare) return null;
     var segmentId = held.pair.getAttribute("data-id");
     // The cell on show, which is the one `markPair` drew: the other keeps whatever spans
     // it had when it was last visible, and they are the wrong page's.
     var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
-    if (!cell) return;
+    if (!cell) return null;
     // Its spans may not have been drawn in this pass at all; only a screenful is marked.
     markPair(held.pair);
-    var word = cell.querySelector(
+    return cell.querySelector(
       '.w[data-lemma="' + held.lemma + '"][data-bare="' + held.bare + '"]'
     );
-    if (!word || word === standing) return;
+  }
+
+  // The ring, the tab stop and the focus, moved on to it. Without this the reader is
+  // standing on nothing in the middle of a walk, in the mode they have just asked for —
+  // the queue itself survives, because `place` is offsets rather than a node.
+  function restand(word) {
+    if (!word || !standing || word === standing) return;
     standing.classList.remove("queued");
     standing.removeAttribute("tabindex");
     standing = word;
     word.classList.add("queued");
     word.setAttribute("tabindex", "-1");
-    // Marking is paint and no box changes, so the line is still where `keep` left it.
     if (word.focus) word.focus({ preventScroll: true });
+  }
+
+  // The place put back a second time, against the page the redraw has left behind. Marks
+  // are paint and move nothing, but interlinear is drawn by the same pass and a line with
+  // a translation under it is taller than the line `keep` measured a moment earlier — so
+  // the first `keep` is against a page that is about to change under it. Cheap: the
+  // second one has nothing to do wherever the first was right, and scrolls by nothing.
+  function putBack(held) {
+    if (!held) return;
+    var word = refind(held);
+    restand(word);
+    keep(
+      word
+        ? {
+            pair: held.pair,
+            top: held.top,
+            word: word,
+            wordTop: held.wordTop,
+            lemma: held.lemma,
+            bare: held.bare,
+          }
+        : held
+    );
+  }
+
+  /* --- the place you left it in --------------------------------------------- */
+
+  // `hold` and `keep` carry a place across a change of layout, in the same page and the
+  // same second. This carries one across a closed tab: what you were reading when you
+  // left is what is in front of you when you come back, rather than the first line of a
+  // chapter you are forty verses into.
+  //
+  // Kept per page of a text rather than per text. A book's chapters share a document id,
+  // and one place for all of them would hand somebody returning to chapter five the
+  // sentence they left off in chapter one — which is not on the page to scroll to, so
+  // what they would actually get is nothing at all. The first segment on the page names
+  // the page, and it is the build's own id rather than a filename: the same text built
+  // again under another name is still the same reading.
+  var PLACE = "targum:place";
+  var placeKey =
+    documentId + "/" + (pairs.length ? pairs[0].getAttribute("data-id") : "");
+
+  // A hundred pages. Left unbounded, a book of a hundred and fifty chapters read twice
+  // would sit in the store for good; a reader coming back to a page they left half-read
+  // comes back to it within a hundred pages of reading, or they are not coming back.
+  var PLACES = 100;
+
+  // On the way out. Written from the same anchor a change of layout holds, so leaving a
+  // reader and switching it to source keep the same place by the same rule: the word if
+  // there is one, the sentence in the middle of the window if there is not.
+  function leavePlace() {
+    var here = living ? anchor() : null;
+    if (!here) return;
+    var span = here.word ? here.word.getAttribute("data-bare") || "" : "";
+    try {
+      var all = read(PLACE, "{}");
+      if (!here.word && window.scrollY <= 2) {
+        // A text the reader never moved in has no place in it: they opened it and left it
+        // where it opened, and where it opens is where it opens again. Kept as the
+        // absence of a record rather than as a record of the top, so that a place from an
+        // earlier reading is not left standing over a reading that went nowhere.
+        delete all[placeKey];
+      } else {
+        all[placeKey] = {
+          segment: here.pair.getAttribute("data-id"),
+          // The word by where it starts in the sentence, not by the node: the page it was
+          // drawn on is about to stop existing. One offset rather than the pair, because
+          // a saved phrase slices a word into several spans and any piece of it will do.
+          word: span.split(",")[0],
+          // And how far down the window it sat. A place is a sentence and a height: put
+          // back at the top of the text, or in the middle of it, the same sentence reads
+          // as a page that has been scrolled since — the reader has to find their line
+          // inside it again. Put back on the line it was on, there is nothing to find.
+          top: Math.round(
+            (here.word || here.pair).getBoundingClientRect().top
+          ),
+          at: Date.now(),
+        };
+      }
+      Object.keys(all)
+        .sort(function (a, b) {
+          return (all[b].at || 0) - (all[a].at || 0);
+        })
+        .slice(PLACES)
+        .forEach(function (stale) {
+          delete all[stale];
+        });
+      localStorage.setItem(PLACE, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+  // Two events, because neither one covers a reader on its own. `pagehide` is the one
+  // that fires when a page is navigated away from or its tab is closed; a phone put down
+  // mid-sentence may never see it, because a backgrounded tab can be discarded without
+  // being given another frame, and `visibilitychange` is the last word that tab hears.
+  window.addEventListener("pagehide", leavePlace);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") leavePlace();
+  });
+
+  // The middle of the reading area, for something that is not on the screen at all.
+  // `bring` is the same movement for the word queue and will not do here: it leaves a
+  // word where it is when it is already in view, which is right when the arrows are
+  // walking along a line and wrong on a page that has just opened, where nothing is
+  // where the reader left it and the point is to put one thing back.
+  function centre(word, pair) {
+    if (!pair.getBoundingClientRect || !window.scrollTo) return;
+    var top = ceiling();
+    // The same middle `middle()` reads a place off, so a sentence put here is the
+    // sentence the next change of layout finds.
+    var eye = top + (window.innerHeight - top) / 2;
+    var tall = pair.getBoundingClientRect().height > window.innerHeight - top - 16;
+    // The rule `bring` walks by: the sentence moves and the word decides, unless the
+    // sentence is taller than the window, when centring it would put the word itself off
+    // the screen the scroll was meant to bring it on to.
+    var target = tall && word ? word : pair;
+    var box = target.getBoundingClientRect();
+    // A sentence too tall to centre goes to the top of the text instead, which is where
+    // it would sit if you had scrolled to it yourself.
+    var wanted = tall && !word ? top : eye - box.height / 2;
+    window.scrollTo(0, Math.max(0, Math.round(window.scrollY + box.top - wanted)));
+  }
+
+  // Back on the line of the window it was on. Where that line is no longer one this
+  // window has — resized, or a phone turned, since it was written down — the middle
+  // instead, which is a line every window has.
+  //
+  // What counts as gone differs for the two. A word has to end up whole and in the clear:
+  // it is the thing the reader is being asked to find again, and half of it under the
+  // sticky bar is not found. A sentence only has to have some of itself on the screen —
+  // a paragraph taller than the window can never be wholly on it, and centring one every
+  // time the window moved would throw a reader to its first line for no reason.
+  function toLine(word, pair, top) {
+    var box = (word || pair).getBoundingClientRect();
+    var floor = ceiling();
+    var fits =
+      typeof top === "number" &&
+      (word
+        ? top >= floor && top + box.height <= window.innerHeight - 12
+        : top < window.innerHeight - 12 && top + box.height > floor);
+    if (!fits) return centre(word, pair);
+    window.scrollTo(0, Math.max(0, Math.round(window.scrollY + box.top - top)));
+  }
+
+  // On the way back in: the same words on the same line of the window as when the tab was
+  // closed, so that coming back reads as picking the page up rather than as arriving
+  // somewhere near where you were. The mark is what says which line it is.
+  function resume() {
+    // Not over a position the browser has already chosen. A reload and the back button
+    // both restore a scroll of their own, and both are the better answer: they are where
+    // this reader was a moment ago rather than where they were last time.
+    if (location.hash || window.scrollY > 2) return;
+    var kept = read(PLACE, "{}")[placeKey] || {};
+    var pair = kept.segment ? pairBySegment[kept.segment] : null;
+    if (!pair) return;
+    var word = null;
+    if (/^\d+$/.test(String(kept.word || ""))) {
+      // Its spans may never have been drawn: only a screenful is marked up front, and
+      // that screenful is the top of the chapter, which is where the reader is not.
+      markPair(pair);
+      word = pair.querySelector('.w[data-bare^="' + kept.word + ',"]');
+    }
+    toLine(word, pair, kept.top);
+    // The sentence they came back to is the sentence the first press of a mode button
+    // should hold, rather than whatever the middle of the window works out to.
+    rest(
+      pair,
+      word ? word.getAttribute("data-lemma") : null,
+      word ? word.getAttribute("data-bare") : null
+    );
+    // And the screenful that is now in front of them, which is not the one `redraw` drew.
+    markVisible();
+  }
+
+  /* --- the window changing shape -------------------------------------------- */
+
+  // A resize moves everything at once: the column changes width, every line rewraps, and
+  // the sentence that was in front of the reader is somewhere else on the page. It is the
+  // same failure `hold` and `keep` exist to prevent, arriving through the one door they
+  // cannot stand at — so it is answered from `seen`, which was written down before the
+  // reflow, rather than from a page that has already changed.
+  //
+  // A drag on a window corner fires this by the dozen. One pass a frame, the way the
+  // marking keeps up with a scroll: the work is a scroll and two placements, and doing it
+  // sixty times a second would fight the resize rather than follow it.
+  var fitting = false;
+
+  window.addEventListener("resize", function () {
+    if (fitting) return;
+    fitting = true;
+    requestAnimationFrame(function () {
+      fitting = false;
+      refit();
+    });
+  });
+
+  function refit() {
+    if (living && seen && seen.pair.parentNode) {
+      toLine(refind(seen), seen.pair, seen.top);
+      // And say where that is. A reader who has just watched every line on the page move
+      // has the least to go on of anybody, which is exactly when the mark earns its keep.
+      rest(seen.pair, seen.lemma, seen.bare);
+    }
+    relay();
+  }
+
+  // The cards, back beside what they are about. Both are positioned in document
+  // coordinates — absolute, so they scroll with the word rather than hanging off the
+  // bottom of the window — which is right until the word moves without the page
+  // scrolling, and a resize is exactly that. Left alone, a card ends up sitting over the
+  // very word it was opened for, which `placeNear` is otherwise careful never to do.
+  function relay() {
+    if (card && !card.hidden && lookedUp && lookedUp.parentNode) {
+      placeNear(card, lookedUp.getBoundingClientRect());
+    }
+    if (chip && !chip.hidden) {
+      var picked = currentSelection();
+      // A selection the reflow has collapsed is not a phrase any more, and a chip about
+      // nothing is a chip in the way.
+      if (picked && picked.text) placeChip(picked.rect);
+      else hideChip();
+    }
   }
 
   var modes = document.getElementById("modes");
@@ -2222,9 +2747,10 @@
     keep(held);
     if (interlinear() !== (drawnFor === "inter")) {
       redraw();
-      restand(held);
+      putBack(held);
     }
     drawnFor = prefs.mode;
+    relay();
   }
 
   // The whole page moves when the mode changes. Settling it back in reads as one
@@ -2259,14 +2785,26 @@
     // taller of the two — so putting the vowels on moves everything above you as well.
     keep(held);
     redraw();
-    restand(held);
+    putBack(held);
+    relay();
   }
 
   var picker = document.getElementById("translation");
 
-  function applyTranslation(id) {
+  // Changing translation can be changing language, and everything that is about a pair
+  // of languages rather than about a word has to follow it: which meanings the cards and
+  // the list show, which language a word is looked up in, which glossary is waited for,
+  // and which language the cells themselves claim to be written in.
+  //
+  // Not the marks, though. They are painted from the word's level, which is a fact about
+  // the word and not about the language it is being read in — redrawing them here would
+  // be a full re-mark of the screen to arrive at the page that is already on it.
+  function applyTranslation(id, first) {
     var entry = translationData[id];
     if (!entry || !entry.text) return;
+    var was = targetLanguage;
+    useTarget(id);
+    foldMeanings();
     var coarse = {};
     (entry.coarse || []).forEach(function (segmentId) {
       coarse[segmentId] = true;
@@ -2274,21 +2812,49 @@
     pairs.forEach(function (pair) {
       var segmentId = pair.getAttribute("data-id");
       var cell = pair.querySelector(".tr");
-      if (cell) cell.textContent = entry.text[segmentId] || "";
+      if (!cell) return;
+      cell.textContent = entry.text[segmentId] || "";
+      // The template stamps these from the first translation, so every other one wore
+      // the first one's language — a Russian sentence marked English, punctuated at the
+      // wrong end of the line and read out in the wrong voice.
+      if (targetLanguage) cell.setAttribute("lang", targetLanguage);
+      if (targetDirection) cell.setAttribute("dir", targetDirection);
       // Each translation is aligned independently, so which regions are approximate
       // changes with the translation on show.
       pair.classList.toggle("coarse", !!coarse[segmentId]);
     });
-    prefs.translation = id;
+    if (prefs.translationBy && documentId) prefs.translationBy[documentId] = id;
     save();
+    if (!first && targetLanguage !== was) {
+      // What was asked and answered in the language being left says nothing about the
+      // one being entered: a word with no English meaning may well have a Russian one,
+      // and offering "nothing found" for it would be a lie.
+      asked = {};
+      lookup = {};
+      hideCard();
+      hideChip();
+      waitForMeanings();
+    }
     renderList();
   }
 
+  // Which translation to open on. The page is already rendered with the first one, so
+  // opening on that costs nothing: the target is taken and the meanings folded in
+  // without a single cell being touched. Only a remembered choice of another one
+  // rewrites the text, and only a reader who made that choice pays for it.
+  var opening = "t0";
+  var kept = prefs.translationBy ? prefs.translationBy[documentId] : "";
+  if (kept && translationData[kept]) opening = kept;
+
+  if (opening !== "t0") {
+    applyTranslation(opening, true);
+  } else {
+    useTarget("t0");
+    foldMeanings();
+  }
+
   if (picker) {
-    if (prefs.translation && translationData[prefs.translation]) {
-      picker.value = prefs.translation;
-      applyTranslation(prefs.translation);
-    }
+    picker.value = opening;
     picker.addEventListener("change", function () {
       applyTranslation(picker.value);
     });
@@ -2365,6 +2931,9 @@
         // The type grows around the line you are reading rather than sliding it off the
         // top of the window, which is what four presses of A+ used to do.
         keep(held);
+        // A card stays open across a step of type size — it is the same word and the same
+        // answer — and the word it belongs to has just moved out from under it.
+        relay();
         save();
       }
       return;
@@ -2376,8 +2945,14 @@
     var word = event.target.closest ? event.target.closest(".w") : null;
     // Either way the pointer has taken over from the arrows, and the ring goes with them.
     leaveQueue();
+    // And from the page: wherever it was holding a place for them, they have just said
+    // where they are. The tap is the new one, and the card is its mark.
+    forget();
     if (word) {
       showCard(word);
+      // Tapping a word does not scroll, so nothing else here would write it down — and
+      // this is the word a resize has to be able to hand back.
+      note();
       return;
     }
     hideCard();
@@ -2612,6 +3187,9 @@
     );
     if (!span) return false;
     leaveQueue();
+    // The same for the arrows as for a tap: the walk says where the reader is, and the
+    // ring on the word is what says it.
+    forget();
     // A card on its way out is left to go at its own pace: the reader answered it and
     // stepped on, and the point of the beat is that they see it happen.
     if (!open && !fading) hideCard();
@@ -2621,6 +3199,9 @@
     span.setAttribute("tabindex", "-1");
     if (span.focus) span.focus({ preventScroll: true });
     bring(span, pair);
+    // `bring` leaves a word already on the screen where it is, so the walk can move from
+    // word to word without a scroll to write either of them down.
+    note();
     if (open) openCard();
     return true;
   }
@@ -2854,30 +3435,36 @@
     return parts.length > 2 && parts[1] === "reader" ? decodeURIComponent(parts[2]) : "";
   }
 
-  function takeMeanings(entries) {
+  // A batch of meanings, for the language it was written in. `target` is the language
+  // the answer is about, which is not always the one on show: a reply can land after the
+  // reader has switched translations, and one written in English is not a fact about
+  // Russian. Filed either way, applied only when it is the language being read.
+  function takeMeanings(entries, target) {
     var found = false;
     var complete = true;
-    var filled = lemmas.map(function (lemma) {
+    var have = glossesBy[target] || [];
+    var filled = lemmas.map(function (lemma, index) {
       var meaning = entries[lemma] || "";
       if (meaning) found = true;
+      // Whether the file is finished is a question about the file, so it is asked of
+      // what came back and not of what this browser happens to know.
       else complete = false;
-      return meaning;
+      // A word the reader looked up themselves while the glossary was still being
+      // written. The batch has never heard of it and must not take it away again.
+      return meaning || have[index] || "";
     });
     if (!found) return false;
-    glosses = filled;
-    // Decides between an empty meaning and "no meaning recorded", so it has to move too.
-    hasGloss = true;
+    glossesBy[target] = filled;
+    if (target !== targetLanguage) return complete;
+    glosses = filled.slice();
 
-    // A word kept before the meanings arrived holds an empty one: setStatus copies the
-    // meaning in at the moment you save it, so those entries would stay blank for good.
-    var changed = false;
+    // A word kept before the meanings arrived holds an empty one: the meaning is copied
+    // in at the moment you save it, so those entries would stay blank for good.
     lemmas.forEach(function (lemma, index) {
-      if (vocab[lemma] && !vocab[lemma].meaning && glosses[index]) {
-        vocab[lemma].meaning = glosses[index];
-        changed = true;
+      if (vocab[lemma] && !meaningOf(lemma) && glosses[index]) {
+        keepMeaning(lemma, glosses[index]);
       }
     });
-    if (changed) remember();
 
     renderList();
     // And the card, if one happens to be open on the word that just gained a meaning.
@@ -2887,34 +3474,46 @@
     return complete;
   }
 
+  // One wait per target, and only for the target whose meanings somebody actually
+  // bought. A reader holding two translations must not sit asking for ten minutes about
+  // a language nobody ordered a glossary in.
+  var waiting = {};
+
   function waitForMeanings() {
     var folder = buildFolder();
     if (!served || !passKey || !folder) return;
-    if (!lemmas.length || hasGloss) return;
+    if (!lemmas.length) return;
+    var target = data.glossPending || "";
     // Nothing was bought for this text, so nothing is coming. Words are looked up one
     // at a time from the card instead, and asking every few seconds for ten minutes
     // would be asking for a file that is never going to be written.
-    if (!data.glossPending) return;
+    if (!target || target !== targetLanguage) return;
+    if (waiting[target] || (glossesBy[target] || []).length) return;
+    waiting[target] = true;
 
     var wait = MEANINGS_FIRST_WAIT;
     var giveUpAt = Date.now() + MEANINGS_GIVE_UP;
     meaningsPending = true;
 
     function stop() {
+      waiting[target] = false;
       meaningsPending = false;
       if (lookedUp) showCard(lookedUp);
     }
 
     function ask() {
       if (Date.now() > giveUpAt) return stop();
-      fetch(keyed("/glossary/" + encodeURIComponent(folder)), {
+      fetch(keyed("/glossary/" + encodeURIComponent(folder) + "?to=" + encodeURIComponent(target)), {
         headers: keyHeaders(),
       })
         .then(function (response) {
           return response.json();
         })
         .then(function (answer) {
-          if (answer && answer.ready && answer.entries && takeMeanings(answer.entries)) {
+          // The server says which language it answered about; the reader asked about
+          // one language and must not file the reply under another.
+          var said = (answer && answer.target) || target;
+          if (answer && answer.ready && answer.entries && takeMeanings(answer.entries, said)) {
             return stop();
           }
           wait = Math.min(wait * 1.5, MEANINGS_MAX_WAIT);
@@ -2957,6 +3556,11 @@
   // The page is laid out from here on, so from here on a change to it can be measured.
   living = true;
   took("marks drawn on what is on screen");
+  // After the layout every control has a say in, and before the reader can have touched
+  // any of them: a scroll to where they left off has to be measured against the page
+  // they left, in the mode and at the size they left it in.
+  resume();
+  took("back where the reader left off");
   showTab(prefs.listTab);
   waitForMeanings();
   took("reader.js finished; the browser now lays the page out");
@@ -3058,10 +3662,21 @@
     if (asked || through() < ENOUGH) return;
     asked = true;
     window.removeEventListener("scroll", maybe);
+    // In the language this page is being read in. Its own scope, so it asks the page
+    // rather than the reader above it — and the page is kept honest by the picker, which
+    // restamps every cell it swaps. Without this the next chapter of a Russian book was
+    // bought in English, because the server's fallback was English and nothing said
+    // otherwise.
+    var reading = document.querySelector(".pair .tr");
+    var into = reading ? reading.getAttribute("lang") || "" : "";
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ name: name, number: Number(link.getAttribute("data-next")) }),
+      body: JSON.stringify({
+        name: name,
+        number: Number(link.getAttribute("data-next")),
+        to: into,
+      }),
     }).catch(function () {});
   }
 

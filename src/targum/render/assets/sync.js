@@ -33,6 +33,19 @@
   var DOCS = "targum:docs";
   var OPENED = "targum:opened";
   var DAYS = "targum:days"; // { "2026-08-25": 1 } — a set, written by the reader
+  /* Which languages the account says it reads, mirrored here so a page can ask without
+     waiting for a round trip.
+   *
+   * A page draws before the account answers, and the pages that show definitions cannot
+   * afford to be generous in the meantime: being briefly wrong here means printing a
+   * column of meanings in a language somebody does not read. The account stays the
+   * authority — this is rewritten on every start — and being one page load stale is the
+   * price of never showing the wrong language for a frame.
+   *
+   * Absent means nobody has ever signed in on this browser, which is not the same as
+   * "reads nothing": signed out, on a machine somebody runs themselves, everything they
+   * have is theirs and nothing is hidden. `clearLocal` sweeps this with the rest. */
+  var READS = "targum:reads";
 
   // A tombstone is a few bytes and a delete is rare, but a browser that has been in use
   // for years should not carry every word it ever unmarked. Anything this old has long
@@ -117,17 +130,54 @@
       Object.keys(store).forEach(function (lemma) {
         var word = store[lemma] || {};
         if (touchedAt(word) <= since) return;
+        // No `meaning` and no `note`. What a word means is a fact about a language pair
+        // and lives in `targum:meanings:<source>:<target>`; the word record is what is
+        // true about the word whichever language you read it in. The columns are still
+        // on the account, holding what was written before the two were told apart, and
+        // the merge keeps a field a push does not mention — which is what stops this
+        // from erasing them on the way past.
         out.push({
           language: language,
           lemma: lemma,
           surface: word.surface || "",
           status: word.status === undefined ? null : word.status,
-          meaning: word.meaning || "",
-          note: word.note || "",
           band: word.band || "",
           learned: word.learned ? 1 : 0,
           at: word.at || 0,
           seen: touchedAt(word),
+        });
+      });
+    });
+    return out;
+  }
+
+  /* What words and phrases mean, per language pair.
+   *
+   * `targum:meanings:<source>:<target>` on this side, one row per (source, target, term)
+   * on the account's. Kept apart from the word for the reason the table's own comment
+   * gives: the word is the same word whichever language you read it in, and the meaning
+   * is not — one slot for both let a Russian reading overwrite an English one under a
+   * merge that had no way of telling they were about different things.
+   */
+  var MEANINGS = "targum:meanings:";
+
+  function localMeanings(since) {
+    var out = [];
+    names(MEANINGS).forEach(function (name) {
+      var pair = name.slice(MEANINGS.length).split(":");
+      if (pair.length !== 2 || !pair[0] || !pair[1]) return;
+      var store = read(name, "{}");
+      Object.keys(store).forEach(function (term) {
+        var record = store[term] || {};
+        if (touchedAt(record) <= since) return;
+        out.push({
+          source: pair[0],
+          target: pair[1],
+          term: term,
+          meaning: record.meaning || "",
+          note: record.note || "",
+          at: record.at || 0,
+          seen: touchedAt(record),
         });
       });
     });
@@ -150,6 +200,8 @@
             changed = true;
           }
           if (touchedAt(pick) <= since) return;
+          // The span is the phrase and belongs to the source sentence; what it reads as
+          // belongs to a language pair and travels with the meanings. See `localWords`.
           out.push({
             id: pick.id,
             document: document_,
@@ -158,8 +210,6 @@
             span_end: pick.end || 0,
             text: pick.text || "",
             status: pick.status === undefined ? null : pick.status,
-            note: pick.note || "",
-            meaning: pick.meaning || "",
             at: pick.at || 0,
             seen: touchedAt(pick),
           });
@@ -227,6 +277,7 @@
     var gone = read(GONE, "{}");
     var words = [];
     var phrases = [];
+    var meanings = [];
     Object.keys(gone).forEach(function (name) {
       var when = Number(gone[name]) || 0;
       if (when <= since) return;
@@ -239,11 +290,26 @@
           gone: 1,
           seen: when,
         });
+      } else if (name.indexOf("m:") === 0) {
+        // Three parts, not two: a meaning is named by a pair of languages and a term,
+        // and a term can hold a colon of its own — `phrase:<id>`. Split from the left
+        // twice and take the rest whole, or a phrase's reading loses its own name.
+        var about = name.slice(2).split(":");
+        var term = about.slice(2).join(":");
+        if (about.length > 2 && term) {
+          meanings.push({
+            source: about[0],
+            target: about[1],
+            term: term,
+            gone: 1,
+            seen: when,
+          });
+        }
       } else if (name.indexOf("p:") === 0) {
         phrases.push({ id: name.slice(2), gone: 1, seen: when });
       }
     });
-    return { words: words, phrases: phrases };
+    return { words: words, phrases: phrases, meanings: meanings };
   }
 
   /* --- taking what the account has ------------------------------------------ */
@@ -266,11 +332,40 @@
       store[row.lemma] = {
         status: row.status,
         surface: row.surface || "",
-        meaning: row.meaning || "",
-        note: row.note || "",
         band: row.band || "",
         // Rebuilt from a named list, so anything not named here is dropped on every sync.
         learned: row.learned ? 1 : 0,
+        at: row.at || 0,
+        seen: row.seen || 0,
+      };
+      seed(row.language, row.lemma, row);
+    });
+    Object.keys(stores).forEach(function (name) {
+      write(name, stores[name]);
+    });
+    flushSeeds();
+    return touched;
+  }
+
+  function applyMeanings(rows) {
+    var stores = {};
+    var touched = false;
+    rows.forEach(function (row) {
+      if (!row.source || !row.target || !row.term) return;
+      var name = MEANINGS + row.source + ":" + row.target;
+      if (!stores[name]) stores[name] = read(name, "{}");
+      var store = stores[name];
+      var here = store[row.term];
+      if (here && touchedAt(here) >= Number(row.seen || 0)) return;
+      touched = true;
+      if (row.gone) {
+        delete store[row.term];
+        remember("m:" + row.source + ":" + row.target + ":" + row.term, Number(row.seen || 0));
+        return;
+      }
+      store[row.term] = {
+        meaning: row.meaning || "",
+        note: row.note || "",
         at: row.at || 0,
         seen: row.seen || 0,
       };
@@ -281,9 +376,47 @@
     return touched;
   }
 
+  /* The other half of the move out of the word and into the pair.
+   *
+   * A browser that has had these words locally has already moved its own; a browser
+   * signing in for the first time has never seen them, and the only copy is the account's
+   * — in the `meaning` and `note` columns, written before either knew which language it
+   * was in. Read as English, the same reading the local move makes and for the same
+   * reason: nothing was ever built into anything else.
+   *
+   * Only where the pair holds nothing already. A meaning this browser has under the pair
+   * is one that knows its language, and a column that does not must never win over it.
+   */
+  var LEGACY_TARGET = "en";
+  var seeds = {};
+
+  function seed(source, term, row) {
+    if (!row.meaning && !row.note) return;
+    var name = "targum:meanings:" + source + ":" + LEGACY_TARGET;
+    if (!seeds[name]) seeds[name] = { records: read(name, "{}"), changed: false };
+    var into = seeds[name];
+    if (into.records[term]) return;
+    into.records[term] = {
+      meaning: row.meaning || "",
+      note: row.note || "",
+      at: row.at || 0,
+      seen: Number(row.seen || 0),
+    };
+    into.changed = true;
+  }
+
+  function flushSeeds() {
+    Object.keys(seeds).forEach(function (name) {
+      if (seeds[name].changed) write(name, seeds[name].records);
+    });
+    seeds = {};
+  }
+
   function applyPhrases(rows) {
     var stores = {};
     var touched = false;
+    // Which language each text is in, for filing a phrase's reading under its pair.
+    var docs = read(DOCS, "{}");
     rows.forEach(function (row) {
       // A tombstone carries only the id, so the store it belongs to has to be found by
       // looking. There are not many, and this only runs on a delete from elsewhere.
@@ -318,18 +451,22 @@
           end: row.span_end || 0,
           text: row.text || "",
           status: row.status,
-          note: row.note || "",
-          meaning: row.meaning || "",
           at: row.at || 0,
           seen: row.seen || 0,
         };
         if (at > -1) list[at] = pick;
         else list.push(pick);
+        // A phrase knows which text it was cut from and the text knows its language.
+        // Where it does not — a phrase pulled before its document — the reading is left
+        // to the sentence's own translation, which is the right answer anyway.
+        var source = ((docs[row.document] || {}).language || "").split("-")[0].toLowerCase();
+        if (source) seed(source, "phrase:" + row.id, row);
       });
     });
     Object.keys(stores).forEach(function (name) {
       write(name, stores[name]);
     });
+    flushSeeds();
     return touched;
   }
 
@@ -456,6 +593,7 @@
     var body = {
       since: full ? 0 : Number(was.revision || 0),
       words: localWords(since).concat(dead.words),
+      meanings: localMeanings(since).concat(dead.meanings),
       phrases: localPhrases(since).concat(dead.phrases),
       docs: localDocs(since),
       days: localDays(since),
@@ -468,6 +606,9 @@
         // What the account holds now, rather than what it held before this push.
         if (api.who && answer.counts) api.who.counts = answer.counts;
         var changed = applyWords(answer.words || []);
+        // After the words: a word's meaning may have been seeded from the account's own
+        // older columns on the way past, and a row that knows its language wins over it.
+        changed = applyMeanings(answer.meanings || []) || changed;
         changed = applyPhrases(answer.phrases || []) || changed;
         changed = applyDocs(answer.docs || []) || changed;
         changed = applyDays(answer.days || []) || changed;
@@ -507,6 +648,7 @@
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
           if (!api.who) return false;
+          write(READS, me.reads || []);
           var was = state();
           if (was.email && was.email !== me.email) {
             // Another person signed in on this browser. Nothing of theirs is mixed in
@@ -569,6 +711,29 @@
         return true;
       });
     },
+  };
+
+  /* Which languages this account is offered a translation into.
+   *
+   * Everything, until the account has answered — a page drawn before the answer arrives
+   * offers what it always offered, and the server refuses anything the account may not
+   * have whatever the picker was showing. A picker is not a boundary; this is only what
+   * it is polite to show.
+   */
+  api.reads = function () {
+    return (api.who && api.who.reads) || null;
+  };
+
+  /* A language to build into that this account will actually be allowed. What somebody
+   * last read into is remembered in this browser and the account is the authority, so
+   * the two can disagree — a marking taken back, or a browser signed into somebody
+   * else's account. English is the fallback, being the one everybody is offered.
+   */
+  api.into = function (wanted) {
+    var allowed = api.reads();
+    if (!wanted) return "en";
+    if (!allowed || allowed.indexOf(wanted) >= 0) return wanted;
+    return "en";
   };
 
   window.TargumSync = api;

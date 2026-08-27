@@ -15,8 +15,28 @@ const path = require("path");
 const { install } = require("./dom.js");
 
 const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
-install({});
+install({ stored: payload.stored || {} });
 require(path.join(path.resolve(__dirname, "../../src/targum/render/assets"), "vocab.js"));
+
+/* The move out of the word and into the pair, when a test asks for it.
+ *
+ * `migrate` is what every page runs on load, so this runs the same thing: `runs` many
+ * times, because the one property that matters as much as the result is that running it
+ * twice is running it once. What comes back is the whole of localStorage, so a test can
+ * say what moved, what stayed and what was taken away.
+ */
+if (payload.migrate) {
+  for (let n = 0; n < (payload.runs || 1); n += 1) {
+    window.TargumVocab.migrate(payload.language || "he", payload.document || "");
+  }
+  const after = {};
+  for (let n = 0; n < localStorage.length; n += 1) {
+    const name = localStorage.key(n);
+    after[name] = JSON.parse(localStorage.getItem(name));
+  }
+  process.stdout.write(JSON.stringify({ stored: after }));
+  process.exit(0);
+}
 
 const kept = [];
 const levels = [];
