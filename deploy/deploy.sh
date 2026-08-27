@@ -55,8 +55,12 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # rewrites every targum in every home from the artifacts beside it: nothing is fetched,
   # nothing is spent, and no key is needed. As the service account, or the files come out
   # owned by root in a directory owned by targum and the next chapter cannot be written.
-  sudo -u targum env HOME=/srv/targum /usr/local/bin/targum rebuild \
-    --out /var/lib/targum/targums >/dev/null
+  # Through systemd, with the service's environment: the rebuild fills each reader's
+  # meanings from the shared cache, and without TARGUM_CACHE_DIR it looked in an empty
+  # one and filled nothing — silently, which is how it went unnoticed for a deploy.
+  systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+    --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+    /usr/local/bin/targum rebuild --out /var/lib/targum/targums >/dev/null
 
   systemctl restart targum
 EOF
