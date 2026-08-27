@@ -49,18 +49,31 @@ def reader(name: str, title: str, entry: str = "", **extra: Any) -> dict[str, An
 
 
 def word(lemma: str, meaning: str, status: int = 1, **extra: Any) -> dict[str, Any]:
-    """One entry of `targum:vocab:he`, as the reader writes it."""
-    row = {"surface": lemma, "meaning": meaning, "status": status, "band": "moderate", "at": 0}
+    """One kept word, and what it means in English.
+
+    Two records, because they are two different facts: the word belongs to Hebrew and is
+    the same word whatever you read it in, while the meaning belongs to Hebrew-into-
+    English and has a different answer in Hebrew-into-Russian. `note` follows the meaning
+    for the same reason — a note is a meaning you wrote yourself.
+    """
+    note = extra.pop("note", "")
+    row = {"surface": lemma, "status": status, "band": "moderate", "at": 0}
     row.update(extra)
-    return {lemma: row}
+    return {lemma: (row, {"meaning": meaning, "note": note, "at": 0, "seen": 1})}
 
 
-def vocabulary(*words: dict[str, Any]) -> dict[str, str]:
+def vocabulary(*words: dict[str, Any], into: str = "en") -> dict[str, str]:
     """A `stored` payload holding those words, for the harness's localStorage."""
-    together: dict[str, Any] = {}
+    kept: dict[str, Any] = {}
+    means: dict[str, Any] = {}
     for one in words:
-        together.update(one)
-    return {"targum:vocab:he": json.dumps(together, ensure_ascii=False)}
+        for lemma, (row, meaning) in one.items():
+            kept[lemma] = row
+            means[lemma] = meaning
+    return {
+        "targum:vocab:he": json.dumps(kept, ensure_ascii=False),
+        f"targum:meanings:he:{into}": json.dumps(means, ensure_ascii=False),
+    }
 
 
 def draw(
@@ -229,6 +242,75 @@ def test_a_search_looks_at_the_word_its_dictionary_form_and_its_meaning() -> Non
     assert (
         draw([reader("a", "א")], kept, search="zzz")["wordsEmpty"] == "Nothing here matches that."
     )
+
+
+def test_only_one_language_of_meanings_is_shown_and_it_says_which() -> None:
+    """A reader of two languages has two answers for every word, and the page shows one.
+
+    Which one is the language they last read this one into. The cell says so in its own
+    markup, because a Russian meaning inside a page marked English is read out in the
+    wrong voice and — for a right-to-left meaning — punctuated at the wrong end.
+    """
+    stored = vocabulary(word("ספר", "book", status=2))
+    stored["targum:meanings:he:ru"] = json.dumps(
+        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 500}}, ensure_ascii=False
+    )
+
+    drawn = draw([reader("a", "א")], stored)
+
+    # The Russian was written later, so it is the one the page is showing.
+    assert [w["meaning"] for w in drawn["words"]] == ["книга"]
+    assert drawn["words"][0]["lang"] == "ru"
+    assert drawn["words"][0]["dir"] == "ltr"
+
+
+def test_a_language_this_account_does_not_read_is_never_offered() -> None:
+    """Meanings in a language somebody does not read are not an answer they can use.
+
+    The switcher offers the languages this browser holds meanings in — which is a fact
+    about the browser, and says nothing about whether the reader can read them. Somebody
+    who tried Russian and then turned it off should not still be offered it, nor be shown
+    a column of it.
+    """
+    stored = vocabulary(word("ספר", "book", status=2))
+    stored["targum:meanings:he:ru"] = json.dumps(
+        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 900}}, ensure_ascii=False
+    )
+    # What the account said, mirrored by `sync.js` for pages that cannot wait for it.
+    stored["targum:reads"] = json.dumps(["en"])
+
+    drawn = draw([reader("a", "א")], stored)
+
+    # Russian is the newer of the two and would otherwise have been chosen.
+    assert [w["meaning"] for w in drawn["words"]] == ["book"]
+    assert drawn["words"][0]["lang"] == "en"
+
+
+def test_with_nobody_signed_in_nothing_is_hidden() -> None:
+    """Absent is not the same as empty. On a machine somebody runs themselves, everything
+    in the browser is theirs and no account has said otherwise."""
+    stored = vocabulary(word("ספר", "book", status=2))
+    stored["targum:meanings:he:ru"] = json.dumps(
+        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 900}}, ensure_ascii=False
+    )
+
+    drawn = draw([reader("a", "א")], stored)
+
+    assert [w["meaning"] for w in drawn["words"]] == ["книга"]
+
+
+def test_a_meaning_in_a_language_you_are_not_reading_is_not_shown() -> None:
+    """The English of a word is no answer at all to somebody reading in Russian, and
+    showing it is worse than showing nothing: it is confidently the wrong language."""
+    stored = vocabulary(word("ספר", "book", status=2))
+    stored["targum:meanings:he:ru"] = json.dumps(
+        {"אור": {"meaning": "свет", "note": "", "at": 0, "seen": 500}}, ensure_ascii=False
+    )
+
+    drawn = draw([reader("a", "א")], stored)
+
+    # Russian is the language being shown, and it has nothing to say about this word.
+    assert [w["meaning"] for w in drawn["words"]] == [""]
 
 
 def test_your_own_meaning_is_the_one_shown() -> None:

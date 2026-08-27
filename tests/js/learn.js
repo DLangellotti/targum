@@ -48,6 +48,9 @@ install({
     HOME: "he",
     order: (codes) => codes,
     current: () => "he",
+    // The switcher draws; the caller remembers. Both are asked for now.
+    set: () => {},
+    into: () => "",
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",
@@ -117,7 +120,17 @@ function words() {
     .children.filter((row) => !String(row.className).includes("editor-row"))
     .map((row) => {
       const cells = row.children.map((cell) => cell.textContent);
-      return { term: cells[0], lemma: cells[1], meaning: cells[2], well: cells[4] };
+      // The meaning's own language, which the cell has to carry: it is written in one
+      // language inside a page written in another.
+      const said = row.children[2] || {};
+      return {
+        term: cells[0],
+        lemma: cells[1],
+        meaning: cells[2],
+        lang: said.getAttribute ? said.getAttribute("lang") || "" : "",
+        dir: said.getAttribute ? said.getAttribute("dir") || "" : "",
+        well: cells[4],
+      };
     });
 }
 

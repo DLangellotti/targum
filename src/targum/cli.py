@@ -319,6 +319,64 @@ def admin(
 
 
 @app.command()
+def languages(
+    email: Annotated[str | None, typer.Argument(help="The address that reads it.")] = None,
+    language: Annotated[str | None, typer.Argument(help="The language, as a tag: ru.")] = None,
+    remove: Annotated[
+        bool, typer.Option("--remove", help="Take the language back from that address.")
+    ] = False,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Say which languages somebody reads well enough to be offered a translation into.
+
+    English is offered to everybody and does not have to be said. Anything else does,
+    because the cost of guessing is a reader handed a page in a language they cannot
+    read — and a definition in it following them around every text they own after that.
+
+    Marking somebody invites them too, for the reason making an admin does: a marking on
+    an address that cannot sign in is half of something nobody wants half of.
+
+    Taking a language back leaves what was built in it exactly where it is. It stops
+    being offered the next time that reader is written, so this rebuilds them.
+
+    With no arguments, lists who reads what.
+    """
+    from .accounts import Store
+    from .serve import default_store
+    from .translate.prompts import INTO, language_name
+
+    keeping = Store(store or default_store())
+
+    if email and language:
+        code = language.strip().lower()
+        offered = {one for one, _ in INTO}
+        if code not in offered:
+            names = ", ".join(f"{one} ({language_name(one)})" for one, _ in INTO)
+            fail(TargumError(f"targum translates into {names}.", f"{code} is not one of them."))
+        if remove:
+            gone = keeping.unreads(email, code)
+            said = f"[green]Removed[/green] {language_name(code)} from {email}"
+            console.print(said if gone else f"[dim]{email} was not marked {code}[/dim]")
+        else:
+            try:
+                marked = keeping.make_reads(email, code)
+            except ValueError as error:
+                fail(TargumError(str(error), "Try: targum languages someone@example.com ru"))
+            console.print(f"[green]{language_name(code)}[/green] {marked} [dim]— and invited[/dim]")
+        # A marking only reaches a reader when the file is written again, so write them.
+        rebuild()
+        return
+
+    marked_rows = keeping.readers_of()
+    if not marked_rows:
+        console.print("[dim]Nobody is marked. Everyone is offered English.[/dim]")
+        return
+    for address, code in marked_rows:
+        console.print(f"{address}  [dim]{language_name(code)}[/dim]")
+    console.print(f"[dim]{len(marked_rows)} marking(s). English is offered to everybody.[/dim]")
+
+
+@app.command()
 def usage(
     days: Annotated[
         int | None,
@@ -675,10 +733,10 @@ def repair(
         Annotation,
         Block,
         Document,
-        Glossary,
         SegmentedDocument,
         Translation,
         Vocalization,
+        glossaries_in,
         read_artifact,
     )
     from .render import render as render_reader
@@ -822,7 +880,7 @@ def repair(
                 translations,
                 folder / "reader",
                 annotation=read_artifact(Annotation, folder / "annotation.json"),
-                glossary=read_artifact(Glossary, folder / "glossary.json"),
+                glossaries=glossaries_in(folder),
                 vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
                 covers=root / "thumbs",
             )
@@ -856,10 +914,10 @@ def rebuild(
     from .models import (
         Annotation,
         Document,
-        Glossary,
         SegmentedDocument,
         Translation,
         Vocalization,
+        glossaries_in,
         read_artifact,
     )
     from .render import render as render_reader
@@ -867,6 +925,21 @@ def rebuild(
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
+
+    # Homes are named for the person whose they are — `p<id>`, or `local` for the shared
+    # signed-out one. Asked once per home rather than once per targum.
+    known: dict[str, list[str] | None] = {}
+
+    def reading_of(home: str) -> list[str] | None:
+        if home not in known:
+            from .accounts import Store
+            from .serve import default_store
+
+            where = default_store()
+            person = int(home[1:]) if home.startswith("p") and home[1:].isdigit() else 0
+            allowed = Store(where).reads_by_id(person) if person and where.exists() else None
+            known[home] = sorted(allowed) if allowed else None
+        return known[home]
 
     done = 0
     skipped: list[tuple[str, str]] = []
@@ -893,9 +966,13 @@ def rebuild(
             translations,
             folder / "reader",
             annotation=read_artifact(Annotation, folder / "annotation.json"),
-            glossary=read_artifact(Glossary, folder / "glossary.json"),
+            glossaries=glossaries_in(folder),
             vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
             covers=root / "thumbs",
+            # Which languages the person whose home this is reads. A reader is a file, so
+            # a marking only reaches one when the file is written again — which is what
+            # this command is, and why `targum languages` ends by running it.
+            reads=reading_of(folder.parent.name),
             # Written over rather than emptied first. This runs on a box with readers
             # open on it: the same segments produce the same section files under the
             # same names, so overwriting leaves nothing stale behind, and nobody has the

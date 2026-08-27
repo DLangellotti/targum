@@ -82,6 +82,7 @@
       document.getElementById("page").hidden = false;
 
       function show(code) {
+        lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
         shelf.draw(code, readers, { note: "Last read first." });
@@ -105,10 +106,21 @@
     document.getElementById("page").hidden = false;
 
     lists.mount({ languages: names });
+    // Picking another language for the meanings redraws the same rows with the other
+    // answer in them. The words themselves do not move: they are the same words.
+    lists.onMeaningLanguage(function () {
+      lists.draw(shown, charts.collect(charts.meaningLanguage(shown))[shown]);
+    });
+
+    var shown = "";
 
     function show(code) {
+      shown = code;
+      lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
-      lists.draw(code, data[code]);
+      // Re-collected rather than sliced out of `data`: which language the meanings are
+      // in is a question about the language being shown, and the answer changes with it.
+      lists.draw(code, charts.collect(charts.meaningLanguage(code))[code]);
     }
 
     show(lang.current(codes));

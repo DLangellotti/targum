@@ -297,7 +297,67 @@
     }
   }
 
-  function collect() {
+  /* What a word means, in whichever language the page is showing meanings in.
+   *
+   * A word belongs to a language and a meaning to a language pair, so these are two
+   * different stores and the word carries no meaning of its own. `into` is the target
+   * the page has been asked for; a word with nothing filed under that pair shows no
+   * meaning at all, which is the honest answer and is never the wrong language.
+   */
+  function base(code) {
+    return (code || "").split("-")[0].toLowerCase();
+  }
+
+  function meanings(source, into) {
+    return into ? read("targum:meanings:" + source + ":" + into, "{}") : {};
+  }
+
+  /* Which languages this reader has meanings in, for one source language, most recently
+   * written first. Derived rather than remembered: the records carry `seen`, so what she
+   * last read in is a fact the store already holds and not a preference to keep in step.
+   */
+  /* Which languages this reader may be shown definitions in, or null where nobody has
+   * ever signed in on this browser — which is not a restriction, it is an absence of one.
+   * Written by `sync.js` from the account, and read here rather than asked for, because
+   * a page that waited would draw the wrong thing first and correct it after.
+   */
+  function allowed() {
+    var said = null;
+    try {
+      said = JSON.parse(localStorage.getItem("targum:reads") || "null");
+    } catch (e) {}
+    return said && said.length ? said : null;
+  }
+
+  function targets(source) {
+    var mine = allowed();
+    var found = [];
+    for (var n = 0; n < localStorage.length; n++) {
+      var name = localStorage.key(n) || "";
+      var head = "targum:meanings:" + source + ":";
+      if (name.indexOf(head) !== 0) continue;
+      var records = read(name, "{}");
+      var last = 0;
+      var count = 0;
+      Object.keys(records).forEach(function (term) {
+        // Phrases are filed here too, under their own ids. The switcher is about
+        // languages, so it counts everything that has a meaning in one.
+        count += 1;
+        last = Math.max(last, Number((records[term] || {}).seen || 0));
+      });
+      var code = name.slice(head.length);
+      // A language the account does not read is not offered and not chosen. The meanings
+      // stay where they are — nothing here deletes anything — they are simply not an
+      // answer this reader can use.
+      if (mine && mine.indexOf(code) < 0) continue;
+      if (count) found.push({ code: code, count: count, last: last });
+    }
+    return found.sort(function (a, b) {
+      return b.last - a.last;
+    });
+  }
+
+  function collect(into) {
     var docs = read("targum:docs", "{}");
     // The index the reader writes now, and the one it wrote before. A phrase kept
     // before the change is only in the older one, and without this it has no language
@@ -322,13 +382,18 @@
       if (name.indexOf("targum:vocab:") === 0) {
         var code = name.slice("targum:vocab:".length);
         var vocab = read(name, "{}");
+        var said = meanings(code, into);
         Object.keys(vocab).forEach(function (lemma) {
           var item = vocab[lemma] || {};
+          var meant = said[lemma] || {};
           slot(code).words.push({
             lemma: lemma,
             term: item.surface || lemma,
-            meaning: item.meaning || "",
-            note: item.note || "",
+            meaning: meant.meaning || "",
+            note: meant.note || "",
+            // Which language the two above are written in, so the page can mark them up
+            // as what they are rather than leaving Russian inside an English page.
+            into: into || "",
             band: item.band || "",
             status: item.status,
             // Named here or dropped here. This is the third list of field names a word
@@ -345,15 +410,18 @@
         var doc = about(hash);
         if (!doc.language) continue;
         var segments = read(name, "{}");
+        var read_as = meanings(base(doc.language), into);
         Object.keys(segments).forEach(function (segmentId) {
           (segments[segmentId] || []).forEach(function (pick) {
+            var meant = (pick.id && read_as["phrase:" + pick.id]) || {};
             slot(doc.language).phrases.push({
               store: name,
               segmentId: segmentId,
               index: (segments[segmentId] || []).indexOf(pick),
               term: pick.text || "",
-              meaning: pick.meaning || "",
-              note: pick.note || "",
+              meaning: meant.meaning || "",
+              note: meant.note || "",
+              into: into || "",
               status: pick.status === undefined ? null : pick.status,
               title: doc.title || "a text",
               at: pick.at || 0,
@@ -405,8 +473,24 @@
     return count;
   }
 
+  /* Which language to show meanings in, for one source language.
+   *
+   * A choice the reader made wins, where they have meanings in it at all; failing that,
+   * the language they last read in. Derived rather than stored, so a new device is right
+   * the moment the account arrives rather than after the reader finds a setting.
+   */
+  function meaningLanguage(source) {
+    var have = targets(base(source));
+    if (!have.length) return "";
+    var chosen = window.TargumLang && window.TargumLang.into();
+    for (var n = 0; n < have.length; n++) if (have[n].code === chosen) return chosen;
+    return have[0].code;
+  }
+
   window.TargumCharts = {
     el: el,
+    targets: targets,
+    meaningLanguage: meaningLanguage,
     kept: kept,
     KNOWN: KNOWN,
     svg: svg,
