@@ -55,21 +55,33 @@
     return codes[0] || HOME;
   }
 
-  /* Which languages the reading pages will show at all. One, for now.
+  /* Which languages the reading pages will show at all: the ones the account says are
+   * being learned.
    *
    * Everything those pages are made of is Hebrew: the difficulty bands, the word levels,
-   * the ulpan rungs. A Russian view of them was the same page with most of it missing and
-   * a switcher inviting you into it. Nothing is deleted by this — the words are still in
-   * the store and still sync — they are simply not offered until the rest catches up.
-   *
-   * To offer a language again, add its code here. Nothing else has to change: the
-   * switcher draws itself for two and hides itself for one.
+   * the ulpan rungs. A Yiddish view of them is the same page with most of it missing, and
+   * it is offered only to somebody who ticked Yiddish on their profile and was told there
+   * that it is experimental. `sync.js` mirrors that answer into `targum:learning`, and
+   * this reads it rather than waiting for it. Absent — signed out, or before the account
+   * has answered — means Hebrew alone. Nothing is deleted by any of this: the words are
+   * still in the store and still sync; they are simply not offered.
    */
+  var LEARNING = "targum:learning";
   var SHOWN = [HOME];
 
+  function learning() {
+    try {
+      var said = JSON.parse(localStorage.getItem(LEARNING) || "null");
+      return said && said.length ? said : SHOWN;
+    } catch (e) {
+      return SHOWN;
+    }
+  }
+
   function offered(codes) {
+    var shown = learning();
     return codes.filter(function (code) {
-      return SHOWN.indexOf((code || "").split("-")[0].toLowerCase()) >= 0;
+      return shown.indexOf((code || "").split("-")[0].toLowerCase()) >= 0;
     });
   }
 

@@ -319,64 +319,6 @@ def admin(
 
 
 @app.command()
-def languages(
-    email: Annotated[str | None, typer.Argument(help="The address that reads it.")] = None,
-    language: Annotated[str | None, typer.Argument(help="The language, as a tag: ru.")] = None,
-    remove: Annotated[
-        bool, typer.Option("--remove", help="Take the language back from that address.")
-    ] = False,
-    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
-) -> None:
-    """Say which languages somebody reads well enough to be offered a translation into.
-
-    English is offered to everybody and does not have to be said. Anything else does,
-    because the cost of guessing is a reader handed a page in a language they cannot
-    read — and a definition in it following them around every text they own after that.
-
-    Marking somebody invites them too, for the reason making an admin does: a marking on
-    an address that cannot sign in is half of something nobody wants half of.
-
-    Taking a language back leaves what was built in it exactly where it is. It stops
-    being offered the next time that reader is written, so this rebuilds them.
-
-    With no arguments, lists who reads what.
-    """
-    from .accounts import Store
-    from .serve import default_store
-    from .translate.prompts import INTO, language_name
-
-    keeping = Store(store or default_store())
-
-    if email and language:
-        code = language.strip().lower()
-        offered = {one for one, _ in INTO}
-        if code not in offered:
-            names = ", ".join(f"{one} ({language_name(one)})" for one, _ in INTO)
-            fail(TargumError(f"targum translates into {names}.", f"{code} is not one of them."))
-        if remove:
-            gone = keeping.unreads(email, code)
-            said = f"[green]Removed[/green] {language_name(code)} from {email}"
-            console.print(said if gone else f"[dim]{email} was not marked {code}[/dim]")
-        else:
-            try:
-                marked = keeping.make_reads(email, code)
-            except ValueError as error:
-                fail(TargumError(str(error), "Try: targum languages someone@example.com ru"))
-            console.print(f"[green]{language_name(code)}[/green] {marked} [dim]— and invited[/dim]")
-        # A marking only reaches a reader when the file is written again, so write them.
-        rebuild()
-        return
-
-    marked_rows = keeping.readers_of()
-    if not marked_rows:
-        console.print("[dim]Nobody is marked. Everyone is offered English.[/dim]")
-        return
-    for address, code in marked_rows:
-        console.print(f"{address}  [dim]{language_name(code)}[/dim]")
-    console.print(f"[dim]{len(marked_rows)} marking(s). English is offered to everybody.[/dim]")
-
-
-@app.command()
 def usage(
     days: Annotated[
         int | None,
@@ -897,6 +839,76 @@ def repair(
     )
 
 
+def rebuild_one(
+    folder: Path, *, reads: list[str] | None, covers: Path
+) -> tuple[str, int] | tuple[None, str]:
+    """Rewrite one reader from the artifacts beside it.
+
+    Returns the title and how many files were written, or `(None, why)` where there
+    was nothing to write: a folder with no text, or one that was priced and never
+    paid for. Nothing is fetched and nothing is spent.
+    """
+    from .models import (
+        Annotation,
+        Document,
+        SegmentedDocument,
+        Translation,
+        Vocalization,
+        glossaries_in,
+        read_artifact,
+    )
+    from .render import render as render_reader
+
+    document = read_artifact(Document, folder / "document.json")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if document is None or segmented is None:
+        return None, "no text on disk"
+    translations = [
+        translation
+        for path in sorted((folder / "translations").glob("*.json"))
+        if (translation := read_artifact(Translation, path)) is not None
+    ]
+    if not translations:
+        # Ingested and priced, then never paid for. There is nothing to read.
+        return None, "never translated"
+    pages = render_reader(
+        document,
+        segmented,
+        translations,
+        folder / "reader",
+        annotation=read_artifact(Annotation, folder / "annotation.json"),
+        glossaries=glossaries_in(folder),
+        vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+        covers=covers,
+        # Which languages the person whose reader this is reads. A reader is a file, so
+        # a change to that only reaches one when the file is written again — which is
+        # what this is, and why the profile page ends by running it.
+        reads=reads,
+        # Written over rather than emptied first. This runs on a box with readers
+        # open on it: the same segments produce the same section files under the
+        # same names, so overwriting leaves nothing stale behind, and nobody has the
+        # page they are reading deleted from under them for the moment it takes to
+        # write the new one. A release that changed how sections are split would
+        # leave the extra files of the old split behind, which is the trade.
+        clean=False,
+    )
+    return document.title or folder.name, len(pages)
+
+
+def rebuild_home(home: Path, *, reads: list[str] | None) -> int:
+    """Every reader in one person's home, for the server to call when what they read
+    changes. Quiet: nobody is at a terminal to read a line per text."""
+    done = 0
+    if not home.is_dir():
+        return 0
+    for folder in sorted(child for child in home.iterdir() if child.is_dir()):
+        if folder.name == "uploads":
+            continue
+        title, _ = rebuild_one(folder, reads=reads, covers=home.parent / "thumbs")
+        done += title is not None
+    return done
+
+
 @app.command()
 def rebuild(
     out: Annotated[
@@ -911,17 +923,6 @@ def rebuild(
     them all from the artifacts beside them: nothing is fetched and nothing is spent,
     and anything the reader has learned to do since arrives in the ones you already have.
     """
-    from .models import (
-        Annotation,
-        Document,
-        SegmentedDocument,
-        Translation,
-        Vocalization,
-        glossaries_in,
-        read_artifact,
-    )
-    from .render import render as render_reader
-
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
@@ -937,7 +938,7 @@ def rebuild(
 
             where = default_store()
             person = int(home[1:]) if home.startswith("p") and home[1:].isdigit() else 0
-            allowed = Store(where).reads_by_id(person) if person and where.exists() else None
+            allowed = Store(where).reads(person) if person and where.exists() else None
             known[home] = sorted(allowed) if allowed else None
         return known[home]
 
@@ -946,46 +947,14 @@ def rebuild(
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
-        document = read_artifact(Document, folder / "document.json")
-        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-        if document is None or segmented is None:
-            skipped.append((folder.name, "no text on disk"))
-            continue
-        translations = [
-            translation
-            for path in sorted((folder / "translations").glob("*.json"))
-            if (translation := read_artifact(Translation, path)) is not None
-        ]
-        if not translations:
-            # Ingested and priced, then never paid for. There is nothing to read.
-            skipped.append((folder.name, "never translated"))
-            continue
-        pages = render_reader(
-            document,
-            segmented,
-            translations,
-            folder / "reader",
-            annotation=read_artifact(Annotation, folder / "annotation.json"),
-            glossaries=glossaries_in(folder),
-            vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
-            covers=root / "thumbs",
-            # Which languages the person whose home this is reads. A reader is a file, so
-            # a marking only reaches one when the file is written again — which is what
-            # this command is, and why `targum languages` ends by running it.
-            reads=reading_of(folder.parent.name),
-            # Written over rather than emptied first. This runs on a box with readers
-            # open on it: the same segments produce the same section files under the
-            # same names, so overwriting leaves nothing stale behind, and nobody has the
-            # page they are reading deleted from under them for the moment it takes to
-            # write the new one. A release that changed how sections are split would
-            # leave the extra files of the old split behind, which is the trade.
-            clean=False,
+        title, outcome = rebuild_one(
+            folder, reads=reading_of(folder.parent.name), covers=root / "thumbs"
         )
+        if title is None:
+            skipped.append((folder.name, str(outcome)))
+            continue
         done += 1
-        console.print(
-            f"[dim]  {document.title or folder.name} ({len(pages)} file"
-            f"{'' if len(pages) == 1 else 's'})[/dim]"
-        )
+        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'})[/dim]")
 
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")

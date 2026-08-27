@@ -310,7 +310,7 @@ def add_page(token: str, no_key: str = "") -> str:
     refused with — and it matters more here than it used to, this now being the only page
     that spends anything.
     """
-    from ..translate.prompts import INTO, OFFERED, READING, language_name, stage_label
+    from ..translate.prompts import INTO, OFFERED, READING, language_name
 
     return (
         _environment()
@@ -319,28 +319,22 @@ def add_page(token: str, no_key: str = "") -> str:
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
-            reading=[
-                {
-                    "code": code,
-                    "name": language_name(code),
-                    "stage": stage,
-                    "label": stage_label(stage),
-                }
-                for code, stage in READING
-            ],
-            into=[
-                {
-                    "code": code,
-                    "name": language_name(code),
-                    "stage": stage,
-                    "label": stage_label(stage),
-                }
-                for code, stage in INTO
-            ],
+            reading=_staged(READING),
+            into=_staged(INTO),
             no_key=no_key,
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )
+
+
+def _staged(pairs: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
+    """A language list with its stage beside each, for a page to draw a picker from."""
+    from ..translate.prompts import language_name, stage_label
+
+    return [
+        {"code": code, "name": language_name(code), "stage": stage, "label": stage_label(stage)}
+        for code, stage in pairs
+    ]
 
 
 def about_page() -> str:
@@ -466,9 +460,21 @@ def you_page(token: str) -> str:
 
     Built like the other app pages: the server hands over the page and the browser asks
     who is looking. Nothing about a person is baked into it, so one page serves everyone
-    and a signed-out visitor gets a sentence rather than an empty form.
+    and a signed-out visitor gets a sentence rather than an empty form. The languages
+    are baked in: which exist is a fact about targum, not about the person.
     """
-    return _environment().get_template("you.html.j2").render(token=token)
+    from ..translate.prompts import INTO, READING, REQUIRED_LEARNING
+
+    return (
+        _environment()
+        .get_template("you.html.j2")
+        .render(
+            token=token,
+            reading=_staged(READING),
+            into=_staged(INTO),
+            required=list(REQUIRED_LEARNING),
+        )
+    )
 
 
 def library_page(token: str) -> str:

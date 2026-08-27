@@ -2,9 +2,9 @@
  *
  *   node tests/js/you.js payload.json
  *
- * The page draws who is signed in and holds the two controls that end an account. Both
- * are things that are either wrong quietly or wrong forever, which is why the script is
- * run rather than read.
+ * The page draws who is signed in, which languages they are learning and read into, and
+ * holds the two controls that end an account. All of these are things that are either
+ * wrong quietly or wrong forever, which is why the script is run rather than read.
  *
  * The payload carries the answer `/account/me` should give and a list of things to do
  * to the page afterwards. What comes back is what was drawn and what was posted.
@@ -24,6 +24,17 @@ const restarted = { count: 0, signedOut: 0 };
 
 install({
   TARGUM_KEY: "k",
+  // What the page is built with: every language targum has, and which stay on.
+  TARGUM_READING: [
+    { code: "he", name: "Hebrew", stage: "alpha", label: "alpha" },
+    { code: "arc", name: "Aramaic", stage: "R&D", label: "Experimental" },
+    { code: "yi", name: "Yiddish", stage: "R&D", label: "Experimental" },
+  ],
+  TARGUM_INTO: [
+    { code: "en", name: "English", stage: "alpha", label: "alpha" },
+    { code: "ru", name: "Russian", stage: "beta", label: "Experimental" },
+  ],
+  TARGUM_REQUIRED: ["he"],
   TargumSync: {
     start: () => restarted.count++,
     signOut: () => {
@@ -47,6 +58,19 @@ require(path.join(assets, "you.js"));
 
 const at = (id) => byId[id] || { textContent: "", value: "", hidden: true, children: [] };
 
+/** The tick boxes in one list, as a person would read them. */
+function ticks(id) {
+  return at(id).children.map((label) => {
+    const box = label.children[0];
+    return {
+      code: box.value,
+      on: box.checked,
+      fixed: box.disabled,
+      experimental: label.children.some((child) => child.className === "beta"),
+    };
+  });
+}
+
 /** Do something to the page, the way a person would. */
 function act(step) {
   if (step.type === "name") {
@@ -54,11 +78,15 @@ function act(step) {
     at("you-name").fire("input", {});
   } else if (step.type === "press") {
     at(step.id).fire("click", {});
+  } else if (step.type === "tick") {
+    const box = at(step.list).children.map((label) => label.children[0]).find((one) => one.value === step.code);
+    box.checked = !box.checked;
+    box.fire("change", {});
   }
 }
 
 /* Two beats: one for the fetch that draws the page, one for the debounce on the name
-   field, which is the whole reason a keystroke is not a request. */
+   field and the tick boxes, which is the whole reason a keystroke is not a request. */
 setTimeout(() => {
   (payload.do || []).forEach(act);
   setTimeout(() => {
@@ -67,6 +95,7 @@ setTimeout(() => {
         stranger: at("stranger").hidden,
         panels: {
           who: at("who").hidden,
+          languages: at("languages").hidden,
           reading: at("reading").hidden,
           ending: at("ending").hidden,
         },
@@ -74,7 +103,13 @@ setTimeout(() => {
         email: at("you-email").textContent,
         avatar: at("you-avatar").textContent,
         kept: at("you-kept").textContent,
+        learning: ticks("you-learning"),
+        reads: ticks("you-reads"),
         said: { text: at("you-said").textContent, hidden: at("you-said").hidden },
+        languagesSaid: {
+          text: at("you-languages-said").textContent,
+          hidden: at("you-languages-said").hidden,
+        },
         ending: { text: at("you-ending-said").textContent, hidden: at("you-ending-said").hidden },
         forget: { label: at("you-forget").textContent, disabled: at("you-forget").disabled },
         posted,
