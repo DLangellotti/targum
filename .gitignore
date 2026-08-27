@@ -29,3 +29,6 @@ Targum.command
 
 # Claude Code session checkpoints
 .claude/
+
+# Filled-in copy of targum.env.example, for scp to the box. Never committed.
+deploy/targum.env
