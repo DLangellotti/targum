@@ -242,9 +242,15 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
-            # Enough of the catalogue to suggest the next thing to read, and no more: an
-            # id to link to, a title and a line about it, and the two numbers that say
-            # whether it is the right size and the right difficulty for this reader.
+            # Enough of the catalogue to suggest the next thing to read and then to
+            # build it: a title and a line about it, the two numbers that say whether it
+            # is the right size and the right difficulty for this reader, and what a
+            # build is started from. The last two are here because the suggestion is
+            # taken up on this page — it used to be a link to the catalogue, and a page
+            # that can only point at a text has to send the reader somewhere to act.
+            #
+            # Sources rather than whole translation records: `/prepare` wants a list of
+            # them and the page has no use for a publisher or a licence it never shows.
             catalogue=[
                 {
                     "id": entry.id,
@@ -253,6 +259,8 @@ def learn_page(token: str) -> str:
                     "blurb": entry.blurb,
                     "difficulty": entry.difficulty,
                     "minutes": entry.minutes,
+                    "source": entry.source,
+                    "translations": [t.source for t in entry.translations],
                 }
                 for entry in CATALOGUE
             ],
