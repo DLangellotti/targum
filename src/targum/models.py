@@ -199,6 +199,38 @@ class Glossary(Artifact):
     parts_of_speech: dict[str, str] = Field(default_factory=dict)
 
 
+def glossary_path(folder: Path, target: str) -> Path:
+    """Where a text's meanings for one target language live.
+
+    Named for the pair, the way a translation already is
+    (`{provider}.{style}.{lang}.json`) and the way the standalone `gloss` command already
+    writes one. It was `glossary.json`, with nothing in the name to say which language it
+    was written in — so building a text into Russian wrote over its English meanings in
+    place, and the reader then handed Russian to whoever asked for English.
+    """
+    return folder / f"glossary.{target}.json"
+
+
+def glossaries_in(folder: Path) -> dict[str, Glossary]:
+    """Every glossary a build folder holds, by target language.
+
+    A `glossary.json` with no language in its name is one written before the name carried
+    the language, and it is read rather than ignored — the artifact has always recorded
+    its own `target_language`, so nothing has to be guessed and no file has to be
+    renamed. That is what keeps this from being a migration.
+    """
+    found: dict[str, Glossary] = {}
+    legacy = read_artifact(Glossary, folder / "glossary.json")
+    if legacy is not None:
+        found[legacy.target_language or "en"] = legacy
+    for path in sorted(folder.glob("glossary.*.json")):
+        book = read_artifact(Glossary, path)
+        if book is not None:
+            # The name is the fallback, not the answer: the file says what it is.
+            found[book.target_language or path.stem.rsplit(".", 1)[-1]] = book
+    return found
+
+
 class Link(Artifact):
     """One pairing between source segments and target segments.
 

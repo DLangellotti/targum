@@ -396,13 +396,19 @@ main {
 body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 
 /* The pairing has to be visible, or a learner cannot trust it. */
-.pair:hover, .pair:focus-visible { background: var(--paper-raised); }
+.pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
 .pair:focus-visible { box-shadow: inset 0 0 0 1px var(--focus); }
+
+/* `.here` is the sentence the page is holding a place in — put back after a change of
+   mode, or given back on opening a text that was left half-read. Deliberately the same
+   band the pointer draws rather than a mark of its own: a reader already reads that band
+   as "this one", and a new colour for the same meaning is a second thing to learn. It is
+   the one raised layer §9 allows, and it goes when the reader scrolls off it. */
 
 .pair p { margin: 0; }
 .src { max-width: var(--measure); }
 .tr { max-width: var(--measure); color: var(--ink-soft); }
-.pair:hover .tr, .pair:focus-visible .tr { color: var(--ink); }
+.pair:hover .tr, .pair:focus-visible .tr, .pair.here .tr { color: var(--ink); }
 
 /* A title and its translation sit side by side like any other pair, but read as a
    heading. Only the source keeps heading semantics, so a table of contents built from
@@ -605,6 +611,24 @@ body:not(.no-hover) .w:hover {
 .w.queued {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+
+/* The word the place is in, after the page has moved under the reader. It has to be
+   findable in a paragraph at a glance, and the accent cannot do it: §4 caps the wash at
+   22%, which is what the look-up highlight already spends, so a brighter one would mean
+   breaking the cap or inventing a hue. §8 already names the treatment for "this is the
+   one you picked" — selection is ink-soft with paper text — and it is the loudest thing
+   in the system short of inverting a whole block.
+   Twice over, because `body.marking .w:not([data-status])` is a more particular selector
+   than a class on the word, and a never-met word would otherwise keep its accent wash
+   over the top of this. */
+body.marking .w.here,
+.w.here {
+  background: var(--ink-soft);
+  color: var(--paper);
+  /* Clears the look-up ring and the underline a marked word carries: this is one flat
+     chip, not a chip with somebody else's edges on it. */
+  box-shadow: none;
 }
 
 /* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute
