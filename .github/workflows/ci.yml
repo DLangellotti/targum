@@ -35,3 +35,19 @@ jobs:
       # Provider calls run against recorded fakes; tests needing a downloaded
       # language model, the network, or the aligner benchmark skip themselves.
       - run: uv run pytest -q
+
+  # Its own job, and not in the matrix above: the reader in a browser is the same reader
+  # on both Pythons, and Chromium is ~100 MB that neither leg should pay for twice. The
+  # checks job installs no browser, so `tests/test_reader_browser.py` skips itself there
+  # — which is also what a working copy without the extra does.
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra browser
+      # `--with-deps` because a bare runner has none of the shared libraries Chromium
+      # links against, and the failure without it is a loader error rather than a
+      # missing browser.
+      - run: uv run playwright install --with-deps chromium
+      - run: uv run pytest tests/test_reader_browser.py -q

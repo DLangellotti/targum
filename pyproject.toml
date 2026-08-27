@@ -37,6 +37,11 @@ difficulty = ["wordfreq>=3.1"]
 # otherwise supports. Without it a text is built with no readings and says so in the
 # annotator's name, so installing it later re-reads every book already on the shelf.
 phonetics = ["phonikud>=0.4"]
+# The reader in a real browser. Out of the default install because it is a browser: the
+# wheel on the box has no use for one, and `playwright install chromium` is a second
+# step and a few hundred megabytes. Without it `tests/test_reader_browser.py` skips
+# itself, the way the node tests skip without node.
+browser = ["playwright>=1.44"]
 
 [project.urls]
 Homepage = "https://github.com/DLangellotti/targum"
