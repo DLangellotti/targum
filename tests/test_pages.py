@@ -196,6 +196,18 @@ def test_the_growth_chart_is_defined_once() -> None:
         assert "function drawGrowth(" not in source, f"{page} should use the shared one"
 
 
+def baked(name: str) -> str:
+    """A script as the page actually carries it, not as the file reads.
+
+    Every asset is inlined with its comments taken out, and these files open with one —
+    so a fingerprint cut from the raw source finds nothing in the page, and a test that
+    cuts one is testing the stripper rather than the ordering it means to check.
+    """
+    from targum.render.builder import _strip
+
+    return _strip(name, (ASSETS / name).read_text(encoding="utf-8"))
+
+
 @pytest.mark.parametrize("page", ["progress", "learn"])
 def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
     """The first version of this said `"charts.js" in html or "TargumCharts" in html`,
@@ -203,10 +215,10 @@ def test_a_page_that_draws_charts_loads_them_first(page: str) -> None:
     shipped without charts.js at all and the assertion stayed green. Look for the
     definition, not the name."""
     html = PAGES[page]
-    charts = (ASSETS / "charts.js").read_text(encoding="utf-8")
+    charts = baked("charts.js")
     body = charts[charts.index("window.TargumCharts =") :][:80]
     assert body in html, f"{page} does not inline charts.js"
-    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    own = baked(f"{page}.js")[:200]
     assert html.index(body) < html.index(own), "and before the page that uses them"
 
 
@@ -457,10 +469,10 @@ def test_the_cover_tile_is_defined_once() -> None:
 @pytest.mark.parametrize("page", ["library", "learn"])
 def test_a_page_that_draws_covers_loads_them_first(page: str) -> None:
     html = PAGES[page]
-    covers = (ASSETS / "covers.js").read_text(encoding="utf-8")
+    covers = baked("covers.js")
     body = covers[covers.index("function tile(") :][:60]
     assert body in html, f"{page} does not inline covers.js"
-    own = (ASSETS / f"{page}.js").read_text(encoding="utf-8")[:200]
+    own = baked(f"{page}.js")[:200]
     assert html.index(body) < html.index(own), "and before the page that uses it"
 
 
