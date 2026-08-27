@@ -170,6 +170,10 @@ function install(globals) {
     };
   };
   global.location = { reload: () => {}, href: "", search: "", hash: "", pathname: "/" };
+  /* The same object under both names. A page reaches for `window.location` as often as
+     the bare one — sending somebody to a built reader is `window.location.href = …` —
+     and a stub that only had the bare one threw there rather than recording it. */
+  global.window.location = global.location;
   return byId;
 }
 

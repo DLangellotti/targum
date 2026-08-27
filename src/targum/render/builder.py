@@ -136,9 +136,75 @@ def _environment() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["isolate"] = isolate
-    env.globals["asset"] = lambda name: Markup((ASSETS / name).read_text(encoding="utf-8"))
+    env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     return env
+
+
+def _strip(name: str, text: str) -> str:
+    """An asset with its comments taken out, for baking into a page.
+
+    The comments in these files are for whoever reads them here, and a reader carries
+    its whole stylesheet and script inlined — so every one of them is paid for again on
+    every page, and a book of 151 chapters is 151 copies. Across the set they are 30% of
+    what gets baked in: 129 kB a page before compression, and near a megabyte on disk
+    per book. The source keeps them; the page does not need them.
+
+    Whole lines only, and nothing is ever joined. Two things follow from that, and both
+    are the reason this is thirty lines rather than a dependency:
+
+    * A comment that opens a line cannot be inside a string, because no asset carries a
+      template literal that spans a line — `test_render.py` holds that to be true rather
+      than trusting it, since the day one appears this would quietly eat it.
+    * Because every removal takes a whole line, nothing that stood on two lines ends up
+      on one, so JavaScript's semicolon insertion sees exactly what it saw before.
+
+    Trailing comments are left alone. Telling `//` in code from `//` inside a string or
+    a regular expression needs a parser, and there are 78 bytes of them in the whole set.
+    """
+    js = name.endswith(".js")
+    kept: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        bare = line.strip()
+        if inside:
+            if "*/" not in bare:
+                continue
+            inside = False
+            rest = line.split("*/", 1)[1]
+            if rest.strip():
+                kept.append(rest)
+            continue
+        if not bare:
+            continue
+        if js and bare.startswith("//"):
+            continue
+        if bare.startswith("/*"):
+            head = line.split("/*", 1)[1]
+            if "*/" not in head:
+                inside = True
+                continue
+            rest = head.split("*/", 1)[1]
+            if rest.strip():
+                kept.append(rest)
+            continue
+        kept.append(line)
+    if inside:
+        # Loud, because the alternative is a page missing the second half of its script.
+        raise ValueError(f"{name}: a block comment is never closed")
+    return "\n".join(kept) + "\n"
+
+
+@cache
+def _asset(name: str) -> Markup:
+    """One stylesheet or script, ready to bake in.
+
+    Cached like `_data_uri` and for the same reason: the same two files are asked for on
+    every page of every section, and rewriting a book asks 151 times. The cost is that a
+    running `targum serve` reads each asset once — editing one while it is up needs a
+    restart to see it.
+    """
+    return Markup(_strip(name, (ASSETS / name).read_text(encoding="utf-8")))
 
 
 @cache
@@ -176,9 +242,15 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
-            # Enough of the catalogue to suggest the next thing to read, and no more: an
-            # id to link to, a title and a line about it, and the two numbers that say
-            # whether it is the right size and the right difficulty for this reader.
+            # Enough of the catalogue to suggest the next thing to read and then to
+            # build it: a title and a line about it, the two numbers that say whether it
+            # is the right size and the right difficulty for this reader, and what a
+            # build is started from. The last two are here because the suggestion is
+            # taken up on this page — it used to be a link to the catalogue, and a page
+            # that can only point at a text has to send the reader somewhere to act.
+            #
+            # Sources rather than whole translation records: `/prepare` wants a list of
+            # them and the page has no use for a publisher or a licence it never shows.
             catalogue=[
                 {
                     "id": entry.id,
@@ -187,6 +259,8 @@ def learn_page(token: str) -> str:
                     "blurb": entry.blurb,
                     "difficulty": entry.difficulty,
                     "minutes": entry.minutes,
+                    "source": entry.source,
+                    "translations": [t.source for t in entry.translations],
                 }
                 for entry in CATALOGUE
             ],

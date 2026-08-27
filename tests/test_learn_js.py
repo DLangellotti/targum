@@ -259,20 +259,25 @@ def test_nothing_offers_an_export_to_a_browser_with_no_account() -> None:
     assert drawn["exports"] == {"words": True, "phrases": True}, "hidden, both of them"
 
 
-def test_the_card_and_every_step_beside_it_is_one_whole_link() -> None:
+def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     """A card with a link in the corner asks a reader to aim at it. The whole card takes
-    the click, which also means no anchor inside an anchor — and every row of the list
-    beside it is a link too, rather than a line of text with one in it."""
+    the click, which also means nothing focusable inside anything focusable — and every
+    row of the list beside it is a link too, rather than a line of text with one in it.
+
+    The suggestion is a button rather than a link because it acts rather than goes: one
+    press builds the text and lands you in it. Same card, same whole-box target."""
     from pathlib import Path
 
     page = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
     ).read_text(encoding="utf-8")
     top = page[page.index('<div class="doors">') : page.index('id="shelf-panel"')]
-    assert top.count('<a class="door') == 2, "carrying on and the suggestion, one link each"
+    assert top.count('<a class="door') == 1, "carrying on is a link: it goes to a reader"
+    assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
     assert top.count('<a class="step"') == 3, "the library, the upload and the progress"
     assert 'id="suggest"' in top, "and the suggestion is only there when there is one"
-    assert "<h2><a " not in top, "no heading is a link; the row around it is"
+    assert "<h2><a " not in top, "no heading is a link; the box around it is"
+    assert "<h2><button" not in top
     assert 'id="carry-cover"' in top and '<a class="carry-cover' not in top
 
 
@@ -364,11 +369,15 @@ def entry(id: str, title: str, difficulty: int, minutes: int = 30, **extra: Any)
     return row
 
 
+#: `source` and `translations` because the suggestion is taken up on this page rather
+#: than somewhere else: pressing the card starts a build, and a build is started from
+#: those two. The page carries the translations already reduced to their sources, which
+#: is the shape `/prepare` wants.
 CATALOGUE = [
-    entry("easy", "קל", 16, minutes=10),
-    entry("middling", "בינוני", 24),
-    entry("harder", "קשה", 32),
-    entry("hardest", "הקשה", 40),
+    entry("easy", "קל", 16, minutes=10, source="s:easy", translations=["t:easy"]),
+    entry("middling", "בינוני", 24, source="s:middling", translations=["t:mid"]),
+    entry("harder", "קשה", 32, source="s:harder", translations=["t:hard", "t:hard2"]),
+    entry("hardest", "הקשה", 40, source="s:hardest", translations=[]),
 ]
 
 
@@ -380,7 +389,7 @@ def test_a_reader_with_no_texts_is_pointed_at_the_easiest_thing() -> None:
     drawn = draw([], vocabulary(word("ספר", "book", status=2)), catalogue=CATALOGUE)
     assert drawn["suggested"]["title"] == "קל"
     assert drawn["suggested"]["why"] == "Where most people start · 10 min"
-    assert drawn["suggested"]["href"].endswith("#easy"), "and it opens that row"
+    assert drawn["suggested"]["entry"] == "easy", "and pressing it would build that one"
 
 
 def test_the_suggestion_is_a_step_up_from_the_hardest_thing_read() -> None:
@@ -429,3 +438,56 @@ def test_the_suggestion_is_a_card_with_a_picture_and_a_reason() -> None:
     assert drawn["suggested"]["blurb"] == "A hundred and fifty of them."
     assert drawn["suggested"]["cover"] is not None, "the same tile the shelf draws"
     assert drawn["suggested"]["cover"]["letter"] == "ת", "or the text's own first letter"
+
+
+def test_pressing_the_suggestion_builds_the_text_it_offered() -> None:
+    """The card acts rather than pointing somewhere.
+
+    It used to be a link to the catalogue with this text outlined somewhere in it, which
+    handed back the choice that had just been made for the reader — and the outline was
+    lost altogether whenever the library had a filter remembered from last time.
+
+    What is asserted is which text was sent. A card offering one book and building its
+    neighbour would be unnoticeable, and expensive.
+    """
+    shelf = [reader("a", "א", difficulty=28)]
+    drawn = draw(shelf, catalogue=CATALOGUE, do=[{"press": "suggest"}])
+
+    assert drawn["suggested"]["entry"] == "harder", "the easiest one harder than 28"
+    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
+    assert len(started) == 1, "one press, one build"
+    assert started[0]["body"]["source"] == "s:harder"
+    assert started[0]["body"]["from"] == "he"
+    # Every published translation, not the first. The reader switches between them, so a
+    # build that sent one would quietly halve what the finished text offers.
+    assert started[0]["body"]["translations"] == ["t:hard", "t:hard2"]
+
+
+def test_a_text_nobody_has_translated_is_still_built() -> None:
+    """Most of the catalogue has a published translation and some of it does not. The
+    build is the same call either way — an empty list, not a missing key, which is what
+    `/prepare` reads to mean there is nothing to line up against."""
+    drawn = draw(
+        [reader("a", "א", difficulty=28)],
+        catalogue=[CATALOGUE[3]],
+        do=[{"press": "suggest"}],
+    )
+    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
+    assert started[0]["body"]["source"] == "s:hardest"
+    assert started[0]["body"]["translations"] == []
+
+
+def test_the_card_says_what_it_is_doing_and_cannot_be_pressed_twice() -> None:
+    """A build takes minutes. The line that said why the text was suggested has done its
+    job by then, so it is where the build narrates — and a card that stayed pressable
+    would start a second build over the first, which costs twice."""
+    drawn = draw(
+        [reader("a", "א", difficulty=28)],
+        catalogue=CATALOGUE,
+        do=[{"press": "suggest"}, {"press": "suggest"}, {"press": "suggest"}],
+    )
+    assert drawn["suggested"]["why"] != "", "it says something"
+    assert not drawn["suggested"]["why"].startswith("A step up"), "and it is not the reason"
+    assert drawn["suggested"]["disabled"] is True
+    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
+    assert len(started) == 1, "three presses, one build"

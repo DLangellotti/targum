@@ -1219,10 +1219,14 @@
   }
 
   function showList(open, remembered) {
+    // On a wide window the list takes a column of the width from the page rather than
+    // covering it, so opening one re-wraps every line above the reader as well as below.
+    var held = open === body.classList.contains("list-open") ? null : hold();
     if (remembered !== false) prefs.list = open;
     if (listBox) listBox.hidden = !open;
     if (listTab) listTab.hidden = open;
     body.classList.toggle("list-open", open);
+    keep(held);
     if (remembered !== false) save();
   }
 
@@ -2077,6 +2081,108 @@
     return LEADINGS[0];
   }
 
+  /* --- keeping your place -------------------------------------------------- */
+
+  // A scroll position is a pixel offset from the top of the document, and each of the
+  // controls on the bar sets the same chapter at a different height: interlinear gives
+  // every pair a line of translation and a blank line after it, source takes both away,
+  // larger type takes more room per line, the list takes a column of the width. Keep the
+  // offset across a change like that and you have kept a place in the document that has
+  // nothing to do with the sentence you were reading — the taller layout carries you
+  // backwards, the shorter one carries you on, and the further into a chapter you are the
+  // further off it lands. What has to be held is the sentence; the offset is worked out
+  // again from wherever the sentence has gone.
+  //
+  // Held before the change and given back after it, by every control that re-lays the
+  // text out. `settle` fades the page over the difference, so what a reader sees is the
+  // same words in a new shape rather than a jump to somewhere else in the chapter.
+
+  // Nothing to hold before the opening pass: there is no layout yet, and asking where
+  // anything is before there is forces the one the reader is waiting on.
+  var living = false;
+
+  // The top of the reading area. The bar is sticky, so the top of the window is not the
+  // top of the text.
+  function ceiling() {
+    return (bar ? bar.getBoundingClientRect().height : 0) + 16;
+  }
+
+  function hold() {
+    if (!living) return null;
+    // The word the arrows are standing on comes first: walking a chapter is the one time
+    // a reader's place is a word rather than a sentence, and a word is exact.
+    var word = standing && standing.parentNode ? standing : null;
+    var pair = word ? word.closest(".pair") : null;
+    var top = ceiling();
+    var box = pair ? pair.getBoundingClientRect() : null;
+    // Unless they have scrolled away from it, in which case what is in front of them is
+    // the text at the top of the window — the same sentence `enterFrom` would start at.
+    if (!box || box.bottom < top || box.top > window.innerHeight) {
+      word = null;
+      pair = onScreen();
+    }
+    if (!pair) return null;
+    return {
+      pair: pair,
+      top: pair.getBoundingClientRect().top,
+      word: word,
+      wordTop: word ? word.getBoundingClientRect().top : 0,
+      // A redraw rebuilds every span in the cell, so the word is held as the two offsets
+      // that name it as well: the node itself is about to be replaced.
+      lemma: word ? word.getAttribute("data-lemma") : null,
+      bare: word ? word.getAttribute("data-bare") : null,
+    };
+  }
+
+  // The same sentence, back where it was on the screen. Never smooth: the change of
+  // layout is already carried by `settle`, and a scroll animated on top of it would be a
+  // second movement saying the same thing. Where the page cannot move that far — the last
+  // screenful of a chapter that has just become shorter — the browser stops at the end,
+  // which is the honest answer and the one it gives a scrollbar.
+  function keep(held) {
+    if (!held || !held.pair.parentNode || !window.scrollTo) return;
+    var word = held.word && held.word.parentNode ? held.word : null;
+    // A word in a cell the change has hidden — the vowels swap one cell for the other —
+    // measures as nothing at all, and its sentence is the honest fallback.
+    var box = word ? word.getBoundingClientRect() : null;
+    if (box && !box.width && !box.height) {
+      word = null;
+      box = null;
+    }
+    var moved = Math.round(
+      (box ? box.top : held.pair.getBoundingClientRect().top) - (word ? held.wordTop : held.top)
+    );
+    if (!moved) return;
+    window.scrollTo(0, window.scrollY + moved);
+  }
+
+  // The word the arrows were on, after a redraw. `markSegment` rebuilds every span in the
+  // cell, so the node carrying the ring, the tab stop and the focus is detached and the
+  // reader is standing on nothing — in the middle of a walk, in the mode they just asked
+  // for. The queue itself survives, because `place` is offsets rather than a node, so the
+  // word is taken up again where it was.
+  function restand(held) {
+    if (!held || !held.bare || !standing) return;
+    var segmentId = held.pair.getAttribute("data-id");
+    // The cell on show, which is the one `markPair` drew: the other keeps whatever spans
+    // it had when it was last visible, and they are the wrong page's.
+    var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
+    if (!cell) return;
+    // Its spans may not have been drawn in this pass at all; only a screenful is marked.
+    markPair(held.pair);
+    var word = cell.querySelector(
+      '.w[data-lemma="' + held.lemma + '"][data-bare="' + held.bare + '"]'
+    );
+    if (!word || word === standing) return;
+    standing.classList.remove("queued");
+    standing.removeAttribute("tabindex");
+    standing = word;
+    word.classList.add("queued");
+    word.setAttribute("tabindex", "-1");
+    // Marking is paint and no box changes, so the line is still where `keep` left it.
+    if (word.focus) word.focus({ preventScroll: true });
+  }
+
   var modes = document.getElementById("modes");
   var slide = modes ? modes.querySelector(".slide") : null;
   // What the page was last marked up for. Only a move into or out of interlinear
@@ -2102,6 +2208,7 @@
   }
 
   function applyMode() {
+    var held = hold();
     body.className = body.className.replace(/\bmode-\w+/g, "").trim();
     body.classList.add("mode-" + prefs.mode);
     Array.prototype.forEach.call(document.querySelectorAll("[data-mode]"), function (button) {
@@ -2109,7 +2216,14 @@
     });
     placeSlide();
     hideCard();
-    if (interlinear() !== (drawnFor === "inter")) redraw();
+    // Before anything is drawn into the new layout: `redraw` marks the screenful it can
+    // see, and a screenful measured before the scroll is a screenful of the part of the
+    // chapter the reader has just been carried off.
+    keep(held);
+    if (interlinear() !== (drawnFor === "inter")) {
+      redraw();
+      restand(held);
+    }
     drawnFor = prefs.mode;
   }
 
@@ -2130,6 +2244,7 @@
   // Vowel points off by default, in every text. A pointed source is shown bare until
   // asked otherwise, which is the same offer made to an unpointed one.
   function applyNikkud() {
+    var held = hold();
     if (prefs.nikkudBy && documentId) prefs.nikkudBy[documentId] = !!prefs.nikkud;
     body.classList.toggle("nikkud", !!prefs.nikkud);
     Array.prototype.forEach.call(
@@ -2140,7 +2255,11 @@
       }
     );
     hideCard();
+    // Pointed and bare are two cells, not one cell restyled, and a pointed line is the
+    // taller of the two — so putting the vowels on moves everything above you as well.
+    keep(held);
     redraw();
+    restand(held);
   }
 
   var picker = document.getElementById("translation");
@@ -2236,12 +2355,16 @@
         return;
       }
       var action = button.getAttribute("data-type");
-      if (action === "larger") prefs.size += 0.0625;
-      if (action === "smaller") prefs.size -= 0.0625;
-      if (action === "looser") prefs.leading = nextLeading(prefs.leading);
       if (action) {
+        var held = hold();
+        if (action === "larger") prefs.size += 0.0625;
+        if (action === "smaller") prefs.size -= 0.0625;
+        if (action === "looser") prefs.leading = nextLeading(prefs.leading);
         applyType();
         placeSlide();
+        // The type grows around the line you are reading rather than sliding it off the
+        // top of the window, which is what four presses of A+ used to do.
+        keep(held);
         save();
       }
       return;
@@ -2385,9 +2508,13 @@
     return step(edge, forward) || step(null, forward);
   }
 
+  // The sentence in front of the reader: the first one not yet scrolled past. Measured
+  // from the top of the text rather than the top of the window, because the bar is
+  // sticky and a sentence behind it is one you have already read.
   function onScreen() {
+    var top = ceiling();
     for (var n = 0; n < pairs.length; n++) {
-      if (pairs[n].getBoundingClientRect().bottom > 0) return pairs[n];
+      if (pairs[n].getBoundingClientRect().bottom > top) return pairs[n];
     }
     return pairs[0] || null;
   }
@@ -2415,8 +2542,7 @@
   function bring(word, pair) {
     if (!word.getBoundingClientRect || !pair.scrollIntoView) return;
     var box = word.getBoundingClientRect();
-    // The bar is sticky, so the top of the window is not the top of the text.
-    var top = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    var top = ceiling();
     if (box.top >= top && box.bottom <= window.innerHeight - 16) return;
     // Unless the sentence is taller than the window, in which case centring it would put
     // the word off the screen the scroll was meant to bring it on to.
@@ -2828,6 +2954,8 @@
     prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
   }
   applyNikkud();
+  // The page is laid out from here on, so from here on a change to it can be measured.
+  living = true;
   took("marks drawn on what is on screen");
   showTab(prefs.listTab);
   waitForMeanings();

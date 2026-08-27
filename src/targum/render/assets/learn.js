@@ -214,9 +214,109 @@
 
   var catalogue = window.TARGUM_CATALOGUE || [];
 
+  /* What is on offer, and whether it is being taken up. Held here rather than passed to
+     the listener, because the listener is attached once and the offer is redrawn every
+     time the shelf is: a handler bound per draw stacks, and four presses of one card
+     would start four builds. */
+  var offered = null;
+  var building = false;
+
+  /* What the server says while it works, said the way a reader would. The same table the
+     library keeps, because one build narrating itself differently depending on which page
+     it was started from is two builds as far as anybody reading it is concerned. */
+  var PLAIN = {
+    "Finding each word's dictionary form…": "Reading the words…",
+    "Adding vowel points…": "Adding vowel points…",
+    "Building the reader…": "Setting the page…",
+  };
+
+  function say(message) {
+    if (!message) return "";
+    if (PLAIN[message]) return PLAIN[message];
+    if (message.indexOf("Matching") === 0) return "Lining up…";
+    if (message.indexOf("Looking up") === 0) return "Looking words up…";
+    return "Almost there…";
+  }
+
+  /* The card narrates in the line that said why it was suggested — that line has done its
+     job by the time somebody presses. Announced only while a build is running: live from
+     the start would read the suggestion out on every draw. */
+  function narrate(text) {
+    var why = document.getElementById("suggest-why");
+    if (why) why.textContent = text;
+  }
+
+  function watch(id) {
+    var timer = setInterval(function () {
+      ask("/job/" + id).then(function (job) {
+        if (job.error) {
+          clearInterval(timer);
+          stopBuilding(job.error);
+          return;
+        }
+        narrate(say(job.message) || "Almost there…");
+        if (job.stage === "done") {
+          clearInterval(timer);
+          window.location.href = keyed("/reader/" + job.reader);
+        }
+      });
+    }, 700);
+  }
+
+  /* Said and pressable again. The wording carries the failure on its own: §4's clay sits
+     close to the accent under protanopia, and this line is read by whoever pressed. */
+  function stopBuilding(message) {
+    building = false;
+    var card = document.getElementById("suggest");
+    if (card) card.disabled = false;
+    narrate(message);
+  }
+
+  /* Pressing the card. Continue Reading beside it is one press into a text; this is the
+     same press for a text that has to be built first, which is the only difference
+     between the two cards and not one a reader should have to think about. */
+  function take() {
+    if (building || !offered) return;
+    building = true;
+    var card = document.getElementById("suggest");
+    var why = document.getElementById("suggest-why");
+    if (card) card.disabled = true;
+    if (why) why.setAttribute("aria-live", "polite");
+    narrate("Getting ready…");
+    var entry = offered;
+    ask("/prepare", {
+      source: entry.source,
+      to: "en",
+      from: entry.language,
+      words: true,
+      gloss: false,
+      // Every published translation this text has. The reader switches between them.
+      // Already a list of sources, which is the shape `/prepare` wants — the catalogue
+      // this page carries is trimmed to what it uses.
+      translations: entry.translations || [],
+    })
+      .then(function (job) {
+        if (job.error) throw new Error(job.error);
+        if (job.blocked) throw new Error(job.blocked);
+        narrate("Lining up…");
+        return ask("/build", { id: job.id }).then(function () {
+          watch(job.id);
+        });
+      })
+      .catch(function (problem) {
+        stopBuilding(String(problem.message || problem));
+      });
+  }
+
+  var offer = document.getElementById("suggest");
+  if (offer) offer.addEventListener("click", take);
+
   function suggest(code, readers) {
-    var link = document.getElementById("suggest");
-    if (!link) return;
+    // Never over a build in progress: the shelf redraws for its own reasons, and this
+    // would put the reason for the suggestion back over the line narrating it.
+    if (building) return;
+    var card = document.getElementById("suggest");
+    if (!card) return;
 
     var built = {};
     readers.forEach(function (reader) {
@@ -230,7 +330,8 @@
         return a.difficulty - b.difficulty;
       });
     if (!open.length) {
-      link.hidden = true;
+      offered = null;
+      card.hidden = true;
       return;
     }
 
@@ -252,8 +353,14 @@
       if (!pick) pick = open[open.length - 1];
     }
 
-    link.hidden = false;
-    link.href = keyed("/library") + "#" + encodeURIComponent(pick.id);
+    card.hidden = false;
+    // What pressing the card would build. It used to be a link to the catalogue with this
+    // text outlined somewhere in it, which handed back the choice that had just been made
+    // for the reader — and the outline was lost altogether whenever the library had a
+    // filter or a tab remembered from last time. `data-entry` is also the seam the tests
+    // read the offer through, a button having no href to check.
+    offered = pick;
+    card.setAttribute("data-entry", pick.id);
 
     // The same tile the shelf and the library draw, which for most of the catalogue is a
     // cover somebody paid to have drawn and for the rest is the text's own first letter.

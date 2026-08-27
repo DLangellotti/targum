@@ -2618,3 +2618,91 @@ def test_the_stamp_is_packed_into_the_wheel() -> None:
     assert "src/targum/activity.json" in (root / ".gitignore").read_text(encoding="utf-8")
     packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
     assert 'artifacts = ["/src/targum/activity.json"]' in packaging
+
+
+# --- what gets baked in ------------------------------------------------------
+
+
+def test_comments_are_stripped_from_what_the_page_carries(
+    tmp_path: Path, document: Document, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """The source keeps its comments; the reader does not carry them.
+
+    A reader inlines its whole stylesheet and script, so a comment is paid for once per
+    page and a book of 151 chapters pays 151 times.
+    """
+    from targum.render.builder import ASSETS
+
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    # A line of prose from the file itself, so this cannot pass against a stub.
+    landmark = "/* --- keeping your place"
+    assert landmark in source
+
+    html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
+    assert landmark not in html
+    # And the code it sat above is still there.
+    assert "function keep(held)" in html
+
+
+def test_stripping_leaves_strings_and_regular_expressions_alone() -> None:
+    """The whole risk in the stripper. `//` inside a URL is not a comment, and neither
+    is a `/` that opens a regular expression — telling them apart is why this works on
+    whole lines only."""
+    from targum.render.builder import _strip
+
+    out = _strip(
+        "x.js",
+        "\n".join(
+            [
+                "// gone",
+                "/* also",
+                "   gone */",
+                'var a = "http://example.com";',
+                "var b = /\\bmode-\\w+/g;",
+                "var c = width / 2; // kept, and so is this",
+                "",
+                "/* one line */ var d = 1;",
+            ]
+        ),
+    )
+    assert "gone" not in out
+    assert 'var a = "http://example.com";' in out
+    assert "var b = /\\bmode-\\w+/g;" in out
+    assert "var c = width / 2; // kept, and so is this" in out
+    assert out.strip().endswith("var d = 1;")
+    assert "\n\n" not in out  # blank lines go with the comments
+
+
+def test_no_asset_carries_a_template_literal_across_a_line() -> None:
+    """The assumption the stripper rests on, held rather than trusted.
+
+    It takes out any line that opens with `//` or `/*`, which is only safe while no
+    string in these files spans a line — a template literal is the one kind that can.
+    The day somebody writes one, this fails here rather than in a reader's browser with
+    half a script missing.
+    """
+    from targum.render.builder import ASSETS
+
+    for path in sorted(ASSETS.glob("*.js")) + sorted(ASSETS.glob("*.css")):
+        # Comments out of the way first: the one pair of backticks in the set that spans
+        # a line is prose inside a CSS comment, and prose is not a string.
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        spanning = [run for run in re.findall(r"`[^`]*`", code, re.S) if "\n" in run]
+        assert not spanning, f"{path.name} has a template literal across a line"
+
+
+def test_the_script_a_reader_gets_still_parses(tmp_path: Path) -> None:
+    """Stripping is source surgery, so the result has to be run past a parser.
+
+    `node --check` on every asset as it is baked, which is the same check
+    `tests/test_reader_js.py` leans on to run the reader at all.
+    """
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    from targum.render.builder import ASSETS, _strip
+
+    for path in sorted(ASSETS.glob("*.js")):
+        baked = tmp_path / path.name
+        baked.write_text(_strip(path.name, path.read_text(encoding="utf-8")), encoding="utf-8")
+        done = subprocess.run(["node", "--check", str(baked)], capture_output=True, text=True)
+        assert done.returncode == 0, f"{path.name} does not parse after stripping:\n{done.stderr}"
