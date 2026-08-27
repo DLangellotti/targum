@@ -225,7 +225,7 @@
 
     var open = el(row.built ? "a" : "button", "row-open");
     if (row.built) {
-      open.href = keyed("/reader/" + row.built.name + "/reader/index.html");
+      open.href = keyed("/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html");
     } else {
       open.type = "button";
       open.setAttribute("data-build", row.id);
@@ -495,7 +495,7 @@
           state.textContent = say(job.message) || "Almost there…";
           if (job.stage === "done") {
             clearInterval(timer);
-            window.location.href = keyed("/reader/" + job.reader);
+            window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
             resolve();
           }
         });

@@ -694,17 +694,22 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     """
     html = built.read_text(encoding="utf-8")
     calls = []
+    bought = []
     context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
     page = context.new_page()
 
     def answer(route, request):
         if "/gloss" in request.url:
-            calls.append(request.url)
-            route.fulfill(
-                status=200,
-                content_type="application/json",
-                body=json.dumps({"meaning": MEANING}),
-            )
+            # The server, in miniature: a free ask is answered from what was bought,
+            # and a card opening asks that first. Only a real lookup counts as a call.
+            if request.post_data_json.get("free"):
+                meaning = MEANING if bought else None
+                body = {"meaning": meaning, "cached": bool(meaning)}
+            else:
+                calls.append(request.url)
+                bought.append(request.url)
+                body = {"meaning": MEANING}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
 
@@ -713,6 +718,7 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     page.wait_for_selector(".pair")
 
     word = page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
     assert page.evaluate(CARD)["asking"], "the card was not offering to look the word up"
     page.eval_on_selector(".look-up", "button => button.click()")
     page.wait_for_timeout(300)
