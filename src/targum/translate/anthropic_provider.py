@@ -30,6 +30,17 @@ PRICES: dict[str, tuple[float, float]] = {
 
 MAX_ATTEMPTS = 3
 
+
+def output_config(model: str, effort: str) -> dict[str, Any]:
+    """The effort setting, for the models that take one.
+
+    Haiku refuses the parameter outright — `This model does not support the effort
+    parameter`, a 400 on the first batch — and it is in PRICES, so it is a model
+    somebody can ask for. Left out rather than sent and rejected.
+    """
+    return {} if "haiku" in model else {"output_config": {"effort": effort}}
+
+
 # Cost model, measured Aug 23 2026 against the Hebrew fixtures with the token-counting
 # endpoint. Redo these if the prompt, the batch size or the context span changes.
 
@@ -248,8 +259,8 @@ class AnthropicProvider:
                 max_tokens=16000,
                 system=system,
                 messages=[{"role": "user", "content": message}],
-                output_config={"effort": self.effort},
                 output_format=_Batch,
+                **output_config(self.model, self.effort),
             )
         except anthropic.AuthenticationError as exc:
             raise ProviderError(

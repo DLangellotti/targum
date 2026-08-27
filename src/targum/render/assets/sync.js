@@ -46,6 +46,9 @@
    * "reads nothing": signed out, on a machine somebody runs themselves, everything they
    * have is theirs and nothing is hidden. `clearLocal` sweeps this with the rest. */
   var READS = "targum:reads";
+  // And which it says are being learned, for the same reason and read by `lang.js`: the
+  // switcher on the reading pages is drawn before the account answers.
+  var LEARNING = "targum:learning";
 
   // A tombstone is a few bytes and a delete is rare, but a browser that has been in use
   // for years should not carry every word it ever unmarked. Anything this old has long
@@ -649,6 +652,7 @@
           api.who = me && me.signedIn ? me : null;
           if (!api.who) return false;
           write(READS, me.reads || []);
+          write(LEARNING, me.learning || []);
           var was = state();
           if (was.email && was.email !== me.email) {
             // Another person signed in on this browser. Nothing of theirs is mixed in
@@ -698,6 +702,29 @@
       if (id) remember("p:" + id, Date.now());
     },
 
+    // A word's meanings, in every language they were written in, taken off with the
+    // word. Left behind, a meaning with no word under it kept a language in the
+    // definitions switcher after the last word learned through it was gone.
+    forgetMeanings: function (source, term) {
+      var head = "targum:meanings:" + source + ":";
+      var names = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var name = localStorage.key(i) || "";
+          if (name.indexOf(head) === 0) names.push(name);
+        }
+      } catch (e) {
+        return;
+      }
+      names.forEach(function (name) {
+        var records = read(name, "{}");
+        if (!(term in records)) return;
+        delete records[term];
+        write(name, records);
+        remember("m:" + source + ":" + name.slice(head.length) + ":" + term, Date.now());
+      });
+    },
+
     signIn: function (email) {
       return ask("/account/sign-in", { email: email });
     },
@@ -722,6 +749,11 @@
    */
   api.reads = function () {
     return (api.who && api.who.reads) || null;
+  };
+
+  // And which it is learning, the same way.
+  api.learning = function () {
+    return (api.who && api.who.learning) || null;
   };
 
   /* A language to build into that this account will actually be allowed. What somebody

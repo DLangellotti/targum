@@ -12,7 +12,7 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -23,10 +23,13 @@ from ..models import Annotation, Glossary
 from ..translate.prompts import language_name
 
 BATCH_SIZE = 40
-# Glosses are short, so a batch is cheap. Rough tokens per lemma, in and out, for the
-# estimate shown before anything is spent.
-TOKENS_PER_LEMMA_IN = 12
-TOKENS_PER_LEMMA_OUT = 24
+# Glosses are short, so a batch is cheap. Tokens per lemma, in and out, for the estimate
+# shown before anything is spent. Measured Aug 27 2026 over 30,000 Hebrew lemmas: 22 in
+# on every model, 35 out on Sonnet and 50 on Opus. The earlier guess of 12 and 24
+# quoted half the bill; 40 out is the middle, and a cap that refuses a build is better
+# fed a little high than a little low.
+TOKENS_PER_LEMMA_IN = 22
+TOKENS_PER_LEMMA_OUT = 40
 
 Progress = Callable[[int], None]
 
@@ -51,6 +54,7 @@ class GlossProvider(Protocol):
         source_language: str,
         target_language: str,
         on_progress: Progress | None = None,
+        contexts: Mapping[str, str] | None = None,
     ) -> dict[str, tuple[str, str]]: ...
 
 
@@ -58,14 +62,30 @@ SYSTEM = """You are writing a learner's glossary for {source} read by a {target}
 
 For each {source} dictionary form you are given, return one short {target} gloss.
 
-- The dictionary form is given as it would appear in a dictionary. Gloss that form.
-- Two to six words. The most common sense first, and only add a second sense when the
-  word is genuinely ambiguous, separated by a semicolon.
+- Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
+  reader met it in after `in:`. Gloss the form, and return it exactly as it was given.
+- Two to six words. The most common sense first — or, where a sentence is given, the
+  sense the form has there — and a second sense only when the word is genuinely
+  ambiguous, separated by a semicolon. The gloss is kept for every text, not this one.
 - No transliteration, no grammatical explanation, no example sentences.
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
   pronoun, conjunction, particle, other.
 - If a form is not a word of {source}, return it with an empty gloss rather than
   guessing."""
+
+
+def entries_for(lemmas: list[str], contexts: Mapping[str, str] | None = None) -> str:
+    """One entry per form, with the sentence it was met in where there is one.
+
+    A gloss with no sentence behind it is a guess at which sense the reader needs — עם
+    is "with" and "people", and a learner shown the wrong one is worse off than one
+    shown neither. The sentence is what lets the model put the live sense first.
+    """
+    entries = []
+    for lemma in lemmas:
+        sentence = " ".join(((contexts or {}).get(lemma) or "").split())
+        entries.append(f"form: {lemma}" + (f"\nin: {sentence}" if sentence else ""))
+    return "\n\n".join(entries)
 
 
 class AnthropicGlosses:
@@ -91,8 +111,11 @@ class AnthropicGlosses:
         source_language: str,
         target_language: str,
         on_progress: Progress | None = None,
+        contexts: Mapping[str, str] | None = None,
     ) -> dict[str, tuple[str, str]]:
         import anthropic
+
+        from ..translate.anthropic_provider import output_config
 
         system = SYSTEM.format(
             source=language_name(source_language), target=language_name(target_language)
@@ -105,9 +128,9 @@ class AnthropicGlosses:
                     model=self.model,
                     max_tokens=8000,
                     system=system,
-                    messages=[{"role": "user", "content": "\n".join(batch)}],
-                    output_config={"effort": "low"},
+                    messages=[{"role": "user", "content": entries_for(batch, contexts)}],
                     output_format=_Batch,
+                    **output_config(self.model, "low"),
                 )
             except anthropic.APIStatusError as exc:
                 raise ProviderError(
@@ -200,6 +223,7 @@ def gloss_one(
     provider: GlossProvider,
     *,
     cache: Cache | None = None,
+    context: str = "",
 ) -> str:
     """One word, looked up because someone asked for it.
 
@@ -207,6 +231,12 @@ def gloss_one(
     never read: you look up the handful of words you actually stumble on. This is that
     handful, one at a time, through the same cache — so a word looked up while reading
     one article is free in the next.
+
+    `context` is the sentence it was tapped in. The answer is still filed under the
+    lemma alone — the cache is what makes the second book cheap, and a key that carried
+    the sentence would make every word cost again in every text — so the sentence
+    decides which sense comes first, and the other common sense rides after it for
+    whoever meets the word elsewhere.
     """
     cache = cache or Cache()
     key = cache.key(
@@ -220,7 +250,12 @@ def gloss_one(
     if isinstance(stored, dict) and stored.get("gloss"):
         return str(stored["gloss"])
 
-    fresh = provider.gloss([lemma], source_language, target_language, None)
+    if context:
+        fresh = provider.gloss(
+            [lemma], source_language, target_language, None, contexts={lemma: context}
+        )
+    else:
+        fresh = provider.gloss([lemma], source_language, target_language, None)
     found = fresh.get(lemma)
     if not found:
         return ""

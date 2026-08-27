@@ -529,7 +529,15 @@
   // card can say which, instead of quietly offering the same button again.
   var lookup = {};
 
-  function lookUp(index, onDone) {
+  // The sentence a word was met in, sent with the lookup so the meaning that comes
+  // back is the one the word has here. Bare rather than pointed: the plain cell is
+  // always there, and the model reads either.
+  function sentenceOf(word) {
+    var pair = word && word.closest ? word.closest("[data-id]") : null;
+    return pair ? segmentText(pair.getAttribute("data-id")) : "";
+  }
+
+  function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !served || !passKey) return;
     if (asked[lemma]) return;
@@ -541,7 +549,12 @@
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: lemma, source: language, target: into }),
+      body: JSON.stringify({
+        lemma: lemma,
+        source: language,
+        target: into,
+        sentence: sentence || "",
+      }),
     })
       .then(function (response) {
         return response.json();
@@ -651,14 +664,29 @@
     if (undoable.length > UNDO_DEPTH) undoable.shift();
   }
 
+  // A word taken off the list, and its meanings with it, in every language they were
+  // written in — from this page's own copies and from the store, which `sync.js` sweeps
+  // and tombstones. Left behind, a meaning with no word under it kept a language in the
+  // definitions switcher after the last word learned through it was gone.
+  function forgetWord(lemma) {
+    delete vocab[lemma];
+    Object.keys(meaningStores).forEach(function (into) {
+      var records = meaningStores[into].records;
+      if (records && records[lemma]) delete records[lemma];
+    });
+    if (window.TargumSync) {
+      window.TargumSync.forgetWord(language, lemma);
+      window.TargumSync.forgetMeanings(language, lemma);
+    }
+  }
+
   function undo() {
     var last = undoable.pop();
     if (!last) return false;
     if (last.before) {
       vocab[last.lemma] = last.before;
     } else {
-      delete vocab[last.lemma];
-      if (window.TargumSync) window.TargumSync.forgetWord(language, last.lemma);
+      forgetWord(last.lemma);
     }
     remember();
     saidLevel(last.surface, statusOf(last.lemma));
@@ -694,8 +722,7 @@
     if (!lemma) return false;
     recordUndo(index, lemma, surface);
     if (status === null || status === undefined) {
-      delete vocab[lemma];
-      if (window.TargumSync) window.TargumSync.forgetWord(language, lemma);
+      forgetWord(lemma);
     } else {
       vocab[lemma] = {
         status: status,
@@ -1292,8 +1319,7 @@
     drop.setAttribute("aria-label", "Take " + entry.term + " off the list");
     drop.onclick = function () {
       if (entry.kind === "word") {
-        delete vocab[entry.key];
-        if (window.TargumSync) window.TargumSync.forgetWord(language, entry.key);
+        forgetWord(entry.key);
       } else {
         var going = picks[entry.segmentId][entry.index];
         if (window.TargumSync && going) window.TargumSync.forgetPhrase(going.id);
@@ -1751,7 +1777,7 @@
           event.stopPropagation();
           ask.disabled = true;
           ask.textContent = "looking…";
-          lookUp(index, function () {
+          lookUp(index, sentenceOf(word), function () {
             if (lookedUp === word) showCard(word);
           });
         };

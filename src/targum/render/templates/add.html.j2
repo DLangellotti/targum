@@ -121,6 +121,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 {#- `tojson` rather than quoting these by hand: an ampersand written into a script block
     comes out as `&amp;`, and "R&D" stopped matching itself. -#}
 window.TARGUM_READING = {{ reading|tojson }};
+window.TARGUM_INTO = {{ into|tojson }};
 </script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
