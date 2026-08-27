@@ -43,8 +43,11 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # No backticks in here, in comments included: this heredoc is unquoted, so the
   # shell runs whatever they hold. The word covers was being run as a command on
   # every deploy.
-  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/usr/local/bin \
+  # The launcher lands in targum's own bin; root then points /usr/local/bin at it,
+  # because the service user cannot write to /usr/local/bin and should not be able to.
+  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" >/dev/null
+  ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   rm -f "${REMOTE_WHEEL}"
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so
@@ -64,7 +67,9 @@ echo "== verify =="
 for attempt in $(seq 1 30); do
   if curl -fsS --max-time 5 "https://$DOMAIN/health" 2>/dev/null | grep -q '"ok": *true'; then
     echo "   https://$DOMAIN/health is ok"
-    ssh "$HOST" "sudo -u targum env HOME=/srv/targum /usr/local/bin/targum preflight \
+    # With the service's environment, or it reports every secret as missing.
+    ssh "$HOST" "set -a; . /etc/targum/targum.env; set +a; \
+      sudo -E -u targum env HOME=/srv/targum /usr/local/bin/targum preflight \
       --store /var/lib/targum/targum.db --out /var/lib/targum/targums" || true
     echo
     echo "Deployed."
