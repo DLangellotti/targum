@@ -286,7 +286,11 @@
     var entry = offered;
     ask("/prepare", {
       source: entry.source,
-      to: "en",
+      // The language this reader reads into, not English by assumption. They read in
+      // two; a button that always bought one of them would be a button that reads their
+      // mind wrong half the time. Clamped to what the account is offered, so a
+      // remembered choice that no longer stands asks for English rather than a refusal.
+      to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
       from: entry.language,
       words: true,
       gloss: false,
@@ -436,6 +440,9 @@
 
       function show(code) {
         chosen = code;
+        // Remembered here rather than inside the switcher: the same control now draws
+        // two different preferences, and only the caller knows which one it is drawing.
+        lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         var mine = readers.filter(function (reader) {
           return base(reader.language) === code;
@@ -452,17 +459,27 @@
         );
         shelf.trash(code, trash);
         suggest(code, readers);
-        var store = charts.collect()[code];
+        // Meanings in the language this reader last read this one into. A word means
+        // something different in each, and a table that mixed them would be handing out
+        // definitions in a language nobody asked for.
+        var store = charts.collect(charts.meaningLanguage(code))[code];
         drawKnown(code, store);
         lists.draw(code, store, { words: WORDS, phrases: PHRASES });
       }
+
+      lists.onMeaningLanguage(function () {
+        lists.draw(chosen, charts.collect(charts.meaningLanguage(chosen))[chosen], {
+          words: WORDS,
+          phrases: PHRASES,
+        });
+      });
 
       lists.mount({
         languages: names,
         // A word marked known in the table is a word the line above has to stop
         // promising. Same number, one place it is counted.
         onChanged: function () {
-          drawKnown(chosen, charts.collect()[chosen]);
+          drawKnown(chosen, charts.collect(charts.meaningLanguage(chosen))[chosen]);
         },
       });
       show(chosen);

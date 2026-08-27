@@ -21,9 +21,9 @@ from targum.pipeline import Build, Result
 
 
 def build(source: Path, out: Path, segmenter: object, **kwargs: object) -> Build:
+    kwargs.setdefault("target_language", "en")
     return Build(
         str(source),
-        target_language="en",
         provider_name="null",
         out=out,
         segmenter=segmenter,  # type: ignore[arg-type]
@@ -59,6 +59,41 @@ def test_artifacts_are_readable_json(source: Path, tmp_path: Path, fake_segmente
 
     assert data["schema_version"] == SCHEMA_VERSION
     assert data["language"] == "he"
+
+
+def test_a_second_language_is_added_rather_than_swapped_in(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """Building a text into Russian used to take its English away.
+
+    The reader was rendered from the run's own translations alone, so the second build
+    left a text that could no longer be read in the first language — with that language
+    still in the folder, paid for and unreachable. A build adds a language; the reader's
+    picker is where the two meet.
+    """
+    out = tmp_path / "out"
+    build(source, out, fake_segmenter).run()
+    build(source, out, fake_segmenter, target_language="ru").run()
+
+    named = sorted(path.name for path in (out / "translations").glob("*.json"))
+    assert named == ["null.natural.en.json", "null.natural.ru.json"]
+
+    page = (out / "reader" / "index.html").read_text(encoding="utf-8")
+    assert page.count("<option") == 2, "the reader offers only one of the two"
+    for code in ("en", "ru"):
+        assert f'"language": "{code}"' in page, f"{code} is not in the reader's own payload"
+
+
+def test_rebuilding_the_same_pair_replaces_it(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """Adding a language must not mean accumulating copies of the one you already had."""
+    out = tmp_path / "out"
+    build(source, out, fake_segmenter).run()
+    result = build(source, out, fake_segmenter, force=True).run()
+
+    assert len(result.translations) == 1
+    assert (out / "reader" / "index.html").read_text(encoding="utf-8").count("<option") == 0
 
 
 def test_a_second_run_redoes_nothing(source: Path, tmp_path: Path, fake_segmenter: object) -> None:
@@ -385,7 +420,8 @@ def test_the_meanings_are_baked_in_afterwards(
 
     assert "meaning of" not in at_open[0]
     assert "meaning of" in result.index.read_text(encoding="utf-8")
-    assert (out / "glossary.json").exists()
+    # Named for the pair it is written for, beside a translation named the same way.
+    assert (out / "glossary.en.json").exists()
 
 
 def test_a_failed_lookup_costs_the_meanings_not_the_reader(

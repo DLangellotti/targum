@@ -20,6 +20,11 @@
     return head;
   }
   var languageNames = window.TARGUM_LANGUAGES || {};
+  // At the top, not inside the picker that first needed it: two other things on this page
+  // ask it which language you read into, and a `var` in an IIFE is not a binding they can
+  // see. Reaching for it from out here threw on load, and a throw here is the whole page —
+  // `go.onclick` is assigned below it, so the Add button was never wired to anything.
+  var lang = window.TargumLang;
 
   function named(code) {
     return languageNames[code] || (code || "").toUpperCase();
@@ -226,7 +231,6 @@
   (function () {
     var from = document.getElementById("from");
     var note = document.getElementById("from-beta");
-    var lang = window.TargumLang;
     var stages = window.TARGUM_READING || [];
     var was = lang.current(
       stages.map(function (row) {
@@ -257,6 +261,48 @@
     say();
   })();
 
+  /* And which language to read it into, remembered the same way — narrowed to the
+   * languages this account reads.
+   *
+   * The narrowing waits for the account to answer, so the picker starts as the page was
+   * built and settles a moment later. That is the right way round: the server refuses a
+   * language the account may not have whatever this was showing, so being briefly
+   * generous here costs nothing and being briefly wrong the other way would hide a
+   * language from somebody who does read it.
+   */
+  (function () {
+    var to = document.getElementById("to");
+    if (!to) return;
+
+    function narrow(allowed) {
+      if (!allowed) return;
+      var kept = null;
+      for (var n = to.options.length - 1; n >= 0; n -= 1) {
+        var option = to.options[n];
+        if (allowed.indexOf(option.value) < 0) to.removeChild(option);
+        else kept = option.value;
+      }
+      // Whatever was remembered may be a language this account no longer reads.
+      if (kept && allowed.indexOf(to.value) < 0) to.value = kept;
+    }
+
+    if (window.TargumSync) {
+      window.TargumSync.onChange(function () {
+        narrow(window.TargumSync.reads());
+      });
+    }
+
+    var was = lang.into();
+    if (was) {
+      for (var n = 0; n < to.options.length; n++) {
+        if (to.options[n].value === was) to.selectedIndex = n;
+      }
+    }
+    to.addEventListener("change", function () {
+      if (to.value) lang.into(to.value);
+    });
+  })();
+
   // Nothing on this page is drawn from the word list, so there is nothing to redraw:
   // sync runs here only so the header can say who is signed in, and so that a browser
   // that lands here first still claims what it has been keeping.
@@ -280,7 +326,7 @@
 
   function options() {
     return {
-      to: document.getElementById("to").value || "en",
+      to: lang.into(document.getElementById("to").value || "en"),
       from: document.getElementById("from").value || "",
       // Always. Being able to tap a word is most of what this is for, and a checkbox
       // asking whether you want that is a question nobody should have to answer.

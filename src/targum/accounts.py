@@ -77,7 +77,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -106,6 +106,22 @@ ADMIN = """
 CREATE TABLE IF NOT EXISTS admin (
   email TEXT PRIMARY KEY,
   at    INTEGER NOT NULL
+);
+
+-- Which languages an address reads well enough to be offered a translation into.
+--
+-- English is offered to everybody and is never in here. Anything else has to be said,
+-- because the cost of being wrong is a reader handed a page in a language they cannot
+-- read — and, if they keep a word from it, a definition in that language following them
+-- around every text they own. Keyed by address rather than by person id, like `admin`
+-- and `invited`, so it can be said before somebody has ever signed in.
+--
+-- One row per language rather than a flag per language: the next one is a row.
+CREATE TABLE IF NOT EXISTS reads (
+  email    TEXT NOT NULL,
+  language TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (email, language)
 );
 """
 
@@ -218,6 +234,35 @@ CREATE TABLE IF NOT EXISTS doc (
   PRIMARY KEY (person, hash)
 );
 
+-- What a word or a phrase means, to somebody reading one language in another.
+--
+-- A word belongs to a language; a meaning belongs to a language pair. `word.meaning` was
+-- one slot for a fact that has an answer per language, and the merge below is
+-- last-write-wins on a whole row — so a reader with an English text and a Russian one had
+-- two devices overwriting each other's meanings under a rule that could not tell them
+-- apart. Splitting the meaning off leaves the word, its level and every count that reads
+-- them exactly where they were: a Hebrew word known is a Hebrew word, whichever language
+-- it was learned through.
+--
+-- `term` is a dictionary form, or `phrase:<id>` for what a kept phrase reads as. One
+-- table rather than two: it is the same fact about the same pair, and a second table for
+-- a handful of rows is furniture. `note` is here beside `meaning` because a note is a
+-- meaning the reader wrote themselves, and one written in Russian is no more use on an
+-- English page than a Russian gloss would be.
+CREATE TABLE IF NOT EXISTS meaning (
+  person   INTEGER NOT NULL,
+  source   TEXT    NOT NULL,
+  target   TEXT    NOT NULL,
+  term     TEXT    NOT NULL,
+  meaning  TEXT    NOT NULL DEFAULT '',
+  note     TEXT    NOT NULL DEFAULT '',
+  at       INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, source, target, term)
+);
+
 -- The days somebody read on. One row per calendar day, and the day is the reader's own
 -- local one rather than UTC, because "did I read yesterday" is a question about the
 -- reader's evening and not about Greenwich.
@@ -270,6 +315,7 @@ CREATE TABLE IF NOT EXISTS job (
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
 CREATE INDEX IF NOT EXISTS phrase_since ON phrase (person, revision);
+CREATE INDEX IF NOT EXISTS meaning_since ON meaning (person, revision);
 CREATE INDEX IF NOT EXISTS job_claimed  ON job    (claimed);
 CREATE INDEX IF NOT EXISTS doc_since    ON doc    (person, revision);
 CREATE INDEX IF NOT EXISTS day_since    ON day    (person, revision);
@@ -357,6 +403,11 @@ KINDS: dict[str, Kind] = {
         table="word",
         key=("language", "lemma"),
         fields=("surface", "status", "meaning", "note", "band", "learned", "at"),
+    ),
+    "meanings": Kind(
+        table="meaning",
+        key=("source", "target", "term"),
+        fields=("meaning", "note", "at"),
     ),
     "phrases": Kind(
         table="phrase",
@@ -596,6 +647,70 @@ class Store:
     def admins(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM admin ORDER BY at")]
 
+    #: Offered to everybody, and never recorded. targum is written in English, its help is
+    #: in English, and an account that reads nothing else can still be given a translation
+    #: it can read.
+    ALWAYS_READS = "en"
+
+    def reads_by_id(self, person_id: int | None) -> set[str] | None:
+        """The same question asked of a person id, for anything working from a home
+        directory rather than from a session. None where there is no such person."""
+        if not person_id:
+            return None
+        row = self.db.execute("SELECT email FROM person WHERE id = ?", (int(person_id),)).fetchone()
+        return None if row is None else self.reads(str(row["email"]))
+
+    def reads(self, email: str | None) -> set[str]:
+        """Which languages this address may be offered a translation into.
+
+        Signed out — and on a machine somebody runs themselves — this is asked of nobody
+        and answers with everything: the gate is about handing a stranger's account a
+        language nobody said they read, and there is no stranger on your own laptop.
+        """
+        address = tidy(email or "")
+        if not address:
+            return set()
+        rows = self.db.execute("SELECT language FROM reads WHERE email = ?", (address,))
+        return {self.ALWAYS_READS} | {str(row["language"]) for row in rows}
+
+    def make_reads(self, email: str, language: str) -> str:
+        """Say that an address reads a language. Invites them, the way `make_admin` does:
+        marking somebody who cannot sign in is half of a thing nobody wants half of."""
+        address = tidy(email)
+        code = (language or "").strip().lower()
+        if not address:
+            raise ValueError("No address given.")
+        if not code:
+            raise ValueError("No language given.")
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO reads (email, language, at) VALUES (?, ?, ?) "
+                "ON CONFLICT(email, language) DO NOTHING",
+                (address, code, now()),
+            )
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def unreads(self, email: str, language: str) -> bool:
+        """Take a language back. What was built in it stays on disk and stops being
+        offered: the next build of that reader leaves it out of the picker."""
+        with self.write() as db:
+            return (
+                db.execute(
+                    "DELETE FROM reads WHERE email = ? AND language = ?",
+                    (tidy(email), (language or "").strip().lower()),
+                ).rowcount
+                > 0
+            )
+
+    def readers_of(self) -> list[tuple[str, str]]:
+        """Every marking, for the command that lists them."""
+        rows = self.db.execute("SELECT email, language FROM reads ORDER BY email, language")
+        return [(str(row["email"]), str(row["language"])) for row in rows]
+
     def is_admin(self, email: str) -> bool:
         address = tidy(email)
         if not address:
@@ -743,7 +858,7 @@ class Store:
             ).fetchall()
             gone = [int(row["id"]) for row in rows]
             for person_id in gone:
-                for table in ("word", "phrase", "doc", "day", "session", "link"):
+                for table in ("word", "meaning", "phrase", "doc", "day", "session", "link"):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone
