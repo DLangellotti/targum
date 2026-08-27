@@ -685,3 +685,15 @@ def test_a_translation_can_be_pasted_as_well_as_dropped() -> None:
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     within = source[source.index("function withTranslation") :][:700]
     assert "pasted-translation" in within and "fromPaste(" in within
+
+
+def test_a_signed_in_reader_can_look_a_word_up() -> None:
+    """Hosted, there is no start-up key: the session cookie is what lets a lookup through,
+    and a page cannot read it. Gated on the key alone, the live site drew every look-up
+    button disabled — "nothing saved" — and `g` did nothing, on the one deployment where
+    somebody other than the owner would ever press it."""
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function canAsk()" in source
+    assert "window.TargumSync.who" in source, "the sync layer already knows who is signed in"
+    assert "served && passKey" not in source, "the key alone is a single-user answer"
+    assert "!served || !passKey" not in source, "the key alone is a single-user answer"
