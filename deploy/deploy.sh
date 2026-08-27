@@ -67,9 +67,12 @@ echo "== verify =="
 for attempt in $(seq 1 30); do
   if curl -fsS --max-time 5 "https://$DOMAIN/health" 2>/dev/null | grep -q '"ok": *true'; then
     echo "   https://$DOMAIN/health is ok"
-    # With the service's environment, or it reports every secret as missing.
-    ssh "$HOST" "set -a; . /etc/targum/targum.env; set +a; \
-      sudo -E -u targum env HOME=/srv/targum /usr/local/bin/targum preflight \
+    # With the service's environment, or it reports every secret as missing. Through
+    # systemd, because targum.env is in systemd's format, not the shell's: a value with
+    # a space or an angle bracket in it is fine there and a syntax error here.
+    ssh "$HOST" "systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+      --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+      /usr/local/bin/targum preflight \
       --store /var/lib/targum/targum.db --out /var/lib/targum/targums" || true
     echo
     echo "Deployed."
