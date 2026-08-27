@@ -562,3 +562,37 @@ def test_initials_come_from_whatever_there_is() -> None:
     assert initials("", "david.langellotti@x.com") == "DL", "a dot is a name boundary"
     assert initials("דוד לנגלוטי", "x@y.com") == "דל", "no case to raise, and none needed"
     assert initials("", "") == "?"
+
+
+def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> None:
+    """A card opening asks whether the meaning is already in the cache before it offers
+    a button. That question must never buy anything — and must not need a key to ask."""
+    from targum.annotate.gloss import gloss_key, gloss_provider_name
+    from targum.cache import Cache
+
+    port, session = hosted
+    cache = Cache()
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", "he", "en", gloss_provider_name()),
+        {"gloss": "land", "part_of_speech": "noun"},
+    )
+
+    def ask(lemma: str) -> tuple[int, dict[str, object]]:
+        body = json.dumps({"lemma": lemma, "source": "he", "target": "en", "free": True}).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.putrequest("POST", "/gloss", skip_host=True)
+        conn.putheader("Host", "targum.page")
+        conn.putheader("Cookie", f"targum_session={session}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders()
+        conn.send(body)
+        response = conn.getresponse()
+        out = json.loads(response.read())
+        conn.close()
+        return response.status, out
+
+    assert ask("ארץ") == (200, {"lemma": "ארץ", "meaning": "land", "cached": True})
+    status, answer = ask("שלום")
+    assert status == 200 and answer["meaning"] is None and answer["cached"] is False
