@@ -27,6 +27,8 @@ SIGNED_IN = {
     "picture": "",
     "initials": "YC",
     "counts": {"words": 512, "phrases": 24, "docs": 3, "days": 12},
+    "learning": ["he"],
+    "reads": ["en"],
 }
 
 
@@ -85,6 +87,68 @@ def test_a_refused_name_says_so_rather_than_claiming_it_saved() -> None:
         answers={"/account/name": {"error": "That name is too long."}},
     )
     assert page["said"] == {"text": "That name is too long.", "hidden": False}
+
+
+def test_every_language_is_drawn_with_its_stage_and_the_account_ticked() -> None:
+    """This is the page where somebody says what they read, so a language missing from
+    it would be a question they had no way to answer. Hebrew is drawn on and cannot be
+    pressed off in this version; the experimental ones say so on the box."""
+    page = run(who={**SIGNED_IN, "learning": ["he", "yi"], "reads": ["en", "ru"]})
+    assert page["learning"] == [
+        {"code": "he", "on": True, "fixed": True, "experimental": False},
+        {"code": "arc", "on": False, "fixed": False, "experimental": True},
+        {"code": "yi", "on": True, "fixed": False, "experimental": True},
+    ]
+    assert page["reads"] == [
+        {"code": "en", "on": True, "fixed": False, "experimental": False},
+        {"code": "ru", "on": True, "fixed": False, "experimental": True},
+    ]
+
+
+def test_ticking_two_boxes_is_one_request_carrying_the_whole_answer() -> None:
+    """A form that submits a set of ticks is saying what the set is, not what changed —
+    and two boxes pressed together are one change, not two requests."""
+    saved = {**SIGNED_IN, "learning": ["he", "yi"], "reads": ["en", "ru"]}
+    page = run(
+        do=[
+            {"type": "tick", "list": "you-learning", "code": "yi"},
+            {"type": "tick", "list": "you-reads", "code": "ru"},
+        ],
+        answers={"/account/languages": saved},
+    )
+    asked = [post for post in page["posted"] if post["path"] == "/account/languages"]
+    assert asked == [
+        {"path": "/account/languages", "body": {"learning": ["he", "yi"], "reads": ["en", "ru"]}}
+    ]
+    assert page["languagesSaid"] == {"text": "Saved.", "hidden": False}
+    assert [t["on"] for t in page["reads"]] == [True, True]
+    assert page["restarted"]["count"] > run()["restarted"]["count"], "sync is asked again"
+
+
+def test_the_last_language_cannot_be_unticked() -> None:
+    """Nobody can untick everything: a reader with no language to read into has no
+    reader. The box goes back on its own, nothing is sent, and the page says why."""
+    page = run(do=[{"type": "tick", "list": "you-reads", "code": "en"}])
+    assert [post["path"] for post in page["posted"]] == []
+    assert page["reads"][0]["on"] is True
+    assert page["languagesSaid"] == {"text": "Keep at least one.", "hidden": False}
+
+
+def test_a_refused_profile_puts_its_boxes_back() -> None:
+    """The server has the last word. Its answer carries what still stands, and the boxes
+    are drawn from that rather than from what was asked."""
+    page = run(
+        do=[{"type": "tick", "list": "you-reads", "code": "ru"}],
+        answers={
+            "/account/languages": {
+                "error": "targum does not have Russian.",
+                "learning": ["he"],
+                "reads": ["en"],
+            }
+        },
+    )
+    assert page["languagesSaid"] == {"text": "targum does not have Russian.", "hidden": False}
+    assert [t["on"] for t in page["reads"]] == [True, False]
 
 
 def test_the_corner_is_told_when_the_name_changes() -> None:

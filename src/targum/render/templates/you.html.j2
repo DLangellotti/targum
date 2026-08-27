@@ -33,6 +33,24 @@
     <p class="said" id="you-said" hidden></p>
   </section>
 
+  {#- Which languages you are learning, and which you read well enough to be handed a
+      translation in. Every one targum has is here with its stage beside it: this is the
+      page where somebody says what they read, so a language missing from it would be a
+      question they had no way to answer. Drawn by `you.js` from the lists below. -#}
+  <section class="panel" id="languages" hidden>
+    <h2>Your languages</h2>
+    <div class="ticks">
+      <span class="ticks-label" id="learning-label">Learning</span>
+      <span class="tick-list" id="you-learning" role="group" aria-labelledby="learning-label"></span>
+    </div>
+    <div class="ticks">
+      <span class="ticks-label" id="reads-label">Reading into</span>
+      <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
+    </div>
+    <p class="note">Nothing is deleted when you untick.</p>
+    <p class="said" id="you-languages-said" hidden></p>
+  </section>
+
   <section class="panel" id="reading" hidden>
     <h2>Your reading</h2>
     <p class="tally" id="you-kept"></p>
@@ -52,7 +70,12 @@
 </main>
 {% include '_foot.html.j2' %}
 
-<script>window.TARGUM_KEY = "{{ token }}";</script>
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_READING = {{ reading|tojson }};
+window.TARGUM_INTO = {{ into|tojson }};
+window.TARGUM_REQUIRED = {{ required|tojson }};
+</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('you.js') }}</script>

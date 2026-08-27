@@ -73,11 +73,18 @@ SESSION_DAYS = 90
 # 7: word.learned — whether a word was saved at a level below known and got there. It
 #    is the difference between a word targum taught somebody and a word they already had
 #    and ticked off, and it cannot be worked out after the fact from status and dates.
+# 8: the meaning table — a meaning belongs to a language pair, a word to a language — and
+#    the reads table, an allowlist of which languages an address may be translated into.
+# 9: the chosen table, which replaces that allowlist with the person's own answer: what
+#    they are learning and what they read into. The objection at 6 still stands and this
+#    is not a second place for the setting — it is the one place, and the browser keeps a
+#    copy of it the way it keeps a copy of the words. Old `reads` rows are read across
+#    once for anybody who has signed in; the table stays on disk, empty of meaning.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -108,20 +115,32 @@ CREATE TABLE IF NOT EXISTS admin (
   at    INTEGER NOT NULL
 );
 
--- Which languages an address reads well enough to be offered a translation into.
---
--- English is offered to everybody and is never in here. Anything else has to be said,
--- because the cost of being wrong is a reader handed a page in a language they cannot
--- read — and, if they keep a word from it, a definition in that language following them
--- around every text they own. Keyed by address rather than by person id, like `admin`
--- and `invited`, so it can be said before somebody has ever signed in.
---
--- One row per language rather than a flag per language: the next one is a row.
+-- The allowlist `chosen` replaced: which languages an address had been marked as
+-- reading, from the command line. Still created so the migration below has something
+-- to read on a database that never had it; nothing writes here any more.
 CREATE TABLE IF NOT EXISTS reads (
   email    TEXT NOT NULL,
   language TEXT NOT NULL,
   at       INTEGER NOT NULL,
   PRIMARY KEY (email, language)
+);
+"""
+
+# What a person said about their languages: which they are learning, and which they read
+# well enough to be handed a translation in. The reader's own answer, from the profile
+# page, where the `reads` table above was somebody else's answer from a terminal.
+#
+# Keyed by person rather than by address, unlike `admin` and `invited`: those say
+# something about an address before anybody has signed in, and a preference cannot
+# exist before its owner does. One row per language per kind; the next language is a
+# row. Absent means the default — see `learning` and `reads` on the store.
+CHOSEN = """
+CREATE TABLE IF NOT EXISTS chosen (
+  person   INTEGER NOT NULL,
+  kind     TEXT    NOT NULL,
+  language TEXT    NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (person, kind, language)
 );
 """
 
@@ -453,7 +472,9 @@ class Store:
         self.db.executescript(SCHEMA)
         self.db.executescript(INVITED)
         self.db.executescript(ADMIN)
+        self.db.executescript(CHOSEN)
         self._migrate()
+        self._adopt_reads()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _migrate(self) -> None:
@@ -474,6 +495,35 @@ class Store:
             except sqlite3.OperationalError as error:
                 if "duplicate column" not in str(error).lower():
                     raise
+
+    def _adopt_reads(self) -> None:
+        """Carry the old allowlist across as the person's own choice.
+
+        A marking on an address that has since signed in becomes that person's
+        `reading` rows — with English beside it, because the allowlist always offered
+        English and a Russian-only row read across on its own would take it away. An
+        address nobody has signed in with is left where it is: they get the default when
+        they arrive and tick Russian themselves.
+
+        Runs on every open and does nothing the second time: the insert ignores rows
+        that are already there, and a person who has since unticked a language has
+        rows of their own that say so — which is why this only writes for a person
+        with no `reading` rows at all.
+        """
+        with self.write() as db:
+            marked = db.execute(
+                "SELECT person.id AS id, reads.language AS language"
+                " FROM reads JOIN person ON person.email = reads.email"
+                " WHERE NOT EXISTS ("
+                "   SELECT 1 FROM chosen WHERE chosen.person = person.id AND kind = 'reading')"
+            ).fetchall()
+            for row in marked:
+                for code in (str(row["language"]), "en"):
+                    db.execute(
+                        "INSERT OR IGNORE INTO chosen (person, kind, language, at)"
+                        " VALUES (?, 'reading', ?, ?)",
+                        (int(row["id"]), code, now()),
+                    )
 
     # -- plumbing ---------------------------------------------------------------
 
@@ -647,69 +697,76 @@ class Store:
     def admins(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM admin ORDER BY at")]
 
-    #: Offered to everybody, and never recorded. targum is written in English, its help is
-    #: in English, and an account that reads nothing else can still be given a translation
-    #: it can read.
-    ALWAYS_READS = "en"
+    # -- languages ----------------------------------------------------------------
 
-    def reads_by_id(self, person_id: int | None) -> set[str] | None:
-        """The same question asked of a person id, for anything working from a home
-        directory rather than from a session. None where there is no such person."""
-        if not person_id:
-            return None
-        row = self.db.execute("SELECT email FROM person WHERE id = ?", (int(person_id),)).fetchone()
-        return None if row is None else self.reads(str(row["email"]))
+    def _chosen(
+        self, person_id: int | None, kind: str, offered: set[str], default: str
+    ) -> set[str]:
+        """What a person said for one kind, kept to the languages targum still has.
 
-    def reads(self, email: str | None) -> set[str]:
-        """Which languages this address may be offered a translation into.
-
-        Signed out — and on a machine somebody runs themselves — this is asked of nobody
-        and answers with everything: the gate is about handing a stranger's account a
-        language nobody said they read, and there is no stranger on your own laptop.
+        Nobody — no id — is an empty set rather than the default, because the callers
+        that work from a home directory use "nothing" to mean "no one to ask" and
+        offer everything. A person with no rows gets the default: the app's own
+        assumption until they say otherwise.
         """
-        address = tidy(email or "")
-        if not address:
+        if not person_id:
             return set()
-        rows = self.db.execute("SELECT language FROM reads WHERE email = ?", (address,))
-        return {self.ALWAYS_READS} | {str(row["language"]) for row in rows}
+        rows = self.db.execute(
+            "SELECT language FROM chosen WHERE person = ? AND kind = ?", (int(person_id), kind)
+        )
+        said = {str(row["language"]) for row in rows} & offered
+        return said or {default}
 
-    def make_reads(self, email: str, language: str) -> str:
-        """Say that an address reads a language. Invites them, the way `make_admin` does:
-        marking somebody who cannot sign in is half of a thing nobody wants half of."""
-        address = tidy(email)
-        code = (language or "").strip().lower()
-        if not address:
-            raise ValueError("No address given.")
-        if not code:
-            raise ValueError("No language given.")
+    def learning(self, person_id: int | None) -> set[str]:
+        """Which languages this person is learning: what the reading pages offer a
+        switcher for, and what an upload may claim to be."""
+        from .translate.prompts import READING
+
+        return self._chosen(person_id, "learning", {code for code, _ in READING}, "he")
+
+    def reads(self, person_id: int | None) -> set[str]:
+        """Which languages this person reads well enough to be handed a translation in.
+
+        The cost of guessing is a reader handed a page in a language they cannot read
+        — and a definition in it following them around every text they own. So this is
+        their own answer, and English until they give one.
+        """
+        from .translate.prompts import INTO
+
+        return self._chosen(person_id, "reading", {code for code, _ in INTO}, "en")
+
+    def choose(self, person: Person, kind: str, languages: list[str]) -> set[str]:
+        """Replace one kind wholesale, which is the shape a form that submits a set wants.
+
+        Refuses rather than repairs: an empty set is not a state a reader can be in,
+        because a page with no translation beside the source is not a reader at all,
+        and a learner of nothing has nothing to be shown. The sentence raised is the one
+        the page shows.
+        """
+        from .translate.prompts import INTO, READING, REQUIRED_LEARNING, language_name
+
+        if kind == "learning":
+            offered = {code for code, _ in READING}
+        elif kind == "reading":
+            offered = {code for code, _ in INTO}
+        else:
+            raise ValueError("No such choice.")
+        wanted = {str(code or "").strip().lower() for code in languages}
+        wanted.discard("")
+        strange = sorted(wanted - offered)
+        if strange:
+            raise ValueError(f"targum does not have {language_name(strange[0])}.")
+        if not wanted:
+            raise ValueError("Keep at least one.")
+        if kind == "learning" and not wanted >= set(REQUIRED_LEARNING):
+            raise ValueError(f"{language_name(REQUIRED_LEARNING[0])} stays on.")
         with self.write() as db:
-            db.execute(
-                "INSERT INTO reads (email, language, at) VALUES (?, ?, ?) "
-                "ON CONFLICT(email, language) DO NOTHING",
-                (address, code, now()),
+            db.execute("DELETE FROM chosen WHERE person = ? AND kind = ?", (person.id, kind))
+            db.executemany(
+                "INSERT INTO chosen (person, kind, language, at) VALUES (?, ?, ?, ?)",
+                [(person.id, kind, code, now()) for code in sorted(wanted)],
             )
-            db.execute(
-                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-                (address, now()),
-            )
-        return address
-
-    def unreads(self, email: str, language: str) -> bool:
-        """Take a language back. What was built in it stays on disk and stops being
-        offered: the next build of that reader leaves it out of the picker."""
-        with self.write() as db:
-            return (
-                db.execute(
-                    "DELETE FROM reads WHERE email = ? AND language = ?",
-                    (tidy(email), (language or "").strip().lower()),
-                ).rowcount
-                > 0
-            )
-
-    def readers_of(self) -> list[tuple[str, str]]:
-        """Every marking, for the command that lists them."""
-        rows = self.db.execute("SELECT email, language FROM reads ORDER BY email, language")
-        return [(str(row["email"]), str(row["language"])) for row in rows]
+        return wanted
 
     def is_admin(self, email: str) -> bool:
         address = tidy(email)
@@ -858,7 +915,16 @@ class Store:
             ).fetchall()
             gone = [int(row["id"]) for row in rows]
             for person_id in gone:
-                for table in ("word", "meaning", "phrase", "doc", "day", "session", "link"):
+                for table in (
+                    "word",
+                    "meaning",
+                    "phrase",
+                    "doc",
+                    "day",
+                    "chosen",
+                    "session",
+                    "link",
+                ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone

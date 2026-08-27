@@ -986,6 +986,32 @@ def test_only_hebrew_is_offered_on_the_reading_pages() -> None:
     assert answer["current"] == "he", "a remembered Russian choice cannot reopen it"
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_reading_pages_offer_what_the_account_says_is_being_learned() -> None:
+    """The one above holds until the account answers. Once it has — `sync.js` mirrors
+    the profile's answer into `targum:learning` — the switcher offers those and nothing
+    else, and a remembered choice in one of them stands. Nothing is deleted by an
+    unticked language: it is simply not offered."""
+    from targum.render.builder import ASSETS
+
+    program = """
+      global.window = {{}};
+      const stored = {{ "targum:learning": JSON.stringify(["he", "yi"]), "targum:language": "yi" }};
+      global.localStorage = {{ getItem: (name) => stored[name] || null, setItem: () => {{}} }};
+      require({where});
+      const lang = window.TargumLang;
+      const names = {{ he: "Hebrew", ru: "Russian", arc: "Aramaic", yi: "Yiddish" }};
+      const shown = lang.order(["ru", "yi", "he", "arc"], names);
+      console.log(JSON.stringify({{ shown, current: lang.current(shown) }}));
+    """.format(where=json.dumps(str(ASSETS / "lang.js")))
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    answer = json.loads(done.stdout)
+
+    assert answer["shown"] == ["he", "yi"], "what was ticked, Hebrew first, and no more"
+    assert answer["current"] == "yi", "a remembered choice within them stands"
+
+
 def test_every_page_shares_one_language_choice() -> None:
     """targum is a Hebrew app, and says so the same way on all three pages.
 
@@ -1226,7 +1252,7 @@ def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
     every visitor who had never touched it — against what lang.js says it does.
     """
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    building = source[source.index("var codes = [lang.HOME]") :]
+    building = source[source.index("var all = [lang.HOME]") :]
     building = building[: building.index("lang.order")]
 
     assert "catalogue" not in building, "the catalogue must not widen the switcher"

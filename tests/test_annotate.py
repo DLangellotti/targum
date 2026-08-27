@@ -6,7 +6,7 @@ import pytest
 
 from targum.annotate import BAND_COUNT, BAND_NAMES, Annotator
 from targum.annotate.frequency import CUTS, FrequencyBands
-from targum.annotate.gloss import build_glossary, estimate, unique_lemmas
+from targum.annotate.gloss import build_glossary, entries_for, estimate, gloss_one, unique_lemmas
 from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
 from targum.models import Annotation, Segment, SegmentedDocument, Token
@@ -285,6 +285,45 @@ def test_a_language_with_no_frequency_data_is_not_rated() -> None:
     assert {token.band for token in tokens} == {0}
     assert annotation.method == "none"
     assert "no word frequency data" in annotation.method_note.lower()
+
+
+def test_a_word_is_glossed_in_the_sentence_it_was_met_in() -> None:
+    """עם is "with" and "people", and a gloss with no sentence behind it is a guess at
+    which one the reader needs. The sentence goes to the model with the form; the form
+    goes alone where there is none; and the answer is still filed under the lemma, so
+    the second text is as cheap as it was."""
+    assert entries_for(["עם", "בית"], {"עם": "  וַיֵּצֵא   עִם\nהָעָם "}) == (
+        "form: עם\nin: וַיֵּצֵא עִם הָעָם\n\nform: בית"
+    )
+    assert entries_for(["בית"]) == "form: בית"
+
+
+def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    class Contextual(FakeGlosses):
+        def __init__(self) -> None:
+            super().__init__()
+            self.contexts: list[dict[str, str] | None] = []
+
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.contexts.append(dict(contexts) if contexts else None)
+            return super().gloss(lemmas, source_language, target_language, on_progress)
+
+    cache = Cache(tmp_path)
+    provider = Contextual()
+    assert (
+        gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == "meaning of עם"
+    )
+    assert provider.contexts == [{"עם": "ויצא עם העם"}]
+    # Cached under the lemma alone: met again in another sentence, nothing is asked.
+    assert (
+        gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי") == "meaning of עם"
+    )
+    assert provider.asked == [["עם"]]
+    # And a word with no sentence behind it is asked for the old way.
+    gloss_one("בית", "he", "en", provider, cache=cache)
+    assert provider.contexts == [{"עם": "ויצא עם העם"}, None]
 
 
 def test_unrated_words_are_still_worth_glossing() -> None:

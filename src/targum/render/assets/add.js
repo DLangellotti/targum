@@ -261,34 +261,46 @@
     say();
   })();
 
-  /* And which language to read it into, remembered the same way — narrowed to the
-   * languages this account reads.
+  /* And which language to read it into, remembered the same way. Both pickers are then
+   * narrowed to what this account said on its profile: what it is learning, and what it
+   * reads into.
    *
-   * The narrowing waits for the account to answer, so the picker starts as the page was
-   * built and settles a moment later. That is the right way round: the server refuses a
-   * language the account may not have whatever this was showing, so being briefly
-   * generous here costs nothing and being briefly wrong the other way would hide a
-   * language from somebody who does read it.
+   * Redrawn from the lists rather than pruned. A picker that removed an option could
+   * never put it back, so a language ticked on the profile page stayed missing here
+   * until a reload. The narrowing waits for the account to answer, so the picker starts
+   * as the page was built and settles a moment later. That is the right way round: the
+   * server refuses a language the account may not have whatever this was showing, so
+   * being briefly generous here costs nothing and being briefly wrong the other way
+   * would hide a language from somebody who does read it.
    */
   (function () {
+    var from = document.getElementById("from");
     var to = document.getElementById("to");
     if (!to) return;
 
-    function narrow(allowed) {
-      if (!allowed) return;
-      var kept = null;
-      for (var n = to.options.length - 1; n >= 0; n -= 1) {
-        var option = to.options[n];
-        if (allowed.indexOf(option.value) < 0) to.removeChild(option);
-        else kept = option.value;
+    function fill(select, rows, allowed) {
+      var was = select.value;
+      select.textContent = "";
+      rows.forEach(function (row) {
+        if (allowed && allowed.indexOf(row.code) < 0) return;
+        var option = document.createElement("option");
+        option.value = row.code;
+        option.textContent = row.name + " (" + row.label + ")";
+        select.appendChild(option);
+      });
+      // Whatever was chosen may be a language this account no longer has; the first
+      // that is left stands in for it.
+      for (var n = 0; n < select.options.length; n++) {
+        if (select.options[n].value === was) select.selectedIndex = n;
       }
-      // Whatever was remembered may be a language this account no longer reads.
-      if (kept && allowed.indexOf(to.value) < 0) to.value = kept;
     }
 
     if (window.TargumSync) {
       window.TargumSync.onChange(function () {
-        narrow(window.TargumSync.reads());
+        fill(from, window.TARGUM_READING || [], window.TargumSync.learning());
+        fill(to, window.TARGUM_INTO || [], window.TargumSync.reads());
+        // The note under the first picker is about whatever it now shows.
+        from.dispatchEvent(new Event("change"));
       });
     }
 

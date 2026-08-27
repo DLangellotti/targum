@@ -418,6 +418,8 @@
               store: name,
               segmentId: segmentId,
               index: (segments[segmentId] || []).indexOf(pick),
+              // Its name in the meanings store, for a note written on the words page.
+              id: pick.id || "",
               term: pick.text || "",
               meaning: meant.meaning || "",
               note: meant.note || "",

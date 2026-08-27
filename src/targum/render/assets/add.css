@@ -228,8 +228,3 @@ body.add > .add-main {
    they have a translation, and it should not tower over the text they came to add. */
 .drop.small { padding: 1rem 0.9rem; }
 .drop.small .drop-label { font-size: 0.9375rem; }
-
-/* §4: selection in UI is quiet ink, never the accent — and never the browser's blue,
-   which is what a checkbox is until it is told otherwise. */
-.tick { margin-block-start: 0.2rem; }
-.tick input { accent-color: var(--ink); }
