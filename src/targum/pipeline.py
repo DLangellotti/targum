@@ -686,13 +686,26 @@ class Build:
         $4.23, and the cap then refused the pair and the book could not be opened at all.
         The rest arrives as the rest is bought, and a lemma already looked up is free.
         """
-        if not self.gloss or annotation is None:
+        if annotation is None:
             return None
         from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
 
         wanted = {segment.id for segment in only} if only is not None else None
 
         provider = AnthropicGlosses(self.gloss_model or self.model)
+        if not self.gloss:
+            # Nothing is bought, but what is already held is still handed over: a
+            # meaning looked up in another text, or bought for this one by somebody
+            # else, costs nothing to show, and a card should open with it rather than
+            # with a button.
+            held, _ = build_glossary(
+                annotation, self.target_language, provider, cache=self.cache, buy=False
+            )
+            if not held.entries:
+                return None
+            held.write(glossary_path(self.resolved_out, self.target_language))
+            self.reused.append("glossary (cache)")
+            return held
         # Kept so what the meanings cost is counted with the rest. Glossing runs on its
         # own provider instance, so without this its spend is simply invisible.
         self._glosser = provider

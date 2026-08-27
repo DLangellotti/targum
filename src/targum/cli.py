@@ -871,13 +871,26 @@ def rebuild_one(
     if not translations:
         # Ingested and priced, then never paid for. There is nothing to read.
         return None, "never translated"
+    annotation = read_artifact(Annotation, folder / "annotation.json")
+    glossaries = glossaries_in(folder)
+    if annotation is not None:
+        # Meanings held in the cache since this reader was written — looked up from
+        # another text, or bought by somebody else — are its for free. Filled in here
+        # so a card opens with the meaning rather than a button, and written down so
+        # the next rebuild has nothing to do.
+        from .annotate.gloss import fill_from_cache
+        from .models import glossary_path
+
+        for target, grown in fill_from_cache(annotation, glossaries, reads or ["en"]).items():
+            grown.write(glossary_path(folder, target))
+            glossaries[target] = grown
     pages = render_reader(
         document,
         segmented,
         translations,
         folder / "reader",
-        annotation=read_artifact(Annotation, folder / "annotation.json"),
-        glossaries=glossaries_in(folder),
+        annotation=annotation,
+        glossaries=glossaries,
         vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
         covers=covers,
         # Which languages the person whose reader this is reads. A reader is a file, so

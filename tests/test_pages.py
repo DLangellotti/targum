@@ -697,3 +697,12 @@ def test_a_signed_in_reader_can_look_a_word_up() -> None:
     assert "window.TargumSync.who" in source, "the sync layer already knows who is signed in"
     assert "served && passKey" not in source, "the key alone is a single-user answer"
     assert "!served || !passKey" not in source, "the key alone is a single-user answer"
+
+
+def test_a_card_opens_with_a_meaning_targum_already_holds() -> None:
+    """Pressing `g` for a word whose meaning is sitting in the cache is a button between
+    the reader and something that was already theirs."""
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function peek(index, onDone)" in source
+    assert "free: true" in source, "asked of the cache, never bought"
+    assert "peek(index, function (found)" in source, "and the card asks before it offers the button"
