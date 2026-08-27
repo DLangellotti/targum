@@ -226,8 +226,11 @@ def test_the_deploy_rewrites_the_readers_already_on_the_shelves() -> None:
     """
     assert "targum rebuild" in DEPLOY, "the readers on the box keep the old script"
     line = DEPLOY[DEPLOY.index("targum rebuild") - 200 : DEPLOY.index("targum rebuild") + 120]
-    assert "sudo -u targum" in line, "as root this leaves root-owned files behind"
+    assert "--uid=targum" in line, "as root this leaves root-owned files behind"
     assert "--out /var/lib/targum/targums" in line
+    # And with the service's environment: the rebuild fills each reader's meanings from
+    # the shared cache, and without TARGUM_CACHE_DIR it looked in an empty one.
+    assert "EnvironmentFile=/etc/targum/targum.env" in line, "an empty cache fills nothing"
 
 
 def test_the_deploy_stamps_the_numbers_before_it_builds() -> None:
