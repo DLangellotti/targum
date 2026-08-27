@@ -46,7 +46,10 @@ fi
 install -o root -g root -m 0644 "$HERE/targum.service" /etc/systemd/system/targum.service
 sed "s/targum\.page/$DOMAIN/g" "$HERE/Caddyfile" > /etc/caddy/Caddyfile
 systemctl daemon-reload
-caddy validate --config /etc/caddy/Caddyfile >/dev/null && systemctl reload caddy || systemctl restart caddy
+caddy validate --config /etc/caddy/Caddyfile >/dev/null
+# validate ran as root and may have created the log file root-owned; the service runs as caddy.
+chown -R caddy:caddy /var/log/caddy
+systemctl reload caddy || systemctl restart caddy
 
 echo "== nightly backup =="
 # Where the copies go is still a decision, but it is now one line rather than a project:
@@ -83,7 +86,7 @@ does not cover:
   editor /etc/cron.d/targum-backup         # set TARGUM_BACKUP_TO=<remote>:targum/backups
 
 A backup holds addresses and every word somebody has kept, so the remote wants to be
-an rclone `crypt` — encryption belongs there and not in targum. Check it worked with:
+an rclone crypt remote — encryption belongs there and not in targum. Check it worked with:
 
   sudo -u targum -H targum backup --to <remote>:targum/backups \
     --store /var/lib/targum/targum.db --out /var/lib/targum/backups
