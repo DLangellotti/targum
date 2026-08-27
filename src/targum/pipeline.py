@@ -112,6 +112,7 @@ class Build:
         machine: bool | None = None,
         difficulty: bool = False,
         gloss: bool = False,
+        gloss_model: str | None = None,
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
         vocalizer: vocalize_module.Vocalizer | None = None,
@@ -139,6 +140,8 @@ class Build:
         # Glosses need the same lemmas difficulty does, so asking for one implies the other.
         self.difficulty = difficulty or gloss
         self.gloss = gloss
+        # Meanings may be bought on a cheaper model than the prose; hosted, they are.
+        self.gloss_model = gloss_model
         self._annotator = annotator
         self._vocalizer = vocalizer
         self.provider: Any = build_provider(
@@ -689,7 +692,7 @@ class Build:
 
         wanted = {segment.id for segment in only} if only is not None else None
 
-        provider = AnthropicGlosses(self.model)
+        provider = AnthropicGlosses(self.gloss_model or self.model)
         # Kept so what the meanings cost is counted with the rest. Glossing runs on its
         # own provider instance, so without this its spend is simply invisible.
         self._glosser = provider

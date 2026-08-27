@@ -1043,7 +1043,7 @@ class Library:
             # Word help is worth saying goodbye to out loud; it is not worth a card that
             # will not draw. The build itself says so when it gets there.
             return 0.0, 0
-        glosser = AnthropicGlosses(builder.model)
+        glosser = AnthropicGlosses(builder.gloss_model or builder.model)
         # A lemma looked up for another text is already bought. Quoting for it again
         # prices work that is about to be free.
         owed = unpaid(
@@ -1360,6 +1360,10 @@ class Library:
             reads=sorted(self._reads_of(job.owner) or ()) or None,
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
+            # Meanings are bought on the hosted model whatever the prose was bought with:
+            # the catalogue is translated on Opus, and its 25k lemmas are cached under
+            # Sonnet. Quoting or buying them under Opus paid twice for the same words.
+            gloss_model=HOSTED_MODEL,
             difficulty=bool(options.get("words")),
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
