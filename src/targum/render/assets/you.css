@@ -62,6 +62,48 @@
 .go-quiet.danger:hover { color: var(--clay); border-color: var(--clay); }
 .go-quiet[data-sure="yes"] { color: var(--clay); border-color: var(--clay); }
 
+/* Your languages -------------------------------------------------------------- */
+
+.ticks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1.25rem;
+  margin-block-start: 0.75rem;
+}
+.ticks-label {
+  flex: 0 0 100%;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tick-list { display: contents; }
+.tick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+/* §4: selection in UI is quiet ink, never the accent — and never the browser's blue,
+   which is what a checkbox is until it is told otherwise. */
+.tick input { margin: 0; accent-color: var(--ink); }
+.tick input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The one that cannot be unticked is drawn as such, and the row does not invite a press. */
+.tick:has(input:disabled) { cursor: default; }
+.tick .beta {
+  padding: 0.02rem 0.3rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.you .note { margin-block-start: 0.75rem; }
+
 /* Reading and the way out --------------------------------------------------- */
 
 .you .tally { font-size: 1.0625rem; }

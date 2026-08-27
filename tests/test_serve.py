@@ -485,15 +485,14 @@ def test_a_row_that_is_not_a_record_is_skipped_rather_than_raising(
 def test_a_language_nobody_said_they_read_is_not_sold_to_them(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:
-    """English is offered to everybody; anything else has to be said.
+    """A new account is learning Hebrew and reads English; anything else has to be said.
 
     The cost of guessing is a reader handed a page they cannot read, paid for out of
     their own rails — and every word they keep from it carrying a meaning in that
-    language into every text they own.
+    language into every text they own. It is their own answer now, given on the profile
+    page, and the refusal says so.
     """
-    from targum.accounts import Store
-
-    port, token, out = served
+    port, token, _ = served
     cookie = sign_in(port, postbox)
 
     status, answer, _ = call(
@@ -503,16 +502,78 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "ru", "from": "he"},
         cookie=cookie,
     )
-    assert status == 400 and "does not read Russian" in answer["error"]
-
-    # And English, which nobody has to be marked for.
-    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
-    assert me["reads"] == ["en"]
-
-    Store(out.parent / "words.db").make_reads("reader@example.com", "ru")
+    assert status == 400 and answer["error"] == "Russian is not in your profile."
 
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
-    assert me["reads"] == ["en", "ru"], "the marking did not reach the account"
+    assert me["learning"] == ["he"] and me["reads"] == ["en"]
+
+    status, saved, _ = call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "yi"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert status == 200 and saved["learning"] == ["he", "yi"] and saved["reads"] == ["en", "ru"]
+
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["learning"] == ["he", "yi"] and me["reads"] == ["en", "ru"]
+
+    # A source language they have not ticked is refused the same way.
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"source": "sefaria:Genesis", "to": "en", "from": "arc"},
+        cookie=cookie,
+    )
+    assert status == 400 and answer["error"] == "Aramaic is not in your profile."
+
+
+@pytest.mark.parametrize(
+    ("asked", "said"),
+    [
+        ({"learning": ["he"], "reads": []}, "Keep at least one."),
+        ({"learning": ["yi"], "reads": ["en"]}, "Hebrew stays on."),
+        ({"learning": ["he"], "reads": ["fr"]}, "targum does not have French."),
+    ],
+)
+def test_a_profile_nobody_can_read_with_is_refused_whole(
+    served: tuple[int, str, Path], postbox: Postbox, asked: dict[str, list[str]], said: str
+) -> None:
+    """Nobody can untick everything: a reader with no language to read into has no
+    reader, and in this version Hebrew is what everybody is learning. Refused whole, and
+    the answer carries what still stands so the page can put its boxes back."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+
+    status, answer, _ = call(port, "POST", f"/account/languages?k={token}", asked, cookie=cookie)
+    assert status == 400 and answer["error"] == said
+    assert answer["learning"] == ["he"] and answer["reads"] == ["en"]
+
+
+def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
+    """`targum languages` marked an address as reading Russian, from a terminal. The
+    profile replaces it, and a person who was marked keeps Russian — with English
+    beside it, because the marking always offered English too."""
+    from targum.accounts import Store
+
+    where = tmp_path / "words.db"
+    keeping = Store(where)
+    keeping.start_sign_in("marked@example.com")
+    person = keeping.person_by_email("marked@example.com")
+    assert person is not None
+    with keeping.write() as db:
+        db.execute("INSERT INTO reads (email, language, at) VALUES ('marked@example.com', 'ru', 1)")
+
+    reopened = Store(where)
+    assert reopened.reads(person.id) == {"en", "ru"}
+    # And having unticked one, the marking does not come back on the next open.
+    reopened.choose(person, "reading", ["ru"])
+    assert Store(where).reads(person.id) == {"ru"}
+    # Somebody who never signed in has no person to carry it to, and gets the default
+    # the day they do.
+    assert Store(where).reads(None) == set()
 
 
 def test_a_reader_is_written_without_a_language_its_owner_does_not_read(
@@ -1066,6 +1127,30 @@ def test_deleting_an_account_waits_out_the_grace_period(tmp_path: Path) -> None:
         db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
     assert store.purge() == [person.id]
     assert store.person_by_email("leaving@example.com") is None
+
+
+def test_the_grace_period_actually_ends_when_targum_starts(tmp_path: Path) -> None:
+    """`purge` had nothing calling it: "Delete account" ended the session, and the rows
+    and the readers on disk stayed for good. Start-up is when the trash is emptied, and
+    this is the same promise — a deletion that waits, and then happens."""
+    from targum.accounts import GRACE_DAYS, Store, now
+    from targum.serve import Library
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("leaving@example.com")
+    person = store.person_by_email("leaving@example.com")
+    assert person is not None
+    home = tmp_path / "out" / f"p{person.id}"
+    (home / "a-text").mkdir(parents=True)
+    store.forget(person)
+    with store.write() as db:
+        stale = now() - (GRACE_DAYS + 1) * 24 * 60 * 60 * 1000
+        db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
+
+    Library(tmp_path / "out", store=store)
+
+    assert store.person_by_email("leaving@example.com") is None
+    assert not home.exists(), "their readers went with them"
 
 
 def test_an_older_database_gains_the_columns_it_is_missing(tmp_path: Path) -> None:

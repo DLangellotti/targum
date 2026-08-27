@@ -385,6 +385,7 @@ class Library:
         self.store = store
         self.adopt()
         self.empty_trash()
+        self.purge_departed()
         self._committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
@@ -690,6 +691,20 @@ class Library:
             return None
         return folder
 
+    def purge_departed(self) -> list[int]:
+        """Delete for real anyone whose grace period is up: their rows, and their home.
+
+        Called at start-up beside `empty_trash`, which is the same kind of promise — a
+        deletion that waits, and then happens. `Store.purge` had nothing calling it, so
+        "Delete account" ended the session and the grace period never ended anything.
+        """
+        if self.store is None:
+            return []
+        gone = self.store.purge()
+        for person_id in gone:
+            shutil.rmtree(self.out / f"p{person_id}", ignore_errors=True)
+        return gone
+
     def empty_trash(self, days: int = TRASH_DAYS) -> list[str]:
         """Delete for real anything whose week is up. Called at start-up."""
         gone: list[str] = []
@@ -709,7 +724,7 @@ class Library:
     def _reads_of(self, owner: int | None) -> set[str] | None:
         """Which languages a build's owner reads, or None where there is nobody to ask —
         a signed-out build on a machine somebody runs themselves."""
-        return None if self.store is None else self.store.reads_by_id(owner)
+        return None if self.store is None else (self.store.reads(owner) or None)
 
     @staticmethod
     def targets(folder: Path) -> list[str]:
@@ -1268,6 +1283,9 @@ class Library:
                 vocalization=read(Vocalization, folder / "vocalization.json"),
                 clean=False,
                 covers=self.out / "thumbs",
+                # The same narrowing `_builder` hands a whole build. Without it, buying
+                # a chapter put back every language the reader had said they do not read.
+                reads=sorted(self._reads_of(job.owner) or ()) or None,
             )
         except TargumError as error:
             return self._blame(job, error.message)
@@ -1419,7 +1437,18 @@ class Handler(BaseHTTPRequestHandler):
         who = person if person is not None else self._person()
         if who is None:
             return everything
-        return self.store.reads(who.email) & everything
+        return self.store.reads(who.id) & everything
+
+    def _learning(self, person: Person | None = None) -> set[str]:
+        """Which languages whoever is asking is learning. Everything where there is
+        nobody to ask, for the reason `_reads` gives."""
+        from .translate.prompts import READING
+
+        everything = {code for code, _ in READING}
+        who = person if person is not None else self._person()
+        if who is None:
+            return everything
+        return self.store.learning(who.id) & everything
 
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
@@ -1823,6 +1852,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._sync(payload)
         if route == "/account/name":
             return self._rename(payload)
+        if route == "/account/languages":
+            return self._languages(payload)
         self._json({"error": "not found"}, 404)
 
     # -- accounts -----------------------------------------------------------
@@ -1836,9 +1867,11 @@ class Handler(BaseHTTPRequestHandler):
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
-            # Which languages this account is offered a translation into. The pages that
-            # ask for one narrow their picker to these; `_prepare` refuses anything else
-            # whatever the picker was showing, because a picker is not a boundary.
+            # Which languages this account is learning, and which it is offered a
+            # translation into. The pages that offer either narrow to these; `_prepare`
+            # refuses anything else whatever a picker was showing, because a picker is
+            # not a boundary.
+            "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
         }
         answer.update(self.store.profile(person))
@@ -1851,6 +1884,48 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"signedIn": False}, 401)
         stored = self.store.rename(person, str(payload.get("name") or ""))
         answer = {"signedIn": True, "name": stored}
+        answer.update(self.store.profile(person))
+        self._json(answer)
+
+    def _languages(self, payload: dict[str, Any]) -> None:
+        """What they are learning and what they read into, from the profile page.
+
+        Both lists at once, replaced whole: a form that submits a set of ticks is
+        saying what the set is, not what changed. Refused whole too — a request that
+        fails on one list leaves the other as it was, so the page can put its boxes
+        back from the answer.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        before = self._reads(person)
+        try:
+            learning = self.store.choose(person, "learning", list(payload.get("learning") or []))
+            reads = self.store.choose(person, "reading", list(payload.get("reads") or []))
+        except ValueError as error:
+            return self._json(
+                {
+                    "error": str(error),
+                    "learning": sorted(self._learning(person)),
+                    "reads": sorted(self._reads(person)),
+                },
+                400,
+            )
+        # A reader is a file, and a language taken away only leaves one when the file is
+        # written again. Adding one never needs this: a translation is only in a folder
+        # if it was bought, and buying writes the reader. Off this thread, because a
+        # home full of long books is seconds of work and the page is waiting.
+        if before - reads:
+            from .cli import rebuild_home
+
+            home = self.library.home(person)
+            threading.Thread(
+                target=rebuild_home,
+                args=(home,),
+                kwargs={"reads": sorted(reads)},
+                daemon=True,
+            ).start()
+        answer = {"signedIn": True, "learning": sorted(learning), "reads": sorted(reads)}
         answer.update(self.store.profile(person))
         self._json(answer)
 
@@ -1970,11 +2045,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"targum translates into {offered}."}, 400)
         # And of those, the ones this account reads. Buying a translation into a language
         # nobody said they read spends money on a page they cannot use — and every word
-        # they keep from it carries a meaning in it into every text they own.
+        # they keep from it carries a meaning in it into every text they own. The
+        # sentence names where to change that, because it is theirs to change now.
         if wanted not in self._reads():
-            return self._json(
-                {"error": f"This account does not read {language_name(wanted)}."}, 400
-            )
+            return self._json({"error": f"{language_name(wanted)} is not in your profile."}, 400)
         # `from` is allowed to be empty: that means work it out from the text. A catalogue
         # text names its own language and is not somebody's upload, so it is let past.
         reading = str(payload.get("from") or "")
@@ -1985,6 +2059,9 @@ class Handler(BaseHTTPRequestHandler):
             if catalogue_module.matching(str(payload.get("source") or "")) is None:
                 names = ", ".join(language_name(code) for code, _ in READING)
                 return self._json({"error": f"targum reads {names}."}, 400)
+        # And of those, the ones this account said it is learning.
+        if reading in known and reading not in self._learning():
+            return self._json({"error": f"{language_name(reading)} is not in your profile."}, 400)
 
         try:
             source = self._source_from(payload)
@@ -2180,6 +2257,9 @@ class Handler(BaseHTTPRequestHandler):
         lemma = str(payload.get("lemma", "")).strip()
         source = str(payload.get("source", "")).strip()
         target = str(payload.get("target", "en")).strip() or "en"
+        # The sentence it was tapped in, which is what tells עם from עם. Capped: a
+        # sentence is what this is for, and a paragraph is what a page could send.
+        sentence = str(payload.get("sentence", "")).strip()[:400]
         if not lemma or not source:
             return self._json({"error": "bad request"}, 400)
 
@@ -2195,7 +2275,7 @@ class Handler(BaseHTTPRequestHandler):
         if not usable:
             return self._json({"error": NO_KEY}, 402)
         try:
-            meaning = gloss_one(lemma, source, target, provider)
+            meaning = gloss_one(lemma, source, target, provider, context=sentence)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
         except Exception:

@@ -122,6 +122,30 @@
     });
   }
 
+  /* Your own words for a word or a phrase, filed under the pair they were written in.
+   *
+   * The word record used to carry the note, and this page went on writing it there after
+   * the reader moved it: into a slot nothing read back, that sync never sent, and that
+   * the next pull wrote over — the cell patched itself and the note was gone by morning.
+   * The same store the reader writes, the same shape, so a note made here is the note
+   * the reader shows.
+   */
+  function noteMeaning(source, into, term, text) {
+    if (!into || !term) return;
+    var name = "targum:meanings:" + source + ":" + into;
+    var store = read(name, "{}");
+    var was = store[term] || {};
+    var record = {
+      meaning: was.meaning || "",
+      note: text || "",
+      at: was.at || Date.now(),
+      seen: Date.now(),
+    };
+    if (!record.meaning && !record.note) delete store[term];
+    else store[term] = record;
+    save(name, store);
+  }
+
   function updatePhrase(phrase, changes) {
     var store = read(phrase.store, "{}");
     var pick = (store[phrase.segmentId] || [])[phrase.index];
@@ -232,7 +256,8 @@
             },
             onNote: function (text) {
               if (text === word.note) return;
-              updateWord(word, { note: text });
+              noteMeaning(code, word.into, word.lemma, text);
+              word.note = text;
               // Patched rather than re-rendered. Committing on blur means the click
               // that caused the blur — usually a level button — has not landed yet,
               // and rebuilding the row here would take that button out from under it.
@@ -325,7 +350,8 @@
               },
               onNote: function (text) {
                 if (text === phrase.note) return;
-                updatePhrase(phrase, { note: text });
+                noteMeaning(code, phrase.into, phrase.id && "phrase:" + phrase.id, text);
+                phrase.note = text;
                 if (line) {
                   line.textContent = text || phrase.meaning;
                   line.className = "reading" + (text ? " mine" : "");

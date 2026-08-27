@@ -49,6 +49,9 @@ function element(tag) {
     // field it made. Nothing here lays anything out, but a value is not layout.
     value: "",
     placeholder: "",
+    // And a tick box's, which the profile page draws and reads back.
+    checked: false,
+    type: "",
     _text: "",
 
     get textContent() {

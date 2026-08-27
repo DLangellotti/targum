@@ -385,28 +385,6 @@ CATALOGUE: list[Entry] = [
         ],
     ),
     Entry(
-        id="father-sergius",
-        title="Отец Сергий",
-        author="Лев Толстой, 1898",
-        language="ru",
-        source="wikisource:ru:Отец Сергий (Толстой)",
-        blurb=(
-            "Late Tolstoy, novella length, plain sentences and a plot that pulls. "
-            "Long enough to be a real reading project rather than an afternoon."
-        ),
-        words=13806,
-        kind=Kind.story,
-        register=Register.none,
-        difficulty=24,
-        translations=[
-            Rendering(
-                name="Louise and Aylmer Maude",
-                source="gutenberg:985",
-                note="The Maudes knew Tolstoy and he approved of their translations.",
-            )
-        ],
-    ),
-    Entry(
         id="ruth",
         title="רות",
         author="Ketuvim · Ruth",
