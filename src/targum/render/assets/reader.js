@@ -77,6 +77,16 @@
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
 
+  // Whether the server will answer a question that costs something — a word looked
+  // up, a glossary waited for. The start-up key says yes on a machine somebody runs
+  // themselves. Hosted there is no key: the session cookie is what lets the request
+  // through, and a page cannot read that cookie, so it asks the sync layer, which has
+  // already asked the server who is signed in. Gated on the key alone, the live site
+  // drew every look-up button disabled and `g` did nothing.
+  function canAsk() {
+    return served && !!(passKey || (window.TargumSync && window.TargumSync.who));
+  }
+
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
      a Referer. Local it stays, because there it proves the page came from the terminal
@@ -539,7 +549,7 @@
 
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
-    if (!lemma || !served || !passKey) return;
+    if (!lemma || !canAsk()) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
     // The language asked about, held for the length of the flight. A reader can change
@@ -1771,8 +1781,8 @@
         var ask = document.createElement("button");
         ask.type = "button";
         ask.className = "look-up";
-        ask.textContent = served && passKey ? "look it up" : "nothing saved";
-        ask.disabled = !(served && passKey);
+        ask.textContent = canAsk() ? "look it up" : "nothing saved";
+        ask.disabled = !canAsk();
         ask.onclick = function (event) {
           event.stopPropagation();
           ask.disabled = true;
@@ -3507,7 +3517,7 @@
 
   function waitForMeanings() {
     var folder = buildFolder();
-    if (!served || !passKey || !folder) return;
+    if (!canAsk() || !folder) return;
     if (!lemmas.length) return;
     var target = data.glossPending || "";
     // Nothing was bought for this text, so nothing is coming. Words are looked up one
