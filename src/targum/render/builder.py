@@ -13,6 +13,7 @@ import json
 import mimetypes
 import re
 import shutil
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -575,13 +576,34 @@ def render(
     translations: list[Translation],
     out_dir: Path,
     annotation: Annotation | None = None,
-    glossary: Glossary | None = None,
+    glossaries: Mapping[str, Glossary] | None = None,
     vocalization: Vocalization | None = None,
     clean: bool = True,
-    glossary_pending: bool = False,
+    glossary_pending: str = "",
     covers: Path | None = None,
+    reads: Collection[str] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
+
+    `glossaries` is keyed by target language, because a meaning is written in one and a
+    reader may hold translations into two. A word means what it means in Russian and
+    something else in English, and the page has to be able to hand a reader the one they
+    asked for rather than whichever was built last.
+
+    `glossary_pending` is the target whose meanings are still being written, or "". It is
+    a language rather than a flag for the same reason: the reader polls for the target it
+    is showing, and switching to one that was never bought must not start a wait for a
+    file nobody is writing.
+
+    `reads` is which languages the person this reader belongs to reads. A translation into
+    any other is left out of the page: a picker offering a language somebody cannot read
+    offers them a page of nothing, and a word kept from it would carry a meaning in that
+    language into every text they own. None means ask nobody, which is the command line
+    and a machine somebody runs themselves.
+
+    A reader left with nothing by that keeps what it had. A page with no translation
+    beside the source is not a reader at all, which is the worse of the two answers — and
+    it only arises where somebody stopped reading a language they had already built in.
 
     `clean=False` writes over what is already there instead of emptying the directory
     first. It is for the second pass, once the word meanings have arrived: the same
@@ -591,6 +613,10 @@ def render(
     """
     if not translations:
         raise ValueError("a reader needs at least one translation")
+
+    if reads is not None:
+        offered = [t for t in translations if t.target_language in reads]
+        translations = offered or translations
 
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
@@ -636,7 +662,6 @@ def render(
         "target_language": translations[0].target_language,
         "target_direction": target_direction,
         "page_direction": source_direction,
-        "has_gloss": bool(glossary and glossary.entries),
         "has_nikkud": bool(pointed),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
@@ -678,6 +703,13 @@ def render(
                 # Regions that fell back to paragraph pairing, so the reader can mark
                 # them. A learner needs to know the pairing here is approximate.
                 "coarse": [sid for sid in section.segment_ids if sid in set(translation.coarse)],
+                # Which language this one is, and which way it runs. The page used to
+                # take both from `translations[0]` and stamp them on the cells once, so
+                # switching to a translation in another language left every cell claiming
+                # the first one's language — and left the reader's word lookups asking
+                # for meanings in a language nobody was reading.
+                "language": translation.target_language,
+                "direction": direction_for(translation.target_language),
             }
             for index, translation in enumerate(translations)
         }
@@ -733,7 +765,15 @@ def render(
                         ]
                     )
                 words[sid] = rows
-        glosses = [glossary.entries.get(lemma, "") for lemma in lemmas] if glossary else []
+        # One table of meanings per target language, each parallel to `lemmas`. A reader
+        # holding an English and a Russian translation carries both and shows whichever
+        # its picker is on; a reader with one carries one, which is what every text built
+        # so far is. Empty tables are left out rather than shipped as a row of "".
+        glosses = {
+            code: filled
+            for code, book in (glossaries or {}).items()
+            if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
+        }
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -771,9 +811,11 @@ def render(
                     # Whether the vowels on this text are its own, and so whether it
                     # should open with them showing.
                     "sourcePointed": source_pointed,
-                    # Whether a glossary is on its way. Words are looked up one at a
-                    # time now, so most readers have none coming and must not sit
-                    # asking for one for ten minutes.
+                    # Which target's meanings are on their way, if any. Words are looked
+                    # up one at a time now, so most readers have none coming and must not
+                    # sit asking for one for ten minutes — and a reader that switches to
+                    # a language nobody bought a glossary for must not start asking
+                    # either.
                     "glossPending": glossary_pending,
                 }
             ),
