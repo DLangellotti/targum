@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from targum.models import BlockKind, Segment, SegmentedDocument, Translation
+from targum.models import BlockKind, Segment, SegmentedDocument, Translation, read_artifact
 from targum.serve import Library
 
 
@@ -71,6 +71,46 @@ def test_a_book_reports_every_chapter_and_which_are_ready(tmp_path: Path) -> Non
     listed = library.readers(home)[0]
     assert listed["readyChapters"] == 2
     assert len(listed["chapters"]) == 5
+
+
+def test_readiness_is_asked_of_one_language_at_a_time(tmp_path: Path) -> None:
+    """A book read in two languages is two books' worth of buying.
+
+    Pooling every translation's segments made a chapter "ready" as soon as any language
+    covered it, so a reader who had bought nine chapters in English could not buy the
+    second in Russian: the shelf said it was already there, and it was — in the language
+    they were not reading.
+    """
+    library = Library(tmp_path)
+    home = library.home(None)
+    folder = home / "book-he"
+    book(folder, chapters=5, translated=3)
+    # And one chapter of it in Russian, which is where that reader has got to.
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert segmented is not None
+    first = [s.id for s in segmented.segments if s.block_index == 1] + ["h1"]
+    Translation(
+        name="Russian",
+        document_hash="book",
+        source_language="he",
+        target_language="ru",
+        provider="null",
+        segments={sid: "переведено" for sid in first},
+    ).write(folder / "translations" / "null.natural.ru.json")
+
+    assert [c["ready"] for c in library.chapters(folder, "en")] == [True, True, True, False, False]
+    assert [c["ready"] for c in library.chapters(folder, "ru")] == [
+        True,
+        False,
+        False,
+        False,
+        False,
+    ]
+    # Asked of nothing in particular it means "is there anything to read here", which is
+    # the question a shelf is asking.
+    assert [c["ready"] for c in library.chapters(folder)] == [True, True, True, False, False]
+    # And the languages themselves, most complete first, for anything that has to name one.
+    assert library.targets(folder) == ["en", "ru"]
 
 
 def test_readiness_is_derived_not_recorded(tmp_path: Path) -> None:

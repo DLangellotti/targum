@@ -29,6 +29,8 @@ from .models import (
     Style,
     Translation,
     Vocalization,
+    glossaries_in,
+    glossary_path,
     read_artifact,
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
@@ -113,6 +115,10 @@ class Build:
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
         vocalizer: vocalize_module.Vocalizer | None = None,
+        # Which languages whoever this build is for reads. A translation into any other
+        # is left out of the reader — see `render`. None asks nobody, which is the command
+        # line and a machine somebody runs themselves.
+        reads: Sequence[str] | None = None,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -142,6 +148,7 @@ class Build:
         # Whose build this is. Only used to scope the cache for a text that is not
         # public, so one person's upload is never re-served to another.
         self.owner = owner
+        self.reads = set(reads) if reads is not None else None
         self._glosser: Any = None
         self._out = out
         self._out_root = out_root
@@ -456,6 +463,29 @@ class Build:
             self._aligner = align_module.Aligner()
         return self._aligner
 
+    def already_here(self, made: list[Translation]) -> list[Translation]:
+        """Translations the folder already holds that this build did not make.
+
+        Building the same text into a second language used to take the first one away:
+        the reader was rendered from this run's translations alone, so `--to ru` left a
+        text that could no longer be read in English — with the English still sitting in
+        the folder, paid for, unreachable. A build adds a language rather than replacing
+        one, and the reader's picker is where the two meet.
+
+        This run's own work wins, matched on the three things that name a translation, so
+        a rebuild of the same pair replaces rather than duplicates it.
+        """
+        theirs = {(t.provider, t.style, t.target_language) for t in made}
+        out: list[Translation] = []
+        for path in sorted((self.resolved_out / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            if (translation.provider, translation.style, translation.target_language) in theirs:
+                continue
+            out.append(translation)
+        return out
+
     def aligned(self, source: Document, segmented: SegmentedDocument) -> list[Translation]:
         """Ingest, segment and align every supplied translation."""
         from .align import parallel
@@ -648,7 +678,7 @@ class Build:
         # Published as it goes. The reader is already open and asking for this file
         # every few seconds, so holding it back until the last lemma meant every word
         # someone tapped showed a blank card for the length of the whole run.
-        destination = self.resolved_out / "glossary.json"
+        destination = glossary_path(self.resolved_out, self.target_language)
 
         def publish(partial: Glossary) -> None:
             partial.write(destination)
@@ -743,6 +773,7 @@ class Build:
         translations.extend(self.aligned(plan.document, segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
+        translations.extend(self.already_here(translations))
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
@@ -751,18 +782,28 @@ class Build:
 
         def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
             self.notify("Building the reader…")
+            # Every target the folder holds, not only the one this build bought. A text
+            # read in two languages keeps a glossary for each, and a reader carrying only
+            # the newest would have nothing to say about the words of the other
+            # translation — or, before the files were named for their language, would
+            # have said it in the wrong one.
+            books = glossaries_in(self.resolved_out)
+            if glossary is not None:
+                books[self.target_language] = glossary
             return render.render(
                 plan.document,
                 segmented,
                 translations,
                 self.resolved_out / "reader",
                 annotation=annotation,
-                glossary=glossary,
+                glossaries=books,
                 vocalization=vocalization,
                 clean=clean,
-                # True only on the first pass of a build that ordered one.
-                glossary_pending=self.gloss and glossary is None,
+                # The target whose meanings are still coming, and only on the first pass
+                # of a build that ordered them.
+                glossary_pending=(self.target_language if self.gloss and glossary is None else ""),
                 covers=self.covers,
+                reads=self.reads,
             )
 
         result = Result(

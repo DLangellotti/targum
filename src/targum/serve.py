@@ -36,7 +36,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style
+from .models import Segment, SegmentedDocument, Style, glossary_path
 from .pipeline import Build, Result
 from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
 
@@ -706,13 +706,44 @@ class Library:
                     gone.append(folder.name)
         return gone
 
+    def _reads_of(self, owner: int | None) -> set[str] | None:
+        """Which languages a build's owner reads, or None where there is nobody to ask —
+        a signed-out build on a machine somebody runs themselves."""
+        return None if self.store is None else self.store.reads_by_id(owner)
+
     @staticmethod
-    def chapters(folder: Path) -> list[dict[str, Any]]:
+    def targets(folder: Path) -> list[str]:
+        """Which languages a targum can be read in, most complete first.
+
+        A folder holds a translation per language it was built into, and the reader's
+        picker offers them all. Anything that has to name one — buying the next chapter,
+        asking for the meanings — asks here rather than assuming English.
+        """
+        from .models import Translation, read_artifact
+
+        weight: dict[str, int] = {}
+        for path in sorted((folder / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            said = sum(1 for text in translation.segments.values() if text)
+            code = translation.target_language
+            weight[code] = max(weight.get(code, 0), said)
+        return sorted(weight, key=lambda code: (-weight[code], code))
+
+    @staticmethod
+    def chapters(folder: Path, target: str = "") -> list[dict[str, Any]]:
         """Every chapter of a targum, and whether it has been translated.
 
         Derived from the artifacts rather than recorded anywhere: a chapter is ready when
         every one of its segments has a translation. A second place saying so would drift
         from the truth the first time a build died between writing them.
+
+        `target` asks about one language. Without it the question is "is there anything to
+        read here", which is what a shelf wants; with it, "is there anything to read here
+        in Russian" — which is what buying the next chapter has to ask, or a book whose
+        English runs to chapter nine would refuse to sell chapter two in Russian on the
+        grounds that it already exists.
         """
         from .models import SegmentedDocument, Translation, read_artifact
         from .render.builder import split_sections
@@ -727,8 +758,11 @@ class Library:
         done: set[str] = set()
         for path in sorted((folder / "translations").glob("*.json")):
             translation = read_artifact(Translation, path)
-            if translation is not None:
-                done |= {sid for sid, text in translation.segments.items() if text}
+            if translation is None:
+                continue
+            if target and translation.target_language != target:
+                continue
+            done |= {sid for sid, text in translation.segments.items() if text}
         return [
             {
                 "number": section.number,
@@ -855,6 +889,11 @@ class Library:
                     "name": folder.name,
                     "title": title,
                     "language": language,
+                    # And which languages it can be read *into*. A text built twice is
+                    # one text with two translations, and a shelf that said only what
+                    # language it was in could not tell a reader of two which of them
+                    # this one would open in.
+                    "targets": self.targets(folder),
                     "document": content_hash,
                     "words": words,
                     **self._shape(folder, source, language, words),
@@ -1187,7 +1226,7 @@ class Library:
         are sitting in the folder. This translates one chapter and rewrites the reader
         around it, which is the whole of what asking for a chapter costs.
         """
-        from .models import Annotation, Document, Glossary, SegmentedDocument, Vocalization
+        from .models import Annotation, Document, SegmentedDocument, Vocalization, glossaries_in
         from .models import read_artifact as read
         from .render import render as render_reader
 
@@ -1215,13 +1254,17 @@ class Library:
             translation = builder.translate(
                 segmented, lambda done: setattr(job, "done", job.done + done), only=wanted
             )
+            # Every translation the folder holds, with the one just bought at the front.
+            # Rendering from this chapter's alone rewrote the reader without the others —
+            # so buying chapter two of a book somebody reads in two languages took the
+            # other language off every chapter of it.
             pages = render_reader(
                 document,
                 segmented,
-                [translation],
+                [translation, *builder.already_here([translation])],
                 folder / "reader",
                 annotation=read(Annotation, folder / "annotation.json"),
-                glossary=read(Glossary, folder / "glossary.json"),
+                glossaries=glossaries_in(folder),
                 vocalization=read(Vocalization, folder / "vocalization.json"),
                 clean=False,
                 covers=self.out / "thumbs",
@@ -1293,6 +1336,10 @@ class Library:
             # public text. Without it one person's uploaded book would be translated
             # once and served to everyone who happened to upload the same file.
             owner=f"p{job.owner}" if job.owner else "",
+            # Whose reader this will be, and so which languages it may offer. A build
+            # into a language they do not read is refused before it starts; this is the
+            # other end of it — a folder that already holds one stops showing it.
+            reads=sorted(self._reads_of(job.owner) or ()) or None,
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
             difficulty=bool(options.get("words")),
@@ -1357,6 +1404,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
+
+    def _reads(self, person: Person | None = None) -> set[str]:
+        """Which languages to offer whoever is asking.
+
+        Everything, where there is nobody to ask: signed out, or a machine somebody runs
+        themselves, where the person choosing and the person paying are the same and the
+        command line is right there anyway. The gate is about a hosted box handing an
+        account a language nobody said that account reads.
+        """
+        from .translate.prompts import INTO
+
+        everything = {code for code, _ in INTO}
+        who = person if person is not None else self._person()
+        if who is None:
+            return everything
+        return self.store.reads(who.email) & everything
 
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
@@ -1773,6 +1836,10 @@ class Handler(BaseHTTPRequestHandler):
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
+            # Which languages this account is offered a translation into. The pages that
+            # ask for one narrow their picker to these; `_prepare` refuses anything else
+            # whatever the picker was showing, because a picker is not a boundary.
+            "reads": sorted(self._reads(person)),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
@@ -1878,7 +1945,7 @@ class Handler(BaseHTTPRequestHandler):
         # rather than a hole, but a 500 where a quiet skip belongs.
         changes = {
             name: [row for row in payload[name] if isinstance(row, dict)]
-            for name in ("words", "phrases", "docs", "days")
+            for name in ("words", "meanings", "phrases", "docs", "days")
             if isinstance(payload.get(name), list)
         }
         if changes:
@@ -1901,6 +1968,13 @@ class Handler(BaseHTTPRequestHandler):
         if wanted not in {code for code, _ in INTO}:
             offered = ", ".join(language_name(code) for code, _ in INTO)
             return self._json({"error": f"targum translates into {offered}."}, 400)
+        # And of those, the ones this account reads. Buying a translation into a language
+        # nobody said they read spends money on a page they cannot use — and every word
+        # they keep from it carries a meaning in it into every text they own.
+        if wanted not in self._reads():
+            return self._json(
+                {"error": f"This account does not read {language_name(wanted)}."}, 400
+            )
         # `from` is allowed to be empty: that means work it out from the text. A catalogue
         # text names its own language and is not somebody's upload, so it is let past.
         reading = str(payload.get("from") or "")
@@ -2043,7 +2117,16 @@ class Handler(BaseHTTPRequestHandler):
         # ready from the start and every prefetch against it was a purchase waiting to
         # happen. Readiness is derived from the artifacts by `chapters()`, so this asks
         # the only thing that can answer it.
-        standing = self.library.chapters(folder)
+        # Which language to buy it in. The reader asks in the one it is showing; without
+        # that this fell through to English, so the second chapter of a Russian book came
+        # back in English — and `run_chapter` then rebuilt the whole reader around it.
+        #
+        # Checked against what the folder already holds rather than taken at its word: a
+        # prefetch nobody pressed must not be able to buy a language nobody asked for.
+        here = self.library.targets(folder)
+        wanted = str(payload.get("to") or "").strip()
+        target = wanted if wanted in here else (here[0] if here else "en")
+        standing = self.library.chapters(folder, target)
         waiting: list[int] = []
         if whole:
             waiting = [c["number"] for c in standing if not c["ready"]]
@@ -2056,7 +2139,11 @@ class Handler(BaseHTTPRequestHandler):
         job = Job(
             id=secrets.token_hex(8),
             source=str(folder),
-            options={"chapters": waiting if whole else [number], "folder": folder.name},
+            options={
+                "chapters": waiting if whole else [number],
+                "folder": folder.name,
+                "to": target,
+            },
             owner=person.id if person else None,
             admin=bool(person and person.admin),
             home=home,
@@ -2098,7 +2185,12 @@ class Handler(BaseHTTPRequestHandler):
 
         from .annotate.gloss import AnthropicGlosses, gloss_one
 
-        provider = AnthropicGlosses()
+        # The same model the build's own glossary was bought with. The provider's name
+        # is part of the cache key, so asking here with the provider's default — Opus,
+        # where a hosted build uses Sonnet — made every word the build had already paid
+        # for cost a second time, on the dearer of the two, the moment a reader tapped
+        # it. Bought once, free everywhere is the claim; this is what makes it true.
+        provider = AnthropicGlosses(HOSTED_MODEL)
         usable, _ = provider.available()
         if not usable:
             return self._json({"error": NO_KEY}, 402)
@@ -2162,27 +2254,44 @@ class Handler(BaseHTTPRequestHandler):
         return [str(self._written(str(name), str(content)))]
 
     def _serve_glossary(self, folder: str) -> None:
-        """The word meanings for one build, once they exist.
+        """The word meanings for one build and one target language, once they exist.
 
         A reader opens before these are looked up, so it asks for them afterwards and
         fills them in without a reload. Answering "not yet" is a normal reply, not an
         error: the file appears when the lookups finish.
+
+        `?to=` names the language, and the answer says which language it is answering
+        about. A reader holding two translations polls for the one it is showing, and a
+        reply that arrived after the reader switched has to be fileable rather than
+        guessable — a meaning is only ever right about the pair it was written for.
         """
+        from .translate.prompts import INTO
+
+        wanted = parse_qs(urlparse(self.path).query).get("to", ["en"])[0]
+        # An allowlist rather than a pattern, because this decides a filename. The
+        # containment check below is the second lock, not the only one.
+        if wanted not in {code for code, _ in INTO}:
+            return self._json({"error": "not found"}, 404)
         root = self._home().resolve()
-        target = (root / unquote(folder) / "glossary.json").resolve()
+        home = (root / unquote(folder)).resolve()
+        target = glossary_path(home, wanted).resolve()
+        # English before the files carried a language in the name. Nothing is renamed;
+        # the old name is simply still a place a glossary can be.
+        if not target.is_file() and wanted == "en":
+            target = (home / "glossary.json").resolve()
         if root not in target.parents:
             return self._json({"error": "not found"}, 404)
         if not target.is_file():
-            return self._json({"ready": False})
+            return self._json({"ready": False, "target": wanted})
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             # Caught mid-write. The reader is still polling; it will ask again.
-            return self._json({"ready": False})
+            return self._json({"ready": False, "target": wanted})
         entries = data.get("entries")
         if not isinstance(entries, dict):
-            return self._json({"ready": False})
-        self._json({"ready": True, "entries": entries})
+            return self._json({"ready": False, "target": wanted})
+        self._json({"ready": True, "target": wanted, "entries": entries})
 
     def _serve_thumb(self, name: str) -> None:
         """The cover drawn for one text, where somebody has made one.

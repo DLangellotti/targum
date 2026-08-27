@@ -509,7 +509,11 @@
     state.textContent = "Getting ready…";
     ask("/prepare", {
       source: entry.source,
-      to: "en",
+      // The language this reader reads into, not English by assumption. They read in
+      // two; a button that always bought one of them would be a button that reads their
+      // mind wrong half the time. Clamped to what the account is offered, so a
+      // remembered choice that no longer stands asks for English rather than a refusal.
+      to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
       from: entry.language,
       words: true,
       gloss: false,
@@ -713,6 +717,7 @@
 
     function show(code) {
       chosen = code;
+      lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       if (betaNote) {
         betaNote.hidden = !lang.beta(code);
@@ -737,5 +742,8 @@
       });
       window.TargumSync.start();
     }
-  });
+  })
+    // Nothing to list, because nothing could be asked. The catalogue is still drawn from
+    // what the page was built with; what fails here is only which of it you already have.
+    .catch(function () {});
 })();

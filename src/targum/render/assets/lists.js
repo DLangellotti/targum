@@ -13,7 +13,26 @@
   "use strict";
 
   var charts = window.TargumCharts;
+  var lang = window.TargumLang;
   var el = charts.el;
+
+  /* A meaning is written in one language, and the page it is shown on is written in
+   * another. Without this, a Russian definition sat inside a page marked `lang="en"`:
+   * read out in the wrong voice, hyphenated by the wrong rules, and — for a right-to-left
+   * meaning — punctuated at the wrong end of the line. The reader's own words too: a note
+   * belongs to the pair it was written under, the same as the meaning beside it.
+   */
+  function inTarget(node, code) {
+    if (code) {
+      node.setAttribute("lang", code);
+      node.setAttribute("dir", DIRECTION[code] || "ltr");
+    }
+    return node;
+  }
+
+  // Right-to-left targets, of the languages targum translates into. Small enough to say
+  // outright, and it is a fact about scripts rather than a setting.
+  var DIRECTION = { he: "rtl", ar: "rtl", yi: "rtl", arc: "rtl" };
   var shortDate = charts.shortDate;
   var STATUS = charts.STATUS;
   var EARLIEST = charts.EARLIEST;
@@ -174,7 +193,10 @@
       }
       tr.appendChild(lemma);
 
-      var meaning = el("td", "meaning" + (word.note ? " mine" : ""), word.note || word.meaning);
+      var meaning = inTarget(
+        el("td", "meaning" + (word.note ? " mine" : ""), word.note || word.meaning),
+        word.into
+      );
       if (word.note && word.meaning) meaning.title = "targum: " + word.meaning;
       tr.appendChild(meaning);
       tr.appendChild(el("td", "band", word.band || "—"));
@@ -278,7 +300,10 @@
         var reading = phrase.note || phrase.meaning;
         var line = null;
         if (reading) {
-          line = el("span", "reading" + (phrase.note ? " mine" : ""), reading);
+          line = inTarget(
+            el("span", "reading" + (phrase.note ? " mine" : ""), reading),
+            phrase.into
+          );
           if (phrase.note && phrase.meaning) line.title = "targum: " + phrase.meaning;
           item.appendChild(line);
         }
@@ -442,19 +467,62 @@
   }
 
   /** Draw both lists for one language. */
+  /* Which language the meanings on this page are written in.
+   *
+   * Only ever drawn for somebody who has meanings in more than one — a reader who has
+   * only ever read into English is not asked a question with one answer. Picking one
+   * remembers it and redraws, and `TargumCharts.meaningLanguage` is what turns the
+   * remembered choice back into the language the page shows.
+   */
+  function offerMeaningLanguages(source, chosen, onPick) {
+    var host = document.getElementById("meaning-langs");
+    if (!host) return;
+    var have = charts.targets(source).map(function (one) {
+      return one.code;
+    });
+    var names = window.TARGUM_LANGUAGES || {};
+    lang.switcher(host, have, names, chosen, onPick, {
+      label: "Definition language",
+      // Never "experimental": that is a claim about a language you are learning, and
+      // these are the languages you already have.
+      tag: function () {
+        return false;
+      },
+    });
+  }
+
   function draw(which, store, ceilings) {
     code = which;
     entry = store || { words: [], phrases: [] };
     limits = ceilings || {};
     shown = PAGE;
     openKey = null;
+    offerMeaningLanguages(which, meaningIn(), function (into) {
+      lang.into(into);
+      if (redrawing) redrawing(into);
+    });
     renderWords();
     renderPhrases();
   }
 
+  // What the rows on the page are in, taken from the rows themselves: `collect` stamps
+  // each one, so this cannot disagree with what is drawn.
+  function meaningIn() {
+    var rows = (entry.words || []).concat(entry.phrases || []);
+    for (var n = 0; n < rows.length; n++) if (rows[n].into) return rows[n].into;
+    return "";
+  }
+
+  // What to call when the reader picks another language. The page owns redrawing, since
+  // only it knows where its store comes from.
+  var redrawing = null;
+
   window.TargumLists = {
     mount: mount,
     draw: draw,
+    onMeaningLanguage: function (fn) {
+      redrawing = fn;
+    },
     offerExports: offerExports,
   };
 })();

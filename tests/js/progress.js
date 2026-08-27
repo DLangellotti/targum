@@ -30,6 +30,9 @@ install({
     HOME: "he",
     order: (codes) => codes.sort(),
     current: (codes) => codes[0],
+    // The switcher draws; the caller remembers. Both are asked for now.
+    set: () => {},
+    into: () => "",
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",
