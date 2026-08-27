@@ -124,6 +124,23 @@ body.learn main[hidden] {
 .door[hidden] {
   display: none;
 }
+/* The suggestion is a button, because pressing it builds the text rather than going to a
+   page about it. Everything that makes it a card is above; this is only undoing what a
+   browser does to a button — and `text-align: start` rather than `left`, so it mirrors
+   with the rest of the page. */
+button.door {
+  inline-size: 100%;
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+/* While it builds. Not dimmed: the card is still the thing being read, and the line
+   inside it is already saying what is happening. */
+button.door:disabled {
+  cursor: default;
+}
 
 /* Carry on. The only card with the accent on it, because it is the one thing most visits
    are for — §4 rations the accent to the single primary action in a view. */
