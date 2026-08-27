@@ -636,7 +636,7 @@
             ? ask("/cover", { name: name }).catch(function () {})
             : Promise.resolve();
           drawing.then(function () {
-            window.location.href = keyed("/reader/" + state.reader);
+            window.location.href = keyed("/reader/" + state.reader.split("/").map(encodeURIComponent).join("/"));
           });
         }
       });

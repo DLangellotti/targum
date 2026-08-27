@@ -706,3 +706,16 @@ def test_a_card_opens_with_a_meaning_targum_already_holds() -> None:
     assert "function peek(index, onDone)" in source
     assert "free: true" in source, "asked of the cache, never bought"
     assert "peek(index, function (found)" in source, "and the card asks before it offers the button"
+
+
+def test_reader_links_are_percent_encoded() -> None:
+    """A folder is named from a title, and a title can carry anything. The one that broke
+    it had a raw `%` — a browser sent it as-is, and the proxy refused the request before
+    targum saw it."""
+    for name in ("library.js", "shelf.js", "learn.js", "add.js"):
+        source = (ASSETS / name).read_text(encoding="utf-8")
+        assert '"/reader/" + reader.name' not in source, name
+        assert '"/reader/" + row.built.name' not in source, name
+        assert '"/reader/" + job.reader)' not in source, name
+        assert '"/reader/" + state.reader)' not in source, name
+        assert "encodeURIComponent" in source, name
