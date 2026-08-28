@@ -251,7 +251,8 @@ main {
 table.rows { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 table.rows th {
   text-align: start;
-  padding: 0 0.6rem 0.4rem 0;
+  padding-block: 0 0.4rem;
+  padding-inline: 0 0.6rem;
   border-block-end: 1px solid var(--rule);
   color: var(--ink-soft);
   font-size: 0.6875rem;
@@ -261,7 +262,8 @@ table.rows th {
   white-space: nowrap;
 }
 table.rows td {
-  padding: 0.45rem 0.6rem 0.45rem 0;
+  padding-block: 0.45rem;
+  padding-inline: 0 0.6rem;
   border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
   vertical-align: baseline;
 }
