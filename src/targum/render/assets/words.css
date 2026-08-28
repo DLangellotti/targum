@@ -281,7 +281,7 @@ table.rows .band { color: var(--ink-soft); white-space: nowrap; }
 /* A row opens where it sits. The control itself is styled with the reader's, which is
    inlined above this file, so only the placing is here. */
 table.rows tbody tr { cursor: pointer; }
-table.rows tbody tr.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+table.rows tbody tr.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 table.rows tr.editor-row, table.rows tr.editor-row:hover { background: none; cursor: auto; }
 table.rows tr.editor-row td {
   padding-block: 0.5rem 0.8rem;
@@ -290,7 +290,7 @@ table.rows tr.editor-row td {
 .vocab-editor .note-field { max-width: 26rem; }
 
 .text-group li { cursor: pointer; }
-.text-group li.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.text-group li.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .text-group .vocab-editor { margin-block-start: 0.45rem; cursor: auto; }
 
 /* Your own words, and a quiet mark saying so. */
