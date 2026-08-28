@@ -42,7 +42,6 @@
      these working cuts. Green and purple are the positions nobody in the category
      owns; blue and orange stay out. */
   --leaf: #5a7340;   /* progress, success, known        5.0:1 on paper */
-  --leaf-max: #a8c37e; /* the same, for the inverted block, which flips with it */
   --clay: #b4553f;   /* cost, errors, destructive       4.6:1 */
   --iris: #6b5a8e;   /* phrases, discovery, new         5.7:1 */
 
@@ -88,7 +87,6 @@
     --focus: #b8935e;
     --mark-accent: #c8a778;
     --leaf: #a8c37e;
-    --leaf-max: #5a7340;
     --clay: #e0937d;
     --iris: #b3a3d6;
     /* On ink the page is already the panel the bright set was measured against. */
@@ -111,7 +109,6 @@
     --focus: #b8935e;
     --mark-accent: #c8a778;
     --leaf: #a8c37e;
-    --leaf-max: #5a7340;
     --clay: #e0937d;
     --iris: #b3a3d6;
     /* On ink the page is already the panel the bright set was measured against. */
