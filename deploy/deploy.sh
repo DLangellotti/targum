@@ -32,7 +32,13 @@ REMOTE_WHEEL="/tmp/$(basename "$WHEEL")"
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # Installed as the service account so the tool and its virtualenv are owned by the
   # user that runs it. --force because the version usually has not changed.
-  sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/usr/local/bin \
+  #
+  # No UV_TOOL_BIN_DIR: it used to point at /usr/local/bin, which root owns and the
+  # targum user cannot write. uv clears the bin directory before it writes the shim, so
+  # the failure did not just abort — it left /usr/local/bin/targum dangling and the box
+  # one restart away from not starting at all. uv's default is $HOME/.local/bin, which
+  # the service account owns and which /usr/local/bin/targum already points at.
+  sudo -u targum env HOME=/srv/targum \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty]" >/dev/null
   rm -f "${REMOTE_WHEEL}"
   systemctl restart targum

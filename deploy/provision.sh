@@ -43,6 +43,11 @@ if [ ! -f /etc/targum/targum.env ]; then
   install -o root -g root -m 0600 "$HERE/targum.env.example" /etc/targum/targum.env
   echo "   wrote /etc/targum/targum.env — FILL IT IN before starting"
 fi
+# systemd and the backup cron both call /usr/local/bin/targum, and uv installs the tool
+# as the service account, into its own home. One symlink joins the two — without it a
+# fresh box provisions cleanly and then has nothing to start.
+ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
+
 install -o root -g root -m 0644 "$HERE/targum.service" /etc/systemd/system/targum.service
 sed "s/targum\.page/$DOMAIN/g" "$HERE/Caddyfile" > /etc/caddy/Caddyfile
 systemctl daemon-reload
