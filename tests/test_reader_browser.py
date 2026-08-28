@@ -854,7 +854,7 @@ RING = """
     id: w.closest('.pair').dataset.id,
     top: Math.round(w.getBoundingClientRect().top),
     focused: document.activeElement === w,
-    tabbable: w.getAttribute('tabindex') === '-1',
+    tabbable: w.getAttribute('tabindex') === '0',
   };
 }
 """
