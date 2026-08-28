@@ -431,10 +431,12 @@
       });
       codes = lang.order(codes, names);
 
-      var nothing = !readers.length && !vocabulary.length;
-      document.getElementById("nothing").hidden = !nothing;
-      document.getElementById("page").hidden = nothing;
-      if (nothing) return;
+      // An empty shelf used to swap the whole page for three lines pointing at the
+      // Library. The suggestion — the one thing on this page that says where to start
+      // — lives inside the page, so the reader with nothing was the one reader who
+      // never saw it. The page draws with its panels empty and the suggestion drawn.
+      document.getElementById("nothing").hidden = true;
+      document.getElementById("page").hidden = false;
 
       var chosen = lang.current(codes);
 

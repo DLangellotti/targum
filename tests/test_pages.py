@@ -174,12 +174,26 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
 
 
 def test_learn_is_honest_when_there_is_nothing() -> None:
-    """This is the onboarding now, so it points at the shelves rather than at a form."""
+    """Signed out, or the server gone, the page says so and points at the shelves."""
     learn = PAGES["learn"]
     empty = learn[learn.index('id="nothing"') :]
     assert "Nothing here yet" in empty
     assert 'href="/library"' in empty, "which is where to go"
     assert 'href="/add"' in empty, "with your own text as the quieter option"
+
+
+def test_an_empty_shelf_still_gets_the_suggestion() -> None:
+    """The suggestion — the one thing on Learn that says where to start — lives inside
+    `#page`, and an empty shelf used to hide `#page` wholesale. So the reader with nothing
+    was the one reader who never saw it, and the first alpha reader's first words were
+    "no idea where to start"."""
+    from targum.render.builder import ASSETS
+
+    learn = PAGES["learn"]
+    assert learn.index('id="page"') < learn.index('id="suggest"') < learn.index('id="nothing"')
+    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
+    assert 'getElementById("page").hidden = nothing' not in script
+    assert 'getElementById("page").hidden = false' in script
 
 
 # -- the charts are shared, not copied ------------------------------------------

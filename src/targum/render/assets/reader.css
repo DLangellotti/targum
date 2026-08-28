@@ -581,22 +581,28 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
    about it makes it quieter, and knowing it makes it disappear. So the way to clear a
    page is to read it, and the page tells you how far you have got without a number.
 
-   One hue for the whole scale, because it is one scale. §4 caps the accent wash at 22%,
-   which is what the top step takes; the underline is the tell that you have touched a
-   word at all, so a never-met word carries none. Only paint here — no box changes — so
-   switching cannot rebreak a line. */
+   Two hues, because there are two questions. A word you have not met is accent, the
+   one wash on the page, capped at §4's 22%. A word you are working on is leaf — the
+   §4 colour for progress — and gets quieter as you climb, so the descent still reads.
+   It was one hue for the whole scale, a fainter accent at each step, and the first
+   alpha reader said it exactly: "the words I clicked on need to change colour, now I
+   can hardly see them." Every leaf step keeps its underline as well: at these washes
+   leaf and accent are near neighbours under protanopia, and a mark must never rest on
+   colour alone. Only paint here — no box changes — so switching cannot rebreak a line. */
 body.marking .w:not([data-status]) {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 body.marking .w[data-status="1"] {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 55%, transparent);
 }
 body.marking .w[data-status="2"] {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--leaf) 14%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 40%, transparent);
 }
 body.marking .w[data-status="3"] {
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--leaf) 10%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 25%, transparent);
 }
 /* Known and ignored are deliberately plain. A word you have finished with should read
    like any other word. */
@@ -694,7 +700,9 @@ body.marking .w.here,
   border-color: var(--accent);
 }
 /* Finishing a word is an achievement, and §4 gives achievement to leaf. The working
-   levels stay accent — they are what the reader is doing, not what they have done. */
+   levels stay accent — they are what the reader is doing, not what they have done.
+   The word on the page turns leaf when one of them is pressed: a button is an action
+   and the page is a state, and the two are allowed to differ. Decided 2026-08-28. */
 .vocab-editor .level-9.on {
   background: var(--leaf);
   border-color: var(--leaf);
@@ -1014,6 +1022,18 @@ body.marking .w.here,
   font-variant-numeric: tabular-nums;
 }
 .list-items .row-status.status-3 { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* A word finished with just now stays on the list until the page is left — the receipt
+   for a save that used to vanish. Known wears leaf, §4's colour for it; ignored wears
+   nothing, since a name is not a level. */
+.list-items .row-status.status-9 {
+  background: color-mix(in srgb, var(--leaf) 22%, transparent);
+  padding-inline: 0.4rem;
+}
+.list-items .row-status.status-0 {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  padding-inline: 0.4rem;
+}
+.list-items li.done .term { color: var(--ink-soft); }
 
 /* A row opens where it sits rather than in a popup: the panel is narrow, and a card
    floating over the list would cover the rows either side of the one being set. */

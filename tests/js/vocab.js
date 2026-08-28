@@ -40,7 +40,9 @@ if (payload.migrate) {
 
 const kept = [];
 const levels = [];
+let saved = 0;
 const box = window.TargumVocab.editor({
+  onSaved: () => (saved += 1),
   status: payload.status,
   note: payload.note || "",
   placeholder: payload.placeholder,
@@ -64,6 +66,11 @@ if (field && payload.type !== undefined) {
   field.fire("input", nothing);
 }
 if (save && payload.press) save.fire("click", nothing);
+/** Typing again after saving: the button has to offer to save again. */
+if (field && payload.again !== undefined) {
+  field.value = payload.again;
+  field.fire("input", nothing);
+}
 if (field && payload.enter) field.fire("keydown", { key: "Enter", ...nothing });
 if (payload.level !== undefined) {
   const button = box.querySelector(".level-" + payload.level);
@@ -76,6 +83,8 @@ process.stdout.write(
     placeholder: field ? field.placeholder : null,
     hasSave: Boolean(save),
     saveLabel: save ? save.textContent : null,
+    saveDisabled: save ? Boolean(save.disabled) : null,
+    saved,
     kept,
     levels,
   })
