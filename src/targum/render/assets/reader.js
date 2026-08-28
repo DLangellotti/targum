@@ -1279,7 +1279,7 @@
     return TargumVocab.editor({
       status: entry.status,
       note: entry.note,
-      placeholder: "Enter text",
+      placeholder: "Your own meaning",
       onStatus: function (value) {
         setPhrase(entry, { status: value });
       },
@@ -1661,6 +1661,9 @@
     return TargumVocab.editor({
       status: statusOf(lemma),
       note: noteOf(lemma),
+      // The field says what it is for, in the reader's words: the same line is its
+      // accessible name, and "Enter text" was the one label on the card that was not.
+      placeholder: "Your own meaning",
       onStatus: function (value) {
         setStatus(index, surface, band, value);
         redraw();
@@ -2087,7 +2090,7 @@
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
-        placeholder: "Enter text",
+        placeholder: "Your own meaning",
         onStatus: apply,
         onNote: function (text) {
           var item = ensure();
