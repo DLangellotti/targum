@@ -106,5 +106,11 @@ process.stdout.write(
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
     said,
+    // The list beside the text after every level above was said, top to bottom.
+    list: reader.entries().map((item) => ({
+      lemma: item.lemma,
+      status: item.status,
+      done: Boolean(item.done),
+    })),
   })
 );

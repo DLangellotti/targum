@@ -573,3 +573,17 @@ def test_the_card_says_what_it_is_doing_and_cannot_be_pressed_twice() -> None:
     assert drawn["suggested"]["disabled"] is True
     started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
     assert len(started) == 1, "three presses, one build"
+
+
+def test_an_ignored_word_does_not_blank_the_table() -> None:
+    """Ignored is 0, and the status table has no 0: it is not a step on the ramp. Asking
+    it for one threw, and the whole word table went blank for anybody who had ever
+    pressed `i` and then asked to see everything."""
+    drawn = draw(
+        [reader("a", "א")],
+        vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0)),
+        filter="all",
+    )
+    rows = {row["term"]: row["well"] for row in drawn["words"]}
+    assert rows["עיר"] == "ignored"
+    assert rows["ספר"] == "known"

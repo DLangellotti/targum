@@ -379,3 +379,44 @@ def test_saying_a_level_a_word_already_has_takes_it_off() -> None:
     )["said"]
     assert said[0]["spoken"] == "one, not marked. 2 left."
     assert [item["lemma"] for item in said[0]["queue"]] == ["one", "two"]
+
+
+# -- the list beside the text ---------------------------------------------------
+
+
+def listed(
+    *sentences: list[str], vocab: dict[str, int] | None = None, **rest: Any
+) -> list[dict[str, Any]]:
+    words, lemmas = chapter(*sentences)
+    kept = {lemma: {"status": status} for lemma, status in (vocab or {}).items()}
+    return run([], chapter=words, lemmas=lemmas, vocab=kept, **rest)["list"]
+
+
+def test_the_last_word_you_saved_is_at_the_top() -> None:
+    """ "The last word you saved should go to the top of the list on the left." It went to
+    the bottom, which in a list longer than the panel was off the screen."""
+    rows = listed(
+        ["a", "b", "c"],
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 2}, {"word": "c", "status": 1}],
+    )
+    assert [row["lemma"] for row in rows] == ["c", "b", "a"]
+
+
+def test_a_word_saved_as_known_stays_in_sight() -> None:
+    """The list is what you are still working on, so a known word is not on it — except
+    the one you finished with just now. A word that vanished the moment you said you knew
+    it read as a save that had failed."""
+    rows = listed(
+        ["a", "b", "c"],
+        vocab={"c": 9},
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 1}, {"word": "a", "status": 9}],
+    )
+    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [
+        ("b", 1, False),
+        ("a", 9, True),
+    ], "the finished word keeps its place; the one known before you came is not listed"
+
+
+def test_a_word_you_ignore_stays_in_sight_too() -> None:
+    rows = listed(["a", "b"], levels=[{"word": "a", "status": 0}])
+    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [("a", 0, True)]

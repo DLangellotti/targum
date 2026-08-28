@@ -196,3 +196,21 @@ def test_a_level_press_keeps_the_note_before_it_sets_the_level() -> None:
     built = run(status=None, note="", type="my definition", level=1)
     assert built["kept"] == ["my definition"]
     assert built["levels"] == [1]
+
+
+def test_the_button_says_it_saved() -> None:
+    """ "Pop up card is a mess, can't understand when you successfully saved definition."
+    The field always saved; the button always said "Save". Now it says which side of the
+    line the field is on, and it tells the card, which redraws with the meaning marked as
+    yours — `onSaved` had a definition and no caller."""
+    done = run(status=2, type="scroll", press=True)
+    assert done["kept"] == ["scroll"]
+    assert done["saveLabel"] == "Saved"
+    assert done["saveDisabled"] is True
+    assert done["saved"] == 1, "and the card was told"
+
+
+def test_typing_again_offers_to_save_again() -> None:
+    done = run(status=2, type="scroll", press=True, again="scroll, roll")
+    assert done["saveLabel"] == "Save"
+    assert done["saveDisabled"] is False
