@@ -114,11 +114,26 @@
     working the queue by keyboard alone got no confirmation of anything at all. -#}
 <p class="spoken" id="spoken" role="status" aria-live="polite"></p>
 
+{#- The first time, and only the first time: one line that says what to do, and after
+    the first word is marked, one line that says what the keys are. A reader who has
+    never marked a word in this language sees it; after that it is gone for good. -#}
+{% if words %}<p class="first" id="first" hidden>Tap a word to say how well you know it.</p>{% endif %}
+
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
     text would be a decoration; this is a mark, the size of a stamp, that says which book
     you are in. Its own cover where the chapter has one, the book's where it has not. -#}
 {% if plate %}<figure class="plate"><img src="{{ plate }}" alt=""></figure>{% endif %}
+{#- A chapter nobody has paid for yet. It says so, once, above the text, and offers to
+    get it; the source is still there to read and mark. The translation column is left
+    out rather than shipped empty — a column of blank paragraphs said nothing about
+    why, and read as a page that had broken. -#}
+{% if not translated and not standalone %}
+<div class="waiting-note" id="waiting-note" data-chapter="{{ section.number }}">
+  <p>Not translated yet.</p>
+  <button type="button" id="translate-chapter" hidden>Translate</button>
+</div>
+{% endif %}
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
@@ -127,7 +142,7 @@
     {% if segment.id in pointed %}
     <h{{ level }} class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'byline' %}
   <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -135,7 +150,7 @@
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
   <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -143,14 +158,26 @@
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% endif %}
 {% endfor %}
 </main>
 
+{#- At the foot, where a part ends: the words you never marked, offered as known in one
+    press, with one Undo. Offered, never done for you — and never a name, which does not
+    count. "Words should be marked as known automatically when I'm done with the
+    article", said the first alpha reader; this is the honest version of that. -#}
+{% if words %}
+<div class="rest" id="rest" hidden>
+  <span id="rest-text"></span>
+  <button type="button" id="rest-mark"></button>
+  <button type="button" id="rest-undo" hidden>Undo</button>
+</div>
+{% endif %}
+
 {% if not standalone %}
-<nav class="pager" data-chapter="{{ section.number }}">
+<nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}">
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
   {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>
@@ -207,6 +234,7 @@
     <dt>u</dt><dd>take back the last level, and stand on that word again</dd>
     <dt>Esc</dt><dd>close this, then a word, then your saved words, then the queue</dd>
     <dt>?</dt><dd>these keys</dd>
+    <dt>hard</dt><dd>the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you</dd>
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>

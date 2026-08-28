@@ -8,6 +8,8 @@ from .base import (
     BAND_COUNT,
     BAND_NAMES,
     HIGHLIGHT_LABELS,
+    NOT_VOCABULARY,
+    UNRATED,
     Bands,
     Lemmatizer,
     Pronouncer,
@@ -88,10 +90,17 @@ class Annotator:
             positions = to_source.get(segment_id)
             marked: list[Token] = []
             for token in tokens:
-                if token.lemma not in cache:
+                if token.pos in NOT_VOCABULARY:
+                    # A name is rare in any corpus, and rating it would call every name
+                    # in a chronicle "extremely hard". It has no difficulty: it is a
+                    # token the reader can tap, not a word they have to learn.
+                    band = UNRATED
+                elif token.lemma in cache:
+                    band = cache[token.lemma]
+                else:
                     # A text has far fewer distinct lemmas than tokens.
-                    cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
-                update: dict[str, object] = {"band": cache[token.lemma]}
+                    band = cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
+                update: dict[str, object] = {"band": band}
                 if positions is not None:
                     # Back into the segment's own coordinates, so a token still spans
                     # exactly its own text and carries the marks belonging to it.

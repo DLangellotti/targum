@@ -258,3 +258,43 @@
 }
 .site-foot a { color: var(--ink-soft); text-decoration: none; }
 .site-foot a:hover { color: var(--ink); }
+
+/* The building pill: fixed at the foot of the window, at the end of the line, out of
+   the way of the page and on every page. One raised layer, a hairline, ink-soft for the
+   state, ink for the one thing to press, and the × the guidelines ask for. Putting it
+   away is asking to be told by email instead, and it says so once. */
+.building {
+  position: fixed;
+  inset-block-end: 1rem;
+  inset-inline-end: 1rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 0.45rem 0.6rem 0.45rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised, var(--paper));
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.building[hidden] { display: none; }
+.building span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.building a { color: var(--ink); white-space: nowrap; }
+.building a[hidden] { display: none; }
+.building button {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.building button:hover { color: var(--ink); }
+.building button[hidden] { display: none; }
+.building.promised { padding-inline-end: 0.9rem; }
+.building.promised span { white-space: normal; }

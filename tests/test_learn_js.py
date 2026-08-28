@@ -573,3 +573,33 @@ def test_the_card_says_what_it_is_doing_and_cannot_be_pressed_twice() -> None:
     assert drawn["suggested"]["disabled"] is True
     started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
     assert len(started) == 1, "three presses, one build"
+
+
+def test_an_ignored_word_does_not_blank_the_table() -> None:
+    """Ignored is 0, and the status table has no 0: it is not a step on the ramp. Asking
+    it for one threw, and the whole word table went blank for anybody who had ever
+    pressed `i` and then asked to see everything."""
+    drawn = draw(
+        [reader("a", "א")],
+        vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0)),
+        filter="all",
+    )
+    rows = {row["term"]: row["well"] for row in drawn["words"]}
+    assert rows["עיר"] == "ignored"
+    assert rows["ספר"] == "known"
+
+
+def test_a_reader_with_nothing_is_handed_the_shared_text() -> None:
+    """ "When alpha user logs in, no idea where to start." The first card on the page is
+    where to start: a text already built, so there is nothing to choose and nothing to
+    wait for."""
+    drawn = draw([], shared=[reader("ruth", "רות")])
+    assert drawn["carry"]["hidden"] is False
+    assert drawn["carry"]["heading"] == "Start here"
+    assert drawn["carry"]["title"] == "רות"
+
+
+def test_the_shared_text_stays_out_of_the_way_of_your_own() -> None:
+    drawn = draw([reader("a", "א")], shared=[reader("ruth", "רות")])
+    assert drawn["carry"]["heading"] == "Continue Reading"
+    assert drawn["carry"]["title"] == "א"

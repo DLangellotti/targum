@@ -470,9 +470,20 @@
 
   /* How many of these are finished with. Learn says it at the top of the page and the
      ledger counts it too, and the two must never be able to disagree. */
+  // A name or a number, marked while reading. The reader records what it was as the
+  // band, and nothing that counts vocabulary counts it: knowing that אחשורוש is a king
+  // is not knowing a word of Hebrew.
+  var NOT_VOCABULARY = { name: true, number: true };
+
+  function vocabulary(words) {
+    return (words || []).filter(function (word) {
+      return !NOT_VOCABULARY[word.band];
+    });
+  }
+
   function known(words) {
     var count = 0;
-    (words || []).forEach(function (word) {
+    vocabulary(words).forEach(function (word) {
       if (word.status === KNOWN) count += 1;
     });
     return count;
@@ -508,6 +519,7 @@
     collect: collect,
     days: days,
     known: known,
+    vocabulary: vocabulary,
     read: read,
     EARLIEST: EARLIEST,
     STATUS: STATUS,

@@ -457,3 +457,97 @@ def test_a_text_the_catalogue_does_not_know_is_left_alone(tmp_path: Path, monkey
     CliRunner().invoke(cli.app, ["build", str(source), "--to", "en"])
 
     assert seen.get("title") == "", "nothing invented for a text nobody catalogued"
+
+
+def test_rebuild_words_re_annotates_and_spends_nothing(tmp_path: Path) -> None:
+    """A build compares the annotator's name and redoes an old annotation for free — but
+    only a build. `rebuild` read the annotation as it found it, so the day every word
+    became a token, nothing on anybody's shelf changed. `--words` is how it reaches them.
+    """
+    from targum.cli import rebuild_one
+    from targum.models import (
+        Annotation,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Token,
+        Translation,
+        read_artifact,
+    )
+
+    out = tmp_path / "targum-out"
+    folder = out / "book-he"
+    (folder / "translations").mkdir(parents=True)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="המלך",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "the king"},
+    ).write(folder / "translations" / "null.natural.en.json")
+    # As an older annotator left it: the prefix stood in for the word.
+    Annotation(
+        document_hash="h",
+        language="he",
+        annotator="stanza/old/tokenize,pos,lemma+roots+wordfreq",
+        method="frequency",
+        method_note="",
+        tokens={segment.id: [Token(start=0, end=4, surface="המלך", lemma="ה", band=1)]},
+    ).write(folder / "annotation.json")
+
+    class Newer:
+        name = "stanza/new/tokenize,pos,lemma+roots+everyword+wordfreq"
+        asked = 0
+
+        def annotate(self, segmented, vocalization=None):  # type: ignore[no-untyped-def]
+            self.asked += 1
+            return Annotation(
+                document_hash="h",
+                language="he",
+                annotator=self.name,
+                method="frequency",
+                method_note="",
+                tokens={
+                    segment.id: [
+                        Token(start=0, end=4, surface="המלך", lemma="מלך", band=2, pos="NOUN")
+                    ]
+                },
+            )
+
+    newer = Newer()
+    title, pages = rebuild_one(
+        folder,
+        reads=None,
+        covers=out / "thumbs",
+        annotate=lambda f, d: newer,  # type: ignore[arg-type,return-value]
+    )
+    assert title == "A Book" and pages
+    assert newer.asked == 1
+    written = read_artifact(Annotation, folder / "annotation.json")
+    assert written is not None and written.annotator == newer.name
+    assert written.tokens[segment.id][0].lemma == "מלך"
+
+    # Up to date already: left alone.
+    rebuild_one(folder, reads=None, covers=out / "thumbs", annotate=lambda f, d: newer)  # type: ignore[arg-type,return-value]
+    assert newer.asked == 1
+
+    # Without the flag, a rebuild never touches the words.
+    (folder / "annotation.json").write_text("{}", encoding="utf-8")
+    rebuild_one(folder, reads=None, covers=out / "thumbs")
+    assert (folder / "annotation.json").read_text(encoding="utf-8") == "{}"

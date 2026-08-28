@@ -40,6 +40,29 @@
   }
 })();
 
+/* --- where to start ---------------------------------------------------------
+ *
+ * "Start reading" goes to the first chapter. Come back and it says "Continue" and goes
+ * to the chapter last opened, which the reader writes down under the text's hash.
+ */
+(function () {
+  "use strict";
+  var start = document.getElementById("start");
+  var toc = document.querySelector(".toc[data-document]");
+  if (!start || !toc) return;
+  var last = 0;
+  try {
+    last = Number(
+      JSON.parse(localStorage.getItem("targum:chapter") || "{}")[toc.getAttribute("data-document")]
+    );
+  } catch (e) {}
+  if (!last) return;
+  var row = toc.querySelector('[data-chapter="' + last + '"] a');
+  if (!row) return;
+  start.href = row.getAttribute("href");
+  start.textContent = "Continue";
+})();
+
 /* --- which chapters are ready -----------------------------------------------
  *
  * A book is bought a chapter at a time, so the contents page is where the state of
@@ -148,9 +171,11 @@
   "use strict";
   if (location.protocol === "file:") return;
 
-  var key = new URLSearchParams(location.search).get("k");
+  // No key hosted, a key locally — see above. Stopping on a missing key made this
+  // button dead on the live site.
+  var key = new URLSearchParams(location.search).get("k") || "";
   var press = document.getElementById("prepare");
-  if (!key || !press) return;
+  if (!press) return;
 
   var parts = location.pathname.split("/");
   var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
@@ -159,7 +184,14 @@
   // Its own, because this is its own scope. It was calling the one above and could not
   // reach it — the same way the reader called a `keyed` it never had.
   function keyed(path) {
+    if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
   }
 
   function show() {
@@ -173,7 +205,7 @@
     press.textContent = "Preparing…";
     fetch(keyed("/chapter"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Targum-Key": key },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ name: name, all: true }),
     })
       .then(function (r) {

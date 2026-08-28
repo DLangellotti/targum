@@ -40,10 +40,13 @@ if (payload.migrate) {
 
 const kept = [];
 const levels = [];
+let saved = 0;
 const box = window.TargumVocab.editor({
+  onSaved: () => (saved += 1),
   status: payload.status,
   note: payload.note || "",
   placeholder: payload.placeholder,
+  legend: Boolean(payload.legend),
   // The list beside the text draws the scale without a field. A caller that wants no
   // note must not be given one, nor a button to press on it.
   onNote: payload.noNote ? undefined : (text) => kept.push(text),
@@ -64,6 +67,11 @@ if (field && payload.type !== undefined) {
   field.fire("input", nothing);
 }
 if (save && payload.press) save.fire("click", nothing);
+/** Typing again after saving: the button has to offer to save again. */
+if (field && payload.again !== undefined) {
+  field.value = payload.again;
+  field.fire("input", nothing);
+}
 if (field && payload.enter) field.fire("keydown", { key: "Enter", ...nothing });
 if (payload.level !== undefined) {
   const button = box.querySelector(".level-" + payload.level);
@@ -76,6 +84,9 @@ process.stdout.write(
     placeholder: field ? field.placeholder : null,
     hasSave: Boolean(save),
     saveLabel: save ? save.textContent : null,
+    saveDisabled: save ? Boolean(save.disabled) : null,
+    saved,
+    legend: (box.querySelector(".level-legend") || {}).textContent || null,
     kept,
     levels,
   })

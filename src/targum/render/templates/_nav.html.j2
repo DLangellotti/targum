@@ -56,6 +56,14 @@
     </div>
     <button type="button" data-theme-toggle aria-label="Switch theme"></button>
   </div>
+  {#- A build you can walk away from. One line, on every page, while anything of yours
+      is building or waiting — and when it is done, the link. The build was never
+      cancelled by leaving the page; it only looked that way. -#}
+  <p class="building" id="building" hidden>
+    <span id="building-text"></span>
+    <a id="building-link" hidden>Open</a>
+    <button type="button" id="building-dismiss" aria-label="Dismiss">×</button>
+  </p>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}
   <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>

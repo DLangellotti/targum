@@ -388,3 +388,25 @@ def test_a_figure_carries_its_name_and_nothing_else() -> None:
     saved a new word and rose when they gave up on one."""
     drawn = page(marked(known=9, learning=1))
     assert [box["delta"] for box in drawn["tiles"]] == [""] * 5
+
+
+# --- a name is not a word ------------------------------------------------------
+
+
+def test_a_name_is_not_on_the_ladder() -> None:
+    """Every name and number is a token now, and marking one known keeps it with "name"
+    or "number" as its band. Rare by corpus frequency, a known name would otherwise weigh
+    as much as three everyday words; David asked that they not count at all."""
+    words = banded(easy=100)
+    for n in range(300):
+        words[f"name-{n}"] = {"status": KNOWN, "surface": f"name-{n}", "band": "name", "at": 1}
+    assert "aleph" not in ulpan(words)["rung"], "three hundred names are not a vocabulary"
+    assert "aleph" in ulpan(banded(easy=400))["rung"]
+
+
+def test_a_name_is_not_a_milestone() -> None:
+    words = vocab(known=8)
+    for n in range(5):
+        words[f"name-{n}"] = {"status": KNOWN, "surface": f"name-{n}", "band": "number", "at": 1}
+    drawn = draw({"targum:vocab:he": words})
+    assert drawn["marks"]["on"] == [], "eight words and five numbers is eight words"

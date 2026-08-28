@@ -56,33 +56,47 @@ def lemmas(folder: Path) -> list[str]:
     Returns nothing for a targum built without word-level annotation, which is a normal
     state rather than a fault: `--words` is a flag.
     """
+    annotation = folder / ANNOTATION
+    if not annotation.is_file():
+        return []
+    # The cache is stamped with the annotation it was read from. An annotation is
+    # rewritten in place when the annotator learns something — every word became a
+    # token on 2026-08-28 — and a cache that outlived that would go on reporting a
+    # denominator a tenth too small, for half the shelf, with nothing to say so.
+    try:
+        stat = annotation.stat()
+        stamp = [stat.st_mtime_ns, stat.st_size]
+    except OSError:
+        return []
     cached = folder / LEMMAS
     if cached.is_file():
         try:
             found = json.loads(cached.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             found = None
-        if isinstance(found, list):
-            return [str(lemma) for lemma in found]
+        if isinstance(found, dict) and found.get("stamp") == stamp:
+            return [str(lemma) for lemma in found.get("lemmas") or []]
 
-    annotation = folder / ANNOTATION
-    if not annotation.is_file():
-        return []
     try:
         loaded = json.loads(annotation.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
 
+    from .annotate.base import NOT_VOCABULARY
+
+    # A name is not a word the reader has to know, so it is not one they can fail to
+    # know either: left out of the denominator, or a book of names could never be read.
     distinct = {
         str(token.get("lemma") or "")
         for tokens in (loaded.get("tokens") or {}).values()
         for token in tokens
+        if token.get("pos") not in NOT_VOCABULARY
     }
     distinct.discard("")
     out = sorted(distinct)
 
     try:
-        write_atomic(cached, json.dumps(out, ensure_ascii=False))
+        write_atomic(cached, json.dumps({"stamp": stamp, "lemmas": out}, ensure_ascii=False))
     except OSError:
         # A read-only or full disk costs the cache, not the answer.
         pass

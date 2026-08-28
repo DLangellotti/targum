@@ -286,6 +286,15 @@
     return status >= 1 && status <= 3;
   }
 
+  // What the card calls a level: 1, 2, 3, known, ignore.
+  function stepLabel(status) {
+    var steps = (window.TargumVocab && window.TargumVocab.STEPS) || [];
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].value === status) return steps[i].label;
+    }
+    return status;
+  }
+
   // When you last had this text open, so the library can put what you are part way
   // through at the top.
   //
@@ -720,9 +729,67 @@
     }
   }
 
+  // Every word on this page you never said anything about, marked known at once. What
+  // is left after reading a part is, by and large, what you knew already; this is the
+  // `k` you would have pressed on each. One record for the whole batch, so one `u`
+  // takes the whole batch back — pushed one at a time, a long part would overflow the
+  // undo list and most of it would be unreachable. Names are not words, and are not
+  // in `lemmasHere()`.
+  var restSaid = 0;
+
+  function markRest() {
+    var batch = [];
+    lemmasHere().forEach(function (lemma) {
+      if (statusOf(lemma) !== undefined) return;
+      var index = lemmas.indexOf(lemma);
+      batch.push({ lemma: lemma, before: null });
+      vocab[lemma] = {
+        status: KNOWN,
+        surface: lemma,
+        band: bandOfLemma(index),
+        // Ticked off, not carried up: a word never at a level below known is one you
+        // already had.
+        learned: 0,
+        at: nextOrder(),
+        seen: Date.now(),
+      };
+      keepMeaning(lemma, glosses[index]);
+    });
+    if (!batch.length) return 0;
+    undoable.push({ bulk: batch, surface: "", where: null });
+    if (undoable.length > UNDO_DEPTH) undoable.shift();
+    restSaid = batch.length;
+    remember();
+    redraw();
+    say(batch.length + " words marked known. Nothing left to mark here.");
+    return batch.length;
+  }
+
+  function bandOfLemma(index) {
+    var ids = Object.keys(wordData);
+    for (var i = 0; i < ids.length; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var j = 0; j < rows.length; j++) {
+        if (rows[j][4] === index) return bandOf(rows[j]);
+      }
+    }
+    return "";
+  }
+
   function undo() {
     var last = undoable.pop();
     if (!last) return false;
+    if (last.bulk) {
+      last.bulk.forEach(function (item) {
+        if (item.before) vocab[item.lemma] = item.before;
+        else forgetWord(item.lemma);
+      });
+      restSaid = 0;
+      remember();
+      redraw();
+      say("Took back " + last.bulk.length + " words.");
+      return true;
+    }
     if (last.before) {
       vocab[last.lemma] = last.before;
     } else {
@@ -759,10 +826,16 @@
     return status === KNOWN && isLearning(statusOf(lemma));
   }
 
+  // Words finished with on this page, so the list can keep showing them — see
+  // `wordEntries`. This session only: it is a receipt, not a state.
+  var justSaid = {};
+
   function setStatus(index, surface, band, status) {
     var lemma = lemmas[index];
     if (!lemma) return false;
     recordUndo(index, lemma, surface);
+    if (status === null || status === undefined || isLearning(status)) delete justSaid[lemma];
+    else justSaid[lemma] = true;
     if (status === null || status === undefined) {
       forgetWord(lemma);
     } else {
@@ -793,7 +866,29 @@
     // Said here rather than at the keys, so every way of setting a level says the same
     // thing: the card's buttons, the list beside the text, and the five keys.
     saidLevel(surface || lemma, now);
+    firstWordMarked();
     return now;
+  }
+
+  // The first time in a reader. A line under the bar says what to do; the first word
+  // marked turns it into the three keys that are most of a session; and then it is
+  // never seen again. Never for a reader with words in this language already — they
+  // have done this — and `?` still has the whole list.
+  var first = document.getElementById("first");
+  var FIRST = "targum:first";
+  var firstTime = false;
+  try {
+    firstTime = !!first && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
+  } catch (e) {}
+  if (firstTime) first.hidden = false;
+
+  function firstWordMarked() {
+    if (!firstTime) return;
+    firstTime = false;
+    first.textContent = "k known · 1 2 3 · → next word · ? every key";
+    try {
+      localStorage.setItem(FIRST, String(Date.now()));
+    } catch (e) {}
   }
 
   function interlinear() {
@@ -825,7 +920,6 @@
       var classes = ["w"];
       if (token[3]) classes.push("split");
       var status = statusOf(lemma);
-      if (status !== undefined) classes.push("marked");
       layers.push({
         start: at(token[0]),
         end: at(token[1]),
@@ -1075,10 +1169,15 @@
   // Every distinct dictionary form this section of the text uses. The list and the
   // count of what you know are both about the text in front of you, not about the
   // whole language: a vocabulary of four thousand words is not a reading aid.
-  function lemmasHere() {
+  //
+  // Names and numbers are left out unless `everything` is asked for: they are on the
+  // page to be tapped and cleared, and they are on the list if you kept one, but they
+  // are never in the count of what you know or have yet to.
+  function lemmasHere(everything) {
     var here = {};
     Object.keys(wordData).forEach(function (segmentId) {
       (wordData[segmentId] || []).forEach(function (token) {
+        if (!everything && isName(token)) return;
         var lemma = lemmas[token[4]];
         if (lemma) here[lemma] = true;
       });
@@ -1092,17 +1191,22 @@
   // because you did not know it.
   function wordEntries() {
     var out = [];
-    lemmasHere().forEach(function (lemma) {
+    lemmasHere(true).forEach(function (lemma) {
       var item = vocab[lemma];
       // Known and ignored words are counted below but not listed: the list is what you
-      // are still working on, and a finished word in it is in the way.
-      if (!item || !isLearning(item.status)) return;
+      // are still working on, and a finished word in it is in the way. Except the one
+      // you finished with just now, which stays until the page is left — a word that
+      // vanished the moment you said you knew it read as a save that had failed.
+      if (!item) return;
+      var done = !isLearning(item.status);
+      if (done && !justSaid[lemma]) return;
       out.push({
         kind: "word",
         key: lemma,
         term: item.surface || lemma,
         lemma: lemma,
         status: item.status,
+        done: done,
         // Both in the language on show. A meaning kept from a Russian reading is not an
         // answer to a word met on the English page, and the list beside the text is the
         // one place a reader compares the two at a glance.
@@ -1142,8 +1246,10 @@
     return out.sort(byOrder);
   }
 
+  // Newest at the top. The word you just kept is the one you are looking for, and
+  // at the foot of a list longer than the panel it was the one you could not see.
   function byOrder(a, b) {
-    return a.at - b.at;
+    return b.at - a.at;
   }
 
   var listStats = document.getElementById("list-stats");
@@ -1168,8 +1274,36 @@
   // already finished shows the ordinary count; one you finish yourself is told so.
   var wasWaiting = false;
 
+  var restBox = document.getElementById("rest");
+  var restText = document.getElementById("rest-text");
+  var restMark = document.getElementById("rest-mark");
+  var restUndo = document.getElementById("rest-undo");
+
+  function renderRest(counts) {
+    if (!restBox || !restText || !restMark || !restUndo) return;
+    if (restSaid) {
+      restText.textContent = restSaid + (restSaid === 1 ? " word" : " words") + " marked known";
+      restMark.hidden = true;
+      restUndo.hidden = false;
+      restBox.hidden = false;
+    } else if (counts.fresh) {
+      restText.textContent =
+        "Mark the remaining " +
+        counts.fresh +
+        (counts.fresh === 1 ? " word" : " words") +
+        " as known?";
+      restMark.textContent = "Mark " + counts.fresh;
+      restMark.hidden = false;
+      restUndo.hidden = true;
+      restBox.hidden = false;
+    } else {
+      restBox.hidden = true;
+    }
+  }
+
   function renderStats() {
     var counts = coverage();
+    renderRest(counts);
     // What the arrows still have to walk: everything neither known nor ignored. The
     // queue is built from the same rule, so this is its length without building it.
     var left = counts.fresh + counts.learning;
@@ -1292,6 +1426,7 @@
   function row(entry) {
     var item = document.createElement("li");
     item.className = openRow === entry.key ? "open" : "";
+    if (entry.done) item.classList.add("done");
     // Tapping the row says "I want to say something about this", which is the same
     // thing tapping the word in the text says.
     item.addEventListener("click", function (event) {
@@ -1327,10 +1462,11 @@
       if (!entry.level) kind.title = "not rated in this language";
       item.appendChild(kind);
 
-      if (entry.status) {
+      // `!== undefined`, not truthy: ignored is 0, and it is a level like the others.
+      if (entry.status !== undefined && entry.status !== null) {
         var mark = document.createElement("span");
         mark.className = "row-status status-" + entry.status;
-        mark.textContent = String(entry.status);
+        mark.textContent = String(stepLabel(entry.status));
         mark.title = "How well you know it";
         item.appendChild(mark);
       }
@@ -1470,6 +1606,10 @@
   function hideCard() {
     stopFade();
     if (card) card.hidden = true;
+    // And the phrase chip with it. One popup at a time: mouseup drew the chip and the
+    // click that followed drew the card over it, for the same word, and nothing that
+    // closed one knew about the other.
+    hideChip();
     letGo();
   }
 
@@ -1528,6 +1668,20 @@
     place = null;
   }
 
+  // What a token row says a word is: a name, a number, or a word with a difficulty.
+  // Kept on the record as its band, so every count that reads the band — the ledger,
+  // the milestones, the ulpan ladder — knows to leave a name out. Column 7; rows built
+  // before it existed have none, and read as words.
+  var KIND_NAMES = ["", "name", "number"];
+
+  function bandOf(token) {
+    return (token[6] && KIND_NAMES[token[6]]) || levelNames[token[2]] || "";
+  }
+
+  function isName(token) {
+    return !!(token[6] && KIND_NAMES[token[6]]);
+  }
+
   function levelOf(word) {
     var pair = word.closest(".pair");
     if (!pair) return "";
@@ -1536,7 +1690,7 @@
     var match = (wordData[segmentId] || []).filter(function (token) {
       return token[4] === index;
     })[0];
-    return match ? levelNames[match[2]] || "" : "";
+    return match ? bandOf(match) : "";
   }
 
   // How well you know this word, and what you want it to say. The same control serves
@@ -1651,6 +1805,9 @@
     return TargumVocab.editor({
       status: statusOf(lemma),
       note: noteOf(lemma),
+      // The scale says what the pressed step means. "1 2 3" alone had to be explained
+      // — the first alpha reader asked — and the names were only ever in tooltips.
+      legend: true,
       // The field says what it is for, in the reader's words: the same line is its
       // accessible name, and "Enter text" was the one label on the card that was not.
       placeholder: "Your own meaning",
@@ -1666,6 +1823,13 @@
         // Not redrawn here: this commits on the way out of the field, and the click
         // that took focus away is usually a level button that has not fired yet.
         setNote(index, surface, band, text);
+      },
+      // Pressing Save is an explicit act, and the one moment a redraw is safe. The
+      // card comes back with the meaning you wrote where the machine's was, marked as
+      // yours — until now that only showed the next time the card was opened.
+      onSaved: function () {
+        redraw();
+        if (lookedUp) showCard(lookedUp);
       },
     });
   }
@@ -1927,11 +2091,10 @@
   // A selection that touches exactly one word is that word. Saving it as a phrase
   // would throw away the dictionary form and the meaning, and leave two entries for
   // the same thing depending on whether you tapped it or dragged over it.
-  function soleToken(picked) {
-    var touching = (wordData[picked.segmentId] || []).filter(function (token) {
+  function touchedTokens(picked) {
+    return (wordData[picked.segmentId] || []).filter(function (token) {
       return token[0] < picked.end && token[1] > picked.start;
     });
-    return touching.length === 1 ? touching[0] : null;
   }
 
   // A card next to the thing it is about. The word card used to sit pinned to the
@@ -2134,14 +2297,23 @@
   // the keyboard has to draw the card again to show which one is now set — the editor
   // reads its pressed state once, when it is made.
   function showPick(picked) {
-    var token = soleToken(picked);
+    var touching = touchedTokens(picked);
+    // One and zero are different answers. A drag that touches no word at all is
+    // whitespace or punctuation, and it used to fall through to the phrase card — so
+    // a click with a few pixels of drift made a phrase out of what the reader
+    // experienced as a tap.
+    if (!touching.length) {
+      hideChip();
+      return;
+    }
+    var token = touching.length === 1 ? touching[0] : null;
     if (token) {
       var index = token[4];
       var lemma = lemmas[index];
       // Dragging across one word is not a phrase, whatever the gesture was. It gets the
       // word's own card, with the same scale and the same field as tapping it.
       var surface = segmentText(picked.segmentId).slice(token[0], token[1]);
-      var band = levelNames[token[2]] || "";
+      var band = bandOf(token);
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",
@@ -2168,6 +2340,9 @@
     var whole = coversSegment(picked);
     var reading = whole ? translationFor(picked.segmentId) : wordByWord(picked);
     var editing = phraseEditor(picked, existing, reading);
+    // The scale is for a phrase you have kept. Before that there is one button, Keep:
+    // the scale used to keep the phrase the moment any part of it was touched, and an
+    // accidental drag plus one press was a phrase on the list nobody had asked for.
     pickCard({
       title: picked.text,
       reading: reading,
@@ -2176,8 +2351,8 @@
         : reading
           ? "word by word — the sentence is in parallel"
           : "",
-      editor: editing.element,
-      action: existing > -1 ? "take it off the list" : "",
+      editor: existing > -1 ? editing.element : null,
+      action: existing > -1 ? "Remove" : "Keep",
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
         if (existing > -1) {
@@ -2199,8 +2374,10 @@
         }
         remember();
         if (window.getSelection) window.getSelection().removeAllRanges();
-        hideChip();
         redraw();
+        // Kept: the card comes back with the scale on it. Removed: it goes.
+        if (existing > -1) hideChip();
+        else showPick(picked);
       },
     });
     placeChip(picked.rect);
@@ -2962,6 +3139,14 @@
         showList(!!(listBox && listBox.hidden));
         return;
       }
+      if (button.id === "rest-mark") {
+        markRest();
+        return;
+      }
+      if (button.id === "rest-undo") {
+        undo();
+        return;
+      }
       if (button.getAttribute("data-export") === "csv") {
         exportCsv();
         return;
@@ -3025,6 +3210,10 @@
     // page shows you, never what it lets you do — you have to be able to mark a word to
     // clear it, and the whole point of the mode is clearing them.
     var word = event.target.closest ? event.target.closest(".w") : null;
+    // With the chip up, this click is the tail of the drag that drew it: mouseup fires
+    // first, and a one-word drift drew the word's card there already. A second card
+    // over the first, for the same word, was the "pop up card is a mess".
+    if (chip && !chip.hidden && word) return;
     // Either way the pointer has taken over from the arrows, and the ring goes with them.
     leaveQueue();
     // And from the page: wherever it was holding a place for them, they have just said
@@ -3457,6 +3646,11 @@
         // A card that is already leaving is not a layer to be closed: Escape would
         // read as doing nothing, and the reader would have to press it twice to get
         // out of the queue.
+        if (chip && !chip.hidden) {
+          hideChip();
+          if (window.getSelection) window.getSelection().removeAllRanges();
+          return;
+        }
         if (card && !card.hidden && !fading) {
           hideCard();
           if (standing && standing.focus) standing.focus({ preventScroll: true });
@@ -3695,9 +3889,18 @@
     // Saying a level and taking it back. The queue is the assertion: known takes a word
     // out of it, and `u` has to put the same word back in the same place.
     level: function (index, status) {
-      return setStatus(index, lemmas[index], "", toggled(index, status));
+      // Followed by the redraw every caller in the page does after it, so the counts
+      // and the offer at the foot are as a reader would see them.
+      var now = setStatus(index, lemmas[index], "", toggled(index, status));
+      redraw();
+      return now;
     },
     undo: undo,
+    // The list beside the text, as it would be drawn: newest first, and with the word
+    // you have just finished with still on it.
+    entries: wordEntries,
+    // Everything never marked, marked known at once; one undo takes it all back.
+    markRest: markRest,
   };
 })();
 
@@ -3715,18 +3918,22 @@
 
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
+  if (!link) return;
   // Its own, because this is its own scope: it read `passKey` and called `keyed` across
-  // the boundary, and neither was ever in reach.
-  var key = new URLSearchParams(location.search).get("k");
-  if (!link || !key) return;
+  // the boundary, and neither was ever in reach. No key hosted, where the session cookie
+  // identifies the reader; a key locally. This used to stop when there was no key — so
+  // on the live site the next chapter was never bought, and the first alpha reader
+  // followed the arrow into a page of blank translations.
+  var key = new URLSearchParams(location.search).get("k") || "";
 
   function keyed(path) {
+    if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
   }
 
   function keyHeaders(extra) {
     var head = extra || {};
-    head["X-Targum-Key"] = key;
+    if (key) head["X-Targum-Key"] = key;
     return head;
   }
 
@@ -3769,4 +3976,86 @@
 
   window.addEventListener("scroll", maybe, { passive: true });
   maybe();
+})();
+
+/* --- a chapter nobody has paid for yet ----------------------------------------
+ *
+ * The page says so above the text, and this is the button on it. Its own scope, like
+ * the prefetch above: it needs the key helpers and the folder name and nothing else.
+ * Off a disk there is no server to ask, and the button stays hidden; the line above
+ * it still says what the page is.
+ */
+(function () {
+  "use strict";
+  var note = document.getElementById("waiting-note");
+  var press = document.getElementById("translate-chapter");
+  if (!note || !press || location.protocol === "file:") return;
+
+  var key = new URLSearchParams(location.search).get("k") || "";
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+
+  press.hidden = false;
+  press.onclick = function () {
+    press.disabled = true;
+    press.textContent = "Translating…";
+    fetch(keyed("/chapter"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name, number: Number(note.getAttribute("data-chapter")) }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (job) {
+        if (job.ready) return location.reload();
+        if (!job.id) throw new Error(job.error || job.blocked || "That did not work.");
+        var timer = setInterval(function () {
+          fetch(keyed("/job/" + job.id))
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (state) {
+              if (state.stage === "done") {
+                clearInterval(timer);
+                location.reload();
+              } else if (state.stage === "failed" || state.blocked) {
+                clearInterval(timer);
+                press.disabled = false;
+                press.textContent = state.error || state.blocked || "That did not work.";
+              }
+            });
+        }, 1500);
+      })
+      .catch(function (problem) {
+        press.disabled = false;
+        press.textContent = String(problem.message || problem);
+      });
+  };
+})();
+
+/* Which chapter this was, written down for the contents page, so "Start reading" can
+ * become "Continue" and point here. One number per text, browser-local: it is a
+ * convenience, not a record of how far anybody has read. */
+(function () {
+  "use strict";
+  var pager = document.querySelector(".pager[data-chapter][data-document]");
+  if (!pager) return;
+  try {
+    var opened = JSON.parse(localStorage.getItem("targum:chapter") || "{}");
+    opened[pager.getAttribute("data-document")] = Number(pager.getAttribute("data-chapter"));
+    localStorage.setItem("targum:chapter", JSON.stringify(opened));
+  } catch (e) {}
 })();

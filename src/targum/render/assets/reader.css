@@ -232,6 +232,19 @@ a.bar-brand:hover { color: var(--accent); }
    corner and nothing else, which a screen reader never reaches and a reader watching the
    word they are on does not look at. This carries the same sentence to anyone listening.
    Never displayed: `display: none` would take it out of the accessibility tree with it. */
+/* The first-time line, under the bar and above the text. Quiet: secondary by §9, one
+   sentence, no motion. */
+.first {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto;
+  padding: 0.5rem 1.25rem 0;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.first[hidden] { display: none; }
+
 .spoken {
   position: absolute;
   inline-size: 1px;
@@ -581,22 +594,28 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
    about it makes it quieter, and knowing it makes it disappear. So the way to clear a
    page is to read it, and the page tells you how far you have got without a number.
 
-   One hue for the whole scale, because it is one scale. §4 caps the accent wash at 22%,
-   which is what the top step takes; the underline is the tell that you have touched a
-   word at all, so a never-met word carries none. Only paint here — no box changes — so
-   switching cannot rebreak a line. */
+   Two hues, because there are two questions. A word you have not met is accent, the
+   one wash on the page, capped at §4's 22%. A word you are working on is leaf — the
+   §4 colour for progress — and gets quieter as you climb, so the descent still reads.
+   It was one hue for the whole scale, a fainter accent at each step, and the first
+   alpha reader said it exactly: "the words I clicked on need to change colour, now I
+   can hardly see them." Every leaf step keeps its underline as well: at these washes
+   leaf and accent are near neighbours under protanopia, and a mark must never rest on
+   colour alone. Only paint here — no box changes — so switching cannot rebreak a line. */
 body.marking .w:not([data-status]) {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 body.marking .w[data-status="1"] {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 55%, transparent);
 }
 body.marking .w[data-status="2"] {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--leaf) 14%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 40%, transparent);
 }
 body.marking .w[data-status="3"] {
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--leaf) 10%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 25%, transparent);
 }
 /* Known and ignored are deliberately plain. A word you have finished with should read
    like any other word. */
@@ -694,7 +713,9 @@ body.marking .w.here,
   border-color: var(--accent);
 }
 /* Finishing a word is an achievement, and §4 gives achievement to leaf. The working
-   levels stay accent — they are what the reader is doing, not what they have done. */
+   levels stay accent — they are what the reader is doing, not what they have done.
+   The word on the page turns leaf when one of them is pressed: a button is an action
+   and the page is a state, and the two are allowed to differ. Decided 2026-08-28. */
 .vocab-editor .level-9.on {
   background: var(--leaf);
   border-color: var(--leaf);
@@ -1014,6 +1035,18 @@ body.marking .w.here,
   font-variant-numeric: tabular-nums;
 }
 .list-items .row-status.status-3 { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* A word finished with just now stays on the list until the page is left — the receipt
+   for a save that used to vanish. Known wears leaf, §4's colour for it; ignored wears
+   nothing, since a name is not a level. */
+.list-items .row-status.status-9 {
+  background: color-mix(in srgb, var(--leaf) 22%, transparent);
+  padding-inline: 0.4rem;
+}
+.list-items .row-status.status-0 {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  padding-inline: 0.4rem;
+}
+.list-items li.done .term { color: var(--ink-soft); }
 
 /* A row opens where it sits rather than in a popup: the panel is narrow, and a card
    floating over the list would cover the rows either side of the one being set. */
@@ -1256,6 +1289,81 @@ body.marking .w.here,
 }
 .toc .get:hover { color: var(--ink); border-color: var(--ink-soft); }
 .toc .get:disabled { opacity: 0.6; cursor: default; }
+
+/* A chapter page nobody has paid for yet: one line above the source, and the button
+   that gets it. Not clay — nothing has gone wrong, it is a thing you can have. The
+   button carries ink, since every tappable element carries ink or a hue. */
+.waiting-note {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.waiting-note p { margin: 0; }
+.waiting-note button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.waiting-note button:hover { background: var(--ink); color: var(--paper); }
+.waiting-note button:disabled { opacity: 0.6; cursor: default; }
+.waiting-note button[hidden] { display: none; }
+
+/* The offer at the foot of a part: the words never marked, known in one press. The
+   button carries ink; Undo is quieter. Same shape as the waiting note above the text. */
+.rest {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 1.5rem auto 0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.rest[hidden] { display: none; }
+.rest button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.rest button:hover { background: var(--ink); color: var(--paper); }
+.rest button[hidden] { display: none; }
+
+/* What the pressed step means, under the scale. Secondary by §9. */
+.vocab-editor .level-legend { font-size: 0.75em; color: var(--ink-soft); }
+
+/* The one primary action on a contents page, and so the one place the accent goes. */
+.contents .start { margin-block: 1.5rem 2rem; }
+.contents .start a {
+  display: inline-block;
+  padding: 0.45rem 1.1rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  text-decoration: none;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9375rem;
+}
+.contents .start a:hover { filter: brightness(1.08); }
 
 /* Prepare a whole book, for reading somewhere with no connection. */
 .contents .whole { margin-block-start: 2rem; }

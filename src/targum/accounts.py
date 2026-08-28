@@ -583,6 +583,11 @@ class Store:
         """
         return self.db.execute("SELECT 1 FROM person LIMIT 1").fetchone() is not None
 
+    def person_by_id(self, person_id: int) -> Person | None:
+        """Who a job belongs to. The thread that ran it has no session to ask."""
+        row = self.db.execute("SELECT id, email FROM person WHERE id = ?", (person_id,)).fetchone()
+        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
+
     def person_by_email(self, email: str) -> Person | None:
         row = self.db.execute(
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)

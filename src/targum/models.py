@@ -154,6 +154,11 @@ class Token(Artifact):
     # a prefix plus a word. Where the segmenter split a token, that is recorded: the
     # reading is a decision, not a fact.
     split: bool = False
+    # The part of speech Stanza gave the content word, as a Universal POS tag. Read by
+    # nothing in the reader; it is how a difficulty count leaves names and numerals
+    # out, since a name is not a word a learner has to acquire. Absent on annotations
+    # written before it existed.
+    pos: str | None = None
     # Hebrew verbs only, and only where Stanza tagged a binyan. The root is worked out
     # from the lemma and the binyan together, and is absent wherever that could not be
     # done honestly — see annotate/hebrew.py.

@@ -596,3 +596,106 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
     assert ask("ארץ") == (200, {"lemma": "ארץ", "meaning": "land", "cached": True})
     status, answer = ask("שלום")
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False
+
+
+def test_no_page_stops_for_want_of_a_key() -> None:
+    """Hosted there is no key: the session cookie is what identifies the reader. Three
+    scripts asked for the key and returned when it was missing — the next-chapter
+    prefetch, Prepare all, and the chapter page's own Translate — so on the live site
+    the second chapter of every upload was never bought, and nothing said why."""
+    from targum.render.builder import ASSETS
+
+    for name in ("reader.js", "contents.js"):
+        script = (ASSETS / name).read_text(encoding="utf-8")
+        # `if (!key) return path;` inside `keyed()` is the right shape: the key is
+        # optional there. Stopping the whole script on it is the wrong one.
+        assert not re.search(r"if \(!key\) return;", script), f"{name} stops without a key"
+        assert "!link || !key" not in script, name
+        assert "!key || !press" not in script, name
+
+
+# -- the shared home ------------------------------------------------------------
+
+
+def _signed_post(port: int, path: str, payload: dict[str, object], session: str):
+    body = json.dumps(payload).encode()
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("POST", path, skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.putheader("Cookie", f"targum_session={session}")
+    conn.putheader("Content-Type", "application/json")
+    conn.putheader("Content-Length", str(len(body)))
+    conn.endheaders()
+    conn.send(body)
+    response = conn.getresponse()
+    out = json.loads(response.read())
+    conn.close()
+    return response.status, out
+
+
+def _targum(folder: Path, title: str) -> None:
+    (folder / "reader").mkdir(parents=True, exist_ok=True)
+    (folder / "reader" / "index.html").write_text(f"<html>{title}</html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps({"title": title, "language": "he", "content_hash": title}), encoding="utf-8"
+    )
+
+
+def test_a_shared_targum_is_readable_by_anyone_signed_in(hosted: tuple[int, str]) -> None:
+    """What a reader with nothing on their shelf is handed first. Built once by
+    `targum seed` into a home nobody owns, and read from there by everybody."""
+    port, session = hosted
+    out = Path(str(STORE[0])).parent / "out"
+    _targum(out / "shared" / "ruth", "ruth")
+
+    status, body = ask(port, "/reader/ruth/reader/index.html", "targum.page", session)
+    assert status == 200 and b"ruth" in body
+
+    status, body = ask(port, "/readers", "targum.page", session)
+    assert status == 200
+    shared = json.loads(body)["shared"]
+    assert [r["name"] for r in shared] == ["ruth"]
+    assert shared[0]["shared"] is True
+    assert "ruth" not in [r["name"] for r in json.loads(body)["readers"]], "not on your shelf"
+
+
+def test_a_shared_targum_cannot_be_bought_or_trashed(hosted: tuple[int, str]) -> None:
+    """Everything that changes a targum goes through `within(home, name)`, and the shared
+    home is not this reader's home."""
+    port, session = hosted
+    out = Path(str(STORE[0])).parent / "out"
+    _targum(out / "shared" / "ruth", "ruth")
+    assert _signed_post(port, "/trash", {"name": "ruth"}, session)[0] == 404
+    assert _signed_post(port, "/restore", {"name": "ruth"}, session)[0] == 404
+    assert _signed_post(port, "/chapter", {"name": "ruth", "number": 2}, session)[0] == 404
+    assert (out / "shared" / "ruth" / "reader" / "index.html").is_file()
+
+
+def test_one_account_still_cannot_read_anothers_reader(hosted: tuple[int, str]) -> None:
+    """The guard the shared home was added beside, not instead of."""
+    port, session = hosted
+    out = Path(str(STORE[0])).parent / "out"
+    _targum(out / "p999" / "secret", "secret")
+    for path in (
+        "/reader/secret/reader/index.html",
+        "/reader/../p999/secret/reader/index.html",
+        "/reader/%2E%2E/p999/secret/reader/index.html",
+        "/reader/../shared/../p999/secret/reader/index.html",
+    ):
+        status, body = ask(port, path, "targum.page", session)
+        assert status == 404, path
+        assert b"secret" not in body, path
+
+
+def test_your_builds_are_listed_for_you_alone(hosted: tuple[int, str]) -> None:
+    port, session = hosted
+    status, body = ask(port, "/jobs", "targum.page")
+    assert status == 401, "data routes answer as data"
+    status, body = ask(port, "/jobs", "targum.page", session)
+    assert status == 200
+    assert json.loads(body) == {"jobs": []}
+
+
+def test_watching_a_build_that_is_not_yours_is_not_found(hosted: tuple[int, str]) -> None:
+    port, session = hosted
+    assert _signed_post(port, "/jobs/watch", {"id": "nope"}, session)[0] == 404

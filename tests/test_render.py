@@ -1434,22 +1434,36 @@ def test_a_word_you_have_never_marked_is_the_loudest_thing_on_the_page() -> None
     """The point of the mode: everything you do not know starts lit, and you put it out
     by marking it. A scale that only began once you had already said something told you
     nothing about the words you had not.
+
+    It was one hue, a fainter accent at each step, and the first alpha reader said what
+    that did: "the words I clicked on need to change colour, now I can hardly see them."
+    So it is two. Unmet is accent, the loudest thing on the page; the three working
+    levels are leaf — §4's colour for progress — and still descend, so the page still
+    clears as you learn it, but a word you are working on is a colour, not an absence.
+    Decided 2026-08-28.
     """
     css = _reader_css()
     assert "body.marking .w:not([data-status])" in css, "never-marked words carry the top step"
 
-    # One hue, and monotone down the scale, or it does not read as one scale.
-    def wash(selector: str) -> int:
+    def wash(selector: str, hue: str) -> int:
         rules = css.split(selector, 1)[1].split("}", 1)[0]
-        found = re.search(r"background:.*?var\(--accent\) (\d+)%", rules)
+        found = re.search(r"background:.*?var\(--" + hue + r"\) (\d+)%", rules)
         return int(found.group(1)) if found else 0
 
-    fresh = wash("body.marking .w:not([data-status])")
-    one = wash('body.marking .w[data-status="1"]')
-    two = wash('body.marking .w[data-status="2"]')
-    assert fresh > one > two > 0, "saying anything about a word must make it quieter"
-    # §4 caps the accent wash at 22%.
-    assert fresh <= 22 and two >= 12, "every step stays inside the sanctioned wash range"
+    fresh = wash("body.marking .w:not([data-status])", "accent")
+    one = wash('body.marking .w[data-status="1"]', "leaf")
+    two = wash('body.marking .w[data-status="2"]', "leaf")
+    three = wash('body.marking .w[data-status="3"]', "leaf")
+    # §4 caps a wash at 22%; the unmet word takes all of it and nothing else comes near.
+    assert fresh == 22, "the unmet word is the loudest thing on the page"
+    assert fresh > one > two > three > 0, "saying more about a word makes it quieter"
+    assert wash('body.marking .w[data-status="1"]', "accent") == 0, "your words are not accent"
+
+    # Every working level keeps its underline: leaf and accent are near neighbours
+    # under protanopia at these washes, and a mark never rests on colour alone.
+    for level in ("1", "2", "3"):
+        rules = css.split(f'body.marking .w[data-status="{level}"]', 1)[1].split("}", 1)[0]
+        assert "box-shadow: inset 0 -1px 0" in rules, f"level {level} has no underline"
 
     # Known and ignored take no wash at all — the page empties as you learn it.
     assert 'body.marking .w[data-status="9"]' not in css
@@ -1688,7 +1702,8 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     assert "function showPick(picked)" in script, "rebuildable, so the card can restate"
     body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
-    assert body.count("showPick(picked);") == 2, "each redraws it"
+    # Each branch redraws it, and so does Keep: the card comes back with the scale on.
+    assert body.count("showPick(picked);") == 3, "each redraws it"
     # And it stops being live the moment the card goes. There is one way to put the chip
     # away and it takes the keys down with it, because the two being separate lines meant
     # remembering them together at four call sites — and a level pressed at a phrase
@@ -1747,7 +1762,11 @@ def test_no_count_on_the_page_reads_the_dom() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    for name in ("function lemmasHere()", "function coverage()", "function wordEntries()"):
+    for name in (
+        "function lemmasHere(everything)",
+        "function coverage()",
+        "function wordEntries()",
+    ):
         body = script[script.index(name) :]
         body = body[: body.index("\n  }\n")]
         assert "querySelector" not in body, f"{name} must not count spans"
@@ -2441,9 +2460,12 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     assert escape.index("showKeys(false);") < escape.index("hideCard();")
     assert escape.index("hideCard();") < escape.index("showList(false);")
     assert escape.index("showList(false);") < escape.index("leaveQueue();")
+    # The phrase chip is a layer too. It sits over the word card, and Escape never
+    # reached it at all: the first alpha reader was left with a card she could not close.
+    assert escape.index("hideChip();") < escape.index("hideCard();")
     # And each layer stops there: closing the keys used to fall straight through and drop
     # you out of the queue in the same press.
-    assert escape.count("return;") == 4
+    assert escape.count("return;") == 5
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
@@ -2776,3 +2798,12 @@ def test_the_script_a_reader_gets_still_parses(tmp_path: Path) -> None:
         baked.write_text(_strip(path.name, path.read_text(encoding="utf-8")), encoding="utf-8")
         done = subprocess.run(["node", "--check", str(baked)], capture_output=True, text=True)
         assert done.returncode == 0, f"{path.name} does not parse after stripping:\n{done.stderr}"
+
+
+def test_the_first_time_line_is_only_on_a_page_with_words() -> None:
+    """It says to tap a word. A reader with no word-level annotation has none to tap."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates" / "reader.html.j2").read_text(encoding="utf-8")
+    line = template[template.index('id="first"') - 200 : template.index('id="first"')]
+    assert "{% if words %}" in line

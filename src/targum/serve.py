@@ -31,7 +31,7 @@ from functools import cache, lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
@@ -301,6 +301,7 @@ class Job:
         return {
             "blocked": self.blocked,
             "id": self.id,
+            "made": self.made,
             "title": self.title,
             "language": self.language,
             "segments": self.segments,
@@ -376,8 +377,19 @@ class Library:
         store: Store | None = None,
         account_budget: float | None = ACCOUNT_BUDGET,
         month_budget: float | None = MONTH_BUDGET,
+        mailer: Mailer | None = None,
+        address: str = "",
     ) -> None:
         self.out = out
+        # How to reach somebody whose build finished while they were away, and where
+        # the reader is. Neither is needed on a machine somebody runs themselves.
+        self.mailer = mailer
+        self.address = address
+        # A home nobody owns, read by everybody: what a reader with nothing on their
+        # shelf is handed to start with. Written only by `targum seed`, never by a
+        # request — nothing routed through `within(home, …)` can reach it, so a shared
+        # text cannot be bought, trashed or rebuilt by whoever is reading it.
+        self.shared = out / "shared"
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
@@ -473,6 +485,85 @@ class Library:
             if job is not None:
                 self.run(job)
             self.queue.task_done()
+
+    #: A finished build stays on the list this long, so the strip on every page can say
+    #: it is ready and hand over the link. The page forgets one the reader has dismissed.
+    RECENT_MS = 60 * 60 * 1000
+
+    #: A build longer than this earns an email when it finishes: the reader has most
+    #: likely gone to do something else, and the page they started it from is gone.
+    LONG_BUILD_MS = 3 * 60 * 1000
+
+    def mine(self, owner: int | None) -> list[dict[str, Any]]:
+        """One person's builds, newest first, each saying how far back in the line it is.
+
+        The queue itself is not safely introspectable, so the position is derived: the
+        jobs waiting, in the order they were made, plus one for the job being worked on
+        — which with one worker is exact. The reader's page can then say "waiting
+        behind one other build" rather than leaving a second build to look stuck.
+        """
+        working = any(job.stage == "working" for job in self.jobs.values())
+        waiting = sorted(
+            (job for job in self.jobs.values() if job.stage == "queued"), key=lambda j: j.made
+        )
+        position = {job.id: index + (1 if working else 0) for index, job in enumerate(waiting)}
+        cutoff = now() - self.RECENT_MS
+        out: list[dict[str, Any]] = []
+        for job in sorted(self.jobs.values(), key=lambda j: j.made, reverse=True):
+            if job.owner != owner:
+                continue
+            if job.stage in ("done", "failed", "blocked") and job.made < cutoff:
+                continue
+            if job.stage in ("reading", "ready"):
+                # Priced and not yet started: nothing is building, so there is nothing
+                # to follow. The page that asked for the price is still showing it.
+                continue
+            out.append(
+                {
+                    **job.state(),
+                    "behind": position.get(job.id, 0),
+                    # Whether putting the strip away can honestly promise an email.
+                    "mail": self.can_mail(owner),
+                }
+            )
+        return out
+
+    def can_mail(self, owner: int | None) -> bool:
+        """Whether a finished build could reach this person by email at all: hosted,
+        with an address to put in the link, and somebody signed in to send it to."""
+        return (
+            self.mailer is not None
+            and bool(self.address)
+            and self.store is not None
+            and owner is not None
+        )
+
+    def tell(self, job: Job) -> None:
+        """Email whoever asked for a build that took long enough for them to have left —
+        or who put the strip away and was promised one.
+
+        Best effort, and never a reason for a finished build to count as failed: the
+        reader is on disk whether or not the message about it arrives.
+        """
+        # Spelt out rather than asked of `can_mail`, so the checker sees each is there.
+        if self.mailer is None or self.store is None or job.owner is None:
+            return
+        if not self.address or not job.reader:
+            return
+        if not job.options.get("mail") and now() - job.made < self.LONG_BUILD_MS:
+            return
+        with contextlib.suppress(Exception):
+            person = self.store.person_by_id(job.owner)
+            if person is None:
+                return
+            path = "/".join(quote(part) for part in job.reader.split("/"))
+            link = f"{self.address}/reader/{path}" if self.address else ""
+            title = job.title or job.source
+            self.mailer.notify(
+                person.email,
+                f"{title} is ready",
+                f"{title} is ready to read.\n\n{link}\n".rstrip() + "\n",
+            )
 
     def enqueue(self, job: Job) -> None:
         job.stage = "queued"
@@ -805,6 +896,7 @@ class Library:
         annotation is not free — a book's worth is megabytes — and the library page is
         drawn every time somebody opens it.
         """
+        from .annotate.base import NOT_VOCABULARY
         from .annotate.frequency import FrequencyBands
         from .models import Annotation, read_artifact
 
@@ -819,6 +911,8 @@ class Library:
         seen: dict[str, int] = {}
         for tokens in annotation.tokens.values():
             for token in tokens:
+                if token.pos in NOT_VOCABULARY:
+                    continue
                 band = seen.get(token.lemma)
                 if band is None:
                     band = seen[token.lemma] = bands.band(token.lemma, code)
@@ -1082,6 +1176,7 @@ class Library:
                 job.stage = "done"
                 job.message = ""
                 self.remember(job)
+                self.tell(job)
 
             # One chapter. A book is bought as it is read; a text with no chapters is
             # translated whole, which the pipeline decides for itself.
@@ -1298,6 +1393,7 @@ class Library:
         job.stage = "done"
         self.settle(job)
         self.remember(job)
+        self.tell(job)
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -1716,7 +1812,7 @@ class Handler(BaseHTTPRequestHandler):
             # page rather than a 401 — and not the sign-in page either, because a door
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
-            if route.startswith(("/readers", "/job/", "/glossary/", "/account/export")):
+            if route.startswith(("/readers", "/job/", "/jobs", "/glossary/", "/account/export")):
                 return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
@@ -1766,9 +1862,17 @@ class Handler(BaseHTTPRequestHandler):
             home = self._home()
             mine = self.library.readers(home)
             self._measure(home, mine)
+            # And the shared one, measured against this reader's words like their own.
+            # The page shows it only to a reader with nothing of their own in that
+            # language: it is where to start, not another row on a full shelf.
+            shared = self.library.readers(self.library.shared)
+            for reader in shared:
+                reader["shared"] = True
+            self._measure(self.library.shared, shared)
             return self._json(
                 {
                     "readers": mine,
+                    "shared": shared,
                     "trash": self.library.readers(home, trashed=True),
                     # Whether this deployment can draw a cover at all. A page with no
                     # image key offers nothing rather than offering and failing.
@@ -1797,6 +1901,12 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if route.startswith("/glossary/"):
             return self._serve_glossary(route[len("/glossary/") :])
+        if route == "/jobs":
+            # Every build of yours that is running, waiting, or lately finished. The id
+            # of a build used to live only in the page that started it, so leaving that
+            # page made the build look cancelled — it was not, but nothing could find it.
+            person = self._person()
+            return self._json({"jobs": self.library.mine(person.id if person else None)})
         if route.startswith("/job/"):
             job = self._own_job(route[len("/job/") :])
             return self._json(
@@ -1843,6 +1953,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._chapter(payload)
         if route == "/cover":
             return self._cover(payload)
+        if route == "/jobs/watch":
+            return self._watch_job(payload)
         if route == "/trash":
             return self._trash(payload)
         if route == "/restore":
@@ -2240,6 +2352,19 @@ class Handler(BaseHTTPRequestHandler):
         self.library.enqueue(job)
         self._json(job.state())
 
+    def _watch_job(self, payload: dict[str, Any]) -> None:
+        """The reader put the strip away: tell them by email instead, however short the
+        build. A promise made on the page is kept whatever the clock says."""
+        job = self._own_job(str(payload.get("id") or ""))
+        if job is None:
+            return self._json({"error": "not found"}, 404)
+        finished = job.stage in ("done", "failed", "blocked")
+        watching = self.library.can_mail(job.owner) and not finished
+        if watching:
+            job.options["mail"] = True
+            self.library.remember(job)
+        self._json({"watching": watching})
+
     def _trash(self, payload: dict[str, Any]) -> None:
         name = str(payload.get("name") or "")
         if not self.library.trash(self._home(), name):
@@ -2424,13 +2549,18 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, b"not found", "text/plain")
 
     def _serve_reader(self, relative: str) -> None:
-        """This person's readers, and nothing else — not even another person's."""
-        root = self._home().resolve()
-        target = (root / unquote(relative)).resolve()
-        if not target.is_file() or root not in target.parents:
-            return self._send(404, b"not found", "text/plain")
-        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        self._send(200, target.read_bytes(), kind)
+        """This person's readers, and the shared ones — never another person's.
+
+        Two roots, each guarded on its own: the file has to resolve to *inside* the
+        root it was looked for under. The shared home is a second allowed root, not a
+        relaxation of the first, and the person's own wins where a name is in both.
+        """
+        for root in (self._home().resolve(), self.library.shared.resolve()):
+            target = (root / unquote(relative)).resolve()
+            if target.is_file() and root in target.parents:
+                kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+                return self._send(200, target.read_bytes(), kind)
+        return self._send(404, b"not found", "text/plain")
 
 
 def default_store() -> Path:
@@ -2481,7 +2611,19 @@ def start(
     # The store comes first: the library reads back what the last run was doing, so a
     # build caught mid-flight stops claiming to be working and keeps its claim on the
     # budget rather than handing it back for money it had probably already spent.
-    library = Library(out, max_cost=max_cost, budget=budget, store=keeping)
+    delivering = mailer or from_environment()
+    public = (public_address or f"http://127.0.0.1:{port}").rstrip("/")
+    library = Library(
+        out,
+        max_cost=max_cost,
+        budget=budget,
+        store=keeping,
+        mailer=delivering,
+        # Only where an email could reach anybody: a link with a key in it would be a
+        # bearer token in a mailbox, so on a machine somebody runs themselves the
+        # library is told no address and says nothing.
+        address=public if require_account else "",
+    )
     library.start_workers()
 
     handler = type(
@@ -2493,7 +2635,7 @@ def start(
             "hosts": hosts_for(public_address),
             "token": token,
             "store": keeping,
-            "mailer": mailer or from_environment(),
+            "mailer": delivering,
             # Where a sign-in link points. Loopback is right for a machine somebody
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.

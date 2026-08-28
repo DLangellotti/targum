@@ -379,3 +379,115 @@ def test_saying_a_level_a_word_already_has_takes_it_off() -> None:
     )["said"]
     assert said[0]["spoken"] == "one, not marked. 2 left."
     assert [item["lemma"] for item in said[0]["queue"]] == ["one", "two"]
+
+
+# -- the list beside the text ---------------------------------------------------
+
+
+def listed(
+    *sentences: list[str], vocab: dict[str, int] | None = None, **rest: Any
+) -> list[dict[str, Any]]:
+    words, lemmas = chapter(*sentences)
+    kept = {lemma: {"status": status} for lemma, status in (vocab or {}).items()}
+    return run([], chapter=words, lemmas=lemmas, vocab=kept, **rest)["list"]
+
+
+def test_the_last_word_you_saved_is_at_the_top() -> None:
+    """ "The last word you saved should go to the top of the list on the left." It went to
+    the bottom, which in a list longer than the panel was off the screen."""
+    rows = listed(
+        ["a", "b", "c"],
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 2}, {"word": "c", "status": 1}],
+    )
+    assert [row["lemma"] for row in rows] == ["c", "b", "a"]
+
+
+def test_a_word_saved_as_known_stays_in_sight() -> None:
+    """The list is what you are still working on, so a known word is not on it — except
+    the one you finished with just now. A word that vanished the moment you said you knew
+    it read as a save that had failed."""
+    rows = listed(
+        ["a", "b", "c"],
+        vocab={"c": 9},
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 1}, {"word": "a", "status": 9}],
+    )
+    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [
+        ("b", 1, False),
+        ("a", 9, True),
+    ], "the finished word keeps its place; the one known before you came is not listed"
+
+
+def test_a_word_you_ignore_stays_in_sight_too() -> None:
+    rows = listed(["a", "b"], levels=[{"word": "a", "status": 0}])
+    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [("a", 0, True)]
+
+
+# -- the first time ---------------------------------------------------------------
+
+
+def test_the_first_time_says_what_to_do() -> None:
+    """A reader who has never marked a word is told the one thing the page is for, and
+    the first word they mark turns that into the keys. Then it is gone for good."""
+    words, lemmas = chapter(["a", "b"])
+    before = run([], chapter=words, lemmas=lemmas, vocab={})["first"]
+    assert before == {"hidden": False, "text": "Tap a word to say how well you know it."}
+
+    after = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 1}])
+    assert after["first"]["hidden"] is False
+    assert after["first"]["text"].startswith("k known · 1 2 3")
+
+
+def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
+    words, lemmas = chapter(["a", "b"])
+    drawn = run([], chapter=words, lemmas=lemmas, vocab={"c": {"status": 2}})["first"]
+    assert drawn["hidden"] is True
+
+
+# -- the offer at the foot of a part ---------------------------------------------
+
+
+def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
+    """ "Words should be marked as known automatically when I'm done with the article."
+    Offered, never done for you: the words you never marked, in one press, with the
+    number said. The ones you are working on are left alone."""
+    words, lemmas = chapter(["a", "b", "c"])
+    before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
+    assert before["rest"] == {
+        "hidden": False,
+        "text": "Mark the remaining 2 words as known?",
+        "button": "Mark 2",
+        "undo": False,
+    }
+    after = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={},
+        levels=[{"word": "a", "status": 2}],
+        markRest=True,
+    )
+    assert [item["lemma"] for item in after["queue"]] == ["a"], "still learning a; b and c known"
+    assert after["rest"]["text"] == "2 words marked known"
+    assert after["rest"]["undo"] is True
+
+
+def test_one_undo_takes_the_whole_batch_back() -> None:
+    words, lemmas = chapter(["a", "b", "c", "d"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
+    assert done["rest"]["button"] == "Mark 4"
+
+
+def test_marking_the_rest_never_touches_a_name() -> None:
+    """A name is not a word you know. It is on the page to be tapped, and it is not in
+    the count offered."""
+    rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
+    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
+    assert done["rest"]["text"] == "2 words marked known"
+    assert [item["lemma"] for item in done["queue"]] == ["Name"], "still there to tap"
+
+
+def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
+    words, lemmas = chapter(["a"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
+    assert done["rest"]["hidden"] is True

@@ -161,13 +161,15 @@
     return Math.round(reader.known * 100) + "% of its words are ones you know";
   }
 
-  function drawCarry(reader) {
+  function drawCarry(reader, start) {
     var panel = document.getElementById("carry");
     if (!reader) {
       panel.hidden = true;
       return;
     }
     panel.hidden = false;
+    var heading = document.getElementById("carry-heading");
+    if (heading) heading.textContent = start ? "Start here" : "Continue Reading";
     // The box is the link, so this is the only href on it.
     panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
 
@@ -412,6 +414,7 @@
   ask("/readers")
     .then(function (data) {
       var readers = (data && data.readers) || [];
+      var shared = (data && data.shared) || [];
       var trash = (data && data.trash) || [];
       readers.forEach(function (reader) {
         reader.opened = opened[reader.document] || 0;
@@ -431,10 +434,12 @@
       });
       codes = lang.order(codes, names);
 
-      var nothing = !readers.length && !vocabulary.length;
-      document.getElementById("nothing").hidden = !nothing;
-      document.getElementById("page").hidden = nothing;
-      if (nothing) return;
+      // An empty shelf used to swap the whole page for three lines pointing at the
+      // Library. The suggestion — the one thing on this page that says where to start
+      // — lives inside the page, so the reader with nothing was the one reader who
+      // never saw it. The page draws with its panels empty and the suggestion drawn.
+      document.getElementById("nothing").hidden = true;
+      document.getElementById("page").hidden = false;
 
       var chosen = lang.current(codes);
 
@@ -447,7 +452,16 @@
         var mine = readers.filter(function (reader) {
           return base(reader.language) === code;
         });
-        drawCarry(mine[0]);
+        // Nothing of your own in this language: the shared text is where to start —
+        // already built, so there is nothing to choose and nothing to wait for. The
+        // first alpha reader signed in and had "no idea where to start"; this is the
+        // answer, in the place the answer goes.
+        var start = mine.length
+          ? null
+          : shared.filter(function (reader) {
+              return base(reader.language) === code;
+            })[0];
+        drawCarry(mine[0] || start, !!start);
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
         shelf.draw(

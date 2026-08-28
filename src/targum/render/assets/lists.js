@@ -188,9 +188,13 @@
   function statusCell(status) {
     var pip = el("span", "pip");
     var dot = el("i");
-    dot.style.background = "var(" + (STATUS[status] || STATUS[0]).slot + ")";
+    // Ignored is not a step on the ramp — a name is not a word you are a quarter of
+    // the way through — so it has no slot, and asking for one threw and blanked the
+    // whole table for anybody who had ever pressed `i`.
+    var step = STATUS[status];
+    dot.style.background = step ? "var(" + step.slot + ")" : "var(--rule)";
     pip.appendChild(dot);
-    pip.appendChild(document.createTextNode((STATUS[status] || {}).name || "—"));
+    pip.appendChild(document.createTextNode(step ? step.name : status === 0 ? "ignored" : "—"));
     return pip;
   }
 

@@ -231,12 +231,24 @@
     // reached for a level the two agreed again, and the press read as a second press.
     var touched = false;
 
+    var save = null;
+
+    // The button says which side of the line the field is on: "Save" while what is in
+    // it differs from what is kept, "Saved" once they agree. It used to say "Save"
+    // forever, and a reader who pressed it could not tell that anything had happened.
+    function said(saved) {
+      if (!save) return;
+      save.textContent = saved ? "Saved" : "Save";
+      save.disabled = saved;
+    }
+
     function commitNote() {
       if (!field || !options.onNote) return;
       var text = field.value.trim();
       if (text === (options.note || "")) return;
       options.note = text;
       options.onNote(text);
+      said(true);
     }
 
     var scale = document.createElement("div");
@@ -262,6 +274,22 @@
     });
     box.appendChild(scale);
 
+    // What the pressed step means, in words, under the scale. The names lived only in
+    // the buttons' tooltips, which is nowhere on a phone, and "explain what the 1, 2, 3
+    // stages mean" was one of the first things the first alpha reader asked for.
+    if (options.legend) {
+      var legend = document.createElement("span");
+      legend.className = "level-legend";
+      var pressed = null;
+      STEPS.forEach(function (step) {
+        if (step.value === options.status) pressed = step;
+      });
+      legend.textContent = pressed
+        ? pressed.label + " · " + pressed.title.toLowerCase()
+        : "1 just met it · 2 getting there · 3 nearly know it";
+      box.appendChild(legend);
+    }
+
     if (options.onNote) {
       var note = (field = document.createElement("input"));
       note.type = "text";
@@ -284,6 +312,7 @@
       // store written a hundred times for one definition.
       note.addEventListener("input", function () {
         touched = true;
+        said(false);
         clearTimeout(pending);
         pending = setTimeout(commitNote, 400);
       });
@@ -295,13 +324,14 @@
       // What you typed is kept as you type it, and always was — but a field that saves
       // silently is a field nobody can tell they have finished with. This says where the
       // end is. Pressing it does what leaving the field does, and says so.
-      var save = document.createElement("button");
+      save = document.createElement("button");
       save.type = "button";
       save.className = "note-save";
       save.textContent = "Save";
       save.addEventListener("click", function (event) {
         event.stopPropagation();
         commitNote();
+        said(true);
         note.blur();
         if (options.onSaved) options.onSaved();
       });

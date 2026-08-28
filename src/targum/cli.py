@@ -8,7 +8,7 @@ import subprocess
 import sys
 from datetime import UTC
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from urllib.parse import urlparse
 
 import typer
@@ -23,9 +23,14 @@ from . import translate as translate_module
 from .cache import Cache
 from .errors import TargumError
 from .ids import slug
-from .models import Style
+from .models import Document, Style
 from .paths import cache_dir, config_path, model_dir
 from .pipeline import Build
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .annotate import Annotator
 
 app = typer.Typer(
     add_completion=False,
@@ -840,17 +845,26 @@ def repair(
 
 
 def rebuild_one(
-    folder: Path, *, reads: list[str] | None, covers: Path
+    folder: Path,
+    *,
+    reads: list[str] | None,
+    covers: Path,
+    annotate: Callable[[Path, Document], Annotator] | None = None,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
     Returns the title and how many files were written, or `(None, why)` where there
     was nothing to write: a folder with no text, or one that was priced and never
     paid for. Nothing is fetched and nothing is spent.
+
+    `annotate`, given, names the annotator this machine would use for the text, and a
+    reader whose words were worked out by an older one has them worked out again
+    before it is written. That is the only path by which a change to what a word is
+    reaches a text already on the shelf: a build compares the names itself, but a
+    rebuild reads the annotation as it finds it.
     """
     from .models import (
         Annotation,
-        Document,
         SegmentedDocument,
         Translation,
         Vocalization,
@@ -872,6 +886,12 @@ def rebuild_one(
         # Ingested and priced, then never paid for. There is nothing to read.
         return None, "never translated"
     annotation = read_artifact(Annotation, folder / "annotation.json")
+    if annotation is not None and annotate is not None:
+        annotator = annotate(folder, document)
+        if annotation.annotator != annotator.name:
+            vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+            annotation = annotator.annotate(segmented, vocalization)
+            annotation.write(folder / "annotation.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
         # Meanings held in the cache since this reader was written — looked up from
@@ -928,6 +948,13 @@ def rebuild(
         Path | None,
         typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
     ] = None,
+    words: Annotated[
+        bool,
+        typer.Option(
+            "--words",
+            help="Work the words out again where a newer annotator would. Free: Stanza runs here.",
+        ),
+    ] = False,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -935,10 +962,44 @@ def rebuild(
     a reader built last month is still the reader targum wrote last month. This rewrites
     them all from the artifacts beside them: nothing is fetched and nothing is spent,
     and anything the reader has learned to do since arrives in the ones you already have.
+
+    The words in a reader are what the annotator made of them on the day, and rewriting
+    the page does not revisit that. `--words` does: a text whose dictionary forms were
+    worked out by an older annotator has them worked out again, on this machine, before
+    the page is written.
     """
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
+
+    annotate: Callable[[Path, Document], Annotator] | None = None
+    if words:
+        from .annotate import (
+            Annotator,
+            PhonikudPronouncer,
+            Pronouncer,
+            StanzaLemmatizer,
+            biblical,
+            pronounceable,
+        )
+        from .models import Vocalization, read_artifact
+
+        # One lemmatizer for the whole run: the model it loads is most of the cost, and
+        # the bands are the only part that differs from one text to the next.
+        lemmatizer = StanzaLemmatizer()
+        phonikud = PhonikudPronouncer()
+        has_phonikud = phonikud.available()[0]
+
+        def annotate(folder: Path, document: Document) -> Annotator:
+            pronouncer: Pronouncer | None = None
+            if has_phonikud and pronounceable(document.language):
+                if read_artifact(Vocalization, folder / "vocalization.json") is not None:
+                    pronouncer = phonikud
+            return Annotator(
+                lemmatizer=lemmatizer,
+                bands=biblical.for_source(document.source),
+                pronouncer=pronouncer,
+            )
 
     # Homes are named for the person whose they are — `p<id>`, or `local` for the shared
     # signed-out one. Asked once per home rather than once per targum.
@@ -961,7 +1022,10 @@ def rebuild(
         if folder.name == "uploads":
             continue
         title, outcome = rebuild_one(
-            folder, reads=reading_of(folder.parent.name), covers=root / "thumbs"
+            folder,
+            reads=reading_of(folder.parent.name),
+            covers=root / "thumbs",
+            annotate=annotate,
         )
         if title is None:
             skipped.append((folder.name, str(outcome)))
@@ -975,6 +1039,58 @@ def rebuild(
         f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] "
         f"[dim]Nothing was fetched and nothing was spent.[/dim]"
     )
+
+
+#: What a reader with nothing on their shelf is handed first: a text already built, so
+#: there is nothing to choose and nothing to wait for. Catalogue texts with a published
+#: translation, so building one asks no model for anything. Ruth first — four chapters,
+#: one family, plain narrative — which is the roadmap's own answer to "where do I start".
+SEED = ("ruth",)
+
+
+@app.command()
+def seed(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Build the shared texts every new reader starts with.
+
+    Into `<out>/shared`, which no request can write to: a reader is handed these,
+    cannot buy, trash or rebuild them, and gets their own copy the moment they build
+    anything. Free — each has a published translation — and safe to run again.
+    """
+    from . import catalogue as catalogue_module
+    from .coverage import lemmas
+    from .serve import HOSTED_MODEL
+
+    root = out or Path.cwd() / "targum-out"
+    shared = root / "shared"
+    shared.mkdir(parents=True, exist_ok=True)
+    for entry_id in SEED:
+        entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
+        if entry is None:
+            fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
+            continue
+        builder = Build(
+            entry.source,
+            target_language="en",
+            title=entry.title,
+            model=entry.model or HOSTED_MODEL,
+            out_root=shared,
+            translations=[rendering.source for rendering in entry.translations],
+            machine=False,
+            difficulty=True,
+            notify=lambda message: console.print(f"[dim]{message}[/dim]"),
+        )
+        with console.status(f"Building {entry.title}…"):
+            result = builder.run()
+        # Written now rather than on the first reader's first visit: nothing a request
+        # does should write into the shared home.
+        lemmas(result.out_dir)
+        console.print(f"[green]{entry.title}[/green] [dim]→ {result.out_dir}[/dim]")
+    console.print("[dim]Nothing was spent.[/dim]")
 
 
 @app.command()

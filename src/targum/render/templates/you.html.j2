@@ -11,6 +11,7 @@
 <body class="words you">
 {% set here = 'you' %}{% set title = 'You' %}
 {% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
 
 <main>
   {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}

@@ -491,3 +491,6 @@
   color: var(--ink);
   font-weight: 600;
 }
+
+/* How much of a text is already yours, under its title. Leaf: §4 gives "known" to it. */
+.row-fit { display: block; font-size: 0.6875rem; color: var(--leaf); }

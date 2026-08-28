@@ -72,12 +72,20 @@
 
   // The share of running words a reader would have to look up, in three steps. The
   // numbers behind them are measured off each text: see scripts/measure_difficulty.py.
+  // Said in words as well as tiers, because the cutoffs were never stated anywhere:
+  // "Beginners cannot understand library listings", said the first alpha reader.
   var LEVELS = [
     ["", "Any"],
-    ["easy", "Easier"],
-    ["mid", "Middling"],
-    ["hard", "Harder"],
+    ["easy", "Easier — up to 1 word in 5 new"],
+    ["mid", "Middling — about 1 in 4"],
+    ["hard", "Harder — more than 1 in 4"],
   ];
+
+  // The same number as a sentence: 17% is "about 1 word in 6 is new to you".
+  function inWords(share) {
+    if (!share) return "";
+    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " will be new to you";
+  }
 
   /* The two halves of the page. The catalogue is everybody's; an upload is yours and
      nobody else can reach it. Tabs rather than a filter: they are not two settings of one
@@ -211,6 +219,8 @@
     track.appendChild(fill);
     box.appendChild(track);
     box.appendChild(el("span", "col count", share + "%"));
+    box.title = inWords(share);
+    box.setAttribute("aria-label", share + "% new words: " + inWords(share));
     return box;
   }
 
@@ -245,6 +255,14 @@
     title.appendChild(bdi);
     what.appendChild(title);
     if (row.author) what.appendChild(el("span", "row-by", row.author));
+    // Personal, where it can be: a text on the shelf is measured against the reader's
+    // own words. Absent for one never built, and for one built without word-level
+    // annotation — "not measured" and "you know none of this" are different claims.
+    if (row.built && typeof row.built.known === "number") {
+      what.appendChild(
+        el("span", "row-fit", "you know " + Math.round(row.built.known * 100) + "% of its words")
+      );
+    }
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));

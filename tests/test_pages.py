@@ -174,12 +174,26 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
 
 
 def test_learn_is_honest_when_there_is_nothing() -> None:
-    """This is the onboarding now, so it points at the shelves rather than at a form."""
+    """Signed out, or the server gone, the page says so and points at the shelves."""
     learn = PAGES["learn"]
     empty = learn[learn.index('id="nothing"') :]
     assert "Nothing here yet" in empty
     assert 'href="/library"' in empty, "which is where to go"
     assert 'href="/add"' in empty, "with your own text as the quieter option"
+
+
+def test_an_empty_shelf_still_gets_the_suggestion() -> None:
+    """The suggestion — the one thing on Learn that says where to start — lives inside
+    `#page`, and an empty shelf used to hide `#page` wholesale. So the reader with nothing
+    was the one reader who never saw it, and the first alpha reader's first words were
+    "no idea where to start"."""
+    from targum.render.builder import ASSETS
+
+    learn = PAGES["learn"]
+    assert learn.index('id="page"') < learn.index('id="suggest"') < learn.index('id="nothing"')
+    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
+    assert 'getElementById("page").hidden = nothing' not in script
+    assert 'getElementById("page").hidden = false' in script
 
 
 # -- the charts are shared, not copied ------------------------------------------
@@ -721,3 +735,15 @@ def test_reader_links_are_percent_encoded() -> None:
         assert '"/reader/" + job.reader)' not in source, name
         assert '"/reader/" + state.reader)' not in source, name
         assert "encodeURIComponent" in source, name
+
+
+def test_every_page_with_the_header_can_follow_a_build() -> None:
+    """The strip lives in the shared header, and the script that draws it has to be on
+    every page that carries it — or a build followed on Learn vanishes on Library."""
+    strip = baked("building.js")
+    body = strip[strip.index('getElementById("building")') :][:60]
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'id="building"' in page, f"{name} has no strip"
+        assert body in page, f"{name} does not inline building.js"
