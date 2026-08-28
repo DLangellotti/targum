@@ -156,11 +156,16 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
   gap: 1.25rem;
 }
+/* Flat, and the hairline does the grouping. §9 allows one raised layer per view and the
+   cards at the top of Learn have it — learn.css:45 has said so since the three-up strip
+   was written, but the panels below went on wearing the raised fill anyway. Five pages
+   share this class, and on four of them it was half the page: measured at 50% of Learn,
+   against §9's budget of roughly 15% structural neutral. The page is near-white, not
+   beige, and a card inside a card is a hairline. */
 .panel {
   padding: 1.1rem 1.25rem 1.25rem;
   border: 1px solid var(--rule);
   border-radius: 8px;
-  background: var(--paper-raised);
   min-width: 0;
 }
 .panel h2 {
