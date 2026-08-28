@@ -190,6 +190,10 @@
     button in the bar both went to a card that was never found, so the one page that says
     which keys exist could not be opened by either. -#}
 <div class="keys-card" id="keys" hidden role="group" aria-label="Keyboard shortcuts">
+  {#- Named and closable where a pointer can see it. Escape and a click elsewhere both
+      put it away, but nothing on the card said so, and the list beside the text already
+      closes with the typed × the guidelines ask for. -#}
+  <div class="keys-head"><b>Keys</b><button type="button" class="keys-close" data-keys aria-label="Close">×</button></div>
   {#- In the order a reader reaches for them, not by category: the walk and the levels are
       most of a session, the modes are set once and left. `t` is not here — it reports how
       long the page took to draw, which is for whoever is building targum rather than for

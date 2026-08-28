@@ -500,6 +500,9 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
   text-align: start;
 }
 .keys-card[hidden] { display: none; }
+.keys-head { display: flex; align-items: baseline; gap: 0.6rem; margin-block-end: 0.5rem; }
+.keys-head b { font-weight: 600; color: var(--ink); }
+.keys-head .keys-close { margin-inline-start: auto; border: none; font-size: 1.0625rem; line-height: 1; }
 .keys-card dl {
   display: grid;
   grid-template-columns: auto 1fr;
