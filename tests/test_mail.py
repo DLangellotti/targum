@@ -79,3 +79,14 @@ def test_the_console_says_the_link_once_and_plainly() -> None:
     assert said.count("https://targum.page/x?t=y") == 1
     assert "reader@example.com" in said
     assert not re.search(r"[\U0001F300-\U0001FAFF]", said), "no emoji, per the guidelines"
+
+
+def test_a_finished_build_is_said_plainly_on_the_console() -> None:
+    import io
+
+    out = io.StringIO()
+    ConsoleMailer(out).notify(
+        "reader@example.com", "Ruth is ready", "Ruth is ready to read.\n\nhttp://x\n"
+    )
+    said = out.getvalue()
+    assert "reader@example.com" in said and "Ruth is ready" in said and "http://x" in said
