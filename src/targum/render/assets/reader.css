@@ -326,6 +326,9 @@ a.bar-brand:hover { color: var(--accent); }
 .bar button:hover, .bar select:hover,
 .bar button:focus-visible, .bar select:focus-visible { border-color: var(--rule); }
 .bar button.on:hover { border-color: var(--ink-soft); }
+/* A sheet of keyboard shortcuts on a phone is a control that answers a question nobody
+   there can ask. The key itself still works for a tablet with a keyboard attached. */
+@media (hover: none) and (pointer: coarse) { .bar [data-keys] { display: none; } }
 
 button, select {
   font: inherit;
