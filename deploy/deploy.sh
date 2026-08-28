@@ -31,6 +31,15 @@ echo "   $(basename "$WHEEL")"
 echo "== ship =="
 scp -q "$WHEEL" "$HOST:/tmp/"
 REMOTE_WHEEL="/tmp/$(basename "$WHEEL")"
+# The catalogue is private data, not code: it is not in the repository and not in the
+# wheel. It travels from this machine's copy to the box, beside the secrets, where the
+# service reads it by default.
+CATALOGUE="${TARGUM_CATALOGUE:-$HOME/.targum/catalogue.json}"
+if [ ! -f "$CATALOGUE" ]; then
+  echo "no catalogue at $CATALOGUE — the library would be empty" >&2
+  exit 1
+fi
+scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
 
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # Installed as the service account so the tool and its virtualenv are owned by the
@@ -49,6 +58,8 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   rm -f "${REMOTE_WHEEL}"
+  install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
+  rm -f /tmp/catalogue.json
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so
   # the ones already on the shelves keep the old ones until they are written again. This
