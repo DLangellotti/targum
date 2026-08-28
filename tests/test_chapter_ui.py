@@ -391,3 +391,60 @@ def test_chapters_bought_one_at_a_time_are_not_bought_again(tmp_path: Path) -> N
         s.id for s in fresh.chapter_segments(segmented, 1)
     )
     assert len(translation.segments) == one * 4, "the paid-for chapters came along"
+
+
+def _render_book(tmp_path: Path, translated: int) -> dict[int, str]:
+    """A two-chapter book, rendered, as {chapter: html}."""
+    from targum.models import Document
+    from targum.render import render
+
+    folder = tmp_path / "book-he"
+    book(folder, chapters=2, translated=translated)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="book")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    render(document, segmented, [translation], folder / "reader")
+    return {
+        n: (folder / "reader" / f"sec-{n:04d}.html").read_text(encoding="utf-8") for n in (1, 2)
+    }
+
+
+def test_an_untranslated_chapter_says_so_rather_than_showing_nothing(tmp_path: Path) -> None:
+    """Chapter two of an upload is not bought with chapter one. Its page was written
+    anyway, with the source beside a column of empty paragraphs — and the first alpha
+    reader followed the arrow into it: "didn't translate all sections of the uploaded
+    text, when followed arrow to next section there was no translation"."""
+    pages = _render_book(tmp_path, translated=1)
+    assert "Not translated yet" in pages[2]
+    assert 'id="translate-chapter"' in pages[2]
+    assert '<p class="tr"' not in pages[2], "no column of blanks"
+    assert 'class="src plain"' in pages[2], "the source is still there to read and mark"
+
+    assert "Not translated yet" not in pages[1]
+    assert '<p class="tr"' in pages[1]
+
+
+def test_a_translated_chapter_carries_no_waiting_note(tmp_path: Path) -> None:
+    pages = _render_book(tmp_path, translated=2)
+    assert "Not translated yet" not in pages[2]
+    assert '<p class="tr"' in pages[2]
+
+
+def test_the_contents_page_has_somewhere_to_start(tmp_path: Path) -> None:
+    """A list of chapter titles with no verb on it. The first alpha reader opened it and
+    had no idea what to do next."""
+    from targum.models import Document
+    from targum.render import render
+
+    folder = tmp_path / "book-he"
+    book(folder, chapters=2, translated=1)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="book")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    render(document, segmented, [translation], folder / "reader")
+    contents = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert 'id="start"' in contents and "Start reading" in contents
+    assert 'href="sec-0001.html"' in contents.split('id="start"', 1)[1][:120]
+    assert 'data-document="book"' in contents, "so Continue can find the chapter last opened"

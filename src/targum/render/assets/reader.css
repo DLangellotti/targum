@@ -1277,6 +1277,50 @@ body.marking .w.here,
 .toc .get:hover { color: var(--ink); border-color: var(--ink-soft); }
 .toc .get:disabled { opacity: 0.6; cursor: default; }
 
+/* A chapter page nobody has paid for yet: one line above the source, and the button
+   that gets it. Not clay — nothing has gone wrong, it is a thing you can have. The
+   button carries ink, since every tappable element carries ink or a hue. */
+.waiting-note {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 1.5rem;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.waiting-note p { margin: 0; }
+.waiting-note button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.waiting-note button:hover { background: var(--ink); color: var(--paper); }
+.waiting-note button:disabled { opacity: 0.6; cursor: default; }
+.waiting-note button[hidden] { display: none; }
+
+/* The one primary action on a contents page, and so the one place the accent goes. */
+.contents .start { margin-block: 1.5rem 2rem; }
+.contents .start a {
+  display: inline-block;
+  padding: 0.45rem 1.1rem;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  text-decoration: none;
+  font-family: system-ui, sans-serif;
+  font-size: 0.9375rem;
+}
+.contents .start a:hover { filter: brightness(1.08); }
+
 /* Prepare a whole book, for reading somewhere with no connection. */
 .contents .whole { margin-block-start: 2rem; }
 .contents .whole[hidden] { display: none; }

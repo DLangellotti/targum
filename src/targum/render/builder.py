@@ -784,10 +784,18 @@ def render(
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
         chapter_cover = f"{drawn}-c{section.number:03d}" if drawn else ""
+        # Whether this chapter has been translated at all. A book is bought a chapter
+        # at a time and every chapter's page is written regardless, so one nobody has
+        # paid for used to render as the source beside a column of empty paragraphs —
+        # which is what a reader who followed the arrow from chapter one walked into.
+        # The same rule `Library.chapters()` applies, so the contents page and the
+        # chapter page cannot disagree about which chapters are waiting.
+        translated = any(translations[0].segments.get(sid) for sid in section.segment_ids)
         html = env.get_template("reader.html.j2").render(
             **shared,
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
+            translated=translated,
             words=bool(words),
             segments=segments,
             bare=bare,

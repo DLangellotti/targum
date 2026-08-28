@@ -596,3 +596,19 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
     assert ask("ארץ") == (200, {"lemma": "ארץ", "meaning": "land", "cached": True})
     status, answer = ask("שלום")
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False
+
+
+def test_no_page_stops_for_want_of_a_key() -> None:
+    """Hosted there is no key: the session cookie is what identifies the reader. Three
+    scripts asked for the key and returned when it was missing — the next-chapter
+    prefetch, Prepare all, and the chapter page's own Translate — so on the live site
+    the second chapter of every upload was never bought, and nothing said why."""
+    from targum.render.builder import ASSETS
+
+    for name in ("reader.js", "contents.js"):
+        script = (ASSETS / name).read_text(encoding="utf-8")
+        # `if (!key) return path;` inside `keyed()` is the right shape: the key is
+        # optional there. Stopping the whole script on it is the wrong one.
+        assert not re.search(r"if \(!key\) return;", script), f"{name} stops without a key"
+        assert "!link || !key" not in script, name
+        assert "!key || !press" not in script, name
