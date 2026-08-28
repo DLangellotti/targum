@@ -105,6 +105,10 @@ const said = [];
   });
 });
 
+/* The offer at the foot: everything never marked, known at once, and one undo. */
+if (payload.markRest) reader.markRest();
+if (payload.undoAfter) reader.undo();
+
 process.stdout.write(
   JSON.stringify({
     placed: (payload.words || []).map((word) => ({ word, card: place(word, payload.card) })),
@@ -115,6 +119,12 @@ process.stdout.write(
     said,
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
+    rest: {
+      hidden: Boolean(byId.rest.hidden),
+      text: byId["rest-text"].textContent,
+      button: byId["rest-mark"].textContent,
+      undo: !byId["rest-undo"].hidden,
+    },
     // The list beside the text after every level above was said, top to bottom.
     list: reader.entries().map((item) => ({
       lemma: item.lemma,

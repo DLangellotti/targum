@@ -214,3 +214,12 @@ def test_typing_again_offers_to_save_again() -> None:
     done = run(status=2, type="scroll", press=True, again="scroll, roll")
     assert done["saveLabel"] == "Save"
     assert done["saveDisabled"] is False
+
+
+def test_the_scale_says_what_the_pressed_step_means() -> None:
+    """ "Explain what the 1, 2, 3 stages of how well you know a word mean." The names were
+    in the buttons' tooltips, which is nowhere on a phone."""
+    assert run(status=2, legend=True)["legend"] == "2 · getting there"
+    assert run(status=9, legend=True)["legend"] == "known · known"
+    assert run(legend=True)["legend"] == "1 just met it · 2 getting there · 3 nearly know it"
+    assert run(status=2)["legend"] is None, "the list beside the text has no room for it"

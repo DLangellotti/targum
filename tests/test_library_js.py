@@ -297,3 +297,14 @@ def test_a_filter_still_holds_when_nobody_was_sent(tmp_path: Path) -> None:
     assert drawn["rows"], "poetry should match something"
     assert all(row["cells"][0] == "Poetry" for row in drawn["rows"])
     assert drawn["pointed"] == []
+
+
+def test_a_text_on_the_shelf_says_how_much_of_it_is_yours(tmp_path: Path) -> None:
+    """Plain words for a text you have no history against; your own share once you do.
+    "Beginners cannot understand library listings" — a percentage of an abstract
+    measurement is not something a beginner can act on."""
+    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.82)])
+    by_title = {row["title"]: row for row in drawn["rows"]}
+    assert by_title["אסתר"]["fit"] == "you know 82% of its words"
+    others = [row["fit"] for title, row in by_title.items() if title != "אסתר"]
+    assert set(others) == {""}, "and nothing is claimed for a text never measured"

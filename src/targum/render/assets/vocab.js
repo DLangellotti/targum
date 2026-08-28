@@ -274,6 +274,22 @@
     });
     box.appendChild(scale);
 
+    // What the pressed step means, in words, under the scale. The names lived only in
+    // the buttons' tooltips, which is nowhere on a phone, and "explain what the 1, 2, 3
+    // stages mean" was one of the first things the first alpha reader asked for.
+    if (options.legend) {
+      var legend = document.createElement("span");
+      legend.className = "level-legend";
+      var pressed = null;
+      STEPS.forEach(function (step) {
+        if (step.value === options.status) pressed = step;
+      });
+      legend.textContent = pressed
+        ? pressed.label + " · " + pressed.title.toLowerCase()
+        : "1 just met it · 2 getting there · 3 nearly know it";
+      box.appendChild(legend);
+    }
+
     if (options.onNote) {
       var note = (field = document.createElement("input"));
       note.type = "text";

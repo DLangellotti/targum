@@ -729,9 +729,67 @@
     }
   }
 
+  // Every word on this page you never said anything about, marked known at once. What
+  // is left after reading a part is, by and large, what you knew already; this is the
+  // `k` you would have pressed on each. One record for the whole batch, so one `u`
+  // takes the whole batch back — pushed one at a time, a long part would overflow the
+  // undo list and most of it would be unreachable. Names are not words, and are not
+  // in `lemmasHere()`.
+  var restSaid = 0;
+
+  function markRest() {
+    var batch = [];
+    lemmasHere().forEach(function (lemma) {
+      if (statusOf(lemma) !== undefined) return;
+      var index = lemmas.indexOf(lemma);
+      batch.push({ lemma: lemma, before: null });
+      vocab[lemma] = {
+        status: KNOWN,
+        surface: lemma,
+        band: bandOfLemma(index),
+        // Ticked off, not carried up: a word never at a level below known is one you
+        // already had.
+        learned: 0,
+        at: nextOrder(),
+        seen: Date.now(),
+      };
+      keepMeaning(lemma, glosses[index]);
+    });
+    if (!batch.length) return 0;
+    undoable.push({ bulk: batch, surface: "", where: null });
+    if (undoable.length > UNDO_DEPTH) undoable.shift();
+    restSaid = batch.length;
+    remember();
+    redraw();
+    say(batch.length + " words marked known. Nothing left to mark here.");
+    return batch.length;
+  }
+
+  function bandOfLemma(index) {
+    var ids = Object.keys(wordData);
+    for (var i = 0; i < ids.length; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var j = 0; j < rows.length; j++) {
+        if (rows[j][4] === index) return bandOf(rows[j]);
+      }
+    }
+    return "";
+  }
+
   function undo() {
     var last = undoable.pop();
     if (!last) return false;
+    if (last.bulk) {
+      last.bulk.forEach(function (item) {
+        if (item.before) vocab[item.lemma] = item.before;
+        else forgetWord(item.lemma);
+      });
+      restSaid = 0;
+      remember();
+      redraw();
+      say("Took back " + last.bulk.length + " words.");
+      return true;
+    }
     if (last.before) {
       vocab[last.lemma] = last.before;
     } else {
@@ -1216,8 +1274,36 @@
   // already finished shows the ordinary count; one you finish yourself is told so.
   var wasWaiting = false;
 
+  var restBox = document.getElementById("rest");
+  var restText = document.getElementById("rest-text");
+  var restMark = document.getElementById("rest-mark");
+  var restUndo = document.getElementById("rest-undo");
+
+  function renderRest(counts) {
+    if (!restBox || !restText || !restMark || !restUndo) return;
+    if (restSaid) {
+      restText.textContent = restSaid + (restSaid === 1 ? " word" : " words") + " marked known";
+      restMark.hidden = true;
+      restUndo.hidden = false;
+      restBox.hidden = false;
+    } else if (counts.fresh) {
+      restText.textContent =
+        "Mark the remaining " +
+        counts.fresh +
+        (counts.fresh === 1 ? " word" : " words") +
+        " as known?";
+      restMark.textContent = "Mark " + counts.fresh;
+      restMark.hidden = false;
+      restUndo.hidden = true;
+      restBox.hidden = false;
+    } else {
+      restBox.hidden = true;
+    }
+  }
+
   function renderStats() {
     var counts = coverage();
+    renderRest(counts);
     // What the arrows still have to walk: everything neither known nor ignored. The
     // queue is built from the same rule, so this is its length without building it.
     var left = counts.fresh + counts.learning;
@@ -1719,6 +1805,9 @@
     return TargumVocab.editor({
       status: statusOf(lemma),
       note: noteOf(lemma),
+      // The scale says what the pressed step means. "1 2 3" alone had to be explained
+      // — the first alpha reader asked — and the names were only ever in tooltips.
+      legend: true,
       // The field says what it is for, in the reader's words: the same line is its
       // accessible name, and "Enter text" was the one label on the card that was not.
       placeholder: "Your own meaning",
@@ -3050,6 +3139,14 @@
         showList(!!(listBox && listBox.hidden));
         return;
       }
+      if (button.id === "rest-mark") {
+        markRest();
+        return;
+      }
+      if (button.id === "rest-undo") {
+        undo();
+        return;
+      }
       if (button.getAttribute("data-export") === "csv") {
         exportCsv();
         return;
@@ -3792,12 +3889,18 @@
     // Saying a level and taking it back. The queue is the assertion: known takes a word
     // out of it, and `u` has to put the same word back in the same place.
     level: function (index, status) {
-      return setStatus(index, lemmas[index], "", toggled(index, status));
+      // Followed by the redraw every caller in the page does after it, so the counts
+      // and the offer at the foot are as a reader would see them.
+      var now = setStatus(index, lemmas[index], "", toggled(index, status));
+      redraw();
+      return now;
     },
     undo: undo,
     // The list beside the text, as it would be drawn: newest first, and with the word
     // you have just finished with still on it.
     entries: wordEntries,
+    // Everything never marked, marked known at once; one undo takes it all back.
+    markRest: markRest,
   };
 })();
 

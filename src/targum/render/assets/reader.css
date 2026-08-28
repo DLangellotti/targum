@@ -1320,6 +1320,37 @@ body.marking .w.here,
 .waiting-note button:disabled { opacity: 0.6; cursor: default; }
 .waiting-note button[hidden] { display: none; }
 
+/* The offer at the foot of a part: the words never marked, known in one press. The
+   button carries ink; Undo is quieter. Same shape as the waiting note above the text. */
+.rest {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 1.5rem auto 0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.rest[hidden] { display: none; }
+.rest button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.rest button:hover { background: var(--ink); color: var(--paper); }
+.rest button[hidden] { display: none; }
+
+/* What the pressed step means, under the scale. Secondary by §9. */
+.vocab-editor .level-legend { font-size: 0.75em; color: var(--ink-soft); }
+
 /* The one primary action on a contents page, and so the one place the accent goes. */
 .contents .start { margin-block: 1.5rem 2rem; }
 .contents .start a {
