@@ -2,7 +2,7 @@
     and the light switch. It is one file because copies of a navigation bar drift apart —
     they had already drifted into three different orders once.
 
-    The order is how often somebody wants each one. Learn is most visits; Discover is
+    The order is how often somebody wants each one. Learn is most visits; Library is
     finding the next thing; Your Progress is deliberate study. Uploading a text is not a
     place at all — it is a thing you do, rarely — so it sits in the corner with the
     account rather than in the row of pages.
@@ -27,7 +27,7 @@
     </a>
     <nav class="site-nav" aria-label="Pages">
       <a href="/" data-nav="learn"{% if here == 'learn' %} class="on" aria-current="page"{% endif %}>Learn</a>
-      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Discover</a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
     </nav>
     {#- Not one of the places you can be: a thing you do, and rarely. It sits with the
