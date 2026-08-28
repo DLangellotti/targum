@@ -58,9 +58,18 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # Through systemd, with the service's environment: the rebuild fills each reader's
   # meanings from the shared cache, and without TARGUM_CACHE_DIR it looked in an empty
   # one and filled nothing — silently, which is how it went unnoticed for a deploy.
+  # --words: a text whose words were worked out by an older annotator has them worked
+  # out again, on the box, before its page is written. Free, and nothing at all when
+  # the annotator has not changed — the name is compared without loading a model.
   systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
     --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum rebuild --out /var/lib/targum/targums >/dev/null
+    /usr/local/bin/targum rebuild --words --out /var/lib/targum/targums >/dev/null
+
+  # The shared texts a reader with nothing is handed first. Published translations, so
+  # nothing is spent; every stage is cached, so after the first time this is a rewrite.
+  systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+    --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+    /usr/local/bin/targum seed --out /var/lib/targum/targums >/dev/null
 
   systemctl restart targum
 EOF
