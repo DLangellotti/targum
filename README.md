@@ -38,7 +38,10 @@ word in that language, not to the text you were reading. Drag across a few words
 keep a phrase. Sign in with an email address and a link and the list follows you to
 every browser; without an account it stays in the one you are reading in.
 
-The library carries a catalogue of texts that already have a published translation.
+The library carries a catalogue of texts that already have a published translation. The
+catalogue itself is data, not code, and is not in this repository: `targum` reads it from
+`~/.targum/catalogue.json` (or the path in `TARGUM_CATALOGUE`), and without one the
+library is simply empty.
 Building one of those costs nothing: the two texts are matched on your machine and no
 model is asked to translate anything. Your own published translation aligns the same
 way, with `uv tool install "targum[difficulty,align]"` and:

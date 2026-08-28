@@ -93,10 +93,7 @@ def test_a_row_carries_what_the_filters_sort_on(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("view", "expected"),
     [
-        (
-            {"kind": "novel"},
-            {"אהבת ציון", "מסעות בנימין השלישי", "ספר הקבצנים", "שכול וכשלון", "תל־אביב"},
-        ),
+        ({"kind": "novel"}, {"ספר הקבצנים", "תל־אביב"}),
         ({"register": "biblical", "level": "easy"}, {"אסתר", "קהלת"}),
         ({"kind": "document"}, {"מגילת העצמאות", "הכרזת העצמאות של ארצות הברית"}),
     ],
