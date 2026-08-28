@@ -264,3 +264,36 @@ def test_a_row_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert 'el("span", "row-state")' in source
     assert 'open.querySelector(".row-state")' in source, "and the build still looks for it"
+
+
+def test_being_sent_to_a_text_lifts_a_filter_that_would_hide_it(tmp_path: Path) -> None:
+    """Learn links here with the id in the hash, and the filters are remembered between
+    visits. A reader who last narrowed the catalogue to poetry and is then sent to a
+    document arrived at the top of a list the suggestion was not in, with nothing on the
+    page to say why. Being sent is a stronger claim than a filter set on an earlier visit.
+    """
+    from targum.catalogue import CATALOGUE
+
+    wanted = next(
+        entry
+        for entry in CATALOGUE
+        if entry.language.startswith("he") and entry.kind.value != "poetry"
+    )
+
+    hidden = draw(tmp_path, view={"kind": "poetry"})
+    assert wanted.title not in {row["title"] for row in hidden["rows"]}, (
+        "the filter has to hide it, or this proves nothing"
+    )
+
+    sent = draw(tmp_path, view={"kind": "poetry"}, hash="#" + wanted.id)
+    assert wanted.title in {row["title"] for row in sent["rows"]}
+    assert sent["pointed"] == [wanted.title]
+
+
+def test_a_filter_still_holds_when_nobody_was_sent(tmp_path: Path) -> None:
+    """The lift is for an arrival with a hash and nothing else: a reader who set a filter
+    themselves and came back to it should find it where they left it."""
+    drawn = draw(tmp_path, view={"kind": "poetry"})
+    assert drawn["rows"], "poetry should match something"
+    assert all(row["cells"][0] == "Poetry" for row in drawn["rows"])
+    assert drawn["pointed"] == []

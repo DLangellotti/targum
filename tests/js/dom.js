@@ -90,12 +90,16 @@ function element(tag) {
     getBoundingClientRect() {
       return Object.assign({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0 }, this.rect);
     },
+    /* Classes, and one attribute form: `[data-row="..."]`, which is how the library
+       page finds the row a reader was sent to. Without it the selector fell through to
+       the class match, never hit, and the stub quietly answered null. */
     querySelector(selector) {
+      const attr = /^\[([\w-]+)="?([^"\]]*)"?\]$/.exec(selector);
       const wanted = selector.replace(".", "");
-      const find = (node) =>
-        String(node.className).split(" ").includes(wanted)
-          ? node
-          : node.children.map(find).find(Boolean);
+      const hit = attr
+        ? (node) => node.attrs[attr[1]] === attr[2]
+        : (node) => String(node.className).split(" ").includes(wanted);
+      const find = (node) => (hit(node) ? node : node.children.map(find).find(Boolean));
       return find(this) || null;
     },
     querySelectorAll() {
