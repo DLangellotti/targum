@@ -72,3 +72,9 @@
    underline doing the work of saying it is a link. */
 .you .elsewhere { color: var(--ink-soft); }
 .you .elsewhere a { color: var(--ink); text-underline-offset: 2px; }
+
+/* What the page says back. Errors carry --clay and the wording carries it too, which
+   §4 asks for because clay sits close to the accent under protanopia. */
+.you .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
+.you .said.bad { color: var(--clay); }
+.you .said[hidden] { display: none; }

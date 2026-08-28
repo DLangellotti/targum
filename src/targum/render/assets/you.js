@@ -43,10 +43,13 @@
     });
   }
 
-  function say(where, message) {
+  function say(where, message, bad) {
     var node = at(where);
     node.hidden = !message;
     node.textContent = message || "";
+    // §4 gives errors to --clay. Without this an error and "Saved." were the same
+    // sentence in the same ink, and the only way to tell them apart was to read them.
+    node.classList.toggle("bad", !!bad);
   }
 
   /* --- who you are ----------------------------------------------------------- */
@@ -80,7 +83,7 @@
     clearTimeout(saving);
     saving = setTimeout(function () {
       ask("/account/name", { name: at("you-name").value }).then(function (answer) {
-        if (answer.error) return say("you-said", answer.error);
+        if (answer.error) return say("you-said", answer.error, true);
         say("you-said", "Saved.");
         drawWho(answer);
         // The corner draws from /account/me, so asking sync to look again is what makes

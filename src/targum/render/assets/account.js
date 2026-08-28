@@ -28,9 +28,10 @@
   var signedOut = panel.querySelector(".signed-out");
   var signedIn = panel.querySelector(".signed-in");
 
-  function say(message, showing) {
+  function say(message, showing, bad) {
     said.hidden = !message;
     said.textContent = message || "";
+    said.classList.toggle("bad", !!bad);
     if (showing) show(true);
   }
 
@@ -87,11 +88,12 @@
     say("Sending…");
     window.TargumSync.signIn(field.value)
       .then(function (answer) {
-        say(answer.message || answer.error || "Check your email.");
+        if (answer.error && !answer.message) return say(answer.error, false, true);
+        say(answer.message || "Check your email.");
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say("That did not go through.");
+        say("That did not go through.", false, true);
       });
   });
 
@@ -117,7 +119,7 @@
   var arrived = new URLSearchParams(location.search).get("signin");
   if (arrived === "welcome") say("Signed in.", true);
   if (arrived === "expired") {
-    say("That link was used. Ask for another.", true);
+    say("That link was used. Ask for another.", true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.
