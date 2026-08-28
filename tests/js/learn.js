@@ -156,6 +156,7 @@ setTimeout(() => {
   process.stdout.write(
     JSON.stringify({
       asked: asked,
+      went: global.location.href,
       known: at("known-line").textContent,
       progress: at("step-progress").textContent,
       suggested: at("suggest").hidden

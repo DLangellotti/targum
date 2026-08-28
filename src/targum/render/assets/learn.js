@@ -277,7 +277,17 @@
   /* Pressing the card. Continue Reading beside it is one press into a text; this is the
      same press for a text that has to be built first, which is the only difference
      between the two cards and not one a reader should have to think about. */
+  // A shared text offered beside the start: already built, so pressing the card opens
+  // it rather than building anything.
+  var offeredShared = null;
+
   function take() {
+    if (offeredShared) {
+      window.location.href = keyed(
+        "/reader/" + encodeURIComponent(offeredShared.name) + "/reader/index.html"
+      );
+      return;
+    }
     if (building || !offered) return;
     building = true;
     var card = document.getElementById("suggest");
@@ -317,12 +327,41 @@
   var offer = document.getElementById("suggest");
   if (offer) offer.addEventListener("click", take);
 
+  // Beside "Start here", the other way in. Ruth is the start; a reader an open Tanakh
+  // would put off — most people arriving somewhere around aleph plus — is offered
+  // something modern in the same breath, already built, one press to open.
+  function suggestShared(reader) {
+    var card = document.getElementById("suggest");
+    if (!card) return;
+    offered = null;
+    offeredShared = reader;
+    card.hidden = false;
+    card.disabled = false;
+    card.setAttribute("data-entry", reader.entry || reader.name);
+    var cover = document.getElementById("suggest-cover");
+    cover.textContent = "";
+    cover.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
+        title: reader.title,
+        language: reader.language,
+      })
+    );
+    var title = document.getElementById("suggest-title");
+    title.textContent = reader.title;
+    title.setAttribute("lang", reader.language);
+    var why = "Or something modern";
+    document.getElementById("suggest-why").textContent =
+      reader.minutes ? why + " · " + reader.minutes + " min" : why;
+    document.getElementById("suggest-blurb").textContent = "Already built. Tap to open it.";
+  }
+
   function suggest(code, readers) {
     // Never over a build in progress: the shelf redraws for its own reasons, and this
     // would put the reason for the suggestion back over the line narrating it.
     if (building) return;
     var card = document.getElementById("suggest");
     if (!card) return;
+    offeredShared = null;
 
     var built = {};
     readers.forEach(function (reader) {
@@ -456,11 +495,12 @@
         // already built, so there is nothing to choose and nothing to wait for. The
         // first alpha reader signed in and had "no idea where to start"; this is the
         // answer, in the place the answer goes.
-        var start = mine.length
-          ? null
+        var handed = mine.length
+          ? []
           : shared.filter(function (reader) {
               return base(reader.language) === code;
-            })[0];
+            });
+        var start = handed[0] || null;
         drawCarry(mine[0] || start, !!start);
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
@@ -472,7 +512,9 @@
           { limit: SHELF, note: "Last read first." }
         );
         shelf.trash(code, trash);
-        suggest(code, readers);
+        // The second shared text, where there is one, is the alternative to the start.
+        if (handed.length > 1) suggestShared(handed[1]);
+        else suggest(code, readers);
         // Meanings in the language this reader last read this one into. A word means
         // something different in each, and a table that mixed them would be handing out
         // definitions in a language nobody asked for.
