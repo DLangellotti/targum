@@ -320,7 +320,10 @@
        which is which — leaf for what has been reached, iris for phrases, sun for turning
        up. Everything without one stays paper-white. */
     function count(value, label, hue) {
-      var box = el("div", hue ? "lit " + hue : null);
+      // A zero is not a peak moment. The bright set is for what happened, and spending
+      // --sun on "0 words learned" paints the loudest colour in the system on the one
+      // line that has nothing to report; §6 keeps what has not happened quiet.
+      var box = el("div", hue && value ? "lit " + hue : null);
       box.appendChild(el("b", null, grouped(value)));
       // Singular where there is one of it. These sit at display size beside the figure
       // they belong to, which is where "1 words learned" is impossible not to read.
