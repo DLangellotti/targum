@@ -1331,7 +1331,9 @@ body.paged:not(.last-page) .rest { display: none; }
 [dir="rtl"] .turn .back::before { content: "\2192"; }
 [dir="rtl"] .turn .forward::before { content: "\2190"; }
 /* Room under the last pair for the control to sit over. */
-body.paged main { padding-block-end: 5rem; }
+body.paged main { padding-block-end: 1rem; }
+/* And on the last page, what sits under the text clears the arrows too. */
+body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 
 @media print {
   .bar, .pager, .turn { display: none; }
