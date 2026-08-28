@@ -1111,7 +1111,15 @@ body:not(.no-hover) .w:hover {
 .toc li { margin-block-end: 0.6rem; }
 .toc a { color: var(--ink); text-decoration: none; border-block-end: 1px solid var(--rule); }
 .toc a:hover { border-color: var(--accent); }
-.toc .count { color: var(--ink-soft); font-size: 0.8em; }
+/* An English label on an RTL page. Without an isolate the bidi algorithm reordered
+   "23 sentences" to "sentences 23", which is what every chapter row read before the
+   count was told which direction it runs in. */
+.toc .count {
+  color: var(--ink-soft);
+  font-size: 0.8em;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
 
 .pager {
   display: flex;
