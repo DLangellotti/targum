@@ -467,7 +467,9 @@
   function reach(words) {
     var total = 0;
     var counted = 0;
-    (words || []).forEach(function (word) {
+    // Names and numbers are not on the ladder. Rare by corpus frequency, a known name
+    // would otherwise weigh as much as three everyday words.
+    charts.vocabulary(words).forEach(function (word) {
       if (word.status !== KNOWN) return;
       counted += 1;
       total += Object.prototype.hasOwnProperty.call(BAND_WEIGHT, word.band)

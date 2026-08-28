@@ -1089,10 +1089,15 @@
   // Every distinct dictionary form this section of the text uses. The list and the
   // count of what you know are both about the text in front of you, not about the
   // whole language: a vocabulary of four thousand words is not a reading aid.
-  function lemmasHere() {
+  //
+  // Names and numbers are left out unless `everything` is asked for: they are on the
+  // page to be tapped and cleared, and they are on the list if you kept one, but they
+  // are never in the count of what you know or have yet to.
+  function lemmasHere(everything) {
     var here = {};
     Object.keys(wordData).forEach(function (segmentId) {
       (wordData[segmentId] || []).forEach(function (token) {
+        if (!everything && isName(token)) return;
         var lemma = lemmas[token[4]];
         if (lemma) here[lemma] = true;
       });
@@ -1106,7 +1111,7 @@
   // because you did not know it.
   function wordEntries() {
     var out = [];
-    lemmasHere().forEach(function (lemma) {
+    lemmasHere(true).forEach(function (lemma) {
       var item = vocab[lemma];
       // Known and ignored words are counted below but not listed: the list is what you
       // are still working on, and a finished word in it is in the way. Except the one
@@ -1555,6 +1560,20 @@
     place = null;
   }
 
+  // What a token row says a word is: a name, a number, or a word with a difficulty.
+  // Kept on the record as its band, so every count that reads the band — the ledger,
+  // the milestones, the ulpan ladder — knows to leave a name out. Column 7; rows built
+  // before it existed have none, and read as words.
+  var KIND_NAMES = ["", "name", "number"];
+
+  function bandOf(token) {
+    return (token[6] && KIND_NAMES[token[6]]) || levelNames[token[2]] || "";
+  }
+
+  function isName(token) {
+    return !!(token[6] && KIND_NAMES[token[6]]);
+  }
+
   function levelOf(word) {
     var pair = word.closest(".pair");
     if (!pair) return "";
@@ -1563,7 +1582,7 @@
     var match = (wordData[segmentId] || []).filter(function (token) {
       return token[4] === index;
     })[0];
-    return match ? levelNames[match[2]] || "" : "";
+    return match ? bandOf(match) : "";
   }
 
   // How well you know this word, and what you want it to say. The same control serves
@@ -2183,7 +2202,7 @@
       // Dragging across one word is not a phrase, whatever the gesture was. It gets the
       // word's own card, with the same scale and the same field as tapping it.
       var surface = segmentText(picked.segmentId).slice(token[0], token[1]);
-      var band = levelNames[token[2]] || "";
+      var band = bandOf(token);
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",

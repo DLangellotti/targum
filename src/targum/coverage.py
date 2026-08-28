@@ -82,10 +82,15 @@ def lemmas(folder: Path) -> list[str]:
     except (OSError, json.JSONDecodeError):
         return []
 
+    from .annotate.base import NOT_VOCABULARY
+
+    # A name is not a word the reader has to know, so it is not one they can fail to
+    # know either: left out of the denominator, or a book of names could never be read.
     distinct = {
         str(token.get("lemma") or "")
         for tokens in (loaded.get("tokens") or {}).values()
         for token in tokens
+        if token.get("pos") not in NOT_VOCABULARY
     }
     distinct.discard("")
     out = sorted(distinct)

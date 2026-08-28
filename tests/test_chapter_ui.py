@@ -448,3 +448,41 @@ def test_the_contents_page_has_somewhere_to_start(tmp_path: Path) -> None:
     assert 'id="start"' in contents and "Start reading" in contents
     assert 'href="sec-0001.html"' in contents.split('id="start"', 1)[1][:120]
     assert 'data-document="book"' in contents, "so Continue can find the chapter last opened"
+
+
+def test_a_name_is_marked_as_one_in_the_page(tmp_path: Path) -> None:
+    """The seventh column on a token row, which the reader keeps as the word's band when
+    it is marked, so every count downstream knows to leave it out."""
+    import re
+
+    from targum.models import Annotation, Document, Token
+    from targum.render import render
+
+    folder = tmp_path / "book-he"
+    book(folder, chapters=2, translated=2)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="book")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert segmented is not None and translation is not None
+    annotation = Annotation(
+        document_hash="book",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="",
+        tokens={
+            "s1-0": [
+                Token(start=0, end=4, surface="line", lemma="line", band=2),
+                Token(start=5, end=6, surface="0", lemma="0", band=0, pos="NUM"),
+                Token(start=7, end=9, surface="of", lemma="of", band=0, pos="PROPN"),
+            ]
+        },
+    )
+    render(document, segmented, [translation], folder / "reader", annotation=annotation)
+    page = (folder / "reader" / "sec-0001.html").read_text(encoding="utf-8")
+    found = re.search(
+        r'<script type="application/json" id="targum-data">(.*?)</script>', page, re.S
+    )
+    assert found is not None
+    rows = json.loads(found.group(1).replace("<\\/", "</"))["words"]["s1-0"]
+    assert [row[6] for row in rows] == [0, 2, 1]

@@ -24,6 +24,12 @@ UNRATED = 0
 # every name in a chronicle as a hard word would move it a shelf up the library.
 NOT_VOCABULARY = frozenset({"PROPN", "NUM"})
 
+# The same fact, as the reader receives it: a seventh column on every token row, 0 for
+# a word, 1 for a name, 2 for a number. What the reader calls them is `KIND_NAMES` in
+# reader.js, and a word marked while wearing one of those keeps it as its band — which
+# is how the ledger and the ulpan ladder know to leave it out.
+KIND_COLUMN = {"PROPN": 1, "NUM": 2}
+
 # Plain difficulty, easiest first. Deliberately not CEFR levels: these come from
 # frequency, and calling level 3 "B1" would claim a correspondence that has not been
 # established. Deliberately not numbers either, in anything a reader sees.
