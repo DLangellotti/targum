@@ -9,6 +9,13 @@
   var said = document.getElementById("sent");
   if (!form || !said) return;
 
+  /* The status line is the last thing in the page, which put it under the footnote
+     rather than where the form was: hiding the form left "Signed in, your words follow
+     you between browsers." sitting above "Check your email.", promising a state the
+     reader is not in yet. Moved to just after the form, it takes the form's place on
+     success and sits under the button on an error, which is where each belongs. */
+  form.parentNode.insertBefore(said, form.nextSibling);
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var field = form.querySelector('input[type="email"]');
