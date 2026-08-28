@@ -363,19 +363,6 @@
 }
 .books .book-meta { color: var(--ink-soft); font-size: 0.8125rem; }
 
-/* --- offered instead of paying for a translation -------------------------- */
-
-.instead {
-  margin-block-start: 0.6rem;
-  padding: 0.8rem 1rem;
-  border-inline-start: 3px solid var(--accent);
-  border-radius: 0 6px 6px 0;
-  background: var(--paper-raised);
-  line-height: 1.55;
-}
-.instead b { color: var(--ink); }
-.instead .row { margin-block-start: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
-
 /* --- deleting one, and getting it back ------------------------------------ */
 
 /* The row holds the link and the control side by side; the link keeps the whole width
