@@ -378,6 +378,11 @@ class Library:
         month_budget: float | None = MONTH_BUDGET,
     ) -> None:
         self.out = out
+        # A home nobody owns, read by everybody: what a reader with nothing on their
+        # shelf is handed to start with. Written only by `targum seed`, never by a
+        # request — nothing routed through `within(home, …)` can reach it, so a shared
+        # text cannot be bought, trashed or rebuilt by whoever is reading it.
+        self.shared = out / "shared"
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
@@ -1769,9 +1774,17 @@ class Handler(BaseHTTPRequestHandler):
             home = self._home()
             mine = self.library.readers(home)
             self._measure(home, mine)
+            # And the shared one, measured against this reader's words like their own.
+            # The page shows it only to a reader with nothing of their own in that
+            # language: it is where to start, not another row on a full shelf.
+            shared = self.library.readers(self.library.shared)
+            for reader in shared:
+                reader["shared"] = True
+            self._measure(self.library.shared, shared)
             return self._json(
                 {
                     "readers": mine,
+                    "shared": shared,
                     "trash": self.library.readers(home, trashed=True),
                     # Whether this deployment can draw a cover at all. A page with no
                     # image key offers nothing rather than offering and failing.
@@ -2427,13 +2440,18 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, b"not found", "text/plain")
 
     def _serve_reader(self, relative: str) -> None:
-        """This person's readers, and nothing else — not even another person's."""
-        root = self._home().resolve()
-        target = (root / unquote(relative)).resolve()
-        if not target.is_file() or root not in target.parents:
-            return self._send(404, b"not found", "text/plain")
-        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        self._send(200, target.read_bytes(), kind)
+        """This person's readers, and the shared ones — never another person's.
+
+        Two roots, each guarded on its own: the file has to resolve to *inside* the
+        root it was looked for under. The shared home is a second allowed root, not a
+        relaxation of the first, and the person's own wins where a name is in both.
+        """
+        for root in (self._home().resolve(), self.library.shared.resolve()):
+            target = (root / unquote(relative)).resolve()
+            if target.is_file() and root in target.parents:
+                kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+                return self._send(200, target.read_bytes(), kind)
+        return self._send(404, b"not found", "text/plain")
 
 
 def default_store() -> Path:

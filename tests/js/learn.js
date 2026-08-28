@@ -72,7 +72,7 @@ global.fetch = (path, options) => {
   });
   let answer = { id: "j1" }; // enough for `/prepare` to hand `/build` an id
   if (String(path).indexOf("/readers") === 0) {
-    answer = { readers: payload.readers || [], trash: [], covers: true };
+    answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/job/") === 0) {
     /* Finished on the first ask. A job that never reaches "done" leaves the page polling
        it every 700ms, and node does not exit while a timer is pending — the first run of
@@ -197,6 +197,7 @@ setTimeout(() => {
       carry: {
         title: at("carry-title").textContent,
         hidden: at("carry").hidden,
+        heading: at("carry-heading").textContent,
         cover: tile(carry),
         // The box is the link now, so this is where the href is.
         href: at("carry").href || "",
