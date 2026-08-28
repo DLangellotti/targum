@@ -83,6 +83,16 @@
       </button>
     </div>
     {% endif %}
+    {#- Pages, or one long scroll. The drawing is two leaves. -#}
+    <div class="group">
+      <button type="button" data-paged aria-pressed="false"
+              title="Pages, or one long scroll (b)" aria-label="Pages">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <rect x="2" y="3" width="5" height="10" rx="1"/>
+          <rect x="9" y="3" width="5" height="10" rx="1"/>
+        </svg>
+      </button>
+    </div>
     {#- Reading, or marking. Off is reading: the page is just a page. Only offered on a
         text that has words to mark — the rest carry no annotation at all. -#}
     {% if words %}
@@ -164,6 +174,15 @@
 {% endfor %}
 </main>
 
+{#- Turning the page: back, where you are, forward. Fixed at the foot of the window in
+    paged mode and not there at all otherwise. Arrows per reading direction, drawn by
+    the stylesheet the way the pager's are. -#}
+<div class="turn" id="turn" hidden>
+  <button type="button" class="back" data-turn="-1" aria-label="Previous page"></button>
+  <span id="page-of"></span>
+  <button type="button" class="forward" data-turn="1" aria-label="Next page"></button>
+</div>
+
 {#- At the foot, where a part ends: the words you never marked, offered as known in one
     press, with one Undo. Offered, never done for you — and never a name, which does not
     count. "Words should be marked as known automatically when I'm done with the
@@ -237,6 +256,8 @@
     <dt>hard</dt><dd>the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you</dd>
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
+    <dt>b</dt><dd>pages, or one long scroll</dd>
+    <dt>Space</dt><dd>next page; with Shift, back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}

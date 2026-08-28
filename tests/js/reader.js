@@ -117,6 +117,13 @@ process.stdout.write(
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
     said,
+    // The arithmetic of a page, asked of the pure half: a stub lays nothing out.
+    pages: payload.pages
+      ? reader.boundariesFrom(payload.pages.tops, payload.pages.heights, payload.pages.room)
+      : null,
+    pageFor: payload.pageFor
+      ? reader.pageFor(payload.pageFor.index, payload.pageFor.pages)
+      : null,
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
     rest: {

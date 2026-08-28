@@ -1265,8 +1265,63 @@ body.marking .w.here,
 [dir="rtl"] .pager .next::after { content: "\2190"; }
 [dir="rtl"] .bar-title .home::before { content: "\2192"; }
 
+/* --- pages, not a scroll ---------------------------------------------------- */
+
+/* A page is the pairs not hidden. Nothing here sizes or clips anything: the run fits
+   the room by construction, and a page that does not — one pair taller than the window
+   — scrolls, which is the honest answer. */
+.pair[hidden] { display: none; }
+/* The pager and the offer at the foot belong to the end of the chapter, not to every
+   page of it. */
+body.paged:not(.last-page) .pager,
+body.paged:not(.last-page) .rest { display: none; }
+
+/* The turn control, fixed at the foot of the window, centred. One raised layer, a
+   hairline, and the two arrows drawn per reading direction like the pager's. */
+.turn {
+  position: fixed;
+  inset-block-end: 0.75rem;
+  inset-inline: 0;
+  width: max-content;
+  margin-inline: auto;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised, var(--paper));
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.turn[hidden] { display: none; }
+.turn button {
+  min-inline-size: 2.4rem;
+  min-block-size: 2.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.turn button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.turn .back::before { content: "\2190"; }
+.turn .forward::before { content: "\2192"; }
+[dir="rtl"] .turn .back::before { content: "\2192"; }
+[dir="rtl"] .turn .forward::before { content: "\2190"; }
+/* Room under the last pair for the control to sit over. */
+body.paged main { padding-block-end: 4rem; }
+
 @media print {
-  .bar, .pager { display: none; }
+  .bar, .pager, .turn { display: none; }
+  /* The whole chapter, whichever page was on show. */
+  body.paged .pair[hidden] { display: grid; }
   body { background: #fbf9f5; color: #1c1a17; }
 }
 
