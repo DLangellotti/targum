@@ -478,13 +478,15 @@ def test_one_undo_takes_the_whole_batch_back() -> None:
     assert done["rest"]["button"] == "Mark 4 words as known"
 
 
-def test_marking_the_rest_never_touches_a_name() -> None:
-    """A name is not a word you know. It is on the page to be tapped, and it is not in
-    the count offered."""
+def test_marking_the_rest_takes_the_names_with_it_but_never_counts_them() -> None:
+    """The whole point is a clean page, so a name is marked with the rest — and it still
+    counts for nothing, because its record keeps "name" as its band, which is what every
+    count reads."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
     done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
-    assert done["rest"]["text"] == "2 words marked known"
-    assert [item["lemma"] for item in done["queue"]] == ["Name"], "still there to tap"
+    assert done["rest"]["text"] == "3 words marked known"
+    assert done["queue"] == [], "nothing left lit"
+    assert done["list"] == [], "and nothing on the list"
 
 
 def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:

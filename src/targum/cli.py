@@ -1045,10 +1045,11 @@ def rebuild(
 #: there is nothing to choose and nothing to wait for. Catalogue texts with a published
 #: translation, so building one asks no model for anything. Ruth first — four chapters,
 #: one family, plain narrative — which is the roadmap's own answer to "where do I start".
-#: And beside it something modern, for the reader an open Tanakh would put off: a short
-#: Global Voices piece, published in three languages, five minutes. The first is the
-#: start; the second is the alternative the Learn page offers next to it.
-SEED = ("ruth", "gv-social-censorship")
+#: And beside it something modern and Israeli, for the reader an open Tanakh would put
+#: off: Hapoel Holon taking the basketball title — the easiest text in the catalogue,
+#: five minutes. A placeholder until something better is found. It was translated once,
+#: on Opus, and the cache holds it; a box without that cache pays for it once.
+SEED = ("ruth", "sport-holon-basketball")
 
 
 @app.command()
@@ -1083,7 +1084,9 @@ def seed(
             model=entry.model or HOSTED_MODEL,
             out_root=shared,
             translations=[rendering.source for rendering in entry.translations],
-            machine=False,
+            # Machine-translated only where nothing published exists, and then under the
+            # model it was translated with, so the cache answers rather than the API.
+            machine=None,
             difficulty=True,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
@@ -1093,7 +1096,7 @@ def seed(
         # does should write into the shared home.
         lemmas(result.out_dir)
         console.print(f"[green]{entry.title}[/green] [dim]→ {result.out_dir}[/dim]")
-    console.print("[dim]Nothing was spent.[/dim]")
+    console.print("[dim]Done.[/dim]")
 
 
 @app.command()

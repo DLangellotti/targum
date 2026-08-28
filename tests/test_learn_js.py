@@ -605,6 +605,27 @@ def test_the_shared_text_stays_out_of_the_way_of_your_own() -> None:
     assert drawn["carry"]["title"] == "א"
 
 
+def test_nothing_known_is_not_said_on_the_first_card() -> None:
+    """ "0% of its words are ones you know" is true and unkind on the first card a new
+    reader sees. The line starts once there is something to say."""
+    drawn = draw([], shared=[reader("ruth", "רות", "ruth", known=0.0)])
+    assert drawn["carry"]["known"] == ""
+    later = draw([reader("a", "א", known=0.4)])
+    assert later["carry"]["known"] == "40% of its words are ones you know"
+
+
+def test_the_bible_is_the_start_whichever_was_built_last() -> None:
+    drawn = draw(
+        [],
+        shared=[
+            reader("holon", "הפועל חולון", "sport-holon-basketball", kind="article"),
+            reader("ruth", "רות", "ruth", register="biblical"),
+        ],
+    )
+    assert drawn["carry"]["title"] == "רות"
+    assert drawn["suggested"]["title"] == "הפועל חולון"
+
+
 def test_the_start_comes_with_a_modern_alternative() -> None:
     """Ruth is the start. A reader an open Tanakh would put off — most people arriving
     somewhere around aleph plus — is offered something modern beside it, already built,
@@ -613,17 +634,21 @@ def test_the_start_comes_with_a_modern_alternative() -> None:
         [],
         shared=[
             reader("ruth", "רות", "ruth", register="biblical"),
-            reader("censorship", "צנזורה", "gv-social-censorship", kind="article", minutes=5),
+            reader("holon", "הפועל חולון", "sport-holon-basketball", kind="article", minutes=5),
         ],
         do=[{"press": "suggest"}],
     )
-    assert drawn["carry"]["heading"] == "Start here" and drawn["carry"]["title"] == "רות"
+    # Said as a choice: two headings that are two halves of one sentence, and a line
+    # above them that says both are ready.
+    assert drawn["carry"]["heading"] == "Start with the Bible" and drawn["carry"]["title"] == "רות"
     assert drawn["suggested"] is not None
-    assert drawn["suggested"]["title"] == "צנזורה"
-    assert drawn["suggested"]["why"] == "Or something modern · 5 min"
-    assert drawn["suggested"]["entry"] == "gv-social-censorship"
+    assert drawn["suggested"]["heading"] == "Or with something modern"
+    assert drawn["suggested"]["title"] == "הפועל חולון"
+    assert drawn["suggested"]["why"] == "Israeli news · 5 min · ready to read"
+    assert drawn["suggested"]["entry"] == "sport-holon-basketball"
+    assert drawn["known"] == "Two ways in, both ready. Tap one to start reading."
     assert not [call for call in drawn["asked"] if "/prepare" in call["path"]], "nothing is built"
-    assert "/reader/censorship/reader/index.html" in drawn["went"]
+    assert "/reader/holon/reader/index.html" in drawn["went"]
 
 
 def test_with_one_shared_text_the_catalogue_suggestion_still_draws() -> None:

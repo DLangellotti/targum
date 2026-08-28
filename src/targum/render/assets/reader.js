@@ -832,13 +832,21 @@
   // is left after reading a part is, by and large, what you knew already; this is the
   // `k` you would have pressed on each. One record for the whole batch, so one `u`
   // takes the whole batch back — pushed one at a time, a long part would overflow the
-  // undo list and most of it would be unreachable. Names are not words, and are not
-  // in `lemmasHere()`.
+  // undo list and most of it would be unreachable. Names and numbers go too — the
+  // whole point is a clean page — and stay out of every count, because the record
+  // keeps "name" as its band.
   var restSaid = 0;
+
+  // What is still unmarked on this page, names included: what the offer counts.
+  function unmarkedHere() {
+    return lemmasHere(true).filter(function (lemma) {
+      return statusOf(lemma) === undefined;
+    });
+  }
 
   function markRest() {
     var batch = [];
-    lemmasHere().forEach(function (lemma) {
+    unmarkedHere().forEach(function (lemma) {
       if (statusOf(lemma) !== undefined) return;
       var index = lemmas.indexOf(lemma);
       batch.push({ lemma: lemma, before: null });
@@ -1393,12 +1401,13 @@
       restMark.hidden = true;
       restUndo.hidden = false;
       restBox.hidden = false;
-    } else if (counts.fresh) {
+    } else if (unmarkedHere().length) {
       // One button that says the whole thing, rather than a question and a number:
-      // the words left, and what pressing it does with them.
+      // the words left — names and all, since the offer is a clean page — and what
+      // pressing it does with them.
+      var left = unmarkedHere().length;
       restText.textContent = "";
-      restMark.textContent =
-        "Mark " + counts.fresh + (counts.fresh === 1 ? " word" : " words") + " as known";
+      restMark.textContent = "Mark " + left + (left === 1 ? " word" : " words") + " as known";
       restMark.hidden = false;
       restUndo.hidden = true;
       restBox.hidden = false;
