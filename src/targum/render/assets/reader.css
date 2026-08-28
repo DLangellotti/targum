@@ -631,7 +631,7 @@ body:not(.no-hover) .w:hover {
 }
 .gloss-card[hidden] { display: none; }
 .gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
-.gloss-card .form { color: var(--ink-soft); font-size: 0.8125em; }
+.gloss-card .form { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* How well you know it, and what you want it to say. A scale rather than a switch: the
    word "save" was hiding a decision the reader wants to make more than once. The same
@@ -688,14 +688,14 @@ body:not(.no-hover) .w:hover {
 
 /* The card is now a small form, so it stacks and its control gets room. */
 .pick-card .vocab-editor .note-field { min-width: 12rem; }
-.pick-card .drop-pick { align-self: start; font-size: 0.8125em; color: var(--ink-soft); }
+.pick-card .drop-pick { align-self: start; font-size: 0.8125rem; color: var(--ink-soft); }
 
 .gloss-card .vocab-editor { width: 100%; }
 
 .gloss-card .look-up {
   align-self: start;
   padding: 0.1rem 0.4rem;
-  font-size: 0.8125em;
+  font-size: 0.8125rem;
   color: var(--ink-soft);
 }
 .gloss-card .look-up:disabled { opacity: 0.6; cursor: default; border-color: transparent; }
@@ -705,7 +705,7 @@ body:not(.no-hover) .w:hover {
 .meaning.mine::after {
   content: "·  yours";
   color: var(--ink-soft);
-  font-size: 0.8em;
+  font-size: 0.8125rem;
 }
 .gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
 
@@ -717,7 +717,7 @@ body:not(.no-hover) .w:hover {
   display: block;
   margin-block-start: 0.2rem;
   color: var(--ink-soft);
-  font-size: 0.8125em;
+  font-size: 0.8125rem;
 }
 .gloss-card .said bdi {
   color: var(--ink);
@@ -733,7 +733,7 @@ body:not(.no-hover) .w:hover {
   display: block;
   margin-block-start: 0.3rem;
   color: var(--ink-soft);
-  font-size: 0.8125em;
+  font-size: 0.8125rem;
 }
 .gloss-card .verb bdi { font-family: var(--reading); color: var(--ink); }
 .gloss-card .verb .root { letter-spacing: 0.02em; font-weight: 600; }
@@ -748,7 +748,7 @@ body:not(.no-hover) .w:hover {
   color: var(--ink-soft);
   font-style: italic;
   margin-inline-start: 0.4rem;
-  font-size: 0.85em;
+  font-size: 0.8125rem;
 }
 .gloss-card .meaning { display: block; margin-block-start: 0.2rem; }
 .gloss-card .keep {
@@ -764,7 +764,7 @@ body:not(.no-hover) .w:hover {
   display: block;
   margin-block-start: 0.35rem;
   color: var(--ink-soft);
-  font-size: 0.8em;
+  font-size: 0.8125rem;
 }
 
 /* What the keys do, under the buttons that do it. Metadata, so muted is honest here —
@@ -826,12 +826,13 @@ body:not(.no-hover) .w:hover {
 .pick-card [dir] { display: block; text-align: start; }
 .pick-card .phrase { display: block; color: var(--ink); font-weight: 600; }
 .pick-card .reading { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); }
+/* §9 floors muted at 13px on raised paper. This was 11.7px with an opacity on top of
+   the muted value, which is muted twice. */
 .pick-card .source-note {
   display: block;
   margin-block-start: 0.15rem;
   color: var(--ink-soft);
-  font-size: 0.9em;
-  opacity: 0.8;
+  font-size: 0.8125rem;
 }
 .pick-card button {
   margin-block-start: 0.5rem;
