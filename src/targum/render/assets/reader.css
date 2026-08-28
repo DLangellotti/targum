@@ -1284,8 +1284,12 @@ body.paged:not(.last-page) .rest { display: none; }
    is to the left. */
 .turn {
   position: fixed;
-  inset-block-end: 0.75rem;
-  inset-inline: 0.75rem;
+  inset-block-end: 2.25rem;
+  inset-inline: 0;
+  /* Inside the text's own measure with a little to spare, not at the window's far
+     corners: the arrows belong to the page, so they sit where the page is. */
+  max-inline-size: calc(var(--measure) * 2 + var(--gap) + 7rem);
+  margin-inline: auto;
   z-index: 25;
   display: flex;
   align-items: center;
@@ -1297,6 +1301,11 @@ body.paged:not(.last-page) .rest { display: none; }
   color: var(--ink-soft);
 }
 .turn[hidden] { display: none; }
+/* The open list takes a column of the window, and the page — arrows included — moves
+   over to make room, the same way `body.list-open` moves the text. */
+@media (min-width: 60rem) {
+  body.has-list.list-open .turn { inset-inline-end: 15rem; }
+}
 .turn span {
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
@@ -1322,7 +1331,7 @@ body.paged:not(.last-page) .rest { display: none; }
 [dir="rtl"] .turn .back::before { content: "\2192"; }
 [dir="rtl"] .turn .forward::before { content: "\2190"; }
 /* Room under the last pair for the control to sit over. */
-body.paged main { padding-block-end: 4rem; }
+body.paged main { padding-block-end: 5rem; }
 
 @media print {
   .bar, .pager, .turn { display: none; }
@@ -1386,12 +1395,11 @@ body.paged main { padding-block-end: 4rem; }
 .rest {
   max-width: calc(var(--measure) * 2 + var(--gap));
   margin: 1.5rem auto 0;
-  padding: 0.75rem 1rem;
+  padding: 0.25rem 1rem;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 1rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
   font-family: system-ui, sans-serif;
   font-size: 0.8125rem;
   color: var(--ink-soft);
