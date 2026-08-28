@@ -46,6 +46,7 @@ const box = window.TargumVocab.editor({
   status: payload.status,
   note: payload.note || "",
   placeholder: payload.placeholder,
+  legend: Boolean(payload.legend),
   // The list beside the text draws the scale without a field. A caller that wants no
   // note must not be given one, nor a button to press on it.
   onNote: payload.noNote ? undefined : (text) => kept.push(text),
@@ -85,6 +86,7 @@ process.stdout.write(
     saveLabel: save ? save.textContent : null,
     saveDisabled: save ? Boolean(save.disabled) : null,
     saved,
+    legend: (box.querySelector(".level-legend") || {}).textContent || null,
     kept,
     levels,
   })

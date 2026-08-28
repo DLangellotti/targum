@@ -441,3 +441,53 @@ def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
     words, lemmas = chapter(["a", "b"])
     drawn = run([], chapter=words, lemmas=lemmas, vocab={"c": {"status": 2}})["first"]
     assert drawn["hidden"] is True
+
+
+# -- the offer at the foot of a part ---------------------------------------------
+
+
+def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
+    """ "Words should be marked as known automatically when I'm done with the article."
+    Offered, never done for you: the words you never marked, in one press, with the
+    number said. The ones you are working on are left alone."""
+    words, lemmas = chapter(["a", "b", "c"])
+    before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
+    assert before["rest"] == {
+        "hidden": False,
+        "text": "Mark the remaining 2 words as known?",
+        "button": "Mark 2",
+        "undo": False,
+    }
+    after = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={},
+        levels=[{"word": "a", "status": 2}],
+        markRest=True,
+    )
+    assert [item["lemma"] for item in after["queue"]] == ["a"], "still learning a; b and c known"
+    assert after["rest"]["text"] == "2 words marked known"
+    assert after["rest"]["undo"] is True
+
+
+def test_one_undo_takes_the_whole_batch_back() -> None:
+    words, lemmas = chapter(["a", "b", "c", "d"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
+    assert done["rest"]["button"] == "Mark 4"
+
+
+def test_marking_the_rest_never_touches_a_name() -> None:
+    """A name is not a word you know. It is on the page to be tapped, and it is not in
+    the count offered."""
+    rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
+    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
+    assert done["rest"]["text"] == "2 words marked known"
+    assert [item["lemma"] for item in done["queue"]] == ["Name"], "still there to tap"
+
+
+def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
+    words, lemmas = chapter(["a"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
+    assert done["rest"]["hidden"] is True

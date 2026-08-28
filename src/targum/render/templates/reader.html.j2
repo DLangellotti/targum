@@ -164,6 +164,18 @@
 {% endfor %}
 </main>
 
+{#- At the foot, where a part ends: the words you never marked, offered as known in one
+    press, with one Undo. Offered, never done for you — and never a name, which does not
+    count. "Words should be marked as known automatically when I'm done with the
+    article", said the first alpha reader; this is the honest version of that. -#}
+{% if words %}
+<div class="rest" id="rest" hidden>
+  <span id="rest-text"></span>
+  <button type="button" id="rest-mark"></button>
+  <button type="button" id="rest-undo" hidden>Undo</button>
+</div>
+{% endif %}
+
 {% if not standalone %}
 <nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}">
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
@@ -222,6 +234,7 @@
     <dt>u</dt><dd>take back the last level, and stand on that word again</dd>
     <dt>Esc</dt><dd>close this, then a word, then your saved words, then the queue</dd>
     <dt>?</dt><dd>these keys</dd>
+    <dt>hard</dt><dd>the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you</dd>
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
