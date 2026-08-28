@@ -30,11 +30,17 @@ PROCESSORS = "tokenize,pos,lemma"
 # into the name, and so into every annotation.json, which is what lets the pipeline spot
 # a file written before a feature existed and redo it. Redoing one is free: Stanza runs
 # on the machine, so nothing is fetched and nothing is spent.
-FEATURES = "roots"
+FEATURES = "roots+everyword"
 
-# Not vocabulary a learner is trying to acquire. Names in particular would be banded
-# by how often they appear in a general corpus, which says nothing useful.
-SKIP_POS = frozenset({"PUNCT", "SYM", "NUM", "PROPN", "X"})
+# Not a word at all. Everything else is a token the reader can tap, names and numerals
+# included: this set used to hold NUM, PROPN and X as "not vocabulary", and dropping
+# them here, before the content word was chosen, had two costs. A token made only of
+# them was never emitted, so a tenth of Esther was untappable and looked exactly like a
+# word already known. Worse, Stanza tags titles and definite nouns PROPN constantly, so
+# הַמֶּלֶךְ split into ה + PROPN, the PROPN was thrown away, and the lemma of "the king"
+# was ה — mark it known and every הָעִיר and הַפּוּר in the language went plain at once.
+# The reader has a key for a name, and it is `i`.
+SKIP_POS = frozenset({"PUNCT", "SYM"})
 
 # Function words that attach as prefixes in Hebrew. When a token splits, the content
 # word is the one that is not one of these.
@@ -143,6 +149,7 @@ def _tokens(document: Any) -> list[Token]:
                     lemma=lemma,
                     band=0,
                     split=len(words) > 1,
+                    pos=content.upos or None,
                     binyan=binyan,
                     root=root_of(lemma, binyan),
                 )
@@ -174,6 +181,10 @@ def _content_word(words: list[Any]) -> Any | None:
     if len(usable) == 1:
         return usable[0]
     lexical = [word for word in usable if (word.upos or "") not in FUNCTION_POS]
-    if lexical:
-        return max(lexical, key=lambda word: len(word.lemma or word.text or ""))
-    return max(usable, key=lambda word: len(word.lemma or word.text or ""))
+    # X is what Stanza says when it cannot say, and it is outside FUNCTION_POS, so a
+    # scrap of garbage would beat a real noun on length. Only when nothing else is left.
+    real = [word for word in lexical if word.upos != "X"]
+    for candidates in (real, lexical, usable):
+        if candidates:
+            return max(candidates, key=lambda word: len(word.lemma or word.text or ""))
+    return None

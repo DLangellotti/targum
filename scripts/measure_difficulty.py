@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import ingest  # noqa: E402
 from targum.annotate import Annotator  # noqa: E402
+from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
 from targum.annotate.frequency import FrequencyBands  # noqa: E402
 from targum.catalogue import CATALOGUE, Entry  # noqa: E402
 from targum.models import Annotation, read_artifact  # noqa: E402
@@ -60,6 +61,10 @@ def hard_share(annotation: Annotation, language: str) -> int:
     counts: Counter[int] = Counter()
     for tokens in annotation.tokens.values():
         for token in tokens:
+            # The same rule the server applies to an upload: a name is a token the
+            # reader can tap, not a word they have to learn.
+            if token.pos in NOT_VOCABULARY:
+                continue
             counts[_band(token.lemma, language)] += 1
     total = sum(counts.values())
     if not total:
