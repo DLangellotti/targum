@@ -420,3 +420,24 @@ def test_a_word_saved_as_known_stays_in_sight() -> None:
 def test_a_word_you_ignore_stays_in_sight_too() -> None:
     rows = listed(["a", "b"], levels=[{"word": "a", "status": 0}])
     assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [("a", 0, True)]
+
+
+# -- the first time ---------------------------------------------------------------
+
+
+def test_the_first_time_says_what_to_do() -> None:
+    """A reader who has never marked a word is told the one thing the page is for, and
+    the first word they mark turns that into the keys. Then it is gone for good."""
+    words, lemmas = chapter(["a", "b"])
+    before = run([], chapter=words, lemmas=lemmas, vocab={})["first"]
+    assert before == {"hidden": False, "text": "Tap a word to say how well you know it."}
+
+    after = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 1}])
+    assert after["first"]["hidden"] is False
+    assert after["first"]["text"].startswith("k known · 1 2 3")
+
+
+def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
+    words, lemmas = chapter(["a", "b"])
+    drawn = run([], chapter=words, lemmas=lemmas, vocab={"c": {"status": 2}})["first"]
+    assert drawn["hidden"] is True

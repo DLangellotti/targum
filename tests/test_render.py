@@ -2798,3 +2798,12 @@ def test_the_script_a_reader_gets_still_parses(tmp_path: Path) -> None:
         baked.write_text(_strip(path.name, path.read_text(encoding="utf-8")), encoding="utf-8")
         done = subprocess.run(["node", "--check", str(baked)], capture_output=True, text=True)
         assert done.returncode == 0, f"{path.name} does not parse after stripping:\n{done.stderr}"
+
+
+def test_the_first_time_line_is_only_on_a_page_with_words() -> None:
+    """It says to tap a word. A reader with no word-level annotation has none to tap."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates" / "reader.html.j2").read_text(encoding="utf-8")
+    line = template[template.index('id="first"') - 200 : template.index('id="first"')]
+    assert "{% if words %}" in line

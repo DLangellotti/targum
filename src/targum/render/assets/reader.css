@@ -232,6 +232,19 @@ a.bar-brand:hover { color: var(--accent); }
    corner and nothing else, which a screen reader never reaches and a reader watching the
    word they are on does not look at. This carries the same sentence to anyone listening.
    Never displayed: `display: none` would take it out of the accessibility tree with it. */
+/* The first-time line, under the bar and above the text. Quiet: secondary by §9, one
+   sentence, no motion. */
+.first {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto;
+  padding: 0.5rem 1.25rem 0;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.first[hidden] { display: none; }
+
 .spoken {
   position: absolute;
   inline-size: 1px;
