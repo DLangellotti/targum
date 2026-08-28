@@ -24,7 +24,12 @@ The half no tests can reach, and which matters as much:
   accent is never body text and never a large field.
 - **Functional colour (§4) is for UI features, never the identity.** `--leaf` progress
   and "known", `--clay` cost, errors and destructive actions, `--iris` phrases and
-  discovery. One hue per moment, flat always. The bright set (`--sun`, `--leaf-bright`,
+  discovery. One hue per moment, flat always. **The knowledge ramp climbs to leaf**, not
+  gold: §4 still describes four gold steps, and the code stopped painting them on
+  2026-08-28 because gold on warm paper made every chart read brown. The ramp is tints
+  of `--leaf` mixed against `--paper`, so one definition serves both surfaces. §4 is the
+  half of the document that is now out of date; the structure it asks for — one hue,
+  monotone, four steps, "known" carrying on both surfaces — is unchanged. The bright set (`--sun`, `--leaf-bright`,
   `--iris-bright`, `--rose`) is for peak moments on ink panels; measured, `--sun` and
   `--leaf-bright` do not reach 3:1 on paper, so those two are ink-panel only.
 - **Contrast is the engagement mechanism (§9).** Text the reader came for is full ink;

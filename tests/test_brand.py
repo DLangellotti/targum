@@ -42,11 +42,13 @@ PALETTE = {
     "#c8a778": "accent working, dark / the wash",
     "#b8935e": "focus ring",
     "#a5824f": "the mark's translation column on paper",
-    "#ab8555": "knowledge ramp",
-    "#8b6840": "knowledge ramp",
-    "#6b4f2e": "knowledge ramp",
-    "#7d6039": "knowledge ramp, dark",
-    "#e8d3b0": "knowledge ramp, dark",
+    # The knowledge ramp used to be four gold steps written out per theme, and it is why
+    # every chart on the progress page read brown. It climbs to leaf now — tints of
+    # --leaf mixed against --paper, so one definition serves both surfaces and "known"
+    # is the most present step on each (words.css). §4 gives "known" to leaf by name, so
+    # the scale and the functional colour finally agree. The five gold steps that are
+    # left over are not listed here any more: unlisted means a stray, which is what a
+    # reintroduced brown ramp would be.
     "#c3bdb1": "chart off, light",
     "#e7e1d6": "chart grid, light",
     "#cfc7ba": "chart axis, light",
