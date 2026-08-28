@@ -1049,6 +1049,51 @@ body:not(.no-hover) .w:hover {
   .modes button, .pair { transition: none; }
 }
 
+/* --- reaching things with a thumb -------------------------------------------
+ *
+ * Every control in this interface is sized for a mouse, where a 24px target is generous
+ * because the pointer is one pixel wide. A finger is not: the number everybody uses is
+ * 44px and almost nothing here reaches it. So the hit area grows past the paint, and
+ * only where there is no hover to lean on — the desktop stays as quiet as it was.
+ *
+ * Two treatments, because one does not fit both cases. A control that stands alone gets
+ * an invisible box centred on it. A control in a wrapping cluster — the filter chips,
+ * the segmented switches — grows for real instead: an invisible 44px box on a 26px chip
+ * would reach into the row below it and swallow taps meant for that one. A <select> and
+ * an <input> are replaced elements and draw no pseudo-element, so they grow too.
+ *
+ * Deliberately absent: the controls inside table rows (.bin, .restore, .open-chapters,
+ * .rows-head button). Rows are 34px apart, so a 44px box would overlap its neighbours,
+ * and the control it would steal a tap for is Delete. A destructive action is the last
+ * thing that should get a hit area larger than it looks. */
+@media (hover: none) and (pointer: coarse) {
+  :is(
+    .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
+    .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
+    .list-close, .list-foot button
+  ) {
+    position: relative;
+  }
+  :is(
+    .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
+    .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
+    .list-close, .list-foot button
+  )::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block-start: 50%;
+    block-size: 44px;
+    transform: translateY(-50%);
+  }
+  :is(
+    .chip, .clear, .draw, .segment, .find, .go, .list-controls input[type="search"],
+    .field input, .pick select
+  ) {
+    min-block-size: 44px;
+  }
+}
+
 /* --- source only --------------------------------------------------------- */
 
 .mode-source .pair { grid-template-columns: 1fr; }
