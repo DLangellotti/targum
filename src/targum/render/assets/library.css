@@ -159,7 +159,9 @@
   overflow: hidden;
   border: 1px solid var(--rule);
   border-radius: 4px;
-  background: var(--paper-raised);
+  /* §9: one raised layer per view. This always sits inside a raised card or
+     panel, so the fill repeated the surface underneath it and the hairline is
+     what marks the edge — "if a card needs a card, use a hairline instead". */
 }
 .thumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
 .thumb .glyph {
