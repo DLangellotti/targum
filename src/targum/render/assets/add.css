@@ -84,7 +84,12 @@ body.add > .add-main {
    form. The link is the only accent above the fold — the button below it is the page's
    primary action and keeps its own. */
 .add .lede + .hint { margin: -1.25rem 0 1.75rem; }
-.to-library { color: var(--accent); }
+.to-library {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.to-library:hover { border-block-end-color: var(--ink-soft); }
 /* Two hints in a row sat on top of each other: the rule above pulls each one up under
    the field it explains, and with no bottom margin the second climbed into the first. */
 .hint + .hint { margin-block-start: 0.55rem; }

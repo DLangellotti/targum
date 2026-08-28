@@ -191,7 +191,7 @@ body.public {
   text-decoration: none;
 }
 .public .texts a:hover {
-  color: var(--accent);
+  color: var(--ink);
 }
 .public .texts .byline,
 .public .texts .blurb {
