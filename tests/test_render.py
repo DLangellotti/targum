@@ -368,7 +368,7 @@ def test_gloss_mode_appears_only_with_a_glossary(tmp_path: Path) -> None:
         [translation],
         tmp_path / "r",
         annotation=annotation,
-        glossary=glossary,
+        glossaries={"en": glossary},
     )[0].read_text(encoding="utf-8")
     assert "a block of text" in html
     assert 'id="gloss-card"' in html
@@ -989,6 +989,32 @@ def test_only_hebrew_is_offered_on_the_reading_pages() -> None:
     assert answer["current"] == "he", "a remembered Russian choice cannot reopen it"
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_reading_pages_offer_what_the_account_says_is_being_learned() -> None:
+    """The one above holds until the account answers. Once it has — `sync.js` mirrors
+    the profile's answer into `targum:learning` — the switcher offers those and nothing
+    else, and a remembered choice in one of them stands. Nothing is deleted by an
+    unticked language: it is simply not offered."""
+    from targum.render.builder import ASSETS
+
+    program = """
+      global.window = {{}};
+      const stored = {{ "targum:learning": JSON.stringify(["he", "yi"]), "targum:language": "yi" }};
+      global.localStorage = {{ getItem: (name) => stored[name] || null, setItem: () => {{}} }};
+      require({where});
+      const lang = window.TargumLang;
+      const names = {{ he: "Hebrew", ru: "Russian", arc: "Aramaic", yi: "Yiddish" }};
+      const shown = lang.order(["ru", "yi", "he", "arc"], names);
+      console.log(JSON.stringify({{ shown, current: lang.current(shown) }}));
+    """.format(where=json.dumps(str(ASSETS / "lang.js")))
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    answer = json.loads(done.stdout)
+
+    assert answer["shown"] == ["he", "yi"], "what was ticked, Hebrew first, and no more"
+    assert answer["current"] == "yi", "a remembered choice within them stands"
+
+
 def test_every_page_shares_one_language_choice() -> None:
     """targum is a Hebrew app, and says so the same way on all three pages.
 
@@ -1229,7 +1255,7 @@ def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
     every visitor who had never touched it — against what lang.js says it does.
     """
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    building = source[source.index("var codes = [lang.HOME]") :]
+    building = source[source.index("var all = [lang.HOME]") :]
     building = building[: building.index("lang.order")]
 
     assert "catalogue" not in building, "the catalogue must not widen the switcher"
@@ -1530,7 +1556,7 @@ def test_the_level_keys_are_the_letters_outright() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
     # The word the arrows are on, or failing that the one a pointer opened a card about.
     assert "var word = standing || (lookedUp && card && !card.hidden ? lookedUp : null);" in script
     assert "if (pickLevel && chip && !chip.hidden) {" in script, "and the phrase card"
@@ -1548,7 +1574,7 @@ def test_the_level_keys_are_written_down() -> None:
     template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
     assert "<dt>1 2 3</dt>" in template
     # One key a row: `k` and `i` shared a row while they shared their letters.
-    assert "<dt>k</dt><dd>known</dd>" in template
+    assert "<dt>k 4</dt><dd>known</dd>" in template
     assert "<dt>i</dt><dd>ignore it" in template
 
 
@@ -1583,8 +1609,11 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     assert (
         "function toggled(index, status) {\n    return statusOf(lemmas[index]) === status" in script
     )
-    assert "setStatus(index, surface, levelOf(word), toggled(index, status));" in script, "the keys"
     assert "setStatus(index, surface, band, value);" in script, "the card's own row"
+    # The keys do not toggle. The back arrow lands on words already marked, and a level
+    # pressed to confirm one took the mark off instead and walked on — silently.
+    assert "setStatus(index, surface, levelOf(word), status);" in script, "the keys"
+    assert "setStatus(index, surface, levelOf(word), toggled(index, status));" not in script
 
 
 def test_the_phrase_card_lets_its_own_field_take_focus() -> None:
@@ -1660,15 +1689,14 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
     assert body.count("showPick(picked);") == 2, "each redraws it"
-    # And it stops being live the moment the card goes: both places that hide the card
-    # clear it, or the keys would go on marking a phrase you can no longer see.
-    hides = [line for line in script.splitlines() if "chip.hidden = true;" in line]
-    assert len(hides) == 2
-    for spot in (
-        "chip.hidden = true;\n      pickLevel = null;",
-        "chip.hidden = true;\n        pickLevel = null;",
-    ):
-        assert spot in script, spot
+    # And it stops being live the moment the card goes. There is one way to put the chip
+    # away and it takes the keys down with it, because the two being separate lines meant
+    # remembering them together at four call sites — and a level pressed at a phrase
+    # nobody can see any more would be saved against it all the same.
+    assert script.count("chip.hidden = true;") == 1, "more than one way to hide the chip"
+    one_way = r"function hideChip\(\) \{\n[^}]*chip\.hidden = true;\n[^}]*pickLevel = null;"
+    assert re.search(one_way, script), "hiding the chip does not take the keys down with it"
+    assert script.count("hideChip()") >= 4, "somewhere hides the chip without going through it"
 
 
 def test_the_page_marks_what_you_are_looking_at_first() -> None:
@@ -2220,7 +2248,7 @@ def test_no_key_does_two_things() -> None:
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     keys = script[script.index("switch (key) {") :]
     # The level keys are read before the switch and never reach it.
-    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
     for taken in ('case "k":', 'case "i":'):
         assert taken not in keys, f"{taken} is a level, and cannot be anything else"
     assert 'case "l":\n        prefs.mode = "inter";' in keys
@@ -2312,7 +2340,11 @@ def test_the_card_says_which_keys_it_answers_to() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert '(rtl ? "←" : "→") + " next · k known · 1 2 3 · i ignore · g look up · u back"' in script
+    assert '" next · k known · 1 2 3 · i ignore · "' in script
+    # Look-up is on the legend only while the card is offering it: Enter closes the card
+    # otherwise, and a legend that said otherwise would be lying half the time.
+    assert '(offering ? "Enter look up · " : "")' in script
+    assert "g look up" not in script
 
     css = _reader_css()
     rules = css.split(".gloss-card .legend {", 1)[1].split("}", 1)[0]
@@ -2337,11 +2369,15 @@ def test_the_queue_keys_are_written_down() -> None:
         assert gone not in template, gone
     # The card is the one thing here you have to ask for, so it has to be written down.
     assert "<dt>Enter</dt>" in template
-    # And the one action on it that used to need a pointer.
-    assert "<dt>g</dt>" in template
+    # And the one action on it that used to need a pointer is on the same key: `g` is
+    # what the code calls a gloss, and nothing a reader ever sees.
+    assert "again to look it up" in template
+    assert "<dt>g</dt>" not in template
+    # The sheet lists the key that opens it.
+    assert "<dt>?</dt>" in template
     # In the order they get pressed: the walk and the levels are most of a session.
-    assert template.index("<dt>&larr; &rarr;</dt>") < template.index("<dt>k</dt>")
-    assert template.index("<dt>k</dt>") < template.index("<dt>1 2 3</dt>")
+    assert template.index("<dt>&larr; &rarr;</dt>") < template.index("<dt>k 4</dt>")
+    assert template.index("<dt>k 4</dt>") < template.index("<dt>1 2 3</dt>")
     assert template.index("<dt>1 2 3</dt>") < template.index("<dt>p</dt>")
 
 
@@ -2368,7 +2404,8 @@ def test_nothing_scrolls_for_a_reader_who_asked_it_not_to() -> None:
 def test_walking_the_page_opens_no_windows() -> None:
     """A card at every step would put a window between a reader and the page they are
     walking, forty times in a row. Standing on a word is the ring and the keyboard;
-    Enter is what asks the question, and pressing it again puts the answer away."""
+    Enter is what asks the question — and asks the card's own question, the look-up,
+    when it is offering one — and pressing it once more puts the answer away."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
@@ -2379,7 +2416,7 @@ def test_walking_the_page_opens_no_windows() -> None:
 
     keys = script[script.index("switch (key) {") :]
     assert 'case "Enter":\n        if (!standing) return;' in keys
-    assert "if (asking()) hideCard();\n        else openCard();" in keys
+    assert "if (!asking()) openCard();\n        else if (!askMeaning()) hideCard();" in keys
 
 
 def test_escape_puts_the_card_away_before_it_puts_you_out() -> None:
@@ -2410,10 +2447,10 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
-    """Every sentence carries tabindex=0, so one Tab takes a reader off the word they
-    were standing on — and the ring, the card and `standing` all stayed behind on it. The
-    next `k` then marked that word known instead of stepping back a sentence, which is
-    what `k` means once you are on a sentence. Silently, on a word out of sight."""
+    """The word is the page's one tab stop, so one Tab takes a reader off it — and the
+    ring, the card and `standing` all stayed behind. The next `k` then marked that word,
+    silently, on a word out of sight. The bar is the exception: sticky, the word still in
+    front of you, and Shift+Tab straight back to it."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
@@ -2423,7 +2460,37 @@ def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
     # The card's own level buttons and note field are reached by Tab from the word, and
     # reaching them is not leaving.
     assert "card.contains(event.target)" in guard
+    assert "bar.contains(event.target)" in guard
     assert "leaveQueue();" in guard
+
+
+def test_a_key_is_the_letter_printed_on_it_whatever_the_layout() -> None:
+    """Under the Hebrew layout the P key arrives as "פ", and every letter the reader
+    answers to was dead — for the reader this page is for. A Latin letter is taken as
+    typed, so a Dvorak keyboard keeps its mnemonics; anything else falls back to the key
+    it sits on. Digits and `?` are the same on both layouts and are left alone."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'if (!/^[a-z0-9?]$/.test(key) && /^Key[A-Z]$/.test(event.code || "")) {' in script
+    assert "key = event.code.charAt(3).toLowerCase();" in script
+
+
+def test_enter_asks_the_question_the_card_is_offering() -> None:
+    """Enter opens the card; on a card offering a look-up, Enter presses it; once there is
+    nothing left to ask, Enter closes the card. `g` had the look-up once — for the gloss,
+    which is what the code calls it and nothing a reader ever sees."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    keys = script[script.index("switch (key) {") :]
+    assert 'case "g":' not in keys
+    # A question already asked and still waiting is not "nothing to ask": Enter must not
+    # close the card out from under a look-up in flight.
+    ask = script[script.index("function askMeaning() {") :]
+    ask = ask[: ask.index("\n  }\n")]
+    assert 'if (button.disabled) return button.classList.contains("looking");' in ask
+    assert 'ask.classList.add("looking");' in script
 
 
 def test_a_key_is_the_letter_on_it_whatever_the_shift_was() -> None:
@@ -2510,4 +2577,202 @@ def test_the_arrows_come_round_rather_than_stop_with_work_left() -> None:
     assert "return step(from, forward) || step(null, forward);" in script
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script
-    assert "if (!goTo(onward(from, true), true, open)) {" in script
+    # `false`: a card is spent by the level it was answered with, so what the arrows
+    # carry on to the next word is the queue and not the window.
+    assert "if (!goTo(onward(from, true), true, false)) {" in script
+
+
+def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
+    """The card is a question, and a level is the answer to it — so it leaves rather than
+    riding the arrows on to the next word, which put a window between the reader and the
+    page they were walking for as long as they went on marking.
+
+    Not in the frame the key was pressed in, though. A card that vanished on the keystroke
+    took the level it had just taken with it, and a chapter cleared a word at a time was a
+    window blinking forty times. It holds the answer for a beat, then fades — and §8, so a
+    reader who asked for stillness gets the beat and nothing moving.
+    """
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+    assert "if (open) spendCard();" in script, "a level said on an open card spends it"
+    spend = script[script.index("function spendCard() {") : script.index("function stopFade() {")]
+    assert "letGo();" in spend, "the word is let go of at once; only the card waits"
+    assert 'card.classList.add("going");' in spend
+    assert "fading = setTimeout(hideCard, FADE);" in spend
+
+    beat = re.search(r"var LINGER = (\d+);", script)
+    fade = re.search(r"var FADE = (\d+);", script)
+    assert beat and fade, "reader.js no longer names the two waits the way this test reads them"
+    assert 400 <= int(beat[1]) <= 1200, "long enough to read the level, short enough to be gone"
+    assert f"transition: opacity {fade[1]}ms ease" in css, "the sheet and the script must agree"
+
+    still = css.split("@media (prefers-reduced-motion: reduce) {", 1)[1].split("\n}", 1)[0]
+    assert ".gloss-card.going { transition: none; }" in still
+
+
+def test_the_about_page_is_not_a_list_of_commits() -> None:
+    """The page says how much has landed and never what each change was. A commit subject
+    is written for whoever maintains the code — "Bind the chart kit before start-up reads
+    it" — and a page that prints those is a changelog wearing a product page's clothes.
+    The word itself is for maintainers too: thirty days of work are thirty days of
+    changes."""
+    from targum.render.builder import about_page
+
+    # The words on the page, not the markup: the link to the history is allowed to point
+    # at a URL with "commits" in it, because that is where the history lives.
+    words = re.sub(r"<[^>]+>", " ", about_page())
+    for inside_baseball in ("commit", "refactor", "changelog", ".py", "src/"):
+        assert inside_baseball not in words, f"{inside_baseball!r} is for maintainers"
+
+
+def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:
+    """It described targum at length — what it does, what had shipped, what it could not
+    do yet — and none of that is what somebody arriving early needs to be told. What is
+    left is the state of the thing, the evidence for it, and where the work is."""
+    from targum.render.builder import about_page
+
+    page = about_page()
+    assert "targum is under construction" in page
+    assert 'href="https://github.com/DLangellotti/targum"' in page
+    for gone in ("What it does", "Recently shipped", "What it cannot do yet", "reading app"):
+        assert gone not in page, f"{gone!r} was cut from this page"
+
+
+def test_the_about_page_keeps_its_numbers_where_there_is_no_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page is served from a wheel on the box, and a wheel has no `git log` to read.
+    Without a stamp the whole calendar disappears in production and nowhere else, which
+    is the kind of fault that is only ever found by looking at the live page.
+    """
+    from targum import about
+    from targum.render.builder import about_page
+
+    live = about.work()
+    if not live.days:
+        pytest.skip("no repository to read the numbers out of")
+
+    monkeypatch.setattr(about, "STAMP", tmp_path / "activity.json")
+    assert about.stamp() is not None, "there is a repository, so there is a stamp"
+    # A directory with no `.git` in it is what the package sits in once it is installed.
+    monkeypatch.setattr(about, "_root", lambda: tmp_path)
+    assert about.work().commits == live.commits, "the stamp is what the box reads"
+
+    page = about_page()
+    assert page.count('class="day level-') >= about.DAYS
+    assert f"<b>{live.commits}</b>" in page
+
+
+def test_the_about_page_names_the_day_its_count_ends_on() -> None:
+    """ "In the last 30 days" is true of a wheel for about a day. The numbers are stamped
+    when it is built and served until the next deploy, so the sentence has to name the
+    day it counted to rather than implying today."""
+    from targum import about
+    from targum.render.builder import about_page
+
+    found = about.work()
+    if not found.days:
+        pytest.skip("no repository to read the numbers out of")
+    assert found.through in about_page()
+    assert "in the last" not in about_page()
+
+
+def test_the_stamp_is_packed_into_the_wheel() -> None:
+    """It is ignored by git so it cannot be committed stale, and hatchling leaves
+    VCS-ignored files out of a build unless it is told otherwise. Miss the second half
+    and the first half silently empties the page on the box."""
+    root = Path(__file__).resolve().parents[1]
+    assert "src/targum/activity.json" in (root / ".gitignore").read_text(encoding="utf-8")
+    packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'artifacts = ["/src/targum/activity.json"]' in packaging
+
+
+# --- what gets baked in ------------------------------------------------------
+
+
+def test_comments_are_stripped_from_what_the_page_carries(
+    tmp_path: Path, document: Document, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """The source keeps its comments; the reader does not carry them.
+
+    A reader inlines its whole stylesheet and script, so a comment is paid for once per
+    page and a book of 151 chapters pays 151 times.
+    """
+    from targum.render.builder import ASSETS
+
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    # A line of prose from the file itself, so this cannot pass against a stub.
+    landmark = "/* --- keeping your place"
+    assert landmark in source
+
+    html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
+    assert landmark not in html
+    # And the code it sat above is still there.
+    assert "function keep(held)" in html
+
+
+def test_stripping_leaves_strings_and_regular_expressions_alone() -> None:
+    """The whole risk in the stripper. `//` inside a URL is not a comment, and neither
+    is a `/` that opens a regular expression — telling them apart is why this works on
+    whole lines only."""
+    from targum.render.builder import _strip
+
+    out = _strip(
+        "x.js",
+        "\n".join(
+            [
+                "// gone",
+                "/* also",
+                "   gone */",
+                'var a = "http://example.com";',
+                "var b = /\\bmode-\\w+/g;",
+                "var c = width / 2; // kept, and so is this",
+                "",
+                "/* one line */ var d = 1;",
+            ]
+        ),
+    )
+    assert "gone" not in out
+    assert 'var a = "http://example.com";' in out
+    assert "var b = /\\bmode-\\w+/g;" in out
+    assert "var c = width / 2; // kept, and so is this" in out
+    assert out.strip().endswith("var d = 1;")
+    assert "\n\n" not in out  # blank lines go with the comments
+
+
+def test_no_asset_carries_a_template_literal_across_a_line() -> None:
+    """The assumption the stripper rests on, held rather than trusted.
+
+    It takes out any line that opens with `//` or `/*`, which is only safe while no
+    string in these files spans a line — a template literal is the one kind that can.
+    The day somebody writes one, this fails here rather than in a reader's browser with
+    half a script missing.
+    """
+    from targum.render.builder import ASSETS
+
+    for path in sorted(ASSETS.glob("*.js")) + sorted(ASSETS.glob("*.css")):
+        # Comments out of the way first: the one pair of backticks in the set that spans
+        # a line is prose inside a CSS comment, and prose is not a string.
+        code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
+        spanning = [run for run in re.findall(r"`[^`]*`", code, re.S) if "\n" in run]
+        assert not spanning, f"{path.name} has a template literal across a line"
+
+
+def test_the_script_a_reader_gets_still_parses(tmp_path: Path) -> None:
+    """Stripping is source surgery, so the result has to be run past a parser.
+
+    `node --check` on every asset as it is baked, which is the same check
+    `tests/test_reader_js.py` leans on to run the reader at all.
+    """
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    from targum.render.builder import ASSETS, _strip
+
+    for path in sorted(ASSETS.glob("*.js")):
+        baked = tmp_path / path.name
+        baked.write_text(_strip(path.name, path.read_text(encoding="utf-8")), encoding="utf-8")
+        done = subprocess.run(["node", "--check", str(baked)], capture_output=True, text=True)
+        assert done.returncode == 0, f"{path.name} does not parse after stripping:\n{done.stderr}"

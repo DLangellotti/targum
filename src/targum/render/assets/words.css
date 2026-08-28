@@ -95,6 +95,39 @@ a.back:hover { color: var(--ink); }
 }
 .langs[hidden] { display: none; }
 
+/* The definition language, beside the words it changes.
+   Quieter than the switcher above it, and deliberately: that one chooses which
+   vocabulary you are looking at, and this one only chooses which of two answers is
+   printed in one column of it. Underlined rather than pilled — the same call `.tab` makes
+   on the library, and for the same reason: the row it sits in already carries a search
+   field and a select, and a third filled thing in it is a row of furniture rather than a
+   row of controls. §4: selection in UI is quiet ink, never the accent. */
+.langs.quiet {
+  margin-block-start: 0;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.langs.quiet .langs-label {
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.langs.quiet button {
+  padding: 0.1rem 0;
+  border: 0;
+  border-block-end: 1px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.langs.quiet button:hover { color: var(--ink); }
+.langs.quiet button.on {
+  color: var(--ink);
+  background: none;
+  font-weight: 600;
+  border-block-end-color: var(--ink);
+}
+
 /* Before the element rule below, which otherwise wins: a display on a type selector
    beats the user agent's [hidden] { display: none }, and the page rendered its empty
    panels underneath the "nothing kept yet" line. */

@@ -94,8 +94,12 @@
           </label>
           <label class="field short">
             <span>Translate into</span>
+            {# No `selected` here: which language you read into is a choice you have
+               already made, and `add.js` restores it. Marking the first one selected made
+               the page forget it on every visit, which for anyone who reads into anything
+               but English was a wrong answer waiting to be submitted. -#}
             <select id="to">
-              {% for one in into %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
+              {% for one in into %}<option value="{{ one.code }}">{{ one.name }} ({{ one.label }})</option>{% endfor %}
             </select>
           </label>
         </div>
@@ -117,6 +121,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 {#- `tojson` rather than quoting these by hand: an ampersand written into a script block
     comes out as `&amp;`, and "R&D" stopped matching itself. -#}
 window.TARGUM_READING = {{ reading|tojson }};
+window.TARGUM_INTO = {{ into|tojson }};
 </script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>

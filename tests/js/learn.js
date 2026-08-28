@@ -48,6 +48,9 @@ install({
     HOME: "he",
     order: (codes) => codes,
     current: () => "he",
+    // The switcher draws; the caller remembers. Both are asked for now.
+    set: () => {},
+    into: () => "",
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",
@@ -56,11 +59,28 @@ install({
   selectors: { ".fold": folds },
 });
 
-global.fetch = () =>
-  Promise.resolve({
-    json: () =>
-      Promise.resolve({ readers: payload.readers || [], trash: [], covers: true }),
+/* Every call the page makes, in order. The shelf only ever asked for `/readers` and one
+   answer served; pressing the suggestion starts a build, and what a test needs to know
+   about that is which text was sent — a card that offered one book and built its
+   neighbour would be unnoticeable and expensive. */
+const asked = [];
+
+global.fetch = (path, options) => {
+  asked.push({
+    path: String(path),
+    body: options && options.body ? JSON.parse(options.body) : null,
   });
+  let answer = { id: "j1" }; // enough for `/prepare` to hand `/build` an id
+  if (String(path).indexOf("/readers") === 0) {
+    answer = { readers: payload.readers || [], trash: [], covers: true };
+  } else if (String(path).indexOf("/job/") === 0) {
+    /* Finished on the first ask. A job that never reaches "done" leaves the page polling
+       it every 700ms, and node does not exit while a timer is pending — the first run of
+       this hung for two minutes rather than failing. */
+    answer = { stage: "done", reader: "built" };
+  }
+  return Promise.resolve({ json: () => Promise.resolve(answer) });
+};
 
 /* An SVG element is made through createElementNS, which the stub document has no need of
    until a page draws a chart. Same plain element: nothing here reads a namespace. */
@@ -100,7 +120,17 @@ function words() {
     .children.filter((row) => !String(row.className).includes("editor-row"))
     .map((row) => {
       const cells = row.children.map((cell) => cell.textContent);
-      return { term: cells[0], lemma: cells[1], meaning: cells[2], well: cells[4] };
+      // The meaning's own language, which the cell has to carry: it is written in one
+      // language inside a page written in another.
+      const said = row.children[2] || {};
+      return {
+        term: cells[0],
+        lemma: cells[1],
+        meaning: cells[2],
+        lang: said.getAttribute ? said.getAttribute("lang") || "" : "",
+        dir: said.getAttribute ? said.getAttribute("dir") || "" : "",
+        well: cells[4],
+      };
     });
 }
 
@@ -117,6 +147,7 @@ function phrases() {
 /** Do something to the page, the way a person would. */
 function act(step) {
   if (step.fold) byId["fold-" + step.fold].fire("click", {});
+  if (step.press) byId[step.press].fire("click", {});
 }
 
 setTimeout(() => {
@@ -124,6 +155,7 @@ setTimeout(() => {
   const carry = at("carry-cover");
   process.stdout.write(
     JSON.stringify({
+      asked: asked,
       known: at("known-line").textContent,
       progress: at("step-progress").textContent,
       suggested: at("suggest").hidden
@@ -133,7 +165,9 @@ setTimeout(() => {
             why: at("suggest-why").textContent,
             blurb: at("suggest-blurb").textContent,
             cover: tile(at("suggest-cover")),
-            href: at("suggest").href,
+            // A button has no href. What it is offering is on the card itself.
+            entry: at("suggest").getAttribute("data-entry"),
+            disabled: at("suggest").disabled,
           },
       seeAll: {
         shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent,

@@ -12,21 +12,24 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from typing import Any, Protocol
 
 from pydantic import BaseModel
 
 from ..cache import Cache
-from ..errors import ProviderError
+from ..errors import ProviderError, TargumError
 from ..models import Annotation, Glossary
 from ..translate.prompts import language_name
 
 BATCH_SIZE = 40
-# Glosses are short, so a batch is cheap. Rough tokens per lemma, in and out, for the
-# estimate shown before anything is spent.
-TOKENS_PER_LEMMA_IN = 12
-TOKENS_PER_LEMMA_OUT = 24
+# Glosses are short, so a batch is cheap. Tokens per lemma, in and out, for the estimate
+# shown before anything is spent. Measured Aug 27 2026 over 30,000 Hebrew lemmas: 22 in
+# on every model, 35 out on Sonnet and 50 on Opus. The earlier guess of 12 and 24
+# quoted half the bill; 40 out is the middle, and a cap that refuses a build is better
+# fed a little high than a little low.
+TOKENS_PER_LEMMA_IN = 22
+TOKENS_PER_LEMMA_OUT = 40
 
 Progress = Callable[[int], None]
 
@@ -41,6 +44,16 @@ class _Batch(BaseModel):
     entries: list[_Entry]
 
 
+#: What meanings are bought on. Cheaper than the prose and good enough for a dictionary
+#: line, and the cache is keyed on it: every reader, the quote, the build and a rebuild
+#: filling a card from what is held must agree, or the same word is paid for twice.
+GLOSS_MODEL = "claude-sonnet-5"
+
+
+def gloss_provider_name(model: str = GLOSS_MODEL) -> str:
+    return f"anthropic/{model}"
+
+
 class GlossProvider(Protocol):
     @property
     def name(self) -> str: ...
@@ -51,6 +64,7 @@ class GlossProvider(Protocol):
         source_language: str,
         target_language: str,
         on_progress: Progress | None = None,
+        contexts: Mapping[str, str] | None = None,
     ) -> dict[str, tuple[str, str]]: ...
 
 
@@ -58,14 +72,30 @@ SYSTEM = """You are writing a learner's glossary for {source} read by a {target}
 
 For each {source} dictionary form you are given, return one short {target} gloss.
 
-- The dictionary form is given as it would appear in a dictionary. Gloss that form.
-- Two to six words. The most common sense first, and only add a second sense when the
-  word is genuinely ambiguous, separated by a semicolon.
+- Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
+  reader met it in after `in:`. Gloss the form, and return it exactly as it was given.
+- Two to six words. The most common sense first — or, where a sentence is given, the
+  sense the form has there — and a second sense only when the word is genuinely
+  ambiguous, separated by a semicolon. The gloss is kept for every text, not this one.
 - No transliteration, no grammatical explanation, no example sentences.
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
   pronoun, conjunction, particle, other.
 - If a form is not a word of {source}, return it with an empty gloss rather than
   guessing."""
+
+
+def entries_for(lemmas: list[str], contexts: Mapping[str, str] | None = None) -> str:
+    """One entry per form, with the sentence it was met in where there is one.
+
+    A gloss with no sentence behind it is a guess at which sense the reader needs — עם
+    is "with" and "people", and a learner shown the wrong one is worse off than one
+    shown neither. The sentence is what lets the model put the live sense first.
+    """
+    entries = []
+    for lemma in lemmas:
+        sentence = " ".join(((contexts or {}).get(lemma) or "").split())
+        entries.append(f"form: {lemma}" + (f"\nin: {sentence}" if sentence else ""))
+    return "\n\n".join(entries)
 
 
 class AnthropicGlosses:
@@ -80,7 +110,7 @@ class AnthropicGlosses:
 
     @property
     def name(self) -> str:
-        return f"anthropic/{self.model}"
+        return gloss_provider_name(self.model)
 
     def available(self) -> tuple[bool, str]:
         return self._provider.available()
@@ -91,8 +121,11 @@ class AnthropicGlosses:
         source_language: str,
         target_language: str,
         on_progress: Progress | None = None,
+        contexts: Mapping[str, str] | None = None,
     ) -> dict[str, tuple[str, str]]:
         import anthropic
+
+        from ..translate.anthropic_provider import output_config
 
         system = SYSTEM.format(
             source=language_name(source_language), target=language_name(target_language)
@@ -105,9 +138,9 @@ class AnthropicGlosses:
                     model=self.model,
                     max_tokens=8000,
                     system=system,
-                    messages=[{"role": "user", "content": "\n".join(batch)}],
-                    output_config={"effort": "low"},
+                    messages=[{"role": "user", "content": entries_for(batch, contexts)}],
                     output_format=_Batch,
+                    **output_config(self.model, "low"),
                 )
             except anthropic.APIStatusError as exc:
                 raise ProviderError(
@@ -193,6 +226,62 @@ def estimate(lemma_count: int, model: str) -> float:
     ) / 1_000_000
 
 
+def cached_gloss(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider: str,
+    cache: Cache | None = None,
+) -> str:
+    """The meaning already held for a word, or nothing. Never spends."""
+    cache = cache or Cache()
+    stored = cache.get("gloss", gloss_key(cache, lemma, source_language, target_language, provider))
+    if isinstance(stored, dict) and stored.get("gloss"):
+        return str(stored["gloss"])
+    return ""
+
+
+class _Held:
+    """A provider that only ever answers from the cache, for filling without buying."""
+
+    def __init__(self, model: str = GLOSS_MODEL) -> None:
+        self.name = gloss_provider_name(model)
+
+    def gloss(self, *args: Any, **kwargs: Any) -> dict[str, tuple[str, str]]:
+        raise TargumError("Nothing is bought here.")
+
+
+def fill_from_cache(
+    annotation: Annotation,
+    glossaries: dict[str, Glossary],
+    targets: Collection[str],
+    cache: Cache | None = None,
+) -> dict[str, Glossary]:
+    """Every glossary this text can have for free: what it has, plus whatever the cache
+    holds for its words in each language somebody reads. Returns only the ones that
+    grew, so a rebuild writes nothing where nothing changed."""
+    cache = cache or Cache()
+    grown: dict[str, Glossary] = {}
+    for target in sorted(set(targets) | set(glossaries)):
+        held, _ = build_glossary(annotation, target, _Held(), cache=cache, buy=False)
+        have = glossaries.get(target)
+        entries = dict(have.entries) if have else {}
+        parts = dict(have.parts_of_speech) if have else {}
+        new = {lemma: gloss for lemma, gloss in held.entries.items() if lemma not in entries}
+        if not new:
+            continue
+        entries |= new
+        parts |= {lemma: held.parts_of_speech.get(lemma, "") for lemma in new}
+        grown[target] = Glossary(
+            source_language=annotation.language,
+            target_language=target,
+            provider=have.provider if have else held.provider,
+            entries=entries,
+            parts_of_speech=parts,
+        )
+    return grown
+
+
 def gloss_one(
     lemma: str,
     source_language: str,
@@ -200,6 +289,7 @@ def gloss_one(
     provider: GlossProvider,
     *,
     cache: Cache | None = None,
+    context: str = "",
 ) -> str:
     """One word, looked up because someone asked for it.
 
@@ -207,6 +297,12 @@ def gloss_one(
     never read: you look up the handful of words you actually stumble on. This is that
     handful, one at a time, through the same cache — so a word looked up while reading
     one article is free in the next.
+
+    `context` is the sentence it was tapped in. The answer is still filed under the
+    lemma alone — the cache is what makes the second book cheap, and a key that carried
+    the sentence would make every word cost again in every text — so the sentence
+    decides which sense comes first, and the other common sense rides after it for
+    whoever meets the word elsewhere.
     """
     cache = cache or Cache()
     key = cache.key(
@@ -220,7 +316,12 @@ def gloss_one(
     if isinstance(stored, dict) and stored.get("gloss"):
         return str(stored["gloss"])
 
-    fresh = provider.gloss([lemma], source_language, target_language, None)
+    if context:
+        fresh = provider.gloss(
+            [lemma], source_language, target_language, None, contexts={lemma: context}
+        )
+    else:
+        fresh = provider.gloss([lemma], source_language, target_language, None)
     found = fresh.get(lemma)
     if not found:
         return ""
@@ -238,8 +339,12 @@ def build_glossary(
     cache: Cache | None = None,
     on_progress: Progress | None = None,
     on_batch: Callable[[Glossary], None] | None = None,
+    buy: bool = True,
 ) -> tuple[Glossary, int]:
     """Returns the glossary and how many lemmas had to be paid for.
+
+    `buy=False` hands over what the cache already holds and buys nothing: the count
+    that comes back is then what it *would* have cost, in lemmas.
 
     `on_batch` is handed the glossary so far after every batch that is paid for. The
     reader opens before any of this has run and polls for the file, so writing it once
@@ -272,6 +377,9 @@ def build_glossary(
     # Handed over a batch at a time rather than all at once, so a partial glossary can
     # be published while the rest is still being looked up. The provider batches
     # internally too; asking for one batch at a time makes each call one request.
+    if not buy:
+        return assembled(), len(missing)
+
     size = max(1, int(getattr(provider, "batch_size", 0)) or len(missing) or 1)
     for start in range(0, len(missing), size):
         chunk = missing[start : start + size]

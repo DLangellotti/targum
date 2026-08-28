@@ -1,8 +1,8 @@
-/* What has been built.
+/* That targum is under construction, and thirty days of evidence that it is.
 
-   The one page that is allowed to be a wall of information. §9's hue budget still
-   holds: paper and ink carry it, and the only colour is leaf on the calendar — which
-   §4 gives to progress, and this page is nothing but. */
+   The page was a wall of information — what it does, what shipped, what it cannot do
+   yet — and is now four things. §9's hue budget holds easily: paper and ink carry it,
+   and the only colour is leaf on the calendar, which §4 gives to progress. */
 
 body.about {
   margin: 0;
@@ -60,14 +60,6 @@ body.about {
   font-weight: 600;
   line-height: 1.25;
 }
-.about h2 {
-  margin: 0 0 0.8rem;
-  font-family: var(--reading);
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-.about section { margin-block-start: 3rem; }
-.about .lede { margin: 0 0 0.9rem; line-height: 1.7; color: var(--ink); }
 /* §4 rations the accent to the single primary action in a view. On a page that is
    nothing but prose, putting it on every inline link made the accent the body-text
    colour — the one thing §10 names outright. The corner button keeps it. */
@@ -78,6 +70,7 @@ body.about {
 }
 .about a:hover { border-block-end-color: var(--ink-soft); }
 
+/* The count, and then the thirty days it is made of. */
 .figures { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .figures b {
   color: var(--ink);
@@ -119,68 +112,4 @@ body.about {
 .key .less { margin-inline-end: 0.2rem; }
 .key .more { margin-inline-start: 0.2rem; }
 
-.areas { list-style: none; margin: 0; padding: 0; }
-.areas li {
-  display: grid;
-  grid-template-columns: 9rem 1fr 4ch;
-  gap: 0.75rem;
-  align-items: center;
-  padding-block: 0.3rem;
-  font-size: 0.8125rem;
-}
-/* A path is a path. §5 puts ui-monospace on keys, hexes and counts; this is the same
-   kind of thing — something you could go and open, set so it reads as one. */
-.areas .what {
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-  overflow-wrap: anywhere;
-}
-/* A track and a fill, not a gradient. Three things were wrong with the ramp: it mixed
-   two named colours, which §9 allows a gradient to do only as a sheen; `to right` is the
-   one direction keyword with no logical form, so the bar always filled from the physical
-   left; and §4 gives a proportion to --leaf, not to the accent. */
-.areas .bar {
-  block-size: 6px;
-  border-radius: 999px;
-  background: var(--rule);
-  overflow: hidden;
-}
-.areas .bar i {
-  display: block;
-  block-size: 100%;
-  inline-size: var(--share);
-  background: var(--leaf);
-}
-.areas b { color: var(--ink); font-variant-numeric: tabular-nums; text-align: end; }
-
-/* A dated list, not a changelog. It was bulleted under a heading per week carrying a
-   change count, which was more furniture than text. */
-.log { list-style: none; margin: 0; padding: 0; font-size: 0.8125rem; }
-.log li {
-  display: grid;
-  grid-template-columns: 4.5rem 1fr;
-  gap: 0.75rem;
-  padding-block: 0.3rem;
-  line-height: 1.6;
-}
-.log time { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.log-more { margin: 1rem 0 0; font-size: 0.8125rem; }
-
-.foot {
-  max-width: 40rem;
-  margin: 4rem auto 0;
-  padding-block-start: 1.2rem;
-  border-block-start: 1px solid var(--rule);
-  display: flex;
-  gap: 1.2rem;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-}
-.foot a { color: var(--ink-soft); text-decoration: none; }
-.foot a:hover { color: var(--ink); }
-
-@media (max-width: 34rem) {
-  .areas li { grid-template-columns: 1fr 3ch; }
-  .areas .bar { display: none; }
-}
+.log-more { margin: 2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }

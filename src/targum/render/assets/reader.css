@@ -121,6 +121,12 @@
 
 * { box-sizing: border-box; }
 
+/* Focus is one colour everywhere (§4), and it has to be the app's ring and not the
+   browser's: the bar, the shelf and the avatar were drawing Chrome's blue over a
+   hairline that was meant to be the whole of it. Zero specificity, so anything that
+   draws its own ring, or deliberately none, still wins. */
+:where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a
    Russian or Latin source still takes the reading stack above. */
@@ -320,6 +326,9 @@ a.bar-brand:hover { color: var(--accent); }
 .bar button:hover, .bar select:hover,
 .bar button:focus-visible, .bar select:focus-visible { border-color: var(--rule); }
 .bar button.on:hover { border-color: var(--ink-soft); }
+/* A sheet of keyboard shortcuts on a phone is a control that answers a question nobody
+   there can ask. The key itself still works for a tablet with a keyboard attached. */
+@media (hover: none) and (pointer: coarse) { .bar [data-keys] { display: none; } }
 
 button, select {
   font: inherit;
@@ -396,13 +405,19 @@ main {
 body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 
 /* The pairing has to be visible, or a learner cannot trust it. */
-.pair:hover, .pair:focus-visible { background: var(--paper-raised); }
+.pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
 .pair:focus-visible { box-shadow: inset 0 0 0 1px var(--focus); }
+
+/* `.here` is the sentence the page is holding a place in — put back after a change of
+   mode, or given back on opening a text that was left half-read. Deliberately the same
+   band the pointer draws rather than a mark of its own: a reader already reads that band
+   as "this one", and a new colour for the same meaning is a second thing to learn. It is
+   the one raised layer §9 allows, and it goes when the reader scrolls off it. */
 
 .pair p { margin: 0; }
 .src { max-width: var(--measure); }
 .tr { max-width: var(--measure); color: var(--ink-soft); }
-.pair:hover .tr, .pair:focus-visible .tr { color: var(--ink); }
+.pair:hover .tr, .pair:focus-visible .tr, .pair.here .tr { color: var(--ink); }
 
 /* A title and its translation sit side by side like any other pair, but read as a
    heading. Only the source keeps heading semantics, so a table of contents built from
@@ -488,6 +503,9 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
   text-align: start;
 }
 .keys-card[hidden] { display: none; }
+.keys-head { display: flex; align-items: baseline; gap: 0.6rem; margin-block-end: 0.5rem; }
+.keys-head b { font-weight: 600; color: var(--ink); }
+.keys-head .keys-close { margin-inline-start: auto; border: none; font-size: 1.0625rem; line-height: 1; }
 .keys-card dl {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -607,6 +625,24 @@ body:not(.no-hover) .w:hover {
   outline-offset: 1px;
 }
 
+/* The word the place is in, after the page has moved under the reader. It has to be
+   findable in a paragraph at a glance, and the accent cannot do it: §4 caps the wash at
+   22%, which is what the look-up highlight already spends, so a brighter one would mean
+   breaking the cap or inventing a hue. §8 already names the treatment for "this is the
+   one you picked" — selection is ink-soft with paper text — and it is the loudest thing
+   in the system short of inverting a whole block.
+   Twice over, because `body.marking .w:not([data-status])` is a more particular selector
+   than a class on the word, and a never-met word would otherwise keep its accent wash
+   over the top of this. */
+body.marking .w.here,
+.w.here {
+  background: var(--ink-soft);
+  color: var(--paper);
+  /* Clears the look-up ring and the underline a marked word carries: this is one flat
+     chip, not a chip with somebody else's edges on it. */
+  box-shadow: none;
+}
+
 /* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute
    rather than fixed so it scrolls with the word it belongs to. */
 .gloss-card {
@@ -630,6 +666,12 @@ body:not(.no-hover) .w:hover {
   text-align: start;
 }
 .gloss-card[hidden] { display: none; }
+
+/* A card that has been answered and is leaving. Saying a level closes the card it was
+   said in, but not in the frame the key was pressed in — it holds the level it took for
+   a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
+   beat and then nothing. The timings are `LINGER` and `FADE` in reader.js. */
+.gloss-card.going { opacity: 0; transition: opacity 220ms ease; }
 .gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
 .gloss-card .form { color: var(--ink-soft); font-size: 0.8125rem; }
 
@@ -1041,6 +1083,7 @@ body:not(.no-hover) .w:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .list-items li { animation: none; }
+  .gloss-card.going { transition: none; }
   #reader.settled { animation: none; }
   .modes.ready .slide { transition: none; }
   /* These two animate and were never listed here. test_motion_is_always_optional

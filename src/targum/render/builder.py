@@ -13,6 +13,7 @@ import json
 import mimetypes
 import re
 import shutil
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -136,9 +137,75 @@ def _environment() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["isolate"] = isolate
-    env.globals["asset"] = lambda name: Markup((ASSETS / name).read_text(encoding="utf-8"))
+    env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     return env
+
+
+def _strip(name: str, text: str) -> str:
+    """An asset with its comments taken out, for baking into a page.
+
+    The comments in these files are for whoever reads them here, and a reader carries
+    its whole stylesheet and script inlined — so every one of them is paid for again on
+    every page, and a book of 151 chapters is 151 copies. Across the set they are 30% of
+    what gets baked in: 129 kB a page before compression, and near a megabyte on disk
+    per book. The source keeps them; the page does not need them.
+
+    Whole lines only, and nothing is ever joined. Two things follow from that, and both
+    are the reason this is thirty lines rather than a dependency:
+
+    * A comment that opens a line cannot be inside a string, because no asset carries a
+      template literal that spans a line — `test_render.py` holds that to be true rather
+      than trusting it, since the day one appears this would quietly eat it.
+    * Because every removal takes a whole line, nothing that stood on two lines ends up
+      on one, so JavaScript's semicolon insertion sees exactly what it saw before.
+
+    Trailing comments are left alone. Telling `//` in code from `//` inside a string or
+    a regular expression needs a parser, and there are 78 bytes of them in the whole set.
+    """
+    js = name.endswith(".js")
+    kept: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        bare = line.strip()
+        if inside:
+            if "*/" not in bare:
+                continue
+            inside = False
+            rest = line.split("*/", 1)[1]
+            if rest.strip():
+                kept.append(rest)
+            continue
+        if not bare:
+            continue
+        if js and bare.startswith("//"):
+            continue
+        if bare.startswith("/*"):
+            head = line.split("/*", 1)[1]
+            if "*/" not in head:
+                inside = True
+                continue
+            rest = head.split("*/", 1)[1]
+            if rest.strip():
+                kept.append(rest)
+            continue
+        kept.append(line)
+    if inside:
+        # Loud, because the alternative is a page missing the second half of its script.
+        raise ValueError(f"{name}: a block comment is never closed")
+    return "\n".join(kept) + "\n"
+
+
+@cache
+def _asset(name: str) -> Markup:
+    """One stylesheet or script, ready to bake in.
+
+    Cached like `_data_uri` and for the same reason: the same two files are asked for on
+    every page of every section, and rewriting a book asks 151 times. The cost is that a
+    running `targum serve` reads each asset once — editing one while it is up needs a
+    restart to see it.
+    """
+    return Markup(_strip(name, (ASSETS / name).read_text(encoding="utf-8")))
 
 
 @cache
@@ -176,9 +243,15 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
-            # Enough of the catalogue to suggest the next thing to read, and no more: an
-            # id to link to, a title and a line about it, and the two numbers that say
-            # whether it is the right size and the right difficulty for this reader.
+            # Enough of the catalogue to suggest the next thing to read and then to
+            # build it: a title and a line about it, the two numbers that say whether it
+            # is the right size and the right difficulty for this reader, and what a
+            # build is started from. The last two are here because the suggestion is
+            # taken up on this page — it used to be a link to the catalogue, and a page
+            # that can only point at a text has to send the reader somewhere to act.
+            #
+            # Sources rather than whole translation records: `/prepare` wants a list of
+            # them and the page has no use for a publisher or a licence it never shows.
             catalogue=[
                 {
                     "id": entry.id,
@@ -187,6 +260,8 @@ def learn_page(token: str) -> str:
                     "blurb": entry.blurb,
                     "difficulty": entry.difficulty,
                     "minutes": entry.minutes,
+                    "source": entry.source,
+                    "translations": [t.source for t in entry.translations],
                 }
                 for entry in CATALOGUE
             ],
@@ -235,7 +310,7 @@ def add_page(token: str, no_key: str = "") -> str:
     refused with — and it matters more here than it used to, this now being the only page
     that spends anything.
     """
-    from ..translate.prompts import INTO, OFFERED, READING, language_name, stage_label
+    from ..translate.prompts import INTO, OFFERED, READING, language_name
 
     return (
         _environment()
@@ -244,36 +319,29 @@ def add_page(token: str, no_key: str = "") -> str:
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
-            reading=[
-                {
-                    "code": code,
-                    "name": language_name(code),
-                    "stage": stage,
-                    "label": stage_label(stage),
-                }
-                for code, stage in READING
-            ],
-            into=[
-                {
-                    "code": code,
-                    "name": language_name(code),
-                    "stage": stage,
-                    "label": stage_label(stage),
-                }
-                for code, stage in INTO
-            ],
+            reading=_staged(READING),
+            into=_staged(INTO),
             no_key=no_key,
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )
 
 
-def about_page() -> str:
-    """What has been built, read out of the repository.
+def _staged(pairs: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
+    """A language list with its stage beside each, for a page to draw a picker from."""
+    from ..translate.prompts import language_name, stage_label
 
-    targum is open source, so the honest way to say what state it is in is to show the
-    work. Nothing here is written by hand: the numbers, the calendar and the list of
-    what shipped all come from `git log`.
+    return [
+        {"code": code, "name": language_name(code), "stage": stage, "label": stage_label(stage)}
+        for code, stage in pairs
+    ]
+
+
+def about_page() -> str:
+    """That targum is under construction, and how much has landed lately.
+
+    Nothing here is written by hand: the count and the calendar both come from `git
+    log`, and the rest of what this page used to say is on GitHub.
     """
     from ..about import DAYS, work
 
@@ -392,9 +460,21 @@ def you_page(token: str) -> str:
 
     Built like the other app pages: the server hands over the page and the browser asks
     who is looking. Nothing about a person is baked into it, so one page serves everyone
-    and a signed-out visitor gets a sentence rather than an empty form.
+    and a signed-out visitor gets a sentence rather than an empty form. The languages
+    are baked in: which exist is a fact about targum, not about the person.
     """
-    return _environment().get_template("you.html.j2").render(token=token)
+    from ..translate.prompts import INTO, READING, REQUIRED_LEARNING
+
+    return (
+        _environment()
+        .get_template("you.html.j2")
+        .render(
+            token=token,
+            reading=_staged(READING),
+            into=_staged(INTO),
+            required=list(REQUIRED_LEARNING),
+        )
+    )
 
 
 def library_page(token: str) -> str:
@@ -502,13 +582,34 @@ def render(
     translations: list[Translation],
     out_dir: Path,
     annotation: Annotation | None = None,
-    glossary: Glossary | None = None,
+    glossaries: Mapping[str, Glossary] | None = None,
     vocalization: Vocalization | None = None,
     clean: bool = True,
-    glossary_pending: bool = False,
+    glossary_pending: str = "",
     covers: Path | None = None,
+    reads: Collection[str] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
+
+    `glossaries` is keyed by target language, because a meaning is written in one and a
+    reader may hold translations into two. A word means what it means in Russian and
+    something else in English, and the page has to be able to hand a reader the one they
+    asked for rather than whichever was built last.
+
+    `glossary_pending` is the target whose meanings are still being written, or "". It is
+    a language rather than a flag for the same reason: the reader polls for the target it
+    is showing, and switching to one that was never bought must not start a wait for a
+    file nobody is writing.
+
+    `reads` is which languages the person this reader belongs to reads. A translation into
+    any other is left out of the page: a picker offering a language somebody cannot read
+    offers them a page of nothing, and a word kept from it would carry a meaning in that
+    language into every text they own. None means ask nobody, which is the command line
+    and a machine somebody runs themselves.
+
+    A reader left with nothing by that keeps what it had. A page with no translation
+    beside the source is not a reader at all, which is the worse of the two answers — and
+    it only arises where somebody stopped reading a language they had already built in.
 
     `clean=False` writes over what is already there instead of emptying the directory
     first. It is for the second pass, once the word meanings have arrived: the same
@@ -518,6 +619,10 @@ def render(
     """
     if not translations:
         raise ValueError("a reader needs at least one translation")
+
+    if reads is not None:
+        offered = [t for t in translations if t.target_language in reads]
+        translations = offered or translations
 
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
@@ -563,7 +668,6 @@ def render(
         "target_language": translations[0].target_language,
         "target_direction": target_direction,
         "page_direction": source_direction,
-        "has_gloss": bool(glossary and glossary.entries),
         "has_nikkud": bool(pointed),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
@@ -605,6 +709,13 @@ def render(
                 # Regions that fell back to paragraph pairing, so the reader can mark
                 # them. A learner needs to know the pairing here is approximate.
                 "coarse": [sid for sid in section.segment_ids if sid in set(translation.coarse)],
+                # Which language this one is, and which way it runs. The page used to
+                # take both from `translations[0]` and stamp them on the cells once, so
+                # switching to a translation in another language left every cell claiming
+                # the first one's language — and left the reader's word lookups asking
+                # for meanings in a language nobody was reading.
+                "language": translation.target_language,
+                "direction": direction_for(translation.target_language),
             }
             for index, translation in enumerate(translations)
         }
@@ -660,7 +771,15 @@ def render(
                         ]
                     )
                 words[sid] = rows
-        glosses = [glossary.entries.get(lemma, "") for lemma in lemmas] if glossary else []
+        # One table of meanings per target language, each parallel to `lemmas`. A reader
+        # holding an English and a Russian translation carries both and shows whichever
+        # its picker is on; a reader with one carries one, which is what every text built
+        # so far is. Empty tables are left out rather than shipped as a row of "".
+        glosses = {
+            code: filled
+            for code, book in (glossaries or {}).items()
+            if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
+        }
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -698,9 +817,11 @@ def render(
                     # Whether the vowels on this text are its own, and so whether it
                     # should open with them showing.
                     "sourcePointed": source_pointed,
-                    # Whether a glossary is on its way. Words are looked up one at a
-                    # time now, so most readers have none coming and must not sit
-                    # asking for one for ten minutes.
+                    # Which target's meanings are on their way, if any. Words are looked
+                    # up one at a time now, so most readers have none coming and must not
+                    # sit asking for one for ten minutes — and a reader that switches to
+                    # a language nobody bought a glossary for must not start asking
+                    # either.
                     "glossPending": glossary_pending,
                 }
             ),

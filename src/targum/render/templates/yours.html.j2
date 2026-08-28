@@ -44,6 +44,11 @@
   <section class="panel">
     <div class="list-controls">
       <h2><span id="words-title">Your Words</span></h2>
+      {#- Which language the meanings are in. Drawn only for somebody who has meanings in
+          more than one, the same way the language switcher is: a control with one answer
+          in it is only a question nobody asked. -#}
+      <div class="langs quiet" id="meaning-langs" role="tablist"
+           aria-label="Definition language" hidden></div>
       <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
       <select id="status-filter" aria-label="Filter by how well you know them">
         <option value="learning">Still learning</option>

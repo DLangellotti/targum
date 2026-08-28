@@ -13,6 +13,8 @@ import shutil
 import sqlite3
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -251,3 +253,119 @@ def test_the_two_kinds_are_swept_separately(tmp_path: Path) -> None:
     sweep(into, keep=3)
     assert len(list(into.glob("targum-*.db"))) == 3
     assert len(list(into.glob("cache-*.zip"))) == 3, "the databases must not evict the caches"
+
+
+# -- getting the copies off the disk they are a copy of -------------------------
+
+
+class FakeRclone:
+    """rclone, without rclone. Records what it was asked and answers as it would."""
+
+    def __init__(self, *, fail_on: str = "", drop: str = "", short: str = "") -> None:
+        self.calls: list[tuple[str, ...]] = []
+        self.there: dict[str, int] = {}
+        self.fail_on = fail_on
+        self.drop = drop
+        self.short = short
+
+    def __call__(self, *args: str, timeout: float = 0.0) -> Any:
+        self.calls.append(args)
+        if args[0] == "copyto":
+            source = Path(args[1])
+            if self.fail_on and self.fail_on in source.name:
+                return SimpleNamespace(returncode=1, stdout="", stderr="quota exceeded")
+            if self.drop and self.drop in source.name:
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            size = source.stat().st_size
+            if self.short and self.short in source.name:
+                size = max(0, size - 1)
+            self.there[source.name] = size
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if args[0] == "lsjson":
+            rows = [{"Name": name, "Size": size} for name, size in self.there.items()]
+            return SimpleNamespace(returncode=0, stdout=json.dumps(rows), stderr="")
+        raise AssertionError(f"unexpected rclone call: {args}")
+
+
+def copies(tmp_path: Path) -> list[Path]:
+    one = tmp_path / "targum-20260826-040000.db"
+    one.write_bytes(b"a database" * 40)
+    two = tmp_path / "cache-20260826-040000.zip"
+    two.write_bytes(b"a cache" * 90)
+    return [one, two]
+
+
+def test_copies_that_leave_are_named_back(tmp_path: Path) -> None:
+    from targum.backup import ship
+
+    rclone = FakeRclone()
+    arrived = ship(copies(tmp_path), "b2:targum/backups", run=rclone)
+
+    assert arrived == ["targum-20260826-040000.db", "cache-20260826-040000.zip"]
+    assert rclone.calls[0][:2] == ("copyto", str(tmp_path / "targum-20260826-040000.db"))
+    assert rclone.calls[0][2] == "b2:targum/backups/targum-20260826-040000.db"
+    assert rclone.calls[-1][0] == "lsjson", "it reads back what actually landed"
+
+
+def test_a_copy_that_did_not_go_is_an_error(tmp_path: Path) -> None:
+    from targum.backup import NotShipped, ship
+
+    with pytest.raises(NotShipped) as raised:
+        ship(copies(tmp_path), "b2:targum/backups", run=FakeRclone(fail_on="cache"))
+    assert "cache-" in str(raised.value)
+    assert "quota exceeded" in str(raised.value), "the reason comes from the tool, not from us"
+
+
+def test_a_command_that_succeeded_without_writing_is_caught(tmp_path: Path) -> None:
+    """The failure this whole function exists to notice. Exit zero having written
+    nothing is what a misconfigured remote looks like from here."""
+    from targum.backup import NotShipped, ship
+
+    with pytest.raises(NotShipped) as raised:
+        ship(copies(tmp_path), "b2:targum/backups", run=FakeRclone(drop="cache"))
+    assert "missing" in str(raised.value)
+
+
+def test_a_copy_that_arrived_truncated_is_caught(tmp_path: Path) -> None:
+    from targum.backup import NotShipped, ship
+
+    with pytest.raises(NotShipped) as raised:
+        ship(copies(tmp_path), "b2:targum/backups", run=FakeRclone(short="targum-"))
+    assert "bytes here" in str(raised.value)
+
+
+def test_an_unreadable_listing_is_not_taken_as_success(tmp_path: Path) -> None:
+    from targum.backup import NotShipped, ship
+
+    class Gibberish(FakeRclone):
+        def __call__(self, *args: str, timeout: float = 0.0) -> Any:
+            if args[0] == "lsjson":
+                return SimpleNamespace(returncode=0, stdout="<html>404</html>", stderr="")
+            return super().__call__(*args, timeout=timeout)
+
+    with pytest.raises(NotShipped):
+        ship(copies(tmp_path), "b2:targum/backups", run=Gibberish())
+
+
+def test_nothing_to_send_is_not_a_failure(tmp_path: Path) -> None:
+    """A run that produced no cache archive still produced a database copy, and a night
+    with neither is a different alarm than a night that could not reach the bucket."""
+    from targum.backup import ship
+
+    rclone = FakeRclone()
+    assert ship([], "b2:targum/backups", run=rclone) == []
+    assert rclone.calls == [], "it did not go and ask an empty question"
+
+
+def test_where_copies_go_comes_from_the_flag_or_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum.backup import destination
+
+    monkeypatch.delenv("TARGUM_BACKUP_TO", raising=False)
+    assert destination() == "", "nowhere is a state, not a default"
+    assert destination("b2:one") == "b2:one"
+
+    monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:two")
+    assert destination() == "b2:two"
+    assert destination("b2:one") == "b2:one", "the flag wins over the environment"

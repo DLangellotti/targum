@@ -20,6 +20,11 @@
     return head;
   }
   var languageNames = window.TARGUM_LANGUAGES || {};
+  // At the top, not inside the picker that first needed it: two other things on this page
+  // ask it which language you read into, and a `var` in an IIFE is not a binding they can
+  // see. Reaching for it from out here threw on load, and a throw here is the whole page —
+  // `go.onclick` is assigned below it, so the Add button was never wired to anything.
+  var lang = window.TargumLang;
 
   function named(code) {
     return languageNames[code] || (code || "").toUpperCase();
@@ -226,7 +231,6 @@
   (function () {
     var from = document.getElementById("from");
     var note = document.getElementById("from-beta");
-    var lang = window.TargumLang;
     var stages = window.TARGUM_READING || [];
     var was = lang.current(
       stages.map(function (row) {
@@ -257,6 +261,60 @@
     say();
   })();
 
+  /* And which language to read it into, remembered the same way. Both pickers are then
+   * narrowed to what this account said on its profile: what it is learning, and what it
+   * reads into.
+   *
+   * Redrawn from the lists rather than pruned. A picker that removed an option could
+   * never put it back, so a language ticked on the profile page stayed missing here
+   * until a reload. The narrowing waits for the account to answer, so the picker starts
+   * as the page was built and settles a moment later. That is the right way round: the
+   * server refuses a language the account may not have whatever this was showing, so
+   * being briefly generous here costs nothing and being briefly wrong the other way
+   * would hide a language from somebody who does read it.
+   */
+  (function () {
+    var from = document.getElementById("from");
+    var to = document.getElementById("to");
+    if (!to) return;
+
+    function fill(select, rows, allowed) {
+      var was = select.value;
+      select.textContent = "";
+      rows.forEach(function (row) {
+        if (allowed && allowed.indexOf(row.code) < 0) return;
+        var option = document.createElement("option");
+        option.value = row.code;
+        option.textContent = row.name + " (" + row.label + ")";
+        select.appendChild(option);
+      });
+      // Whatever was chosen may be a language this account no longer has; the first
+      // that is left stands in for it.
+      for (var n = 0; n < select.options.length; n++) {
+        if (select.options[n].value === was) select.selectedIndex = n;
+      }
+    }
+
+    if (window.TargumSync) {
+      window.TargumSync.onChange(function () {
+        fill(from, window.TARGUM_READING || [], window.TargumSync.learning());
+        fill(to, window.TARGUM_INTO || [], window.TargumSync.reads());
+        // The note under the first picker is about whatever it now shows.
+        from.dispatchEvent(new Event("change"));
+      });
+    }
+
+    var was = lang.into();
+    if (was) {
+      for (var n = 0; n < to.options.length; n++) {
+        if (to.options[n].value === was) to.selectedIndex = n;
+      }
+    }
+    to.addEventListener("change", function () {
+      if (to.value) lang.into(to.value);
+    });
+  })();
+
   // Nothing on this page is drawn from the word list, so there is nothing to redraw:
   // sync runs here only so the header can say who is signed in, and so that a browser
   // that lands here first still claims what it has been keeping.
@@ -280,7 +338,7 @@
 
   function options() {
     return {
-      to: document.getElementById("to").value || "en",
+      to: lang.into(document.getElementById("to").value || "en"),
       from: document.getElementById("from").value || "",
       // Always. Being able to tap a word is most of what this is for, and a checkbox
       // asking whether you want that is a question nobody should have to answer.
@@ -578,7 +636,7 @@
             ? ask("/cover", { name: name }).catch(function () {})
             : Promise.resolve();
           drawing.then(function () {
-            window.location.href = keyed("/reader/" + state.reader);
+            window.location.href = keyed("/reader/" + state.reader.split("/").map(encodeURIComponent).join("/"));
           });
         }
       });

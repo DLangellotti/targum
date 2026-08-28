@@ -225,7 +225,7 @@
 
     var open = el(row.built ? "a" : "button", "row-open");
     if (row.built) {
-      open.href = keyed("/reader/" + row.built.name + "/reader/index.html");
+      open.href = keyed("/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html");
     } else {
       open.type = "button";
       open.setAttribute("data-build", row.id);
@@ -495,7 +495,7 @@
           state.textContent = say(job.message) || "Almost there…";
           if (job.stage === "done") {
             clearInterval(timer);
-            window.location.href = keyed("/reader/" + job.reader);
+            window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
             resolve();
           }
         });
@@ -509,7 +509,11 @@
     state.textContent = "Getting ready…";
     ask("/prepare", {
       source: entry.source,
-      to: "en",
+      // The language this reader reads into, not English by assumption. They read in
+      // two; a button that always bought one of them would be a button that reads their
+      // mind wrong half the time. Clamped to what the account is offered, so a
+      // remembered choice that no longer stands asks for English rather than a refusal.
+      to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
       from: entry.language,
       words: true,
       gloss: false,
@@ -728,17 +732,18 @@
     // have kept words in. The catalogue deliberately does not add to this list. It
     // holds one Russian novel, and letting it in put Russian in front of every visitor
     // who had never touched it — which is the opposite of what this switcher is for.
-    var codes = [lang.HOME];
+    var all = [lang.HOME];
     readers.concat(kept()).forEach(function (thing) {
       var code = base(thing.language);
-      if (code && codes.indexOf(code) < 0) codes.push(code);
+      if (code && all.indexOf(code) < 0) all.push(code);
     });
-    codes = lang.order(codes, names);
+    var codes = lang.order(all, names);
     chosen = lang.current(codes);
     var betaNote = document.getElementById("beta-note");
 
     function show(code) {
       chosen = code;
+      lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       if (betaNote) {
         betaNote.hidden = !lang.beta(code);
@@ -752,16 +757,30 @@
     // The shelf is ordered by when each text was last opened, and that is one of the
     // things the account keeps. Signing in on a second machine should therefore reorder
     // the list to match where the reader actually is in their reading.
+    //
+    // And which languages the switcher offers is the account's answer too, which it
+    // gave after the switcher was drawn: asked again here whether or not any words came
+    // with it, or a reader who ticked Yiddish on another machine saw Hebrew alone here
+    // until a reload.
     if (window.TargumSync) {
       window.TargumSync.onChange(function (changed) {
-        if (!changed) return;
-        var seen = stored("targum:opened");
-        everything.forEach(function (row) {
-          if (row.built) row.opened = seen[row.built.document] || 0;
-        });
-        redraw();
+        var before = codes.join();
+        codes = lang.order(all, names);
+        var switched = codes.join() !== before;
+        if (switched && codes.indexOf(chosen) < 0) chosen = lang.current(codes);
+        if (changed) {
+          var seen = stored("targum:opened");
+          everything.forEach(function (row) {
+            if (row.built) row.opened = seen[row.built.document] || 0;
+          });
+        }
+        if (switched) show(chosen);
+        else if (changed) redraw();
       });
       window.TargumSync.start();
     }
-  });
+  })
+    // Nothing to list, because nothing could be asked. The catalogue is still drawn from
+    // what the page was built with; what fails here is only which of it you already have.
+    .catch(function () {});
 })();

@@ -29,6 +29,8 @@ from .models import (
     Style,
     Translation,
     Vocalization,
+    glossaries_in,
+    glossary_path,
     read_artifact,
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
@@ -110,9 +112,14 @@ class Build:
         machine: bool | None = None,
         difficulty: bool = False,
         gloss: bool = False,
+        gloss_model: str | None = None,
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
         vocalizer: vocalize_module.Vocalizer | None = None,
+        # Which languages whoever this build is for reads. A translation into any other
+        # is left out of the reader — see `render`. None asks nobody, which is the command
+        # line and a machine somebody runs themselves.
+        reads: Sequence[str] | None = None,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -133,6 +140,8 @@ class Build:
         # Glosses need the same lemmas difficulty does, so asking for one implies the other.
         self.difficulty = difficulty or gloss
         self.gloss = gloss
+        # Meanings may be bought on a cheaper model than the prose; hosted, they are.
+        self.gloss_model = gloss_model
         self._annotator = annotator
         self._vocalizer = vocalizer
         self.provider: Any = build_provider(
@@ -142,6 +151,7 @@ class Build:
         # Whose build this is. Only used to scope the cache for a text that is not
         # public, so one person's upload is never re-served to another.
         self.owner = owner
+        self.reads = set(reads) if reads is not None else None
         self._glosser: Any = None
         self._out = out
         self._out_root = out_root
@@ -392,7 +402,7 @@ class Build:
         key = self.cache_key(segmented, owed)
         # `force` means force: it has to reach past the shared cache too, or "redo this
         # properly" quietly hands back the same answer that was being questioned.
-        held = {} if self.force else self.held(key)
+        held = self.held_for(segmented, owed)
         wanted = [segment for segment in owed if segment.id not in held]
 
         if not wanted:
@@ -429,6 +439,37 @@ class Build:
         self.cache.put("translate", key, {"segments": whole})
         return whole
 
+    def held_for(self, segmented: SegmentedDocument, run: list[Segment]) -> dict[str, str]:
+        """Every sentence of this run already paid for, under whichever key it was bought.
+
+        A chapter bought on its own sits under its own key, a book bought whole under
+        the document's, and a run of several chapters under theirs. A run that spans
+        chapters bought one at a time matches none of them by its own key alone, and
+        would buy every one of them again. `force` still means force: it reaches past
+        the shared cache too, or "redo this properly" hands back the answer in question.
+        """
+        if self.force:
+            return {}
+        wanted = {segment.id for segment in run}
+        keys = [self.cache_key(segmented, run), self.cache_key(segmented)]
+        from .render.builder import split_sections
+
+        sections = split_sections(segmented)
+        if len(sections) >= 2:
+            for section in sections:
+                ids = set(section.segment_ids)
+                if ids & wanted:
+                    chapter = [segment for segment in segmented.segments if segment.id in ids]
+                    keys.append(self.cache_key(segmented, chapter))
+        found: dict[str, str] = {}
+        for key in dict.fromkeys(keys):
+            for sid, text in self.held(key).items():
+                if sid in wanted and sid not in found:
+                    found[sid] = text
+            if len(found) == len(wanted):
+                break
+        return found
+
     def held(self, key: str) -> dict[str, str]:
         """What has been translated for this run so far, whole or in part.
 
@@ -447,7 +488,7 @@ class Build:
         no longer means a chapter is free, and treating it as free is how a reader gets
         charged for something a page told them they already had.
         """
-        held = self.held(self.cache_key(segmented, run))
+        held = self.held_for(segmented, run)
         return bool(run) and all(segment.id in held for segment in run)
 
     @property
@@ -455,6 +496,29 @@ class Build:
         if self._aligner is None:
             self._aligner = align_module.Aligner()
         return self._aligner
+
+    def already_here(self, made: list[Translation]) -> list[Translation]:
+        """Translations the folder already holds that this build did not make.
+
+        Building the same text into a second language used to take the first one away:
+        the reader was rendered from this run's translations alone, so `--to ru` left a
+        text that could no longer be read in English — with the English still sitting in
+        the folder, paid for, unreachable. A build adds a language rather than replacing
+        one, and the reader's picker is where the two meet.
+
+        This run's own work wins, matched on the three things that name a translation, so
+        a rebuild of the same pair replaces rather than duplicates it.
+        """
+        theirs = {(t.provider, t.style, t.target_language) for t in made}
+        out: list[Translation] = []
+        for path in sorted((self.resolved_out / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            if (translation.provider, translation.style, translation.target_language) in theirs:
+                continue
+            out.append(translation)
+        return out
 
     def aligned(self, source: Document, segmented: SegmentedDocument) -> list[Translation]:
         """Ingest, segment and align every supplied translation."""
@@ -622,13 +686,26 @@ class Build:
         $4.23, and the cap then refused the pair and the book could not be opened at all.
         The rest arrives as the rest is bought, and a lemma already looked up is free.
         """
-        if not self.gloss or annotation is None:
+        if annotation is None:
             return None
         from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
 
         wanted = {segment.id for segment in only} if only is not None else None
 
-        provider = AnthropicGlosses(self.model)
+        provider = AnthropicGlosses(self.gloss_model or self.model)
+        if not self.gloss:
+            # Nothing is bought, but what is already held is still handed over: a
+            # meaning looked up in another text, or bought for this one by somebody
+            # else, costs nothing to show, and a card should open with it rather than
+            # with a button.
+            held, _ = build_glossary(
+                annotation, self.target_language, provider, cache=self.cache, buy=False
+            )
+            if not held.entries:
+                return None
+            held.write(glossary_path(self.resolved_out, self.target_language))
+            self.reused.append("glossary (cache)")
+            return held
         # Kept so what the meanings cost is counted with the rest. Glossing runs on its
         # own provider instance, so without this its spend is simply invisible.
         self._glosser = provider
@@ -648,7 +725,7 @@ class Build:
         # Published as it goes. The reader is already open and asking for this file
         # every few seconds, so holding it back until the last lemma meant every word
         # someone tapped showed a blank card for the length of the whole run.
-        destination = self.resolved_out / "glossary.json"
+        destination = glossary_path(self.resolved_out, self.target_language)
 
         def publish(partial: Glossary) -> None:
             partial.write(destination)
@@ -703,8 +780,13 @@ class Build:
             buying = (
                 self._first_chapters(plan.segmented, chapters) if chapters else None
             ) or plan.segmented.segments
+            # Priced net of the shared cache, the way the build will actually spend. A
+            # book bought once — the prose canon — quoted at full price here, and the
+            # cap refused a text that would have cost nothing to open.
+            paid = self.held_for(plan.segmented, buying)
+            owed = [segment for segment in buying if segment.id not in paid]
             plan.estimated_cost = self.provider.estimate(
-                buying, plan.segmented.language, self.target_language, self.style
+                owed, plan.segmented.language, self.target_language, self.style
             )
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
@@ -743,6 +825,7 @@ class Build:
         translations.extend(self.aligned(plan.document, segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
+        translations.extend(self.already_here(translations))
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
@@ -751,18 +834,28 @@ class Build:
 
         def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
             self.notify("Building the reader…")
+            # Every target the folder holds, not only the one this build bought. A text
+            # read in two languages keeps a glossary for each, and a reader carrying only
+            # the newest would have nothing to say about the words of the other
+            # translation — or, before the files were named for their language, would
+            # have said it in the wrong one.
+            books = glossaries_in(self.resolved_out)
+            if glossary is not None:
+                books[self.target_language] = glossary
             return render.render(
                 plan.document,
                 segmented,
                 translations,
                 self.resolved_out / "reader",
                 annotation=annotation,
-                glossary=glossary,
+                glossaries=books,
                 vocalization=vocalization,
                 clean=clean,
-                # True only on the first pass of a build that ordered one.
-                glossary_pending=self.gloss and glossary is None,
+                # The target whose meanings are still coming, and only on the first pass
+                # of a build that ordered them.
+                glossary_pending=(self.target_language if self.gloss and glossary is None else ""),
                 covers=self.covers,
+                reads=self.reads,
             )
 
         result = Result(

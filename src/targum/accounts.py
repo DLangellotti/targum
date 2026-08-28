@@ -73,11 +73,18 @@ SESSION_DAYS = 90
 # 7: word.learned — whether a word was saved at a level below known and got there. It
 #    is the difference between a word targum taught somebody and a word they already had
 #    and ticked off, and it cannot be worked out after the fact from status and dates.
+# 8: the meaning table — a meaning belongs to a language pair, a word to a language — and
+#    the reads table, an allowlist of which languages an address may be translated into.
+# 9: the chosen table, which replaces that allowlist with the person's own answer: what
+#    they are learning and what they read into. The objection at 6 still stands and this
+#    is not a second place for the setting — it is the one place, and the browser keeps a
+#    copy of it the way it keeps a copy of the words. Old `reads` rows are read across
+#    once for anybody who has signed in; the table stays on disk, empty of meaning.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 9
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -90,6 +97,50 @@ INVITED = """
 CREATE TABLE IF NOT EXISTS invited (
   email TEXT PRIMARY KEY,
   at    INTEGER NOT NULL
+);
+"""
+
+# Who is not a reader but the person running the box. An address here is exempt from the
+# per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
+# a reader running up somebody else's bill, and the person paying it is not that reader.
+#
+# An address rather than a column on `person`, for the same reason `invited` is a table:
+# it has to be settable before anybody has signed in, and it has to survive `uninvite`,
+# which deliberately leaves an existing account alone. Nobody's own address is written
+# down here in the source — this repository is public — so the first admin is made from
+# the command line on the box, the same way the first invitation is.
+ADMIN = """
+CREATE TABLE IF NOT EXISTS admin (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+
+-- The allowlist `chosen` replaced: which languages an address had been marked as
+-- reading, from the command line. Still created so the migration below has something
+-- to read on a database that never had it; nothing writes here any more.
+CREATE TABLE IF NOT EXISTS reads (
+  email    TEXT NOT NULL,
+  language TEXT NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (email, language)
+);
+"""
+
+# What a person said about their languages: which they are learning, and which they read
+# well enough to be handed a translation in. The reader's own answer, from the profile
+# page, where the `reads` table above was somebody else's answer from a terminal.
+#
+# Keyed by person rather than by address, unlike `admin` and `invited`: those say
+# something about an address before anybody has signed in, and a preference cannot
+# exist before its owner does. One row per language per kind; the next language is a
+# row. Absent means the default — see `learning` and `reads` on the store.
+CHOSEN = """
+CREATE TABLE IF NOT EXISTS chosen (
+  person   INTEGER NOT NULL,
+  kind     TEXT    NOT NULL,
+  language TEXT    NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (person, kind, language)
 );
 """
 
@@ -202,6 +253,35 @@ CREATE TABLE IF NOT EXISTS doc (
   PRIMARY KEY (person, hash)
 );
 
+-- What a word or a phrase means, to somebody reading one language in another.
+--
+-- A word belongs to a language; a meaning belongs to a language pair. `word.meaning` was
+-- one slot for a fact that has an answer per language, and the merge below is
+-- last-write-wins on a whole row — so a reader with an English text and a Russian one had
+-- two devices overwriting each other's meanings under a rule that could not tell them
+-- apart. Splitting the meaning off leaves the word, its level and every count that reads
+-- them exactly where they were: a Hebrew word known is a Hebrew word, whichever language
+-- it was learned through.
+--
+-- `term` is a dictionary form, or `phrase:<id>` for what a kept phrase reads as. One
+-- table rather than two: it is the same fact about the same pair, and a second table for
+-- a handful of rows is furniture. `note` is here beside `meaning` because a note is a
+-- meaning the reader wrote themselves, and one written in Russian is no more use on an
+-- English page than a Russian gloss would be.
+CREATE TABLE IF NOT EXISTS meaning (
+  person   INTEGER NOT NULL,
+  source   TEXT    NOT NULL,
+  target   TEXT    NOT NULL,
+  term     TEXT    NOT NULL,
+  meaning  TEXT    NOT NULL DEFAULT '',
+  note     TEXT    NOT NULL DEFAULT '',
+  at       INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, source, target, term)
+);
+
 -- The days somebody read on. One row per calendar day, and the day is the reader's own
 -- local one rather than UTC, because "did I read yesterday" is a question about the
 -- reader's evening and not about Greenwich.
@@ -254,6 +334,7 @@ CREATE TABLE IF NOT EXISTS job (
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
 CREATE INDEX IF NOT EXISTS phrase_since ON phrase (person, revision);
+CREATE INDEX IF NOT EXISTS meaning_since ON meaning (person, revision);
 CREATE INDEX IF NOT EXISTS job_claimed  ON job    (claimed);
 CREATE INDEX IF NOT EXISTS doc_since    ON doc    (person, revision);
 CREATE INDEX IF NOT EXISTS day_since    ON day    (person, revision);
@@ -298,6 +379,10 @@ def plausible(email: str) -> bool:
 class Person:
     id: int
     email: str
+    #: Whether the spend rails apply to them. Resolved from the `admin` table when the
+    #: person is loaded, rather than stored on the row: it is a fact about who runs the
+    #: box, not about the account.
+    admin: bool = False
 
 
 # The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
@@ -337,6 +422,11 @@ KINDS: dict[str, Kind] = {
         table="word",
         key=("language", "lemma"),
         fields=("surface", "status", "meaning", "note", "band", "learned", "at"),
+    ),
+    "meanings": Kind(
+        table="meaning",
+        key=("source", "target", "term"),
+        fields=("meaning", "note", "at"),
     ),
     "phrases": Kind(
         table="phrase",
@@ -381,7 +471,10 @@ class Store:
         # the transaction out from under whoever opened it.
         self.db.executescript(SCHEMA)
         self.db.executescript(INVITED)
+        self.db.executescript(ADMIN)
+        self.db.executescript(CHOSEN)
         self._migrate()
+        self._adopt_reads()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _migrate(self) -> None:
@@ -402,6 +495,35 @@ class Store:
             except sqlite3.OperationalError as error:
                 if "duplicate column" not in str(error).lower():
                     raise
+
+    def _adopt_reads(self) -> None:
+        """Carry the old allowlist across as the person's own choice.
+
+        A marking on an address that has since signed in becomes that person's
+        `reading` rows — with English beside it, because the allowlist always offered
+        English and a Russian-only row read across on its own would take it away. An
+        address nobody has signed in with is left where it is: they get the default when
+        they arrive and tick Russian themselves.
+
+        Runs on every open and does nothing the second time: the insert ignores rows
+        that are already there, and a person who has since unticked a language has
+        rows of their own that say so — which is why this only writes for a person
+        with no `reading` rows at all.
+        """
+        with self.write() as db:
+            marked = db.execute(
+                "SELECT person.id AS id, reads.language AS language"
+                " FROM reads JOIN person ON person.email = reads.email"
+                " WHERE NOT EXISTS ("
+                "   SELECT 1 FROM chosen WHERE chosen.person = person.id AND kind = 'reading')"
+            ).fetchall()
+            for row in marked:
+                for code in (str(row["language"]), "en"):
+                    db.execute(
+                        "INSERT OR IGNORE INTO chosen (person, kind, language, at)"
+                        " VALUES (?, 'reading', ?, ?)",
+                        (int(row["id"]), code, now()),
+                    )
 
     # -- plumbing ---------------------------------------------------------------
 
@@ -465,7 +587,7 @@ class Store:
         row = self.db.execute(
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
         ).fetchone()
-        return Person(row["id"], row["email"]) if row else None
+        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
 
     # -- who somebody is ---------------------------------------------------
 
@@ -546,6 +668,113 @@ class Store:
     def invitations(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM invited ORDER BY at")]
 
+    def make_admin(self, email: str) -> str:
+        """Put an address beyond the spend rails, and on the guest list while we are here.
+
+        Both, because an admin who cannot sign in is not an admin. Making somebody an
+        admin is a statement that they may be here, and having to say it twice is a way
+        of getting it half done.
+        """
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO admin (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def unadmin(self, email: str) -> bool:
+        """Put an address back under the rails. The invitation and the account stay."""
+        with self.write() as db:
+            return db.execute("DELETE FROM admin WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    def admins(self) -> list[str]:
+        return [row["email"] for row in self.db.execute("SELECT email FROM admin ORDER BY at")]
+
+    # -- languages ----------------------------------------------------------------
+
+    def _chosen(
+        self, person_id: int | None, kind: str, offered: set[str], default: str
+    ) -> set[str]:
+        """What a person said for one kind, kept to the languages targum still has.
+
+        Nobody — no id — is an empty set rather than the default, because the callers
+        that work from a home directory use "nothing" to mean "no one to ask" and
+        offer everything. A person with no rows gets the default: the app's own
+        assumption until they say otherwise.
+        """
+        if not person_id:
+            return set()
+        rows = self.db.execute(
+            "SELECT language FROM chosen WHERE person = ? AND kind = ?", (int(person_id), kind)
+        )
+        said = {str(row["language"]) for row in rows} & offered
+        return said or {default}
+
+    def learning(self, person_id: int | None) -> set[str]:
+        """Which languages this person is learning: what the reading pages offer a
+        switcher for, and what an upload may claim to be."""
+        from .translate.prompts import READING
+
+        return self._chosen(person_id, "learning", {code for code, _ in READING}, "he")
+
+    def reads(self, person_id: int | None) -> set[str]:
+        """Which languages this person reads well enough to be handed a translation in.
+
+        The cost of guessing is a reader handed a page in a language they cannot read
+        — and a definition in it following them around every text they own. So this is
+        their own answer, and English until they give one.
+        """
+        from .translate.prompts import INTO
+
+        return self._chosen(person_id, "reading", {code for code, _ in INTO}, "en")
+
+    def choose(self, person: Person, kind: str, languages: list[str]) -> set[str]:
+        """Replace one kind wholesale, which is the shape a form that submits a set wants.
+
+        Refuses rather than repairs: an empty set is not a state a reader can be in,
+        because a page with no translation beside the source is not a reader at all,
+        and a learner of nothing has nothing to be shown. The sentence raised is the one
+        the page shows.
+        """
+        from .translate.prompts import INTO, READING, REQUIRED_LEARNING, language_name
+
+        if kind == "learning":
+            offered = {code for code, _ in READING}
+        elif kind == "reading":
+            offered = {code for code, _ in INTO}
+        else:
+            raise ValueError("No such choice.")
+        wanted = {str(code or "").strip().lower() for code in languages}
+        wanted.discard("")
+        strange = sorted(wanted - offered)
+        if strange:
+            raise ValueError(f"targum does not have {language_name(strange[0])}.")
+        if not wanted:
+            raise ValueError("Keep at least one.")
+        if kind == "learning" and not wanted >= set(REQUIRED_LEARNING):
+            raise ValueError(f"{language_name(REQUIRED_LEARNING[0])} stays on.")
+        with self.write() as db:
+            db.execute("DELETE FROM chosen WHERE person = ? AND kind = ?", (person.id, kind))
+            db.executemany(
+                "INSERT INTO chosen (person, kind, language, at) VALUES (?, ?, ?, ?)",
+                [(person.id, kind, code, now()) for code in sorted(wanted)],
+            )
+        return wanted
+
+    def is_admin(self, email: str) -> bool:
+        address = tidy(email)
+        if not address:
+            return False
+        found = self.db.execute("SELECT 1 FROM admin WHERE email = ?", (address,)).fetchone()
+        return found is not None
+
     def may_join(self, email: str) -> bool:
         """Whether this address may open an account here.
 
@@ -599,7 +828,7 @@ class Store:
             "AND person.leaving IS NULL",
             (digest(token), cutoff),
         ).fetchone()
-        return Person(row["id"], row["email"]) if row else None
+        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
 
     def finish_sign_in(self, token: str) -> tuple[Person, str] | None:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
@@ -624,7 +853,7 @@ class Store:
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), who["id"], now(), now()),
             )
-        return Person(who["id"], who["email"]), session
+        return Person(who["id"], who["email"], self.is_admin(who["email"])), session
 
     def whoever(self, session: str | None) -> Person | None:
         """The person holding this session, or nobody.
@@ -648,7 +877,7 @@ class Store:
         if now() - row["seen"] > 60_000:
             with self.write() as db:
                 db.execute("UPDATE session SET seen = ? WHERE hash = ?", (now(), digest(session)))
-        return Person(row["id"], row["email"])
+        return Person(row["id"], row["email"], self.is_admin(row["email"]))
 
     def sign_out(self, session: str | None) -> None:
         if not session:
@@ -686,7 +915,16 @@ class Store:
             ).fetchall()
             gone = [int(row["id"]) for row in rows]
             for person_id in gone:
-                for table in ("word", "phrase", "doc", "day", "session", "link"):
+                for table in (
+                    "word",
+                    "meaning",
+                    "phrase",
+                    "doc",
+                    "day",
+                    "chosen",
+                    "session",
+                    "link",
+                ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone
@@ -905,6 +1143,32 @@ class Store:
             ).fetchone()
         return float(row["spent"])
 
+    def spending(self, since: int) -> list[dict[str, Any]]:
+        """What every account has cost since a moment, most expensive first.
+
+        Two numbers, because they answer different questions. `spent` is what the API
+        really charged, once it said — the one that reconciles against a bill. `claimed`
+        is what the ceilings actually count, which is the same figure after a build
+        settles, the estimate while one is still running, and nothing at all for a build
+        that failed and handed its reservation back.
+
+        Left joined, so work done before there were accounts — or by somebody since
+        forgotten — still shows up rather than quietly leaving the total short.
+        """
+        rows = self.db.execute(
+            "SELECT person.email AS email, "
+            "       COUNT(job.id) AS jobs, "
+            "       COALESCE(SUM(job.spent), 0) AS spent, "
+            "       COALESCE(SUM(job.claimed), 0) AS claimed, "
+            "       MAX(job.made) AS last "
+            "FROM job LEFT JOIN person ON person.id = job.owner "
+            "WHERE job.made >= ? "
+            "GROUP BY job.owner "
+            "ORDER BY spent DESC, claimed DESC",
+            (since,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def claim(
         self,
         job_id: str,
@@ -914,17 +1178,26 @@ class Store:
         *,
         owner: int | None = None,
         per_account: float | None = None,
+        month_from: int | None = None,
+        per_month: float | None = None,
     ) -> str:
-        """Take money from both budgets, or say which one refused — in one transaction.
+        """Take money from every budget, or say which one refused — in one transaction.
 
         Two builds starting together would otherwise both read the same balance and
         both pass, which is exactly how a budget is overrun. `BEGIN IMMEDIATE` makes
         the second one wait rather than race, and it holds across processes as well as
         threads, which a lock in one server never did.
 
-        Two ceilings, because they stop different things. The per-account one is what a
-        reader is allowed; the whole-box one is what stops every reader at once from
+        Three ceilings, because they stop three different things. The per-account day is
+        a rate limit: it stops one afternoon running away. The per-account month is the
+        plan limit — what a reader is actually allowed — and until it existed the daily
+        rail was doing that job badly, since thirty days of it is thirty times the number
+        anybody had agreed to. The whole-box day is what stops every reader at once from
         emptying the card, and no per-account limit can do that on its own.
+
+        Any of them may be `None`, which is how an admin passes: the rails exist to stop
+        a reader running up somebody else's bill, and the person paying it is not that
+        reader. The box ceiling is not waived for anybody — it is the runaway guard.
         """
         with self.write() as db:
             if per_account is not None:
@@ -935,6 +1208,14 @@ class Store:
                 ).fetchone()
                 if float(mine["spent"]) + amount > per_account:
                     return "account"
+            if per_month is not None and month_from is not None:
+                monthly = db.execute(
+                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                    (month_from, owner),
+                ).fetchone()
+                if float(monthly["spent"]) + amount > per_month:
+                    return "month"
             row = db.execute(
                 "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
                 "WHERE claimed > 0 AND made >= ?",

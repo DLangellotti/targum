@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from targum.models import BlockKind, Segment, SegmentedDocument, Translation
+from targum.models import BlockKind, Segment, SegmentedDocument, Translation, read_artifact
 from targum.serve import Library
 
 
@@ -71,6 +71,46 @@ def test_a_book_reports_every_chapter_and_which_are_ready(tmp_path: Path) -> Non
     listed = library.readers(home)[0]
     assert listed["readyChapters"] == 2
     assert len(listed["chapters"]) == 5
+
+
+def test_readiness_is_asked_of_one_language_at_a_time(tmp_path: Path) -> None:
+    """A book read in two languages is two books' worth of buying.
+
+    Pooling every translation's segments made a chapter "ready" as soon as any language
+    covered it, so a reader who had bought nine chapters in English could not buy the
+    second in Russian: the shelf said it was already there, and it was — in the language
+    they were not reading.
+    """
+    library = Library(tmp_path)
+    home = library.home(None)
+    folder = home / "book-he"
+    book(folder, chapters=5, translated=3)
+    # And one chapter of it in Russian, which is where that reader has got to.
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert segmented is not None
+    first = [s.id for s in segmented.segments if s.block_index == 1] + ["h1"]
+    Translation(
+        name="Russian",
+        document_hash="book",
+        source_language="he",
+        target_language="ru",
+        provider="null",
+        segments={sid: "переведено" for sid in first},
+    ).write(folder / "translations" / "null.natural.ru.json")
+
+    assert [c["ready"] for c in library.chapters(folder, "en")] == [True, True, True, False, False]
+    assert [c["ready"] for c in library.chapters(folder, "ru")] == [
+        True,
+        False,
+        False,
+        False,
+        False,
+    ]
+    # Asked of nothing in particular it means "is there anything to read here", which is
+    # the question a shelf is asking.
+    assert [c["ready"] for c in library.chapters(folder)] == [True, True, True, False, False]
+    # And the languages themselves, most complete first, for anything that has to name one.
+    assert library.targets(folder) == ["en", "ru"]
 
 
 def test_readiness_is_derived_not_recorded(tmp_path: Path) -> None:
@@ -269,3 +309,85 @@ def test_a_book_glosses_only_the_chapter_it_bought(tmp_path: Path, monkeypatch) 
     assert asked["only"] is not None, "a book was glossed whole"
     assert result.segmented is not None
     assert 0 < len(asked["only"]) < len(result.segmented.segments)  # type: ignore[arg-type]
+
+
+def _novel(tmp_path: Path, chapters: int = 6, sentences: int = 30) -> Path:
+    text = "\n\n".join(
+        f"# Chapter {c}\n\n"
+        + "\n\n".join(f"Sentence {n} of chapter {c}." for n in range(sentences))
+        for c in range(1, chapters + 1)
+    )
+    source = tmp_path / "novel.md"
+    source.write_text(text, encoding="utf-8")
+    return source
+
+
+def _build(source: Path, out: Path):  # type: ignore[no-untyped-def]
+    from targum.models import Style
+    from targum.pipeline import Build
+
+    return Build(
+        str(source),
+        target_language="en",
+        style=Style.natural,
+        out_root=out,
+        difficulty=False,
+        gloss=False,
+    )
+
+
+def test_a_book_already_paid_for_is_quoted_free(tmp_path: Path) -> None:
+    """The prose canon, bought once and in the shared cache, was quoted at full price:
+    an 8-hour novel priced at $7.70 against a $2.00 cap for a build that would have
+    spent nothing. targum.page refused it with "Too long"."""
+    source = _novel(tmp_path)
+    build = _build(source, tmp_path / "out")
+    segmented = build.segment(build.ingest())
+    build.cache.put(
+        "translate",
+        build.cache_key(segmented),
+        {"segments": {segment.id: "…" for segment in segmented.segments}},
+    )
+
+    plan = _build(source, tmp_path / "fresh").plan(chapters=1)
+    assert plan.buying == len(segmented.segments), "a paid-for book arrives whole"
+    assert plan.estimated_cost == 0, f"quoted ${plan.estimated_cost:.2f} for work already bought"
+
+
+def test_chapters_bought_one_at_a_time_are_not_bought_again(tmp_path: Path) -> None:
+    """Chapters two to four were bought separately, each under its own key. The run that
+    opens the book — chapter one plus what is paid for — must find them, not price them,
+    and not send them to the API a second time."""
+    source = _novel(tmp_path)
+    build = _build(source, tmp_path / "out")
+    segmented = build.segment(build.ingest())
+    for number in (2, 3, 4):
+        chapter = build.chapter_segments(segmented, number)
+        build.cache.put(
+            "translate",
+            build.cache_key(segmented, chapter),
+            {"segments": {segment.id: "…" for segment in chapter}},
+        )
+    one = len(build.chapter_segments(segmented, 1))
+
+    fresh = _build(source, tmp_path / "fresh")
+    plan = fresh.plan(chapters=1)
+    assert plan.buying == one * 4, "chapter one and the three paid-for chapters"
+    assert plan.estimated_cost == fresh.provider.estimate(
+        fresh.chapter_segments(segmented, 1), "en", "en", fresh.style
+    ), "only chapter one should be priced"
+
+    class Recording:
+        model = "fake"
+        asked: list[str] = []
+
+        def translate(self, wanted, *args, **kwargs):  # type: ignore[no-untyped-def]
+            self.asked = [segment.id for segment in wanted]
+            return {segment.id: "new" for segment in wanted}
+
+    fresh.provider = Recording()
+    translation = fresh.translate(segmented, only=plan.buying_segments)
+    assert sorted(fresh.provider.asked) == sorted(
+        s.id for s in fresh.chapter_segments(segmented, 1)
+    )
+    assert len(translation.segments) == one * 4, "the paid-for chapters came along"

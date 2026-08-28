@@ -32,6 +32,9 @@ const byId = install({
     HOME: "he",
     order: (codes) => codes,
     current: () => payload.language || "he",
+    // The switcher draws; the caller remembers. Both are asked for now.
+    set: () => {},
+    into: () => "",
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",

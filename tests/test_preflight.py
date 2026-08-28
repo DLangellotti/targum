@@ -150,3 +150,100 @@ def test_a_local_machine_is_not_asked_about_a_guest_list(
 
     monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT", raising=False)
     assert check_invitations(tmp_path / "nothing.db").ok
+
+
+def test_covers_being_off_is_a_warning_and_says_which_half(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ "Covers are off" and "covers are off because nobody installed Pillow" are
+    different afternoons. Never fatal: the shelf drawing initials is the designed
+    resting state, and the page never offers to draw what it cannot."""
+    from targum import preflight as flight
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(flight, "_env", lambda name: "")
+    check = flight.check_covers()
+
+    assert check.ok is False and check.fatal is False
+    assert "OPENAI_API_KEY" in check.detail
+    assert "first letter" in check.fix, "it says what a reader sees instead"
+
+
+def test_backups_that_never_leave_are_flagged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The one thing on the list that is invisible until it matters, and the day it
+    matters there is nothing to be done about it."""
+    from targum import preflight as flight
+
+    monkeypatch.delenv("TARGUM_BACKUP_TO", raising=False)
+    check = flight.check_backups_leave()
+
+    assert check.ok is False and check.fatal is False
+    assert "beside the database" in check.detail
+    assert "rclone" in check.fix
+
+
+def test_a_destination_with_no_rclone_is_not_reported_as_working(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Set but unusable is worse than unset: it reads as done."""
+    from targum import preflight as flight
+
+    monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:targum/backups")
+    monkeypatch.setattr(flight.shutil, "which", lambda name: None)
+    check = flight.check_backups_leave()
+
+    assert check.ok is False
+    assert "nothing has left" in check.detail
+
+
+def test_backups_leaving_says_where(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum import preflight as flight
+
+    monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:targum/backups")
+    monkeypatch.setattr(flight.shutil, "which", lambda name: "/usr/bin/rclone")
+    check = flight.check_backups_leave()
+
+    assert check.ok is True and check.detail == "b2:targum/backups"
+
+
+# --- the deploy itself ------------------------------------------------------------
+#
+# Not the box, which no test can reach, but the script that drives it: three of the
+# things it does are invisible until months later, and all three are one line each.
+
+DEPLOY = (Path(__file__).resolve().parents[1] / "deploy" / "deploy.sh").read_text(encoding="utf-8")
+
+
+def test_the_deploy_rewrites_the_readers_already_on_the_shelves() -> None:
+    """targum bakes its stylesheet and its script into each reader as it writes it, so a
+    reader built last month is still the reader targum wrote last month. Installing a new
+    wheel changes every page that is rendered per request and not one page that was
+    written to disk — which is every reader on the box.
+
+    As the service account. Run as root the rewritten files come out owned by root inside
+    a directory owned by targum, and the failure surfaces days later, when the next
+    chapter cannot be written, looking like anything but the deploy.
+    """
+    assert "targum rebuild" in DEPLOY, "the readers on the box keep the old script"
+    line = DEPLOY[DEPLOY.index("targum rebuild") - 200 : DEPLOY.index("targum rebuild") + 120]
+    assert "--uid=targum" in line, "as root this leaves root-owned files behind"
+    assert "--out /var/lib/targum/targums" in line
+    # And with the service's environment: the rebuild fills each reader's meanings from
+    # the shared cache, and without TARGUM_CACHE_DIR it looked in an empty one.
+    assert "EnvironmentFile=/etc/targum/targum.env" in line, "an empty cache fills nothing"
+
+
+def test_the_deploy_stamps_the_numbers_before_it_builds() -> None:
+    """The about page reads `git log`, and the wheel it is served from has no repository.
+    Stamped after the build it would be stamped into nothing."""
+    assert "about import stamp" in DEPLOY
+    assert DEPLOY.index("about import stamp") < DEPLOY.index("uv build")
+
+
+def test_nothing_in_the_remote_block_is_written_in_backticks() -> None:
+    """The heredoc that carries the remote half is unquoted, so `${REMOTE_WHEEL}` is
+    filled in from this machine — and so is anything in backticks, comments included. A
+    comment mentioning the covers extra in backticks ran `covers` as a command on every
+    deploy."""
+    remote = DEPLOY.split("<<EOF", 1)[1].split("\nEOF", 1)[0]
+    assert "`" not in remote, "backticks in an unquoted heredoc are run, not written"

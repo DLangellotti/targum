@@ -43,21 +43,29 @@ if [ ! -f /etc/targum/targum.env ]; then
   install -o root -g root -m 0600 "$HERE/targum.env.example" /etc/targum/targum.env
   echo "   wrote /etc/targum/targum.env — FILL IT IN before starting"
 fi
-# systemd and the backup cron both call /usr/local/bin/targum, and uv installs the tool
-# as the service account, into its own home. One symlink joins the two — without it a
-# fresh box provisions cleanly and then has nothing to start.
-ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
-
 install -o root -g root -m 0644 "$HERE/targum.service" /etc/systemd/system/targum.service
 sed "s/targum\.page/$DOMAIN/g" "$HERE/Caddyfile" > /etc/caddy/Caddyfile
 systemctl daemon-reload
-caddy validate --config /etc/caddy/Caddyfile >/dev/null && systemctl reload caddy || systemctl restart caddy
+caddy validate --config /etc/caddy/Caddyfile >/dev/null
+# validate ran as root and may have created the log file root-owned; the service runs as caddy.
+chown -R caddy:caddy /var/log/caddy
+systemctl reload caddy || systemctl restart caddy
 
 echo "== nightly backup =="
-# Off-box copying is deliberately not automated here: where the copies go is a decision,
-# and a cron line that silently writes them to the same disk is worse than none.
+# Where the copies go is still a decision, but it is now one line rather than a project:
+# fill in TARGUM_BACKUP_TO with an rclone remote and tonight's copy leaves the box.
+#
+# Here rather than in targum.env because that file is 0600 root and this runs as targum,
+# which cannot read it — and a destination is not a secret. The credentials are rclone's,
+# in ~targum/.config/rclone/rclone.conf, where only targum can read them.
+#
+# stderr is deliberately not swallowed. A copy that did not leave is exactly the night
+# somebody needs to hear about, and `>/dev/null 2>&1` is how a backup quietly stops
+# working for four months.
 cat > /etc/cron.d/targum-backup <<'CRON'
-0 4 * * * targum /usr/local/bin/targum backup --keep 14 --out /var/lib/targum/backups >/dev/null 2>&1
+MAILTO=root
+TARGUM_BACKUP_TO=
+0 4 * * * targum /usr/local/bin/targum backup --keep 14 --out /var/lib/targum/backups >/dev/null
 CRON
 chmod 0644 /etc/cron.d/targum-backup
 
@@ -69,6 +77,17 @@ Provisioned. Three things left, none of them this script's to do:
   2. Point $DOMAIN's A record at this box, and wait for it
   3. From your laptop:  TARGUM_HOST=root@$DOMAIN ./deploy/deploy.sh
 
-Then check the backups actually leave the box. They are written to
-/var/lib/targum/backups nightly and that is still the same disk as the database.
+And to get the backups off this disk, which is the one failure the nightly copy
+does not cover:
+
+  apt-get install -y rclone
+  sudo -u targum -H rclone config          # add a remote; put a crypt in front of it
+  sudo -u targum -H rclone lsd <remote>:   # prove it answers
+  editor /etc/cron.d/targum-backup         # set TARGUM_BACKUP_TO=<remote>:targum/backups
+
+A backup holds addresses and every word somebody has kept, so the remote wants to be
+an rclone crypt remote — encryption belongs there and not in targum. Check it worked with:
+
+  sudo -u targum -H targum backup --to <remote>:targum/backups \
+    --store /var/lib/targum/targum.db --out /var/lib/targum/backups
 EOF
