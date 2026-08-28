@@ -255,7 +255,11 @@
         width: Math.max(counts[index] ? 2 : 0, width),
         height: rowHeight - 9,
         rx: 3,
-        fill: "var(--step-3)",
+        // Not the knowledge ramp: that ramp means how well a word is known, and this
+        // chart is about the words themselves. §4 lets a chart carry one functional hue,
+        // and iris is the page's colour for what is new to the reader — the rarer the
+        // band, the more of it there is to meet.
+        fill: "var(--iris)",
       });
       if (counts[index]) {
         bar.addEventListener("mousemove", function (event) {
