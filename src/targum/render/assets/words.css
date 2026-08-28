@@ -8,15 +8,17 @@ body.words {
 }
 
 .words {
-  /* An ordered ramp, light → dark, for a scale that runs from "just met" to "known".
-     Selected per mode rather than flipped: on paper the darkest step is the most
-     present, on a dark ground the lightest one is, and "known" should be the step
-     that carries in both. Validated against each surface — monotone lightness,
-     visible gaps, one hue, and the end nearest the surface clear of it. */
-  --step-1: #c8a778;
-  --step-2: #ab8555;
-  --step-3: #8b6840;
-  --step-4: #6b4f2e;
+  /* An ordered ramp, faint → full, for a scale that runs from "just met" to "known".
+     One hue, monotone, four steps, the end nearest the surface clear of it — all as
+     before. The hue is what changed: gold on warm paper made every chart on the page
+     read brown, and §4 gives "known" to leaf by name, so leaf is what the scale climbs
+     towards. Mixed against --paper rather than named per theme: both --leaf and --paper
+     flip, so one definition now serves the light surface and the dark one, and "known"
+     is the most present step on each. */
+  --step-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
+  --step-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
+  --step-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
+  --step-4: var(--leaf);
   --off: #c3bdb1;
   --grid: #e7e1d6;
   --axis: #cfc7ba;
@@ -24,10 +26,6 @@ body.words {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .words {
-    --step-1: #7d6039;
-    --step-2: #a5824f;
-    --step-3: #c8a778;
-    --step-4: #e8d3b0;
     --off: #4a453e;
     --grid: #2a2622;
     --axis: #3a3530;
@@ -35,10 +33,6 @@ body.words {
 }
 
 :root[data-theme="dark"] .words {
-    --step-1: #7d6039;
-    --step-2: #a5824f;
-    --step-3: #c8a778;
-    --step-4: #e8d3b0;
     --off: #4a453e;
     --grid: #2a2622;
     --axis: #3a3530;

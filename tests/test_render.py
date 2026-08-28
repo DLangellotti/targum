@@ -505,12 +505,15 @@ def test_the_progress_page_stands_on_its_own() -> None:
         assert "function collect(" not in source, f"{page} should share the collector"
 
     css = (ASSETS / "words.css").read_text(encoding="utf-8")
-    # One ordered ramp, stepped for each surface rather than flipped: on paper the
-    # darkest step carries, on a dark ground the lightest one does, and "known" is the
-    # step that has to carry in both. Three definitions each: the light base, the
-    # system-dark case, and the theme someone chose for themselves.
-    for step in ("--step-1", "--step-2", "--step-3", "--step-4"):
-        assert css.count(step + ":") == 3, step
+    # One ordered ramp, faint → full, climbing to leaf. It was four gold hexes written
+    # out three times over — the light base, the system-dark case, and the theme someone
+    # chose — because a gold ramp has to be reordered by hand for each surface. Mixed
+    # against --paper instead, both ends flip on their own: one definition now carries
+    # every surface, and "known" is the most present step on each of them.
+    for step in ("--step-1", "--step-2", "--step-3"):
+        assert css.count(step + ":") == 1, f"{step} is defined once, for both surfaces"
+        assert f"{step}: color-mix(in srgb, var(--leaf)" in css, f"{step} climbs to leaf"
+    assert "--step-4: var(--leaf);" in css, "the top of the ramp is leaf itself"
 
 
 def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
