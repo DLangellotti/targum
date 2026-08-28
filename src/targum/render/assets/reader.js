@@ -1010,21 +1010,11 @@
     });
   }
 
-  var lastCounts = { words: null, phrases: null };
-
-  function bump(element) {
-    if (!element) return;
-    var holder = element.parentNode;
-    holder.classList.remove("bumped");
-    // Restarting a CSS animation needs a reflow between removing and adding.
-    void holder.offsetWidth;
-    holder.classList.add("bumped");
-  }
-
-  function countInto(element, value, key) {
+  /* The count used to scale to 1.4x and flash the accent when it went up. §6 asks for
+     celebration in type rather than motion, and an overshoot curve on a counter is the
+     arcade register the brand exists to avoid: the number changing is the news. */
+  function countInto(element, value) {
     if (element) element.textContent = String(value);
-    if (lastCounts[key] !== null && value > lastCounts[key]) bump(element);
-    lastCounts[key] = value;
   }
 
   function setPhrase(entry, changes) {
@@ -1199,9 +1189,9 @@
     lastWords = words.length;
     lastPhrases = phrases.length;
 
-    countInto(listCount, words.length, "words");
-    countInto(listTabCount, words.length, "words");
-    countInto(phraseCount, phrases.length, "phrases");
+    countInto(listCount, words.length);
+    countInto(listTabCount, words.length);
+    countInto(phraseCount, phrases.length);
     label(wordsLabel, words.length, "word");
     label(document.getElementById("list-tab-label"), words.length, "word");
     label(phrasesLabel, phrases.length, "phrase");
