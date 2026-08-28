@@ -2981,6 +2981,11 @@
       }
       if (button.hasAttribute("data-keys")) {
         showKeys(keysCard ? keysCard.hidden : false);
+        // Closed from the × on the card itself: the button just pressed is gone with
+        // the card, so focus goes back to the one in the bar that opened it.
+        if (keysCard && keysCard.hidden && keysCard.contains(button) && keysButton) {
+          keysButton.focus();
+        }
         return;
       }
       if (button.hasAttribute("data-marking")) {
