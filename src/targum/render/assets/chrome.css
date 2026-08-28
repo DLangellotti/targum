@@ -258,3 +258,29 @@
 }
 .site-foot a { color: var(--ink-soft); text-decoration: none; }
 .site-foot a:hover { color: var(--ink); }
+
+/* The building strip: one quiet line under the header while a build of yours is going,
+   and the link when it is done. Ink-soft for the state, ink for the one thing to press. */
+.site-head .building {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.site-head .building[hidden] { display: none; }
+.site-head .building a { color: var(--ink); }
+.site-head .building a[hidden] { display: none; }
+.site-head .building button {
+  margin-inline-start: auto;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.site-head .building button:hover { color: var(--ink); }

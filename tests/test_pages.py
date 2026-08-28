@@ -735,3 +735,15 @@ def test_reader_links_are_percent_encoded() -> None:
         assert '"/reader/" + job.reader)' not in source, name
         assert '"/reader/" + state.reader)' not in source, name
         assert "encodeURIComponent" in source, name
+
+
+def test_every_page_with_the_header_can_follow_a_build() -> None:
+    """The strip lives in the shared header, and the script that draws it has to be on
+    every page that carries it — or a build followed on Learn vanishes on Library."""
+    strip = baked("building.js")
+    body = strip[strip.index('getElementById("building")') :][:60]
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'id="building"' in page, f"{name} has no strip"
+        assert body in page, f"{name} does not inline building.js"

@@ -685,3 +685,12 @@ def test_one_account_still_cannot_read_anothers_reader(hosted: tuple[int, str]) 
         status, body = ask(port, path, "targum.page", session)
         assert status == 404, path
         assert b"secret" not in body, path
+
+
+def test_your_builds_are_listed_for_you_alone(hosted: tuple[int, str]) -> None:
+    port, session = hosted
+    status, body = ask(port, "/jobs", "targum.page")
+    assert status == 401, "data routes answer as data"
+    status, body = ask(port, "/jobs", "targum.page", session)
+    assert status == 200
+    assert json.loads(body) == {"jobs": []}

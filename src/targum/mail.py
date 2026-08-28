@@ -37,6 +37,11 @@ nothing has happened to your account and you can ignore this.
 class Mailer(Protocol):
     def send(self, to: str, link: str) -> None: ...
 
+    def notify(self, to: str, subject: str, body: str) -> None:
+        """A plain message that is not a sign-in link: a build that finished while
+        the reader was away. Same delivery, same plain text."""
+        ...
+
 
 @dataclass
 class ConsoleMailer:
@@ -56,6 +61,11 @@ class ConsoleMailer:
         )
         out.flush()
 
+    def notify(self, to: str, subject: str, body: str) -> None:
+        out = self.stream if self.stream is not None else sys.stdout
+        out.write(f"\n  To {to} — {subject}\n  {body.strip()}\n\n")
+        out.flush()
+
 
 @dataclass
 class SmtpMailer:
@@ -68,8 +78,14 @@ class SmtpMailer:
     sender: str
 
     def send(self, to: str, link: str) -> None:
+        self._deliver(to, SUBJECT, BODY.format(link=link))
+
+    def notify(self, to: str, subject: str, body: str) -> None:
+        self._deliver(to, subject, body)
+
+    def _deliver(self, to: str, subject: str, body: str) -> None:
         note = EmailMessage()
-        note["Subject"] = SUBJECT
+        note["Subject"] = subject
         note["From"] = self.sender
         note["To"] = to
         # Sent as 7-bit rather than quoted-printable, which is the default and which
@@ -78,7 +94,11 @@ class SmtpMailer:
         # them linkify only as far as the break — which is a link that does not work,
         # in the one email where that is the whole product failing. The body is ASCII
         # and short, and `test_the_link_is_never_wrapped` is what keeps it that way.
-        note.set_content(BODY.format(link=link), cte="7bit")
+        # A title in the body may not be ASCII; the encoder falls back on its own.
+        try:
+            note.set_content(body, cte="7bit")
+        except (UnicodeEncodeError, ValueError):
+            note.set_content(body)
         with smtplib.SMTP(self.host, self.port, timeout=20) as server:
             server.starttls()
             if self.user:
