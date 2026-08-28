@@ -603,3 +603,32 @@ def test_the_shared_text_stays_out_of_the_way_of_your_own() -> None:
     drawn = draw([reader("a", "א")], shared=[reader("ruth", "רות")])
     assert drawn["carry"]["heading"] == "Continue Reading"
     assert drawn["carry"]["title"] == "א"
+
+
+def test_the_start_comes_with_a_modern_alternative() -> None:
+    """Ruth is the start. A reader an open Tanakh would put off — most people arriving
+    somewhere around aleph plus — is offered something modern beside it, already built,
+    so pressing the card opens it rather than buying anything."""
+    drawn = draw(
+        [],
+        shared=[
+            reader("ruth", "רות", "ruth", register="biblical"),
+            reader("censorship", "צנזורה", "gv-social-censorship", kind="article", minutes=5),
+        ],
+        do=[{"press": "suggest"}],
+    )
+    assert drawn["carry"]["heading"] == "Start here" and drawn["carry"]["title"] == "רות"
+    assert drawn["suggested"] is not None
+    assert drawn["suggested"]["title"] == "צנזורה"
+    assert drawn["suggested"]["why"] == "Or something modern · 5 min"
+    assert drawn["suggested"]["entry"] == "gv-social-censorship"
+    assert not [call for call in drawn["asked"] if "/prepare" in call["path"]], "nothing is built"
+    assert "/reader/censorship/reader/index.html" in drawn["went"]
+
+
+def test_with_one_shared_text_the_catalogue_suggestion_still_draws() -> None:
+    drawn = draw([], shared=[reader("ruth", "רות", "ruth")], catalogue=[])
+    assert drawn["carry"]["heading"] == "Start here"
+    assert drawn["suggested"] is None, (
+        "nothing in the catalogue to offer, and no second shared text"
+    )
