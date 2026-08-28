@@ -171,6 +171,12 @@ body.learn main[hidden] {
   font-size: 1.5rem;
   line-height: 1.3;
 }
+
+/* The bdi that carries the title also carries the class, so `.card-title` and
+   reader.css's `:lang(he)` tie on specificity and this sheet, loading later, wins.
+   That put Hebrew titles in the Latin stack — which has no Hebrew — so they fell
+   through to whatever the platform had. §5 names the faces for a reason. */
+.card-title:lang(he) { font-family: var(--reading-hebrew); }
 .card-meta {
   margin: 0.35rem 0 0;
   color: var(--ink-soft);

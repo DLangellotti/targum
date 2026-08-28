@@ -265,6 +265,11 @@ table.rows td {
 }
 table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.rows .term { font-family: var(--reading); font-size: 1.05em; }
+/* Same tie as .card-title in learn.css, lost the same way: the term's own class beats
+   reader.css's `:lang(he)`, and a Hebrew word set in a Latin face has no glyphs to
+   set it with. */
+table.rows .term:lang(he),
+.text-group .term:lang(he) { font-family: var(--reading-hebrew); }
 table.rows .meaning { color: var(--ink); }
 table.rows .when { color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.rows .band { color: var(--ink-soft); white-space: nowrap; }
