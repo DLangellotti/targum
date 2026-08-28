@@ -49,7 +49,12 @@
 /* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
    reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
    iris for phrases, sun for turning up. The figure takes the hue; its label stays muted,
-   so the block reads as three coloured numbers rather than three coloured paragraphs. */
+   so the block reads as three coloured numbers rather than three coloured paragraphs.
+
+   §4 also says "one hue per moment", and this is three at once. Decided rather than
+   missed: each figure is its own moment, and a ledger that named only one of them would
+   be picking a favourite among facts. A count of nought takes no hue at all — see
+   progress.js — so the strip is only ever as loud as the reader's actual reading. */
 .progress .ledger .lit.leaf b { color: var(--leaf-bright); }
 .progress .ledger .lit.iris b { color: var(--iris-bright); }
 .progress .ledger .lit.sun b { color: var(--sun); }
