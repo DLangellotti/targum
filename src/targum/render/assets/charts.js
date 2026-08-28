@@ -182,12 +182,14 @@
     picture.appendChild(
       svg("path", {
         d: line + " L" + px(points.length - 1) + " " + py(0) + " L" + px(0) + " " + py(0) + " Z",
-        fill: "var(--step-2)",
-        "fill-opacity": "0.18",
+        // §4 gives progress to leaf, and charts are one of the places functional colour
+        // belongs. One hue for this chart: the wash, the line and the end dot are all it.
+        fill: "var(--leaf)",
+        "fill-opacity": "0.16",
       })
     );
     picture.appendChild(
-      svg("path", { d: line, fill: "none", stroke: "var(--step-3)", "stroke-width": 2 })
+      svg("path", { d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 2 })
     );
 
     // The end of the line is the number the page is about, so it is the one labelled.
@@ -196,8 +198,9 @@
         cx: px(points.length - 1),
         cy: py(running),
         r: 4,
-        fill: "var(--step-4)",
-        stroke: "var(--paper-raised)",
+        fill: "var(--leaf)",
+        // The panel is flat now, so the dot's halo is the page rather than a raised card.
+        stroke: "var(--paper)",
         "stroke-width": 2,
       })
     );

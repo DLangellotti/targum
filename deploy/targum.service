@@ -34,7 +34,7 @@ Environment=HF_HOME=/var/lib/targum/models/huggingface
 ExecStartPre=/usr/local/bin/targum preflight --no-connect \
   --store /var/lib/targum/targum.db --out /var/lib/targum/targums
 
-ExecStart=/usr/local/bin/targum serve --no-open --port 8420 \
+ExecStart=/usr/local/bin/targum serve --no-open --port 8420 --budget 50 \
   --store /var/lib/targum/targum.db --out /var/lib/targum/targums
 
 Restart=always

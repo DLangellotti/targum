@@ -58,7 +58,7 @@ body.add > .add-main {
   border-radius: 8px;
   background: color-mix(in srgb, var(--paper-raised) 60%, transparent);
   text-align: center;
-  transition: border-color 120ms ease, background-color 120ms ease;
+  transition: border-color 200ms ease, background-color 200ms ease;
 }
 .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .drop-label { margin: 0; color: var(--ink); font-size: 1.0625rem; }
@@ -81,10 +81,16 @@ body.add > .add-main {
 .field input:focus, .field select:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
 .hint { margin: -0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.6; }
 /* Said before anything is priced, so it sits with the heading rather than with the
-   form. The link is the only accent above the fold — the button below it is the page's
-   primary action and keeps its own. */
+   form. Ink with a hairline, not accent: the button below it is the page's one primary
+   action, and §4 rations the hue to that. Two accents above and below the fold is how a
+   page ends up with no primary action at all. */
 .add .lede + .hint { margin: -1.25rem 0 1.75rem; }
-.to-library { color: var(--accent); }
+.to-library {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.to-library:hover { border-block-end-color: var(--ink-soft); }
 /* Two hints in a row sat on top of each other: the rule above pulls each one up under
    the field it explains, and with no bottom margin the second climbed into the first. */
 .hint + .hint { margin-block-start: 0.55rem; }
@@ -97,7 +103,12 @@ body.add > .add-main {
   padding: 0.8rem 1rem;
   border-inline-start: 3px solid var(--accent);
   background: var(--paper-raised);
-  border-radius: 0 6px 6px 0;
+  /* Logical corners: paired with a logical rail, `0 6px 6px 0` put the flat edge and
+     the rail on opposite sides of the box in Hebrew. */
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 6px;
+  border-end-end-radius: 6px;
   color: var(--ink);
   font-size: 0.8125rem;
   line-height: 1.6;
@@ -156,7 +167,7 @@ body.add > .add-main {
   background: linear-gradient(var(--gloss), transparent) var(--accent);
   border: none;
   border-radius: 8px;
-  transition: box-shadow 120ms ease;
+  transition: box-shadow 200ms ease;
 }
 .go:hover { box-shadow: var(--lift); }
 .go[disabled] { opacity: 0.5; }
@@ -182,7 +193,7 @@ body.add > .add-main {
   /* Progress is leaf, and a progress fill is one of the two places the gloss recipe
      is allowed. One sheen, top-down, light on glass. */
   background: linear-gradient(var(--gloss), transparent) var(--leaf);
-  transition: width 300ms ease;
+  transition: width 240ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 .status .row { display: flex; gap: 0.5rem; margin-block-start: 0.7rem; }
 .status.bad { border-color: var(--clay); }
@@ -190,6 +201,7 @@ body.add > .add-main {
 
 @media (prefers-reduced-motion: reduce) {
   .status .bar i,
+  .go,
   .drop { transition: none; }
 }
 
@@ -228,3 +240,24 @@ body.add > .add-main {
    they have a translation, and it should not tower over the text they came to add. */
 .drop.small { padding: 1rem 0.9rem; }
 .drop.small .drop-label { font-size: 0.9375rem; }
+
+/* --- offered instead of paying for a translation --------------------------
+ *
+ * add.js builds this notice; it lives in library.css, which this page does not load,
+ * so the one message that saves a reader money rendered as a bare paragraph. The
+ * corners are logical too: paired with a logical rail, `0 6px 6px 0` put the flat edge
+ * and the rail on opposite sides of the box in Hebrew. */
+
+.instead {
+  margin-block-start: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--accent);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 6px;
+  border-end-end-radius: 6px;
+  background: var(--paper-raised);
+  line-height: 1.55;
+}
+.instead b { color: var(--ink); }
+.instead .row { margin-block-start: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }

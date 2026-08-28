@@ -32,6 +32,21 @@
   // is a fact about targum rather than about the word or the reader. A word that has one
   // is counted; a word that has none is not placed on a scale it has no reading for.
   var BANDS = ["easy", "fairly easy", "moderate", "hard", "very hard", "extremely hard"];
+
+  /* One bar per band, and each its own colour. A scale rather than six unrelated hues:
+     it runs leaf → iris → clay, which is the order §4 already gives them — what you can
+     read, what is new to you, what it costs you. Mixed from the three working cuts, so
+     nothing here is a colour the palette does not have and every step flips with the
+     theme. Green to purple to red, deliberately: green to red alone mixes to brown in
+     the middle, which is the thing this page was getting too much of. */
+  var COMMONNESS = [
+    "var(--leaf)",
+    "color-mix(in srgb, var(--iris) 28%, var(--leaf))",
+    "var(--iris)",
+    "color-mix(in srgb, var(--clay) 40%, var(--iris))",
+    "color-mix(in srgb, var(--clay) 70%, var(--iris))",
+    "var(--clay)",
+  ];
   function named(code) {
     return names[code] || (code || "").toUpperCase();
   }
@@ -255,7 +270,7 @@
         width: Math.max(counts[index] ? 2 : 0, width),
         height: rowHeight - 9,
         rx: 3,
-        fill: "var(--step-3)",
+        fill: COMMONNESS[index] || "var(--iris)",
       });
       if (counts[index]) {
         bar.addEventListener("mousemove", function (event) {
@@ -320,7 +335,10 @@
        which is which — leaf for what has been reached, iris for phrases, sun for turning
        up. Everything without one stays paper-white. */
     function count(value, label, hue) {
-      var box = el("div", hue ? "lit " + hue : null);
+      // A zero is not a peak moment. The bright set is for what happened, and spending
+      // --sun on "0 words learned" paints the loudest colour in the system on the one
+      // line that has nothing to report; §6 keeps what has not happened quiet.
+      var box = el("div", hue && value ? "lit " + hue : null);
       box.appendChild(el("b", null, grouped(value)));
       // Singular where there is one of it. These sit at display size beside the figure
       // they belong to, which is where "1 words learned" is impossible not to read.

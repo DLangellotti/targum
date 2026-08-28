@@ -3,8 +3,10 @@
  *   node tests/js/library.js payload.json
  *
  * The payload carries the catalogue (as the page receives it), the readers the server
- * would answer with, and the view — the filters and sort a reader has chosen. What comes
- * back on stdout is JSON: the rows drawn, in order, and the controls around them.
+ * would answer with, the view — the filters and sort a reader has chosen — and a hash,
+ * which is how Learn names the one text it sent this reader for. What comes back on
+ * stdout is JSON: the rows drawn, in order, the controls around them, and which row (if
+ * any) was marked as the one somebody was sent to.
  *
  * Read by `tests/test_library_js.py`, which supplies a real catalogue from the package
  * so the fixtures cannot drift from the thing being tested.
@@ -39,6 +41,9 @@ const byId = install({
   },
 });
 
+// Learn links here with the id in the hash, and `pointAt` is what answers it.
+if (payload.hash) global.location.hash = payload.hash;
+
 global.fetch = () =>
   Promise.resolve({ json: () => Promise.resolve({ readers: payload.readers || [], covers: !!payload.covers }) });
 
@@ -61,6 +66,8 @@ setTimeout(() => {
   process.stdout.write(
     JSON.stringify({
       rows: rows.map(read),
+      // The stub's classList keeps its own set and never writes className back.
+      pointed: rows.filter((row) => row.classList.contains("pointed")).map((row) => read(row).title),
       columns: byId["rows-head"].children.map((c) => c.textContent.trim()).filter(Boolean),
       tally: byId["tally"].textContent,
       kinds: byId["kind-chips"].children.map((c) => c.textContent),

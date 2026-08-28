@@ -665,13 +665,39 @@
        were sent for could be anywhere in it. Marked and scrolled to, never pressed —
        what pressing an unbuilt row does is start spending, and nothing arrives at a page
        with permission to do that. */
+    var lifted = false;
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
       if (!wanted) return;
       var row = host.querySelector('[data-row="' + wanted.replace(/"/g, "") + '"]');
-      if (!row) return;
-      row.classList.add("pointed");
-      if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+      if (row) {
+        row.classList.add("pointed");
+        if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+        return;
+      }
+      /* Not drawn. The filters, the tab and the language are all remembered between
+         visits, so somebody sent here by Learn could arrive at a list that hides the one
+         text they came for, land at the top of it, and have nothing to tell them why.
+         Being sent is a stronger claim than a filter set on some earlier visit: lift them
+         and draw again. Once — `lifted` is what stops an id that is genuinely not in this
+         catalogue from doing it on every redraw. */
+      if (lifted) return;
+      var target = null;
+      for (var i = 0; i < everything.length; i++) {
+        if (everything[i].id === wanted) {
+          target = everything[i];
+          break;
+        }
+      }
+      if (!target) return;
+      lifted = true;
+      view.find = view.kind = view.register = view.length = view.level = "";
+      view.where = target.entry ? "library" : "mine";
+      find.value = "";
+      var code = base(target.language);
+      // show() redraws, and redraw() comes back through here with the row in the list.
+      if (code && code !== chosen) return show(code);
+      redraw();
     }
 
     find.value = view.find || "";

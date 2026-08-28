@@ -238,11 +238,32 @@ def test_the_ink_only_brights_never_touch_paper() -> None:
                 )
 
 
+def gradients(text: str) -> list[str]:
+    r"""The inside of every `linear-gradient(...)`, with the parens balanced.
+
+    A regex cannot do this and the one here did not: `linear-gradient\(([^;]*?)\)\s`
+    stops at the first `)` followed by whitespace, which in
+    `linear-gradient(\n  to right,\n  var(--accent) var(--share), ...)` is the one
+    closing `var(--accent`. The captured text then held no complete `var(--…)` token, so
+    the assertion below ran against an empty list and passed. Every multi-line gradient
+    went unread, including the one colour ramp in the codebase.
+    """
+    out = []
+    for opened in re.finditer(r"linear-gradient\(", text):
+        depth, start, i = 1, opened.end(), opened.end()
+        while i < len(text) and depth:
+            depth += (text[i] == "(") - (text[i] == ")")
+            i += 1
+        if not depth:
+            out.append(text[start : i - 1])
+    return out
+
+
 def test_no_gradient_is_a_colour_ramp() -> None:
     """§9. Gloss is light on glass, never metal — never a gold-to-gold ramp."""
     for sheet in STYLESHEETS:
         text = re.sub(r"/\*.*?\*/", " ", sheet.read_text(encoding="utf-8"), flags=re.S)
-        for gradient in re.findall(r"linear-gradient\(([^;]*?)\)\s", text):
+        for gradient in gradients(text):
             stops = re.findall(r"#[0-9a-fA-F]{3,8}|var\(--[a-z-]+\)", gradient)
             named = [x for x in stops if not x.startswith("var(--gloss")]
             assert not named, (

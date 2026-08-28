@@ -200,7 +200,10 @@
   border-block-end: 1px solid var(--rule);
 }
 .account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
-.account-panel .said { margin: 0.6rem 0 0; color: var(--accent); }
+/* account.js writes both outcomes here, so accent painted a failure in the hue §4
+   reserves for the primary action. Ink for what happened, clay for what did not. */
+.account-panel .said { margin: 0.6rem 0 0; color: var(--ink); }
+.account-panel .said.bad { color: var(--clay); }
 .account-panel .said[hidden] { display: none; }
 .account-panel [hidden] { display: none; }
 
@@ -221,7 +224,9 @@
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: 999px;
-  background: var(--paper-raised);
+  /* §9: one raised layer per view. This always sits inside a raised card or
+     panel, so the fill repeated the surface underneath it and the hairline is
+     what marks the edge — "if a card needs a card, use a hairline instead". */
 }
 .segment {
   padding: 0.2rem 0.6rem;

@@ -47,10 +47,13 @@
     });
   }
 
-  function say(where, message) {
+  function say(where, message, bad) {
     var node = at(where);
     node.hidden = !message;
     node.textContent = message || "";
+    // §4 gives errors to --clay. Without this an error and "Saved." were the same
+    // sentence in the same ink, and the only way to tell them apart was to read them.
+    node.classList.toggle("bad", !!bad);
   }
 
   /* --- who you are ----------------------------------------------------------- */
@@ -87,7 +90,7 @@
         // A session that ended while the page was open answers `signedIn: false` with no
         // error in it, and that is not "Saved."
         if (answer.error || answer.signedIn === false) {
-          return say("you-said", answer.error || "Sign in again.");
+          return say("you-said", answer.error || "Sign in again.", true);
         }
         say("you-said", "Saved.");
         drawWho(answer);
