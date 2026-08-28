@@ -1817,8 +1817,10 @@ def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "var DEFAULTS = 2;" in script
-    assert "var RESET = { marking: true };" in script
+    assert "var DEFAULTS = 3;" in script
+    # 3: pages, for every browser that had a preference from before there were pages.
+    # Decided 2026-08-28 — the first alpha reader is the target reader and asked twice.
+    assert "var RESET = { marking: true, paged: true };" in script
     assert "if ((prefs.defaults || 0) < DEFAULTS) {" in script
     # Stored, or it re-applies on every load and the reader can never turn it off.
     reset = script[script.index("if ((prefs.defaults || 0) < DEFAULTS) {") :][:300]
@@ -2807,3 +2809,42 @@ def test_the_first_time_line_is_only_on_a_page_with_words() -> None:
     template = (ASSETS.parent / "templates" / "reader.html.j2").read_text(encoding="utf-8")
     line = template[template.index('id="first"') - 200 : template.index('id="first"')]
     assert "{% if words %}" in line
+
+
+def test_pages_are_a_preference_with_a_key_a_button_and_a_turn() -> None:
+    """Listed like every other key, switchable from the bar, and turned from a control
+    at the foot of the window with arrows drawn per reading direction."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    assert "<dt>b</dt>" in template
+    assert "<dt>Space</dt>" in template
+    assert "data-paged" in template
+    assert 'id="turn"' in template and 'data-turn="1"' in template and 'data-turn="-1"' in template
+    css = _reader_css()
+    assert '.turn .back::before { content: "\\2190"; }' in css
+    assert '[dir="rtl"] .turn .back::before { content: "\\2192"; }' in css, (
+        "arrows follow the direction"
+    )
+
+
+def test_printing_a_paged_chapter_prints_the_whole_chapter() -> None:
+    css = _reader_css()
+    printing = css[css.index("@media print") :]
+    assert "body.paged .pair[hidden] { display: grid; }" in printing
+    assert ".turn" in printing.split("}", 1)[0], "and not the control"
+
+
+def test_the_pager_and_the_offer_belong_to_the_last_page() -> None:
+    css = _reader_css()
+    assert "body.paged:not(.last-page) .pager" in css
+    assert "body.paged:not(.last-page) .rest" in css
+
+
+def test_nothing_about_a_page_is_fixed_height_or_clipped() -> None:
+    """A single pair taller than the window fits on no page, and that page has to
+    scroll. A fixed-height, overflow-hidden reader would swallow it."""
+    css = _reader_css()
+    paged = css[css.index("/* --- pages, not a scroll") : css.index("@media print")]
+    assert "overflow: hidden" not in paged
+    assert "block-size: calc(100" not in paged and "height: 100vh" not in paged

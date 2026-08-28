@@ -491,3 +491,37 @@ def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
     assert done["rest"]["hidden"] is True
+
+
+# -- pages, not a scroll ----------------------------------------------------------
+
+
+def pages(tops: list[int], heights: list[int], room: int) -> list[list[int]]:
+    words, lemmas = chapter(["a"])
+    return run(
+        [], chapter=words, lemmas=lemmas, pages={"tops": tops, "heights": heights, "room": room}
+    )["pages"]
+
+
+def test_a_page_is_the_pairs_that_fit_the_room() -> None:
+    """A page is a contiguous run of pairs, decided from where each starts and how tall
+    it is — margins included, since the next pair's top carries them. Nothing is fixed
+    at build time: how many fit depends on the window, the type and the vowels."""
+    assert pages([0, 100, 200, 300, 400], [90, 90, 90, 90, 90], 250) == [[0, 1], [2, 3], [4, 4]]
+
+
+def test_a_pair_too_tall_for_the_room_is_a_page_of_its_own() -> None:
+    """Rather than a page nobody can turn to. That page scrolls, which is honest."""
+    assert pages([0, 500, 560], [480, 50, 50], 250) == [[0, 0], [1, 2]]
+
+
+def test_no_pairs_is_no_pages() -> None:
+    assert pages([], [], 250) == []
+
+
+def test_which_page_a_pair_is_on() -> None:
+    words, lemmas = chapter(["a"])
+    laid = [[0, 1], [2, 3], [4, 4]]
+    for index, page in ((0, 0), (1, 0), (2, 1), (4, 2)):
+        found = run([], chapter=words, lemmas=lemmas, pageFor={"index": index, "pages": laid})
+        assert found["pageFor"] == page, index

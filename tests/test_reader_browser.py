@@ -269,6 +269,29 @@ def browser():
     driver.stop()
 
 
+#: These tests are about the scrolling reader, and pages are the default now — every
+#: browser with a preference from before there were pages is handed them once. The
+#: scrolling reader still exists behind `b`, and what is asserted here is its work, so
+#: every context opens with the preference already made. The pages have tests of their
+#: own at the foot of the file, in contexts that make no such choice.
+SCROLLING = """
+(() => {
+  try {
+    localStorage.setItem("targum:prefs", JSON.stringify({ paged: false, defaults: 3 }));
+  } catch (e) {}
+})();
+"""
+
+
+def opened(browser, viewport=None, scrolling: bool = True):
+    """A context the way every test here wants one: reduced motion, and — unless a test
+    is about the pages — the scrolling reader."""
+    context = browser.new_context(viewport=viewport or WINDOW, reduced_motion="reduce")
+    if scrolling:
+        context.add_init_script(SCROLLING)
+    return context
+
+
 @pytest.fixture
 def page(browser, built: Path):
     """A reader open in Chromium, with one sentence put at the top of the window.
@@ -280,7 +303,7 @@ def page(browser, built: Path):
     # straight after a keypress is the finished answer rather than a frame of animation.
     # It hides nothing: `keep` never animates in either setting — §8 is why — and what
     # is asserted here is where the page ended up.
-    context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
+    context = opened(browser)
     open_page = context.new_page()
     open_page.goto(built.as_uri())
     open_page.wait_for_selector(".pair")
@@ -547,7 +570,7 @@ def test_a_reading_that_went_nowhere_keeps_no_place(browser, built: Path) -> Non
     exactly where it opened: a reader who scrolled nothing has no place to be given
     back, and a page that scrolls itself for them is a page that has moved for no reason.
     """
-    context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
+    context = opened(browser)
     fresh = context.new_page()
     fresh.goto(built.as_uri())
     fresh.wait_for_selector(".pair")
@@ -695,7 +718,7 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     html = built.read_text(encoding="utf-8")
     calls = []
     bought = []
-    context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
+    context = opened(browser)
     page = context.new_page()
 
     def answer(route, request):
@@ -774,7 +797,7 @@ SWITCH = """
 
 
 def open_reader(browser, page_path: Path, viewport=None):
-    context = browser.new_context(viewport=viewport or WINDOW, reduced_motion="reduce")
+    context = opened(browser, viewport)
     page = context.new_page()
     page.goto(page_path.as_uri())
     page.wait_for_selector(".pair")
@@ -881,3 +904,114 @@ def test_switching_mode_mid_walk_keeps_the_word_you_are_on(page) -> None:
     # And the queue is still walkable from where it was left.
     page.keyboard.press("ArrowLeft")
     assert page.evaluate(RING)["text"] != was["text"]
+
+
+# -- pages, not a scroll ---------------------------------------------------------
+
+
+#: What the page control says, and which pairs are on show.
+PAGE = """
+() => {
+  const pairs = [...document.querySelectorAll('.pair')];
+  const shown = pairs.map((p, n) => (p.hidden ? null : n)).filter((n) => n !== null);
+  const of = document.getElementById('page-of');
+  return {
+    paged: document.body.classList.contains('paged'),
+    of: of ? of.textContent : '',
+    first: shown.length ? shown[0] : null,
+    last: shown.length ? shown[shown.length - 1] : null,
+    count: shown.length,
+    total: pairs.length,
+    fits: shown.every((n) => pairs[n].getBoundingClientRect().bottom <= window.innerHeight),
+  };
+}
+"""
+
+
+@pytest.fixture
+def paged(browser, built: Path):
+    """A reader open with no preference made: pages, as a new reader gets them."""
+    context = opened(browser, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector(".pair")
+    open_page.wait_for_function("() => document.body.classList.contains('paged')")
+    yield open_page
+    context.close()
+
+
+def test_a_chapter_opens_as_pages_that_fit_the_window(paged) -> None:
+    """ "I would prefer pages over an endless scroll" — twice, in five pages of notes. A
+    page is the pairs that fit under the bar, and the control says which page this is."""
+    seen = paged.evaluate(PAGE)
+    assert seen["paged"] is True
+    assert seen["first"] == 0
+    assert 0 < seen["count"] < seen["total"], "a long chapter is more than one page"
+    assert seen["fits"], "every pair on the page is inside the window"
+    assert seen["of"].startswith("1 of ")
+    assert int(seen["of"].split(" of ")[1]) > 1
+
+
+def test_space_turns_the_page_and_shift_space_turns_it_back(paged) -> None:
+    first = paged.evaluate(PAGE)
+    paged.keyboard.press("Space")
+    second = paged.evaluate(PAGE)
+    assert second["first"] == first["last"] + 1, "the next page starts where this one ended"
+    assert second["of"].startswith("2 of ")
+    paged.keyboard.press("Shift+Space")
+    assert paged.evaluate(PAGE)["first"] == 0
+
+
+def test_the_page_control_turns_it_too(paged) -> None:
+    paged.click('[data-turn="1"]')
+    assert paged.evaluate(PAGE)["of"].startswith("2 of ")
+    paged.click('[data-turn="-1"]')
+    assert paged.evaluate(PAGE)["of"].startswith("1 of ")
+
+
+def test_a_change_of_type_keeps_you_on_the_same_page(paged) -> None:
+    """Held by the pair the reader is on, not by a page number: larger type means fewer
+    pairs to a page, and the page you were on is the one that still starts here."""
+    paged.keyboard.press("Space")
+    paged.keyboard.press("Space")
+    before = paged.evaluate(PAGE)
+    paged.click('[data-type="larger"]')
+    paged.wait_for_timeout(100)
+    after = paged.evaluate(PAGE)
+    assert after["first"] <= before["first"] <= after["last"], (
+        "the pair you were on is still on show"
+    )
+    assert after["fits"]
+
+
+def test_the_arrows_turn_the_page_to_the_word_they_reach(paged) -> None:
+    """The walk goes through every word in the chapter; a word on the next page is
+    reached by turning to it, not by walking off the edge of this one."""
+    on = paged.evaluate(PAGE)
+    for _ in range(80):
+        paged.keyboard.press("ArrowRight")
+        now = paged.evaluate(PAGE)
+        if now["first"] != on["first"]:
+            break
+    else:
+        raise AssertionError("eighty words in and the page never turned")
+    standing = paged.evaluate("() => document.querySelector('.w.queued')?.closest('.pair')?.hidden")
+    assert standing is False, "the word the arrows are on is on the page on show"
+
+
+def test_leaving_and_coming_back_lands_on_the_same_page(paged, built: Path) -> None:
+    paged.keyboard.press("Space")
+    paged.keyboard.press("Space")
+    was = paged.evaluate(PAGE)
+    paged.goto(built.as_uri())
+    # Not the first pair: on a page further in, the first pair is rightly hidden.
+    paged.wait_for_selector(".pair:not([hidden])")
+    paged.wait_for_function("() => document.body.classList.contains('paged')")
+    assert paged.evaluate(PAGE)["first"] == was["first"]
+
+
+def test_b_is_the_way_back_to_the_scroll(paged) -> None:
+    paged.keyboard.press("b")
+    seen = paged.evaluate(PAGE)
+    assert seen["paged"] is False
+    assert seen["count"] == seen["total"], "every pair is on show again"
