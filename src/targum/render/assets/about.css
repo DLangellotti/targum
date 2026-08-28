@@ -128,14 +128,21 @@ body.about {
   color: var(--ink-soft);
   overflow-wrap: anywhere;
 }
+/* A track and a fill, not a gradient. Three things were wrong with the ramp: it mixed
+   two named colours, which §9 allows a gradient to do only as a sheen; `to right` is the
+   one direction keyword with no logical form, so the bar always filled from the physical
+   left; and §4 gives a proportion to --leaf, not to the accent. */
 .areas .bar {
-  height: 6px;
+  block-size: 6px;
   border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    var(--accent) var(--share),
-    var(--rule) var(--share)
-  );
+  background: var(--rule);
+  overflow: hidden;
+}
+.areas .bar i {
+  display: block;
+  block-size: 100%;
+  inline-size: var(--share);
+  background: var(--leaf);
 }
 .areas b { color: var(--ink); font-variant-numeric: tabular-nums; text-align: end; }
 
