@@ -115,11 +115,6 @@ body.learn main[hidden] {
 .door:hover h2 {
   color: var(--ink);
 }
-/* The inverted card's own ink is the page colour; the rule above would hover it to
-   #1c1a17 on #121110 and take the heading away. */
-.carry:hover h2 {
-  color: var(--page-max);
-}
 .door .note {
   margin: 0;
   color: var(--ink-soft);
@@ -129,25 +124,12 @@ body.learn main[hidden] {
   display: none;
 }
 
-/* Carry on. §9: "Ink inversion is the wake-up move. One block per screen may invert to
-   the dark surface." This is Learn's one, and it is the thing most visits are for. */
+/* Carry on. One surface per theme: the cards sit on the page like everything else, and
+   what marks this one is the accent hairline — §4 rations the hue to the single primary
+   action in a view, and this is it. An inverted block was tried here and read as a hole
+   punched in the page rather than as emphasis. */
 .carry {
-  background: var(--ink-max);
-  color: var(--page-max);
-  border-color: transparent;
-}
-.carry .note,
-.carry .suggest-blurb {
-  color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
-}
-.carry .thumb {
-  border-color: color-mix(in srgb, var(--page-max) 22%, transparent);
-}
-.carry .thumb .glyph {
-  color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
-}
-.carry .carry-known {
-  color: var(--leaf-max);
+  border-color: var(--accent);
 }
 
 /* The line that makes it worth opening. Three lines at most: past that it stops being a
