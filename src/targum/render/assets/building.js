@@ -106,16 +106,57 @@
       .catch(function () {});
   }
 
+  // Putting it away is asking to be told another way. The server says whether it can
+  // — hosted, signed in, with an address to send — and only then is the promise made.
+  var PROMISE = "You'll be updated by email when your targum is ready.";
+  var promising = null;
+
   dismiss.addEventListener("click", function () {
     if (!showing) return;
+    var was = showing;
     var gone = dismissed();
-    gone[showing.id] = Date.now();
+    gone[was.id] = Date.now();
     try {
       localStorage.setItem(DISMISSED, JSON.stringify(gone));
     } catch (e) {}
-    strip.hidden = true;
     showing = null;
-    ask();
+    var live = was.stage !== "done" && was.stage !== "failed" && was.stage !== "blocked";
+    if (!live || !was.mail) {
+      strip.hidden = true;
+      ask();
+      return;
+    }
+    fetch(keyed("/jobs/watch"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ id: was.id }),
+    })
+      .then(function (r) {
+        return r.ok ? r.json() : {};
+      })
+      .then(function (answer) {
+        if (!answer || !answer.watching) {
+          strip.hidden = true;
+          ask();
+          return;
+        }
+        text.textContent = PROMISE;
+        link.hidden = true;
+        dismiss.hidden = true;
+        strip.classList.add("promised");
+        clearTimeout(promising);
+        promising = setTimeout(function () {
+          strip.hidden = true;
+          strip.classList.remove("promised");
+          dismiss.hidden = false;
+          ask();
+        }, 6000);
+      })
+      .catch(function () {
+        strip.hidden = true;
+        ask();
+      });
   });
 
   ask();

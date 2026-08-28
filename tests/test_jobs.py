@@ -103,3 +103,24 @@ def test_a_failed_email_never_fails_the_build(tmp_path: Path) -> None:
     person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
     library = Library(tmp_path, store=store, mailer=Broken(), address="https://targum.page")  # type: ignore[arg-type]
     library.tell(job("long", person.id, "done", now() - Library.LONG_BUILD_MS - 1, reader="x/y"))
+
+
+def test_putting_the_strip_away_is_a_promise_kept(tmp_path: Path) -> None:
+    """Dismissing the pill says "you'll be updated by email". So a build the reader put
+    away is told by email however short it was — and the list says whether that
+    promise can be made at all."""
+    store = Store(tmp_path / "db")
+    person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+    postbox = Postbox()
+    library = Library(tmp_path, store=store, mailer=postbox, address="https://targum.page")  # type: ignore[arg-type]
+    quick = job("quick", person.id, "done", now() - 1000, reader="q/reader/index.html")
+    quick.options["mail"] = True
+    library.tell(quick)
+    assert [sent[1] for sent in postbox.sent] == ["Text quick is ready"]
+
+    library.jobs = {"w": job("w", person.id, "working", now())}
+    assert library.mine(person.id)[0]["mail"] is True
+    assert Library(tmp_path).mine(None)[0:0] == [], "and nothing can be promised with no mailer"
+    plain = Library(tmp_path)
+    plain.jobs = {"w": job("w", None, "working", now())}
+    assert plain.mine(None)[0]["mail"] is False

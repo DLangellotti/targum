@@ -694,3 +694,8 @@ def test_your_builds_are_listed_for_you_alone(hosted: tuple[int, str]) -> None:
     status, body = ask(port, "/jobs", "targum.page", session)
     assert status == 200
     assert json.loads(body) == {"jobs": []}
+
+
+def test_watching_a_build_that_is_not_yours_is_not_found(hosted: tuple[int, str]) -> None:
+    port, session = hosted
+    assert _signed_post(port, "/jobs/watch", {"id": "nope"}, session)[0] == 404
