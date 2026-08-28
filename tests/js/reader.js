@@ -19,7 +19,7 @@
 
 const fs = require("fs");
 const path = require("path");
-const { install, byId } = require("./dom.js");
+const { install, byId, element } = require("./dom.js");
 
 const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
 const assets = path.resolve(__dirname, "../../src/targum/render/assets");
@@ -40,6 +40,13 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   words: payload.chapter || {},
   lemmas: payload.lemmas || [],
   document: "a-chapter",
+});
+
+// The first-time line as the template ships it: hidden, with its sentence in it. The
+// script decides whether to show it and what it says after the first word is marked.
+byId.first = Object.assign(element("p"), {
+  textContent: "Tap a word to say how well you know it.",
+  hidden: true,
 });
 
 // The page loads this first and the reader leans on it: the level names it announces
@@ -106,6 +113,8 @@ process.stdout.write(
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
     said,
+    // The first-time line under the bar, after everything above.
+    first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
     // The list beside the text after every level above was said, top to bottom.
     list: reader.entries().map((item) => ({
       lemma: item.lemma,

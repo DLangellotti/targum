@@ -808,7 +808,29 @@
     // Said here rather than at the keys, so every way of setting a level says the same
     // thing: the card's buttons, the list beside the text, and the five keys.
     saidLevel(surface || lemma, now);
+    firstWordMarked();
     return now;
+  }
+
+  // The first time in a reader. A line under the bar says what to do; the first word
+  // marked turns it into the three keys that are most of a session; and then it is
+  // never seen again. Never for a reader with words in this language already — they
+  // have done this — and `?` still has the whole list.
+  var first = document.getElementById("first");
+  var FIRST = "targum:first";
+  var firstTime = false;
+  try {
+    firstTime = !!first && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
+  } catch (e) {}
+  if (firstTime) first.hidden = false;
+
+  function firstWordMarked() {
+    if (!firstTime) return;
+    firstTime = false;
+    first.textContent = "k known · 1 2 3 · → next word · ? every key";
+    try {
+      localStorage.setItem(FIRST, String(Date.now()));
+    } catch (e) {}
   }
 
   function interlinear() {

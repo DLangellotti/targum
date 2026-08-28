@@ -114,6 +114,11 @@
     working the queue by keyboard alone got no confirmation of anything at all. -#}
 <p class="spoken" id="spoken" role="status" aria-live="polite"></p>
 
+{#- The first time, and only the first time: one line that says what to do, and after
+    the first word is marked, one line that says what the keys are. A reader who has
+    never marked a word in this language sees it; after that it is gone for good. -#}
+{% if words %}<p class="first" id="first" hidden>Tap a word to say how well you know it.</p>{% endif %}
+
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
     text would be a decoration; this is a mark, the size of a stamp, that says which book
