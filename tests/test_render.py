@@ -1762,7 +1762,11 @@ def test_no_count_on_the_page_reads_the_dom() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    for name in ("function lemmasHere()", "function coverage()", "function wordEntries()"):
+    for name in (
+        "function lemmasHere(everything)",
+        "function coverage()",
+        "function wordEntries()",
+    ):
         body = script[script.index(name) :]
         body = body[: body.index("\n  }\n")]
         assert "querySelector" not in body, f"{name} must not count spans"

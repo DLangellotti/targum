@@ -30,7 +30,7 @@ PROCESSORS = "tokenize,pos,lemma"
 # into the name, and so into every annotation.json, which is what lets the pipeline spot
 # a file written before a feature existed and redo it. Redoing one is free: Stanza runs
 # on the machine, so nothing is fetched and nothing is spent.
-FEATURES = "roots+everyword"
+FEATURES = "roots+everyword+names"
 
 # Not a word at all. Everything else is a token the reader can tap, names and numerals
 # included: this set used to hold NUM, PROPN and X as "not vocabulary", and dropping

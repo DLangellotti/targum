@@ -25,7 +25,7 @@ if TYPE_CHECKING:  # imported for types only; the real import is inside each fun
     from ..catalogue import Entry  # because catalogue imports nothing from here
 from markupsafe import Markup, escape
 
-from ..annotate.base import BAND_NAMES, method_label
+from ..annotate.base import BAND_NAMES, KIND_COLUMN, method_label
 from ..models import (
     Annotation,
     BlockKind,
@@ -768,6 +768,9 @@ def render(
                             1 if token.split else 0,
                             lemma_at[token.lemma],
                             sound_at.get(token.ipa or "", 0),
+                            # A name or a number, which the reader can tap and mark but
+                            # which is never counted as vocabulary.
+                            KIND_COLUMN.get(token.pos or "", 0),
                         ]
                     )
                 words[sid] = rows

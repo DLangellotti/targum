@@ -632,3 +632,55 @@ def test_the_lemma_cache_is_rewritten_when_the_annotation_is() -> None:
         # A cache from before the stamp existed is stale by definition.
         (folder / LEMMAS).write_text(json.dumps(["stale"]))
         assert lemmas(folder) == ["א", "ב", "ג"]
+
+
+class NamingLemmatizer(FakeLemmatizer):
+    """The fake above, with one word tagged as a name."""
+
+    name = "fake-lemma/2"
+
+    def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+        out = super().lemmas(segments, language)
+        for tokens in out.values():
+            for index, token in enumerate(tokens):
+                if token.lemma == "אסתר":
+                    tokens[index] = token.model_copy(update={"pos": "PROPN"})
+        return out
+
+
+def test_a_name_has_no_difficulty() -> None:
+    """Rated by corpus frequency, every name in a chronicle is "extremely hard". It has no
+    difficulty at all: it is a token to tap, not a word to learn."""
+    from targum.annotate import UNRATED
+    from targum.models import BlockKind, Segment, SegmentedDocument
+
+    segment = Segment(
+        id="s", block_id="b", block_index=0, index=0, text="אסתר נערה", kind=BlockKind.paragraph
+    )
+    document = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t", segments=[segment]
+    )
+    annotation = Annotator(lemmatizer=NamingLemmatizer(), bands=FakeBands()).annotate(document)
+    by_lemma = {token.lemma: token for token in annotation.tokens["s"]}
+    assert by_lemma["אסתר"].band == UNRATED
+    assert by_lemma["נערה"].band > 0
+
+
+def test_a_name_is_not_in_the_lemma_count() -> None:
+    """The shelf's "% of its words you know" divides by the distinct lemmas; a book of
+    names could never be read if they were in the denominator."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    from targum.coverage import lemmas
+
+    with tempfile.TemporaryDirectory() as raw:
+        folder = Path(raw)
+        tokens = [
+            {"lemma": "מלך"},
+            {"lemma": "אסתר", "pos": "PROPN"},
+            {"lemma": "שבע", "pos": "NUM"},
+        ]
+        (folder / "annotation.json").write_text(json.dumps({"tokens": {"s": tokens}}))
+        assert lemmas(folder) == ["מלך"]
