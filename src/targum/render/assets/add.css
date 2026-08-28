@@ -81,8 +81,9 @@ body.add > .add-main {
 .field input:focus, .field select:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
 .hint { margin: -0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.6; }
 /* Said before anything is priced, so it sits with the heading rather than with the
-   form. The link is the only accent above the fold — the button below it is the page's
-   primary action and keeps its own. */
+   form. Ink with a hairline, not accent: the button below it is the page's one primary
+   action, and §4 rations the hue to that. Two accents above and below the fold is how a
+   page ends up with no primary action at all. */
 .add .lede + .hint { margin: -1.25rem 0 1.75rem; }
 .to-library {
   color: var(--ink);
