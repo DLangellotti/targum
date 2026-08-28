@@ -518,18 +518,39 @@ class Library:
                 # Priced and not yet started: nothing is building, so there is nothing
                 # to follow. The page that asked for the price is still showing it.
                 continue
-            out.append({**job.state(), "behind": position.get(job.id, 0)})
+            out.append(
+                {
+                    **job.state(),
+                    "behind": position.get(job.id, 0),
+                    # Whether putting the strip away can honestly promise an email.
+                    "mail": self.can_mail(owner),
+                }
+            )
         return out
 
+    def can_mail(self, owner: int | None) -> bool:
+        """Whether a finished build could reach this person by email at all: hosted,
+        with an address to put in the link, and somebody signed in to send it to."""
+        return (
+            self.mailer is not None
+            and bool(self.address)
+            and self.store is not None
+            and owner is not None
+        )
+
     def tell(self, job: Job) -> None:
-        """Email whoever asked for a build that took long enough for them to have left.
+        """Email whoever asked for a build that took long enough for them to have left —
+        or who put the strip away and was promised one.
 
         Best effort, and never a reason for a finished build to count as failed: the
         reader is on disk whether or not the message about it arrives.
         """
+        # Spelt out rather than asked of `can_mail`, so the checker sees each is there.
         if self.mailer is None or self.store is None or job.owner is None:
             return
-        if now() - job.made < self.LONG_BUILD_MS or not job.reader:
+        if not self.address or not job.reader:
+            return
+        if not job.options.get("mail") and now() - job.made < self.LONG_BUILD_MS:
             return
         with contextlib.suppress(Exception):
             person = self.store.person_by_id(job.owner)
@@ -1932,6 +1953,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._chapter(payload)
         if route == "/cover":
             return self._cover(payload)
+        if route == "/jobs/watch":
+            return self._watch_job(payload)
         if route == "/trash":
             return self._trash(payload)
         if route == "/restore":
@@ -2328,6 +2351,19 @@ class Handler(BaseHTTPRequestHandler):
         self.library.remember(job)
         self.library.enqueue(job)
         self._json(job.state())
+
+    def _watch_job(self, payload: dict[str, Any]) -> None:
+        """The reader put the strip away: tell them by email instead, however short the
+        build. A promise made on the page is kept whatever the clock says."""
+        job = self._own_job(str(payload.get("id") or ""))
+        if job is None:
+            return self._json({"error": "not found"}, 404)
+        finished = job.stage in ("done", "failed", "blocked")
+        watching = self.library.can_mail(job.owner) and not finished
+        if watching:
+            job.options["mail"] = True
+            self.library.remember(job)
+        self._json({"watching": watching})
 
     def _trash(self, payload: dict[str, Any]) -> None:
         name = str(payload.get("name") or "")
