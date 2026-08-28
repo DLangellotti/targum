@@ -11,6 +11,10 @@ Description=targum
 Documentation=https://github.com/dlangellotti/targum
 After=network-online.target
 Wants=network-online.target
+# Give up after five failures in five minutes rather than restarting into the same
+# broken environment forever. `systemctl reset-failed targum` clears it.
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -18,6 +22,9 @@ User=targum
 Group=targum
 WorkingDirectory=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
+# Stanza fetches its models through the Hugging Face hub, which caches under $HOME —
+# and ProtectHome below makes /srv/targum read-only. Point it at the one writable tree.
+Environment=HF_HOME=/var/lib/targum/models/huggingface
 
 # The gate. A deployment fails either here, in the journal, or at somebody's first
 # sign-in — and there is only one alpha reader to spend on the second. Non-zero exit
@@ -34,8 +41,6 @@ Restart=always
 RestartSec=10
 # Give up after five failures in five minutes rather than restarting into the same
 # broken environment forever. `systemctl reset-failed targum` clears it.
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 # Stanza and LaBSE are large, and a build is a long-running request. Let it finish.
 TimeoutStopSec=90

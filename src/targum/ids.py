@@ -35,7 +35,10 @@ def segment_id(block_index: int, sentence_index: int, text: str) -> str:
 
 # Characters a filesystem or a shell would rather not see. Letters in any script are
 # fine: a Hebrew text deserves a Hebrew filename, not a hash.
-_UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+# Filesystem-unsafe, and then the characters a URL cannot carry raw. A title with
+# "60%" in it made a folder Caddy refused to serve — `%` starts an escape, and `%-מ`
+# is not one — and `#` would end the path at the first link that carried it.
+_UNSAFE = re.compile(r'[\\/:*?"<>|%#&\x00-\x1f]+')
 _SPACE = re.compile(r"[\s_]+")
 _TRIM = re.compile(r"^[-.]+|[-.]+$")
 

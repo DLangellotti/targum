@@ -685,3 +685,37 @@ def test_a_translation_can_be_pasted_as_well_as_dropped() -> None:
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     within = source[source.index("function withTranslation") :][:700]
     assert "pasted-translation" in within and "fromPaste(" in within
+
+
+def test_a_signed_in_reader_can_look_a_word_up() -> None:
+    """Hosted, there is no start-up key: the session cookie is what lets a lookup through,
+    and a page cannot read it. Gated on the key alone, the live site drew every look-up
+    button disabled — "nothing saved" — and `g` did nothing, on the one deployment where
+    somebody other than the owner would ever press it."""
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function canAsk()" in source
+    assert "window.TargumSync.who" in source, "the sync layer already knows who is signed in"
+    assert "served && passKey" not in source, "the key alone is a single-user answer"
+    assert "!served || !passKey" not in source, "the key alone is a single-user answer"
+
+
+def test_a_card_opens_with_a_meaning_targum_already_holds() -> None:
+    """Pressing `g` for a word whose meaning is sitting in the cache is a button between
+    the reader and something that was already theirs."""
+    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function peek(index, onDone)" in source
+    assert "free: true" in source, "asked of the cache, never bought"
+    assert "peek(index, function (found)" in source, "and the card asks before it offers the button"
+
+
+def test_reader_links_are_percent_encoded() -> None:
+    """A folder is named from a title, and a title can carry anything. The one that broke
+    it had a raw `%` — a browser sent it as-is, and the proxy refused the request before
+    targum saw it."""
+    for name in ("library.js", "shelf.js", "learn.js", "add.js"):
+        source = (ASSETS / name).read_text(encoding="utf-8")
+        assert '"/reader/" + reader.name' not in source, name
+        assert '"/reader/" + row.built.name' not in source, name
+        assert '"/reader/" + job.reader)' not in source, name
+        assert '"/reader/" + state.reader)' not in source, name
+        assert "encodeURIComponent" in source, name

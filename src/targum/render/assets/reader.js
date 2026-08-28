@@ -77,6 +77,16 @@
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
 
+  // Whether the server will answer a question that costs something — a word looked
+  // up, a glossary waited for. The start-up key says yes on a machine somebody runs
+  // themselves. Hosted there is no key: the session cookie is what lets the request
+  // through, and a page cannot read that cookie, so it asks the sync layer, which has
+  // already asked the server who is signed in. Gated on the key alone, the live site
+  // drew every look-up button disabled and `g` did nothing.
+  function canAsk() {
+    return served && !!(passKey || (window.TargumSync && window.TargumSync.who));
+  }
+
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
      a Referer. Local it stays, because there it proves the page came from the terminal
@@ -524,6 +534,8 @@
   // Looked up because you asked, not bought in advance. The answer is cached on the
   // machine, so the same word costs nothing the next time it turns up anywhere.
   var asked = {};
+  // Words whose meaning the card has already asked the cache for, found or not.
+  var peeked = {};
   // What came back for a word that had no meaning: "none" when it was looked up and
   // there was nothing to find, or the reason it could not be looked up. Kept so the
   // card can say which, instead of quietly offering the same button again.
@@ -537,9 +549,37 @@
     return pair ? segmentText(pair.getAttribute("data-id")) : "";
   }
 
+  // Whether a meaning is already held for this word — never bought. A card opens with
+  // what targum has before it offers to go and get what it does not.
+  function peek(index, onDone) {
+    var lemma = lemmas[index];
+    if (!lemma || !canAsk() || typeof fetch !== "function") return;
+    var into = targetLanguage || "en";
+    fetch(keyed("/gloss"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ lemma: lemma, source: language, target: into, free: true }),
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (answer) {
+        if (answer && answer.meaning) {
+          keepMeaning(lemma, answer.meaning, into);
+          if (into === targetLanguage) glosses[index] = answer.meaning;
+          onDone(true);
+        } else {
+          onDone(false);
+        }
+      })
+      .catch(function () {
+        onDone(false);
+      });
+  }
+
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
-    if (!lemma || !served || !passKey) return;
+    if (!lemma || !canAsk()) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
     // The language asked about, held for the length of the flight. A reader can change
@@ -1768,11 +1808,17 @@
         // would only buy the same silence twice.
         meaning.textContent = "nothing found — write your own";
       } else {
+        if (!peeked[lemma]) {
+          peeked[lemma] = true;
+          peek(index, function (found) {
+            if (found && lookedUp === word) showCard(word);
+          });
+        }
         var ask = document.createElement("button");
         ask.type = "button";
         ask.className = "look-up";
-        ask.textContent = served && passKey ? "look it up" : "nothing saved";
-        ask.disabled = !(served && passKey);
+        ask.textContent = canAsk() ? "look it up" : "nothing saved";
+        ask.disabled = !canAsk();
         ask.onclick = function (event) {
           event.stopPropagation();
           ask.disabled = true;
@@ -3507,7 +3553,7 @@
 
   function waitForMeanings() {
     var folder = buildFolder();
-    if (!served || !passKey || !folder) return;
+    if (!canAsk() || !folder) return;
     if (!lemmas.length) return;
     var target = data.glossPending || "";
     // Nothing was bought for this text, so nothing is coming. Words are looked up one

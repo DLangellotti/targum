@@ -100,7 +100,7 @@
     shown.forEach(function (reader) {
       var item = document.createElement("li");
       var link = document.createElement("a");
-      link.href = keyed("/reader/" + reader.name + "/reader/index.html");
+      link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
 
       // A drawn cover where there is one, and the text's own first letter where there
       // is not — which is most of them. Covers are drawn for the library's own texts, so
@@ -186,7 +186,7 @@
 
       var name = document.createElement("a");
       name.href =
-        keyed("/reader/" + reader.name + "/reader/" + chapter.file);
+        keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/" + encodeURIComponent(chapter.file));
       // A chapter that names something may have a cover of its own; the rest fall back
       // to the book's on the server, so every row carries the same one either way.
       var cover = window.TargumCovers.chapterName(reader.entry || reader.name, chapter.number);
