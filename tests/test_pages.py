@@ -163,12 +163,14 @@ def test_add_no_longer_introduces_the_product() -> None:
     assert "Add a text" in add
 
 
-def test_add_points_at_discover_before_asking_anybody_to_pay() -> None:
+def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
     """Most of what anybody wants is already there, and finding that out after paying is
-    the wrong way round. The route is still /library; the name on it is Discover."""
+    the wrong way round. The page had four names for one place — nav "Discover", tab
+    "Library", card "Explore the Library", route /library — so it is Library everywhere
+    now, and the route it always was."""
     add = PAGES["add"]
     said = add[add.index("Add a text") : add.index('id="drop"')]
-    assert "Discover" in said and 'href="/library"' in said
+    assert "Library" in said and 'href="/library"' in said
 
 
 def test_learn_is_honest_when_there_is_nothing() -> None:
