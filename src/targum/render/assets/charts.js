@@ -282,6 +282,7 @@
       learning: learning,
       recent: recent,
       texts: entry.texts || 0,
+      finished: entry.finished || 0,
       phrases: entry.phrases.length,
     };
   }
@@ -374,7 +375,9 @@
     var byLanguage = {};
 
     function slot(code) {
-      if (!byLanguage[code]) byLanguage[code] = { code: code, words: [], phrases: [], texts: 0 };
+      if (!byLanguage[code]) {
+        byLanguage[code] = { code: code, words: [], phrases: [], texts: 0, finished: 0 };
+      }
       return byLanguage[code];
     }
 
@@ -444,6 +447,13 @@
     Object.keys(opened).forEach(function (hash) {
       var code = about(hash).language;
       if (code && byLanguage[code]) byLanguage[code].texts += 1;
+    });
+    // And how many the reader said they had finished. One record per text, so a text
+    // finished twice is finished once.
+    Object.keys(docs).forEach(function (hash) {
+      var record = docs[hash] || {};
+      var where = about(hash).language;
+      if (record.done && where && byLanguage[where]) byLanguage[where].finished += 1;
     });
 
     Object.keys(byLanguage).forEach(function (code) {

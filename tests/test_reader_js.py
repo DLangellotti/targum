@@ -454,8 +454,8 @@ def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
     assert before["rest"] == {
         "hidden": False,
-        "text": "Mark the remaining 2 words as known?",
-        "button": "Mark 2",
+        "text": "",
+        "button": "Mark 2 words as known",
         "undo": False,
     }
     after = run(
@@ -475,16 +475,18 @@ def test_one_undo_takes_the_whole_batch_back() -> None:
     words, lemmas = chapter(["a", "b", "c", "d"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
-    assert done["rest"]["button"] == "Mark 4"
+    assert done["rest"]["button"] == "Mark 4 words as known"
 
 
-def test_marking_the_rest_never_touches_a_name() -> None:
-    """A name is not a word you know. It is on the page to be tapped, and it is not in
-    the count offered."""
+def test_marking_the_rest_takes_the_names_with_it_but_never_counts_them() -> None:
+    """The whole point is a clean page, so a name is marked with the rest — and it still
+    counts for nothing, because its record keeps "name" as its band, which is what every
+    count reads."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
     done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
-    assert done["rest"]["text"] == "2 words marked known"
-    assert [item["lemma"] for item in done["queue"]] == ["Name"], "still there to tap"
+    assert done["rest"]["text"] == "3 words marked known"
+    assert done["queue"] == [], "nothing left lit"
+    assert done["list"] == [], "and nothing on the list"
 
 
 def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
@@ -525,3 +527,33 @@ def test_which_page_a_pair_is_on() -> None:
     for index, page in ((0, 0), (1, 0), (2, 1), (4, 2)):
         found = run([], chapter=words, lemmas=lemmas, pageFor={"index": index, "pages": laid})
         assert found["pageFor"] == page, index
+
+
+# -- finished with the text --------------------------------------------------------
+
+
+def test_done_is_said_once_however_often_it_is_pressed() -> None:
+    """targum-internal#112. One press at the foot of the last part finishes the text and
+    says when; pressing again takes it back. Finished twice is finished once, so the
+    count on the progress page can only ever move by one."""
+    words, lemmas = chapter(["a"])
+    fresh = run([], chapter=words, lemmas=lemmas)["finished"]
+    assert fresh["at"] == 0 and fresh["button"] == "Done" and fresh["said"] == ""
+
+    done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
+    assert done["at"] > 0 and done["record"] == done["at"], "written where the sync reads it"
+    assert done["button"] == "Undo"
+    assert done["said"].startswith("You finished a targum.")
+    assert "1st" in done["said"], "and how many so far"
+
+    back = run([], chapter=words, lemmas=lemmas, finish=[True, False])["finished"]
+    assert back["at"] == 0 and back["button"] == "Done"
+
+
+def test_finishing_survives_everything_else_the_reader_writes() -> None:
+    """`updateDocs` rewrites the text's record on every change to a word."""
+    words, lemmas = chapter(["a", "b"])
+    kept = run(
+        [], chapter=words, lemmas=lemmas, finish=[True], levels=[{"word": "a", "status": 9}]
+    )["finished"]
+    assert kept["record"] > 0

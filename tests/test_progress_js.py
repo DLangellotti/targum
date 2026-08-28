@@ -378,6 +378,7 @@ def test_every_figure_is_said_once_on_the_page() -> None:
         "words marked known",
         "words learned",
         "phrases saved",
+        "targums finished",
         "day reading",
     ], "in the order somebody would say them"
 
@@ -387,7 +388,7 @@ def test_a_figure_carries_its_name_and_nothing_else() -> None:
     is however many words happen to be part-way up the ladder, so it fell when a reader
     saved a new word and rose when they gave up on one."""
     drawn = page(marked(known=9, learning=1))
-    assert [box["delta"] for box in drawn["tiles"]] == [""] * 5
+    assert [box["delta"] for box in drawn["tiles"]] == [""] * 6
 
 
 # --- a name is not a word ------------------------------------------------------
@@ -410,3 +411,21 @@ def test_a_name_is_not_a_milestone() -> None:
         words[f"name-{n}"] = {"status": KNOWN, "surface": f"name-{n}", "band": "number", "at": 1}
     drawn = draw({"targum:vocab:he": words})
     assert drawn["marks"]["on"] == [], "eight words and five numbers is eight words"
+
+
+def test_a_text_said_finished_is_counted_once() -> None:
+    """targum-internal#112: the ledger says how many targums the reader finished. One
+    record per text, so a text finished twice — or opened again after — is one."""
+    drawn = draw(
+        {
+            "targum:vocab:he": vocab(known=1),
+            "targum:docs": {
+                "a": {"language": "he", "title": "One", "done": 1_700_000_000_000},
+                "b": {"language": "he", "title": "Two", "done": 0},
+                "c": {"language": "he", "title": "Three"},
+            },
+            "targum:opened": {"a": 1, "b": 2, "c": 3},
+            "targum:days": {"2026-08-25": 1},
+        }
+    )
+    assert drawn["counts"]["targum finished"] == 1

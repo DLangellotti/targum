@@ -105,6 +105,9 @@ const said = [];
   });
 });
 
+/* Finished with the text: said, said again, and what the record holds. */
+(payload.finish || []).forEach((on) => reader.finish(on));
+
 /* The offer at the foot: everything never marked, known at once, and one undo. */
 if (payload.markRest) reader.markRest();
 if (payload.undoAfter) reader.undo();
@@ -117,6 +120,12 @@ process.stdout.write(
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
     said,
+    finished: {
+      at: reader.finishedAt(),
+      record: (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).done || 0,
+      button: byId["done-mark"].textContent,
+      said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
+    },
     // The arithmetic of a page, asked of the pure half: a stub lays nothing out.
     pages: payload.pages
       ? reader.boundariesFrom(payload.pages.tops, payload.pages.heights, payload.pages.room)

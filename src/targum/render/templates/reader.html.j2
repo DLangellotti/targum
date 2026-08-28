@@ -179,7 +179,7 @@
     the stylesheet the way the pager's are. -#}
 <div class="turn" id="turn" hidden>
   <button type="button" class="back" data-turn="-1" aria-label="Previous page"></button>
-  <span id="page-of"></span>
+  <span id="page-of" dir="ltr"></span>
   <button type="button" class="forward" data-turn="1" aria-label="Next page"></button>
 </div>
 
@@ -187,11 +187,22 @@
     press, with one Undo. Offered, never done for you — and never a name, which does not
     count. "Words should be marked as known automatically when I'm done with the
     article", said the first alpha reader; this is the honest version of that. -#}
+{#- Both strips are English chrome inside a page that may run right to left: without
+    their own direction the "?" wandered to the front and "2 of 4" read "of 4 2". -#}
 {% if words %}
-<div class="rest" id="rest" hidden>
+<div class="rest" id="rest" dir="ltr" hidden>
   <span id="rest-text"></span>
   <button type="button" id="rest-mark"></button>
   <button type="button" id="rest-undo" hidden>Undo</button>
+</div>
+{% endif %}
+{#- Finished with the text: one press at the foot of its last part, and a line that says
+    when. Pressing again takes it back, so however often it is pressed the text is
+    finished once. Counted on the progress page. -#}
+{% if not following %}
+<div class="finished" id="finished" dir="ltr">
+  <span id="done-said" hidden></span>
+  <button type="button" id="done-mark">Done</button>
 </div>
 {% endif %}
 

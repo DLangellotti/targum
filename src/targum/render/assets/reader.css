@@ -1276,47 +1276,64 @@ body.marking .w.here,
 body.paged:not(.last-page) .pager,
 body.paged:not(.last-page) .rest { display: none; }
 
-/* The turn control, fixed at the foot of the window, centred. One raised layer, a
-   hairline, and the two arrows drawn per reading direction like the pager's. */
+/* Turning the page. Two round buttons in the two bottom corners — back at the start
+   edge, forward at the end edge, so each arrow points outward, toward the edge you
+   turn from, the way pages turn — and between them, quietly, which page this is. The
+   row itself is nothing: it neither paints nor catches a tap, so the text under it is
+   still the text. Arrows per reading direction, like the pager's: in Hebrew, forward
+   is to the left. */
 .turn {
   position: fixed;
-  inset-block-end: 0.75rem;
+  inset-block-end: 2.25rem;
   inset-inline: 0;
-  width: max-content;
+  /* Inside the text's own measure with a little to spare, not at the window's far
+     corners: the arrows belong to the page, so they sit where the page is. */
+  max-inline-size: calc(var(--measure) * 2 + var(--gap) + 7rem);
   margin-inline: auto;
   z-index: 25;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.3rem 0.5rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--paper-raised, var(--paper));
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  justify-content: space-between;
+  pointer-events: none;
   font-family: system-ui, sans-serif;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
 .turn[hidden] { display: none; }
-.turn button {
-  min-inline-size: 2.4rem;
-  min-block-size: 2.4rem;
-  border: 0;
+/* The open list takes a column of the window, and the page — arrows included — moves
+   over to make room, the same way `body.list-open` moves the text. */
+@media (min-width: 60rem) {
+  body.has-list.list-open .turn { inset-inline-end: 15rem; }
+}
+.turn span {
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: none;
-  color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+}
+.turn button {
+  pointer-events: auto;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper-raised, var(--paper));
+  box-shadow: var(--lift);
+  /* An action, coloured as one. */
+  color: var(--accent);
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   cursor: pointer;
 }
-.turn button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.turn button:hover { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
 .turn .back::before { content: "\2190"; }
 .turn .forward::before { content: "\2192"; }
 [dir="rtl"] .turn .back::before { content: "\2192"; }
 [dir="rtl"] .turn .forward::before { content: "\2190"; }
 /* Room under the last pair for the control to sit over. */
-body.paged main { padding-block-end: 4rem; }
+body.paged main { padding-block-end: 1rem; }
+/* And on the last page, what sits under the text clears the arrows too. */
+body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 
 @media print {
   .bar, .pager, .turn { display: none; }
@@ -1380,28 +1397,88 @@ body.paged main { padding-block-end: 4rem; }
 .rest {
   max-width: calc(var(--measure) * 2 + var(--gap));
   margin: 1.5rem auto 0;
-  padding: 0.75rem 1rem;
+  padding: 0.25rem 1rem;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 1rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
   font-family: system-ui, sans-serif;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
 .rest[hidden] { display: none; }
-.rest button {
-  padding: 0.3rem 0.8rem;
-  border: 1px solid var(--ink);
-  border-radius: 4px;
+.rest span { flex: 1; }
+/* Both buttons are about "known" and "done", which §4 gives to leaf — and they carry
+   the §9 gloss recipe a primary button is allowed: one sheen, light on glass, at 14%.
+   Undo is quieter. */
+.rest button,
+.finished button {
+  padding: 0.4rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: linear-gradient(var(--gloss), transparent) var(--leaf);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--lift);
+}
+.rest button:hover,
+.finished button:hover { filter: brightness(1.06); }
+.rest button[hidden] { display: none; }
+.rest #rest-undo,
+.finished button.undo {
   background: none;
   color: var(--ink);
-  font: inherit;
-  cursor: pointer;
+  border: 1px solid var(--rule);
+  font-weight: 400;
+  box-shadow: none;
 }
-.rest button:hover { background: var(--ink); color: var(--paper); }
-.rest button[hidden] { display: none; }
+
+/* Finished: the same strip, under the offer. Leaf for what has been done. */
+.finished {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.finished > span { flex: 1; }
+.finished > span[hidden] { display: none; }
+body.paged:not(.last-page) .finished { display: none; }
+
+/* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
+   on the one block that earned it — and brags the brand's way: a real count in the
+   reading face, tabular, leaf-bright on ink. Celebration in type, nothing moves. */
+.finished.is-done {
+  padding: 1rem 1.25rem;
+  border-radius: 8px;
+  background: var(--ink-max);
+  color: var(--page-max);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+}
+.finished.is-done .cheer { display: block; font-weight: 600; }
+.finished.is-done .tally {
+  display: block;
+  margin-block-start: 0.2rem;
+  color: color-mix(in srgb, var(--page-max) 72%, transparent);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+/* `.ledger` names the inverted block — the one surface the bright set is legal on. */
+.finished.ledger .tally b { color: var(--leaf-bright); font-size: 1.5rem; font-weight: 600; }
+.finished.is-done button.undo {
+  color: var(--page-max);
+  border-color: color-mix(in srgb, var(--page-max) 30%, transparent);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+}
 
 /* What the pressed step means, under the scale. Secondary by §9. */
 .vocab-editor .level-legend { font-size: 0.75em; color: var(--ink-soft); }

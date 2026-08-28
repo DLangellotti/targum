@@ -148,6 +148,11 @@ button.door:disabled {
 .carry {
   border-color: var(--accent);
 }
+/* The first sign-in offers two texts as one choice, and the second card carries the
+   same hairline as the first: two halves of one action, not an action and an aside. */
+.suggest.start {
+  border-color: var(--accent);
+}
 
 /* The line that makes it worth opening. Three lines at most: past that it stops being a
    reason and starts being the text itself. */

@@ -485,15 +485,104 @@
   // language's words without opening every reader to ask.
   function updateDocs() {
     var all = read(DOCS, "{}");
+    var was = all[documentId] || {};
     all[documentId] = {
       title: documentTitle,
       language: language,
       updated: Date.now(),
+      // Kept across every rewrite of the record: finishing a text is the one thing
+      // here the reader said outright.
+      done: was.done || 0,
     };
     try {
       localStorage.setItem(DOCS, JSON.stringify(all));
     } catch (e) {}
   }
+
+  // Finished with this text, said once at the foot of its last part. Pressing again
+  // takes it back, so a text is finished once however often the button is pressed —
+  // and the count on the progress page can only ever move by one.
+  var finishedBox = document.getElementById("finished");
+  var finishedMark = document.getElementById("done-mark");
+  var finishedSaid = document.getElementById("done-said");
+
+  function finishedAt() {
+    var record = read(DOCS, "{}")[documentId];
+    return record ? Number(record.done || 0) : 0;
+  }
+
+  function setFinished(on) {
+    var all = read(DOCS, "{}");
+    var record = all[documentId] || { title: documentTitle, language: language };
+    record.done = on ? Date.now() : 0;
+    record.updated = Date.now();
+    all[documentId] = record;
+    try {
+      localStorage.setItem(DOCS, JSON.stringify(all));
+    } catch (e) {}
+    if (window.TargumSync) window.TargumSync.touched();
+    renderFinished();
+    say(on ? "Finished. It counts on your progress page." : "Not finished.");
+  }
+
+  // How many texts this reader has finished, in every language: the number the
+  // celebration brags with. One record per text, so one at most each.
+  function finishedCount() {
+    var all = read(DOCS, "{}");
+    var count = 0;
+    Object.keys(all).forEach(function (hash) {
+      if (all[hash] && all[hash].done) count += 1;
+    });
+    return count;
+  }
+
+  function ordinal(n) {
+    var rest = n % 100;
+    if (rest >= 11 && rest <= 13) return n + "th";
+    return n + (["th", "st", "nd", "rd"][n % 10] || "th");
+  }
+
+  // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block
+  // that earned it — and brags the brand's way: a real count, in serif tabular figures,
+  // leaf-bright on ink. Type, not motion.
+  function renderFinished() {
+    if (!finishedBox || !finishedMark || !finishedSaid) return;
+    var when = finishedAt();
+    finishedSaid.textContent = "";
+    if (when) {
+      var day = new Date(when);
+      var said = "";
+      try {
+        said = day.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      } catch (e) {
+        said = day.toDateString();
+      }
+      var count = finishedCount();
+      var lead = document.createElement("b");
+      lead.className = "cheer";
+      lead.textContent = "You finished a targum.";
+      finishedSaid.appendChild(lead);
+      var tally = document.createElement("span");
+      tally.className = "tally";
+      var figure = document.createElement("b");
+      figure.textContent = ordinal(count);
+      tally.appendChild(document.createTextNode("Your "));
+      tally.appendChild(figure);
+      tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
+      finishedSaid.appendChild(tally);
+      finishedSaid.hidden = false;
+      finishedMark.textContent = "Undo";
+      finishedMark.classList.add("undo");
+    } else {
+      finishedSaid.hidden = true;
+      finishedMark.textContent = "Done";
+      finishedMark.classList.remove("undo");
+    }
+    finishedBox.classList.toggle("is-done", !!when);
+    // The inverted block is a ledger, and `.ledger` is what licenses the bright set.
+    finishedBox.classList.toggle("ledger", !!when);
+  }
+  renderFinished();
 
   /* --- the two forms of a sentence ----------------------------------------- */
 
@@ -743,13 +832,21 @@
   // is left after reading a part is, by and large, what you knew already; this is the
   // `k` you would have pressed on each. One record for the whole batch, so one `u`
   // takes the whole batch back — pushed one at a time, a long part would overflow the
-  // undo list and most of it would be unreachable. Names are not words, and are not
-  // in `lemmasHere()`.
+  // undo list and most of it would be unreachable. Names and numbers go too — the
+  // whole point is a clean page — and stay out of every count, because the record
+  // keeps "name" as its band.
   var restSaid = 0;
+
+  // What is still unmarked on this page, names included: what the offer counts.
+  function unmarkedHere() {
+    return lemmasHere(true).filter(function (lemma) {
+      return statusOf(lemma) === undefined;
+    });
+  }
 
   function markRest() {
     var batch = [];
-    lemmasHere().forEach(function (lemma) {
+    unmarkedHere().forEach(function (lemma) {
       if (statusOf(lemma) !== undefined) return;
       var index = lemmas.indexOf(lemma);
       batch.push({ lemma: lemma, before: null });
@@ -1304,13 +1401,13 @@
       restMark.hidden = true;
       restUndo.hidden = false;
       restBox.hidden = false;
-    } else if (counts.fresh) {
-      restText.textContent =
-        "Mark the remaining " +
-        counts.fresh +
-        (counts.fresh === 1 ? " word" : " words") +
-        " as known?";
-      restMark.textContent = "Mark " + counts.fresh;
+    } else if (unmarkedHere().length) {
+      // One button that says the whole thing, rather than a question and a number:
+      // the words left — names and all, since the offer is a clean page — and what
+      // pressing it does with them.
+      var left = unmarkedHere().length;
+      restText.textContent = "";
+      restMark.textContent = "Mark " + left + (left === 1 ? " word" : " words") + " as known";
       restMark.hidden = false;
       restUndo.hidden = true;
       restBox.hidden = false;
@@ -3121,9 +3218,16 @@
   }
 
   // What is left of the window under the bar and above the turn control.
+  // Under the bar, and above the arrows — the whole band the arrows sit in, from their
+  // top edge to the foot of the window, not their own height: a page is laid out so
+  // that no line of it can end up under them.
   function room() {
     var top = bar ? bar.getBoundingClientRect().bottom : 0;
-    var foot = turn && !turn.hidden ? turn.getBoundingClientRect().height + 16 : 0;
+    var foot = 0;
+    if (turn && !turn.hidden) {
+      var box = turn.getBoundingClientRect();
+      if (box.height) foot = window.innerHeight - box.top + 12;
+    }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
 
@@ -3321,6 +3425,10 @@
       }
       if (button.id === "rest-undo") {
         undo();
+        return;
+      }
+      if (button.id === "done-mark") {
+        setFinished(!finishedAt());
         return;
       }
       if (button.getAttribute("data-export") === "csv") {
@@ -4115,6 +4223,9 @@
     entries: wordEntries,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // Finished with the text, and taken back.
+    finish: setFinished,
+    finishedAt: finishedAt,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,

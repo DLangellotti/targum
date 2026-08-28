@@ -162,6 +162,7 @@ setTimeout(() => {
       suggested: at("suggest").hidden
         ? null
         : {
+            heading: at("suggest-heading").textContent,
             title: at("suggest-title").textContent,
             why: at("suggest-why").textContent,
             blurb: at("suggest-blurb").textContent,
@@ -196,6 +197,7 @@ setTimeout(() => {
       phrases: phrases(),
       phrasesTitle: at("phrases-title").textContent,
       carry: {
+        known: at("carry-known").hidden ? "" : at("carry-known").textContent,
         title: at("carry-title").textContent,
         hidden: at("carry").hidden,
         heading: at("carry-heading").textContent,

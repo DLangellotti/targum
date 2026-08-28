@@ -157,6 +157,10 @@ MIGRATIONS: tuple[str, ...] = (
     # as already known. Nothing can recover this for words marked before it existed, so
     # it starts at nought for everybody and counts forward.
     "ALTER TABLE word ADD COLUMN learned INTEGER NOT NULL DEFAULT 0",
+    # When the reader said they had finished a text, or 0. One press at the foot of the
+    # last part; pressing again takes it back, so a text is finished once however often
+    # the button is pressed. Synced and exported with the rest of what they did.
+    "ALTER TABLE doc ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -247,6 +251,7 @@ CREATE TABLE IF NOT EXISTS doc (
   language TEXT    NOT NULL DEFAULT '',
   updated  INTEGER NOT NULL DEFAULT 0,
   opened   INTEGER NOT NULL DEFAULT 0,
+  done     INTEGER NOT NULL DEFAULT 0,
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,
@@ -389,7 +394,7 @@ class Person:
 # data rather than four near-identical functions, because the merge is the same
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
-NUMERIC = frozenset({"at", "updated", "opened", "span_start", "span_end", "count"})
+NUMERIC = frozenset({"at", "updated", "opened", "done", "span_start", "span_end", "count"})
 
 
 def initials(name: str, email: str) -> str:
@@ -446,7 +451,7 @@ KINDS: dict[str, Kind] = {
     "docs": Kind(
         table="doc",
         key=("hash",),
-        fields=("title", "language", "updated", "opened"),
+        fields=("title", "language", "updated", "opened", "done"),
     ),
     # A set, written as a table. The day string is the whole record; see the `day` table
     # above for why the count beside it is always 1.
