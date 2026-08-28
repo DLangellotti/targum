@@ -127,15 +127,16 @@
 }
 
 /* Reached is ink, because it is a thing that happened and the reader came to read it.
-   Unreached is --off, the same quiet the charts use for a word set aside: it is not a
-   failure and it is never red. */
+   Unreached is muted: quiet, never red, and still legible. --off is a chart fill and
+   was never a text value — #c3bdb1 on raised paper is 1.75:1, so the rungs a reader
+   has not reached yet could not be read at all. */
 .progress .mark {
   padding: 0.25rem 0.7rem;
   border: 1px solid var(--rule);
   border-radius: 999px;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
-  color: var(--off);
+  color: var(--ink-soft);
 }
 .progress .mark.on {
   border-color: var(--ink-soft);
