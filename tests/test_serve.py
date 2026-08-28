@@ -93,16 +93,23 @@ def get(port: int, path: str) -> tuple[int, Any]:
         connection.close()
 
 
-def write_glossary(out: Path, folder: str, entries: dict[str, str]) -> None:
+def write_glossary(
+    out: Path, folder: str, entries: dict[str, str], target: str = "en", name: str = ""
+) -> None:
+    """One built glossary on disk.
+
+    `name` writes it under a filename of the test's choosing, which is how the reading
+    of a `glossary.json` from before the name carried a language gets exercised.
+    """
     # Signed out, a build lands in the shared local home rather than at the root.
     build = out / "local" / folder
     build.mkdir(parents=True, exist_ok=True)
-    (build / "glossary.json").write_text(
+    (build / (name or f"glossary.{target}.json")).write_text(
         json.dumps(
             {
                 "schema_version": 4,
                 "source_language": "he",
-                "target_language": "en",
+                "target_language": target,
                 "provider": "test",
                 "entries": entries,
                 "parts_of_speech": {},
@@ -124,7 +131,7 @@ def test_not_yet_is_a_normal_answer(served: tuple[int, str, Path]) -> None:
     port, key, _ = served
     status, body = get(port, f"/glossary/book-he?k={key}")
     assert status == 200
-    assert body == {"ready": False}
+    assert body == {"ready": False, "target": "en"}
 
 
 def test_it_hands_over_the_meanings_once_they_exist(served: tuple[int, str, Path]) -> None:
@@ -132,7 +139,58 @@ def test_it_hands_over_the_meanings_once_they_exist(served: tuple[int, str, Path
     write_glossary(out, "book-he", {"שלום": "peace", "עם": "people"})
     status, body = get(port, f"/glossary/book-he?k={key}")
     assert status == 200
-    assert body == {"ready": True, "entries": {"שלום": "peace", "עם": "people"}}
+    assert body == {
+        "ready": True,
+        "target": "en",
+        "entries": {"שלום": "peace", "עם": "people"},
+    }
+
+
+def test_each_language_gets_its_own_meanings(served: tuple[int, str, Path]) -> None:
+    """A text read in two languages keeps a glossary for each, and the reader asks for
+    the one it is showing. Handing over the other would be handing a reader a definition
+    in a language they did not ask for, which is the whole reason the file has a name."""
+    port, key, out = served
+    write_glossary(out, "book-he", {"שלום": "peace"}, target="en")
+    write_glossary(out, "book-he", {"שלום": "мир"}, target="ru")
+
+    _, english = get(port, f"/glossary/book-he?to=en&k={key}")
+    _, russian = get(port, f"/glossary/book-he?to=ru&k={key}")
+
+    assert english == {"ready": True, "target": "en", "entries": {"שלום": "peace"}}
+    assert russian == {"ready": True, "target": "ru", "entries": {"שלום": "мир"}}
+
+
+def test_a_glossary_from_before_the_name_carried_a_language_is_english(
+    served: tuple[int, str, Path],
+) -> None:
+    """Every text built before this was built into English. The file is read where it
+    lies rather than renamed: a migration that moves files is a migration that can fail
+    half way, and this one never has to run at all."""
+    port, key, out = served
+    write_glossary(out, "book-he", {"שלום": "peace"}, name="glossary.json")
+
+    _, english = get(port, f"/glossary/book-he?to=en&k={key}")
+    _, russian = get(port, f"/glossary/book-he?to=ru&k={key}")
+
+    assert english == {"ready": True, "target": "en", "entries": {"שלום": "peace"}}
+    # And it is not offered up as an answer about a language it says nothing about.
+    assert russian == {"ready": False, "target": "ru"}
+
+
+def test_a_language_nobody_translates_into_is_refused(served: tuple[int, str, Path]) -> None:
+    """`to` decides a filename, so it is checked against the languages targum actually
+    translates into before it reaches one — an allowlist, not a pattern."""
+    port, key, out = served
+    write_glossary(out, "book-he", {"שלום": "peace"})
+    for attempt in ("de", "../../etc/passwd", "en/../.."):
+        status, body = get(port, f"/glossary/book-he?to={attempt}&k={key}")
+        assert (status, body) == (404, {"error": "not found"}), attempt
+
+    # Asking without naming a language is English, which is what every reader built
+    # before the question existed is asking about.
+    status, body = get(port, f"/glossary/book-he?k={key}")
+    assert (status, body["target"]) == (200, "en")
 
 
 def test_it_will_not_climb_out_of_the_output_directory(
@@ -145,7 +203,7 @@ def test_it_will_not_climb_out_of_the_output_directory(
         status, body = get(port, f"/glossary/{attempt}?k={key}")
         assert (status, body) in [
             (404, {"error": "not found"}),
-            (200, {"ready": False}),
+            (200, {"ready": False, "target": "en"}),
         ], attempt
         assert body != {"ready": True, "entries": {"secret": "leaked"}}
 
@@ -155,9 +213,9 @@ def test_a_half_written_file_reads_as_not_yet(served: tuple[int, str, Path]) -> 
     port, key, out = served
     build = out / "book-he"
     build.mkdir(parents=True)
-    (build / "glossary.json").write_text('{"entries": {"שלו', encoding="utf-8")
+    (build / "glossary.en.json").write_text('{"entries": {"שלו', encoding="utf-8")
     status, body = get(port, f"/glossary/book-he?k={key}")
-    assert (status, body) == (200, {"ready": False})
+    assert (status, body) == (200, {"ready": False, "target": "en"})
 
 
 def test_the_progress_page_is_behind_the_key(served: tuple[int, str, Path]) -> None:
@@ -422,6 +480,287 @@ def test_a_row_that_is_not_a_record_is_skipped_rather_than_raising(
     assert status == 200
     assert answer["counts"]["words"] == 0, "the rubbish was dropped"
     assert answer["counts"]["days"] == 1, "and the record beside it still landed"
+
+
+def test_a_language_nobody_said_they_read_is_not_sold_to_them(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """A new account is learning Hebrew and reads English; anything else has to be said.
+
+    The cost of guessing is a reader handed a page they cannot read, paid for out of
+    their own rails — and every word they keep from it carrying a meaning in that
+    language into every text they own. It is their own answer now, given on the profile
+    page, and the refusal says so.
+    """
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"source": "sefaria:Genesis", "to": "ru", "from": "he"},
+        cookie=cookie,
+    )
+    assert status == 400 and answer["error"] == "Russian is not in your profile."
+
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["learning"] == ["he"] and me["reads"] == ["en"]
+
+    status, saved, _ = call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "yi"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert status == 200 and saved["learning"] == ["he", "yi"] and saved["reads"] == ["en", "ru"]
+
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["learning"] == ["he", "yi"] and me["reads"] == ["en", "ru"]
+
+    # A source language they have not ticked is refused the same way.
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"source": "sefaria:Genesis", "to": "en", "from": "arc"},
+        cookie=cookie,
+    )
+    assert status == 400 and answer["error"] == "Aramaic is not in your profile."
+
+
+@pytest.mark.parametrize(
+    ("asked", "said"),
+    [
+        ({"learning": ["he"], "reads": []}, "Keep at least one."),
+        ({"learning": ["yi"], "reads": ["en"]}, "Hebrew stays on."),
+        ({"learning": ["he"], "reads": ["fr"]}, "targum does not have French."),
+    ],
+)
+def test_a_profile_nobody_can_read_with_is_refused_whole(
+    served: tuple[int, str, Path], postbox: Postbox, asked: dict[str, list[str]], said: str
+) -> None:
+    """Nobody can untick everything: a reader with no language to read into has no
+    reader, and in this version Hebrew is what everybody is learning. Refused whole, and
+    the answer carries what still stands so the page can put its boxes back."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+
+    status, answer, _ = call(port, "POST", f"/account/languages?k={token}", asked, cookie=cookie)
+    assert status == 400 and answer["error"] == said
+    assert answer["learning"] == ["he"] and answer["reads"] == ["en"]
+
+
+def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
+    """`targum languages` marked an address as reading Russian, from a terminal. The
+    profile replaces it, and a person who was marked keeps Russian — with English
+    beside it, because the marking always offered English too."""
+    from targum.accounts import Store
+
+    where = tmp_path / "words.db"
+    keeping = Store(where)
+    keeping.start_sign_in("marked@example.com")
+    person = keeping.person_by_email("marked@example.com")
+    assert person is not None
+    with keeping.write() as db:
+        db.execute("INSERT INTO reads (email, language, at) VALUES ('marked@example.com', 'ru', 1)")
+
+    reopened = Store(where)
+    assert reopened.reads(person.id) == {"en", "ru"}
+    # And having unticked one, the marking does not come back on the next open.
+    reopened.choose(person, "reading", ["ru"])
+    assert Store(where).reads(person.id) == {"ru"}
+    # Somebody who never signed in has no person to carry it to, and gets the default
+    # the day they do.
+    assert Store(where).reads(None) == set()
+
+
+def test_a_reader_is_written_without_a_language_its_owner_does_not_read(
+    tmp_path: Path,
+) -> None:
+    """A reader is a file, so this is the only moment the question can be asked.
+
+    A targum that already holds two translations stops offering the one its owner does
+    not read, the next time it is written — which is what `targum languages` ends by
+    doing.
+    """
+    from targum.models import (
+        Annotation,
+        Block,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Translation,
+    )
+    from targum.render import render
+
+    segment = Segment(id="0001.000-a", block_id="b1", block_index=0, index=0, text="שלום")
+    document = Document(
+        source="memory",
+        title="A text",
+        language="he",
+        blocks=[Block(id="b1", kind=BlockKind.paragraph, text="שלום")],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+
+    def saying(code: str, text: str) -> Translation:
+        return Translation(
+            name=code.upper(),
+            document_hash="h",
+            source_language="he",
+            target_language=code,
+            provider="null",
+            segments={segment.id: text},
+        )
+
+    both = [saying("ru", "мир"), saying("en", "peace")]
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t/1",
+        method="frequency",
+        method_note="a test",
+        tokens={},
+    )
+
+    only_english = render(
+        document, segmented, both, tmp_path / "en", annotation=annotation, reads=["en"]
+    )[0].read_text(encoding="utf-8")
+    assert "peace" in only_english
+    assert "мир" not in only_english, "a language its owner does not read was offered"
+    assert only_english.count("<option") == 0, "one translation needs no picker"
+
+    # Asked of nobody — the command line, and a machine somebody runs themselves.
+    everything = render(document, segmented, both, tmp_path / "all", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    assert "мир" in everything and "peace" in everything
+
+
+def test_a_reader_left_with_nothing_keeps_what_it_had(tmp_path: Path) -> None:
+    """The one exception, and it only arises where somebody stopped reading a language
+    they had already built in: a page with no translation beside the source is not a
+    reader at all, which is the worse of the two answers."""
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    segment = Segment(id="0001.000-a", block_id="b1", block_index=0, index=0, text="שלום")
+    document = Document(
+        source="memory",
+        title="A text",
+        language="he",
+        blocks=[Block(id="b1", kind=BlockKind.paragraph, text="שלום")],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    russian = Translation(
+        name="RU",
+        document_hash="h",
+        source_language="he",
+        target_language="ru",
+        provider="null",
+        segments={segment.id: "мир"},
+    )
+
+    page = render(document, segmented, [russian], tmp_path / "r", reads=["en"])[0]
+    assert "мир" in page.read_text(encoding="utf-8")
+
+
+def test_a_meaning_belongs_to_a_pair_and_a_word_to_a_language(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The account keeps the two apart, which is the whole of it.
+
+    One Hebrew word read in English and in Russian is one row in `word` — one level, one
+    line in every count — and two rows in `meaning`. Pushing what it means in Russian
+    must not touch what it means in English, and must not touch the word at all.
+    """
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    word = {"language": "he", "lemma": "ספר", "surface": "ספר", "status": 2, "seen": 100}
+    english = {"source": "he", "target": "en", "term": "ספר", "meaning": "book", "seen": 100}
+    russian = {"source": "he", "target": "ru", "term": "ספר", "meaning": "книга", "seen": 200}
+
+    call(port, "POST", f"/sync?k={token}", {"since": 0, "words": [word]}, cookie=cookie)
+    call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {"since": 0, "meanings": [english, russian]},
+        cookie=cookie,
+    )
+    _, state, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=cookie)
+
+    said = {(m["target"], m["term"]): m["meaning"] for m in state["meanings"]}
+    assert said == {("en", "ספר"): "book", ("ru", "ספר"): "книга"}
+    # One word, one level, counted once. This is the invariant the split exists to keep:
+    # a Hebrew word known is a Hebrew word, whichever language it was learned through.
+    assert len(state["words"]) == 1
+    assert state["words"][0]["status"] == 2
+    assert state["counts"]["words"] == 1
+
+
+def test_a_phrase_reading_rides_with_the_meanings(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Under its own id, in the same table: it is the same fact about the same pair, and
+    a second table for a handful of rows is furniture."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    reading = {
+        "source": "he",
+        "target": "ru",
+        "term": "phrase:p1-abc",
+        "meaning": "и было так",
+        "seen": 100,
+    }
+    call(port, "POST", f"/sync?k={token}", {"since": 0, "meanings": [reading]}, cookie=cookie)
+
+    _, state, _ = call(port, "POST", f"/sync?k={token}", {"since": 0}, cookie=cookie)
+    assert state["meanings"][0]["term"] == "phrase:p1-abc"
+    assert state["meanings"][0]["meaning"] == "и было так"
+
+
+def test_forgetting_somebody_forgets_what_they_read_it_in(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """A table added after the forget-a-person loop was written is a table that outlives
+    the person who asked to be forgotten."""
+    from targum.accounts import Store
+
+    port, token, out = served
+    cookie = sign_in(port, postbox)
+    call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {
+            "since": 0,
+            "meanings": [
+                {"source": "he", "target": "ru", "term": "ספר", "meaning": "книга", "seen": 1}
+            ],
+        },
+        cookie=cookie,
+    )
+
+    # The same file the server is using: `served` puts it beside the output directory.
+    store = Store(out.parent / "words.db")
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+    store.forget(person)
+    # A grace period already over, rather than one of exactly zero: the flag was written
+    # this millisecond and `purge` asks whether it is older than the cutoff.
+    assert store.purge(days=-1) == [person.id]
+    with store.write() as db:
+        left = db.execute("SELECT COUNT(*) AS n FROM meaning").fetchone()["n"]
+    assert left == 0, "her meanings outlived her asking to be forgotten"
 
 
 def test_a_newer_edit_wins_and_a_delete_sticks(
@@ -788,6 +1127,30 @@ def test_deleting_an_account_waits_out_the_grace_period(tmp_path: Path) -> None:
         db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
     assert store.purge() == [person.id]
     assert store.person_by_email("leaving@example.com") is None
+
+
+def test_the_grace_period_actually_ends_when_targum_starts(tmp_path: Path) -> None:
+    """`purge` had nothing calling it: "Delete account" ended the session, and the rows
+    and the readers on disk stayed for good. Start-up is when the trash is emptied, and
+    this is the same promise — a deletion that waits, and then happens."""
+    from targum.accounts import GRACE_DAYS, Store, now
+    from targum.serve import Library
+
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("leaving@example.com")
+    person = store.person_by_email("leaving@example.com")
+    assert person is not None
+    home = tmp_path / "out" / f"p{person.id}"
+    (home / "a-text").mkdir(parents=True)
+    store.forget(person)
+    with store.write() as db:
+        stale = now() - (GRACE_DAYS + 1) * 24 * 60 * 60 * 1000
+        db.execute("UPDATE person SET leaving = ? WHERE id = ?", (stale, person.id))
+
+    Library(tmp_path / "out", store=store)
+
+    assert store.person_by_email("leaving@example.com") is None
+    assert not home.exists(), "their readers went with them"
 
 
 def test_an_older_database_gains_the_columns_it_is_missing(tmp_path: Path) -> None:
@@ -1471,7 +1834,9 @@ def test_a_text_the_catalogue_never_heard_of_is_drawn_from_itself(tmp_path: Path
     """A catalogue cover is drawn from what the catalogue says a text is — its author,
     the sentence describing it — and an upload has none of that. It has a title and an
     opening, which is enough, and the picture is filed under its own folder rather than a
-    catalogue id: it belongs to one text on one shelf."""
+    catalogue id — with the shelf in front of it, because `thumbs/` is one directory for
+    the whole box and a folder name is unique only within one home. It belongs to one
+    text on one shelf, and the name has to say which."""
     from targum.models import Block, BlockKind, Document
 
     out = tmp_path / "targum-out"
@@ -1488,8 +1853,8 @@ def test_a_text_the_catalogue_never_heard_of_is_drawn_from_itself(tmp_path: Path
 
     entry, plan = Library(out).cover_plan(folder, chapters=True)
 
-    assert entry is not None and entry.id == "mine-he"
-    assert [name for name, _ in plan] == ["mine-he"], "the book, and no chapters"
+    assert entry is not None and entry.id == "local-mine-he"
+    assert [name for name, _ in plan] == ["local-mine-he"], "the book, and no chapters"
     assert "Mine" in plan[0][1] and "שלום" in plan[0][1]
     assert "no lettering" in plan[0][1].lower(), "and the brand's rules, the same as any"
 
@@ -1712,3 +2077,69 @@ def test_working_out_the_language_is_still_allowed(
         cookie=cookie,
     )
     assert status == 200, answer
+
+
+def test_an_uploaded_texts_cover_is_not_the_whole_boxs(tmp_path: Path) -> None:
+    """`thumbs/` is one directory for the whole box, and a folder name is unique only
+    within one shelf: `free_name` keeps two of a reader's own texts apart and knows
+    nothing of anybody else's. Two readers who each upload something called "notes" must
+    not share one file — the second would be told it was already drawn and shown the
+    first reader's picture of the first reader's text."""
+    from targum.models import Block, Document
+    from targum.serve import Library
+
+    library = Library(tmp_path)
+    plans = []
+    for home in ("p3", "p7"):
+        folder = tmp_path / home / "notes"
+        folder.mkdir(parents=True)
+        Document(
+            source="upload:notes",
+            title="Notes",
+            language="he",
+            blocks=[Block(id="b1", text="שלום")],
+        ).write(folder / "document.json")
+        mine, plan = library.cover_plan(folder, chapters=False)
+        plans.append((mine.id, plan))
+
+    assert plans[0][0] == "p3-notes" and plans[1][0] == "p7-notes"
+    assert plans[0][1] and plans[1][1], "neither reader is told the other's is theirs"
+
+
+def test_a_catalogue_cover_is_still_shared(tmp_path: Path) -> None:
+    """The prefix is only for uploads. A catalogue text is the same text for everyone,
+    so its cover is drawn once and shown to all of them."""
+    from targum.catalogue import CATALOGUE
+    from targum.serve import OWNED
+
+    for entry in CATALOGUE:
+        assert not OWNED.match(entry.id), f"{entry.id} reads as somebody's upload"
+
+
+def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path]) -> None:
+    """The route puts the asker's own home on the name. Asking for a name that already
+    carries one is asking for a file by somebody else's key, and `thumbs/` being one
+    directory for the whole box is what would answer."""
+    port, key, out = served
+    thumbs = out / "thumbs"
+    thumbs.mkdir(exist_ok=True)
+    (thumbs / "p3-notes.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 40)
+    (thumbs / "local-notes.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"1" * 40)
+
+    def fetch(path: str) -> tuple[int, bytes]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    borrowed, _ = fetch(f"/thumb/p3-notes?k={key}")
+    assert borrowed == 404, "another reader's upload is not reachable by its own key"
+
+    # This server answers signed out, so `local` is the home it puts on — the reader
+    # asks for the text's name and gets their own file, never the other one.
+    own, body = fetch(f"/thumb/notes?k={key}")
+    assert own == 200
+    assert body.endswith(b"1" * 40), "the asker's own, not the p3 shelf's"

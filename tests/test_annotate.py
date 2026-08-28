@@ -6,7 +6,7 @@ import pytest
 
 from targum.annotate import BAND_COUNT, BAND_NAMES, Annotator
 from targum.annotate.frequency import CUTS, FrequencyBands
-from targum.annotate.gloss import build_glossary, estimate, unique_lemmas
+from targum.annotate.gloss import build_glossary, entries_for, estimate, gloss_one, unique_lemmas
 from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
 from targum.models import Annotation, Segment, SegmentedDocument, Token
@@ -287,6 +287,45 @@ def test_a_language_with_no_frequency_data_is_not_rated() -> None:
     assert "no word frequency data" in annotation.method_note.lower()
 
 
+def test_a_word_is_glossed_in_the_sentence_it_was_met_in() -> None:
+    """עם is "with" and "people", and a gloss with no sentence behind it is a guess at
+    which one the reader needs. The sentence goes to the model with the form; the form
+    goes alone where there is none; and the answer is still filed under the lemma, so
+    the second text is as cheap as it was."""
+    assert entries_for(["עם", "בית"], {"עם": "  וַיֵּצֵא   עִם\nהָעָם "}) == (
+        "form: עם\nin: וַיֵּצֵא עִם הָעָם\n\nform: בית"
+    )
+    assert entries_for(["בית"]) == "form: בית"
+
+
+def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    class Contextual(FakeGlosses):
+        def __init__(self) -> None:
+            super().__init__()
+            self.contexts: list[dict[str, str] | None] = []
+
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.contexts.append(dict(contexts) if contexts else None)
+            return super().gloss(lemmas, source_language, target_language, on_progress)
+
+    cache = Cache(tmp_path)
+    provider = Contextual()
+    assert (
+        gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == "meaning of עם"
+    )
+    assert provider.contexts == [{"עם": "ויצא עם העם"}]
+    # Cached under the lemma alone: met again in another sentence, nothing is asked.
+    assert (
+        gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי") == "meaning of עם"
+    )
+    assert provider.asked == [["עם"]]
+    # And a word with no sentence behind it is asked for the old way.
+    gloss_one("בית", "he", "en", provider, cache=cache)
+    assert provider.contexts == [{"עם": "ויצא עם העם"}, None]
+
+
 def test_unrated_words_are_still_worth_glossing() -> None:
     from targum.models import Annotation, Token
 
@@ -421,3 +460,41 @@ def test_a_lemma_already_looked_up_is_not_quoted_for(tmp_path) -> None:  # type:
     build_glossary(annotation_with({"ארץ": 2}), "en", provider, cache=cache)
 
     assert unpaid(["ארץ", "שלום"], "he", "en", provider.name, cache) == ["שלום"]
+
+
+def test_filling_from_the_cache_buys_nothing(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A card should open with a meaning targum already holds, not with a button. That
+    means handing over what the cache has for a text whose meanings were never bought —
+    without buying the rest."""
+    from targum.cache import Cache
+
+    cache = Cache(tmp_path)
+    paid = FakeGlosses()
+    build_glossary(annotation_with({"ארץ": 2}), "en", paid, cache=cache)
+    assert len(paid.asked) == 1
+
+    quiet = FakeGlosses()
+    held, owed = build_glossary(
+        annotation_with({"ארץ": 2, "שלום": 1}), "en", quiet, cache=cache, buy=False
+    )
+    assert quiet.asked == [], "buy=False means buy nothing"
+    assert held.entries == {"ארץ": "meaning of ארץ"}
+    assert owed == 1, "and says what it would have cost"
+
+
+def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from targum.annotate.gloss import fill_from_cache, gloss_key, gloss_provider_name
+    from targum.cache import Cache
+
+    cache = Cache(tmp_path)
+    annotation = annotation_with({"ארץ": 2, "שלום": 1})
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", annotation.language, "en", gloss_provider_name()),
+        {"gloss": "land", "part_of_speech": "noun"},
+    )
+    grown = fill_from_cache(annotation, {}, ["en"], cache=cache)
+    assert grown["en"].entries == {"ארץ": "land"}
+    assert grown["en"].parts_of_speech == {"ארץ": "noun"}
+    again = fill_from_cache(annotation, grown, ["en"], cache=cache)
+    assert again == {}, "nothing new, nothing written"

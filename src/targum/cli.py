@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import subprocess
 import sys
+from datetime import UTC
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
@@ -264,6 +266,147 @@ def invite(
 
 
 @app.command()
+def admin(
+    email: Annotated[
+        str | None, typer.Argument(help="The address to put beyond the rails.")
+    ] = None,
+    remove: Annotated[
+        str | None, typer.Option("--remove", help="Put an address back under them.")
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Say who runs this box.
+
+    An admin is exempt from the per-account spend rails — the daily one and the monthly
+    one — because those exist to stop a reader running up somebody else's bill, and the
+    person paying it is not that reader. Nothing else is waived: the per-text cap and the
+    whole-box daily ceiling still apply, and that ceiling is the runaway guard, which does
+    not care whose account a loop is on.
+
+    Making somebody an admin invites them too. An admin who cannot sign in is not one,
+    and having to say it twice is a way of getting it half done.
+
+    With no arguments, lists who is one.
+    """
+    from .accounts import Store
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+
+    if remove:
+        gone = keeping.unadmin(remove)
+        if gone:
+            console.print(f"[green]Removed[/green] {remove} [dim]— the invitation stays[/dim]")
+        else:
+            console.print(f"[dim]{remove} was not an admin[/dim]")
+        return
+
+    if email:
+        try:
+            added = keeping.make_admin(email)
+        except ValueError as error:
+            fail(TargumError(str(error), "Try: targum admin someone@example.com"))
+        console.print(f"[green]Admin[/green] {added} [dim]— invited, and beyond the rails[/dim]")
+        return
+
+    people = keeping.admins()
+    if not people:
+        console.print("[dim]Nobody is an admin. Everyone is held to the spend rails.[/dim]")
+        return
+    for person in people:
+        console.print(person)
+    console.print(f"[dim]{len(people)} admin(s)[/dim]")
+
+
+@app.command()
+def usage(
+    days: Annotated[
+        int | None,
+        typer.Option("--days", help="A rolling window instead of this calendar month."),
+    ] = None,
+    everything: Annotated[
+        bool, typer.Option("--all", help="Since the beginning, rather than a window.")
+    ] = False,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """What targum has cost, and who it was spent on.
+
+    The ledger is already kept — every build settles what the API really charged against
+    what it reserved — and until now there was no way to read it but sqlite3. Somebody
+    paying the bill should not have to.
+
+    Two columns because they are two different facts. `spent` is what was really charged,
+    which is what reconciles against an invoice. `held` is what the ceilings count: the
+    same figure once a build has settled, its estimate while one is still running, and
+    nothing for a build that failed and gave the reservation back.
+
+    The default window is this calendar month, because that is the one the per-account
+    cap is measured in.
+    """
+    from datetime import datetime
+
+    from .accounts import Store, now
+    from .serve import ACCOUNT_BUDGET, BUDGET_HOURS, MONTH_BUDGET, SESSION_BUDGET, default_store
+
+    keeping = Store(store or default_store())
+
+    if everything:
+        since, window = 0, "all time"
+    elif days:
+        since = now() - days * 24 * 60 * 60 * 1000
+        window = f"last {days} day(s)"
+    else:
+        today = datetime.now(UTC)
+        since = int(datetime(today.year, today.month, 1, tzinfo=UTC).timestamp() * 1000)
+        window = today.strftime("%B %Y")
+
+    rows = keeping.spending(since)
+    if not rows:
+        console.print(f"[dim]Nothing spent — {window}.[/dim]")
+        return
+
+    admins = set(keeping.admins())
+    table = Table(box=None, pad_edge=False)
+    table.add_column("account")
+    table.add_column("builds", justify="right")
+    table.add_column("spent", justify="right")
+    table.add_column("held", justify="right")
+    table.add_column("last", justify="right")
+
+    for row in rows:
+        who = str(row["email"] or "")
+        # A build with no account behind it is either older than accounts or belongs to
+        # somebody since forgotten. Either way the money was real and belongs in the sum.
+        label = who or "[dim]no account[/dim]"
+        if who in admins:
+            label = f"{who} [dim]admin[/dim]"
+        last = row["last"] or 0
+        when = (
+            datetime.fromtimestamp(last / 1000, UTC).strftime("%-d %b") if last else "[dim]—[/dim]"
+        )
+        over = float(row["claimed"]) >= MONTH_BUDGET and who not in admins and not days
+        holding = f"${float(row['claimed']):.2f}"
+        table.add_row(
+            label,
+            str(row["jobs"]),
+            f"${float(row['spent']):.2f}",
+            f"[red]{holding}[/red]" if over else holding,
+            when,
+        )
+
+    console.print(table)
+    spent = sum(float(row["spent"]) for row in rows)
+    held = sum(float(row["claimed"]) for row in rows)
+    console.print(f"\n[bold]${spent:.2f}[/bold] spent · ${held:.2f} held [dim]— {window}[/dim]")
+    console.print(
+        f"[dim]Rails: ${MONTH_BUDGET:.2f} per account per month, "
+        f"${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h, "
+        f"${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "
+        f"Admins are exempt from the first two.[/dim]"
+    )
+
+
+@app.command()
 def backup(
     out: Annotated[
         Path | None,
@@ -271,6 +414,10 @@ def backup(
     ] = None,
     store: Annotated[Path | None, typer.Option("--store", help="Which database to copy.")] = None,
     keep: Annotated[int, typer.Option("--keep", help="How many copies to keep.")] = 14,
+    to: Annotated[
+        str,
+        typer.Option("--to", help="An rclone remote to send copies to. Or TARGUM_BACKUP_TO."),
+    ] = "",
 ) -> None:
     """Copy the two things that cannot be rebuilt.
 
@@ -282,9 +429,24 @@ def backup(
     Language models are skipped. They are downloads.
 
     Every copy is opened and checked as it is taken, because a backup nobody has opened
-    is a rumour. Run it from cron, and keep the copies somewhere other than this machine.
+    is a rumour.
+
+    `--to` is what gets them off this disk, through rclone — an S3 or B2 or R2 bucket, or
+    SFTP to another machine. A copy written beside the database it copies survives every
+    mistake and none of the disasters. Encryption belongs in the remote: a backup holds
+    addresses and every word somebody has kept, so put an rclone `crypt` remote in front
+    of the bucket rather than trusting the bucket.
     """
-    from .backup import archive_cache, check, check_archive, snapshot, sweep
+    from .backup import (
+        NotShipped,
+        archive_cache,
+        check,
+        check_archive,
+        destination,
+        ship,
+        snapshot,
+        sweep,
+    )
     from .paths import cache_dir
     from .serve import default_store
 
@@ -327,7 +489,26 @@ def backup(
     if dropped:
         word = "copy" if len(dropped) == 1 else "copies"
         console.print(f"[dim]Dropped {len(dropped)} older {word}[/dim]")
-    console.print("[dim]Keep these somewhere other than this machine.[/dim]")
+
+    # Last, and only what this run produced: the point is that tonight's copy left, not
+    # that the directory was synced. A failure here is a real failure — the copies on
+    # disk are fine and the disaster they do not cover is the one this addresses — so it
+    # exits non-zero and cron mails somebody.
+    sending = destination(to)
+    if not sending:
+        console.print(
+            "[yellow]These are on the same disk as the database.[/yellow] "
+            "[dim]Set --to, or TARGUM_BACKUP_TO, to send them somewhere else.[/dim]"
+        )
+        return
+    leaving = [path for path in (made, bundle) if path is not None and path.is_file()]
+    try:
+        arrived = ship(leaving, sending)
+    except NotShipped as error:
+        fail(TargumError("The copies did not leave the box.", str(error)))
+    except (OSError, subprocess.SubprocessError) as error:
+        fail(TargumError("The copies did not leave the box.", str(error)))
+    console.print(f"[green]Sent to {sending}[/green] [dim]({', '.join(arrived)}, checked)[/dim]")
 
 
 @app.command()
@@ -494,10 +675,10 @@ def repair(
         Annotation,
         Block,
         Document,
-        Glossary,
         SegmentedDocument,
         Translation,
         Vocalization,
+        glossaries_in,
         read_artifact,
     )
     from .render import render as render_reader
@@ -641,7 +822,7 @@ def repair(
                 translations,
                 folder / "reader",
                 annotation=read_artifact(Annotation, folder / "annotation.json"),
-                glossary=read_artifact(Glossary, folder / "glossary.json"),
+                glossaries=glossaries_in(folder),
                 vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
                 covers=root / "thumbs",
             )
@@ -658,6 +839,89 @@ def repair(
     )
 
 
+def rebuild_one(
+    folder: Path, *, reads: list[str] | None, covers: Path
+) -> tuple[str, int] | tuple[None, str]:
+    """Rewrite one reader from the artifacts beside it.
+
+    Returns the title and how many files were written, or `(None, why)` where there
+    was nothing to write: a folder with no text, or one that was priced and never
+    paid for. Nothing is fetched and nothing is spent.
+    """
+    from .models import (
+        Annotation,
+        Document,
+        SegmentedDocument,
+        Translation,
+        Vocalization,
+        glossaries_in,
+        read_artifact,
+    )
+    from .render import render as render_reader
+
+    document = read_artifact(Document, folder / "document.json")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if document is None or segmented is None:
+        return None, "no text on disk"
+    translations = [
+        translation
+        for path in sorted((folder / "translations").glob("*.json"))
+        if (translation := read_artifact(Translation, path)) is not None
+    ]
+    if not translations:
+        # Ingested and priced, then never paid for. There is nothing to read.
+        return None, "never translated"
+    annotation = read_artifact(Annotation, folder / "annotation.json")
+    glossaries = glossaries_in(folder)
+    if annotation is not None:
+        # Meanings held in the cache since this reader was written — looked up from
+        # another text, or bought by somebody else — are its for free. Filled in here
+        # so a card opens with the meaning rather than a button, and written down so
+        # the next rebuild has nothing to do.
+        from .annotate.gloss import fill_from_cache
+        from .models import glossary_path
+
+        for target, grown in fill_from_cache(annotation, glossaries, reads or ["en"]).items():
+            grown.write(glossary_path(folder, target))
+            glossaries[target] = grown
+    pages = render_reader(
+        document,
+        segmented,
+        translations,
+        folder / "reader",
+        annotation=annotation,
+        glossaries=glossaries,
+        vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
+        covers=covers,
+        # Which languages the person whose reader this is reads. A reader is a file, so
+        # a change to that only reaches one when the file is written again — which is
+        # what this is, and why the profile page ends by running it.
+        reads=reads,
+        # Written over rather than emptied first. This runs on a box with readers
+        # open on it: the same segments produce the same section files under the
+        # same names, so overwriting leaves nothing stale behind, and nobody has the
+        # page they are reading deleted from under them for the moment it takes to
+        # write the new one. A release that changed how sections are split would
+        # leave the extra files of the old split behind, which is the trade.
+        clean=False,
+    )
+    return document.title or folder.name, len(pages)
+
+
+def rebuild_home(home: Path, *, reads: list[str] | None) -> int:
+    """Every reader in one person's home, for the server to call when what they read
+    changes. Quiet: nobody is at a terminal to read a line per text."""
+    done = 0
+    if not home.is_dir():
+        return 0
+    for folder in sorted(child for child in home.iterdir() if child.is_dir()):
+        if folder.name == "uploads":
+            continue
+        title, _ = rebuild_one(folder, reads=reads, covers=home.parent / "thumbs")
+        done += title is not None
+    return done
+
+
 @app.command()
 def rebuild(
     out: Annotated[
@@ -672,55 +936,38 @@ def rebuild(
     them all from the artifacts beside them: nothing is fetched and nothing is spent,
     and anything the reader has learned to do since arrives in the ones you already have.
     """
-    from .models import (
-        Annotation,
-        Document,
-        Glossary,
-        SegmentedDocument,
-        Translation,
-        Vocalization,
-        read_artifact,
-    )
-    from .render import render as render_reader
-
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
+
+    # Homes are named for the person whose they are — `p<id>`, or `local` for the shared
+    # signed-out one. Asked once per home rather than once per targum.
+    known: dict[str, list[str] | None] = {}
+
+    def reading_of(home: str) -> list[str] | None:
+        if home not in known:
+            from .accounts import Store
+            from .serve import default_store
+
+            where = default_store()
+            person = int(home[1:]) if home.startswith("p") and home[1:].isdigit() else 0
+            allowed = Store(where).reads(person) if person and where.exists() else None
+            known[home] = sorted(allowed) if allowed else None
+        return known[home]
 
     done = 0
     skipped: list[tuple[str, str]] = []
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
-        document = read_artifact(Document, folder / "document.json")
-        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-        if document is None or segmented is None:
-            skipped.append((folder.name, "no text on disk"))
-            continue
-        translations = [
-            translation
-            for path in sorted((folder / "translations").glob("*.json"))
-            if (translation := read_artifact(Translation, path)) is not None
-        ]
-        if not translations:
-            # Ingested and priced, then never paid for. There is nothing to read.
-            skipped.append((folder.name, "never translated"))
-            continue
-        pages = render_reader(
-            document,
-            segmented,
-            translations,
-            folder / "reader",
-            annotation=read_artifact(Annotation, folder / "annotation.json"),
-            glossary=read_artifact(Glossary, folder / "glossary.json"),
-            vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
-            covers=root / "thumbs",
+        title, outcome = rebuild_one(
+            folder, reads=reading_of(folder.parent.name), covers=root / "thumbs"
         )
+        if title is None:
+            skipped.append((folder.name, str(outcome)))
+            continue
         done += 1
-        console.print(
-            f"[dim]  {document.title or folder.name} ({len(pages)} file"
-            f"{'' if len(pages) == 1 else 's'})[/dim]"
-        )
+        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'})[/dim]")
 
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")

@@ -53,6 +53,11 @@ READING = (("he", "alpha"), ("arc", "R&D"), ("yi", "R&D"))
 # Both words reach a reader as "Experimental" — see STAGE_LABELS below.
 INTO = (("en", "alpha"), ("ru", "beta"))
 
+# What every account is learning whether it says so or not. Hebrew is what targum is for,
+# and in this version the profile draws it ticked and will not let it be unticked. Empty
+# this out when that stops being true; nothing else has to change.
+REQUIRED_LEARNING = ("he",)
+
 # What a reader is shown. "R&D" and "beta" are a real difference — a language with no word
 # levels against one that simply is not Hebrew — but it is a difference about how targum
 # was built, not one anybody choosing from a picker can act on. Both read as experimental;

@@ -49,7 +49,10 @@
     {#- The same card as Continue Reading, because it is the same kind of offer: a book,
         its picture, and a reason to open it. A line of text in a list was not something
         anybody was going to take up. -#}
-    <a class="door suggest" id="suggest" href="/library" hidden>
+    {#- A button rather than a link, because it does something rather than going
+        somewhere: pressing it builds the text and lands you in it, which is what
+        Continue Reading beside it does for a text already built. -#}
+    <button type="button" class="door suggest" id="suggest" hidden>
       <h2>Suggested</h2>
       <div class="card-body">
         <span class="card-cover" id="suggest-cover" aria-hidden="true"></span>
@@ -59,7 +62,7 @@
           <p class="suggest-blurb" id="suggest-blurb"></p>
         </div>
       </div>
-    </a>
+    </button>
   </div>
 
   {#- Under both cards rather than beside one of them: these three are the same weight as
@@ -111,6 +114,11 @@
   <section class="panel">
     <div class="list-controls">
       <h2>{% include '_fold.html.j2' %}<span id="words-title">Your Words</span></button></h2>
+      {#- Which language the meanings are in. Drawn only for somebody who has meanings in
+          more than one, the same way the language switcher is: a control with one answer
+          in it is only a question nobody asked. -#}
+      <div class="langs quiet" id="meaning-langs" role="tablist"
+           aria-label="Definition language" hidden></div>
       <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
       <select id="status-filter" aria-label="Filter by how well you know them">
         <option value="learning">Still learning</option>

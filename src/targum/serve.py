@@ -26,6 +26,7 @@ import traceback
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from functools import cache, lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -35,7 +36,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style
+from .models import Segment, SegmentedDocument, Style, glossary_path
 from .pipeline import Build, Result
 from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
 
@@ -122,6 +123,17 @@ POLICY = (
 # settles what a tier actually allows, in texts and pages rather than dollars, once the
 # real numbers from `usage` have been watched for a while.
 ACCOUNT_BUDGET = 3.00
+
+# What one reader is allowed in a calendar month. The daily rail above is a rate limit —
+# it stops one afternoon running away — and for a while it was standing in for a plan
+# limit as well, which it is bad at: thirty days of $3.00 is $90.00, and nobody agreed to
+# that. This is the number a reader is actually held to.
+#
+# A calendar month rather than a rolling thirty days, because it is the one a refusal can
+# name — "back on the 1st" is a date somebody can plan around, where "back in a few days"
+# is a shrug. It costs a month boundary where readers get their allowance back at once,
+# which for an alpha of a handful of people is not a thundering herd.
+MONTH_BUDGET = 10.00
 
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
@@ -275,6 +287,10 @@ class Job:
     # request to ask, so both travel with the job rather than being looked up later.
     owner: int | None = None
     home: Path | None = None
+    # Whether the person who asked for it is held to the per-account spend rails. Read
+    # at claim time and never written down: it is a fact about who they are now, not
+    # about this job, and a job recovered after a restart has already been claimed.
+    admin: bool = False
     # What it really cost, once the API has said. Zero until it has.
     spent: float = 0.0
     # How many chapters the text has. One means it is not a book.
@@ -309,6 +325,13 @@ class Job:
 # would treat a text called "poem-he" as somebody's home and leave it unadopted, which
 # is to say invisible.
 HOME = re.compile(r"p\d+")
+
+# Either kind of home, in front of an uploaded text's cover — `p` and a number for
+# somebody signed in, `local` for the machine's own signed-out shelf. A name arriving
+# with one of these already on it is asking for a file by somebody else's key rather
+# than its own; `_serve_thumb` puts the asker's own home on and never reads a name that
+# came carrying one.
+OWNED = re.compile(r"(?:p\d+|local)-")
 
 
 def free_name(home: Path, name: str) -> Path:
@@ -352,14 +375,17 @@ class Library:
         budget: float = SESSION_BUDGET,
         store: Store | None = None,
         account_budget: float | None = ACCOUNT_BUDGET,
+        month_budget: float | None = MONTH_BUDGET,
     ) -> None:
         self.out = out
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
+        self.month_budget = month_budget
         self.store = store
         self.adopt()
         self.empty_trash()
+        self.purge_departed()
         self._committed = 0.0
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
@@ -536,6 +562,25 @@ class Library:
     def _since() -> int:
         return now() - BUDGET_HOURS * 60 * 60 * 1000
 
+    @staticmethod
+    def _month_from() -> int:
+        """Midnight UTC on the first of this month, in the milliseconds `job.made` uses.
+
+        UTC rather than the box's zone: the box moves and the ledger does not, and a
+        budget that resets an hour early because somebody changed a timezone is a bug
+        nobody would find.
+        """
+        today = datetime.now(UTC)
+        first = datetime(today.year, today.month, 1, tzinfo=UTC)
+        return int(first.timestamp() * 1000)
+
+    @staticmethod
+    def _month_ends() -> str:
+        """When this month's allowance comes back, as a date a refusal can name."""
+        today = datetime.now(UTC)
+        year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+        return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
+
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent."""
         if self.store is not None:
@@ -548,6 +593,34 @@ class Library:
         with self.lock:
             self._committed = max(0.0, self._committed - job.estimate)
 
+    def already_over(self, job: Job) -> str:
+        """Whether this person is out of money before the work is priced.
+
+        `claim` is the real gate: it reserves an estimate inside a transaction, so two
+        builds cannot both pass on the same balance. Buying a chapter cannot use it,
+        because pricing one means lemmatising it and that is Stanza inside the request
+        that a reader is waiting on.
+
+        So this is the weaker check that path can afford: not "is there room for this",
+        which needs a price, but "is there any room at all". It cannot stop a reader
+        going over — the chapter that takes them past the line still runs — but it stops
+        the one after it, and a chapter is small. Without it the cap does not apply to
+        the way a book is actually bought, and the reader prefetches the next chapter at
+        60% of this one, so that path spends on its own.
+        """
+        if job.admin or self.store is None:
+            return ""
+        day = self._since()
+        if self.store.committed(day) >= self.budget:
+            return self._out_of("everyone")
+        if self.month_budget is not None:
+            if self.store.committed(self._month_from(), job.owner) >= self.month_budget:
+                return self._out_of("month")
+        if self.account_budget is not None:
+            if self.store.committed(day, job.owner) >= self.account_budget:
+                return self._out_of("account")
+        return ""
+
     def _out_of(self, whose: str) -> str:
         """Which ceiling stopped this, and when it lifts.
 
@@ -555,6 +628,13 @@ class Library:
         indistinguishable from the product being broken.
         """
         when = f"in {BUDGET_HOURS} hours"
+        if whose == "month":
+            # A date rather than a duration: this one is a month away, and "in 30 days"
+            # is a number somebody has to do arithmetic on to plan around.
+            return (
+                f"You have read your fill for this month. Back on {self._month_ends()}. "
+                "The library is always free."
+            )
         if whose == "account":
             return f"You have read your fill for now. Back {when}. The library is always free."
         return f"targum is at its limit. Try again {when}, or read from the library."
@@ -611,6 +691,20 @@ class Library:
             return None
         return folder
 
+    def purge_departed(self) -> list[int]:
+        """Delete for real anyone whose grace period is up: their rows, and their home.
+
+        Called at start-up beside `empty_trash`, which is the same kind of promise — a
+        deletion that waits, and then happens. `Store.purge` had nothing calling it, so
+        "Delete account" ended the session and the grace period never ended anything.
+        """
+        if self.store is None:
+            return []
+        gone = self.store.purge()
+        for person_id in gone:
+            shutil.rmtree(self.out / f"p{person_id}", ignore_errors=True)
+        return gone
+
     def empty_trash(self, days: int = TRASH_DAYS) -> list[str]:
         """Delete for real anything whose week is up. Called at start-up."""
         gone: list[str] = []
@@ -627,13 +721,44 @@ class Library:
                     gone.append(folder.name)
         return gone
 
+    def _reads_of(self, owner: int | None) -> set[str] | None:
+        """Which languages a build's owner reads, or None where there is nobody to ask —
+        a signed-out build on a machine somebody runs themselves."""
+        return None if self.store is None else (self.store.reads(owner) or None)
+
     @staticmethod
-    def chapters(folder: Path) -> list[dict[str, Any]]:
+    def targets(folder: Path) -> list[str]:
+        """Which languages a targum can be read in, most complete first.
+
+        A folder holds a translation per language it was built into, and the reader's
+        picker offers them all. Anything that has to name one — buying the next chapter,
+        asking for the meanings — asks here rather than assuming English.
+        """
+        from .models import Translation, read_artifact
+
+        weight: dict[str, int] = {}
+        for path in sorted((folder / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            said = sum(1 for text in translation.segments.values() if text)
+            code = translation.target_language
+            weight[code] = max(weight.get(code, 0), said)
+        return sorted(weight, key=lambda code: (-weight[code], code))
+
+    @staticmethod
+    def chapters(folder: Path, target: str = "") -> list[dict[str, Any]]:
         """Every chapter of a targum, and whether it has been translated.
 
         Derived from the artifacts rather than recorded anywhere: a chapter is ready when
         every one of its segments has a translation. A second place saying so would drift
         from the truth the first time a build died between writing them.
+
+        `target` asks about one language. Without it the question is "is there anything to
+        read here", which is what a shelf wants; with it, "is there anything to read here
+        in Russian" — which is what buying the next chapter has to ask, or a book whose
+        English runs to chapter nine would refuse to sell chapter two in Russian on the
+        grounds that it already exists.
         """
         from .models import SegmentedDocument, Translation, read_artifact
         from .render.builder import split_sections
@@ -648,8 +773,11 @@ class Library:
         done: set[str] = set()
         for path in sorted((folder / "translations").glob("*.json")):
             translation = read_artifact(Translation, path)
-            if translation is not None:
-                done |= {sid for sid, text in translation.segments.items() if text}
+            if translation is None:
+                continue
+            if target and translation.target_language != target:
+                continue
+            done |= {sid for sid, text in translation.segments.items() if text}
         return [
             {
                 "number": section.number,
@@ -776,6 +904,11 @@ class Library:
                     "name": folder.name,
                     "title": title,
                     "language": language,
+                    # And which languages it can be read *into*. A text built twice is
+                    # one text with two translations, and a shelf that said only what
+                    # language it was in could not tell a reader of two which of them
+                    # this one would open in.
+                    "targets": self.targets(folder),
                     "document": content_hash,
                     "words": words,
                     **self._shape(folder, source, language, words),
@@ -851,13 +984,20 @@ class Library:
         if self.store is not None:
             # One transaction decides and spends. It holds across processes as well as
             # threads, which the lock below never did.
+            # An admin is not held to the per-account rails. They exist to stop a reader
+            # running up somebody else's bill, and the person paying it is not that
+            # reader. The box ceiling below is not waived: that one is the runaway guard,
+            # and a loop at three in the morning does not care whose account it is on.
+            admin = bool(job.admin)
             refused = self.store.claim(
                 job.id,
                 job.estimate,
                 self.budget,
                 self._since(),
                 owner=job.owner,
-                per_account=self.account_budget,
+                per_account=None if admin else self.account_budget,
+                month_from=self._month_from(),
+                per_month=None if admin else self.month_budget,
             )
             if not refused:
                 return ""
@@ -903,7 +1043,7 @@ class Library:
             # Word help is worth saying goodbye to out loud; it is not worth a card that
             # will not draw. The build itself says so when it gets there.
             return 0.0, 0
-        glosser = AnthropicGlosses(builder.model)
+        glosser = AnthropicGlosses(builder.gloss_model or builder.model)
         # A lemma looked up for another text is already bought. Quoting for it again
         # prices work that is about to be free.
         owed = unpaid(
@@ -986,8 +1126,16 @@ class Library:
         entry = catalogue_module.matching(document.source)
         where = self.out / "thumbs"
         if entry is None:
+            # An upload's cover carries its owner as well as its name. `thumbs/` is one
+            # directory for the whole box, and a folder name is unique only within one
+            # shelf — `free_name` keeps two of a reader's own texts apart and knows
+            # nothing of anybody else's. Filed under the bare name, two readers who each
+            # upload something called "notes" share one file: the second is told it is
+            # already drawn, and shown the first reader's picture of the first reader's
+            # text. A catalogue cover stays unprefixed, because that one really is the
+            # same picture for everyone.
             mine = Drawable(
-                id=folder.name,
+                id=f"{folder.parent.name}-{folder.name}",
                 source=document.source,
                 title=document.title or folder.name,
                 language=document.language,
@@ -1093,7 +1241,7 @@ class Library:
         are sitting in the folder. This translates one chapter and rewrites the reader
         around it, which is the whole of what asking for a chapter costs.
         """
-        from .models import Annotation, Document, Glossary, SegmentedDocument, Vocalization
+        from .models import Annotation, Document, SegmentedDocument, Vocalization, glossaries_in
         from .models import read_artifact as read
         from .render import render as render_reader
 
@@ -1121,16 +1269,23 @@ class Library:
             translation = builder.translate(
                 segmented, lambda done: setattr(job, "done", job.done + done), only=wanted
             )
+            # Every translation the folder holds, with the one just bought at the front.
+            # Rendering from this chapter's alone rewrote the reader without the others —
+            # so buying chapter two of a book somebody reads in two languages took the
+            # other language off every chapter of it.
             pages = render_reader(
                 document,
                 segmented,
-                [translation],
+                [translation, *builder.already_here([translation])],
                 folder / "reader",
                 annotation=read(Annotation, folder / "annotation.json"),
-                glossary=read(Glossary, folder / "glossary.json"),
+                glossaries=glossaries_in(folder),
                 vocalization=read(Vocalization, folder / "vocalization.json"),
                 clean=False,
                 covers=self.out / "thumbs",
+                # The same narrowing `_builder` hands a whole build. Without it, buying
+                # a chapter put back every language the reader had said they do not read.
+                reads=sorted(self._reads_of(job.owner) or ()) or None,
             )
         except TargumError as error:
             return self._blame(job, error.message)
@@ -1176,6 +1331,7 @@ class Library:
         # rather than taken from the request: the model decides what a build costs, and
         # one that arrived in a payload would be a way to spend somebody else's money.
         from . import catalogue as catalogue_module
+        from .annotate.gloss import GLOSS_MODEL
 
         entry = catalogue_module.matching(job.source)
         return Build(
@@ -1199,8 +1355,16 @@ class Library:
             # public text. Without it one person's uploaded book would be translated
             # once and served to everyone who happened to upload the same file.
             owner=f"p{job.owner}" if job.owner else "",
+            # Whose reader this will be, and so which languages it may offer. A build
+            # into a language they do not read is refused before it starts; this is the
+            # other end of it — a folder that already holds one stops showing it.
+            reads=sorted(self._reads_of(job.owner) or ()) or None,
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
+            # Meanings are bought on the hosted model whatever the prose was bought with:
+            # the catalogue is translated on Opus, and its 25k lemmas are cached under
+            # Sonnet. Quoting or buying them under Opus paid twice for the same words.
+            gloss_model=GLOSS_MODEL,
             difficulty=bool(options.get("words")),
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
@@ -1263,6 +1427,33 @@ class Handler(BaseHTTPRequestHandler):
 
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
+
+    def _reads(self, person: Person | None = None) -> set[str]:
+        """Which languages to offer whoever is asking.
+
+        Everything, where there is nobody to ask: signed out, or a machine somebody runs
+        themselves, where the person choosing and the person paying are the same and the
+        command line is right there anyway. The gate is about a hosted box handing an
+        account a language nobody said that account reads.
+        """
+        from .translate.prompts import INTO
+
+        everything = {code for code, _ in INTO}
+        who = person if person is not None else self._person()
+        if who is None:
+            return everything
+        return self.store.reads(who.id) & everything
+
+    def _learning(self, person: Person | None = None) -> set[str]:
+        """Which languages whoever is asking is learning. Everything where there is
+        nobody to ask, for the reason `_reads` gives."""
+        from .translate.prompts import READING
+
+        everything = {code for code, _ in READING}
+        who = person if person is not None else self._person()
+        if who is None:
+            return everything
+        return self.store.learning(who.id) & everything
 
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
@@ -1666,6 +1857,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._sync(payload)
         if route == "/account/name":
             return self._rename(payload)
+        if route == "/account/languages":
+            return self._languages(payload)
         self._json({"error": "not found"}, 404)
 
     # -- accounts -----------------------------------------------------------
@@ -1679,6 +1872,12 @@ class Handler(BaseHTTPRequestHandler):
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
+            # Which languages this account is learning, and which it is offered a
+            # translation into. The pages that offer either narrow to these; `_prepare`
+            # refuses anything else whatever a picker was showing, because a picker is
+            # not a boundary.
+            "learning": sorted(self._learning(person)),
+            "reads": sorted(self._reads(person)),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
@@ -1690,6 +1889,48 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"signedIn": False}, 401)
         stored = self.store.rename(person, str(payload.get("name") or ""))
         answer = {"signedIn": True, "name": stored}
+        answer.update(self.store.profile(person))
+        self._json(answer)
+
+    def _languages(self, payload: dict[str, Any]) -> None:
+        """What they are learning and what they read into, from the profile page.
+
+        Both lists at once, replaced whole: a form that submits a set of ticks is
+        saying what the set is, not what changed. Refused whole too — a request that
+        fails on one list leaves the other as it was, so the page can put its boxes
+        back from the answer.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        before = self._reads(person)
+        try:
+            learning = self.store.choose(person, "learning", list(payload.get("learning") or []))
+            reads = self.store.choose(person, "reading", list(payload.get("reads") or []))
+        except ValueError as error:
+            return self._json(
+                {
+                    "error": str(error),
+                    "learning": sorted(self._learning(person)),
+                    "reads": sorted(self._reads(person)),
+                },
+                400,
+            )
+        # A reader is a file, and a language taken away only leaves one when the file is
+        # written again. Adding one never needs this: a translation is only in a folder
+        # if it was bought, and buying writes the reader. Off this thread, because a
+        # home full of long books is seconds of work and the page is waiting.
+        if before - reads:
+            from .cli import rebuild_home
+
+            home = self.library.home(person)
+            threading.Thread(
+                target=rebuild_home,
+                args=(home,),
+                kwargs={"reads": sorted(reads)},
+                daemon=True,
+            ).start()
+        answer = {"signedIn": True, "learning": sorted(learning), "reads": sorted(reads)}
         answer.update(self.store.profile(person))
         self._json(answer)
 
@@ -1784,7 +2025,7 @@ class Handler(BaseHTTPRequestHandler):
         # rather than a hole, but a 500 where a quiet skip belongs.
         changes = {
             name: [row for row in payload[name] if isinstance(row, dict)]
-            for name in ("words", "phrases", "docs", "days")
+            for name in ("words", "meanings", "phrases", "docs", "days")
             if isinstance(payload.get(name), list)
         }
         if changes:
@@ -1807,6 +2048,12 @@ class Handler(BaseHTTPRequestHandler):
         if wanted not in {code for code, _ in INTO}:
             offered = ", ".join(language_name(code) for code, _ in INTO)
             return self._json({"error": f"targum translates into {offered}."}, 400)
+        # And of those, the ones this account reads. Buying a translation into a language
+        # nobody said they read spends money on a page they cannot use — and every word
+        # they keep from it carries a meaning in it into every text they own. The
+        # sentence names where to change that, because it is theirs to change now.
+        if wanted not in self._reads():
+            return self._json({"error": f"{language_name(wanted)} is not in your profile."}, 400)
         # `from` is allowed to be empty: that means work it out from the text. A catalogue
         # text names its own language and is not somebody's upload, so it is let past.
         reading = str(payload.get("from") or "")
@@ -1817,6 +2064,9 @@ class Handler(BaseHTTPRequestHandler):
             if catalogue_module.matching(str(payload.get("source") or "")) is None:
                 names = ", ".join(language_name(code) for code, _ in READING)
                 return self._json({"error": f"targum reads {names}."}, 400)
+        # And of those, the ones this account said it is learning.
+        if reading in known and reading not in self._learning():
+            return self._json({"error": f"{language_name(reading)} is not in your profile."}, 400)
 
         try:
             source = self._source_from(payload)
@@ -1848,6 +2098,7 @@ class Handler(BaseHTTPRequestHandler):
             source=source,
             options=payload,
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=self.library.home(person),
         )
         self.library.jobs[job.id] = job
@@ -1909,6 +2160,7 @@ class Handler(BaseHTTPRequestHandler):
             title=entry.title,
             language=entry.language,
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=home,
             options={"cover": entry.id, "plan": plan, "chapters": bool(payload.get("chapters"))},
             estimate=len(plan) * illustrator.price,
@@ -1947,7 +2199,16 @@ class Handler(BaseHTTPRequestHandler):
         # ready from the start and every prefetch against it was a purchase waiting to
         # happen. Readiness is derived from the artifacts by `chapters()`, so this asks
         # the only thing that can answer it.
-        standing = self.library.chapters(folder)
+        # Which language to buy it in. The reader asks in the one it is showing; without
+        # that this fell through to English, so the second chapter of a Russian book came
+        # back in English — and `run_chapter` then rebuilt the whole reader around it.
+        #
+        # Checked against what the folder already holds rather than taken at its word: a
+        # prefetch nobody pressed must not be able to buy a language nobody asked for.
+        here = self.library.targets(folder)
+        wanted = str(payload.get("to") or "").strip()
+        target = wanted if wanted in here else (here[0] if here else "en")
+        standing = self.library.chapters(folder, target)
         waiting: list[int] = []
         if whole:
             waiting = [c["number"] for c in standing if not c["ready"]]
@@ -1960,10 +2221,20 @@ class Handler(BaseHTTPRequestHandler):
         job = Job(
             id=secrets.token_hex(8),
             source=str(folder),
-            options={"chapters": waiting if whole else [number], "folder": folder.name},
+            options={
+                "chapters": waiting if whole else [number],
+                "folder": folder.name,
+                "to": target,
+            },
             owner=person.id if person else None,
+            admin=bool(person and person.admin),
             home=home,
         )
+        blocked = self.library.already_over(job)
+        if blocked:
+            job.blocked = blocked
+            job.stage = "blocked"
+            return self._json(job.state(), 402)
         self.library.jobs[job.id] = job
         self.library.remember(job)
         self.library.enqueue(job)
@@ -1991,17 +2262,30 @@ class Handler(BaseHTTPRequestHandler):
         lemma = str(payload.get("lemma", "")).strip()
         source = str(payload.get("source", "")).strip()
         target = str(payload.get("target", "en")).strip() or "en"
+        # The sentence it was tapped in, which is what tells עם from עם. Capped: a
+        # sentence is what this is for, and a paragraph is what a page could send.
+        sentence = str(payload.get("sentence", "")).strip()[:400]
         if not lemma or not source:
             return self._json({"error": "bad request"}, 400)
 
-        from .annotate.gloss import AnthropicGlosses, gloss_one
+        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
 
-        provider = AnthropicGlosses()
+        # The same model the build's own glossary was bought with. The provider's name
+        # is part of the cache key, so asking here with the provider's default — Opus,
+        # where a hosted build uses Sonnet — made every word the build had already paid
+        # for cost a second time, on the dearer of the two, the moment a reader tapped
+        # it. Bought once, free everywhere is the claim; this is what makes it true.
+        provider = AnthropicGlosses(GLOSS_MODEL)
+        if payload.get("free"):
+            # A card opening asks this first: is the meaning already held? Answered from
+            # the cache and never bought, so a page can ask for every word it shows.
+            meaning = cached_gloss(lemma, source, target, provider.name)
+            return self._json({"lemma": lemma, "meaning": meaning or None, "cached": bool(meaning)})
         usable, _ = provider.available()
         if not usable:
             return self._json({"error": NO_KEY}, 402)
         try:
-            meaning = gloss_one(lemma, source, target, provider)
+            meaning = gloss_one(lemma, source, target, provider, context=sentence)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
         except Exception:
@@ -2060,27 +2344,44 @@ class Handler(BaseHTTPRequestHandler):
         return [str(self._written(str(name), str(content)))]
 
     def _serve_glossary(self, folder: str) -> None:
-        """The word meanings for one build, once they exist.
+        """The word meanings for one build and one target language, once they exist.
 
         A reader opens before these are looked up, so it asks for them afterwards and
         fills them in without a reload. Answering "not yet" is a normal reply, not an
         error: the file appears when the lookups finish.
+
+        `?to=` names the language, and the answer says which language it is answering
+        about. A reader holding two translations polls for the one it is showing, and a
+        reply that arrived after the reader switched has to be fileable rather than
+        guessable — a meaning is only ever right about the pair it was written for.
         """
+        from .translate.prompts import INTO
+
+        wanted = parse_qs(urlparse(self.path).query).get("to", ["en"])[0]
+        # An allowlist rather than a pattern, because this decides a filename. The
+        # containment check below is the second lock, not the only one.
+        if wanted not in {code for code, _ in INTO}:
+            return self._json({"error": "not found"}, 404)
         root = self._home().resolve()
-        target = (root / unquote(folder) / "glossary.json").resolve()
+        home = (root / unquote(folder)).resolve()
+        target = glossary_path(home, wanted).resolve()
+        # English before the files carried a language in the name. Nothing is renamed;
+        # the old name is simply still a place a glossary can be.
+        if not target.is_file() and wanted == "en":
+            target = (home / "glossary.json").resolve()
         if root not in target.parents:
             return self._json({"error": "not found"}, 404)
         if not target.is_file():
-            return self._json({"ready": False})
+            return self._json({"ready": False, "target": wanted})
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             # Caught mid-write. The reader is still polling; it will ask again.
-            return self._json({"ready": False})
+            return self._json({"ready": False, "target": wanted})
         entries = data.get("entries")
         if not isinstance(entries, dict):
-            return self._json({"ready": False})
-        self._json({"ready": True, "entries": entries})
+            return self._json({"ready": False, "target": wanted})
+        self._json({"ready": True, "target": wanted, "entries": entries})
 
     def _serve_thumb(self, name: str) -> None:
         """The cover drawn for one text, where somebody has made one.
@@ -2098,7 +2399,18 @@ class Handler(BaseHTTPRequestHandler):
         """
         root = (self.library.out / "thumbs").resolve()
         wanted = unquote(name)
-        for candidate in (wanted, re.sub(r"-c\d+$", "", wanted)):
+        if OWNED.match(wanted):
+            # An upload's cover is asked for by the text's own name; the home in front
+            # of it is put there below, from whoever is asking. A name that arrives
+            # already carrying one is asking for another reader's, and the fact that
+            # `thumbs/` is one directory for the whole box is what would answer.
+            return self._send(404, b"not found", "text/plain")
+        # The asker's own first, so a reader who called an upload "genesis" gets their
+        # own picture rather than the catalogue's. A chapter falls back to its book, and
+        # both halves of that are tried the same way round.
+        mine = self._home().name
+        chapterless = re.sub(r"-c\d+$", "", wanted)
+        for candidate in (f"{mine}-{wanted}", wanted, f"{mine}-{chapterless}", chapterless):
             for suffix, kind in THUMBS:
                 target = (root / (candidate + suffix)).resolve()
                 if root not in target.parents or not target.is_file():

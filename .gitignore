@@ -12,6 +12,10 @@ build/
 .mypy_cache/
 .ruff_cache/
 
+# Stamped into the wheel at build time from `git log`, so committing it would be
+# committing a number that is wrong by the next commit. See `about.stamp()`.
+src/targum/activity.json
+
 # Runtime output and secrets
 targum-out/
 .env
@@ -25,3 +29,6 @@ Targum.command
 
 # Claude Code session checkpoints
 .claude/
+
+# Filled-in copy of targum.env.example, for scp to the box. Never committed.
+deploy/targum.env

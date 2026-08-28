@@ -190,22 +190,27 @@
     button in the bar both went to a card that was never found, so the one page that says
     which keys exist could not be opened by either. -#}
 <div class="keys-card" id="keys" hidden role="group" aria-label="Keyboard shortcuts">
+  {#- Named and closable where a pointer can see it. Escape and a click elsewhere both
+      put it away, but nothing on the card said so, and the list beside the text already
+      closes with the typed × the guidelines ask for. -#}
+  <div class="keys-head"><b>Keys</b><button type="button" class="keys-close" data-keys aria-label="Close">×</button></div>
   {#- In the order a reader reaches for them, not by category: the walk and the levels are
       most of a session, the modes are set once and left. `t` is not here — it reports how
       long the page took to draw, which is for whoever is building targum rather than for
       whoever is reading. -#}
   <dl>
     {% if words %}<dt>&larr; &rarr;</dt><dd>forward through the words you have not finished with; back through the words as they are written</dd>
-    <dt>k</dt><dd>known</dd>
+    <dt>k 4</dt><dd>known</dd>
     <dt>1 2 3</dt><dd>just met it, getting there, nearly know it</dd>
     <dt>i</dt><dd>ignore it — a name, a numeral, a word from another language</dd>
-    <dt>Enter</dt><dd>what the word you are on means</dd>
-    <dt>g</dt><dd>look this word up, when nothing is known about it yet</dd>
+    <dt>Enter</dt><dd>what the word you are on means; again to look it up</dd>
     <dt>u</dt><dd>take back the last level, and stand on that word again</dd>
     <dt>Esc</dt><dd>close this, then a word, then your saved words, then the queue</dd>
+    <dt>?</dt><dd>these keys</dd>
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
-    {% else %}<dt>Esc</dt><dd>close this</dd>{% endif %}
+    {% else %}<dt>Esc</dt><dd>close this</dd>
+    <dt>?</dt><dd>these keys</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
     <dt>p</dt><dd>parallel</dd>
     <dt>l</dt><dd>interlinear — the translation under each line</dd>

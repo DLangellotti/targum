@@ -241,14 +241,9 @@ body.add > .add-main {
 .drop.small { padding: 1rem 0.9rem; }
 .drop.small .drop-label { font-size: 0.9375rem; }
 
-/* §4: selection in UI is quiet ink, never the accent — and never the browser's blue,
-   which is what a checkbox is until it is told otherwise. */
-.tick { margin-block-start: 0.2rem; }
-.tick input { accent-color: var(--ink); }
-
 /* --- offered instead of paying for a translation --------------------------
  *
- * add.js builds this notice; it lived in library.css, which this page does not load,
+ * add.js builds this notice; it lives in library.css, which this page does not load,
  * so the one message that saves a reader money rendered as a bare paragraph. The
  * corners are logical too: paired with a logical rail, `0 6px 6px 0` put the flat edge
  * and the rail on opposite sides of the box in Hebrew. */

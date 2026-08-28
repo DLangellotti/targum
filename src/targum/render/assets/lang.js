@@ -14,14 +14,19 @@
 
   var HOME = "he";
   var NAME = "targum:language";
+  // And which language you read them *into*. A different question with a different
+  // answer: the first is the language you are learning, the second the one you already
+  // have. Local, like the first, for the same reason — what you read into is a record of
+  // what you read, and it changes with a single press.
+  var INTO = "targum:into";
 
   function beta(code) {
     return (code || "").split("-")[0].toLowerCase() !== HOME;
   }
 
-  function stored() {
+  function stored(name) {
     try {
-      return localStorage.getItem(NAME) || "";
+      return localStorage.getItem(name) || "";
     } catch (e) {
       return "";
     }
@@ -33,30 +38,50 @@
     } catch (e) {}
   }
 
+  function into(code) {
+    if (code === undefined) return stored(INTO);
+    try {
+      localStorage.setItem(INTO, code);
+    } catch (e) {}
+    return code;
+  }
+
   // The one to show, given what this page can actually show. A remembered choice
   // wins, then Hebrew, then whatever there is.
   function current(codes) {
-    var was = stored();
+    var was = stored(NAME);
     if (was && codes.indexOf(was) >= 0) return was;
     if (codes.indexOf(HOME) >= 0) return HOME;
     return codes[0] || HOME;
   }
 
-  /* Which languages the reading pages will show at all. One, for now.
+  /* Which languages the reading pages will show at all: the ones the account says are
+   * being learned.
    *
    * Everything those pages are made of is Hebrew: the difficulty bands, the word levels,
-   * the ulpan rungs. A Russian view of them was the same page with most of it missing and
-   * a switcher inviting you into it. Nothing is deleted by this — the words are still in
-   * the store and still sync — they are simply not offered until the rest catches up.
-   *
-   * To offer a language again, add its code here. Nothing else has to change: the
-   * switcher draws itself for two and hides itself for one.
+   * the ulpan rungs. A Yiddish view of them is the same page with most of it missing, and
+   * it is offered only to somebody who ticked Yiddish on their profile and was told there
+   * that it is experimental. `sync.js` mirrors that answer into `targum:learning`, and
+   * this reads it rather than waiting for it. Absent — signed out, or before the account
+   * has answered — means Hebrew alone. Nothing is deleted by any of this: the words are
+   * still in the store and still sync; they are simply not offered.
    */
+  var LEARNING = "targum:learning";
   var SHOWN = [HOME];
 
+  function learning() {
+    try {
+      var said = JSON.parse(localStorage.getItem(LEARNING) || "null");
+      return said && said.length ? said : SHOWN;
+    } catch (e) {
+      return SHOWN;
+    }
+  }
+
   function offered(codes) {
+    var shown = learning();
     return codes.filter(function (code) {
-      return SHOWN.indexOf((code || "").split("-")[0].toLowerCase()) >= 0;
+      return shown.indexOf((code || "").split("-")[0].toLowerCase()) >= 0;
     });
   }
 
@@ -74,30 +99,45 @@
    * `onPick` is handed the code. Nothing is drawn for a single language: a switcher
    * with one thing in it only asks a question that has no other answer.
    */
-  function switcher(host, codes, names, chosen, onPick) {
+  function switcher(host, codes, names, chosen, onPick, options) {
     if (!host) return;
+    var settings = options || {};
+    // Which codes wear "experimental", asked rather than assumed. `beta` means "not
+    // Hebrew", which is the right question about a language being read and the wrong one
+    // about a language being read into: it would put the tag on English.
+    var tag = settings.tag || beta;
     host.textContent = "";
     host.hidden = codes.length < 2;
+    // A title, where the control is not self-evident from what it sits beside. The
+    // language switcher needs none — it is the page's own subject — and one that changes
+    // which language a column of definitions is printed in needs to say so.
+    if (settings.label) {
+      var said = document.createElement("span");
+      said.className = "langs-label";
+      said.textContent = settings.label;
+      host.appendChild(said);
+    }
     codes.forEach(function (code) {
       var button = document.createElement("button");
       button.type = "button";
       button.setAttribute("role", "tab");
       button.setAttribute("data-code", code);
       button.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
-      if (beta(code)) {
-        var tag = document.createElement("span");
+      if (tag(code)) {
+        var mark = document.createElement("span");
         // The class is the old word and the text is the one a reader sees. "beta" said
         // one thing on this tab and "Experimental" said another on the upload picker,
         // about the same language on the same day.
-        tag.className = "beta";
-        tag.textContent = "experimental";
-        button.appendChild(tag);
+        mark.className = "beta";
+        mark.textContent = "experimental";
+        button.appendChild(mark);
       }
       var on = code === chosen;
       button.classList.toggle("on", on);
       button.setAttribute("aria-selected", on ? "true" : "false");
+      // Drawn here, remembered by the caller: this control is used for two different
+      // preferences now, and one of them is not the language you are reading.
       button.addEventListener("click", function () {
-        set(code);
         onPick(code);
       });
       host.appendChild(button);
@@ -118,6 +158,7 @@
     beta: beta,
     offered: offered,
     set: set,
+    into: into,
     current: current,
     order: order,
     switcher: switcher,
