@@ -249,6 +249,7 @@
           window.TargumVocab.editor({
             status: word.status,
             note: word.note,
+            placeholder: "Your own meaning",
             onStatus: function (value) {
               updateWord(word, { status: value === null ? word.status : value });
               renderWords();
@@ -343,7 +344,7 @@
             window.TargumVocab.editor({
               status: phrase.status,
               note: phrase.note,
-              placeholder: "Enter text",
+              placeholder: "Your own meaning",
               onStatus: function (value) {
                 updatePhrase(phrase, { status: value === null ? phrase.status : value });
                 renderPhrases();

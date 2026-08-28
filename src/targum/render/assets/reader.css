@@ -121,6 +121,12 @@
 
 * { box-sizing: border-box; }
 
+/* Focus is one colour everywhere (§4), and it has to be the app's ring and not the
+   browser's: the bar, the shelf and the avatar were drawing Chrome's blue over a
+   hairline that was meant to be the whole of it. Zero specificity, so anything that
+   draws its own ring, or deliberately none, still wins. */
+:where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a
    Russian or Latin source still takes the reading stack above. */
@@ -320,6 +326,9 @@ a.bar-brand:hover { color: var(--accent); }
 .bar button:hover, .bar select:hover,
 .bar button:focus-visible, .bar select:focus-visible { border-color: var(--rule); }
 .bar button.on:hover { border-color: var(--ink-soft); }
+/* A sheet of keyboard shortcuts on a phone is a control that answers a question nobody
+   there can ask. The key itself still works for a tablet with a keyboard attached. */
+@media (hover: none) and (pointer: coarse) { .bar [data-keys] { display: none; } }
 
 button, select {
   font: inherit;
@@ -494,6 +503,9 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
   text-align: start;
 }
 .keys-card[hidden] { display: none; }
+.keys-head { display: flex; align-items: baseline; gap: 0.6rem; margin-block-end: 0.5rem; }
+.keys-head b { font-weight: 600; color: var(--ink); }
+.keys-head .keys-close { margin-inline-start: auto; border: none; font-size: 1.0625rem; line-height: 1; }
 .keys-card dl {
   display: grid;
   grid-template-columns: auto 1fr;
