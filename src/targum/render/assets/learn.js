@@ -158,6 +158,9 @@
     // normal state rather than a fault. Saying nothing beats saying "0% known", because
     // "not measured" and "you know none of this" are very different claims about a book.
     if (typeof reader.known !== "number") return "";
+    // "0% of its words" on the first card a new reader sees is true and unkind; the
+    // line starts once there is something to say.
+    if (!reader.known) return "";
     return Math.round(reader.known * 100) + "% of its words are ones you know";
   }
 
@@ -169,7 +172,15 @@
     }
     panel.hidden = false;
     var heading = document.getElementById("carry-heading");
-    if (heading) heading.textContent = start ? "Start here" : "Continue Reading";
+    if (heading) {
+      // A choice, said as one: the first sign-in offers a biblical text and a modern
+      // one side by side, at the same weight, and the headings are what say which.
+      heading.textContent = !start
+        ? "Continue Reading"
+        : reader.register === "biblical"
+          ? "Start with the Bible"
+          : "Start here";
+    }
     // The box is the link, so this is the only href on it.
     panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
 
@@ -337,6 +348,11 @@
     offeredShared = reader;
     card.hidden = false;
     card.disabled = false;
+    // The same weight as the card beside it: this is the other half of one choice,
+    // not a suggestion under it.
+    card.classList.add("start");
+    var heading = document.getElementById("suggest-heading");
+    if (heading) heading.textContent = "Or with something modern";
     card.setAttribute("data-entry", reader.entry || reader.name);
     var cover = document.getElementById("suggest-cover");
     cover.textContent = "";
@@ -349,10 +365,13 @@
     var title = document.getElementById("suggest-title");
     title.textContent = reader.title;
     title.setAttribute("lang", reader.language);
-    var why = "Or something modern";
-    document.getElementById("suggest-why").textContent =
-      reader.minutes ? why + " · " + reader.minutes + " min" : why;
-    document.getElementById("suggest-blurb").textContent = "Already built. Tap to open it.";
+    var facts = [];
+    if (reader.kind === "article") facts.push("Israeli news");
+    else if (reader.kind) facts.push(reader.kind);
+    if (reader.minutes) facts.push(reader.minutes + " min");
+    facts.push("ready to read");
+    document.getElementById("suggest-why").textContent = facts.join(" · ");
+    document.getElementById("suggest-blurb").textContent = "";
   }
 
   function suggest(code, readers) {
@@ -362,6 +381,9 @@
     var card = document.getElementById("suggest");
     if (!card) return;
     offeredShared = null;
+    card.classList.remove("start");
+    var suggestHeading = document.getElementById("suggest-heading");
+    if (suggestHeading) suggestHeading.textContent = "Suggested";
 
     var built = {};
     readers.forEach(function (reader) {
@@ -428,9 +450,18 @@
 
   /* --- what you know --------------------------------------------------------- */
 
+  // Whether the page is offering the first choice — two texts, both ready — and so
+  // whether the line above the doors should say so rather than count.
+  var choosing = false;
+
   function drawKnown(code, store) {
     var line = document.getElementById("known-line");
     var known = charts.known(store && store.words);
+    if (choosing && !known) {
+      line.textContent = "Two ways in, both ready. Tap one to start reading.";
+      document.getElementById("step-progress").textContent = "What you have built.";
+      return;
+    }
     // The same numbers the progress page opens with, said in one line as a reason to go
     // and look at the rest of them.
     var days = charts.days().length;
@@ -500,7 +531,13 @@
           : shared.filter(function (reader) {
               return base(reader.language) === code;
             });
+        // The biblical text is the start and the modern one the alternative, whatever
+        // order they were built in.
+        handed.sort(function (a, b) {
+          return (b.register === "biblical" ? 1 : 0) - (a.register === "biblical" ? 1 : 0);
+        });
         var start = handed[0] || null;
+        choosing = handed.length > 1;
         drawCarry(mine[0] || start, !!start);
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
