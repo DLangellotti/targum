@@ -177,9 +177,9 @@
 {#- Turning the page: back, where you are, forward. Fixed at the foot of the window in
     paged mode and not there at all otherwise. Arrows per reading direction, drawn by
     the stylesheet the way the pager's are. -#}
-<div class="turn" id="turn" dir="ltr" hidden>
+<div class="turn" id="turn" hidden>
   <button type="button" class="back" data-turn="-1" aria-label="Previous page"></button>
-  <span id="page-of"></span>
+  <span id="page-of" dir="ltr"></span>
   <button type="button" class="forward" data-turn="1" aria-label="Next page"></button>
 </div>
 

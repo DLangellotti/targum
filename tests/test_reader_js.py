@@ -454,8 +454,8 @@ def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
     assert before["rest"] == {
         "hidden": False,
-        "text": "Mark the remaining 2 words as known?",
-        "button": "Mark 2",
+        "text": "",
+        "button": "Mark 2 words as known",
         "undo": False,
     }
     after = run(
@@ -475,7 +475,7 @@ def test_one_undo_takes_the_whole_batch_back() -> None:
     words, lemmas = chapter(["a", "b", "c", "d"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
-    assert done["rest"]["button"] == "Mark 4"
+    assert done["rest"]["button"] == "Mark 4 words as known"
 
 
 def test_marking_the_rest_never_touches_a_name() -> None:
@@ -541,7 +541,8 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
     assert done["at"] > 0 and done["record"] == done["at"], "written where the sync reads it"
     assert done["button"] == "Undo"
-    assert done["said"].startswith("Finished ")
+    assert done["said"].startswith("You finished a targum.")
+    assert "1st" in done["said"], "and how many so far"
 
     back = run([], chapter=words, lemmas=lemmas, finish=[True, False])["finished"]
     assert back["at"] == 0 and back["button"] == "Done"

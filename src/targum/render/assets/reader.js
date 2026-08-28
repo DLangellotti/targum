@@ -525,9 +525,30 @@
     say(on ? "Finished. It counts on your progress page." : "Not finished.");
   }
 
+  // How many texts this reader has finished, in every language: the number the
+  // celebration brags with. One record per text, so one at most each.
+  function finishedCount() {
+    var all = read(DOCS, "{}");
+    var count = 0;
+    Object.keys(all).forEach(function (hash) {
+      if (all[hash] && all[hash].done) count += 1;
+    });
+    return count;
+  }
+
+  function ordinal(n) {
+    var rest = n % 100;
+    if (rest >= 11 && rest <= 13) return n + "th";
+    return n + (["th", "st", "nd", "rd"][n % 10] || "th");
+  }
+
+  // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block
+  // that earned it — and brags the brand's way: a real count, in serif tabular figures,
+  // leaf-bright on ink. Type, not motion.
   function renderFinished() {
     if (!finishedBox || !finishedMark || !finishedSaid) return;
     var when = finishedAt();
+    finishedSaid.textContent = "";
     if (when) {
       var day = new Date(when);
       var said = "";
@@ -536,7 +557,19 @@
       } catch (e) {
         said = day.toDateString();
       }
-      finishedSaid.textContent = "Finished " + said;
+      var count = finishedCount();
+      var lead = document.createElement("b");
+      lead.className = "cheer";
+      lead.textContent = "You finished a targum.";
+      finishedSaid.appendChild(lead);
+      var tally = document.createElement("span");
+      tally.className = "tally";
+      var figure = document.createElement("b");
+      figure.textContent = ordinal(count);
+      tally.appendChild(document.createTextNode("Your "));
+      tally.appendChild(figure);
+      tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
+      finishedSaid.appendChild(tally);
       finishedSaid.hidden = false;
       finishedMark.textContent = "Undo";
       finishedMark.classList.add("undo");
@@ -546,6 +579,8 @@
       finishedMark.classList.remove("undo");
     }
     finishedBox.classList.toggle("is-done", !!when);
+    // The inverted block is a ledger, and `.ledger` is what licenses the bright set.
+    finishedBox.classList.toggle("ledger", !!when);
   }
   renderFinished();
 
@@ -1359,12 +1394,11 @@
       restUndo.hidden = false;
       restBox.hidden = false;
     } else if (counts.fresh) {
-      restText.textContent =
-        "Mark the remaining " +
-        counts.fresh +
-        (counts.fresh === 1 ? " word" : " words") +
-        " as known?";
-      restMark.textContent = "Mark " + counts.fresh;
+      // One button that says the whole thing, rather than a question and a number:
+      // the words left, and what pressing it does with them.
+      restText.textContent = "";
+      restMark.textContent =
+        "Mark " + counts.fresh + (counts.fresh === 1 ? " word" : " words") + " as known";
       restMark.hidden = false;
       restUndo.hidden = true;
       restBox.hidden = false;
