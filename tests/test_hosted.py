@@ -699,3 +699,32 @@ def test_your_builds_are_listed_for_you_alone(hosted: tuple[int, str]) -> None:
 def test_watching_a_build_that_is_not_yours_is_not_found(hosted: tuple[int, str]) -> None:
     port, session = hosted
     assert _signed_post(port, "/jobs/watch", {"id": "nope"}, session)[0] == 404
+
+
+def test_a_finished_text_is_kept_on_the_account_and_in_the_export() -> None:
+    """targum-internal#112: persisted per person, synced, and in what they take away."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw:
+        store = Store(Path(raw) / "db")
+        person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+        store.push(
+            person,
+            {
+                "docs": [
+                    {
+                        "hash": "h",
+                        "title": "One",
+                        "language": "he",
+                        "updated": 5,
+                        "opened": 4,
+                        "done": 9,
+                        "seen": 5,
+                    }
+                ]
+            },
+        )
+        rows = store.db.execute("SELECT done FROM doc WHERE hash = 'h'").fetchall()
+        assert [row["done"] for row in rows] == [9]
+        taken = json.dumps(store.everything(person))
+        assert '"done": 9' in taken
