@@ -121,6 +121,12 @@
 
 * { box-sizing: border-box; }
 
+/* Focus is one colour everywhere (§4), and it has to be the app's ring and not the
+   browser's: the bar, the shelf and the avatar were drawing Chrome's blue over a
+   hairline that was meant to be the whole of it. Zero specificity, so anything that
+   draws its own ring, or deliberately none, still wins. */
+:where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a
    Russian or Latin source still takes the reading stack above. */
