@@ -239,7 +239,7 @@ def test_the_ink_only_brights_never_touch_paper() -> None:
 
 
 def gradients(text: str) -> list[str]:
-    """The inside of every `linear-gradient(...)`, with the parens balanced.
+    r"""The inside of every `linear-gradient(...)`, with the parens balanced.
 
     A regex cannot do this and the one here did not: `linear-gradient\(([^;]*?)\)\s`
     stops at the first `)` followed by whitespace, which in
