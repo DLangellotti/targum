@@ -223,6 +223,15 @@
     // setting. A pointed poem opens pointed; a news article whose points were all
     // guessed opens bare. Only what you choose yourself is remembered here.
     nikkudBy: {},
+    // Pages, or one long scroll. Pages: the first alpha reader asked twice — "I get
+    // tired from reading and want logical places to stop" — and a page is a place to
+    // stop. A preference, because a paragraph taller than a phone's window fits on
+    // no page and that page has to scroll, which is more forgivable inside a mode
+    // somebody can leave than as the reader everybody gets.
+    paged: true,
+    // Where you were, per chapter: the first sentence of the page you were on. A page
+    // number would be wrong after the type grows or the window turns.
+    pageBy: {},
     // Which generation of the defaults this browser has seen. See below.
     defaults: 0,
   };
@@ -235,8 +244,9 @@
   // it got turned off again in one of them. Bumping this asks once more. It is blunt —
   // it overrides somebody who chose the quiet page on purpose — which is the price of
   // being able to change a default at all, and the reason to move it rarely.
-  var DEFAULTS = 2;
-  var RESET = { marking: true };
+  // 3: pages, for every browser that had a preference from before there were pages.
+  var DEFAULTS = 3;
+  var RESET = { marking: true, paged: true };
 
   try {
     var stored = JSON.parse(localStorage.getItem(STORE) || "{}");
@@ -1067,6 +1077,12 @@
   // order, so it stops at the first one past the bottom rather than walking the rest of
   // the chapter, and a pair already drawn this pass costs one property read.
   function markVisible() {
+    // On a page, the page: a hidden pair has no rectangle, and asking would mark the
+    // whole chapter for nothing.
+    if (paged() && pages.length) {
+      for (var p = pages[current][0]; p <= pages[current][1]; p++) markPair(pairs[p]);
+      return;
+    }
     var margin = window.innerHeight / 2;
     for (var n = 0; n < pairs.length; n++) {
       var box = pairs[n].getBoundingClientRect();
@@ -1097,7 +1113,9 @@
     // out to measure; afterwards the layout is current, reading it is cheap, and a mark
     // made by a keypress has to land in the frame the key was pressed in.
     var first = 0;
-    if (drawn) {
+    if (paged() && pages.length) {
+      first = pages[current][0];
+    } else if (drawn) {
       var margin = window.innerHeight;
       for (var n = 0; n < pairs.length; n++) {
         var box = pairs[n].getBoundingClientRect();
@@ -1584,6 +1602,7 @@
     body.classList.toggle("list-open", open);
     keep(held);
     relay();
+    relayout();
     if (remembered !== false) save();
   }
 
@@ -2935,6 +2954,7 @@
   });
 
   function refit() {
+    relayout();
     if (living && seen && seen.pair.parentNode) {
       toLine(refind(seen), seen.pair, seen.top);
       // And say where that is. A reader who has just watched every line on the page move
@@ -3005,6 +3025,7 @@
     }
     drawnFor = prefs.mode;
     relay();
+    relayout();
   }
 
   // The whole page moves when the mode changes. Settling it back in reads as one
@@ -3041,6 +3062,161 @@
     redraw();
     putBack(held);
     relay();
+    relayout();
+  }
+
+  /* --- pages, not a scroll --------------------------------------------------
+   *
+   * A page is a contiguous run of pairs, and turning one is deciding which run to show:
+   * the pairs outside it are hidden. Nothing reflows inside a pair, so the two-column
+   * parallel grid paginates as rows, and print un-hides them in one rule. Not fixed at
+   * build time — how many pairs fit depends on the window, the type size, the leading,
+   * the mode and the vowels, and a reader off a disk cannot be rewritten. Measured
+   * once per layout with everything shown, which is what the scrolling page has always
+   * cost, and never again until something moves.
+   *
+   * Nothing here is fixed-height or overflow-hidden. The run fits the room by
+   * construction; a single pair taller than the room gets a page of its own and that
+   * page scrolls, which is the honest answer, and the last page scrolls to reach the
+   * pager and the offer at the foot.
+   */
+  var turn = document.getElementById("turn");
+  var pageOf = document.getElementById("page-of");
+  var pager = document.querySelector(".pager[data-chapter]");
+  var pageKey = documentId + "#" + (pager ? pager.getAttribute("data-chapter") : "1");
+  var pages = [];
+  var current = 0;
+  var paging = false;
+
+  function paged() {
+    return !!prefs.paged && pairs.length > 0;
+  }
+
+  // Which pairs share a page, from where each one starts and how tall it is. Pure: the
+  // arithmetic is decided here so it can be tested without a browser to lay anything
+  // out. A pair too tall for the room is a page on its own rather than a page nobody
+  // can turn to.
+  function boundariesFrom(tops, heights, room) {
+    var out = [];
+    if (!tops.length) return out;
+    var start = 0;
+    var base = tops[0];
+    for (var n = 0; n < tops.length; n++) {
+      var bottom = tops[n] + heights[n] - base;
+      if (bottom > room && n > start) {
+        out.push([start, n - 1]);
+        start = n;
+        base = tops[n];
+      }
+    }
+    out.push([start, tops.length - 1]);
+    return out;
+  }
+
+  function pageFor(index, list) {
+    for (var n = 0; n < list.length; n++) {
+      if (index >= list[n][0] && index <= list[n][1]) return n;
+    }
+    return 0;
+  }
+
+  // What is left of the window under the bar and above the turn control.
+  function room() {
+    var top = bar ? bar.getBoundingClientRect().bottom : 0;
+    var foot = turn && !turn.hidden ? turn.getBoundingClientRect().height + 16 : 0;
+    return Math.max(160, window.innerHeight - top - foot - 24);
+  }
+
+  function paginate() {
+    if (!paged()) return;
+    pairs.forEach(function (pair) {
+      pair.hidden = false;
+    });
+    var tops = [];
+    var heights = [];
+    pairs.forEach(function (pair) {
+      var box = pair.getBoundingClientRect();
+      tops.push(box.top + window.scrollY);
+      heights.push(box.height);
+    });
+    pages = boundariesFrom(tops, heights, room());
+    if (!pages.length) pages = [[0, pairs.length - 1]];
+  }
+
+  function showPage(n, quiet) {
+    if (!paged() || !pages.length) return;
+    current = Math.max(0, Math.min(pages.length - 1, n));
+    var range = pages[current];
+    for (var i = 0; i < pairs.length; i++) pairs[i].hidden = i < range[0] || i > range[1];
+    body.classList.toggle("last-page", current === pages.length - 1);
+    if (pageOf) pageOf.textContent = current + 1 + " of " + pages.length;
+    for (i = range[0]; i <= range[1]; i++) markPair(pairs[i]);
+    if (!quiet && window.scrollTo) window.scrollTo(0, 0);
+    if (prefs.pageBy) {
+      prefs.pageBy[pageKey] = pairs[range[0]].getAttribute("data-id") || "";
+      save();
+    }
+    // For the chapter prefetch, which lives in its own scope and reads the scroll.
+    if (typeof CustomEvent === "function") {
+      document.dispatchEvent(new CustomEvent("targum:page"));
+    }
+  }
+
+  function turnTo(pair) {
+    if (!paged() || !pages.length) return;
+    var index = pairs.indexOf(pair);
+    if (index < 0) return;
+    var n = pageFor(index, pages);
+    if (n !== current) showPage(n, true);
+  }
+
+  function turnBy(delta) {
+    if (!paged() || !pages.length) return false;
+    var n = current + delta;
+    if (n < 0 || n >= pages.length) return false;
+    showPage(n);
+    return true;
+  }
+
+  // The same page after the layout has changed under it — the type a step larger, the
+  // vowels on, the list open. Held by the pair the reader is on, not by a number.
+  function relayout() {
+    if (!paging || !paged()) return;
+    var held = pages.length ? pairs[pages[current][0]] : null;
+    var here = anchor();
+    if (here && here.pair) held = here.pair;
+    paginate();
+    showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
+  }
+
+  function applyPaged() {
+    body.classList.toggle("paged", !!prefs.paged);
+    Array.prototype.forEach.call(document.querySelectorAll("[data-paged]"), function (button) {
+      button.classList.toggle("on", !!prefs.paged);
+      button.setAttribute("aria-pressed", prefs.paged ? "true" : "false");
+    });
+    if (turn) turn.hidden = !prefs.paged;
+    paging = true;
+    if (!paged()) {
+      pairs.forEach(function (pair) {
+        pair.hidden = false;
+      });
+      body.classList.remove("last-page");
+      pages = [];
+      redraw();
+      return;
+    }
+    paginate();
+    var was = prefs.pageBy ? prefs.pageBy[pageKey] : "";
+    var at = was && pairBySegment[was] ? pairs.indexOf(pairBySegment[was]) : 0;
+    showPage(at > 0 ? pageFor(at, pages) : 0, true);
+  }
+
+  // How far through the chapter, as the prefetch asks it: null when not paged, so it
+  // falls back to reading the scroll.
+  function through() {
+    if (!paged() || !pages.length) return null;
+    return pages.length > 1 ? current / (pages.length - 1) : 1;
   }
 
   var picker = document.getElementById("translation");
@@ -3172,6 +3348,20 @@
         save();
         return;
       }
+      if (button.hasAttribute("data-paged")) {
+        prefs.paged = !prefs.paged;
+        applyPaged();
+        save();
+        return;
+      }
+      if (button.hasAttribute("data-turn")) {
+        var went = turnBy(Number(button.getAttribute("data-turn")));
+        if (!went && Number(button.getAttribute("data-turn")) > 0) {
+          var next = pager && pager.querySelector("[data-next]");
+          if (next) location.href = next.getAttribute("href");
+        }
+        return;
+      }
       var mode = button.getAttribute("data-mode");
       if (mode) {
         if (mode === prefs.mode) return;
@@ -3194,6 +3384,7 @@
         if (action === "smaller") prefs.size -= 0.0625;
         if (action === "looser") prefs.leading = nextLeading(prefs.leading);
         applyType();
+        relayout();
         placeSlide();
         // The type grows around the line you are reading rather than sliding it off the
         // top of the window, which is what four presses of A+ used to do.
@@ -3358,6 +3549,7 @@
   // from the top of the text rather than the top of the window, because the bar is
   // sticky and a sentence behind it is one you have already read.
   function onScreen() {
+    if (paged() && pages.length) return pairs[pages[current][0]] || null;
     var top = ceiling();
     for (var n = 0; n < pairs.length; n++) {
       if (pairs[n].getBoundingClientRect().bottom > top) return pairs[n];
@@ -3446,6 +3638,8 @@
     if (!pair) return false;
     // Its spans may never have been drawn: only a screenful is marked up front.
     markPair(pair);
+    // And it may be on another page.
+    turnTo(pair);
     // By offset as well as by lemma. A pair can hold two forms of one dictionary word,
     // and a saved phrase drawn across a word slices it into several spans — the first
     // piece is enough, because `bareSurface` reads the whole word back out of
@@ -3565,6 +3759,20 @@
       return;
     }
 
+    // Turning the page. Space and PageDown forward, Shift+Space and PageUp back — the
+    // keys a scroll already answers to, which is the point: nothing to relearn. On the
+    // last page, forward is the next chapter. Not paged, they scroll as they always did.
+    if (key === " " || key === "PageDown" || key === "PageUp") {
+      if (!paged()) return;
+      event.preventDefault();
+      var back = key === "PageUp" || (key === " " && event.shiftKey);
+      if (!turnBy(back ? -1 : 1) && !back) {
+        var onward = pager && pager.querySelector("[data-next]");
+        if (onward) location.href = onward.getAttribute("href");
+      }
+      return;
+    }
+
     switch (key) {
       // The whole of the navigation. This page is walked a word at a time and nothing
       // else — stepping sentences was a second way through the text that shared `k` and
@@ -3620,6 +3828,11 @@
       case "m":
         prefs.marking = !prefs.marking;
         applyMarking();
+        save();
+        return;
+      case "b":
+        prefs.paged = !prefs.paged;
+        applyPaged();
         save();
         return;
       case "s":
@@ -3834,6 +4047,7 @@
     prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
   }
   applyNikkud();
+  applyPaged();
   // The page is laid out from here on, so from here on a change to it can be measured.
   living = true;
   took("marks drawn on what is on screen");
@@ -3901,6 +4115,10 @@
     entries: wordEntries,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // The arithmetic of a page, for tests with no browser to lay anything out.
+    boundariesFrom: boundariesFrom,
+    pageFor: pageFor,
+    through: through,
   };
 })();
 
@@ -3948,6 +4166,13 @@
   var asked = false;
 
   function through() {
+    // Paged, the page says; otherwise the scroll does. Its own scope, so it asks the
+    // reader above it through the one seam that scope leaves open.
+    var reader = window.TargumReader;
+    if (reader && reader.through) {
+      var far = reader.through();
+      if (far !== null && far !== undefined) return far;
+    }
     var height = document.documentElement.scrollHeight - window.innerHeight;
     return height > 0 ? window.scrollY / height : 1;
   }
@@ -3975,6 +4200,7 @@
   }
 
   window.addEventListener("scroll", maybe, { passive: true });
+  document.addEventListener("targum:page", maybe);
   maybe();
 })();
 
