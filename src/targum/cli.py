@@ -1041,6 +1041,58 @@ def rebuild(
     )
 
 
+#: What a reader with nothing on their shelf is handed first: a text already built, so
+#: there is nothing to choose and nothing to wait for. Catalogue texts with a published
+#: translation, so building one asks no model for anything. Ruth first — four chapters,
+#: one family, plain narrative — which is the roadmap's own answer to "where do I start".
+SEED = ("ruth",)
+
+
+@app.command()
+def seed(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Build the shared texts every new reader starts with.
+
+    Into `<out>/shared`, which no request can write to: a reader is handed these,
+    cannot buy, trash or rebuild them, and gets their own copy the moment they build
+    anything. Free — each has a published translation — and safe to run again.
+    """
+    from . import catalogue as catalogue_module
+    from .coverage import lemmas
+    from .serve import HOSTED_MODEL
+
+    root = out or Path.cwd() / "targum-out"
+    shared = root / "shared"
+    shared.mkdir(parents=True, exist_ok=True)
+    for entry_id in SEED:
+        entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
+        if entry is None:
+            fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
+            continue
+        builder = Build(
+            entry.source,
+            target_language="en",
+            title=entry.title,
+            model=entry.model or HOSTED_MODEL,
+            out_root=shared,
+            translations=[rendering.source for rendering in entry.translations],
+            machine=False,
+            difficulty=True,
+            notify=lambda message: console.print(f"[dim]{message}[/dim]"),
+        )
+        with console.status(f"Building {entry.title}…"):
+            result = builder.run()
+        # Written now rather than on the first reader's first visit: nothing a request
+        # does should write into the shared home.
+        lemmas(result.out_dir)
+        console.print(f"[green]{entry.title}[/green] [dim]→ {result.out_dir}[/dim]")
+    console.print("[dim]Nothing was spent.[/dim]")
+
+
 @app.command()
 def build(
     # A string, not a Path: pathlib collapses the double slash in https:// and would
