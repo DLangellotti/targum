@@ -169,7 +169,7 @@
     }
     panel.hidden = false;
     // The box is the link, so this is the only href on it.
-    panel.href = keyed("/reader/" + reader.name + "/reader/index.html");
+    panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
 
     var cover = document.getElementById("carry-cover");
     cover.textContent = "";
@@ -257,7 +257,7 @@
         narrate(say(job.message) || "Almost there…");
         if (job.stage === "done") {
           clearInterval(timer);
-          window.location.href = keyed("/reader/" + job.reader);
+          window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
         }
       });
     }, 700);

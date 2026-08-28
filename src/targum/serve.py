@@ -1043,7 +1043,7 @@ class Library:
             # Word help is worth saying goodbye to out loud; it is not worth a card that
             # will not draw. The build itself says so when it gets there.
             return 0.0, 0
-        glosser = AnthropicGlosses(builder.model)
+        glosser = AnthropicGlosses(builder.gloss_model or builder.model)
         # A lemma looked up for another text is already bought. Quoting for it again
         # prices work that is about to be free.
         owed = unpaid(
@@ -1331,6 +1331,7 @@ class Library:
         # rather than taken from the request: the model decides what a build costs, and
         # one that arrived in a payload would be a way to spend somebody else's money.
         from . import catalogue as catalogue_module
+        from .annotate.gloss import GLOSS_MODEL
 
         entry = catalogue_module.matching(job.source)
         return Build(
@@ -1360,6 +1361,10 @@ class Library:
             reads=sorted(self._reads_of(job.owner) or ()) or None,
             out_root=job.home or self.out,
             gloss=bool(options.get("gloss")),
+            # Meanings are bought on the hosted model whatever the prose was bought with:
+            # the catalogue is translated on Opus, and its 25k lemmas are cached under
+            # Sonnet. Quoting or buying them under Opus paid twice for the same words.
+            gloss_model=GLOSS_MODEL,
             difficulty=bool(options.get("words")),
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
@@ -2263,14 +2268,19 @@ class Handler(BaseHTTPRequestHandler):
         if not lemma or not source:
             return self._json({"error": "bad request"}, 400)
 
-        from .annotate.gloss import AnthropicGlosses, gloss_one
+        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
 
         # The same model the build's own glossary was bought with. The provider's name
         # is part of the cache key, so asking here with the provider's default — Opus,
         # where a hosted build uses Sonnet — made every word the build had already paid
         # for cost a second time, on the dearer of the two, the moment a reader tapped
         # it. Bought once, free everywhere is the claim; this is what makes it true.
-        provider = AnthropicGlosses(HOSTED_MODEL)
+        provider = AnthropicGlosses(GLOSS_MODEL)
+        if payload.get("free"):
+            # A card opening asks this first: is the meaning already held? Answered from
+            # the cache and never bought, so a page can ask for every word it shows.
+            meaning = cached_gloss(lemma, source, target, provider.name)
+            return self._json({"lemma": lemma, "meaning": meaning or None, "cached": bool(meaning)})
         usable, _ = provider.available()
         if not usable:
             return self._json({"error": NO_KEY}, 402)

@@ -112,6 +112,7 @@ class Build:
         machine: bool | None = None,
         difficulty: bool = False,
         gloss: bool = False,
+        gloss_model: str | None = None,
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
         vocalizer: vocalize_module.Vocalizer | None = None,
@@ -139,6 +140,8 @@ class Build:
         # Glosses need the same lemmas difficulty does, so asking for one implies the other.
         self.difficulty = difficulty or gloss
         self.gloss = gloss
+        # Meanings may be bought on a cheaper model than the prose; hosted, they are.
+        self.gloss_model = gloss_model
         self._annotator = annotator
         self._vocalizer = vocalizer
         self.provider: Any = build_provider(
@@ -399,7 +402,7 @@ class Build:
         key = self.cache_key(segmented, owed)
         # `force` means force: it has to reach past the shared cache too, or "redo this
         # properly" quietly hands back the same answer that was being questioned.
-        held = {} if self.force else self.held(key)
+        held = self.held_for(segmented, owed)
         wanted = [segment for segment in owed if segment.id not in held]
 
         if not wanted:
@@ -436,6 +439,37 @@ class Build:
         self.cache.put("translate", key, {"segments": whole})
         return whole
 
+    def held_for(self, segmented: SegmentedDocument, run: list[Segment]) -> dict[str, str]:
+        """Every sentence of this run already paid for, under whichever key it was bought.
+
+        A chapter bought on its own sits under its own key, a book bought whole under
+        the document's, and a run of several chapters under theirs. A run that spans
+        chapters bought one at a time matches none of them by its own key alone, and
+        would buy every one of them again. `force` still means force: it reaches past
+        the shared cache too, or "redo this properly" hands back the answer in question.
+        """
+        if self.force:
+            return {}
+        wanted = {segment.id for segment in run}
+        keys = [self.cache_key(segmented, run), self.cache_key(segmented)]
+        from .render.builder import split_sections
+
+        sections = split_sections(segmented)
+        if len(sections) >= 2:
+            for section in sections:
+                ids = set(section.segment_ids)
+                if ids & wanted:
+                    chapter = [segment for segment in segmented.segments if segment.id in ids]
+                    keys.append(self.cache_key(segmented, chapter))
+        found: dict[str, str] = {}
+        for key in dict.fromkeys(keys):
+            for sid, text in self.held(key).items():
+                if sid in wanted and sid not in found:
+                    found[sid] = text
+            if len(found) == len(wanted):
+                break
+        return found
+
     def held(self, key: str) -> dict[str, str]:
         """What has been translated for this run so far, whole or in part.
 
@@ -454,7 +488,7 @@ class Build:
         no longer means a chapter is free, and treating it as free is how a reader gets
         charged for something a page told them they already had.
         """
-        held = self.held(self.cache_key(segmented, run))
+        held = self.held_for(segmented, run)
         return bool(run) and all(segment.id in held for segment in run)
 
     @property
@@ -652,13 +686,26 @@ class Build:
         $4.23, and the cap then refused the pair and the book could not be opened at all.
         The rest arrives as the rest is bought, and a lemma already looked up is free.
         """
-        if not self.gloss or annotation is None:
+        if annotation is None:
             return None
         from .annotate.gloss import AnthropicGlosses, build_glossary, unique_lemmas
 
         wanted = {segment.id for segment in only} if only is not None else None
 
-        provider = AnthropicGlosses(self.model)
+        provider = AnthropicGlosses(self.gloss_model or self.model)
+        if not self.gloss:
+            # Nothing is bought, but what is already held is still handed over: a
+            # meaning looked up in another text, or bought for this one by somebody
+            # else, costs nothing to show, and a card should open with it rather than
+            # with a button.
+            held, _ = build_glossary(
+                annotation, self.target_language, provider, cache=self.cache, buy=False
+            )
+            if not held.entries:
+                return None
+            held.write(glossary_path(self.resolved_out, self.target_language))
+            self.reused.append("glossary (cache)")
+            return held
         # Kept so what the meanings cost is counted with the rest. Glossing runs on its
         # own provider instance, so without this its spend is simply invisible.
         self._glosser = provider
@@ -733,8 +780,13 @@ class Build:
             buying = (
                 self._first_chapters(plan.segmented, chapters) if chapters else None
             ) or plan.segmented.segments
+            # Priced net of the shared cache, the way the build will actually spend. A
+            # book bought once — the prose canon — quoted at full price here, and the
+            # cap refused a text that would have cost nothing to open.
+            paid = self.held_for(plan.segmented, buying)
+            owed = [segment for segment in buying if segment.id not in paid]
             plan.estimated_cost = self.provider.estimate(
-                buying, plan.segmented.language, self.target_language, self.style
+                owed, plan.segmented.language, self.target_language, self.style
             )
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)

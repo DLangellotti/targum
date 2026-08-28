@@ -460,3 +460,41 @@ def test_a_lemma_already_looked_up_is_not_quoted_for(tmp_path) -> None:  # type:
     build_glossary(annotation_with({"ארץ": 2}), "en", provider, cache=cache)
 
     assert unpaid(["ארץ", "שלום"], "he", "en", provider.name, cache) == ["שלום"]
+
+
+def test_filling_from_the_cache_buys_nothing(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A card should open with a meaning targum already holds, not with a button. That
+    means handing over what the cache has for a text whose meanings were never bought —
+    without buying the rest."""
+    from targum.cache import Cache
+
+    cache = Cache(tmp_path)
+    paid = FakeGlosses()
+    build_glossary(annotation_with({"ארץ": 2}), "en", paid, cache=cache)
+    assert len(paid.asked) == 1
+
+    quiet = FakeGlosses()
+    held, owed = build_glossary(
+        annotation_with({"ארץ": 2, "שלום": 1}), "en", quiet, cache=cache, buy=False
+    )
+    assert quiet.asked == [], "buy=False means buy nothing"
+    assert held.entries == {"ארץ": "meaning of ארץ"}
+    assert owed == 1, "and says what it would have cost"
+
+
+def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from targum.annotate.gloss import fill_from_cache, gloss_key, gloss_provider_name
+    from targum.cache import Cache
+
+    cache = Cache(tmp_path)
+    annotation = annotation_with({"ארץ": 2, "שלום": 1})
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", annotation.language, "en", gloss_provider_name()),
+        {"gloss": "land", "part_of_speech": "noun"},
+    )
+    grown = fill_from_cache(annotation, {}, ["en"], cache=cache)
+    assert grown["en"].entries == {"ארץ": "land"}
+    assert grown["en"].parts_of_speech == {"ארץ": "noun"}
+    again = fill_from_cache(annotation, grown, ["en"], cache=cache)
+    assert again == {}, "nothing new, nothing written"
