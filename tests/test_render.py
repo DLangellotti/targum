@@ -1457,7 +1457,7 @@ def test_the_header_counts_the_words_here_and_the_knowing_everywhere() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    stats = script[script.index("function renderStats()") : script.index("function countInto(")]
     # coverage() walks lemmasHere() — this text — and asks statusOf(), which reads the
     # language-wide store. Both halves come from that one call.
     assert "var counts = coverage();" in stats
@@ -1473,7 +1473,7 @@ def test_ignored_words_leave_the_total_rather_than_counting_as_known() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert "var scored = counts.total - counts.ignored;" in script
-    stats = script[script.index("function renderStats()") : script.index("var lastCounts")]
+    stats = script[script.index("function renderStats()") : script.index("function countInto(")]
     assert "counts.known + counts.ignored" not in stats
 
 
