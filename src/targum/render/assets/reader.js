@@ -3209,9 +3209,16 @@
   }
 
   // What is left of the window under the bar and above the turn control.
+  // Under the bar, and above the arrows — the whole band the arrows sit in, from their
+  // top edge to the foot of the window, not their own height: a page is laid out so
+  // that no line of it can end up under them.
   function room() {
     var top = bar ? bar.getBoundingClientRect().bottom : 0;
-    var foot = turn && !turn.hidden ? turn.getBoundingClientRect().height + 16 : 0;
+    var foot = 0;
+    if (turn && !turn.hidden) {
+      var box = turn.getBoundingClientRect();
+      if (box.height) foot = window.innerHeight - box.top + 12;
+    }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
 
