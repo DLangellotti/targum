@@ -525,3 +525,32 @@ def test_which_page_a_pair_is_on() -> None:
     for index, page in ((0, 0), (1, 0), (2, 1), (4, 2)):
         found = run([], chapter=words, lemmas=lemmas, pageFor={"index": index, "pages": laid})
         assert found["pageFor"] == page, index
+
+
+# -- finished with the text --------------------------------------------------------
+
+
+def test_done_is_said_once_however_often_it_is_pressed() -> None:
+    """targum-internal#112. One press at the foot of the last part finishes the text and
+    says when; pressing again takes it back. Finished twice is finished once, so the
+    count on the progress page can only ever move by one."""
+    words, lemmas = chapter(["a"])
+    fresh = run([], chapter=words, lemmas=lemmas)["finished"]
+    assert fresh["at"] == 0 and fresh["button"] == "Done" and fresh["said"] == ""
+
+    done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
+    assert done["at"] > 0 and done["record"] == done["at"], "written where the sync reads it"
+    assert done["button"] == "Undo"
+    assert done["said"].startswith("Finished ")
+
+    back = run([], chapter=words, lemmas=lemmas, finish=[True, False])["finished"]
+    assert back["at"] == 0 and back["button"] == "Done"
+
+
+def test_finishing_survives_everything_else_the_reader_writes() -> None:
+    """`updateDocs` rewrites the text's record on every change to a word."""
+    words, lemmas = chapter(["a", "b"])
+    kept = run(
+        [], chapter=words, lemmas=lemmas, finish=[True], levels=[{"word": "a", "status": 9}]
+    )["finished"]
+    assert kept["record"] > 0

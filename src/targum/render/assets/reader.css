@@ -1305,7 +1305,8 @@ body.paged:not(.last-page) .rest { display: none; }
   border: 0;
   border-radius: 999px;
   background: none;
-  color: var(--ink);
+  /* An action, coloured as one. */
+  color: var(--accent);
   font: inherit;
   font-size: 0.9375rem;
   cursor: pointer;
@@ -1391,17 +1392,46 @@ body.paged main { padding-block-end: 4rem; }
   color: var(--ink-soft);
 }
 .rest[hidden] { display: none; }
-.rest button {
-  padding: 0.3rem 0.8rem;
-  border: 1px solid var(--ink);
+.rest span { flex: 1; }
+/* The one primary action at the foot takes the accent, filled; Undo is quieter. */
+.rest button,
+.finished button {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--accent);
   border-radius: 4px;
-  background: none;
-  color: var(--ink);
+  background: var(--accent);
+  color: var(--paper);
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
 }
-.rest button:hover { background: var(--ink); color: var(--paper); }
+.rest button:hover,
+.finished button:hover { filter: brightness(1.08); }
 .rest button[hidden] { display: none; }
+.rest #rest-undo,
+.finished button.undo {
+  background: none;
+  color: var(--ink);
+  border-color: var(--rule);
+  font-weight: 400;
+}
+
+/* Finished: the same strip, under the offer. Leaf for what has been done. */
+.finished {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.finished span { flex: 1; color: var(--leaf); font-variant-numeric: tabular-nums; }
+.finished span[hidden] { display: none; }
+body.paged:not(.last-page) .finished { display: none; }
 
 /* What the pressed step means, under the scale. Secondary by §9. */
 .vocab-editor .level-legend { font-size: 0.75em; color: var(--ink-soft); }

@@ -485,15 +485,69 @@
   // language's words without opening every reader to ask.
   function updateDocs() {
     var all = read(DOCS, "{}");
+    var was = all[documentId] || {};
     all[documentId] = {
       title: documentTitle,
       language: language,
       updated: Date.now(),
+      // Kept across every rewrite of the record: finishing a text is the one thing
+      // here the reader said outright.
+      done: was.done || 0,
     };
     try {
       localStorage.setItem(DOCS, JSON.stringify(all));
     } catch (e) {}
   }
+
+  // Finished with this text, said once at the foot of its last part. Pressing again
+  // takes it back, so a text is finished once however often the button is pressed —
+  // and the count on the progress page can only ever move by one.
+  var finishedBox = document.getElementById("finished");
+  var finishedMark = document.getElementById("done-mark");
+  var finishedSaid = document.getElementById("done-said");
+
+  function finishedAt() {
+    var record = read(DOCS, "{}")[documentId];
+    return record ? Number(record.done || 0) : 0;
+  }
+
+  function setFinished(on) {
+    var all = read(DOCS, "{}");
+    var record = all[documentId] || { title: documentTitle, language: language };
+    record.done = on ? Date.now() : 0;
+    record.updated = Date.now();
+    all[documentId] = record;
+    try {
+      localStorage.setItem(DOCS, JSON.stringify(all));
+    } catch (e) {}
+    if (window.TargumSync) window.TargumSync.touched();
+    renderFinished();
+    say(on ? "Finished. It counts on your progress page." : "Not finished.");
+  }
+
+  function renderFinished() {
+    if (!finishedBox || !finishedMark || !finishedSaid) return;
+    var when = finishedAt();
+    if (when) {
+      var day = new Date(when);
+      var said = "";
+      try {
+        said = day.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      } catch (e) {
+        said = day.toDateString();
+      }
+      finishedSaid.textContent = "Finished " + said;
+      finishedSaid.hidden = false;
+      finishedMark.textContent = "Undo";
+      finishedMark.classList.add("undo");
+    } else {
+      finishedSaid.hidden = true;
+      finishedMark.textContent = "Done";
+      finishedMark.classList.remove("undo");
+    }
+    finishedBox.classList.toggle("is-done", !!when);
+  }
+  renderFinished();
 
   /* --- the two forms of a sentence ----------------------------------------- */
 
@@ -3323,6 +3377,10 @@
         undo();
         return;
       }
+      if (button.id === "done-mark") {
+        setFinished(!finishedAt());
+        return;
+      }
       if (button.getAttribute("data-export") === "csv") {
         exportCsv();
         return;
@@ -4115,6 +4173,9 @@
     entries: wordEntries,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // Finished with the text, and taken back.
+    finish: setFinished,
+    finishedAt: finishedAt,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,

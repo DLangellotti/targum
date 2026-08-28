@@ -367,6 +367,9 @@
     // What targum carried up to known, rather than what a reader arrived already having.
     count(sums.learned, sums.learned === 1 ? "word learned" : "words learned", "sun");
     count(sums.phrases, sums.phrases === 1 ? "phrase saved" : "phrases saved", "iris");
+    // Said finished, at the foot of the text, by the reader. A real count of a real
+    // thing, and the one on this page that is a whole text rather than a word.
+    count(sums.finished, sums.finished === 1 ? "targum finished" : "targums finished", "leaf");
     count(days.length, days.length === 1 ? "day reading" : "days reading");
 
     drawStanding(standing, entry, code, sums.known);

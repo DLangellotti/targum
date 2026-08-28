@@ -244,6 +244,7 @@
         language: doc.language || "",
         updated: doc.updated || 0,
         opened: opened[hash] || 0,
+        done: doc.done || 0,
         seen: when,
       });
     });
@@ -485,6 +486,11 @@
           opened[row.hash] = row.opened;
           touched = true;
         }
+        // And a finish said on another device: later wins, as everywhere.
+        if (Number(row.done || 0) > Number(here.done || 0)) {
+          here.done = row.done;
+          touched = true;
+        }
         return;
       }
       touched = true;
@@ -497,6 +503,7 @@
         title: row.title || "",
         language: row.language || "",
         updated: row.updated || 0,
+        done: row.done || 0,
       };
       if (Number(row.opened || 0) > Number(opened[row.hash] || 0)) opened[row.hash] = row.opened;
     });
