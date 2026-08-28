@@ -68,7 +68,15 @@ body.about {
 }
 .about section { margin-block-start: 3rem; }
 .about .lede { margin: 0 0 0.9rem; line-height: 1.7; color: var(--ink); }
-.about a { color: var(--accent); }
+/* §4 rations the accent to the single primary action in a view. On a page that is
+   nothing but prose, putting it on every inline link made the accent the body-text
+   colour — the one thing §10 names outright. The corner button keeps it. */
+.about a {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.about a:hover { border-block-end-color: var(--ink-soft); }
 
 .figures { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .figures b {

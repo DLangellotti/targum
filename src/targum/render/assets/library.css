@@ -302,7 +302,9 @@
   color: inherit;
   text-decoration: none;
 }
-.books.shelf-rows li > a:hover .book-title { color: var(--accent); }
+/* §8: hover lifts muted to ink. The accent on this page belongs to .rows li.pointed,
+   which is the row the reader was sent here to find. */
+.books.shelf-rows li > a:hover .book-title { color: var(--ink); }
 
 /* Narrow: the two middle columns go and the row is cover, title, controls. They were
    fixed tracks — 5rem, 7.5rem, 9.75rem — which is 27rem of row before the title has
@@ -346,7 +348,7 @@
 /* The title and its line stack; the tile sits beside them both. `.what` is the same
    two-line block the library's rows use, so a text looks the same on either page. */
 .books .what { gap: 0.15rem; }
-.books a:hover { color: var(--accent); }
+.books a:hover { color: var(--ink); }
 .books .book-title { font-family: var(--reading); font-size: 1.0625rem; }
 /* `justify-self: start`, not the grid's default stretch. A stretched cell is as wide as
    its column, and a Hebrew title inside one aligns to its own right edge — which is what
@@ -437,7 +439,7 @@
   text-decoration: none;
 }
 .chapters li { border-block-end: none; }
-.chapters li > a:hover { color: var(--accent); }
+.chapters li > a:hover { color: var(--ink); }
 .chapters li.waiting > a { color: var(--ink-soft); }
 .chapters .get {
   flex: none;
