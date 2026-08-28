@@ -261,7 +261,7 @@ a.bar-brand:hover { color: var(--accent); }
   border-radius: 4px;
   background: none;
   color: var(--ink-soft);
-  transition: color 160ms ease;
+  transition: color 200ms ease;
 }
 .modes button:hover { color: var(--ink); background: none; }
 .modes button:disabled { opacity: 0.35; cursor: default; }
@@ -383,7 +383,7 @@ main {
   padding: 0.35rem 0.6rem;
   border-radius: 5px;
   outline: none;
-  transition: background-color 120ms ease;
+  transition: background-color 200ms ease;
   /* The bar is sticky, so scrolling a sentence to the top of the window puts it behind
      the bar. Every way of reaching a sentence goes through `scrollIntoView` — the
      arrows, the queue, the sentence list — so the clearance belongs here rather than at
@@ -945,7 +945,7 @@ body:not(.no-hover) .w:hover {
   align-items: center;
   padding: 0.4rem 0;
   border-block-end: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
-  animation: slide-in 320ms ease-out;
+  animation: slide-in 200ms ease-out;
 }
 @keyframes slide-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -1042,6 +1042,10 @@ body:not(.no-hover) .w:hover {
   .list-items li { animation: none; }
   #reader.settled { animation: none; }
   .modes.ready .slide { transition: none; }
+  /* These two animate and were never listed here. test_motion_is_always_optional
+     only asks that the file mentions reduced motion, so the sheet passed while the
+     mode buttons and the sentence tint kept moving. */
+  .modes button, .pair { transition: none; }
 }
 
 /* --- source only --------------------------------------------------------- */

@@ -86,7 +86,7 @@ body.signin {
   font: inherit;
   font-size: 1.0625rem;
   cursor: pointer;
-  transition: box-shadow 120ms ease;
+  transition: box-shadow 200ms ease;
 }
 .gate .go:hover { box-shadow: var(--lift); }
 .gate .go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
