@@ -805,6 +805,7 @@ class Library:
         annotation is not free — a book's worth is megabytes — and the library page is
         drawn every time somebody opens it.
         """
+        from .annotate.base import NOT_VOCABULARY
         from .annotate.frequency import FrequencyBands
         from .models import Annotation, read_artifact
 
@@ -819,6 +820,8 @@ class Library:
         seen: dict[str, int] = {}
         for tokens in annotation.tokens.values():
             for token in tokens:
+                if token.pos in NOT_VOCABULARY:
+                    continue
                 band = seen.get(token.lemma)
                 if band is None:
                     band = seen[token.lemma] = bands.band(token.lemma, code)

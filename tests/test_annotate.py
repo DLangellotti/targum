@@ -498,3 +498,137 @@ def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ign
     assert grown["en"].parts_of_speech == {"ארץ": "noun"}
     again = fill_from_cache(annotation, grown, ["en"], cache=cache)
     assert again == {}, "nothing new, nothing written"
+
+
+# -- every word is a word ---------------------------------------------------------
+
+
+class Word:
+    """The shape of a Stanza word, as `_content_word` reads it."""
+
+    def __init__(self, upos: str, text: str, lemma: str | None = None) -> None:
+        self.upos = upos
+        self.text = text
+        self.lemma = text if lemma is None else lemma
+        self.feats = None
+
+
+def _lemma(*words: Word) -> str | None:
+    from targum.annotate.lemma import _content_word
+
+    chosen = _content_word(list(words))
+    return None if chosen is None else chosen.lemma
+
+
+def test_a_prefixed_name_keeps_the_name_and_not_the_prefix() -> None:
+    """הַמֶּלֶךְ is ה + PROPN to Stanza, which tags titles and definite nouns that way all the
+    time. Dropping the PROPN before choosing left the lemma of "the king" as ה — so one
+    press of `k` on it marked every הָעִיר and הַפּוּר in the language known at once. That
+    was the alpha reader's "why are some words already marked as known?"."""
+    assert _lemma(Word("DET", "ה"), Word("PROPN", "מלך")) == "מלך"
+    assert _lemma(Word("CCONJ", "ו"), Word("PROPN", "אסתר")) == "אסתר"
+
+
+def test_a_spelled_out_numeral_is_a_word() -> None:
+    assert _lemma(Word("NUM", "שמונים")) == "שמונים"
+
+
+def test_a_prefixed_numeral_is_not_a_preposition() -> None:
+    assert _lemma(Word("ADP", "ב"), Word("NUM", "1948")) == "1948"
+
+
+def test_a_garbage_token_never_outranks_a_real_noun() -> None:
+    """X is what Stanza says when it cannot say. It is outside FUNCTION_POS, so on length
+    alone a scrap of it would beat the noun beside it."""
+    assert _lemma(Word("NOUN", "ספר"), Word("X", "xxxxxxxx")) == "ספר"
+    assert _lemma(Word("X", "xxxxxxxx")) == "xxxxxxxx", "but alone it is still a token"
+
+
+def test_punctuation_alone_is_not_a_token() -> None:
+    assert _lemma(Word("PUNCT", ".")) is None
+    assert _lemma(Word("PUNCT", "—"), Word("SYM", "§")) is None
+
+
+def test_the_annotator_name_changed_so_old_annotations_are_redone() -> None:
+    """The name is the whole invalidation mechanism: the pipeline compares it and redoes
+    an annotation for free, and SCHEMA_VERSION is never bumped for a word-level change."""
+    from targum.annotate.lemma import FEATURES, StanzaLemmatizer
+
+    assert "everyword" in FEATURES
+    assert FEATURES in StanzaLemmatizer().name
+
+
+def test_a_token_records_its_part_of_speech() -> None:
+    """Read by nothing in the reader; it is how a difficulty count leaves names out."""
+    from targum.models import Token
+
+    token = Token(start=0, end=3, surface="מלך", lemma="מלך", band=0)
+    assert token.pos is None, "absent on annotations written before it existed"
+    assert Token(start=0, end=3, surface="מלך", lemma="מלך", band=0, pos="PROPN").pos == "PROPN"
+
+
+def test_names_do_not_count_toward_difficulty(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Every name in a chronicle is rare by corpus frequency, and counting them would move
+    Esther a shelf up the library. A name is a token the reader can tap, not a word they
+    have to learn."""
+    pytest.importorskip("wordfreq")
+    from targum.serve import Library
+
+    def token(lemma: str, pos: str) -> Token:
+        return Token(start=0, end=1, surface=lemma, lemma=lemma, band=0, pos=pos)
+
+    common = [token("של", "ADP"), token("היה", "VERB"), token("לא", "PART")]
+    names = [token("אחשורוש", "PROPN"), token("ושתי", "PROPN"), token("שמונים", "NUM")]
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="",
+        tokens={"s1": common + names},
+    )
+    path = tmp_path / "annotation.json"
+    annotation.write(path)
+    assert Library._own_difficulty(str(path), 1.0, "he") == 0, "three everyday words"
+
+    # Counted the old way the names would be looked up, and the text would be a third
+    # "hard" — the number the alpha reader's shelf used to show.
+    counted = [t.model_copy(update={"pos": None}) for t in common + names]
+    Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="",
+        tokens={"s1": counted},
+    ).write(path)
+    assert Library._own_difficulty(str(path), 2.0, "he") > 0
+
+
+def test_the_lemma_cache_is_rewritten_when_the_annotation_is() -> None:
+    """The cache used to be a bare list that outlived every rewrite of the annotation
+    beside it. After `rebuild --words` half the shelf would have reported a denominator a
+    tenth too small, with nothing to say so."""
+    import json
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from targum.coverage import LEMMAS, lemmas
+
+    with tempfile.TemporaryDirectory() as raw:
+        folder = Path(raw)
+        note = folder / "annotation.json"
+        note.write_text(json.dumps({"tokens": {"s": [{"lemma": "א"}, {"lemma": "ב"}]}}))
+        assert lemmas(folder) == ["א", "ב"]
+        assert isinstance(json.loads((folder / LEMMAS).read_text())["stamp"], list)
+
+        note.write_text(
+            json.dumps({"tokens": {"s": [{"lemma": "א"}, {"lemma": "ב"}, {"lemma": "ג"}]}})
+        )
+        os.utime(note, ns=(note.stat().st_atime_ns, note.stat().st_mtime_ns + 1))
+        assert lemmas(folder) == ["א", "ב", "ג"], "a rewritten annotation is read again"
+
+        # A cache from before the stamp existed is stale by definition.
+        (folder / LEMMAS).write_text(json.dumps(["stale"]))
+        assert lemmas(folder) == ["א", "ב", "ג"]
