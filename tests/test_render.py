@@ -1553,7 +1553,7 @@ def test_the_level_keys_are_the_letters_outright() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
     # The word the arrows are on, or failing that the one a pointer opened a card about.
     assert "var word = standing || (lookedUp && card && !card.hidden ? lookedUp : null);" in script
     assert "if (pickLevel && chip && !chip.hidden) {" in script, "and the phrase card"
@@ -1571,7 +1571,7 @@ def test_the_level_keys_are_written_down() -> None:
     template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
     assert "<dt>1 2 3</dt>" in template
     # One key a row: `k` and `i` shared a row while they shared their letters.
-    assert "<dt>k</dt><dd>known</dd>" in template
+    assert "<dt>k 4</dt><dd>known</dd>" in template
     assert "<dt>i</dt><dd>ignore it" in template
 
 
@@ -1606,8 +1606,11 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     assert (
         "function toggled(index, status) {\n    return statusOf(lemmas[index]) === status" in script
     )
-    assert "setStatus(index, surface, levelOf(word), toggled(index, status));" in script, "the keys"
     assert "setStatus(index, surface, band, value);" in script, "the card's own row"
+    # The keys do not toggle. The back arrow lands on words already marked, and a level
+    # pressed to confirm one took the mark off instead and walked on — silently.
+    assert "setStatus(index, surface, levelOf(word), status);" in script, "the keys"
+    assert "setStatus(index, surface, levelOf(word), toggled(index, status));" not in script
 
 
 def test_the_phrase_card_lets_its_own_field_take_focus() -> None:
@@ -2242,7 +2245,7 @@ def test_no_key_does_two_things() -> None:
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     keys = script[script.index("switch (key) {") :]
     # The level keys are read before the switch and never reach it.
-    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };" in script
+    assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
     for taken in ('case "k":', 'case "i":'):
         assert taken not in keys, f"{taken} is a level, and cannot be anything else"
     assert 'case "l":\n        prefs.mode = "inter";' in keys
@@ -2334,7 +2337,11 @@ def test_the_card_says_which_keys_it_answers_to() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert '(rtl ? "←" : "→") + " next · k known · 1 2 3 · i ignore · g look up · u back"' in script
+    assert '" next · k known · 1 2 3 · i ignore · "' in script
+    # Look-up is on the legend only while the card is offering it: Enter closes the card
+    # otherwise, and a legend that said otherwise would be lying half the time.
+    assert '(offering ? "Enter look up · " : "")' in script
+    assert "g look up" not in script
 
     css = _reader_css()
     rules = css.split(".gloss-card .legend {", 1)[1].split("}", 1)[0]
@@ -2359,11 +2366,15 @@ def test_the_queue_keys_are_written_down() -> None:
         assert gone not in template, gone
     # The card is the one thing here you have to ask for, so it has to be written down.
     assert "<dt>Enter</dt>" in template
-    # And the one action on it that used to need a pointer.
-    assert "<dt>g</dt>" in template
+    # And the one action on it that used to need a pointer is on the same key: `g` is
+    # what the code calls a gloss, and nothing a reader ever sees.
+    assert "again to look it up" in template
+    assert "<dt>g</dt>" not in template
+    # The sheet lists the key that opens it.
+    assert "<dt>?</dt>" in template
     # In the order they get pressed: the walk and the levels are most of a session.
-    assert template.index("<dt>&larr; &rarr;</dt>") < template.index("<dt>k</dt>")
-    assert template.index("<dt>k</dt>") < template.index("<dt>1 2 3</dt>")
+    assert template.index("<dt>&larr; &rarr;</dt>") < template.index("<dt>k 4</dt>")
+    assert template.index("<dt>k 4</dt>") < template.index("<dt>1 2 3</dt>")
     assert template.index("<dt>1 2 3</dt>") < template.index("<dt>p</dt>")
 
 
@@ -2390,7 +2401,8 @@ def test_nothing_scrolls_for_a_reader_who_asked_it_not_to() -> None:
 def test_walking_the_page_opens_no_windows() -> None:
     """A card at every step would put a window between a reader and the page they are
     walking, forty times in a row. Standing on a word is the ring and the keyboard;
-    Enter is what asks the question, and pressing it again puts the answer away."""
+    Enter is what asks the question — and asks the card's own question, the look-up,
+    when it is offering one — and pressing it once more puts the answer away."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
@@ -2401,7 +2413,7 @@ def test_walking_the_page_opens_no_windows() -> None:
 
     keys = script[script.index("switch (key) {") :]
     assert 'case "Enter":\n        if (!standing) return;' in keys
-    assert "if (asking()) hideCard();\n        else openCard();" in keys
+    assert "if (!asking()) openCard();\n        else if (!askMeaning()) hideCard();" in keys
 
 
 def test_escape_puts_the_card_away_before_it_puts_you_out() -> None:
@@ -2432,10 +2444,10 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
-    """Every sentence carries tabindex=0, so one Tab takes a reader off the word they
-    were standing on — and the ring, the card and `standing` all stayed behind on it. The
-    next `k` then marked that word known instead of stepping back a sentence, which is
-    what `k` means once you are on a sentence. Silently, on a word out of sight."""
+    """The word is the page's one tab stop, so one Tab takes a reader off it — and the
+    ring, the card and `standing` all stayed behind. The next `k` then marked that word,
+    silently, on a word out of sight. The bar is the exception: sticky, the word still in
+    front of you, and Shift+Tab straight back to it."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
@@ -2445,7 +2457,37 @@ def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
     # The card's own level buttons and note field are reached by Tab from the word, and
     # reaching them is not leaving.
     assert "card.contains(event.target)" in guard
+    assert "bar.contains(event.target)" in guard
     assert "leaveQueue();" in guard
+
+
+def test_a_key_is_the_letter_printed_on_it_whatever_the_layout() -> None:
+    """Under the Hebrew layout the P key arrives as "פ", and every letter the reader
+    answers to was dead — for the reader this page is for. A Latin letter is taken as
+    typed, so a Dvorak keyboard keeps its mnemonics; anything else falls back to the key
+    it sits on. Digits and `?` are the same on both layouts and are left alone."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'if (!/^[a-z0-9?]$/.test(key) && /^Key[A-Z]$/.test(event.code || "")) {' in script
+    assert "key = event.code.charAt(3).toLowerCase();" in script
+
+
+def test_enter_asks_the_question_the_card_is_offering() -> None:
+    """Enter opens the card; on a card offering a look-up, Enter presses it; once there is
+    nothing left to ask, Enter closes the card. `g` had the look-up once — for the gloss,
+    which is what the code calls it and nothing a reader ever sees."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    keys = script[script.index("switch (key) {") :]
+    assert 'case "g":' not in keys
+    # A question already asked and still waiting is not "nothing to ask": Enter must not
+    # close the card out from under a look-up in flight.
+    ask = script[script.index("function askMeaning() {") :]
+    ask = ask[: ask.index("\n  }\n")]
+    assert 'if (button.disabled) return button.classList.contains("looking");' in ask
+    assert 'ask.classList.add("looking");' in script
 
 
 def test_a_key_is_the_letter_on_it_whatever_the_shift_was() -> None:

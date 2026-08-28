@@ -82,7 +82,7 @@
   // themselves. Hosted there is no key: the session cookie is what lets the request
   // through, and a page cannot read that cookie, so it asks the sync layer, which has
   // already asked the server who is signed in. Gated on the key alone, the live site
-  // drew every look-up button disabled and `g` did nothing.
+  // drew every look-up button disabled, and Enter looked nothing up.
   function canAsk() {
     return served && !!(passKey || (window.TargumSync && window.TargumSync.who));
   }
@@ -738,9 +738,11 @@
     return true;
   }
 
-  // Saying a level a word already has takes the mark off again, so the same key both
-  // grades a word and undoes a mistake. Asked here, before anything else has written to
-  // the store, rather than worked out inside `setStatus` from what it finds there.
+  // Pressing the level a word already has takes the mark off again, so the same button
+  // both grades a word and undoes a mistake. For the pointer only: a key that lands on
+  // a marked word and says its level again is confirming it. Asked here, before anything
+  // else has written to the store, rather than worked out inside `setStatus` from what
+  // it finds there.
   function toggled(index, status) {
     return statusOf(lemmas[index]) === status ? null : status;
   }
@@ -1552,7 +1554,9 @@
   // Setting a level from the keyboard, on whichever word the card is open for. Does the
   // same as pressing the button: the card is rebuilt rather than patched, so every
   // control in it agrees about which level is now set.
-  var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, k: KNOWN, i: IGNORED };
+  // `4` as well as `k`: known is the level above 3, and a hand already on the number
+  // row should not have to leave it.
+  var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };
 
   // How to set a level on the phrase card while it is open. A phrase is saved by its
   // offsets into one sentence and a word by its lemma, so the two cards cannot share a
@@ -1592,7 +1596,10 @@
       var index = parseInt(word.getAttribute("data-lemma"), 10);
       if (!lemmas[index]) return false;
       var surface = bareSurface(word);
-      setStatus(index, surface, levelOf(word), toggled(index, status));
+      // Said, not toggled. The back arrow lands on words already marked, and a level
+      // pressed to confirm one took the mark off instead and walked on — silently. From
+      // the keyboard a level means what it says; `u` is the way back.
+      setStatus(index, surface, levelOf(word), status);
       stopHover();
       var from = place;
       var open = asking();
@@ -1822,6 +1829,7 @@
         ask.onclick = function (event) {
           event.stopPropagation();
           ask.disabled = true;
+          ask.classList.add("looking");
           ask.textContent = "looking…";
           lookUp(index, sentenceOf(word), function () {
             if (lookedUp === word) showCard(word);
@@ -1854,8 +1862,12 @@
     // per reading direction.
     var legend = document.createElement("span");
     legend.className = "legend";
+    var offering = !!card.querySelector(".look-up");
     legend.textContent =
-      (rtl ? "←" : "→") + " next · k known · 1 2 3 · i ignore · g look up · u back";
+      (rtl ? "←" : "→") +
+      " next · k known · 1 2 3 · i ignore · " +
+      (offering ? "Enter look up · " : "") +
+      "u back";
     card.appendChild(legend);
 
     card.hidden = false;
@@ -2554,7 +2566,7 @@
     standing.removeAttribute("tabindex");
     standing = word;
     word.classList.add("queued");
-    word.setAttribute("tabindex", "-1");
+    word.setAttribute("tabindex", "0");
     if (word.focus) word.focus({ preventScroll: true });
   }
 
@@ -3207,16 +3219,19 @@
     // `showCard` puts away whatever was open, which takes the ring off this very word.
     showCard(word);
     word.classList.add("queued");
-    word.setAttribute("tabindex", "-1");
+    word.setAttribute("tabindex", "0");
     // So a screen reader says the word and what it means together, rather than reading
     // out a word from the middle of a sentence with no account of why.
     if (card.id) word.setAttribute("aria-describedby", card.id);
     if (word.focus) word.focus({ preventScroll: true });
   }
 
-  // "Look it up", from the keyboard. It was the only action on the card without a key,
-  // which put the thing a reader most often wants — what does this word mean — behind
-  // the one input they had otherwise put down.
+  // "Look it up", from the keyboard: Enter, on a card that is offering it. It was the
+  // only action on the card without a key, which put the thing a reader most often
+  // wants — what does this word mean — behind the one input they had otherwise put
+  // down. It had a letter of its own once, `g` for the gloss, which is what this file
+  // calls the thing and nothing a reader ever sees; the key that opened the card is
+  // the key that asks.
   //
   // The button is pressed rather than reimplemented. Every condition for offering it is
   // already decided in `showCard` — something to ask with, nothing known about the word
@@ -3224,20 +3239,14 @@
   // of that reasoning here is a second copy to get wrong. Pressing it also buys the
   // feedback for free: the same "looking…" on the same disabled button.
   //
-  // Answers false wherever there is no button to press, and the key falls through to the
-  // page. A key that silently does nothing reads as a broken page.
+  // Answers true while there is a question on the card: offered, or already asked and
+  // still waiting. False means there is nothing to ask, and Enter closes the card
+  // instead. A button disabled because nothing can be asked at all — off the disk, or
+  // signed out — is the second case, not the first.
   function askMeaning() {
-    // The word the arrows are on, or failing that whichever card is already up — the
-    // same two `markLookedUp` chooses between, and for the same reason. Tapping a word
-    // leaves the queue, so a card opened with the pointer has no `standing` behind it,
-    // and requiring one made `g` the one key on the card's legend that the reader most
-    // likely to be reading that legend could not use.
-    if (!asking() && !(lookedUp && card && !card.hidden)) {
-      if (!standing) return false;
-      openCard();
-    }
-    var button = card ? card.querySelector(".look-up") : null;
-    if (!button || button.disabled) return false;
+    var button = card && !card.hidden ? card.querySelector(".look-up") : null;
+    if (!button) return false;
+    if (button.disabled) return button.classList.contains("looking");
     button.click();
     return true;
   }
@@ -3267,8 +3276,10 @@
     if (!open && !fading) hideCard();
     standing = span;
     place = { segment: entry.segment, start: entry.start };
+    // The page's one tab stop, so Tab and Shift+Tab from the bar come back to the word
+    // rather than to the far end of the chapter.
     span.classList.add("queued");
-    span.setAttribute("tabindex", "-1");
+    span.setAttribute("tabindex", "0");
     if (span.focus) span.focus({ preventScroll: true });
     bring(span, pair);
     // `bring` leaves a word already on the screen where it is, so the walk can move from
@@ -3325,17 +3336,19 @@
   // assuming either.
   var rtl = (root.getAttribute("dir") || "ltr") === "rtl";
 
-  // The ring must not outlive the focus that drew it. Every sentence carries tabindex=0,
-  // so one Tab takes you off the word and onto a sentence somewhere else — and the ring,
-  // the card and `standing` all stayed behind on the word you left. The next `k` then
-  // marked that word known instead of stepping back a sentence, which is what `k` means
-  // once you are on a sentence. Silently, on a word no longer in front of you.
+  // The ring must not outlive the focus that drew it. The word is the page's one tab
+  // stop, so a Tab takes you off it and onto a link or a control somewhere else — and
+  // the ring, the card and `standing` all stayed behind on the word you left. The next
+  // `k` then marked that word, silently, on a word no longer in front of you.
   //
   // Anything inside the card is still the word's own business: its level buttons and its
-  // note field are reached by Tab from the word, and that is not leaving.
+  // note field are reached by Tab from the word, and that is not leaving. Nor is the
+  // bar: it is sticky, the word is still in front of you while you change the type
+  // size, and Shift+Tab brings you straight back to it.
   document.addEventListener("focusin", function (event) {
     if (!standing || event.target === standing) return;
     if (card && card.contains && card.contains(event.target)) return;
+    if (bar && bar.contains(event.target)) return;
     leaveQueue();
     hideCard();
   });
@@ -3349,6 +3362,13 @@
     // answers to is dead — the whole interface, on a state nothing on the page shows.
     var key = event.key;
     if (typeof key === "string" && key.length === 1) key = key.toLowerCase();
+    // And the letter printed on the key, whatever layout delivered it. Under the Hebrew
+    // layout the P key arrives as "פ", and every letter here was dead for the reader
+    // this page is for. A Latin letter is taken as typed, so a Dvorak keyboard keeps
+    // its mnemonics; anything else falls back to the key it sits on.
+    if (!/^[a-z0-9?]$/.test(key) && /^Key[A-Z]$/.test(event.code || "")) {
+      key = event.code.charAt(3).toLowerCase();
+    }
 
     // While a word card is open the number and letter keys belong to it. `k` and `i`
     // already mean previous-sentence and interlinear, and they still do the moment the
@@ -3393,19 +3413,16 @@
         save();
         return;
       // The card is asked for, never offered. Walking the page fires no windows; this is
-      // the second action that opens one, and pressing it again puts it away.
+      // the second action that opens one. Open already, the same key asks the question
+      // the card is offering, and once there is nothing left to ask it puts the card
+      // away.
       case "Enter":
         if (!standing) return;
-        if (asking()) hideCard();
-        else openCard();
+        if (!asking()) openCard();
+        else if (!askMeaning()) hideCard();
         break;
       // The way back from the wrong key. Takes the level off again and puts you back on
       // the word, as many times as you have said something.
-      // `g` for the gloss, which is what this file, the artifact it reads and the cache
-      // that pays for it all call the thing being asked for.
-      case "g":
-        if (!askMeaning()) return;
-        break;
       case "u":
         if (!undo()) return;
         break;
