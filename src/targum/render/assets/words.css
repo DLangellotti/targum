@@ -8,15 +8,17 @@ body.words {
 }
 
 .words {
-  /* An ordered ramp, light → dark, for a scale that runs from "just met" to "known".
-     Selected per mode rather than flipped: on paper the darkest step is the most
-     present, on a dark ground the lightest one is, and "known" should be the step
-     that carries in both. Validated against each surface — monotone lightness,
-     visible gaps, one hue, and the end nearest the surface clear of it. */
-  --step-1: #c8a778;
-  --step-2: #ab8555;
-  --step-3: #8b6840;
-  --step-4: #6b4f2e;
+  /* An ordered ramp, faint → full, for a scale that runs from "just met" to "known".
+     One hue, monotone, four steps, the end nearest the surface clear of it — all as
+     before. The hue is what changed: gold on warm paper made every chart on the page
+     read brown, and §4 gives "known" to leaf by name, so leaf is what the scale climbs
+     towards. Mixed against --paper rather than named per theme: both --leaf and --paper
+     flip, so one definition now serves the light surface and the dark one, and "known"
+     is the most present step on each. */
+  --step-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
+  --step-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
+  --step-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
+  --step-4: var(--leaf);
   --off: #c3bdb1;
   --grid: #e7e1d6;
   --axis: #cfc7ba;
@@ -24,10 +26,6 @@ body.words {
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .words {
-    --step-1: #7d6039;
-    --step-2: #a5824f;
-    --step-3: #c8a778;
-    --step-4: #e8d3b0;
     --off: #4a453e;
     --grid: #2a2622;
     --axis: #3a3530;
@@ -35,10 +33,6 @@ body.words {
 }
 
 :root[data-theme="dark"] .words {
-    --step-1: #7d6039;
-    --step-2: #a5824f;
-    --step-3: #c8a778;
-    --step-4: #e8d3b0;
     --off: #4a453e;
     --grid: #2a2622;
     --axis: #3a3530;
@@ -46,15 +40,17 @@ body.words {
 
 /* --- page furniture ------------------------------------------------------- */
 
-.back {
+/* On the link, not around it. Worn by a <p> wrapping the anchor, the hairline ran the
+   full width of the paragraph and the arrow sat outside the thing you click. */
+a.back {
   order: 3;
   color: var(--ink-soft);
   text-decoration: none;
   border-block-end: 1px solid var(--rule);
   white-space: nowrap;
 }
-.back::before { content: "\2190"; margin-inline-end: 0.35em; }
-.back:hover { color: var(--ink); }
+a.back::before { content: "\2190"; margin-inline-end: 0.35em; }
+a.back:hover { color: var(--ink); }
 
 .langs {
   display: flex;
@@ -187,11 +183,16 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
   gap: 1.25rem;
 }
+/* Flat, and the hairline does the grouping. §9 allows one raised layer per view and the
+   cards at the top of Learn have it — learn.css:45 has said so since the three-up strip
+   was written, but the panels below went on wearing the raised fill anyway. Five pages
+   share this class, and on four of them it was half the page: measured at 50% of Learn,
+   against §9's budget of roughly 15% structural neutral. The page is near-white, not
+   beige, and a card inside a card is a hairline. */
 .panel {
   padding: 1.1rem 1.25rem 1.25rem;
   border: 1px solid var(--rule);
   border-radius: 8px;
-  background: var(--paper-raised);
   min-width: 0;
 }
 .panel h2 {
@@ -282,7 +283,8 @@ main {
 table.rows { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
 table.rows th {
   text-align: start;
-  padding: 0 0.6rem 0.4rem 0;
+  padding-block: 0 0.4rem;
+  padding-inline: 0 0.6rem;
   border-block-end: 1px solid var(--rule);
   color: var(--ink-soft);
   font-size: 0.6875rem;
@@ -292,12 +294,18 @@ table.rows th {
   white-space: nowrap;
 }
 table.rows td {
-  padding: 0.45rem 0.6rem 0.45rem 0;
+  padding-block: 0.45rem;
+  padding-inline: 0 0.6rem;
   border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
   vertical-align: baseline;
 }
 table.rows tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 table.rows .term { font-family: var(--reading); font-size: 1.05em; }
+/* Same tie as .card-title in learn.css, lost the same way: the term's own class beats
+   reader.css's `:lang(he)`, and a Hebrew word set in a Latin face has no glyphs to
+   set it with. */
+table.rows .term:lang(he),
+.text-group .term:lang(he) { font-family: var(--reading-hebrew); }
 table.rows .meaning { color: var(--ink); }
 table.rows .when { color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.rows .band { color: var(--ink-soft); white-space: nowrap; }
@@ -305,7 +313,7 @@ table.rows .band { color: var(--ink-soft); white-space: nowrap; }
 /* A row opens where it sits. The control itself is styled with the reader's, which is
    inlined above this file, so only the placing is here. */
 table.rows tbody tr { cursor: pointer; }
-table.rows tbody tr.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+table.rows tbody tr.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 table.rows tr.editor-row, table.rows tr.editor-row:hover { background: none; cursor: auto; }
 table.rows tr.editor-row td {
   padding-block: 0.5rem 0.8rem;
@@ -314,7 +322,7 @@ table.rows tr.editor-row td {
 .vocab-editor .note-field { max-width: 26rem; }
 
 .text-group li { cursor: pointer; }
-.text-group li.open { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.text-group li.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .text-group .vocab-editor { margin-block-start: 0.45rem; cursor: auto; }
 
 /* Your own words, and a quiet mark saying so. */
@@ -357,7 +365,7 @@ table.rows tr.editor-row td {
   color: var(--ink-soft);
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .text-group ol { list-style: none; margin: 0; padding: 0; }

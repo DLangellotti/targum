@@ -31,7 +31,7 @@ body.holding {
   color: var(--paper);
   font-size: 0.8125rem;
   text-decoration: none;
-  transition: box-shadow 120ms ease;
+  transition: box-shadow 200ms ease;
 }
 .corner .enter:hover { box-shadow: var(--lift); }
 .corner .enter:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

@@ -17,7 +17,9 @@
   overflow: hidden;
   border: 1px solid var(--rule);
   border-radius: 50%;
-  background: var(--paper-raised);
+  /* §9: one raised layer per view. This always sits inside a raised card or
+     panel, so the fill repeated the surface underneath it and the hairline is
+     what marks the edge — "if a card needs a card, use a hairline instead". */
   color: var(--ink-soft);
   font-size: 0.9375rem;
 }
@@ -112,3 +114,9 @@
    underline doing the work of saying it is a link. */
 .you .elsewhere { color: var(--ink-soft); }
 .you .elsewhere a { color: var(--ink); text-underline-offset: 2px; }
+
+/* What the page says back. Errors carry --clay and the wording carries it too, which
+   §4 asks for because clay sits close to the accent under protanopia. */
+.you .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
+.you .said.bad { color: var(--clay); }
+.you .said[hidden] { display: none; }

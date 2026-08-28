@@ -49,7 +49,12 @@
 /* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
    reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
    iris for phrases, sun for turning up. The figure takes the hue; its label stays muted,
-   so the block reads as three coloured numbers rather than three coloured paragraphs. */
+   so the block reads as three coloured numbers rather than three coloured paragraphs.
+
+   §4 also says "one hue per moment", and this is three at once. Decided rather than
+   missed: each figure is its own moment, and a ledger that named only one of them would
+   be picking a favourite among facts. A count of nought takes no hue at all — see
+   progress.js — so the strip is only ever as loud as the reader's actual reading. */
 .progress .ledger .lit.leaf b { color: var(--leaf-bright); }
 .progress .ledger .lit.iris b { color: var(--iris-bright); }
 .progress .ledger .lit.sun b { color: var(--sun); }
@@ -127,15 +132,16 @@
 }
 
 /* Reached is ink, because it is a thing that happened and the reader came to read it.
-   Unreached is --off, the same quiet the charts use for a word set aside: it is not a
-   failure and it is never red. */
+   Unreached is muted: quiet, never red, and still legible. --off is a chart fill and
+   was never a text value — #c3bdb1 on raised paper is 1.75:1, so the rungs a reader
+   has not reached yet could not be read at all. */
 .progress .mark {
   padding: 0.25rem 0.7rem;
   border: 1px solid var(--rule);
   border-radius: 999px;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
-  color: var(--off);
+  color: var(--ink-soft);
 }
 .progress .mark.on {
   border-color: var(--ink-soft);
