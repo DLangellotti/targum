@@ -977,12 +977,14 @@ body:not(.no-hover) .w:hover {
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
 }
-.list-items .row-status.status-3 { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.list-items .row-status.status-3 { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 /* A row opens where it sits rather than in a popup: the panel is narrow, and a card
    floating over the list would cover the rows either side of the one being set. */
 .list-items li { cursor: pointer; }
-.list-items li.open { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+/* An open row is a tint, not a hover: §4 puts washes at 12-22%, §8 puts hovers at
+   7-10%. This one had been reading as a hover that never lifted. */
+.list-items li.open { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .list-items .row-editor {
   grid-column: 1 / -1;
   margin-block-start: 0.45rem;
