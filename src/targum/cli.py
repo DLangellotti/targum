@@ -1041,11 +1041,14 @@ def rebuild(
     )
 
 
-#: What a reader with nothing on their shelf is handed first: a text already built, so
+#: What a reader with nothing on their shelf is handed first: texts already built, so
 #: there is nothing to choose and nothing to wait for. Catalogue texts with a published
 #: translation, so building one asks no model for anything. Ruth first — four chapters,
 #: one family, plain narrative — which is the roadmap's own answer to "where do I start".
-SEED = ("ruth",)
+#: And beside it something modern, for the reader an open Tanakh would put off: a short
+#: Global Voices piece, published in three languages, five minutes. The first is the
+#: start; the second is the alternative the Learn page offers next to it.
+SEED = ("ruth", "gv-social-censorship")
 
 
 @app.command()
