@@ -46,15 +46,17 @@ body.words {
 
 /* --- page furniture ------------------------------------------------------- */
 
-.back {
+/* On the link, not around it. Worn by a <p> wrapping the anchor, the hairline ran the
+   full width of the paragraph and the arrow sat outside the thing you click. */
+a.back {
   order: 3;
   color: var(--ink-soft);
   text-decoration: none;
   border-block-end: 1px solid var(--rule);
   white-space: nowrap;
 }
-.back::before { content: "\2190"; margin-inline-end: 0.35em; }
-.back:hover { color: var(--ink); }
+a.back::before { content: "\2190"; margin-inline-end: 0.35em; }
+a.back:hover { color: var(--ink); }
 
 .langs {
   display: flex;
