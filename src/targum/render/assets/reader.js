@@ -3774,18 +3774,22 @@
 
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
+  if (!link) return;
   // Its own, because this is its own scope: it read `passKey` and called `keyed` across
-  // the boundary, and neither was ever in reach.
-  var key = new URLSearchParams(location.search).get("k");
-  if (!link || !key) return;
+  // the boundary, and neither was ever in reach. No key hosted, where the session cookie
+  // identifies the reader; a key locally. This used to stop when there was no key — so
+  // on the live site the next chapter was never bought, and the first alpha reader
+  // followed the arrow into a page of blank translations.
+  var key = new URLSearchParams(location.search).get("k") || "";
 
   function keyed(path) {
+    if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
   }
 
   function keyHeaders(extra) {
     var head = extra || {};
-    head["X-Targum-Key"] = key;
+    if (key) head["X-Targum-Key"] = key;
     return head;
   }
 
@@ -3828,4 +3832,86 @@
 
   window.addEventListener("scroll", maybe, { passive: true });
   maybe();
+})();
+
+/* --- a chapter nobody has paid for yet ----------------------------------------
+ *
+ * The page says so above the text, and this is the button on it. Its own scope, like
+ * the prefetch above: it needs the key helpers and the folder name and nothing else.
+ * Off a disk there is no server to ask, and the button stays hidden; the line above
+ * it still says what the page is.
+ */
+(function () {
+  "use strict";
+  var note = document.getElementById("waiting-note");
+  var press = document.getElementById("translate-chapter");
+  if (!note || !press || location.protocol === "file:") return;
+
+  var key = new URLSearchParams(location.search).get("k") || "";
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+
+  press.hidden = false;
+  press.onclick = function () {
+    press.disabled = true;
+    press.textContent = "Translating…";
+    fetch(keyed("/chapter"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name, number: Number(note.getAttribute("data-chapter")) }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (job) {
+        if (job.ready) return location.reload();
+        if (!job.id) throw new Error(job.error || job.blocked || "That did not work.");
+        var timer = setInterval(function () {
+          fetch(keyed("/job/" + job.id))
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (state) {
+              if (state.stage === "done") {
+                clearInterval(timer);
+                location.reload();
+              } else if (state.stage === "failed" || state.blocked) {
+                clearInterval(timer);
+                press.disabled = false;
+                press.textContent = state.error || state.blocked || "That did not work.";
+              }
+            });
+        }, 1500);
+      })
+      .catch(function (problem) {
+        press.disabled = false;
+        press.textContent = String(problem.message || problem);
+      });
+  };
+})();
+
+/* Which chapter this was, written down for the contents page, so "Start reading" can
+ * become "Continue" and point here. One number per text, browser-local: it is a
+ * convenience, not a record of how far anybody has read. */
+(function () {
+  "use strict";
+  var pager = document.querySelector(".pager[data-chapter][data-document]");
+  if (!pager) return;
+  try {
+    var opened = JSON.parse(localStorage.getItem("targum:chapter") || "{}");
+    opened[pager.getAttribute("data-document")] = Number(pager.getAttribute("data-chapter"));
+    localStorage.setItem("targum:chapter", JSON.stringify(opened));
+  } catch (e) {}
 })();

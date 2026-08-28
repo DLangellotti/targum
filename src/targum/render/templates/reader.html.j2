@@ -119,6 +119,16 @@
     text would be a decoration; this is a mark, the size of a stamp, that says which book
     you are in. Its own cover where the chapter has one, the book's where it has not. -#}
 {% if plate %}<figure class="plate"><img src="{{ plate }}" alt=""></figure>{% endif %}
+{#- A chapter nobody has paid for yet. It says so, once, above the text, and offers to
+    get it; the source is still there to read and mark. The translation column is left
+    out rather than shipped empty — a column of blank paragraphs said nothing about
+    why, and read as a page that had broken. -#}
+{% if not translated and not standalone %}
+<div class="waiting-note" id="waiting-note" data-chapter="{{ section.number }}">
+  <p>Not translated yet.</p>
+  <button type="button" id="translate-chapter" hidden>Translate</button>
+</div>
+{% endif %}
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
@@ -127,7 +137,7 @@
     {% if segment.id in pointed %}
     <h{{ level }} class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'byline' %}
   <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -135,7 +145,7 @@
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
   <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -143,14 +153,14 @@
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% endif %}
 {% endfor %}
 </main>
 
 {% if not standalone %}
-<nav class="pager" data-chapter="{{ section.number }}">
+<nav class="pager" data-chapter="{{ section.number }}" data-document="{{ document.content_hash }}">
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
   {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>

@@ -41,7 +41,11 @@
   {% if cover %}<figure class="cover"><img src="{{ cover }}" alt=""></figure>{% endif %}
   <h1 class="heading" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
   {% if document.author %}<p class="byline">{{ document.author }}</p>{% endif %}
-  <ol class="toc" dir="{{ source_direction }}">
+  {#- The one primary action on the page, and until now there was none: a list of
+      chapter titles with no verb on it, which the first alpha reader opened and then
+      had "NO IDEA what to do next". The first chapter, or the one last opened. -#}
+  <p class="start"><a id="start" href="{{ sections[0].filename }}" data-first="{{ sections[0].filename }}">Start reading</a></p>
+  <ol class="toc" dir="{{ source_direction }}" data-document="{{ document.content_hash }}">
     {% for section in sections %}
     <li data-chapter="{{ section.number }}"><a href="{{ section.filename }}">{{ section.title }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>
     {% endfor %}
