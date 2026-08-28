@@ -32,3 +32,6 @@ Targum.command
 
 # Filled-in copy of targum.env.example, for scp to the box. Never committed.
 deploy/targum.env
+# The catalogue is private data; it never enters the repository.
+catalogue.json
+!tests/fixtures/catalogue.json

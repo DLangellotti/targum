@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
+
+# The catalogue is private data read from a file at import time, so the suite names its
+# own — a handful of entries of the same shape — before anything imports it. Set here,
+# at the top of conftest, because a fixture would be too late for a module-level import.
+os.environ["TARGUM_CATALOGUE"] = str(Path(__file__).parent / "fixtures" / "catalogue.json")
 
 from targum.models import Block, BlockKind, Document, SegmentedDocument, Translation
 from targum.segment import is_downloaded

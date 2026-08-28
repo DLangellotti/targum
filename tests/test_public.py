@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 from html import unescape
-from pathlib import Path
 
 import pytest
 
@@ -146,11 +145,11 @@ def test_no_page_leaks_a_route_that_needs_an_account() -> None:
 def test_samples_belong_to_entries_that_exist() -> None:
     """A sample keyed to a deleted entry is invisible until somebody wonders why a page
     is thin, so fail here instead."""
-    import json
 
-    raw = json.loads(Path("src/targum/samples.json").read_text(encoding="utf-8"))
+    from targum.catalogue import _samples
+
     known = {entry.id for entry in CATALOGUE}
-    assert set(raw) <= known, f"samples for unknown entries: {set(raw) - known}"
+    assert set(_samples()) <= known, f"samples for unknown entries: {set(_samples()) - known}"
 
 
 def test_every_text_is_classified_and_measured() -> None:
