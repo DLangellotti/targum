@@ -233,3 +233,24 @@ body.add > .add-main {
    which is what a checkbox is until it is told otherwise. */
 .tick { margin-block-start: 0.2rem; }
 .tick input { accent-color: var(--ink); }
+
+/* --- offered instead of paying for a translation --------------------------
+ *
+ * add.js builds this notice; it lived in library.css, which this page does not load,
+ * so the one message that saves a reader money rendered as a bare paragraph. The
+ * corners are logical too: paired with a logical rail, `0 6px 6px 0` put the flat edge
+ * and the rail on opposite sides of the box in Hebrew. */
+
+.instead {
+  margin-block-start: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-inline-start: 3px solid var(--accent);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 6px;
+  border-end-end-radius: 6px;
+  background: var(--paper-raised);
+  line-height: 1.55;
+}
+.instead b { color: var(--ink); }
+.instead .row { margin-block-start: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
