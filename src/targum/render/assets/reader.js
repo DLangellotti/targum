@@ -1867,7 +1867,7 @@
       (rtl ? "←" : "→") +
       " next · k known · 1 2 3 · i ignore · " +
       (offering ? "Enter look up · " : "") +
-      "u back";
+      "u back · ? all keys";
     card.appendChild(legend);
 
     card.hidden = false;
