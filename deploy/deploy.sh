@@ -58,6 +58,10 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   rm -f "${REMOTE_WHEEL}"
+  # The directory too: it was root-only, which systemd never minded — it reads the
+  # secrets as root — and the service, which reads the catalogue as targum, could not
+  # reach into it. The library was empty for the length of one deploy.
+  install -d -o root -g targum -m 0750 /etc/targum
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json
 
