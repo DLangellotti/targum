@@ -173,23 +173,45 @@
     return element;
   }
 
-  // Each sentence ships twice, bare and pointed, so both go through the server's bidi
-  // isolation and neither has to be rebuilt here. Only one is ever on show.
-  var plainCell = {};
-  var pointedCell = {};
+  // Each sentence ships twice, bare and pointed — and pointed means everything the
+  // edition wrote, accents included — so both go through the server's bidi isolation
+  // and neither has to be rebuilt here. Only one is ever on show.
+  var FORMS = ["plain", "pointed"];
+  var cells = { plain: {}, pointed: {} };
   // The pair a segment is drawn in. The word queue works in segment ids, because the
   // words themselves are data rather than page, and this is the one place it has to come
   // back to the page — to draw a pair's spans and to scroll to it.
   var pairBySegment = {};
   pairs.forEach(function (pair) {
     var segmentId = pair.getAttribute("data-id");
-    plainCell[segmentId] = pair.querySelector(".src.plain");
-    pointedCell[segmentId] = pair.querySelector(".src.pointed");
+    for (var f = 0; f < FORMS.length; f++) {
+      cells[FORMS[f]][segmentId] = pair.querySelector(".src." + FORMS[f]);
+    }
     pairBySegment[segmentId] = pair;
   });
-  var hasNikkud = Object.keys(pointedCell).some(function (id) {
-    return !!pointedCell[id];
-  });
+  function anyCell(form) {
+    return Object.keys(cells[form]).some(function (id) {
+      return !!cells[form][id];
+    });
+  }
+  var hasNikkud = anyCell("pointed");
+
+  // Which form a segment is actually showing. A pair the vocalizer never reached has no
+  // pointed cell, and it keeps showing the bare one while the rest of the page is
+  // pointed.
+  function shownCell(segmentId) {
+    return (prefs.nikkud && cells.pointed[segmentId]) || cells.plain[segmentId];
+  }
+
+  // A word's span, looked for in the cell that is showing and nowhere else. A pair holds
+  // up to three cells and `pair.querySelector` answers with the first in document order,
+  // which is the bare one — hidden, and still holding the spans from the last time it
+  // was up. The arrows then stood on a word nobody could see. The forms cycle through
+  // bare as a matter of course now, so this is the ordinary case, not a corner.
+  function wordIn(pair, selector) {
+    var cell = shownCell(pair.getAttribute("data-id"));
+    return cell ? cell.querySelector(selector) : null;
+  }
 
   // Kept on the element rather than under the segment id, because a segment now has two
   // cells and one key for both would hand each the other's markup.
@@ -252,6 +274,13 @@
     var stored = JSON.parse(localStorage.getItem(STORE) || "{}");
     for (var key in stored) if (key in prefs) prefs[key] = stored[key];
   } catch (e) {}
+
+  // A switch: on or off. For a day it was a step, 0 to 2, and a browser that opened a
+  // text that day holds a number here. `!!` reads any of them the way they were meant —
+  // 0 was off and 1 and 2 were both the pointed text — so nobody is reset and no
+  // per-document choice is lost.
+  prefs.nikkud = !!prefs.nikkud;
+  for (var doc in prefs.nikkudBy) prefs.nikkudBy[doc] = !!prefs.nikkudBy[doc];
 
   if ((prefs.defaults || 0) < DEFAULTS) {
     for (var changed in RESET) prefs[changed] = RESET[changed];
@@ -584,34 +613,46 @@
   }
   renderFinished();
 
-  /* --- the two forms of a sentence ----------------------------------------- */
+  /* --- the forms of a sentence --------------------------------------------- */
 
   // Hebrew combining marks. Deliberately not the whole 0591-05C7 block: the maqaf,
   // paseq, sof pasuq and nun hafukha live inside it and are characters of the text, not
   // marks above it. Mirrors MARKS in vocalize/base.py, and for the same reason.
+  //
+  // One set, covering the accents as well as the points. Which of them is a ta'am and
+  // which a vowel is a question only the builder ever has to answer, and it answers it
+  // once, in Python, by deciding what goes in which cell. Here the only question is
+  // "what is a mark", so the reader needs no second constant and cannot disagree with
+  // the server about the first — which is what the mark-parity test checks, and why one
+  // constant here keeps it sufficient.
   var MARK = /[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/;
 
   // Every stored offset — a token span, a phrase you kept — is measured against the
   // bare text, whichever form happens to be on show. That way turning the vowels on
-  // cannot quietly move a saved phrase onto different characters. The pointed cell is
+  // cannot quietly move a saved phrase onto different characters. A pointed cell is
   // drawn by mapping those offsets across, and the map is derived from the text itself
   // rather than shipped with the page: it is one linear pass, and it costs nothing.
-  var pointedIndex = {};
-
-  function pointedMap(segmentId) {
-    if (pointedIndex[segmentId] === undefined) {
-      var text = cellText(pointedCell[segmentId]);
+  //
+  // Cached on the element, not under the segment id, because a segment now has up to
+  // three cells and one key for all of them would hand each the others' positions — the
+  // same reason `original` and `cellText` cache where they do. It works unchanged on the
+  // accented form because MARK covers accents too: what comes back either way is where
+  // the consonants are, and all three cells share those.
+  function markMap(cell) {
+    if (!cell) return null;
+    if (cell.__targumMap === undefined) {
+      var text = cellText(cell);
       var map = [];
       for (var i = 0; i < text.length; i++) if (!MARK.test(text[i])) map.push(i);
       map.push(text.length);
-      pointedIndex[segmentId] = map;
+      cell.__targumMap = map;
     }
-    return pointedIndex[segmentId];
+    return cell.__targumMap;
   }
 
-  // A position in the pointed text, back to the bare text it stands for.
-  function toBare(segmentId, offset) {
-    var text = cellText(pointedCell[segmentId]);
+  // A position in a pointed cell, back to the bare text it stands for.
+  function toBare(cell, offset) {
+    var text = cellText(cell);
     var bare = 0;
     for (var i = 0; i < offset && i < text.length; i++) if (!MARK.test(text[i])) bare++;
     return bare;
@@ -634,7 +675,7 @@
 
   function segmentText(segmentId) {
     if (plainText[segmentId] === undefined) {
-      plainText[segmentId] = cellText(plainCell[segmentId]);
+      plainText[segmentId] = cellText(cells.plain[segmentId]);
     }
     return plainText[segmentId];
   }
@@ -1015,7 +1056,7 @@
     // Offsets are held against the bare text. Drawing them on the pointed cell means
     // moving each span across, so that a word's marks travel inside its own span rather
     // than trailing outside it.
-    var map = cell === pointedCell[segmentId] ? pointedMap(segmentId) : null;
+    var map = cell === cells.plain[segmentId] ? null : markMap(cell);
     function at(offset) {
       if (!map) return offset;
       return offset < map.length ? map[offset] : map[map.length - 1];
@@ -1165,8 +1206,17 @@
     if (pair.__targumDrawn === pending) return;
     pair.__targumDrawn = pending;
     var segmentId = pair.getAttribute("data-id");
-    // Only the cell on show is worth marking; the other is redrawn when it appears.
-    var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
+    // Only the cell on show is worth marking; the others are redrawn when they appear.
+    // And the others are put back to plain text: a hidden cell still carrying spans is
+    // one `.w` query away from being stood on, and `wordIn` is only the sites found so
+    // far.
+    var cell = shownCell(segmentId);
+    for (var f = 0; f < FORMS.length; f++) {
+      var other = cells[FORMS[f]][segmentId];
+      if (other && other !== cell && other.querySelector("span")) {
+        other.innerHTML = original(other);
+      }
+    }
     if (cell) markSegment(cell);
   }
 
@@ -1897,7 +1947,7 @@
       // reference to a node that is no longer in the page.
       var again =
         pair && pair.parentNode
-          ? pair.querySelector('.w[data-lemma="' + index + '"]')
+          ? wordIn(pair, '.w[data-lemma="' + index + '"]')
           : null;
       // Rebuilt before it is spent, so what the reader watches leave is the card with
       // the level they just said on it rather than the question it answered.
@@ -2186,9 +2236,9 @@
     // stored in bare ones, so that what you kept stays put when the vowels go away
     // again — and so the same phrase saved twice, once each way, is one entry.
     var segmentId = cell.parentNode.getAttribute("data-id");
-    if (cell === pointedCell[segmentId]) {
-      start = toBare(segmentId, start);
-      end = toBare(segmentId, end);
+    if (cell !== cells.plain[segmentId]) {
+      start = toBare(cell, start);
+      end = toBare(cell, end);
       if (end <= start) return null;
     }
     // Read back out of the bare text rather than taken from the selection, so what the
@@ -2832,9 +2882,9 @@
   function refind(held) {
     if (!held || !held.bare) return null;
     var segmentId = held.pair.getAttribute("data-id");
-    // The cell on show, which is the one `markPair` drew: the other keeps whatever spans
-    // it had when it was last visible, and they are the wrong page's.
-    var cell = (prefs.nikkud && pointedCell[segmentId]) || plainCell[segmentId];
+    // The cell on show, which is the one `markPair` drew: the others keep whatever spans
+    // they had when they were last visible, and they are the wrong page's.
+    var cell = shownCell(segmentId);
     if (!cell) return null;
     // Its spans may not have been drawn in this pass at all; only a screenful is marked.
     markPair(held.pair);
@@ -3014,7 +3064,7 @@
       // Its spans may never have been drawn: only a screenful is marked up front, and
       // that screenful is the top of the chapter, which is where the reader is not.
       markPair(pair);
-      word = pair.querySelector('.w[data-bare^="' + kept.word + ',"]');
+      word = wordIn(pair, '.w[data-bare^="' + kept.word + ',"]');
     }
     toLine(word, pair, kept.top);
     // The sentence they came back to is the sentence the first press of a mode button
@@ -3141,6 +3191,18 @@
 
   // Vowel points off by default, in every text. A pointed source is shown bare until
   // asked otherwise, which is the same offer made to an unpointed one.
+  // What a screen reader hears when the switch is pressed. The button's own state is
+  // `aria-pressed`; this says what changed.
+  var FORM_SAID = ["Bare text.", "Vowel points."];
+
+  function toggleVowels() {
+    if (!hasNikkud) return;
+    prefs.nikkud = !prefs.nikkud;
+    applyNikkud();
+    say(FORM_SAID[prefs.nikkud ? 1 : 0]);
+    save();
+  }
+
   function applyNikkud() {
     var held = hold();
     if (prefs.nikkudBy && documentId) prefs.nikkudBy[documentId] = !!prefs.nikkud;
@@ -3480,9 +3542,7 @@
         return;
       }
       if (button.hasAttribute("data-nikkud-toggle")) {
-        prefs.nikkud = !prefs.nikkud;
-        applyNikkud();
-        save();
+        toggleVowels();
         return;
       }
       var action = button.getAttribute("data-type");
@@ -3752,7 +3812,8 @@
     // and a saved phrase drawn across a word slices it into several spans — the first
     // piece is enough, because `bareSurface` reads the whole word back out of
     // `data-bare` whichever piece you hand it.
-    var span = pair.querySelector(
+    var span = wordIn(
+      pair,
       '.w[data-lemma="' + entry.lemma + '"][data-bare^="' + entry.start + ',"]'
     );
     if (!span) return false;
@@ -3947,10 +4008,7 @@
         if (listBox) showList(!!listBox.hidden);
         return;
       case "n":
-        if (!hasNikkud) return;
-        prefs.nikkud = !prefs.nikkud;
-        applyNikkud();
-        save();
+        toggleVowels();
         return;
       case "?":
         showKeys(keysCard ? keysCard.hidden : false);
@@ -4147,7 +4205,9 @@
   applyMarking();
   showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
-  // leaving it set would hide every sentence on the page.
+  // leaving it set would hide every sentence on the page. `sourcePointed` means "open in
+  // the form this text was published in" — which for a Tanakh is the whole of it, accents
+  // and all — and a per-document choice still wins over it.
   if (!hasNikkud) {
     prefs.nikkud = false;
   } else {
@@ -4156,6 +4216,16 @@
   }
   applyNikkud();
   applyPaged();
+  // The Hebrew face rides inside the page, but the browser still resolves it a beat
+  // after the first layout — and a page measured in the fallback's metrics is a page
+  // whose last verse falls outside the window. So measure once more when the real face
+  // is in. `relayout` keeps the reader where they were, which is the whole reason it
+  // exists; a browser too old for `document.fonts` simply never asks.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      relayout();
+    });
+  }
   // The page is laid out from here on, so from here on a change to it can be measured.
   living = true;
   took("marks drawn on what is on screen");

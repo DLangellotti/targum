@@ -31,6 +31,7 @@ from .models import (
     Vocalization,
     glossaries_in,
     glossary_path,
+    is_biblical,
     read_artifact,
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
@@ -645,7 +646,12 @@ class Build:
                 return existing
 
         engine = self._vocalizer
-        if engine is None and vocalize_module.wants_pointing(segmented.segments):
+        if is_biblical(self.source):
+            # Not merely unused: never loaded. A diacritizer has nothing to offer a text
+            # it must not touch, and the ONNX model costs a second and a few hundred
+            # megabytes to open for the privilege of being ignored.
+            engine = None
+        elif engine is None and vocalize_module.wants_pointing(segmented.segments):
             engine = vocalize_module.build()
         key = self.cache.key(
             "vocalize",
@@ -659,7 +665,9 @@ class Build:
             self.reused.append("nikkud (cache)")
         else:
             try:
-                vocalization = vocalize_module.vocalize_document(segmented, engine)
+                vocalization = vocalize_module.vocalize_document(
+                    segmented, engine, source=str(self.source)
+                )
             except TargumError as error:
                 # Vowels are a reading aid on top of a translation someone has already
                 # paid for. Losing them is worth saying; it is not worth losing the build.
@@ -670,6 +678,15 @@ class Build:
             self.notify(
                 f"Kept the source text for {len(vocalization.rejected)} sentence(s): "
                 "the diacritizer changed letters, not just marks."
+            )
+        # A pointed edition arriving unpointed means the edition changed, and on this
+        # shelf nothing fills the gap. Said out loud so a degraded upstream is caught in
+        # a build log rather than by a reader. The threshold is `wants_pointing`'s own,
+        # so a ketiv or two — bare on purpose — never triggers it.
+        if is_biblical(self.source) and vocalize_module.wants_pointing(segmented.segments):
+            self.notify(
+                "Most of this text arrived without vowel points. Nothing was guessed; "
+                "check the edition."
             )
         vocalization.write(path)
         return vocalization

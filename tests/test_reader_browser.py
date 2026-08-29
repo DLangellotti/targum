@@ -69,6 +69,9 @@ ALEPHBET = "אבגדהוזחטיכלמנסעפצקרשת"
 #: A vowel under a letter. The pointed cell is a second cell rather than the same one
 #: restyled, so the toggle is a change of layout and not only of paint.
 QAMATS = "\u05b8"
+#: A ta'am above a letter — zaqef qatan. The accented cell is a third cell again, so the
+#: switch has three positions and the tallest of them is this one.
+ZAQEF = "\u0594"
 
 
 def coin(n: int) -> str:
@@ -84,8 +87,12 @@ def coin(n: int) -> str:
     return "".join(ALEPHBET[(n // 22**power) % 22] for power in range(5))
 
 
-def chapter(out: Path) -> Path:
-    """A built reader with everything the bar can change: words, vowels, translation."""
+def chapter(out: Path, taamim: bool = False) -> Path:
+    """A built reader with everything the bar can change: words, vowels, translation.
+
+    With `taamim`, the pointed text also carries accents, which is what gives the switch
+    its third position — the form a Masoretic edition publishes.
+    """
     segments, pointed, tokens, minted = [], {}, {}, 0
     for n in range(VERSES):
         # Alternating lengths, because a chapter of identical pairs would move by the
@@ -97,7 +104,8 @@ def chapter(out: Path) -> Path:
             id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=n, text=text
         )
         segments.append(segment)
-        pointed[segment.id] = " ".join(QAMATS.join(word) + QAMATS for word in words)
+        last = QAMATS + ZAQEF if taamim else QAMATS
+        pointed[segment.id] = " ".join(QAMATS.join(word) + last for word in words)
         # One token per word, so the arrows have a queue to walk and the list a count.
         offset, marks = 0, []
         for word in words:
@@ -245,6 +253,11 @@ def bilingual(out: Path) -> Path:
 @pytest.fixture(scope="module")
 def built(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return chapter(tmp_path_factory.mktemp("reader") / "reader")
+
+
+@pytest.fixture(scope="module")
+def built_with_taamim(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return chapter(tmp_path_factory.mktemp("accented") / "reader", taamim=True)
 
 
 @pytest.fixture(scope="module")
@@ -451,6 +464,138 @@ def test_a_change_of_layout_leaves_the_sentence_where_it_was(
     after = page.evaluate(AT, before["id"])
     assert after is not None, f"{what} lost sentence {before['n']} altogether"
     assert abs(after["top"] - before["top"]) <= SLACK, f"{what} shifted the sentence on screen"
+
+
+@pytest.fixture
+def accented(browser, built_with_taamim: Path):
+    """A Masoretic reader: three forms of every sentence, and a switch with three steps.
+
+    Anchored the same way `page` is, so a step of the switch can be measured against
+    where the sentence was rather than against the top of the document.
+    """
+    context = opened(browser)
+    open_page = context.new_page()
+    open_page.goto(built_with_taamim.as_uri())
+    open_page.wait_for_selector(".pair")
+    open_page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    open_page.evaluate(SCROLL_TO_ANCHOR, ANCHOR)
+    open_page.wait_for_function(MARKED, arg=ANCHOR)
+    yield open_page
+    context.close()
+
+
+PRESSED = "() => document.querySelector('[data-nikkud-toggle]').getAttribute('aria-pressed')"
+
+
+def test_a_masoretic_text_opens_the_way_it_was_published(accented) -> None:
+    """Accents and all. `sourcePointed` has always meant "open in the form this text was
+    published in", and a Masoretic edition publishes the trope."""
+    assert accented.evaluate(PRESSED) == "true"
+    seen = accented.evaluate(
+        """() => {
+      const cells = [...document.querySelectorAll('.pair:not(.head) .src')];
+      const cell = cells.find(e => e.offsetParent);
+      const isAccent = c => c.charCodeAt(0) >= 0x591 && c.charCodeAt(0) <= 0x5AF;
+      return { form: cell.getAttribute('data-form'),
+               accents: [...cell.textContent].filter(isAccent).length };
+    }"""
+    )
+    assert seen["form"] == "pointed"
+    assert seen["accents"] > 0, "the accents are not on the page it opened to"
+
+
+def test_two_presses_come_back_to_the_text_as_published(accented) -> None:
+    """One switch, two positions: bare, or everything the edition wrote."""
+    seen = [accented.evaluate(PRESSED)]
+    for _ in range(2):
+        accented.eval_on_selector("[data-nikkud-toggle]", "button => button.click()")
+        seen.append(accented.evaluate(PRESSED))
+    assert seen == ["true", "false", "true"]
+
+
+def test_the_spoken_region_says_which_form(accented) -> None:
+    said = "() => document.querySelector('#spoken').textContent"
+    accented.eval_on_selector("[data-nikkud-toggle]", "button => button.click()")
+    assert accented.evaluate(said) == "Bare text."
+    accented.eval_on_selector("[data-nikkud-toggle]", "button => button.click()")
+    assert accented.evaluate(said) == "Vowel points."
+
+
+def remembering(browser, built: Path, remembered: object):
+    """A reader coming back to a text they have opened before, with a choice in store."""
+    context = opened(browser)
+    context.add_init_script(
+        "(() => { try { const k = 'targum:prefs';"
+        "const p = JSON.parse(localStorage.getItem(k) || '{}');"
+        f"p.nikkudBy = {{ h: {remembered} }};"
+        "localStorage.setItem(k, JSON.stringify(p)); } catch (e) {} })();"
+    )
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector(".pair")
+    return context, open_page
+
+
+@pytest.mark.parametrize(
+    ("remembered", "pressed"),
+    [("true", "true"), ("false", "false"), ("0", "false"), ("1", "true"), ("2", "true")],
+)
+def test_a_stored_choice_still_means_what_it_meant(browser, built: Path, remembered, pressed):
+    """Booleans from before, and the numbers a day's builds wrote when the switch was a
+    step: 0 was off, 1 and 2 were both the pointed text. Nobody is reset."""
+    context, open_page = remembering(browser, built, remembered)
+    try:
+        assert open_page.evaluate(PRESSED) == pressed
+    finally:
+        context.close()
+
+
+def test_the_arrows_stand_on_a_word_you_can_see(accented) -> None:
+    """After the bare form has been shown and the pointed one brought back, an arrow
+    queues a word in the cell that is showing — not in the hidden bare cell, which still
+    held its old spans.
+
+    `pair.querySelector` answers with the first match in document order, and the bare cell
+    comes first. The arrows stood on words nobody could see, and to the reader the
+    keyboard was dead.
+    """
+    for _ in range(2):  # pointed -> bare -> pointed, marking the bare cell on the way
+        accented.eval_on_selector("[data-nikkud-toggle]", "button => button.click()")
+    assert accented.evaluate(PRESSED) == "true"
+    for _ in range(3):
+        accented.keyboard.press("ArrowLeft")
+        accented.wait_for_timeout(120)
+        seen = accented.evaluate(
+            """() => {
+          const q = document.querySelector('.w.queued');
+          return q ? { form: q.closest('.src').getAttribute('data-form'),
+                       visible: q.offsetParent !== null } : null;
+        }"""
+        )
+        assert seen is not None, "an arrow queued nothing"
+        assert seen["visible"], f"the arrow stood on a word in the hidden {seen['form']} cell"
+        assert seen["form"] == "pointed"
+    stale = accented.evaluate(
+        """() => [...document.querySelectorAll('.pair')].filter(p => {
+          const shown = [...p.querySelectorAll('.src')].find(c => c.offsetParent !== null);
+          if (!shown || !shown.querySelector('span.w')) return false;
+          const others = [...p.querySelectorAll('.src')].filter(c => c !== shown);
+          return others.some(c => c.querySelector('span.w'));
+        }).length"""
+    )
+    assert stale == 0, f"{stale} drawn pairs still carry spans in a hidden cell"
+
+
+def test_switching_the_accents_leaves_the_sentence_where_it_was(accented) -> None:
+    """The same measurement the bar sweep makes, on the form that could actually differ by
+    a line, since a ta'am sits above the letter where a vowel sits below it."""
+    before = accented.evaluate(WHERE)
+    assert before is not None and before["n"] == ANCHOR, "not where the fixture left it"
+    for _ in range(2):
+        accented.eval_on_selector("[data-nikkud-toggle]", "button => button.click()")
+        after = accented.evaluate(AT, before["id"])
+        assert after is not None, "a step lost the sentence altogether"
+        assert abs(after["top"] - before["top"]) <= SLACK
 
 
 def test_the_whole_round_trip_comes_back_to_the_same_sentence(page) -> None:

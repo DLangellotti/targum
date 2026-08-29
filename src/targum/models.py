@@ -31,6 +31,14 @@ def direction_for(language: str) -> str:
     return "rtl" if language.split("-")[0].lower() in RTL_LANGUAGES else "ltr"
 
 
+# The one shelf targum serves from a pinned, published, Masoretic edition. Scripture gets
+# rules the rest of the library does not: verses are never re-split, never machine-pointed,
+# and paired by their numbering rather than matched. Asked in four places, so it is written
+# once — four hand-copied prefix tests is how the fifth comes to disagree with the others.
+def is_biblical(source: object) -> bool:
+    return str(source or "").startswith("sefaria:")
+
+
 class BlockKind(StrEnum):
     heading = "heading"
     byline = "byline"
