@@ -1,0 +1,24 @@
+Taamey Frank CLM — the notice carried inside the font itself.
+Culmus 0.133's LICENSE predates this face and does not name it, so the font's own
+name table is the record. Extracted verbatim.
+
+--- copyright (name ID 0) ---
+Copyright (c) 2009-2010 by Yoram Gnat (yoram.gnat@gmail.com)
+Distributed under the terms of GNU General Public License version 2(http://www.gnu.org/licenses/gpl.html). 
+
+Hebrew OpenType Layout logic copyright (c) 2003 & 2007, Ralph Hancock & John Hudson. This layout logic for Biblical Hebrew is open source software under the MIT License; for details  contact copyright holders at <license@tiro.com>.
+
+Latin glyphs and part of punctuation, taken from Century Schoolbook L font, copyright 1999 by (URW)++ Design & Development 
+
+Hebrew glyphs, vowels, cantillation marks and implementation of above layout logic copyright (c)2009-2010 by Yoram Gnat (yoramg@shenkar.ac.il). Distributed under the terms of GNU General Public Licence version 2 (http://www.gnu.org/licenses/gpl.html)
+
+As a special exception, if you create a document which uses this font, and embed this font or unaltered portions of this font into the document, this font does not by itself cause the resulting document to be covered by the GNU General Public License. This exception does not however invalidate any other reasons why the document might be covered by the GNU General Public License. If you modify this font, you may extend this exception to your version of the font, but you are not obligated to do so. If you do not wish to do so, delete this exception statement from your version.
+
+--- licence (name ID 13) ---
+Copyright (c) 2009-2010, Yoram Gnat (<yoram.gnat@gmail.com>),with Reserved Font name 'Taamey Frank CLM'. This Font Software is licensed under the GNU Public License Version 2. The license available at: http://www.gnu.org/licenses/old-licenses/gpl-2.0.html.
+The following license applies to the OpenType Layout logic for Biblical Hebrew as jointly developed by Ralph Hancock and John Hudson. It does not apply to any other aspects of the font software, including outlines, hint instructions or other intellectual property:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the 'Software'), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+As a special exception, if you create a document which uses this font, and embed this font or unaltered portions of this font into the document, this font does not by itself cause the resulting document to be covered by the GNU General Public License. This exception does not however invalidate any other reasons why the document might be covered by the GNU General Public License. If you modify this font, you may extend this exception to your version of the font, but you are not obligated to do so. If you do not wish to do so, delete this exception statement from your version.

@@ -34,6 +34,7 @@ from bisect import bisect_left
 from functools import cache
 from pathlib import Path
 
+from ..models import is_biblical
 from .base import BAND_COUNT, UNRATED
 
 NAME = "tanakh/1"
@@ -126,4 +127,4 @@ def for_source(source: str) -> BiblicalBands | None:
     in the other direction, and doing it by guessing at the content rather than by
     knowing where the text came from would be worse again.
     """
-    return BiblicalBands() if str(source).startswith("sefaria:") else None
+    return BiblicalBands() if is_biblical(source) else None

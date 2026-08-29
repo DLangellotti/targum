@@ -35,9 +35,10 @@ from ..models import (
     Translation,
     Vocalization,
     direction_for,
+    is_biblical,
 )
 from ..translate.prompts import language_name
-from ..vocalize import map_span, strip_nikkud
+from ..vocalize import has_taamim, map_span, strip_nikkud
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -139,6 +140,7 @@ def _environment() -> Environment:
     env.filters["isolate"] = isolate
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
+    env.globals["hebrew_face"] = _hebrew_face
     return env
 
 
@@ -208,6 +210,57 @@ def _asset(name: str) -> Markup:
     return Markup(_strip(name, (ASSETS / name).read_text(encoding="utf-8")))
 
 
+# The Hebrew faces, one per register, and why they are in the page rather than named.
+#
+# The stack asked for "Frank Ruhl CLM" and "Taamey Frank CLM" and never got either: they
+# are not on a stock machine, so every reader fell through to New Peninim MT — which has
+# no accents at all, nor meteg, paseq, sof pasuq or qamats qatan. That was invisible while
+# the Tanakh arrived stripped of its accents. The moment it did not, every letter carrying
+# one was borrowed from whatever font the browser could find, and Safari substitutes the
+# whole cluster, so the letter changed size too. A font a page merely asks for is a font
+# some readers do not have; the only fix is to carry it.
+#
+# Two faces because the shelves read differently: Taamey Frank CLM is cut for pointed and
+# accented scripture, and its accents are designed rather than tolerated — and its letters
+# hold one size, which Taamey Ashkenaz beside it in the same collection does not: its shin,
+# mem and final mem draw visibly larger than their neighbours, which on a page of verses
+# reads as broken text. Frank Ruhl Libre
+# is a modern cut of the Hebrew book serif, for a newspaper — and a serif, so a Hebrew
+# column and the Latin one beside it still read as one document, which is what §5 asks.
+# Taamey Frank CLM is Yoram Gnat's, GPL with the font-embedding exception that says a
+# document carrying the font is not itself covered — which is exactly what a reader is.
+# Frank Ruhl Libre is OFL, which permits the same thing outright. The exception is per
+# author and not per project: Taamey David CLM sits in the same collection and does not
+# carry it, because its glyphs are Maxim Iorsh's. Check before swapping either of these.
+BIBLICAL_FACE = ("Taamey Frank CLM", "fonts/TaameyFrankCLM-Medium.woff2")
+MODERN_FACE = ("Frank Ruhl Libre", "fonts/FrankRuhlLibre-Regular.woff2")
+
+# What a page falls back through if it somehow carries no face of its own. Kept in step
+# with `--reading-hebrew` in reader.css.
+_FALLBACK = '"Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT", David, serif'
+
+
+@cache
+def _hebrew_face(biblical: bool = False) -> Markup:
+    """The page's own Hebrew face, carried rather than hoped for.
+
+    Emitted per page instead of from the stylesheet because a page needs one of the two
+    and paying for both would double the cost of the thing for no reader's benefit.
+    """
+    # `block`, not `swap`: the face is in the page, so there is nothing to wait for and
+    # nothing to gain from painting a fallback first — and a fallback that is painted is
+    # a fallback the page gets measured in. reader.js measures again when the font
+    # arrives; this is what keeps there being nothing to measure twice.
+    family, file = BIBLICAL_FACE if biblical else MODERN_FACE
+    return Markup(
+        "<style>"
+        f'@font-face{{font-family:"{family}";'
+        f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
+        f':root{{--reading-hebrew:"{family}", {_FALLBACK}}}'
+        "</style>"
+    )
+
+
 @cache
 def _data_uri(name: str) -> str:
     """An asset as a `data:` URI, for the places only a URL will do.
@@ -221,6 +274,10 @@ def _data_uri(name: str) -> str:
     mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     if mime == "image/svg+xml":
         mime += ";charset=utf-8"
+    # Not every machine's mimetypes knows woff2, and a font served as octet-stream is a
+    # font some browsers decline to use.
+    if path.suffix == ".woff2":
+        mime = "font/woff2"
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
@@ -635,14 +692,27 @@ def render(
 
     # Two ways to show the same sentence. The bare form is what the page renders by
     # default and the one every stored offset is measured against; the pointed form is
-    # the second cell the toggle reveals. Both are built here rather than in the browser
-    # so each goes through isolate() and neither has to be reassembled in JavaScript.
+    # the cell the switch reveals — everything the edition wrote above and below the
+    # letters, accents included where it has them. Both are built here rather than in
+    # the browser so each goes through isolate() and neither has to be reassembled in
+    # JavaScript.
+    #
+    # One switch, two positions: bare, or the whole text. A middle step that showed the
+    # vowels without the accents existed for a day and went — a third form on a Tanakh
+    # was a state to be lost in, and the only thing it ever taught a reader was that
+    # the arrows had stopped working.
     bare: dict[str, str] = {}
     to_bare: dict[str, list[int]] = {}
     for segment in segmented.segments:
         bare[segment.id], to_bare[segment.id] = strip_nikkud(segment.text)
     pointed = dict(vocalization.segments) if vocalization is not None else {}
     machine = set(vocalization.machine) if vocalization is not None else set()
+
+    # Which face this page carries follows the text, not the shelf. The modern face is
+    # chosen for reading a newspaper and has no accents in it, so a text that carries one
+    # anywhere — an essay quoting a verse — must be set in the face that can draw them. A
+    # page that cannot draw its own text is the whole bug this began as.
+    accented = any(has_taamim(text) for text in pointed.values())
 
     # Whose pointing this mostly is. A Tanakh or a pointed poem arrives with its vowels
     # already on the page and someone chose it for them, so it opens pointed; a news
@@ -653,6 +723,7 @@ def render(
     source_pointed = bool(pointed) and from_source * 2 >= len(pointed)
     mark_guessed = bool(machine) and len(machine) * 2 < len(pointed)
 
+    biblical = is_biblical(document.source)
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
 
@@ -676,7 +747,11 @@ def render(
         # a list of separate sayings rather than as continuous text. Asked of the source
         # rather than guessed from the content, the same way `biblical.for_source()`
         # decides which difficulty bands to use, and for the same reason.
-        "verse_by_verse": document.source.startswith("sefaria:"),
+        "verse_by_verse": biblical,
+        # Which of the two Hebrew faces this page carries. Scripture is set in a face cut
+        # for the Masorah; a newspaper is not — but see `accented` above: the deciding
+        # question is what the text holds, not which shelf it came from.
+        "biblical": accented,
         "difficulty": None
         if annotation is None
         else {

@@ -18,6 +18,10 @@
      face that could carry it — and a base letter with its marks is one cluster to
      resolve, not one character. Measured on the Declaration: 901ms to first frame
      against 5ms. The reader was not slow; the page could not be laid out. */
+  /* Only what is left if a page carries no face of its own — every page built by
+     `hebrew_face()` overrides this with the one it has embedded. Kept because these are
+     the right fonts to reach for and some readers do have them; not relied on, because
+     most do not, and New Peninim MT at the end of it has no accents at all. */
   --reading-hebrew: "Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew",
                     "New Peninim MT", David, serif;
   --measure: 34rem;
@@ -129,8 +133,20 @@
 
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a
-   Russian or Latin source still takes the reading stack above. */
-:lang(he) { font-family: var(--reading-hebrew); }
+   Russian or Latin source still takes the reading stack above.
+
+   The selector is the attribute rather than `:lang(he)`, which is what that sentence
+   always meant and never did. `:lang()` matches an element's *inherited* language, so on
+   a reader whose <html> says lang="he" it also matched <body>, <main> and every wrapper
+   in between — and it outranks the `font-family` on `body`, so the whole page took the
+   Hebrew face and the English translation column inherited it.
+
+   That was invisible for as long as the Hebrew stack held nothing that could draw Latin
+   and fell through to the same serif the Latin stack ends in. The day the page began
+   carrying a Hebrew face of its own — which has Latin glyphs — the translations were set
+   in them. `[lang|="he"]` matches only what declares itself Hebrew, `he` or `he-*`; the
+   root is excluded so `body` keeps the reading face underneath it. */
+[lang|="he"]:not(html) { font-family: var(--reading-hebrew); }
 
 body {
   margin: 0;

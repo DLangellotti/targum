@@ -50,7 +50,10 @@ Homepage = "https://github.com/DLangellotti/targum"
 targum = "targum.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.2", "mypy>=1.10", "ruff>=0.5"]
+# fontTools reads the embedded Hebrew faces in `tests/test_render.py`, which checks they
+# can actually draw every mark a Masoretic text contains. That check is the one that would
+# have caught a reading font with no accents in it before a reader did.
+dev = ["pytest>=8.2", "mypy>=1.10", "ruff>=0.5", "fonttools[woff]>=4.50"]
 
 [build-system]
 requires = ["hatchling"]

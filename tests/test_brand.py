@@ -1,14 +1,15 @@
-"""The brand guidelines, enforced.
+"""The design guidelines, enforced.
 
-`Design updated.pdf` in the vault is the source — it replaced `Design.pdf` on Aug 24
-2026, adding functional colour, a bright set for peak moments, and §9's rules on
-contrast. These are the parts of it a machine can check.
-They are here rather than in a review checklist because a guideline nobody can run is a
-guideline that drifts: the palette held for three months and then a stray #b4553f
-arrived for an error state, and nothing said so.
+`design.md` at the root of this repository is the source. It replaced `Design updated.pdf`
+on 2026-08-29, which had itself replaced `Design.pdf` on Aug 24 2026 — and the reason it
+moved out of the vault and into the repository is the reason this file exists: a guideline
+nobody can run is a guideline that drifts. The palette held for three months and then a
+stray #b4553f arrived for an error state, and nothing said so. The PDF drifted the same
+way, in three places, while still being called binding.
 
-What cannot be tested lives in the document and not here — whether motion is
-*purposeful*, whether the voice sounds like a designer-engineer explaining a decision.
+These are the parts of design.md a machine can check. What cannot be tested lives there
+and not here — whether motion is *purposeful*, whether the voice sounds like a
+designer-engineer explaining a decision.
 """
 
 from __future__ import annotations
@@ -21,6 +22,9 @@ import pytest
 ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
 TEMPLATES = Path(__file__).resolve().parents[1] / "src/targum/render/templates"
 SERVE = Path(__file__).resolve().parents[1] / "src/targum/serve.py"
+
+ROOT = Path(__file__).resolve().parents[1]
+DESIGN = ROOT / "design.md"
 
 STYLESHEETS = sorted(ASSETS.glob("*.css"))
 SCRIPTS = sorted(ASSETS.glob("*.js"))
@@ -272,3 +276,35 @@ def test_no_gradient_is_a_colour_ramp() -> None:
                 f"{sheet.name}: gradient mixes colours rather than adding a sheen: "
                 f"{gradient[:60]!r}"
             )
+
+
+# -- the document itself ------------------------------------------------------
+
+
+def test_the_file_that_governs_is_in_the_repository() -> None:
+    """The move that makes the rest of this file mean something.
+
+    A design document living somewhere the tools cannot edit goes quietly out of date
+    while still being called binding, which is what happened to the PDF. This one is
+    beside the code, changes in the same commits, and is what CLAUDE.md sends a reader to.
+    """
+    assert DESIGN.is_file(), "design.md governs every visible surface, and it is missing"
+    claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "design.md" in claude, "nothing sends a reader to the file that governs"
+
+
+def test_every_section_the_code_cites_is_a_section_that_exists() -> None:
+    """The stylesheets reason with themselves in section numbers — "Functional colour
+    (§4)", "Gloss (§9) is light on glass, never metal". A citation that resolves to
+    nothing is worse than no citation: it reads as authority and carries none. This is
+    also what stops the sections being renumbered out from under the code.
+    """
+    headings = set(re.findall(r"^## (\d+) ·", DESIGN.read_text(encoding="utf-8"), re.M))
+    assert headings, "design.md has no numbered sections to cite"
+
+    cited: set[str] = set()
+    for path in STYLESHEETS + SCRIPTS + sorted((ROOT / "src/targum").rglob("*.py")):
+        cited.update(re.findall(r"§(\d+)", path.read_text(encoding="utf-8")))
+
+    missing = sorted(cited - headings, key=int)
+    assert not missing, "the code cites §" + ", §".join(missing) + ", which design.md lacks"

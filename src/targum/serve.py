@@ -36,7 +36,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style, glossary_path
+from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
 from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
 
@@ -108,6 +108,12 @@ TRASHED = "trashed"
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
+    # The Hebrew faces ride inside the page as data: URIs, the same way the icons do,
+    # and `default-src 'none'` covers fonts unless they are named. Without this line the
+    # font is refused by policy, `document.fonts` reports it as an error, and every
+    # accented letter is borrowed from whatever face the machine has — which was invisible
+    # for as long as readers were checked by opening the file, where no policy applies.
+    "font-src data:; "
     "connect-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
@@ -954,7 +960,7 @@ class Library:
         )
         return {
             "kind": kind,
-            "register": "biblical" if source.startswith("sefaria:") else "modern",
+            "register": "biblical" if is_biblical(source) else "modern",
             "difficulty": difficulty,
             "minutes": max(1, round(words / 130)),
             "entry": "",

@@ -769,7 +769,7 @@ def repair(
             if vocalization is not None:
                 if changed:
                     engine = build_vocalizer() if wants_pointing(changed) else None
-                    fresh = vocalize_document(patch, engine)
+                    fresh = vocalize_document(patch, engine, source=document.source)
                     vocalization.segments.update(fresh.segments)
                     moved = {segment.id for segment in changed}
                     vocalization.machine = [

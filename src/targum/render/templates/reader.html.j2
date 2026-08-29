@@ -6,6 +6,7 @@
 <title>{{ title }}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
+{{ hebrew_face(biblical) }}
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">

@@ -19,6 +19,15 @@ neither is theoretical. `Metsudah Chumash, Metsudah Publications, 2009` is CC-BY
 `… 2009 [with Onkelos translation]` is CC-BY-NC, which a paid product may not use — they
 differ by a bracketed suffix, so a name match would quietly ship the wrong one. And an
 unpinned version can change what it points at without warning.
+
+**The Hebrew is the accented edition, and the shorter name is a trap.** Sefaria also
+carries `Tanach with Nikkud`, which sounds like precisely what a reader of vowels wants.
+It is not an edition; it is this one with the accents deleted by machine, and that delete
+is lossy. Unicode gives meteg and silluq one codepoint, U+05BD, so a program removing
+te'amim takes the metagim with them — and meteg is what separates a qamats gadol from a
+qamats qatan. The whole of Ruth in that version contains no U+05BD at all. Taking the
+complete text and hiding the accents in the reader is the only way round it, so that is
+what targum does. Do not shorten this name.
 """
 
 from __future__ import annotations
@@ -44,7 +53,7 @@ USABLE = frozenset({"Public Domain", "CC0", "CC-BY"})
 # Exact titles, checked against the licence the API reports for each. Hebrew is one
 # edition throughout; English is whichever Orthodox translation covers the book, because
 # an Orthodox reader is who most of this shelf is for and JPS is not what they reach for.
-HEBREW = "Tanach with Nikkud"
+HEBREW = "Tanach with Ta'amei Hamikra"
 
 # Metsudah covers Torah, the Five Megillot and part of Nevi'im; Silverstein's Rashi
 # Ketuvim covers the rest of what is worth reading. A book with neither is not on the
@@ -231,8 +240,8 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
 
 class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
-    # somebody hand-edited the document on disk.
-    name = "sefaria/1"
+    # somebody hand-edited the document on disk. 2: the accented Hebrew edition.
+    name = "sefaria/2"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)
