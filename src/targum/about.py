@@ -92,7 +92,14 @@ def _from_git(today: date | None = None) -> Work:
     if not log.strip():
         return Work()
 
-    per_day: Counter[str] = Counter(when for when in log.split() if when)
+    # A commit dated after today belongs to today. Git prints the author's date in the
+    # author's own timezone, and a clock three hours east of the runner's writes
+    # "tomorrow" on anything committed after nine in the evening UTC. On a shallow
+    # checkout that one commit is the whole log, and a window that ends today then held
+    # nothing at all — the page drew no squares, and CI said so on every push made late
+    # in the day from Israel.
+    last = today.isoformat()
+    per_day: Counter[str] = Counter(min(when, last) for when in log.split() if when)
     return Work(
         days=[
             (day.isoformat(), per_day.get(day.isoformat(), 0))

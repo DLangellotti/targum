@@ -1448,6 +1448,24 @@ def test_the_about_page_shows_thirty_days_and_no_inline_styles() -> None:
     assert not re.search(r'<[^>]+\sstyle="', page), "inline style attributes will not apply"
 
 
+def test_a_commit_from_tomorrow_counts_as_today(monkeypatch) -> None:
+    """Git prints the author's date in the author's timezone. A commit made late in the
+    evening three hours east of UTC is dated tomorrow on a runner whose today is still
+    today — and on a shallow checkout that one commit is the whole log. It has to land
+    in the window, on its last day, rather than fall off the end and leave the page
+    drawing nothing."""
+    from datetime import date
+
+    from targum import about
+
+    monkeypatch.setattr(about, "_git", lambda *args: "2026-08-30\n2026-08-29\n")
+    work = about._from_git(date(2026, 8, 29))
+    assert len(work.days) == about.DAYS
+    assert work.days[-1] == ("2026-08-29", 2), "the day from tomorrow did not land on today"
+    assert work.commits == 2
+    assert work.through == "29 August"
+
+
 def test_the_activity_shading_never_rounds_an_empty_day_up() -> None:
     """A day with nothing on it must read as nothing, not as a faint success."""
     from targum.render.builder import about_page
