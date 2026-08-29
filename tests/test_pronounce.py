@@ -13,6 +13,7 @@ import pytest
 from targum.annotate import Annotator, PhonikudPronouncer, pronounceable
 from targum.annotate.pronounce import PREFIX_MARK, sayable
 from targum.models import Annotation, Segment, SegmentedDocument, Token, Vocalization
+from targum.vocalize.base import TAAMIM, strip_taamim
 
 pytestmark = pytest.mark.skipif(
     not PhonikudPronouncer().available()[0], reason="phonikud is not installed"
@@ -174,7 +175,7 @@ def test_the_annotator_says_it_read_the_words() -> None:
         lemmatizer=OneWordPerToken(), bands=FlatBands(), pronouncer=PhonikudPronouncer()
     )
     assert speaking.name != plain.name
-    assert speaking.name.endswith("+phonikud/1")
+    assert speaking.name.endswith("+phonikud/2")
 
 
 def test_another_language_is_left_alone() -> None:
@@ -192,3 +193,73 @@ def test_another_language_is_left_alone() -> None:
     )
     annotated = annotator.annotate(russian, vocalization({"s0": "дом стоит"}, language="ru"))
     assert all(token.ipa is None for token in annotated.tokens["s0"])
+
+
+# Ruth 1:1, as a Masoretic edition hands it over: vowels and chanting marks together.
+# The accents are the point of these tests — they are where the stress already is.
+ACCENTED = "וַיְהִ֗י בִּימֵי֙ שְׁפֹ֣ט הַשֹּׁפְטִ֔ים וַיְהִ֥י רָעָ֖ב בָּאָֽרֶץ׃"
+
+
+def test_the_chanting_marks_never_reach_the_phonemizer() -> None:
+    """Fed שְׁפֹ֣ט whole, phonikud reads the accent as a letter and loses the vowel.
+
+    It answers `ʃˈftˈ`, which is not a word and not a warning either — it looks like a
+    reading. Every pointed Tanakh reaches this stage with its accents on, so the guard is
+    not for a rare document; it is for the shelf's largest one.
+    """
+    import phonikud
+
+    assert phonikud.phonemize("שְׁפֹ֣ט").strip() == "ʃˈftˈ"
+    said = PhonikudPronouncer().say(["שְׁפֹ֣ט"])
+    assert said["שְׁפֹ֣ט"] == "ʃfˈot"
+
+
+def test_the_accent_places_the_stress() -> None:
+    """בָּאָ֑רֶץ is a segolate: ba-A-rets, and the etnahta is sitting on the A.
+
+    Strip the accents and phonikud puts the stress on the last syllable, as it does for
+    every word it has not been told about. Keep them, and the Masoretes answer.
+    """
+    from targum.annotate.pronounce import stressed
+
+    word = "בָּאָ֑רֶץ"
+    import phonikud
+
+    assert phonikud.phonemize(strip_taamim(word)).strip() == "baʔaʁˈets"
+    assert PhonikudPronouncer().say([word])[word] == "baʔˈaʁets"
+    assert stressed(word) is not None
+
+
+def test_an_unplaced_accent_is_not_believed() -> None:
+    """Pashta is written on the last letter whatever syllable carries the stress.
+
+    Reading a stress off one would be a confident wrong answer, which is the thing this
+    module refuses everywhere else, so the word falls back to the ordinary default.
+    """
+    from targum.annotate.pronounce import stressed
+
+    assert stressed("בִּימֵי֙") is None
+    assert PhonikudPronouncer().say(["בִּימֵי֙"])["בִּימֵי֙"] == "bimˈej"
+
+
+def test_a_verse_is_read_whole() -> None:
+    """Every word of Ruth 1:1 comes back a word, with no accent left in the reading."""
+    said = PhonikudPronouncer().say(ACCENTED.replace("׃", "").split())
+    assert len(said) == 7
+    for word, reading in said.items():
+        assert not any(ord(char) in TAAMIM for char in reading), word
+        assert "ˈ" in reading, word
+
+
+def test_meteg_is_not_a_vowel() -> None:
+    """U+05BD is meteg and silluq both, and phonikud reads it as an `e`.
+
+    בָּאָֽרֶץ — the verse-final form, where the mark is silluq — comes back
+    `baʔaeʁˈets`, a syllable the word does not have. The vocalizer keeps the mark
+    because it is what separates a qamats gadol from a qamats qatan; the phonemizer
+    cannot use it and must not sound it.
+    """
+    import phonikud
+
+    assert phonikud.phonemize("בָּאָֽרֶץ").strip() == "baʔaeʁˈets"
+    assert PhonikudPronouncer().say(["בָּאָֽרֶץ"])["בָּאָֽרֶץ"] == "baʔaʁˈets"
