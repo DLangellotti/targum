@@ -56,6 +56,7 @@
     ["poetry", "Poetry"],
     ["document", "Documents"],
     ["play", "Plays"],
+    ["dialogue", "Dialogues"],
   ];
 
   var REGISTERS = [

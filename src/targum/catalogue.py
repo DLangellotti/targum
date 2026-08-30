@@ -90,6 +90,12 @@ class Kind(StrEnum):
     #: else. It is the closest the public domain gets to conversational Hebrew, and a
     #: reader looking for that will not find it filed under narrative.
     play = "play"
+    #: A dialogue written to be learned from — two people, an everyday situation, and a
+    #: recording of it. Shaped like a play on the page and nothing like one to a reader
+    #: looking through a library: Peretz wrote drama, and these are a scene at a pharmacy
+    #: written so somebody can learn to ask for something at a pharmacy. Filed together,
+    #: the fifteen minutes a learner has goes to the wrong one.
+    dialogue = "dialogue"
 
 
 class Register(StrEnum):

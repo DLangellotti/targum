@@ -2729,12 +2729,22 @@
   function middle() {
     var top = ceiling();
     var eye = top + (window.innerHeight - top) / 2;
+    // Shown pairs only. In page mode every pair off the current page is `hidden`, and a
+    // hidden element measures zero at the origin — so a walk over all of them finds
+    // nothing that reaches the eye and falls out of the bottom of the loop.
+    var last = null;
     for (var n = 0; n < pairs.length; n++) {
+      if (pairs[n].hidden) continue;
+      last = pairs[n];
       if (pairs[n].getBoundingClientRect().bottom >= eye) return pairs[n];
     }
     // Nothing reaches the middle: the end of a chapter, where the last screenful is
-    // mostly the space under it.
-    return pairs[pairs.length - 1] || null;
+    // mostly the space under it — or a short page, whose last line stops above the
+    // halfway mark. The answer is the last line in front of the reader, and it has to be
+    // the last *shown* one: reaching past the page to the end of the text told
+    // `relayout` the reader was on the final page, and the font arriving turned every
+    // dialogue to its last page a moment after it opened.
+    return last;
   }
 
   // What the last change of layout was held by — the sentence, and the word in it where
@@ -3431,7 +3441,16 @@
     if (!paging || !paged()) return;
     var held = pages.length ? pairs[pages[current][0]] : null;
     var here = anchor();
-    if (here && here.pair) held = here.pair;
+    // A word the reader stood on, and nothing weaker. `anchor` otherwise falls back to
+    // whatever line the middle of the window lands on, which in page mode is a line they
+    // have not chosen — and holding that turns the page under them.
+    //
+    // It is the font arriving that makes this bite. The first layout is measured in the
+    // fallback's metrics, three lines fit; the real face lands, they grow, and the third
+    // line is now on page two — so a reader who had opened the text and touched nothing
+    // was moved to page two a moment later. In page mode the page is the place, and only
+    // a word the reader marked is a better answer than it.
+    if (here && here.word && here.pair && !here.pair.hidden) held = here.pair;
     paginate();
     showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
   }
@@ -4572,8 +4591,11 @@
   var node = document.getElementById("targum-data");
   if (!node) return;
   var speech;
+  var spokenOf = "";
   try {
-    speech = (JSON.parse(node.textContent) || {}).speech;
+    var loaded = JSON.parse(node.textContent) || {};
+    speech = loaded.speech;
+    spokenOf = loaded.document || location.pathname;
   } catch (e) {
     return;
   }
@@ -4775,7 +4797,12 @@
 
     /* Put away, and stays away. A reader who has met the player once does not need to be
        shown it every time they open a scene; the bar keeps its button for coming back. */
-    var STORE = "targum:player-closed";
+    // Per text, not per browser. It was one key for everything, on the reasoning that a
+    // reader who has met the player once need not meet it again — and the cost of that
+    // was closing it on one scene and finding every other scene silent, with a control
+    // that was simply not on the page and no way to know why. Put away means put away
+    // here.
+    var STORE = "targum:player-closed:" + spokenOf;
 
     /* The pages were laid out before this ran, with room kept for a player that may be
        put away — so whenever that changes, they are laid out again. */
