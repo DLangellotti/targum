@@ -79,6 +79,12 @@ echo "== index =="
 scp -q "$INDEX" "$HOST:$REMOTE/index.json.new"
 ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json' && rmdir '$REMOTE/.staging' 2>/dev/null || true"
 
+# Handed to the service. Everything above arrived as root, and the service — which
+# rebuilds every targum on the next deploy and writes a chapter when somebody reads —
+# could not touch what root had put there: the deploy after a shipped issue died on
+# `.annotation.json.tmp: Permission denied` inside the issue's own folder.
+ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+
 # The path a standalone build reads the issue from. The server works it out from its own
 # --out, but `targum build weekly:…` run for one person's shelf does not — it fell back
 # to the working directory and failed with a path that exists on no box. Appended only

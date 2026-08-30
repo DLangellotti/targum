@@ -275,6 +275,55 @@ def test_rebuild_finds_targums_inside_homes(tmp_path: Path) -> None:
     assert "Rewrote 1 targum" in result.output, result.output
 
 
+def test_rebuild_leaves_the_weekly_as_it_was_built(tmp_path: Path) -> None:
+    """An issue of the weekly is one long targum, built with `whole=True` and wired to
+    its sibling levels by `targum weekly build`. The generic rewrite turned it back into
+    a contents page and chapter files with no player — on the laptop, and then on the
+    box on every deploy. The weekly is built where it is written and carried; `rebuild`
+    does not touch it."""
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    for folder in (out / "p1" / "book-he", out / "weekly" / "weekly-2026-w35-bet-he"):
+        folder.mkdir(parents=True)
+        document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+        segmented = SegmentedDocument(
+            document_hash="h", language="he", segmenter="t/1", segments=[segment]
+        )
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language="he",
+            target_language="en",
+            provider="null",
+            segments={segment.id: "peace"},
+        )
+        document.write(folder / "document.json")
+        segmented.write(folder / "segments.json")
+        translation.write(folder / "translations" / "null.natural.en.json")
+        render(document, segmented, [translation], folder / "reader")
+
+    issue = out / "weekly" / "weekly-2026-w35-bet-he" / "reader" / "index.html"
+    issue.write_text("<!-- as the weekly build left it -->", encoding="utf-8")
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "Rewrote 1 targum" in result.output, result.output
+    assert issue.read_text(encoding="utf-8") == "<!-- as the weekly build left it -->"
+
+
 def test_clearing_the_cache_is_refused_on_a_hosted_box(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

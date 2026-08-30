@@ -1074,6 +1074,13 @@ def rebuild(
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
+        # The weekly is not rebuilt here. Its editions are one long targum each, built
+        # with `whole=True` and wired to their sibling levels by `targum weekly build`;
+        # the generic rewrite turned an issue back into a contents page and six chapter
+        # files with no player, on the laptop and then on the box. An issue is built
+        # where it is written and carried to the box as it is — see ship-weekly.sh.
+        if folder.parent.name == "weekly":
+            continue
         title, outcome = rebuild_one(
             folder,
             reads=reading_of(folder.parent.name),
