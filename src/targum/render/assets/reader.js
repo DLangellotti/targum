@@ -1335,6 +1335,21 @@
   var phrasesEmpty = document.getElementById("phrases-empty");
   var exportButton = document.getElementById("export-button");
   var tabs = document.querySelectorAll("[data-list]");
+
+  // The other half of the tablist contract: arrows move between the two tabs, and the
+  // move selects. Either arrow — there are two tabs, so "the other one" is unambiguous
+  // and the pair works the same on an RTL page.
+  Array.prototype.forEach.call(tabs, function (tab) {
+    tab.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      event.stopPropagation();
+      var other = tab.getAttribute("data-list") === "words" ? "phrases" : "words";
+      showTab(other);
+      var next = document.querySelector('[data-list="' + other + '"]');
+      if (next) next.focus();
+    });
+  });
   var wordsLabel = document.getElementById("list-count-label");
   var phrasesLabel = document.getElementById("phrase-count-label");
 
@@ -1634,9 +1649,21 @@
     item.className = openRow === entry.key ? "open" : "";
     if (entry.done) item.classList.add("done");
     // Tapping the row says "I want to say something about this", which is the same
-    // thing tapping the word in the text says.
+    // thing tapping the word in the text says. A keyboard can say it too: the row is
+    // a stop, and Enter or Space is the tap — a clickable thing with no key was the
+    // one pointer-only interaction left in the reader.
+    item.setAttribute("tabindex", "0");
+    item.setAttribute("role", "button");
+    item.setAttribute("aria-expanded", openRow === entry.key ? "true" : "false");
     item.addEventListener("click", function (event) {
       if (event.target.closest("button, input")) return;
+      openRow = openRow === entry.key ? null : entry.key;
+      renderList();
+    });
+    item.addEventListener("keydown", function (event) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== item) return;
+      event.preventDefault();
       openRow = openRow === entry.key ? null : entry.key;
       renderList();
     });
@@ -1732,6 +1759,9 @@
     Array.prototype.forEach.call(tabs, function (tab) {
       var selected = tab.getAttribute("data-list") === prefs.listTab;
       tab.setAttribute("aria-selected", selected ? "true" : "false");
+      // Roving: `role="tablist"` promises one Tab stop and arrow keys between the two,
+      // and for a while it delivered neither — the tabs were two ordinary stops.
+      tab.setAttribute("tabindex", selected ? "0" : "-1");
       tab.classList.toggle("on", selected);
     });
     if (listItems) listItems.hidden = onPhrases;

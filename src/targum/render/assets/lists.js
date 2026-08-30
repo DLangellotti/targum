@@ -236,9 +236,19 @@
       tr.appendChild(el("td", "when", word.at > EARLIEST ? shortDate(word.at) : "—"));
 
       // The same two questions the reader asks, asked here too: a list you can only
-      // look at is not where anyone wants to correct a definition.
+      // look at is not where anyone wants to correct a definition. Reachable by key
+      // as well as pointer: the row is a stop, Enter or Space is the tap.
+      tr.setAttribute("tabindex", "0");
+      tr.setAttribute("aria-expanded", openKey === word.lemma ? "true" : "false");
       tr.addEventListener("click", function (event) {
         if (event.target.closest("button, input")) return;
+        openKey = openKey === word.lemma ? null : word.lemma;
+        renderWords();
+      });
+      tr.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        if (event.target !== tr) return;
+        event.preventDefault();
         openKey = openKey === word.lemma ? null : word.lemma;
         renderWords();
       });
@@ -337,8 +347,17 @@
           if (phrase.note && phrase.meaning) line.title = "targum: " + phrase.meaning;
           item.appendChild(line);
         }
+        item.setAttribute("tabindex", "0");
+        item.setAttribute("aria-expanded", openKey === key ? "true" : "false");
         item.addEventListener("click", function (event) {
           if (event.target.closest("button, input")) return;
+          openKey = openKey === key ? null : key;
+          renderPhrases();
+        });
+        item.addEventListener("keydown", function (event) {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          if (event.target !== item) return;
+          event.preventDefault();
           openKey = openKey === key ? null : key;
           renderPhrases();
         });
