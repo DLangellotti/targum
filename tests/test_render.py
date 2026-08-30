@@ -3288,3 +3288,30 @@ def test_a_text_the_catalogue_never_heard_of_is_still_offered_one(
 
 def test_an_empty_catalogue_offers_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     assert suggestion(monkeypatch, "s:here", []) == ""
+
+
+def test_after_a_scene_comes_the_next_scene(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A numbered sequence has one order; the nearest harder text is not it."""
+    rows = catalogue_of(
+        ("scene-01-nice-to-meet-you", "dialogue:01-nice-to-meet-you", 5, "modern"),
+        ("scene-02-in-a-cafe", "dialogue:02-in-a-cafe", 0, "modern"),
+        ("scene-03-which-way", "dialogue:03-which-way", 2, "modern"),
+        ("news-a", "s:news", 6, "modern"),
+    )
+    assert suggestion(monkeypatch, "dialogue:01-nice-to-meet-you", rows) == "scene-02-in-a-cafe"
+    assert suggestion(monkeypatch, "dialogue:02-in-a-cafe", rows) == "scene-03-which-way"
+    from targum.render.builder import next_after
+
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    offered = next_after(
+        Document(source="dialogue:01-nice-to-meet-you", language="he", blocks=[], content_hash="h")
+    )
+    assert offered["scene"] == "Scene 2"
+
+
+def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = catalogue_of(
+        ("scene-03-which-way", "dialogue:03-which-way", 2, "modern"),
+        ("news-a", "s:news", 6, "modern"),
+    )
+    assert suggestion(monkeypatch, "dialogue:03-which-way", rows) == "news-a"

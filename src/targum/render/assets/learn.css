@@ -145,14 +145,20 @@ button.door:disabled {
    what marks this one is the accent hairline — §4 rations the hue to the single primary
    action in a view, and this is it. An inverted block was tried here and read as a hole
    punched in the page rather than as emphasis. */
-.carry {
+.door.primary {
   border-color: var(--accent);
 }
-/* The first sign-in offers two texts as one choice, and the second card carries the
-   same hairline as the first: two halves of one action, not an action and an aside. */
-.suggest.start {
-  border-color: var(--accent);
+/* Which Hebrew a door is: the label style, in ink, because it orients. */
+.card-track {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
 }
+.card-track[hidden] { display: none; }
 
 /* The line that makes it worth opening. Three lines at most: past that it stops being a
    reason and starts being the text itself. */

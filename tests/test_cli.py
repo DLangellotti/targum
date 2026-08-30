@@ -600,3 +600,21 @@ def test_rebuild_words_re_annotates_and_spends_nothing(tmp_path: Path) -> None:
     (folder / "annotation.json").write_text("{}", encoding="utf-8")
     rebuild_one(folder, reads=None, covers=out / "thumbs")
     assert (folder / "annotation.json").read_text(encoding="utf-8") == "{}"
+
+
+def test_seed_builds_ruth_the_news_piece_and_every_scene_in_order() -> None:
+    """A path with a gap in it is a row of build buttons a reader who knows no Hebrew
+    can press, so every scene is seeded, always, in scene order."""
+    from targum.catalogue import CATALOGUE, Kind
+    from targum.cli import SEED, seeds
+
+    planned = seeds()
+    assert planned[: len(SEED)] == list(SEED)
+    scenes = [e.id for e in CATALOGUE if e.kind is Kind.dialogue]
+    assert set(planned[len(SEED) :]) == set(scenes) and scenes, "every dialogue entry"
+    assert planned[len(SEED) :] == [
+        "scene-01-nice-to-meet-you",
+        "scene-02-in-a-cafe",
+        "scene-03-which-way",
+        "scene-18-two-coffees",
+    ]

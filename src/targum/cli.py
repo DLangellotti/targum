@@ -1112,6 +1112,24 @@ def rebuild(
 SEED = ("ruth", "sport-holon-basketball")
 
 
+def seeds() -> list[str]:
+    """Every id `targum seed` builds: the two above, then every scene in scene order.
+
+    The scenes are the modern reader's path — Learn opens a new account on Scene 1 and
+    offers the next after each finish — and a path with a gap in it is a row of build
+    buttons a reader who knows no Hebrew can press. So all of them, always: the list is
+    computed from the catalogue rather than written down, and a test pins that no
+    dialogue entry is left out.
+    """
+    from . import catalogue as catalogue_module
+
+    scenes = sorted(
+        (e for e in catalogue_module.CATALOGUE if e.kind is catalogue_module.Kind.dialogue),
+        key=lambda e: (catalogue_module.scene_number(e.id), e.id),
+    )
+    return [*SEED, *(e.id for e in scenes)]
+
+
 @app.command()
 def refs(
     out: Annotated[
@@ -1166,7 +1184,7 @@ def seed(
     root = out or Path.cwd() / "targum-out"
     shared = root / "shared"
     shared.mkdir(parents=True, exist_ok=True)
-    for entry_id in SEED:
+    for entry_id in seeds():
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
             fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))

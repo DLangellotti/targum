@@ -173,30 +173,100 @@
     line.textContent = text || "";
   }
 
-  function drawCarry(reader, start) {
+  /* --- the doors ---------------------------------------------------------------
+   *
+   * Two Hebrews, two doors. Readers of modern Hebrew and readers of the Bible are two
+   * cohorts with little crossover, each with its beginners, its false beginners and its
+   * advanced readers; so the page always shows both tracks, Modern on the left and
+   * Biblical on the right, each carrying its own next step. The track is the register,
+   * never a level: nobody is asked how good they are, and nothing is stored about which
+   * track they are "on". What tells a beginner from a false beginner is what they have
+   * marked, which the app already measures.
+   *
+   * A door's state is one word. Start here: nothing of this Hebrew opened yet, and the
+   * first of its sequence waits. Continue: the text last opened, unfinished. Up next:
+   * the last one is finished and the sequence has more. A step up: the sequence is done
+   * and the catalogue's nearest harder text is offered instead.
+   */
+  var TRACKS = { modern: "Modern Hebrew", biblical: "Biblical Hebrew" };
+  var STATES = { start: "Start here", carry: "Continue", next: "Up next", up: "A step up" };
+
+  var scenes = window.TargumScenes || null;
+
+  function sceneOf(reader) {
+    return scenes && reader ? scenes.numberOf(reader.entry) : 0;
+  }
+
+  // The facts under a title: which scene of how many, how much is left, how long it
+  // is, whether it can be heard. Never "ready" — build vocabulary — and never a share
+  // of zero.
+  function facts(reader, door) {
+    var out = [];
+    var number = sceneOf(reader);
+    if (number) {
+      out.push("Scene " + number + (door.total ? " of " + door.total : ""));
+      if (door.state === "carry" && typeof reader.fresh === "number" && reader.fresh > 0) {
+        out.push(reader.fresh + (reader.fresh === 1 ? " word left" : " words left"));
+      } else if (reader.words) {
+        out.push(reader.words + " words");
+      }
+    } else if (reader.chapters && reader.chapters.length > 1) {
+      // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
+      // the fraction is a fraction of.
+      out.push(
+        reader.readyChapters === reader.chapters.length
+          ? reader.chapters.length + " chapters"
+          : reader.readyChapters + " of " + reader.chapters.length + " translated"
+      );
+    } else if (reader.sections > 1) {
+      out.push(reader.sections + " parts");
+    } else if (reader.minutes && door.state !== "carry") {
+      out.push(reader.minutes + " min");
+    }
+    if (reader.spoken) out.push("audio");
+    if (door.state === "carry" && !number) {
+      out.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
+    }
+    return out.join(" · ");
+  }
+
+  // The label above a door's heading, naming the track; none for a language with one.
+  function trackLabel(id, register) {
+    var label = document.getElementById(id);
+    if (!label) return;
+    var name = register ? TRACKS[register] || "" : "";
+    label.hidden = !name;
+    label.textContent = name;
+  }
+
+  function drawCarry(reader, door) {
     var panel = document.getElementById("carry");
     if (!reader) {
       panel.hidden = true;
       return;
     }
+    door = door || { state: "carry" };
     panel.hidden = false;
     var heading = document.getElementById("carry-heading");
-    if (heading) {
-      // A choice, said as one: the first sign-in offers a biblical text and a modern
-      // one side by side, at the same weight, and the headings are what say which.
-      heading.textContent = !start
-        ? "Continue Reading"
-        : reader.register === "biblical"
-          ? "Start with the Bible"
-          : "Start here";
+    if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue";
+    trackLabel("carry-track", door.register);
+    panel.classList.toggle("primary", !!door.primary);
+    // The box is the link, so this is the only href on it. A step up past the sequence
+    // is a text not yet built, and this door is a link rather than a button: it goes to
+    // the library row, which is where building is pressed for.
+    if (door.href) {
+      // The key rides in the query, and a query belongs before the fragment.
+      var parts = door.href.split("#");
+      panel.href = keyed(parts[0]) + (parts[1] ? "#" + parts[1] : "");
+    } else {
+      panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
     }
-    // The box is the link, so this is the only href on it.
-    panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+    panel.setAttribute("data-entry", reader.entry || reader.id || "");
 
     var cover = document.getElementById("carry-cover");
     cover.textContent = "";
     cover.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.id || reader.name)), {
         title: reader.title,
         language: reader.language,
         drawn: reader.drawn,
@@ -208,20 +278,7 @@
     title.setAttribute("lang", reader.language);
     english("carry-english", reader.english);
 
-    var facts = [];
-    if (reader.chapters && reader.chapters.length > 1) {
-      // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
-      // the fraction is a fraction of.
-      facts.push(
-        reader.readyChapters === reader.chapters.length
-          ? reader.chapters.length + " chapters"
-          : reader.readyChapters + " of " + reader.chapters.length + " translated"
-      );
-    } else if (reader.sections > 1) {
-      facts.push(reader.sections + " parts");
-    }
-    facts.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
-    document.getElementById("carry-meta").textContent = facts.join(" · ");
+    document.getElementById("carry-meta").textContent = door.meta !== undefined ? door.meta : facts(reader, door);
 
     var known = document.getElementById("carry-known");
     var said = share(reader);
@@ -355,21 +412,20 @@
   var offer = document.getElementById("suggest");
   if (offer) offer.addEventListener("click", take);
 
-  // Beside "Start here", the other way in. Ruth is the start; a reader an open Tanakh
-  // would put off — most people arriving somewhere around aleph plus — is offered
-  // something modern in the same breath, already built, one press to open.
-  function suggestShared(reader) {
+  // A built text on the right-hand door — the Biblical track's next step, or for a
+  // language with no tracks the second shared text — already built, one press to open.
+  function suggestShared(reader, door) {
     var card = document.getElementById("suggest");
     if (!card) return;
+    door = door || { state: "start" };
     offered = null;
     offeredShared = reader;
     card.hidden = false;
     card.disabled = false;
-    // The same weight as the card beside it: this is the other half of one choice,
-    // not a suggestion under it.
-    card.classList.add("start");
+    card.classList.toggle("primary", !!door.primary);
     var heading = document.getElementById("suggest-heading");
-    if (heading) heading.textContent = "Or with something modern";
+    if (heading) heading.textContent = door.heading || STATES[door.state] || "Start here";
+    trackLabel("suggest-track", door.register);
     card.setAttribute("data-entry", reader.entry || reader.name);
     var cover = document.getElementById("suggest-cover");
     cover.textContent = "";
@@ -384,26 +440,16 @@
     title.textContent = reader.title;
     title.setAttribute("lang", reader.language);
     english("suggest-english", reader.english);
-    var facts = [];
-    if (reader.kind === "article") facts.push("Israeli news");
-    else if (reader.kind) facts.push(reader.kind);
-    if (reader.minutes) facts.push(reader.minutes + " min");
-    facts.push("ready to read");
-    document.getElementById("suggest-why").textContent = facts.join(" · ");
+    document.getElementById("suggest-why").textContent = facts(reader, door);
     document.getElementById("suggest-blurb").textContent = "";
   }
 
-  function suggest(code, readers) {
-    // Never over a build in progress: the shelf redraws for its own reasons, and this
-    // would put the reason for the suggestion back over the line narrating it.
-    if (building) return;
-    var card = document.getElementById("suggest");
-    if (!card) return;
-    offeredShared = null;
-    card.classList.remove("start");
-    var suggestHeading = document.getElementById("suggest-heading");
-    if (suggestHeading) suggestHeading.textContent = "Suggested";
-
+  /* The nearest harder text in the catalogue, for one register or for all of them.
+     "Level" is the difficulty of the hardest thing built in that Hebrew — a fact about
+     the texts rather than a guess about the person — and the pick is the easiest thing
+     harder than it. Nothing built counts as level nought, and the pick is then where
+     most people start. */
+  function stepUp(code, readers, register) {
     var built = {};
     readers.forEach(function (reader) {
       if (reader.entry) built[reader.entry] = true;
@@ -414,22 +460,23 @@
         // missing one: a twenty-word beginner scene has no uncommon word in it, and
         // reading it as "not measured" dropped the seven easiest texts in the library
         // out of the one list a beginner is shown.
-        return base(entry.language) === code && !built[entry.id] && entry.difficulty >= 0;
+        return (
+          base(entry.language) === code &&
+          !built[entry.id] &&
+          entry.difficulty >= 0 &&
+          (!register || entry.register === register)
+        );
       })
       .sort(function (a, b) {
         return a.difficulty - b.difficulty;
       });
-    if (!open.length) {
-      offered = null;
-      card.hidden = true;
-      return;
-    }
-
+    if (!open.length) return null;
     var level = 0;
     readers.forEach(function (reader) {
-      if (base(reader.language) === code && reader.difficulty > level) level = reader.difficulty;
+      if (base(reader.language) !== code) return;
+      if (register && reader.register !== register) return;
+      if (reader.difficulty > level) level = reader.difficulty;
     });
-
     var pick = null;
     var why = "";
     if (!level) {
@@ -441,6 +488,37 @@
       });
       why = pick ? "A step up from what you have read" : "About where you are reading";
       if (!pick) pick = open[open.length - 1];
+    }
+    return { pick: pick, why: why, level: level };
+  }
+
+  function suggest(code, readers, door) {
+    // Never over a build in progress: the shelf redraws for its own reasons, and this
+    // would put the reason for the suggestion back over the line narrating it.
+    if (building) return;
+    var card = document.getElementById("suggest");
+    if (!card) return;
+    door = door || {};
+    offeredShared = null;
+    card.classList.toggle("primary", !!door.primary);
+    trackLabel("suggest-track", door.register);
+
+    var found = stepUp(code, readers, door.register || "");
+    if (!found) {
+      offered = null;
+      card.hidden = true;
+      return;
+    }
+    var pick = found.pick;
+    var suggestHeading = document.getElementById("suggest-heading");
+    if (suggestHeading) {
+      // On a track: "Start here" while nothing of that Hebrew has been built, "A step
+      // up" after. Off a track it is the suggestion it always was.
+      suggestHeading.textContent = door.register
+        ? found.level
+          ? STATES.up
+          : STATES.start
+        : "Suggested";
     }
 
     card.hidden = false;
@@ -468,21 +546,94 @@
     title.setAttribute("lang", pick.language);
     english("suggest-english", pick.english);
     document.getElementById("suggest-why").textContent =
-      pick.minutes ? why + " · " + pick.minutes + " min" : why;
+      pick.minutes ? found.why + " · " + pick.minutes + " min" : found.why;
     document.getElementById("suggest-blurb").textContent = pick.blurb || "";
+  }
+
+  /* One track's door: which text, in which state, with the accent if this is the Hebrew
+     the reader opened most recently. `readers` are their own, `shared` the seeded ones.
+     The fixed sequence is the numbered scenes for modern Hebrew and the shared Biblical
+     texts (Ruth) for the other; a box with no scenes seeded falls back to whatever
+     shared modern text it has. */
+  function trackDoor(code, register, readers, shared) {
+    var docs = stored("targum:docs");
+    function ofHere(list) {
+      return list.filter(function (reader) {
+        return base(reader.language) === code && reader.register === register;
+      });
+    }
+    function done(reader) {
+      return !!(scenes && scenes.finished(reader, docs));
+    }
+    var own = ofHere(readers);
+    var pool = ofHere(shared);
+    var numbered = pool.filter(function (reader) {
+      return sceneOf(reader) > 0;
+    });
+    var sequence = pool;
+    if (register === "modern" && numbered.length && scenes) {
+      sequence = scenes
+        .ordered(
+          numbered.map(function (reader) {
+            return { id: reader.entry, reader: reader };
+          })
+        )
+        .map(function (item) {
+          return item.reader;
+        });
+    }
+    // The text last opened: any of the reader's own, or a shared one they have opened.
+    // An upload never opened is still theirs, and newest of those wins over a sequence
+    // they have not started.
+    var last = null;
+    own.concat(
+      pool.filter(function (reader) {
+        return reader.opened > 0;
+      })
+    ).forEach(function (reader) {
+      if (!last || reader.opened > last.opened || (reader.opened === last.opened && reader.built > last.built)) {
+        last = reader;
+      }
+    });
+    var next = null;
+    for (var i = 0; i < sequence.length; i++) {
+      if (!done(sequence[i])) {
+        next = sequence[i];
+        break;
+      }
+    }
+    var anyDone = own.concat(pool).some(done);
+    var door = {
+      register: register,
+      total: numbered.length,
+      opened: last ? last.opened : 0,
+      reader: null,
+      state: "up",
+    };
+    if (last && !done(last)) {
+      door.state = "carry";
+      door.reader = last;
+    } else if (next) {
+      // Finished on another device, where `opened` never synced: any finish at all
+      // means this is not a start.
+      door.state = last || anyDone ? "next" : "start";
+      door.reader = next;
+    }
+    return door;
   }
 
   /* --- what you know --------------------------------------------------------- */
 
-  // Whether the page is offering the first choice — two texts, both ready — and so
-  // whether the line above the doors should say so rather than count.
+  // Whether both doors are at Start here — the first sign-in, one Hebrew or the other
+  // still to be chosen — and so whether the line above them should say so rather than
+  // count.
   var choosing = false;
 
   function drawKnown(code, store) {
     var line = document.getElementById("known-line");
     var known = charts.known(store && store.words);
     if (choosing && !known) {
-      line.textContent = "Two ways in, both ready. Tap one to start reading.";
+      line.textContent = "Modern or Biblical. Start with one.";
       document.getElementById("step-progress").textContent = "Words known, days reading.";
       return;
     }
@@ -510,7 +661,7 @@
       var readers = (data && data.readers) || [];
       var shared = (data && data.shared) || [];
       var trash = (data && data.trash) || [];
-      readers.forEach(function (reader) {
+      readers.concat(shared).forEach(function (reader) {
         reader.opened = opened[reader.document] || 0;
       });
       // What you had open last, then what was built most recently.
@@ -546,36 +697,75 @@
         var mine = readers.filter(function (reader) {
           return base(reader.language) === code;
         });
-        // Nothing of your own in this language: the shared text is where to start —
-        // already built, so there is nothing to choose and nothing to wait for. The
-        // first alpha reader signed in and had "no idea where to start"; this is the
-        // answer, in the place the answer goes.
-        var handed = mine.length
-          ? []
-          : shared.filter(function (reader) {
-              return base(reader.language) === code;
-            });
-        // The biblical text is the start and the modern one the alternative, whatever
-        // order they were built in.
-        handed.sort(function (a, b) {
-          return (b.register === "biblical" ? 1 : 0) - (a.register === "biblical" ? 1 : 0);
+        var handed = shared.filter(function (reader) {
+          return base(reader.language) === code;
         });
-        var start = handed[0] || null;
-        choosing = handed.length > 1;
-        drawCarry(mine[0] || start, !!start);
+        var inDoors = [];
+        if (code === lang.HOME) {
+          // Hebrew: two tracks, two doors, each its own next step. The accent goes to
+          // the track opened most recently; on a first sign-in, where the choice is
+          // genuinely two-way, to neither.
+          var modern = trackDoor(code, "modern", readers, shared);
+          var biblical = trackDoor(code, "biblical", readers, shared);
+          if (modern.opened || biblical.opened) {
+            (modern.opened >= biblical.opened ? modern : biblical).primary = true;
+          }
+          choosing = modern.state === "start" && biblical.state === "start";
+          if (modern.reader) {
+            drawCarry(modern.reader, modern);
+            inDoors.push(modern.reader);
+          } else {
+            // Past the scenes: the catalogue's next step, as a link to its library row.
+            var up = stepUp(code, readers.concat(shared), "modern");
+            if (up) {
+              drawCarry(
+                {
+                  id: up.pick.id,
+                  entry: up.pick.id,
+                  title: up.pick.title,
+                  english: up.pick.english,
+                  language: up.pick.language,
+                  minutes: up.pick.minutes,
+                },
+                {
+                  state: up.level ? "up" : "start",
+                  register: "modern",
+                  primary: modern.primary,
+                  href: "/library#" + encodeURIComponent(up.pick.id),
+                  meta: up.pick.minutes ? up.why + " · " + up.pick.minutes + " min" : up.why,
+                }
+              );
+            } else {
+              drawCarry(null);
+            }
+          }
+          if (biblical.reader) {
+            suggestShared(biblical.reader, biblical);
+            inDoors.push(biblical.reader);
+          } else {
+            suggest(code, readers.concat(shared), biblical);
+          }
+        } else {
+          // One track: carry on with your own, or start on what was handed to you, and
+          // the catalogue's suggestion beside it.
+          choosing = false;
+          var start = !mine.length && handed.length ? handed[0] : null;
+          var carrying = mine[0] || start;
+          drawCarry(carrying, { state: start ? "start" : "carry", primary: !!carrying });
+          if (carrying) inDoors.push(carrying);
+          if (!mine.length && handed.length > 1) suggestShared(handed[1], { state: "start" });
+          else suggest(code, readers.concat(shared), {});
+        }
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
         shelf.draw(
           code,
           readers.filter(function (reader) {
-            return reader !== mine[0];
+            return inDoors.indexOf(reader) < 0;
           }),
           { limit: SHELF, note: "Last read first." }
         );
         shelf.trash(code, trash);
-        // The second shared text, where there is one, is the alternative to the start.
-        if (handed.length > 1) suggestShared(handed[1]);
-        else suggest(code, readers);
         // Meanings in the language this reader last read this one into. A word means
         // something different in each, and a table that mixed them would be handing out
         // definitions in a language nobody asked for.

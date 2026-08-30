@@ -240,9 +240,17 @@
   // One row per text, from two places. A catalogue entry the reader has already built
   // is one row and not two: the catalogue is where it came from, the shelf is where it
   // is now, and the row says both.
-  function rows(readers) {
+  function rows(readers, shared) {
     var mine = {};
     var out = [];
+    // The shared texts first, then the reader's own over them: a text on both is one
+    // row, and it is theirs. A shared row opens like any built text and offers nothing
+    // else — nothing on it can be bought, drawn or trashed, which `within()` on the
+    // server already refuses. Before this the page read only the reader's own, so a
+    // seeded scene showed as an unbuilt button and pressing it built a personal copy.
+    (shared || []).forEach(function (reader) {
+      if (reader.entry) mine[reader.entry] = reader;
+    });
     readers.forEach(function (reader) {
       if (reader.entry) mine[reader.entry] = reader;
     });
@@ -335,8 +343,20 @@
     var what = el("span", "what");
     var title = el("span", "row-title");
     title.setAttribute("lang", row.language);
+    // A scene says which it is, outside the Hebrew's own direction, before the title.
+    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
+    if (number) title.appendChild(el("span", "row-scene", "Scene " + number));
     var bdi = el("bdi", null, row.title);
     title.appendChild(bdi);
+    // The one row to open next: the first scene not yet finished. "Start here" until
+    // something has been, "Next" after. Ink, not accent — `.pointed` already spends the
+    // page's accent on the row somebody was sent to — and a status, so what is read out
+    // is what is seen.
+    if (nextRow && row.id === nextRow.entry) {
+      var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
+      chip.setAttribute("role", "status");
+      title.appendChild(chip);
+    }
     what.appendChild(title);
     // The English under the Hebrew, in ink, with the byline after it: for a reader who
     // cannot yet read the line above, this is the title. Its own element, so the two
@@ -375,18 +395,25 @@
     hard.className = "gauge drop";
     open.appendChild(hard);
 
-    /* Where a build narrates itself. It used to say Public or Private, which the two
+    /* Where a build narrates itself — and, on a text this reader has finished, the one
+       word that says so, in leaf: a real state, not a score, and the only leaf on the
+       page. It used to say Public or Private, which the two
        tabs say once at the top now — but it is also what `build()` writes into, and a
        row with nothing to write into threw the moment anybody pressed one. Empty until
        there is something to say, and its column collapses to nothing while it is. */
-    open.appendChild(el("span", "row-state"));
+    var state = el("span", "row-state");
+    if (row.built && finishedDocs[row.built.document] && finishedDocs[row.built.document].done) {
+      state.className = "row-state finished";
+      state.textContent = "finished";
+    }
+    open.appendChild(state);
 
     item.appendChild(open);
 
     // Only where there is something to draw: a text on the shelf, from the library's own
     // catalogue — a cover is drawn from what the catalogue says a text is — and with no
     // cover yet. And only where this deployment has a key to draw with.
-    if (canDraw && row.built && row.entry && !row.drawn) {
+    if (canDraw && row.built && !row.built.shared && row.entry && !row.drawn) {
       var draw = el("button", "draw", "Draw cover");
       draw.type = "button";
       draw.setAttribute("data-draw", row.built.name);
@@ -433,6 +460,11 @@
   // Whether the server can draw at all, answered by the server. A deployment with no
   // image key offers nothing rather than offering and failing.
   var canDraw = false;
+  // The reader's own finishes, by content hash, and the scene to open next — set once
+  // the server has said what is shared.
+  var finishedDocs = stored("targum:docs");
+  var nextRow = null;
+  var anyFinished = false;
 
   // Whether this browser has ever drawn the page. A remembered view means the reader has
   // made choices here before, and those win over anything the page would choose for
@@ -741,13 +773,20 @@
 
   ask("/readers").then(function (data) {
     var readers = data.readers || [];
+    var shared = data.shared || [];
     canDraw = !!data.covers;
     var opened = stored("targum:opened");
-    readers.forEach(function (reader) {
+    readers.concat(shared).forEach(function (reader) {
       reader.opened = opened[reader.document] || 0;
     });
+    if (window.TargumScenes) {
+      nextRow = window.TargumScenes.next(shared, finishedDocs);
+      anyFinished = shared.some(function (reader) {
+        return window.TargumScenes.numberOf(reader.entry) > 0 && window.TargumScenes.finished(reader, finishedDocs);
+      });
+    }
 
-    var everything = rows(readers);
+    var everything = rows(readers, shared);
     var host = document.getElementById("catalogue");
     var empty = document.getElementById("picked-empty");
     var tally = document.getElementById("tally");

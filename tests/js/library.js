@@ -51,7 +51,10 @@ const byId = install({
 if (payload.hash) global.location.hash = payload.hash;
 
 global.fetch = () =>
-  Promise.resolve({ json: () => Promise.resolve({ readers: payload.readers || [], covers: !!payload.covers }) });
+  Promise.resolve({
+    json: () =>
+      Promise.resolve({ readers: payload.readers || [], shared: payload.shared || [], covers: !!payload.covers }),
+  });
 
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "scenes.js"));
@@ -65,9 +68,13 @@ setTimeout(() => {
   const read = (row) => {
     const open = row.children[0];
     return {
-      title: open.children[1].children[0].textContent,
+      // The title cell holds a scene label and a chip beside the Hebrew; the bdi is it.
+      title: (open.children[1].children[0].children.find((c) => c.tagName === "bdi") || open.children[1].children[0]).textContent,
       fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
       english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
+      scene: (open.children[1].children[0].children.find((c) => c.className === "row-scene") || {}).textContent || "",
+      chip: (open.children[1].children[0].children.find((c) => c.className === "row-next") || {}).textContent || "",
+      state: open.children[open.children.length - 1].textContent,
       cells: open.children.slice(2).map((cell) => cell.textContent.trim()),
       draws: row.children.length > 1 ? row.children[1].textContent : "",
       opens: open.tagName,

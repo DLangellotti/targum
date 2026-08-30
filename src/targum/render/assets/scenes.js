@@ -32,5 +32,29 @@
     });
   }
 
-  window.TargumScenes = { numberOf: numberOf, ordered: ordered };
+  /* The first scene not yet finished, among the shared readers the server handed the
+     page — the row the library chips and the door Learn opens. `docs` is the reader's
+     own `targum:docs`, keyed by content hash, where a finish is written (and synced).
+     Nothing when no scene is seeded, or every one is finished. */
+  function next(shared, docs) {
+    var scenes = ordered(
+      (shared || []).filter(function (reader) {
+        return numberOf(reader.entry) > 0;
+      }).map(function (reader) {
+        return { id: reader.entry, reader: reader };
+      })
+    );
+    for (var i = 0; i < scenes.length; i++) {
+      var record = docs && docs[scenes[i].reader.document];
+      if (!(record && record.done)) return scenes[i].reader;
+    }
+    return null;
+  }
+
+  function finished(reader, docs) {
+    var record = reader && docs && docs[reader.document];
+    return !!(record && record.done);
+  }
+
+  window.TargumScenes = { numberOf: numberOf, ordered: ordered, next: next, finished: finished };
 })();

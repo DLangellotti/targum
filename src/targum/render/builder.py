@@ -465,9 +465,25 @@ def next_after(document: Document) -> dict[str, str]:
     because somebody who has just finished a dialogue is not looking for Psalms — and the
     shorter of two at the same difficulty, because the step should be one thing at a time.
     """
-    from ..catalogue import CATALOGUE
+    from ..catalogue import CATALOGUE, scene_number
 
     mine = next((entry for entry in CATALOGUE if entry.source == document.source), None)
+    # A scene is one of a numbered sequence, and after scene 3 comes scene 4 — not the
+    # nearest harder text, whose measured share is noise at twenty words. Past the last
+    # scene the step-up below takes over.
+    if mine is not None and scene_number(mine.id):
+        following = next(
+            (e for e in CATALOGUE if scene_number(e.id) == scene_number(mine.id) + 1), None
+        )
+        if following is not None:
+            return {
+                "id": following.id,
+                "title": following.title,
+                "english": following.english,
+                "blurb": following.blurb,
+                "minutes": str(following.minutes),
+                "scene": f"Scene {scene_number(following.id)}",
+            }
     here = mine.difficulty if mine else 0
     rest = [
         entry
@@ -491,8 +507,10 @@ def next_after(document: Document) -> dict[str, str]:
     return {
         "id": pick.id,
         "title": pick.title,
+        "english": pick.english,
         "blurb": pick.blurb,
         "minutes": str(pick.minutes),
+        "scene": "",
     }
 
 

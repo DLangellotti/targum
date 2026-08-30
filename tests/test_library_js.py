@@ -456,3 +456,58 @@ def test_sorting_by_title_sorts_by_the_english_where_there_is_one(tmp_path: Path
     drawn = draw(tmp_path, view={"sort": "title", "dir": 1})
     english = [row["english"].split(" · ")[0] for row in drawn["rows"]]
     assert english == sorted(english, key=str.lower)
+
+
+# --- the scenes as a path, in the list ----------------------------------------------
+
+
+def seeded(entry_id: str, title: str, **extra: Any) -> dict[str, Any]:
+    row = shelf(entry_id, title + "-he", shared=True, document=entry_id + "-h", **extra)
+    row["title"] = title
+    return row
+
+
+SCENES = [
+    seeded("scene-01-nice-to-meet-you", "נעים מאוד", kind="dialogue", difficulty=5),
+    seeded("scene-02-in-a-cafe", "בבית קפה", kind="dialogue", difficulty=0),
+    seeded("scene-03-which-way", "איפה הרחוב", kind="dialogue", difficulty=2),
+    seeded("scene-18-two-coffees", "שני קפה", kind="dialogue", difficulty=0),
+]
+
+
+def test_a_shared_text_opens_and_offers_nothing_else(tmp_path: Path) -> None:
+    """Seeded rows used to be invisible to this page, so a scene showed as an unbuilt
+    button and pressing it built a personal copy. Now it opens, and nothing on it can be
+    drawn, bought or trashed."""
+    drawn = draw(tmp_path, shared=SCENES, covers=True, view={"kind": "dialogue"})
+    rows = {row["title"]: row for row in drawn["rows"]}
+    assert rows["נעים מאוד"]["opens"] == "a"
+    assert rows["נעים מאוד"]["draws"] == "", "no cover drawn for what is not theirs"
+    assert rows["נעים מאוד"]["scene"] == "Scene 1"
+    assert [row["scene"] for row in drawn["rows"]] == ["Scene 1", "Scene 2", "Scene 3", "Scene 18"]
+
+
+def test_the_next_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
+    drawn = draw(tmp_path, shared=SCENES, view={"kind": "dialogue"})
+    assert [row["chip"] for row in drawn["rows"]] == ["Start here", "", "", ""]
+
+    done = {"targum:docs": json.dumps({"scene-01-nice-to-meet-you-h": {"done": 9}})}
+    later = draw(tmp_path, shared=SCENES, view={"kind": "dialogue"}, stored=done)
+    assert [row["chip"] for row in later["rows"]] == ["", "Next", "", ""]
+    assert [row["state"] for row in later["rows"]] == ["finished", "", "", ""]
+
+
+def test_a_finished_text_says_so_in_its_state_column(tmp_path: Path) -> None:
+    done = {"targum:docs": json.dumps({"h": {"done": 9}})}
+    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר")], stored=done)
+    rows = {row["title"]: row for row in drawn["rows"]}
+    assert rows["אסתר"]["state"] == "finished"
+    assert rows["רות"]["state"] == ""
+
+
+def test_your_own_copy_wins_over_the_shared_one(tmp_path: Path) -> None:
+    own = shelf("scene-01-nice-to-meet-you", "mine-he", known=0.5)
+    drawn = draw(tmp_path, readers=[own], shared=SCENES, view={"kind": "dialogue"}, covers=True)
+    first = drawn["rows"][0]
+    assert first["fit"] == "you know 50% of its words"
+    assert first["draws"] == "Draw cover", "theirs, so a cover can be drawn"

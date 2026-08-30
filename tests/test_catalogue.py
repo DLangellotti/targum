@@ -40,3 +40,12 @@ def test_the_live_catalogue_has_an_english_title_for_every_entry() -> None:
     entries = loaded["entries"] if isinstance(loaded, dict) else loaded
     missing = [e["id"] for e in entries if not str(e.get("english", "")).strip()]
     assert not missing, f"{len(missing)} entries without an English title: {missing[:8]}"
+
+
+def test_a_scene_knows_its_number_and_nothing_else_has_one() -> None:
+    from targum.catalogue import scene_number
+
+    assert scene_number("scene-01-nice-to-meet-you") == 1
+    assert scene_number("scene-100-the-same-spot") == 100
+    assert scene_number("ruth") == 0
+    assert scene_number("") == 0

@@ -51,7 +51,11 @@
 
   <div class="doors">
     <a class="door carry" id="carry" href="/" hidden>
-      <h2 id="carry-heading">Continue Reading</h2>
+      {#- Which Hebrew this door is, above what state it is in. Two tracks with little
+          crossover between their readers: the label is what lets each reader find
+          theirs at a glance. Hidden for a language with one track. -#}
+      <span class="card-track" id="carry-track" hidden></span>
+      <h2 id="carry-heading">Continue</h2>
       <div class="card-body">
         {#- The same cover the shelf and the library show, at the one size on this page
             worth giving it. Aria-hidden: the title beside it says the same thing. -#}
@@ -75,6 +79,7 @@
         somewhere: pressing it builds the text and lands you in it, which is what
         Continue Reading beside it does for a text already built. -#}
     <button type="button" class="door suggest" id="suggest" hidden>
+      <span class="card-track" id="suggest-track" hidden></span>
       <h2 id="suggest-heading">Suggested</h2>
       <div class="card-body">
         <span class="card-cover" id="suggest-cover" aria-hidden="true"></span>
@@ -222,6 +227,7 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
+<script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 </body>
 </html>

@@ -100,6 +100,7 @@ global.window.TargumCharts.tiles = () => {};
 require(path.join(assets, "lists.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
+require(path.join(assets, "scenes.js"));
 require(path.join(assets, "learn.js"));
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -167,6 +168,8 @@ setTimeout(() => {
             why: at("suggest-why").textContent,
             blurb: at("suggest-blurb").textContent,
             english: at("suggest-english").hidden ? "" : at("suggest-english").textContent,
+            track: at("suggest-track").hidden ? "" : at("suggest-track").textContent,
+            primary: at("suggest").classList.contains("primary"),
             cover: tile(at("suggest-cover")),
             // A button has no href. What it is offering is on the card itself.
             entry: at("suggest").getAttribute("data-entry"),
@@ -204,6 +207,10 @@ setTimeout(() => {
         title: at("carry-title").textContent,
         hidden: at("carry").hidden,
         heading: at("carry-heading").textContent,
+        track: at("carry-track").hidden ? "" : at("carry-track").textContent,
+        meta: at("carry-meta").textContent,
+        primary: at("carry").classList.contains("primary"),
+        entry: at("carry").getAttribute("data-entry") || "",
         cover: tile(carry),
         // The box is the link now, so this is where the href is.
         href: at("carry").href || "",

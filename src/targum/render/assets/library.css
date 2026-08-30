@@ -223,6 +223,40 @@
   white-space: nowrap;
 }
 .row-by-after { color: var(--ink-soft); }
+/* Which scene, before the title, in the label style but ink: it orients. Outside the
+   Hebrew's bdi, so the number never rides the title's direction. */
+.row-scene {
+  margin-inline-end: 0.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  vertical-align: 0.15em;
+}
+/* The row to open next. A hairline pill, never filled — filled ink is selection (§8) —
+   and its border mixed from the closed palette. */
+.row-next {
+  display: inline-block;
+  margin-inline-start: 0.6rem;
+  padding: 0 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--ink) 55%, var(--paper));
+  border-radius: 999px;
+  background: var(--paper);
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--ink);
+  vertical-align: 0.2em;
+  white-space: nowrap;
+}
+/* A text this reader has finished: the one word, in leaf, in the label style. */
+.row-state.finished {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--leaf);
+}
 .row-by {
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -278,6 +312,13 @@
   .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 4rem 5rem; }
   .rows-head .drop,
   .rows .drop { display: none; }
+  /* The title cell carries more on a phone: the chip goes to a line of its own under
+     the Hebrew, which never breaks mid-word, and the byline and audio badge drop. */
+  .rows .row-title { white-space: normal; overflow-wrap: normal; }
+  .rows .row-title bdi { white-space: nowrap; }
+  .rows .row-next { display: block; inline-size: max-content; margin: 0.15rem 0 0; }
+  .rows .row-by-after,
+  .rows .row-audio { display: none; }
 }
 
 /* --- the shelf, as a table ------------------------------------------------- */

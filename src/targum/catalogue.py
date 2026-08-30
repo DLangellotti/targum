@@ -470,6 +470,20 @@ def _key(source: str) -> str:
     return source.strip().lower().replace("_", " ").rstrip("/")
 
 
+#: The numbered scenes: a hundred short dialogues whose ids are `scene-NN-slug`, and the
+#: number is the order somebody with no Hebrew reads them in. Parsed from the id rather
+#: than stored beside it — the id is the one key every page already has, and a second
+#: copy of the number would be a second thing to drift. `render/assets/scenes.js` is the
+#: same rule in the browser.
+SCENE = re.compile(r"^scene-(\d+)-")
+
+
+def scene_number(entry_id: str) -> int:
+    """Which scene an entry is, or 0 for anything that is not one."""
+    found = SCENE.match(entry_id or "")
+    return int(found.group(1)) if found else 0
+
+
 def matching(source: str) -> Entry | None:
     """The catalogue entry a source is already, if it is one.
 
