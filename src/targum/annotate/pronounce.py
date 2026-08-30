@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 
-from ..vocalize.base import LETTERS, has_nikkud
+from ..vocalize.base import LETTERS, TAAMIM, has_nikkud, has_taamim, strip_taamim
 
 LOG = logging.getLogger(__name__)
 
@@ -34,6 +34,64 @@ LANGUAGES = frozenset({"he"})
 # be read as a word boundary, and a pipe reaching `splice` would change the consonant
 # skeleton and lose the sentence. Removed on the way in, where it costs nothing.
 PREFIX_MARK = "|"
+
+# phonikud's own mark for the stressed syllable, U+05AB. Fed a word carrying one it says
+# where the stress is; fed a word without one it puts the stress on the last syllable and
+# is right about two words in three, which is what "mil'el is not audible in the spelling"
+# actually costs. מֶלֶךְ and מָלַךְ come back identically stressed without it.
+HATAMA = "֫"
+
+# U+05BD, which the vocalizer keeps because it is meteg and silluq at once and deleting it
+# would lose the mark that separates a qamats gadol from a qamats qatan. Neither reading of
+# it is a sound, and phonikud says otherwise: fed בָּאָֽרֶץ it answers `baʔaeʁˈets`, with an
+# `e` that is nobody's vowel. It comes off here, on the way to the phonemizer only, where
+# the text the reader sees is not what is being changed. What that costs is the stress on a
+# verse-final word — silluq marks it, and no rule can tell silluq from meteg — so those
+# words take the default like every unaccented one.
+METEG = "ֽ"
+
+# A Masoretic accent sits on the stressed syllable — that is what it is for, before it is
+# a tune — so a pointed Tanakh has already answered the question phonikud has to guess at.
+# These are the accents that sit somewhere else: prepositive ones on the first letter of
+# the word, postpositive ones on the last, wherever the stress actually falls. Reading a
+# stress off one of these would be worse than not reading one, so a word carrying only
+# these is left to the default.
+UNPLACED = frozenset(
+    {
+        0x0592,  # segolta, postpositive
+        0x0599,  # pashta, postpositive
+        0x059A,  # yetiv, prepositive
+        0x05A0,  # telisha gedola, prepositive
+        0x05A9,  # telisha qetana, postpositive
+        0x05AD,  # dehi, prepositive
+        0x05AE,  # zinor, postpositive
+    }
+)
+
+
+def stressed(word: str) -> str | None:
+    """The word with its accent rewritten as phonikud's stress mark, or None.
+
+    Canonical ordering puts a vowel before the accent above or below the same letter, so
+    the accent's own position is already where the mark belongs and the rewrite is a
+    substitution rather than a search.
+
+    `None` where the accents cannot say: a word carrying only an unplaced one, and a word
+    carrying several, where picking between them would be a guess dressed as an answer.
+    Meteg is not in `TAAMIM` — it shares a codepoint with silluq and the vocalizer keeps
+    it on the vowels' side — so it neither counts here nor is stripped.
+    """
+    marks = [char for char in word if ord(char) in TAAMIM]
+    placed = [char for char in marks if ord(char) not in UNPLACED]
+    if len(placed) != 1:
+        return None
+    out: list[str] = []
+    for char in word:
+        if ord(char) not in TAAMIM:
+            out.append(char)
+        elif char == placed[0]:
+            out.append(HATAMA)
+    return "".join(out)
 
 
 def supports(language: str) -> bool:
@@ -60,12 +118,20 @@ class PhonikudPronouncer:
     the feature the field calls underspecified and the one a learner gets wrong for years
     — mil'el against milra is not audible in the spelling and is not in any dictionary
     entry either.
+
+    Underspecified in ordinary pointing, that is. **A Masoretic text has said it all
+    along**, in the accents, and until `phonikud/2` this code was throwing them away and
+    then guessing at what they had already answered: בָּאָ֑רֶץ came out ba-a-RETS with the
+    etnahta sitting on the A. Where the accents can place the stress they are believed,
+    because the alternative is preferring a rule table to the Masoretes. Where they
+    cannot — an unplaced accent, or more than one — the default stands, which is the same
+    guess modern Hebrew gets and no worse than before.
     """
 
     # The name rides in the annotator's name and so in what a built text records, which
     # is what lets a better reading reach a book already on the shelf: a file made before
     # this names something else, so it is redone. Redoing one is free.
-    name = "phonikud/1"
+    name = "phonikud/2"
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -94,6 +160,13 @@ class PhonikudPronouncer:
             word = surface.replace(PREFIX_MARK, "")
             if not sayable(word):
                 continue
+            # The chanting marks have to come off before phonikud sees them: fed
+            # שְׁפֹ֣ט whole it answers `ʃˈftˈ`, having read the accents as letters and
+            # lost the vowel between them. Taking the stress off them first is what makes
+            # removing them a translation rather than a loss.
+            if has_taamim(word):
+                word = stressed(word) or strip_taamim(word)
+            word = word.replace(METEG, "")
             try:
                 said = phonikud.phonemize(word)
             except Exception as error:  # noqa: BLE001 - a third-party rule table
