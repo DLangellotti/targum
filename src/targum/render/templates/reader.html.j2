@@ -87,7 +87,7 @@
     {#- Play the scene, and follow it. Only on a text that has audio, which today means a
         dialogue and nothing else. The drawing is what it does: a play mark, and the lines
         of text it is going to walk down. -#}
-    {% if spoken %}
+    {% if spoken_audio %}
     <div class="group">
       <button type="button" data-play-scene aria-pressed="false"
               title="Play {{ spoken_label }} and follow along" aria-label="Play {{ spoken_label }}">
@@ -197,7 +197,7 @@
 
     In the corner rather than across the top: a bar over the text is a second toolbar,
     and it moves the reading down to make room for something a reader may never press. -#}
-{% if spoken %}
+{% if spoken_audio %}
 <div class="player" id="player" role="group" aria-label="Play {{ spoken_label }}">
   <button type="button" class="player-play" data-play-scene aria-pressed="false" aria-label="Play {{ spoken_label }}">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -379,7 +379,7 @@
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     <dt>b</dt><dd>pages, or one long scroll</dd>
-    {% if spoken %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>{% endif %}
+    {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>{% endif %}
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}

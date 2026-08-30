@@ -4664,7 +4664,10 @@
   var order = Object.keys(spans).map(function (id) {
     return { id: id, start: spans[id][0], end: spans[id][1] };
   });
-  if (!order.length) return;
+  // No spans is a shape, not a failure: prose is recorded as one reading and played
+  // straight through. Everything below works without them — what goes is the highlight
+  // that would otherwise crawl down a sentence at a time, which is a thing to do to a
+  // dialogue and not to an article.
 
   /* However many controls ask for it — the bar's button and the player's — there is one
      scene and one state, so they are held together rather than each keeping its own. */
@@ -4808,7 +4811,8 @@
     }
     following = true;
     pressed(true);
-    var from = audio.ended || audio.currentTime <= 0 ? order[0].start : audio.currentTime;
+    var opening = order.length ? order[0].start : 0;
+    var from = audio.ended || audio.currentTime <= 0 ? opening : audio.currentTime;
     play(from);
     mark(at(from));
   }

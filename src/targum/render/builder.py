@@ -384,6 +384,31 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
     )
 
 
+def _read_through(document: Document) -> Spoken:
+    """A recording of prose, played straight through.
+
+    No spans, and that is the point. A dialogue is turns and scripture is verses, and both
+    are addressed unit by unit because both are read that way. An article is not: it is
+    read from the top, and cutting it into sentences so a highlight can crawl down it
+    would be answering a question nobody asked of prose.
+
+    So the player plays and the text stays still. Everything else works — pausing where it
+    stands, the clock, saving the file — because none of that ever needed a span.
+    """
+    from ..recording import index as recording_index
+
+    recording = recording_index.load(document.source)
+    if recording is None or not recording.parts:
+        return SILENT
+    part = recording.parts[0]
+    audio = _inlined(recording_index.folder(document.source) / part.audio)
+    if not audio:
+        return SILENT
+    return Spoken(
+        {}, {}, audio, recording.credit, recording.licence, recording.licence_url, "the reading"
+    )
+
+
 def speech(document: Document, segments: list[Segment]) -> Spoken:
     """Where in the audio each line of this section is said, and the audio itself.
 
@@ -398,6 +423,8 @@ def speech(document: Document, segments: list[Segment]) -> Spoken:
         return _scene(document, segments)
     if is_biblical(document.source):
         return _read_aloud(document, segments)
+    if document.source.startswith("weekly:"):
+        return _read_through(document)
     return SILENT
 
 
@@ -1283,6 +1310,9 @@ def render(
             machine=machine,
             speakers=spoken.speakers,
             spoken=spoken.spans,
+            # The player asks whether there is a recording; the per-line controls ask
+            # whether there are spans. Prose has the first and not the second.
+            spoken_audio=bool(spoken.audio),
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_licence=spoken.licence,
@@ -1327,9 +1357,12 @@ def render(
                     "glossPending": glossary_pending,
                     # A dialogue's audio and where each line sits in it. Absent for every
                     # other kind of text, rather than an empty table in every reader.
+                    # On the audio, not the spans: prose has a recording and no spans,
+                    # and keying this on spans left the player on the page with nothing
+                    # behind it — a control that does nothing, which is worse than none.
                     **(
                         {"speech": {"audio": spoken.audio, "spans": spoken.spans}}
-                        if spoken.spans
+                        if spoken.audio
                         else {}
                     ),
                 }

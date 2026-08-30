@@ -66,3 +66,4 @@ src/targum/dialogue/shelf.py
 # Content, and the code that makes it: a recording is somebody else's reading of a
 # text, cut and aligned here and never committed.
 src/targum/recording/cut.py
+src/targum/weekly/voice.py
