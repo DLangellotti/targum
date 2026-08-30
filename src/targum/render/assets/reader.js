@@ -1780,6 +1780,9 @@
     if (remembered !== false) prefs.list = open;
     if (listBox) listBox.hidden = !open;
     if (listTab) listTab.hidden = open;
+    // The keys button says whether its panel is out (§ shortcuts, line below showKeys);
+    // the list's own toggle said nothing. Same disclosure, same convention.
+    if (listTab) listTab.setAttribute("aria-expanded", open ? "true" : "false");
     body.classList.toggle("list-open", open);
     keep(held);
     relay();
@@ -3420,6 +3423,9 @@
     if (pageOf) pageOf.textContent = current + 1 + " of " + pages.length;
     for (i = range[0]; i <= range[1]; i++) markPair(pairs[i]);
     if (!quiet && window.scrollTo) window.scrollTo(0, 0);
+    // A turned page replaces everything on the screen; the live region is how anyone
+    // not looking at it finds out. Quiet turns are restores, not news.
+    if (!quiet) say("Page " + (current + 1) + " of " + pages.length);
     if (prefs.pageBy) {
       prefs.pageBy[pageKey] = pairs[range[0]].getAttribute("data-id") || "";
       save();
@@ -4470,6 +4476,9 @@
     // room again. Both are a change of layout like any other, and this is how the rest
     // of the page says so.
     relayout: relayout,
+    // The page's one live region, offered to the player's closure so a refused
+    // recording is announced the way everything else is.
+    say: say,
   };
 })();
 
@@ -4788,6 +4797,10 @@
       player.classList.add("refused");
       if (said) said.textContent = message;
     }
+    // The label is written where sighted eyes are; the live region is where everyone
+    // else's are. A play button that reverts silently looks broken and says nothing.
+    var reader = window.TargumReader;
+    if (reader && reader.say) reader.say(message);
     try {
       var trouble = audio.error ? " (media error " + audio.error.code + ")" : "";
       console.error("targum: " + message + trouble, why || "");
@@ -4876,7 +4889,13 @@
   document.addEventListener("keydown", function (event) {
     if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey) return;
     var on = document.activeElement;
-    if (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.isContentEditable)) return;
+    // SELECT is in this list and not in the argument below: Space is how a keyboard
+    // opens one, and taking it away leaves the translations menu unopenable.
+    if (
+      on &&
+      (on.tagName === "INPUT" || on.tagName === "SELECT" || on.tagName === "TEXTAREA" || on.isContentEditable)
+    )
+      return;
     /* Not even for a focused button, which would otherwise answer Space itself. On a page
        that can be listened to Space plays and does nothing else, so a button under the
        keyboard must not quietly take it — walking to the end of a text puts the keyboard
