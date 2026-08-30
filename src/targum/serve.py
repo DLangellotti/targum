@@ -249,6 +249,21 @@ def shelves_are_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
 
+def weekly_is_indexed() -> bool:
+    """Whether search engines are invited to the weekly. Off unless the deployment says.
+
+    Public and indexed are different facts. The weekly can be readable by anyone with
+    the address — sent in a message, linked from a chat — while the address is not yet
+    something a search for Hebrew news should surface. While this is off, every weekly
+    response says `X-Robots-Tag: noindex` and the sitemap does not mention the issues.
+
+    Deliberately not robots.txt: a crawler barred by robots.txt never fetches the page,
+    so it never sees the noindex — and a URL it learned elsewhere can be indexed bare.
+    The header is the instruction; the open door is what lets it be read.
+    """
+    return os.environ.get("TARGUM_INDEX_WEEKLY", "").strip().lower() in {"1", "true", "yes"}
+
+
 # What somebody who has not been invited is told. Honest about the state of things and
 # says nothing about who is on the list.
 NOT_OPEN = "targum is not open yet."
@@ -1766,6 +1781,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Encoding", "gzip")
         self.send_header("Vary", "Accept-Encoding")
         self.send_header("Cache-Control", cache)
+        # Set by the weekly's entry points while the deployment keeps it unindexed:
+        # reachable by anyone with the address, surfaced by no search engine.
+        if getattr(self, "_robots_tag", ""):
+            self.send_header("X-Robots-Tag", self._robots_tag)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         if policy is not None:
@@ -1822,6 +1841,8 @@ class Handler(BaseHTTPRequestHandler):
         `_needs_account` is consulted: a variable path cannot be named in the exact-match
         `OPEN_TO_STRANGERS`, so the only way to make it public is to return first.
         """
+        if not weekly_is_indexed():
+            self._robots_tag = "noindex"
         from .weekly import index as weekly
         from .weekly.models import Level
 
@@ -1988,6 +2009,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         from .weekly import index as weekly
 
+        if not weekly_is_indexed():
+            self._robots_tag = "noindex"
         known = {one.folder for issue in weekly.readable() for one in issue.editions}
         if edition not in known:
             return self._send(404, b"not found", "text/plain")
@@ -2047,7 +2070,9 @@ class Handler(BaseHTTPRequestHandler):
         # The weekly by its own addresses rather than its catalogue ids, which redirect.
         from .weekly import index as weekly
 
-        published = weekly.readable()
+        # Only once the deployment invites search engines to it: a sitemap naming pages
+        # whose every response says noindex would be the site contradicting itself.
+        published = weekly.readable() if weekly_is_indexed() else []
         paths += ["/weekly"] if published else []
         paths += [
             f"/weekly/{issue.id}/{edition.level.value}"

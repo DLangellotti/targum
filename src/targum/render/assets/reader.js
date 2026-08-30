@@ -1465,12 +1465,23 @@
       restUndo.hidden = false;
       restBox.hidden = false;
     } else if (unmarkedHere().length) {
-      // One button that says the whole thing, rather than a question and a number:
-      // the words left — names and all, since the offer is a clean page — and what
-      // pressing it does with them.
-      var left = unmarkedHere().length;
+      // One button that says the whole thing, rather than a question and a number.
+      // The number is the header's number: vocabulary only, because a count that
+      // included names and numerals sat beside a header that did not, and the two
+      // disagreeing on one screen read as a bug. Names and numerals are still
+      // cleared by the press — the offer is a clean page — they are just not called
+      // words to your face.
+      var left = lemmasHere(false).filter(function (lemma) {
+        return statusOf(lemma) === undefined;
+      }).length;
       restText.textContent = "";
-      restMark.textContent = "Mark " + left + (left === 1 ? " word" : " words") + " as known";
+      restMark.textContent = left
+        ? "Mark " + left + (left === 1 ? " word" : " words") + " as known"
+        : "Clear names and numbers";
+      restMark.setAttribute(
+        "title",
+        left ? "Names and numbers are cleared too, without being counted." : ""
+      );
       restMark.hidden = false;
       restUndo.hidden = true;
       restBox.hidden = false;

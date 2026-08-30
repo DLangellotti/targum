@@ -227,7 +227,10 @@ def test_a_draft_id_is_not_redirected_to_nothing(open_shelves: tuple[int, Path])
 # -- what a crawler is told -----------------------------------------------------------
 
 
-def test_the_weekly_is_in_robots_and_the_sitemap(open_shelves: tuple[int, Path]) -> None:
+def test_the_weekly_is_in_robots_and_the_sitemap_when_indexed(
+    open_shelves: tuple[int, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_INDEX_WEEKLY", "1")
     port, _ = open_shelves
     assert b"Allow: /weekly" in ask(port, "/robots.txt")[1]
 
@@ -728,12 +731,34 @@ def test_the_page_offers_the_weeks_before_it(open_shelves: tuple[int, Path]) -> 
     assert f'href="/weekly/{WEEK}/bet"' not in page
 
 
-def test_the_sitemap_carries_every_issue(open_shelves: tuple[int, Path]) -> None:
+def test_the_sitemap_carries_every_issue_once_indexing_is_invited(
+    open_shelves: tuple[int, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_INDEX_WEEKLY", "1")
     found = re.findall(r"<loc>(.*?)</loc>", ask(open_shelves[0], "/sitemap.xml")[1].decode())
     paths = {url.removeprefix(PUBLIC) for url in found}
     for week in (WEEK, "2026-w35"):
         for level in ("aleph", "bet", "gimel"):
             assert f"/weekly/{week}/{level}" in paths, f"{week}/{level}"
+
+
+def test_until_then_the_weekly_is_reachable_and_unindexed(open_shelves: tuple[int, Path]) -> None:
+    """Public and indexed are different facts, and the default is the careful one.
+
+    Anyone with the address reads the issue; no search engine is invited to surface it.
+    The instruction is the noindex header on the page itself rather than robots.txt,
+    because a crawler barred by robots never fetches the page and never sees the header —
+    and a URL learned elsewhere can be indexed bare.
+    """
+    port, _ = open_shelves
+    body = ask(port, "/sitemap.xml")[1].decode()
+    assert "/weekly" not in body, "the sitemap does not name what noindex disavows"
+    for path in (f"/weekly/{WEEK}/bet", f"/weekly/read/weekly-{WEEK}-bet-he/reader/index.html"):
+        assert _headers(port, path).get("x-robots-tag") == "noindex", path
+    # The pages themselves still answer: unindexed, not unreachable.
+    assert ask(port, f"/weekly/{WEEK}/bet")[0] == 200
+    # And the rest of the site is untouched — the library is indexed as before.
+    assert _headers(port, "/library").get("x-robots-tag") is None
 
 
 def test_the_library_holds_every_issue(open_shelves: tuple[int, Path]) -> None:
