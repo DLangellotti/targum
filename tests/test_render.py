@@ -151,7 +151,18 @@ def test_layout_uses_logical_properties_only(rendered: Path) -> None:
 
 # The one place a reader is allowed to point at the network, and only as somewhere the
 # reader can choose to go: full conjugation tables are more than a reader can carry.
-OUTBOUND = "https://www.pealim.com/"
+#: Every address a reader may carry. Not "no outbound links" — a reader chooses to click
+#: these — but a pinned list, because the rule is that the page fetches nothing by itself
+#: and a link that arrived without anyone deciding on it is how that erodes.
+#:
+#: The licence is here because a recording is used under one that asks to be linked, and
+#: discharging that in the page is the point: a credit nobody can follow to the terms is
+#: not a credit. It appears only in a reader that carries audio.
+#: The conjugation tables a word's card offers, which are more than a page can carry.
+PEALIM = "https://www.pealim.com/"
+#: The licence a recording is used under.
+LICENCE = "https://creativecommons.org/licenses/"
+OUTBOUND = (PEALIM, LICENCE)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -168,6 +179,68 @@ def test_loads_nothing_from_the_network(rendered: Path) -> None:
 
 def test_the_only_outbound_link_is_one_the_reader_must_click(rendered: Path) -> None:
     html = rendered.read_text(encoding="utf-8")
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_a_recorded_reader_links_its_licence_and_nothing_else(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one page that carries an address the rest of the library does not.
+
+    A recording is used under a licence that asks to be linked, so the reader carries the
+    link — and this pins it the same way every other outbound address is pinned. Without
+    this the licence link lived in a page no allowlist test ever rendered.
+    """
+    import wave
+
+    from targum.recording import Part, Recording
+    from targum.recording import index as recording_index
+
+    home = tmp_path / "recordings"
+    folder = home / recording_index.slug("sefaria:Ruth")
+    folder.mkdir(parents=True)
+    with wave.open(str(folder / "one.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    (folder / recording_index.MANIFEST).write_text(
+        Recording(
+            source="sefaria:Ruth",
+            credit="Rabbi Somebody",
+            licence="CC BY-SA 3.0",
+            licence_url="https://creativecommons.org/licenses/by-sa/3.0/",
+            parts=[Part(ref="Ruth 1", audio="one.wav", spans={"Ruth 1:1": [0.0, 1.0]})],
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(home))
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.verse,
+        text="ויהי בימי",
+        ref="Ruth 1:1",
+    )
+    segmented = make_segmented([segment])
+    document = Document(
+        source="sefaria:Ruth", title="Ruth", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "In the days."},
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader")[0]
+
+    html = page.read_text(encoding="utf-8")
+    assert "Rabbi Somebody" in html, "the reader is credited on the page"
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
@@ -1257,7 +1330,7 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
     assert data["roots"] == ["לבש", ""]
     assert data["binyanim"] == ["התפעל", ""]
     # Where the reader can go for the full tables, which are more than a page can carry.
-    assert OUTBOUND in html
+    assert PEALIM in html
 
 
 def test_the_readings_ride_in_a_table_of_their_own(tmp_path: Path) -> None:
