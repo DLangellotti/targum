@@ -1038,7 +1038,11 @@
   function firstWordMarked() {
     if (!firstTime) return;
     firstTime = false;
-    first.textContent = "k known · 1 2 3 · → next word · ? every key";
+    // The arrow that actually goes forward on this page — §7, typed characters per
+    // reading direction. The card's legend already knew this; the bar did not.
+    var forward =
+      (document.documentElement.getAttribute("dir") || "ltr") === "rtl" ? "←" : "→";
+    first.textContent = "k known · 1 2 3 · " + forward + " next word · ? every key";
     try {
       localStorage.setItem(FIRST, String(Date.now()));
     } catch (e) {}
