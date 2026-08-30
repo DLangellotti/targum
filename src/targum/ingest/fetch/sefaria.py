@@ -56,14 +56,25 @@ USABLE = frozenset({"Public Domain", "CC0", "CC-BY"})
 # an Orthodox reader is who most of this shelf is for and JPS is not what they reach for.
 HEBREW = "Tanach with Ta'amei Hamikra"
 
+#: The fallback English, named once so the eleven books that use it are obviously the
+#: same decision rather than eleven separate ones — and so removing it is one search.
+JPS = "The Holy Scriptures: A New Translation (JPS 1917)"
+
 # Metsudah covers Torah, the Five Megillot and part of Nevi'im; Silverstein's Rashi
 # Ketuvim covers the rest of what is worth reading. A book with neither is not on the
 # shelf — which is why there is no Jonah here, its only Orthodox English being CC-BY-NC.
 #
-# JPS 1917 is public domain and covers every book in the Tanakh, so what keeps the rest
-# off this list is editorial rather than legal: it is not the English an Orthodox reader
-# reaches for. That is a decision worth restating rather than rediscovering, because the
-# licence check will always say yes to JPS and the shelf still should not take it.
+# JPS 1917 is public domain and covers every book in the Tanakh, so nothing legal keeps a
+# book off this list. What kept these eleven off was editorial: JPS is not the English an
+# Orthodox reader reaches for, and its 1917 register — thee, thou, hath — is a second
+# language to learn on top of the Hebrew.
+#
+# They are here anyway, deliberately and for now, because the alternative was worse: the
+# recordings of these books are cut and aligned and were reaching nobody. A shelf that
+# offers Isaiah in dated English is more use than one that does not offer Isaiah. Replace
+# each of them the moment an Orthodox English under a usable licence exists, and take the
+# JPS line out when you do — the recording and the Hebrew do not change, so it is a
+# one-line swap and a rebuild.
 ENGLISH: dict[str, str] = {
     "Genesis": "Metsudah Chumash, Metsudah Publications, 2009",
     "Exodus": "Metsudah Chumash, Metsudah Publications, 2009",
@@ -86,6 +97,18 @@ ENGLISH: dict[str, str] = {
     # on the edition already here rather than on a new decision about which English.
     "Daniel": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
     "Ezra": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
+    # Provisional, on JPS 1917. See the note above before adding another.
+    "Joshua": JPS,
+    "II Kings": JPS,
+    "Isaiah": JPS,
+    "Jonah": JPS,
+    "Obadiah": JPS,
+    "Nahum": JPS,
+    "Habakkuk": JPS,
+    "Zephaniah": JPS,
+    "Haggai": JPS,
+    "Zechariah": JPS,
+    "Malachi": JPS,
 }
 
 _TAG = {"he": "hebrew", "en": "english"}

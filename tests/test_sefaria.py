@@ -133,13 +133,18 @@ def test_a_shape_this_does_not_read_is_refused(monkeypatch: pytest.MonkeyPatch) 
         sefaria.SefariaFetcher().load("Ruth")
 
 
-def test_a_book_with_no_orthodox_english_is_refused() -> None:
-    """Jonah's only Orthodox translation is CC-BY-NC, so it is not on the shelf.
+def test_a_book_with_no_chosen_english_is_refused() -> None:
+    """Every book on the shelf names the edition its English comes from, and a book
+    that names none is refused rather than quietly missing from a list.
 
-    Said plainly at fetch time rather than by a book quietly missing from a list.
+    Jeremiah rather than Jonah: Jonah was the example while its only Orthodox English
+    was CC-BY-NC, and it is on the shelf now on JPS 1917. What the refusal is for has
+    not changed — a book nobody has chosen an edition for is not one to serve — but it
+    is worth saying that the licence is no longer what decides it. JPS is public domain
+    and covers everything; the choosing is editorial.
     """
     with pytest.raises(TargumError, match="no English edition"):
-        sefaria.version_for("en", "Jonah")
+        sefaria.version_for("en", "Jeremiah")
 
 
 # -- the verse stays one unit -------------------------------------------------
