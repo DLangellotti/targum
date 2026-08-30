@@ -1,0 +1,165 @@
+{
+  "index_version": 1,
+  "issues": [
+    {
+      "id": "2026-w36",
+      "dated": "2026-08-31",
+      "title": "השבוע בעברית",
+      "blurb": "Five sections of this week's news in Modern Hebrew, written at three levels.",
+      "state": "published",
+      "made": 1756600000,
+      "published_at": 1756620000,
+      "model": "claude-opus-5",
+      "editions": [
+        {
+          "level": "aleph",
+          "entry_id": "weekly-2026-w36-aleph",
+          "folder": "weekly-2026-w36-aleph-he",
+          "words": 44,
+          "difficulty": 11,
+          "ok": true,
+          "attempts": 1
+        },
+        {
+          "level": "bet",
+          "entry_id": "weekly-2026-w36-bet",
+          "folder": "weekly-2026-w36-bet-he",
+          "words": 73,
+          "difficulty": 16,
+          "ok": true,
+          "attempts": 1
+        },
+        {
+          "level": "gimel",
+          "entry_id": "weekly-2026-w36-gimel",
+          "folder": "weekly-2026-w36-gimel-he",
+          "words": 104,
+          "difficulty": 22,
+          "ok": true,
+          "attempts": 2
+        }
+      ],
+      "sources": [
+        {
+          "section": "israel",
+          "headline": "ועדה ציבורית תבחן את מחירי הדיור",
+          "facts": [
+            "a public committee was appointed",
+            "six months to report"
+          ],
+          "outlets": [
+            "kan",
+            "globes"
+          ],
+          "links": [
+            "https://www.gov.il/example"
+          ],
+          "tier": 1,
+          "licence": "State of Israel, free use"
+        },
+        {
+          "section": "sport",
+          "headline": "ניצחון חוץ בתוצאה 2:0",
+          "facts": [
+            "away win",
+            "2-0",
+            "top of the table"
+          ],
+          "outlets": [
+            "ynet",
+            "walla"
+          ],
+          "links": [
+            "https://www.ynet.co.il/example"
+          ],
+          "tier": 2
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "id": "2026-w37",
+      "dated": "2026-09-07",
+      "title": "השבוע בעברית",
+      "blurb": "Next week, not yet released.",
+      "state": "draft",
+      "made": 1757200000,
+      "model": "claude-opus-5",
+      "editions": [
+        {
+          "level": "bet",
+          "entry_id": "weekly-2026-w37-bet",
+          "folder": "weekly-2026-w37-bet-he",
+          "words": 70,
+          "difficulty": 16,
+          "ok": true,
+          "attempts": 1
+        }
+      ],
+      "sources": [],
+      "notes": "aleph missed its band twice, at 15%."
+    },
+    {
+      "id": "2026-w35",
+      "dated": "2026-08-24",
+      "title": "השבוע בעברית",
+      "blurb": "Last week's news in Modern Hebrew, written at three levels.",
+      "state": "published",
+      "made": 1755990000,
+      "published_at": 1756010000,
+      "model": "claude-opus-5",
+      "editions": [
+        {
+          "level": "aleph",
+          "entry_id": "weekly-2026-w35-aleph",
+          "folder": "weekly-2026-w35-aleph-he",
+          "words": 360,
+          "difficulty": 11,
+          "sentence": 6.8,
+          "ok": true,
+          "attempts": 1,
+          "lifted": []
+        },
+        {
+          "level": "bet",
+          "entry_id": "weekly-2026-w35-bet",
+          "folder": "weekly-2026-w35-bet-he",
+          "words": 640,
+          "difficulty": 15,
+          "sentence": 11.1,
+          "ok": true,
+          "attempts": 1,
+          "lifted": []
+        },
+        {
+          "level": "gimel",
+          "entry_id": "weekly-2026-w35-gimel",
+          "folder": "weekly-2026-w35-gimel-he",
+          "words": 990,
+          "difficulty": 21,
+          "sentence": 14.6,
+          "ok": true,
+          "attempts": 1,
+          "lifted": []
+        }
+      ],
+      "sources": [
+        {
+          "section": "world",
+          "headline": "מזג אוויר קיצוני באוגוסט",
+          "facts": [
+            "storms across the region"
+          ],
+          "outlets": [
+            "walla"
+          ],
+          "links": [
+            "https://news.walla.co.il/example"
+          ],
+          "tier": 2
+        }
+      ],
+      "notes": ""
+    }
+  ]
+}

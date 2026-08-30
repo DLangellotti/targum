@@ -38,6 +38,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ...errors import TargumError
+from ...ids import block_id
 from ...models import BlockKind, Document
 from ..base import Paragraph, blocks_from_paragraphs, build_document, normalize
 from ..url import get
@@ -218,20 +219,38 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     named = body.get("heRef") if language == "he" else body.get("ref")
     title = str(named or ref)
 
+    # The English book name, whatever language the text is in: a ref is an address, and
+    # an address has to be the same one the recording and Sefaria itself use. The Hebrew
+    # title is what the reader sees; it is not what a verse is called.
+    named_in_english = book_of(str(body.get("ref") or ref))
+
     paragraphs: list[Paragraph] = []
+    # Which verse each paragraph is, by its place in the list. Kept beside the paragraphs
+    # rather than inside them: `Paragraph` is the shape every ingester builds, and only a
+    # numbered text has anything to put here.
+    refs: dict[int, str] = {}
     for offset, verses in enumerate(chapters(payload)):
         number = start + offset
         label = hebrew_numeral(number) if language == "he" else str(number)
         paragraphs.append((BlockKind.heading, 2, f"{book_of(title)} {label}".strip()))
-        for verse in verses:
+        for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
             clean = normalize(_MARKUP.sub("", verse or "")).strip()
+            refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
             paragraphs.append((BlockKind.verse, None, clean or "—"))
+
+    blocks = blocks_from_paragraphs(paragraphs)
+    # By id rather than by position: `blocks_from_paragraphs` drops an empty paragraph and
+    # numbers what is left by its original index, so zipping the two lists would silently
+    # slide every ref after the first gap onto the wrong verse.
+    by_id = {block_id(index): text for index, text in refs.items()}
+    for block in blocks:
+        block.ref = by_id.get(block.id, "")
 
     return build_document(
         f"sefaria:{ref}" if language == DEFAULT_LANGUAGE else f"sefaria:{language}:{ref}",
-        blocks_from_paragraphs(paragraphs),
+        blocks,
         ingester=SefariaFetcher.name,
         language=language,
         title=title,
@@ -240,8 +259,10 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
 
 class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
-    # somebody hand-edited the document on disk. 2: the accented Hebrew edition.
-    name = "sefaria/2"
+    # somebody hand-edited the document on disk. 2: the accented Hebrew edition. 3: every
+    # verse carries its ref. Free to bump — the hash a document is keyed by is its text,
+    # and the text has not changed, so nothing downstream is bought again.
+    name = "sefaria/3"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)

@@ -154,20 +154,55 @@ def known(form: str) -> bool:
     return any(_zipf(candidate) > 0 or candidate in table for candidate in peel(form))
 
 
-def strength(form: str) -> float:
-    """How ordinary a word this is, on wordfreq's zipf scale, in whichever register.
+def modern_strength(form: str) -> float:
+    """How ordinary this word is in contemporary Hebrew, read off the form as written.
 
-    The strict question. Modern is read off the form as written, because wordfreq holds
-    forms; biblical goes through `peel`, because the Tanakh table holds lemmas. A word
-    ordinary in either register is ordinary — a reader of Psalms meets וְחַסְדּוֹ as
-    often as a reader of the news meets ממשלה.
+    wordfreq holds forms rather than lemmas, so there is nothing to take apart first:
+    ספרים is in it beside ספר.
+    """
+    return _zipf(form) if form else 0.0
+
+
+def biblical_strength(lemma: str) -> float | None:
+    """How ordinary this dictionary form is in the Tanakh, or None if it never was in it.
+
+    The exact question rather than the generous one, and the difference matters: `peel`
+    is built for running text, and every Hebrew stem is some word's stem. מקרר comes
+    apart into קר, which is in Proverbs, and a refrigerator is not scriptural for it.
+    A lemma is already a dictionary form and the table holds dictionary forms — counted
+    with the same lemmatizer that will produce this one, which is the whole argument of
+    `annotate/biblical.py` — so it is looked up as it stands.
+    """
+    band = _biblical().get(lemma)
+    return None if band is None else _BIBLICAL_STRENGTH.get(band, 0.0)
+
+
+def strengths(form: str) -> tuple[float, float]:
+    """How ordinary this word is today, and how ordinary it is in the Tanakh.
+
+    Both on wordfreq's zipf scale, so the two are comparable, and both 0.0 for a corpus
+    that has never seen the word — no band maps to zero, so a zero on the biblical side
+    means absent rather than rare.
+
+    Modern is read off the form as written, because wordfreq holds forms; biblical goes
+    through `peel`, because the Tanakh table holds lemmas.
     """
     if not form:
-        return 0.0
-    best = _zipf(form)
+        return 0.0, 0.0
     table = _biblical()
+    biblical = 0.0
     for candidate in peel(form):
         band = table.get(candidate)
         if band is not None:
-            best = max(best, _BIBLICAL_STRENGTH.get(band, 0.0))
-    return best
+            biblical = max(biblical, _BIBLICAL_STRENGTH.get(band, 0.0))
+    return modern_strength(form), biblical
+
+
+def strength(form: str) -> float:
+    """How ordinary a word this is, on wordfreq's zipf scale, in whichever register.
+
+    The strict question. A word ordinary in either register is ordinary — a reader of
+    Psalms meets וְחַסְדּוֹ as often as a reader of the news meets ממשלה. Which of the
+    two it was is `strengths`, and the word card asks that separately.
+    """
+    return max(strengths(form))

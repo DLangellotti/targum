@@ -122,6 +122,11 @@
   var lemmas = data.lemmas || [];
   var roots = data.roots || [];
   var binyanim = data.binyanim || [];
+  // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
+  // which one this text is written in. Codes, not sentences: the words are below, so
+  // rewriting them costs nothing and re-annotating a library is not part of it.
+  var registers = data.registers || [];
+  var sourceRegister = data.sourceRegister || "";
   // Absent in every reader with no Hebrew in it, and in one built before there was
   // anything to read the vowels with.
   var sounds = data.sounds || [];
@@ -1848,6 +1853,26 @@
     return !!(token[6] && KIND_NAMES[token[6]]);
   }
 
+  // What the card says about a word's register, from where the reader is standing. The
+  // same word is an ordinary word in a Tanakh and a borrowing in a newspaper, and the
+  // interesting half of that is which of the two the reader is holding.
+  function registerNote(index) {
+    var code = registers[index] || "";
+    if (code === "biblical") {
+      return sourceRegister === "biblical"
+        ? "ordinary in the Tanakh, rare today"
+        : "from the Tanakh, rare today";
+    }
+    if (code === "modern") {
+      // Not claimed inside scripture. A lemma the Tanakh does not contain, in a text
+      // that is the Tanakh, is almost always the lemmatizer having produced something
+      // the table was built without — `annotate/biblical.py` says as much where it
+      // bands them — and calling that a modern word would be an invention.
+      return sourceRegister === "biblical" ? "" : "modern; not in the Tanakh";
+    }
+    return "";
+  }
+
   function levelOf(word) {
     var pair = word.closest(".pair");
     if (!pair) return "";
@@ -2114,11 +2139,15 @@
       card.appendChild(verb);
     }
 
+    // How hard the word is and which Hebrew it is, on one line. Two lines said the same
+    // kind of thing twice, and the register is only ever here because the level alone
+    // could not tell וְעִקֵּשׁ from מקרר. A name or a numeral has neither.
     var level = levelOf(word);
-    if (level) {
+    var note = level === "name" || level === "number" ? "" : registerNote(index);
+    if (level || note) {
       var tag = document.createElement("span");
       tag.className = "pos";
-      tag.textContent = level;
+      tag.textContent = level && note ? level + " · " + note : level || note;
       card.appendChild(tag);
     }
 
@@ -3240,6 +3269,10 @@
    * pager and the offer at the foot.
    */
   var turn = document.getElementById("turn");
+  // The player floats at the foot too, so a page has to be measured around it the same
+  // way it is measured around the arrows. Read here rather than passed in: it is put
+  // away and brought back while the page is open, and `room` asks it each time.
+  var scenePlayer = document.getElementById("player");
   var pageOf = document.getElementById("page-of");
   var pager = document.querySelector(".pager[data-chapter]");
   var pageKey = documentId + "#" + (pager ? pager.getAttribute("data-chapter") : "1");
@@ -3255,14 +3288,20 @@
   // arithmetic is decided here so it can be tested without a browser to lay anything
   // out. A pair too tall for the room is a page on its own rather than a page nobody
   // can turn to.
-  function boundariesFrom(tops, heights, room) {
+  function boundariesFrom(tops, heights, room, opens) {
     var out = [];
     if (!tops.length) return out;
     var start = 0;
     var base = tops[0];
     for (var n = 0; n < tops.length; n++) {
       var bottom = tops[n] + heights[n] - base;
-      if (bottom > room && n > start) {
+      // A section starts a page. Without this the weekly's section links turned to the
+      // page a section is *in*, which can begin halfway through the one before it — so
+      // the reader arrived somewhere near sport and had to go looking for it. A section
+      // beginning a page is what a paper does anyway, and it is the only arrangement in
+      // which "take me to sport" and what the eye lands on are the same thing.
+      var forced = opens && opens[n];
+      if ((forced || bottom > room) && n > start) {
         out.push([start, n - 1]);
         start = n;
         base = tops[n];
@@ -3279,17 +3318,22 @@
     return 0;
   }
 
-  // What is left of the window under the bar and above the turn control.
-  // Under the bar, and above the arrows — the whole band the arrows sit in, from their
-  // top edge to the foot of the window, not their own height: a page is laid out so
-  // that no line of it can end up under them.
+  // What is left of the window under the bar and above whatever floats at its foot.
+  // Under the bar, and above the arrows and the player — the whole band they sit in,
+  // from the top edge of the highest of them to the foot of the window, not their own
+  // heights: a page is laid out so that no line of it can end up under either.
+  //
+  // This is why the player can float without covering anything. A control fixed over a
+  // page of text either takes its room out of the layout or takes it out of the reading,
+  // and the second is not a trade a reader agreed to.
   function room() {
     var top = bar ? bar.getBoundingClientRect().bottom : 0;
     var foot = 0;
-    if (turn && !turn.hidden) {
-      var box = turn.getBoundingClientRect();
-      if (box.height) foot = window.innerHeight - box.top + 12;
-    }
+    [turn, scenePlayer].forEach(function (thing) {
+      if (!thing || thing.hidden) return;
+      var box = thing.getBoundingClientRect();
+      if (box.height) foot = Math.max(foot, window.innerHeight - box.top + 12);
+    });
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
 
@@ -3300,12 +3344,25 @@
     });
     var tops = [];
     var heights = [];
-    pairs.forEach(function (pair) {
+    // Which pairs open a section: a heading of the top level, and never the first pair,
+    // which would only make an empty page before it. Only the weekly has more than one
+    // in a file — a book's chapters are already separate files — so this changes where
+    // pages fall there and nowhere else.
+    var opens = [];
+    pairs.forEach(function (pair, index) {
       var box = pair.getBoundingClientRect();
       tops.push(box.top + window.scrollY);
       heights.push(box.height);
+      opens.push(index > 0 && !!pair.querySelector("h1"));
     });
-    pages = boundariesFrom(tops, heights, room());
+    // Everything above the first pair — a chapter's plate, the margin under the bar — is
+    // on every page and not only the first: `showPage` hides pairs and nothing else. Left
+    // out of the budget, every page runs past the foot by the height of the plate, which
+    // is what put the last verse of a chapter under the turning arrows and, once there
+    // was one, under the player.
+    var over = bar ? bar.getBoundingClientRect().bottom + window.scrollY : window.scrollY;
+    var lead = tops.length ? Math.max(0, tops[0] - over) : 0;
+    pages = boundariesFrom(tops, heights, Math.max(160, room() - lead), opens);
     if (!pages.length) pages = [[0, pairs.length - 1]];
   }
 
@@ -3343,6 +3400,30 @@
     showPage(n);
     return true;
   }
+
+  /* --- straight to a section -------------------------------------------------
+   *
+   * The weekly is one long targum rather than six chapters, which is right for reading
+   * it through and wrong for somebody who does not want the politics. The bar carries a
+   * link per section; this is what those links do.
+   *
+   * A plain `#id` cannot do it. In page mode every pair outside the current page is
+   * `hidden`, so the browser has nothing to scroll to — the section is not off-screen,
+   * it is not rendered. So: turn to its page first, then bring it to the top.
+   */
+  function jumpTo(id) {
+    var pair = pairBySegment[id];
+    if (!pair) return false;
+    if (paged()) turnTo(pair);
+    if (pair.scrollIntoView) pair.scrollIntoView({ block: "start", behavior: behaviour() });
+    return true;
+  }
+
+  document.addEventListener("click", function (event) {
+    var link = event.target.closest && event.target.closest("[data-to]");
+    if (!link) return;
+    if (jumpTo(link.getAttribute("data-to"))) event.preventDefault();
+  });
 
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
@@ -4296,10 +4377,17 @@
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
+    // What the card says about a word's register, which is decided in the chapter data
+    // and the text's own register — no page needed to settle it either.
+    registerNote: registerNote,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
     through: through,
+    // Putting the player away gives a page its room back, and bringing it out takes the
+    // room again. Both are a change of layout like any other, and this is how the rest
+    // of the page says so.
+    relayout: relayout,
   };
 })();
 
@@ -4465,4 +4553,267 @@
     opened[pager.getAttribute("data-document")] = Number(pager.getAttribute("data-chapter"));
     localStorage.setItem("targum:chapter", JSON.stringify(opened));
   } catch (e) {}
+})();
+
+/* Playing a dialogue: one line, or the whole scene with the text following along.
+ *
+ * The scene is one audio file and each turn is a span of it, so a line is played by
+ * seeking and then stopping at its end — never by loading a clip per line, because a
+ * reader is one file and fifty small files is not a shape it has.
+ *
+ * A single line stops on a timer rather than a `timeupdate` handler: that event fires
+ * about four times a second, which overshoots the end of a short turn by a syllable and
+ * reads as the next speaker starting. A timer set from the span's own length lands where
+ * the seam is. Following the whole scene is the opposite case — nothing is being stopped,
+ * only marked — so there the coarse event is exactly right and costs nothing.
+ */
+(function () {
+  "use strict";
+  var node = document.getElementById("targum-data");
+  if (!node) return;
+  var speech;
+  try {
+    speech = (JSON.parse(node.textContent) || {}).speech;
+  } catch (e) {
+    return;
+  }
+  if (!speech || !speech.audio) return;
+
+  var audio = new Audio(speech.audio);
+  var spans = speech.spans || {};
+  /* In reading order, because the object came from the page in that order and following
+     along means walking it. */
+  var order = Object.keys(spans).map(function (id) {
+    return { id: id, start: spans[id][0], end: spans[id][1] };
+  });
+  if (!order.length) return;
+
+  /* However many controls ask for it — the bar's button and the player's — there is one
+     scene and one state, so they are held together rather than each keeping its own. */
+  var scenes = Array.prototype.slice.call(document.querySelectorAll("[data-play-scene]"));
+  var player = document.getElementById("player");
+  var fill = player && player.querySelector(".player-fill");
+  var clock = player && player.querySelector(".player-clock");
+  var scene = scenes[0] || null;
+  var stopAt = null;
+  var playing = null;      /* the one-line button, when a single line is playing */
+  var following = false;   /* whether the whole scene is running */
+  var marked = null;
+
+  /* The same question the rest of the page asks, asked the same way. Read at the moment
+     of scrolling rather than once at load, because a reader can change the setting while
+     a scene is playing and the page should already be honouring it. */
+  var quiet = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  function behaviour() {
+    return quiet && quiet.matches ? "auto" : "smooth";
+  }
+
+  function mark(id) {
+    if (marked && marked.getAttribute("data-id") === id) return;
+    if (marked) marked.classList.remove("now");
+    marked = id ? document.querySelector('.pair.voiced[data-id="' + CSS.escape(id) + '"]') : null;
+    if (!marked) return;
+    marked.classList.add("now");
+    /* Only when it has gone off the page. Scrolling a line that is already in front of
+       the reader moves the text under their eyes for no reason. */
+    var box = marked.getBoundingClientRect();
+    /* The scrolling reader reserves nothing — text passes under a fixed control there by
+       definition — so the floor is the player's own top edge while it is out. The line
+       being spoken is the one line that must not be behind it. */
+    var floor = window.innerHeight - 24;
+    if (player && !player.hidden) {
+      var seat = player.getBoundingClientRect();
+      if (seat.height) floor = Math.min(floor, seat.top - 12);
+    }
+    if (box.top < 64 || box.bottom > floor) {
+      marked.scrollIntoView({ block: "center", behavior: behaviour() });
+    }
+  }
+
+  function pressed(on) {
+    scenes.forEach(function (button) {
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (player) player.classList.toggle("playing", !!on);
+  }
+
+  function clocked(seconds) {
+    var whole = Math.max(0, Math.floor(seconds));
+    return Math.floor(whole / 60) + ":" + ("0" + (whole % 60)).slice(-2);
+  }
+
+  function halt() {
+    if (stopAt) { clearTimeout(stopAt); stopAt = null; }
+    audio.pause();
+    if (playing) { playing.classList.remove("saying"); playing = null; }
+    if (following) {
+      following = false;
+      pressed(false);
+    }
+    if (marked) { marked.classList.remove("now"); marked = null; }
+    pressed(false);
+  }
+
+  function play(from) {
+    audio.currentTime = from;
+    var done = audio.play();
+    if (done && done.catch) done.catch(halt);
+  }
+
+  /* One line. */
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest(".say") : null;
+    if (!button) return;
+    var span = spans[button.getAttribute("data-id")];
+    if (!span) return;
+    var again = playing === button;
+    halt();
+    if (again) return;
+    playing = button;
+    button.classList.add("saying");
+    play(span[0]);
+    stopAt = setTimeout(halt, Math.max(0, (span[1] - span[0]) * 1000));
+  });
+
+  /* The whole scene: play, and pause where it stands rather than starting over. A
+     control that only restarts is a control nobody presses twice. */
+  function at(seconds) {
+    for (var i = 0; i < order.length; i++) {
+      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
+    }
+    return order[0].id;
+  }
+
+  function toggleScene() {
+    if (playing) {                      /* a single line was running; that ends here */
+      if (stopAt) { clearTimeout(stopAt); stopAt = null; }
+      playing.classList.remove("saying");
+      playing = null;
+      audio.pause();
+    }
+    if (following && !audio.paused) {   /* pause: keep the place and the mark */
+      audio.pause();
+      pressed(false);
+      return;
+    }
+    following = true;
+    pressed(true);
+    var from = audio.ended || audio.currentTime <= 0 ? order[0].start : audio.currentTime;
+    play(from);
+    mark(at(from));
+  }
+
+  scenes.forEach(function (button) {
+    button.addEventListener("click", toggleScene);
+  });
+
+  audio.addEventListener("timeupdate", function () {
+    if (fill && audio.duration) {
+      fill.style.inlineSize = (audio.currentTime / audio.duration) * 100 + "%";
+    }
+    if (clock && audio.duration) {
+      clock.textContent = clocked(audio.currentTime) + " / " + clocked(audio.duration);
+    }
+    if (!following) return;
+    var at = audio.currentTime;
+    for (var i = 0; i < order.length; i++) {
+      if (at >= order[i].start && at < order[i].end) { mark(order[i].id); return; }
+    }
+  });
+
+  audio.addEventListener("ended", halt);
+
+  /* Space plays and pauses — on a dialogue, and only on a dialogue.
+   *
+   * Space is already spoken for here: in paged mode it turns the page. Two meanings for
+   * one key is the thing this file says elsewhere means neither, so the split is by text
+   * rather than by mode, and the build decides which text — `speech.space`.
+   *
+   * A dialogue gets it: it is two or three pages long, the arrows are right there, and
+   * playing the scene is what a reader opened it to do. A recorded book does not. Ruth is
+   * four chapters of four pages each and Genesis is fifty; taking the pager's key away
+   * across a whole library to save one press on the player is not a trade, and the help
+   * card says whichever is true of the page you are on.
+   *
+   * Captured, because the pager listens on the way back up and would turn the page as
+   * well — one keystroke doing two things is exactly what this is avoiding. */
+  document.addEventListener("keydown", function (event) {
+    if (!speech.space) return;
+    if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey) return;
+    var on = document.activeElement;
+    if (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.isContentEditable)) return;
+    /* A focused button already answers Space itself; taking it here would fire twice. */
+    if (on && on.tagName === "BUTTON") return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggleScene();
+  }, true);
+
+  /* Saving the audio. The file is already in the page, so this asks the network for
+     nothing — the same reason the fonts and the icons ride inside it. */
+  if (player) {
+    var get = player.querySelector(".player-get");
+    if (get) {
+      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|]/g, "").trim();
+      /* Named for what it actually is. The build inlines whatever the scene was voiced
+         as, so a suffix written into the page rather than read off it hands the reader a
+         file their machine opens with the wrong thing. */
+      var ENDS = {
+        "audio/mpeg": "mp3",
+        "audio/mp4": "m4a",
+        "audio/aac": "aac",
+        "audio/ogg": "ogg",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/webm": "webm",
+        "audio/flac": "flac",
+      };
+      var kind = speech.audio.slice(5).split(";")[0].split(",")[0];
+      get.setAttribute("href", speech.audio);
+      get.setAttribute("download", (named || "dialogue") + "." + (ENDS[kind] || "mp3"));
+    }
+
+    /* Put away, and stays away. A reader who has met the player once does not need to be
+       shown it every time they open a scene; the bar keeps its button for coming back. */
+    var STORE = "targum:player-closed";
+
+    /* The pages were laid out before this ran, with room kept for a player that may be
+       put away — so whenever that changes, they are laid out again. */
+    function remeasure() {
+      var reader = window.TargumReader;
+      if (reader && reader.relayout) reader.relayout();
+    }
+
+    try {
+      if (localStorage.getItem(STORE) === "1") {
+        player.hidden = true;
+        remeasure();
+      }
+    } catch (e) {}
+
+    var shut = player.querySelector(".player-close");
+    if (shut) {
+      shut.addEventListener("click", function () {
+        halt();
+        player.hidden = true;
+        try { localStorage.setItem(STORE, "1"); } catch (e) {}
+        remeasure();
+      });
+    }
+
+    /* Coming back through the bar's button unhides it, so the two are never out of step. */
+    if (scenes.length > 1) {
+      scenes[0].addEventListener("click", function () {
+        if (!player.hidden) return;
+        player.hidden = false;
+        try { localStorage.removeItem(STORE); } catch (e) {}
+        remeasure();
+      });
+    }
+  }
+
+  /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) halt();
+  });
 })();

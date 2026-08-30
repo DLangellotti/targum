@@ -273,7 +273,10 @@ def browser():
     except Exception as why:  # pragma: no cover - environment, not behaviour
         pytest.skip(f"Playwright will not start: {why}")
     try:
-        running = driver.chromium.launch()
+        # Muted, because a dialogue's tests watch the media clock and Chromium will not
+        # advance an unmuted one with no audio device under it — it reports playing and
+        # sits at zero. Nothing here listens; what is asserted is the clock.
+        running = driver.chromium.launch(args=["--mute-audio"])
     except Exception as why:  # pragma: no cover - the browser itself is not installed
         driver.stop()
         pytest.skip(f"no Chromium: run `playwright install chromium` ({why})")
@@ -1160,3 +1163,429 @@ def test_b_is_the_way_back_to_the_scroll(paged) -> None:
     seen = paged.evaluate(PAGE)
     assert seen["paged"] is False
     assert seen["count"] == seen["total"], "every pair is on show again"
+
+
+# The player.
+#
+# A dialogue is the one text with a voice, and the player is the one control that has to
+# be found by a reader who has never seen the page. What can be decided without a browser
+# is decided in `test_render.py`; what is left is whether it plays, whether the text
+# follows the voice, and whether closing it means closed — three questions that are all
+# about a real media element and a real clock.
+#
+# Silence rather than a recording: what is asserted is the clock, and a second of silence
+# keeps the same time as a second of speech while keeping the fixture in the repository.
+
+#: Three turns, a second each. Long enough that a wait can see the mark move from one to
+#: the next; short enough that the whole scene runs inside a test.
+TURN = 1.0
+TURNS = 3
+
+
+def voice(path: Path, seconds: float) -> None:
+    """A silent WAV, written with the standard library so no fixture has to be shipped."""
+    import wave
+
+    with wave.open(str(path), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * int(8000 * 2 * seconds))
+
+
+def dialogue(home: Path, out: Path, turns: int = TURNS, span: float = TURN) -> Path:
+    """A built dialogue reader: turns, an audio file, and a span over each turn.
+
+    Longer than three where a test needs the scene to run past the foot of the window —
+    a page that fits in one screenful cannot show whether the layout kept room.
+    """
+    from targum.dialogue.models import Cast, Dialogue, Speaker, Turn
+
+    home.mkdir(parents=True, exist_ok=True)
+    voice(home / "voice.wav", span * turns)
+    scene = Dialogue(
+        id="scene",
+        title="A scene",
+        english="A scene",
+        cast=Cast(
+            A=Speaker(voice="one", gender="f", name="דנה"),
+            B=Speaker(voice="two", gender="m", name="יונתן"),
+        ),
+        turns=[
+            Turn(
+                who="A" if n % 2 == 0 else "B",
+                text=" ".join(coin(n * 3 + i) for i in range(3)),
+                english=f"Line {n}.",
+                start=n * span,
+                end=(n + 1) * span,
+            )
+            for n in range(turns)
+        ],
+        audio="voice.wav",
+    )
+    (home / "scene.json").write_text(scene.model_dump_json(), encoding="utf-8")
+
+    segments = [
+        Segment(
+            id=f"{n:04d}.000-aaaaaa",
+            block_id=f"b{n:04d}",
+            block_index=n,
+            index=n,
+            text=turn.text,
+            # The kind rides on the segment, not only on the block it came from: the
+            # template asks the segment which branch it is, and a turn that forgets to
+            # say so renders as a paragraph with no speaker and no voice.
+            kind=BlockKind.turn,
+        )
+        for n, turn in enumerate(scene.turns)
+    ]
+    document = Document(
+        source="dialogue:scene",
+        title=scene.title,
+        language="he",
+        blocks=[
+            Block(id=f"b{n:04d}", kind=BlockKind.turn, text=turn.text, speaker=turn.who)
+            for n, turn in enumerate(scene.turns)
+        ],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="authored",
+        segments={s.id: t.english for s, t in zip(segments, scene.turns, strict=True)},
+    )
+    return render(document, segmented, [translation], out)[0]
+
+
+#: Long enough that the scene runs past the foot of any window a test opens, with spans
+#: short enough that its audio is still a couple of seconds of silence.
+LONG = 40
+BRIEF = 0.05
+
+
+@pytest.fixture
+def paged_scene(browser, tmp_path, monkeypatch):
+    """A long dialogue as pages — the default reader, and the one that can keep room."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF)
+    context = opened(browser, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector("#player")
+    open_page.wait_for_function("() => document.body.classList.contains('paged')")
+    yield open_page
+    context.close()
+
+
+#: Every line the page is showing, and the player, in the same coordinates.
+LAID_OUT = """
+() => {
+  const player = document.getElementById("player");
+  const seat = player.hidden ? null : player.getBoundingClientRect();
+  const shown = [...document.querySelectorAll(".pair:not([hidden])")].map((pair) => {
+    const box = pair.getBoundingClientRect();
+    return { id: pair.getAttribute("data-id"), top: box.top, bottom: box.bottom };
+  });
+  return { seat: seat && { top: seat.top, bottom: seat.bottom }, shown };
+}
+"""
+
+
+@pytest.fixture
+def scene(browser, tmp_path, monkeypatch):
+    """A dialogue open in Chromium, with the player as a first-time reader meets it."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
+    context = opened(browser)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector("#player")
+    yield open_page
+    context.close()
+
+
+#: What the page says about itself while a scene is running.
+PLAYING = """
+() => {
+  const player = document.getElementById("player");
+  const now = document.querySelector(".pair.voiced.now");
+  return {
+    hidden: player.hidden,
+    playing: player.classList.contains("playing"),
+    fill: parseFloat(document.querySelector(".player-fill").style.inlineSize) || 0,
+    clock: document.querySelector(".player-clock").textContent,
+    line: now ? now.getAttribute("data-id") : null,
+  };
+}
+"""
+
+
+def test_the_player_is_there_before_anyone_asks_for_it(scene) -> None:
+    """Not behind a menu: a reader who has never seen the page still finds the voice."""
+    seen = scene.evaluate(PLAYING)
+    assert seen["hidden"] is False
+    assert seen["playing"] is False, "it waits to be pressed rather than starting itself"
+    assert scene.inner_text(".player-said").strip() == "Listen to the scene"
+
+
+def test_the_player_stands_clear_of_the_arrows(paged_scene) -> None:
+    """Two controls in one corner is one control nobody can press."""
+    player = paged_scene.locator("#player").bounding_box()
+    for other in (".turn button.back", ".turn button.next"):
+        arrow = paged_scene.locator(other)
+        if arrow.count() == 0 or not arrow.is_visible():
+            continue
+        box = arrow.bounding_box()
+        assert (
+            box["y"] >= player["y"] + player["height"] or box["y"] + box["height"] <= player["y"]
+        ), "the player and the turning arrows never share a row"
+
+
+def test_no_line_of_a_page_ends_up_under_the_player(paged_scene) -> None:
+    """The point of the corner. A page is laid out around what floats over it, the same
+    way it is laid out around the turning arrows — so the player covers nothing."""
+    laid = paged_scene.evaluate(LAID_OUT)
+    assert laid["seat"], "the player is out"
+    assert laid["shown"], "there are lines on show"
+    for line in laid["shown"]:
+        assert line["bottom"] <= laid["seat"]["top"], (
+            f"{line['id']} runs to {line['bottom']}, under a player at {laid['seat']['top']}"
+        )
+
+
+def test_putting_the_player_away_gives_the_page_its_room_back(paged_scene) -> None:
+    """The room is kept for it, not spent on it: close it and the page grows again."""
+    before = len(paged_scene.evaluate(LAID_OUT)["shown"])
+    paged_scene.click(".player-close")
+    paged_scene.wait_for_function(
+        f"() => document.querySelectorAll('.pair:not([hidden])').length > {before}"
+    )
+    after = paged_scene.evaluate(LAID_OUT)
+    assert after["seat"] is None
+    assert len(after["shown"]) > before
+
+
+def test_the_line_being_spoken_is_never_behind_the_player(scene) -> None:
+    """The scrolling reader reserves nothing, so the page moves the spoken line instead."""
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.querySelector('.pair.voiced.now')")
+    for _ in range(TURNS):
+        laid = scene.evaluate(
+            "() => { const p = document.getElementById('player');"
+            " const now = document.querySelector('.pair.voiced.now');"
+            " if (!now) return null;"
+            " const a = p.getBoundingClientRect(), b = now.getBoundingClientRect();"
+            " return { line: b.bottom, seat: a.top, id: now.getAttribute('data-id') }; }"
+        )
+        if laid:
+            assert laid["line"] <= laid["seat"], f"{laid['id']} is behind the player"
+        scene.wait_for_timeout(int(TURN * 1000))
+
+
+def test_pressing_play_plays_and_the_text_follows(scene) -> None:
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.querySelector('.pair.voiced.now')")
+    first = scene.evaluate(PLAYING)
+    assert first["playing"] is True
+    assert first["line"] == "0000.000-aaaaaa", "it starts at the first line"
+
+    # The mark moves on its own, driven by the audio rather than by anything pressed.
+    scene.wait_for_function(
+        "() => document.querySelector('.pair.voiced.now')?.getAttribute('data-id')"
+        " === '0001.000-aaaaaa'",
+        timeout=8000,
+    )
+    second = scene.evaluate(PLAYING)
+    assert second["fill"] > first["fill"], "the progress fills as it goes"
+    assert second["clock"].endswith("/ 0:03"), second["clock"]
+
+
+def test_pressing_it_again_pauses_where_it_stands(scene) -> None:
+    """A control that only ever restarts is one nobody presses twice."""
+    scene.click(".player-play")
+    scene.wait_for_function(
+        "() => document.querySelector('.pair.voiced.now')?.getAttribute('data-id')"
+        " === '0001.000-aaaaaa'",
+        timeout=8000,
+    )
+    scene.click(".player-play")
+    stopped = scene.evaluate(PLAYING)
+    assert stopped["playing"] is False
+    assert stopped["fill"] > 0, "the place it reached is still shown"
+
+
+def test_the_scene_can_be_saved(scene) -> None:
+    """The audio is already in the page, so saving it asks the network for nothing."""
+    save = scene.locator(".player-get")
+    assert save.get_attribute("download") == "A scene.wav"
+    assert save.get_attribute("href").startswith("data:audio/")
+
+
+def test_closing_the_player_closes_it_for_good(scene) -> None:
+    scene.click(".player-close")
+    assert scene.evaluate(PLAYING)["hidden"] is True
+    scene.reload()
+    scene.wait_for_selector("#player", state="attached")
+    assert scene.evaluate(PLAYING)["hidden"] is True, "it stays shut on the next visit"
+
+
+def test_the_bar_brings_the_player_back(scene) -> None:
+    scene.click(".player-close")
+    scene.click(".bar [data-play-scene]")
+    assert scene.evaluate(PLAYING)["hidden"] is False
+
+
+# A recorded book.
+#
+# The other half of the player: a dialogue is written here and voiced here, a recording is
+# somebody else's reading of a text that already existed. What is asserted is the half that
+# is different — that the audio a section gets is the one its own verses are in, that a
+# verse gets the same control a turn does, that the reader is credited on the page, and
+# that Space still turns the page, which on a book of fifty chapters it must.
+
+READ_VERSES = 12
+READ_SPAN = 0.4
+
+
+def recorded(home: Path, out: Path, chapter: int = 1) -> Path:
+    """A built chapter of a recorded book, with a recording beside it."""
+    from targum.recording import Part, Recording
+    from targum.recording import index as recording_index
+
+    source = "sefaria:Ruth"
+    folder = home / recording_index.slug(source)
+    folder.mkdir(parents=True, exist_ok=True)
+    voice(folder / "one.wav", READ_SPAN * READ_VERSES)
+    recording = Recording(
+        source=source,
+        credit="Rabbi Somebody",
+        licence="CC BY-SA 3.0",
+        licence_url="https://creativecommons.org/licenses/by-sa/3.0/",
+        parts=[
+            Part(
+                ref=f"Ruth {chapter}",
+                audio="one.wav",
+                spans={
+                    f"Ruth {chapter}:{n + 1}": [n * READ_SPAN, (n + 1) * READ_SPAN]
+                    for n in range(READ_VERSES)
+                },
+            )
+        ],
+    )
+    (folder / recording_index.MANIFEST).write_text(recording.model_dump_json(), encoding="utf-8")
+
+    segments = [
+        Segment(
+            id="head.000-aaaaaa",
+            block_id="b0000",
+            block_index=0,
+            index=0,
+            kind=BlockKind.heading,
+            level=2,
+            text=f"Ruth {chapter}",
+        )
+    ]
+    for n in range(READ_VERSES):
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n + 1:04d}",
+                block_index=n + 1,
+                index=0,
+                kind=BlockKind.verse,
+                text=" ".join(coin(n * 4 + i) for i in range(4)),
+                ref=f"Ruth {chapter}:{n + 1}",
+            )
+        )
+    document = Document(
+        source=source,
+        title="Ruth",
+        language="he",
+        blocks=[
+            Block(id=s.block_id, kind=s.kind, level=s.level, text=s.text, ref=s.ref)
+            for s in segments
+        ],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"Verse {s.ref or s.text}." for s in segments},
+    )
+    return render(document, segmented, [translation], out)[0]
+
+
+@pytest.fixture
+def read_aloud(browser, tmp_path, monkeypatch):
+    """A recorded chapter, open in Chromium as pages — how a book is read."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context = opened(browser, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector("#player")
+    open_page.wait_for_function("() => document.body.classList.contains('paged')")
+    yield open_page
+    context.close()
+
+
+def test_a_recorded_chapter_offers_its_reading(read_aloud) -> None:
+    assert read_aloud.inner_text(".player-said").strip() == "Listen to the reading"
+    # Every verse, and only the verses: nothing is speaking the chapter heading.
+    assert read_aloud.locator(".pair.voiced").count() == READ_VERSES
+    assert read_aloud.locator(".pair.head.voiced").count() == 0
+
+
+def test_a_verse_plays_and_the_text_follows(read_aloud) -> None:
+    read_aloud.click(".player-play")
+    read_aloud.wait_for_function("() => document.querySelector('.pair.voiced.now')")
+    assert (
+        read_aloud.evaluate(
+            "() => document.querySelector('.pair.voiced.now').getAttribute('data-id')"
+        )
+        == "0000.000-aaaaaa"
+    )
+    read_aloud.wait_for_function(
+        "() => document.querySelector('.pair.voiced.now')?.getAttribute('data-id')"
+        " === '0001.000-aaaaaa'",
+        timeout=8000,
+    )
+
+
+def test_space_still_turns_the_page_of_a_book(read_aloud) -> None:
+    """A dialogue is three pages and Space plays it. A book is not, and Space is the
+    pager's — taking it away across a library to save one press is not a trade."""
+    was = read_aloud.inner_text("#page-of")
+    read_aloud.keyboard.press("Space")
+    read_aloud.wait_for_function(
+        f"() => document.getElementById('page-of').textContent !== {was!r}"
+    )
+    assert read_aloud.evaluate(PLAYING)["playing"] is False, "and it did not start playing"
+
+
+def test_the_reader_of_a_recording_is_credited_on_the_page(read_aloud) -> None:
+    """CC BY-SA asks for the reader to be named, and a credit in a file nobody opens is
+    not a naming. It rides with the audio, which is the part that can be saved."""
+    credit = read_aloud.locator(".keys-credit")
+    assert credit.count() == 1
+    assert "Rabbi Somebody" in credit.inner_text()
+    assert credit.locator("a").get_attribute("href").startswith("https://creativecommons.org/")
+
+
+def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
+    laid = read_aloud.evaluate(LAID_OUT)
+    assert laid["seat"] and laid["shown"]
+    for line in laid["shown"]:
+        assert line["bottom"] <= laid["seat"]["top"], line["id"]

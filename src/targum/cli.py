@@ -6,9 +6,10 @@ import os
 import sqlite3
 import subprocess
 import sys
+import time
 from datetime import UTC
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 from urllib.parse import urlparse
 
 import typer
@@ -23,8 +24,8 @@ from . import translate as translate_module
 from .cache import Cache
 from .errors import TargumError
 from .ids import slug
-from .models import Document, Style
-from .paths import cache_dir, config_path, model_dir
+from .models import Document, Style, is_biblical
+from .paths import cache_dir, config_path, model_dir, write_atomic
 from .pipeline import Build
 
 if TYPE_CHECKING:
@@ -41,9 +42,11 @@ app = typer.Typer(
     ),
 )
 models_app = typer.Typer(no_args_is_help=True, help="Manage language models.")
+weekly_app = typer.Typer(no_args_is_help=True, help="The weekly digest.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
+app.add_typer(weekly_app, name="weekly")
 
 console = Console()
 err = Console(stderr=True)
@@ -81,7 +84,13 @@ def _root(
 CONFIRM_ABOVE_USD = 0.50
 
 
-def fail(error: TargumError) -> None:
+def fail(error: TargumError) -> NoReturn:
+    """Print what went wrong and stop.
+
+    `NoReturn` rather than `None` because it never does: annotated as returning, every
+    caller afterwards has to convince a type checker that the value it just failed over
+    is not None, which is a check for a state that cannot happen.
+    """
     err.print(f"[red]{error.message}[/red]")
     if error.hint:
         err.print(f"[dim]{error.hint}[/dim]")
@@ -445,6 +454,7 @@ def backup(
     from .backup import (
         NotShipped,
         archive_cache,
+        archive_weekly,
         check,
         check_archive,
         destination,
@@ -454,6 +464,7 @@ def backup(
     )
     from .paths import cache_dir
     from .serve import default_store
+    from .weekly import index as weekly_index
 
     where = store or default_store()
     into = out or where.parent / "backups"
@@ -490,6 +501,26 @@ def backup(
                 f"[green]Cache copied to {bundle}[/green] [dim]({mb:.1f} MB, checked)[/dim]"
             )
 
+    # And the weekly, which is the one thing here that cannot be remade. The cache can
+    # be re-bought and a reader rebuilt; an issue is what a model wrote on a particular
+    # morning from feeds that have moved on since. Same rule as the cache — a failure
+    # reports and carries on rather than losing the copies that already succeeded.
+    try:
+        issues = archive_weekly(weekly_index.root(), into)
+    except OSError as error:
+        issues = None
+        console.print(f"[yellow]Could not copy the weekly:[/yellow] [dim]{error}[/dim]")
+    if issues is not None:
+        spoiled = check_archive(issues)
+        if spoiled:
+            issues.unlink(missing_ok=True)
+            console.print(f"[yellow]The weekly copy is unusable:[/yellow] [dim]{spoiled}[/dim]")
+        else:
+            kb = issues.stat().st_size / 1024
+            console.print(
+                f"[green]Weekly copied to {issues}[/green] [dim]({kb:.0f} KB, checked)[/dim]"
+            )
+
     dropped = sweep(into, keep)
     if dropped:
         word = "copy" if len(dropped) == 1 else "copies"
@@ -506,7 +537,7 @@ def backup(
             "[dim]Set --to, or TARGUM_BACKUP_TO, to send them somewhere else.[/dim]"
         )
         return
-    leaving = [path for path in (made, bundle) if path is not None and path.is_file()]
+    leaving = [path for path in (made, bundle, issues) if path is not None and path.is_file()]
     try:
         arrived = ship(leaving, sending)
     except NotShipped as error:
@@ -525,23 +556,29 @@ def restore(
 ) -> None:
     """Put a backup back. Stop targum first.
 
-    Takes either half: a `targum-*.db` snapshot or a `cache-*.zip` archive. The database
+    Takes any of the three: a `targum-*.db` snapshot, a `cache-*.zip` archive, or a
+    `weekly-*.zip` of the issues. The database
     replaces what is there, moving it aside rather than deleting it, because restoring
     the wrong file is a thing people do at four in the morning. The cache is unpacked
     *over* what is there instead — it is content-addressed, so an entry already present
     is the same entry, and anything bought since the copy was taken should survive.
     """
     from .backup import restore as put_back
-    from .backup import restore_cache
+    from .backup import restore_cache, restore_weekly
     from .paths import cache_dir
     from .serve import default_store
+    from .weekly import index as weekly_index
 
     if backup.suffix == ".zip":
+        weekly = backup.name.startswith("weekly-")
+        root = weekly_index.root() if weekly else cache_dir()
+        put = restore_weekly if weekly else restore_cache
         try:
-            written = restore_cache(backup, cache_dir())
+            written = put(backup, root)
         except ValueError as error:
             fail(TargumError(str(error), "Try an earlier copy."))
-        console.print(f"[green]Restored {written} cached items to {cache_dir()}[/green]")
+        what = "issues and their files" if weekly else "cached items"
+        console.print(f"[green]Restored {written} {what} to {root}[/green]")
         console.print("[dim]Nothing already there was removed.[/dim]")
         return
 
@@ -672,7 +709,14 @@ def repair(
     points — run on this machine, for the changed sentences only. Nothing is fetched and
     nothing is spent.
     """
-    from .annotate import Annotator, PhonikudPronouncer, Pronouncer, biblical, pronounceable
+    from .annotate import (
+        Annotator,
+        PhonikudPronouncer,
+        Pronouncer,
+        biblical,
+        lemma,
+        pronounceable,
+    )
     from .ingest.base import infer_headings
     from .ingest.spacing import unglue as respace
     from .models import (
@@ -790,7 +834,9 @@ def repair(
                         if candidate.available()[0]:
                             pronouncer = candidate
                     annotator = Annotator(
-                        bands=biblical.for_source(document.source), pronouncer=pronouncer
+                        lemmatizer=lemma.for_source(document.source),
+                        bands=biblical.for_source(document.source),
+                        pronouncer=pronouncer,
                     )
                     annotation.tokens.update(annotator.annotate(patch, vocalization).tokens)
                     # The whole document's annotator, not the patch's. A file that says
@@ -980,15 +1026,22 @@ def rebuild(
             Pronouncer,
             StanzaLemmatizer,
             biblical,
+            lemma,
             pronounceable,
         )
         from .models import Vocalization, read_artifact
 
-        # One lemmatizer for the whole run: the model it loads is most of the cost, and
-        # the bands are the only part that differs from one text to the next.
-        lemmatizer = StanzaLemmatizer()
+        # One lemmatizer per register for the whole run: the models it loads are most of
+        # the cost, and a Tanakh and a newspaper are read with different tokenizers.
+        lemmatizers: dict[bool, StanzaLemmatizer] = {}
         phonikud = PhonikudPronouncer()
         has_phonikud = phonikud.available()[0]
+
+        def lemmatizer_for(source: str) -> StanzaLemmatizer:
+            scripture = is_biblical(source)
+            if scripture not in lemmatizers:
+                lemmatizers[scripture] = lemma.for_source(source)
+            return lemmatizers[scripture]
 
         def annotate(folder: Path, document: Document) -> Annotator:
             pronouncer: Pronouncer | None = None
@@ -996,7 +1049,7 @@ def rebuild(
                 if read_artifact(Vocalization, folder / "vocalization.json") is not None:
                     pronouncer = phonikud
             return Annotator(
-                lemmatizer=lemmatizer,
+                lemmatizer=lemmatizer_for(document.source),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
             )
@@ -1456,6 +1509,384 @@ def providers() -> None:
     console.print(f"[dim]Settings file: {config_path()} (optional)[/dim]")
 
 
+# -- the weekly ----------------------------------------------------------------------
+#
+# The half of this that gathers and writes is proprietary and is not in the wheel, so
+# every command here imports it inside the function and says plainly what is missing
+# when it is not there. A checkout without it still installs, still serves, and still
+# reads an issue somebody else published — it simply cannot make one.
+
+MISSING = (
+    "The weekly's gatherer is not installed.",
+    "It is the proprietary half and is not published with targum. "
+    "Run this from a working tree that has it.",
+)
+
+
+def _gatherer() -> Any:
+    try:
+        from .weekly import facts as facts_module
+    except ImportError as exc:  # pragma: no cover - depends on the checkout
+        raise TargumError(*MISSING) from exc
+    return facts_module
+
+
+@weekly_app.command("brief")
+def weekly_brief(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    limit: Annotated[int, typer.Option("--limit", help="Items to read from each feed.")] = 30,
+) -> None:
+    """Gather the week's stories, and write down what they were.
+
+    No model is asked for anything here and nothing is spent. The point of it being a
+    command of its own is that the fact base can be read by eye before a word is
+    written from it — which is also the only way to check, after the fact, that a
+    facts-only source gave nothing but facts.
+    """
+    import json
+    import time
+
+    from .weekly import index as weekly_index
+
+    gatherer = _gatherer()
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+
+    brief = gatherer.brief(week, made=int(time.time()), limit=limit)
+    if not brief.stories:
+        console.print("[yellow]No feed answered.[/yellow] Nothing was written.")
+        raise typer.Exit(1)
+
+    where = weekly_index.root() / week / "brief.json"
+    write_atomic(
+        where, json.dumps(brief.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n"
+    )
+
+    table = Table(box=None, pad_edge=False)
+    table.add_column("section")
+    table.add_column("outlets")
+    table.add_column("")
+    table.add_column("headline")
+    for story in brief.stories:
+        table.add_row(
+            story.section.value,
+            str(len(story.outlets)),
+            "[green]licensed[/green]" if story.tier == 1 else "[dim]facts only[/dim]",
+            story.headline[:60],
+        )
+    console.print(table)
+    console.print(f"[dim]{len(brief.stories)} stories → {where}[/dim]")
+
+
+@weekly_app.command("draft")
+def weekly_draft(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    again: Annotated[
+        bool, typer.Option("--again", help="Gather the brief again rather than reusing one.")
+    ] = False,
+) -> None:
+    """Write the week at three levels, and leave it as a draft.
+
+    Gathers if there is no brief yet, writes the middle level from it, rewrites that up
+    and down, and measures each against the band it is labelled with — regenerating once
+    where one missed. Nothing is published: an issue goes out when a person has read it
+    and pressed `targum weekly publish`.
+
+    A level that misses its band twice is kept, marked, and named in the notes rather
+    than thrown away or ground at. The markdown is on disk and hand-editable, which is
+    usually the quickest fix.
+    """
+    import json
+    import time
+
+    from .weekly import index as weekly_index
+    from .weekly.models import Brief
+
+    gatherer = _gatherer()
+    try:
+        from .weekly.write import compose
+    except ImportError as exc:
+        raise TargumError(*MISSING) from exc
+
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+    where = weekly_index.root() / week
+    brief_at = where / "brief.json"
+
+    if brief_at.is_file() and not again:
+        brief = Brief.model_validate_json(brief_at.read_text(encoding="utf-8"))
+        console.print(f"[dim]Reusing the brief at {brief_at} — {len(brief.stories)} stories.[/dim]")
+    else:
+        brief = gatherer.brief(week, made=int(time.time()))
+        if not brief.stories:
+            fail(TargumError("No feed answered.", "Nothing was written and nothing was spent."))
+        write_atomic(
+            brief_at, json.dumps(brief.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n"
+        )
+
+    from .weekly.entries import BYLINE_HE
+
+    issue, files = compose(brief, BYLINE_HE, on=lambda note: console.print(f"[dim]{note}[/dim]"))
+
+    for level, page in files.items():
+        write_atomic(where / f"weekly-{week}-{level.value}.md", page)
+
+    index = weekly_index.load()
+    index.issues = [one for one in index.issues if one.id != week] + [issue]
+    weekly_index.save(index)
+
+    table = Table(box=None, pad_edge=False)
+    from .weekly.models import LEVELS
+
+    table.add_column("level")
+    table.add_column("words", justify="right")
+    table.add_column("looked up", justify="right")
+    table.add_column("a sentence", justify="right")
+    table.add_column("")
+    for edition in issue.editions:
+        spec = LEVELS[edition.level]
+        low, high = spec.band
+        shortest, longest = spec.sentence
+        table.add_row(
+            spec.name,
+            str(edition.words),
+            f"{edition.difficulty}% [dim]of {low}-{high}[/dim]",
+            f"{edition.sentence} [dim]of {shortest:g}-{longest:g}[/dim]",
+            "[green]ok[/green]"
+            if edition.ok
+            else ("[red]borrowed wording[/red]" if edition.lifted else "[yellow]missed[/yellow]"),
+        )
+    console.print(table)
+    if issue.notes:
+        console.print(f"[yellow]{issue.notes}[/yellow]")
+    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+@weekly_app.command("build")
+def weekly_build(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    to: Annotated[str, typer.Option("--to", help="Translate into.")] = "en",
+) -> None:
+    """Build all three editions into readers, wired to each other.
+
+    Every level with its words tappable and its meanings bought, because that is the
+    whole of what a reader is here for — parallel text alone is a page, and a page is
+    not the product. Glossing an issue costs almost nothing: the catalogue's lemmas are
+    already in the shared cache, so a week of news adds a handful.
+
+    The three come out linked, so a reader who finds one level too hard says so in one
+    press instead of going back out to look for the easier one.
+    """
+    from .pipeline import Build
+    from .serve import HOSTED_MODEL
+    from .weekly import index as weekly_index
+    from .weekly.models import LEVELS, Level, folder, identifier
+
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+    root = weekly_index.root()
+    issue = weekly_index.by_week(week)
+    if issue is None:
+        fail(TargumError(f"No issue for {week}.", "Draft one first."))
+
+    have = {edition.level for edition in issue.editions}
+    for level in Level:
+        if level not in have:
+            continue
+        # Relative, so the folder keeps working off a disk with no server in front of it.
+        siblings = [
+            {
+                "name": LEVELS[other].name,
+                "figure": f"{LEVELS[other].figure} words",
+                "folder": folder(week, other),
+                "current": "1" if other is level else "",
+            }
+            for other in Level
+            if other in have
+        ]
+        console.print(f"[dim]{LEVELS[level].name}[/dim]")
+        build = Build(
+            source=f"weekly:{identifier(week, level)}",
+            target_language=to,
+            source_language="he",
+            out=root / folder(week, level),
+            model=HOSTED_MODEL,
+            gloss=True,
+            siblings=siblings,
+            # One long targum, not five chapters and a contents page.
+            whole=True,
+            notify=lambda message: console.print(f"  [dim]{message}[/dim]"),
+        )
+        result = build.run()
+        console.print(f"  [green]{result.out_dir}[/green]")
+
+    console.print(f"[dim]Read one: {root / folder(week, Level.bet)}/reader/index.html[/dim]")
+
+
+@weekly_app.command("publish")
+def weekly_publish(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    anyway: Annotated[
+        bool, typer.Option("--anyway", help="Publish a level that missed its band.")
+    ] = False,
+) -> None:
+    """Release a drafted issue.
+
+    The gate the whole design rests on: nothing written by a model goes out under the
+    targum name unread. It is also what makes the line on every page true — "compiled by
+    a model and curated by the targum team" is an accurate sentence only while somebody
+    presses this.
+    """
+    from .weekly import index as weekly_index
+    from .weekly.models import LEVELS, State
+
+    index = weekly_index.load()
+    issue = next((one for one in index.issues if one.id == week), None)
+    if issue is None:
+        fail(TargumError(f"No issue for {week}.", "Draft one first."))
+    if issue.state is State.published:
+        console.print(f"[dim]{week} is already out.[/dim]")
+        return
+
+    # A borrowed run is not a thing `--anyway` may wave through. A missed band is a
+    # labelling problem and publishing through it is a decision somebody is allowed to
+    # take; somebody else's sentence in the issue is not.
+    borrowed = [edition for edition in issue.editions if edition.lifted]
+    if borrowed:
+        lines = "; ".join(phrase for edition in borrowed for phrase in edition.lifted[:2])
+        fail(
+            TargumError(
+                f"{len(borrowed)} level(s) still carry a source's own wording: {lines}",
+                "Rewrite those phrases in the markdown and run `targum weekly draft "
+                "--again` to remeasure. This one is not a --anyway.",
+            )
+        )
+
+    # Publishing an issue nobody can open is not an error anywhere downstream — every
+    # surface asks `readable` and simply leaves it out — so it would go quiet rather
+    # than wrong, which is worse to debug. Said here, once, where it can name the fix.
+    unbuilt = [edition for edition in issue.editions if not weekly_index.built(week, edition.level)]
+    if unbuilt:
+        fail(
+            TargumError(
+                f"{len(unbuilt)} level(s) have no reader: "
+                + ", ".join(LEVELS[edition.level].name for edition in unbuilt),
+                f"Build it first: targum weekly build {week}",
+            )
+        )
+
+    missed = [edition for edition in issue.editions if not edition.ok]
+    if missed and not anyway:
+        levels = ", ".join(
+            f"{LEVELS[edition.level].name} at {edition.difficulty}%" for edition in missed
+        )
+        fail(
+            TargumError(
+                f"{len(missed)} level(s) missed the band they are labelled with: {levels}.",
+                "Edit the markdown and measure again, or publish it with --anyway. A "
+                "level labelled for a vocabulary it does not have is worse than a "
+                "missing one.",
+            )
+        )
+
+    issue.state = State.published
+    issue.published_at = int(time.time())
+    weekly_index.save(index)
+    console.print(f"[green]{week} is out.[/green]")
+    console.print(
+        f"[dim]Out here, not on the box. Send it: TARGUM_HOST=… ./deploy/ship-weekly.sh {week}"
+        f"\nThen tell people: targum weekly announce {week}[/dim]"
+    )
+
+
+@weekly_app.command("announce")
+def weekly_announce(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    store: Annotated[
+        Path | None, typer.Option("--store", help="Which database holds the subscribers.")
+    ] = None,
+) -> None:
+    """Tell everybody who asked that a new issue is out.
+
+    A separate verb from `publish` on purpose: the issue is out whether or not the mail
+    went, and a mailout that died halfway is resumed by running this again. Nobody is
+    sent the same issue twice, which is the property the whole thing is arranged around.
+    """
+    from .accounts import Store
+    from .mail import from_environment
+    from .serve import default_store
+    from .weekly import index as weekly_index
+    from .weekly.mailout import announce as send
+    from .weekly.models import State
+
+    issue = weekly_index.by_week(week)
+    if issue is None or issue.state is not State.published:
+        fail(TargumError(f"{week} is not published.", "Publish it first."))
+
+    address = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()
+    if not address:
+        fail(
+            TargumError(
+                "No public address, so the links would point at this machine.",
+                "Set TARGUM_PUBLIC_ADDRESS to where readers reach targum.",
+            )
+        )
+
+    book = Store(store or default_store())
+    report = send(book, from_environment(), issue, address)
+    if report.stopped:
+        fail(
+            TargumError(
+                f"The mailout stopped after {len(report.sent)}.",
+                f"{report.stopped} Nobody left has been marked, so running this again "
+                f"picks up where it stopped.",
+            )
+        )
+    console.print(f"[green]{report}[/green]")
+    for who, why in report.failed:
+        console.print(f"[yellow]{who}[/yellow] [dim]{why}[/dim]")
+
+
+@weekly_app.command("sources")
+def weekly_sources() -> None:
+    """List the feeds an issue is gathered from, and what may be done with each."""
+    try:
+        from .weekly import sources as sources_module
+    except ImportError as exc:  # pragma: no cover - depends on the checkout
+        raise TargumError(*MISSING) from exc
+
+    table = Table(box=None, pad_edge=False)
+    table.add_column("source")
+    table.add_column("may be")
+    table.add_column("sections")
+    for source in sources_module.SOURCES:
+        licensed = source.tier is sources_module.Tier.open
+        table.add_row(
+            source.key,
+            f"[green]quoted — {source.licence}[/green]"
+            if licensed
+            else "[dim]read for facts[/dim]",
+            source.section.value,
+        )
+    console.print(table)
+    console.print(
+        "[dim]A facts-only source is read at its feed and at no other address: its "
+        "headline and a hook go in, original Hebrew comes out.[/dim]"
+    )
+
+
 @models_app.command("list")
 def models_list() -> None:
     """Show downloaded language models."""
@@ -1495,13 +1926,26 @@ def models_fetch(
         return
 
     code = segment_module.stanza_code(language)
-    from .annotate.lemma import PROCESSORS
+    from .annotate.lemma import PROCESSORS, StanzaLemmatizer
 
-    if segment_module.has_processors(code, PROCESSORS):
+    # Both builds of the tokenizer, where the language has two: scripture is read with
+    # one and everything else with the other, and a box that fetches ahead of a long job
+    # should not find that out halfway through it.
+    wanted: list[dict[str, str]] = [{}]
+    modern = StanzaLemmatizer().packages(code)
+    if modern:
+        wanted.append(modern)
+    missing = [
+        packages
+        for packages in wanted
+        if not segment_module.has_processors(code, PROCESSORS, packages)
+    ]
+    if not missing:
         console.print(f"[dim]{code} is already downloaded.[/dim]")
         return
     try:
-        segment_module.download(code, processors=PROCESSORS)
+        for packages in missing:
+            segment_module.download(code, processors=PROCESSORS, packages=packages)
     except TargumError as error:
         fail(error)
     console.print(f"[green]Downloaded[/green] {code}")

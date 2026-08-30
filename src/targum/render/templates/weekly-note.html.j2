@@ -1,0 +1,45 @@
+{#- One sentence back, on the weekly's own furniture.
+
+    Used by the confirmation and unsubscribe doors, both of which are followed out of an
+    email client — so everything here works with no JavaScript, and the `action` form is
+    a real form. `pending` carries a token that is spent only when the button is pressed:
+    a mail client that fetches every link in a message must not be able to answer for the
+    person who was sent it. -#}
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public">
+<div class="corner">
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/weekly" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <h1>the weekly</h1>
+  <p class="lede">{{ message }}</p>
+
+  {%- if pending %}
+  <form class="door" method="post" action="{{ pending.action }}">
+    <input type="hidden" name="t" value="{{ pending.token }}">
+    <button class="go" type="submit">{{ pending.button }}</button>
+  </form>
+  {%- else %}
+  <p class="door"><a class="go" href="/weekly">Read this week</a></p>
+  {%- endif %}
+</main>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

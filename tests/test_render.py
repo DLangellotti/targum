@@ -2618,7 +2618,11 @@ def test_nothing_scrolls_for_a_reader_who_asked_it_not_to() -> None:
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert 'window.matchMedia("(prefers-reduced-motion: reduce)")' in script
     assert 'behavior: "smooth"' not in script
-    assert script.count("behavior: behaviour()") == 1, "the queue, which is the only walk"
+    # The rule is that nothing hard-codes the answer, which the line above is. It used
+    # to also count `behaviour()` to exactly one, back when walking the word queue was
+    # the only animated scroll; jumping to a section is a second, and a count that has
+    # to be edited every time a legitimate one is added was measuring the wrong thing.
+    assert "behavior: behaviour()" in script
 
 
 def test_walking_the_page_opens_no_windows() -> None:
@@ -3047,3 +3051,82 @@ def test_nothing_about_a_page_is_fixed_height_or_clipped() -> None:
     paged = css[css.index("/* --- pages, not a scroll") : css.index("@media print")]
     assert "overflow: hidden" not in paged
     assert "block-size: calc(100" not in paged and "height: 100vh" not in paged
+
+
+def test_the_register_rides_beside_the_lemmas(tmp_path: Path) -> None:
+    """Which Hebrew a word belongs to is a fact about the dictionary form, so it goes in
+    a table parallel to the lemmas rather than on every token that spells it.
+
+    Codes rather than sentences: the words the card says are in `reader.js`, so they can
+    be rewritten without re-annotating a library.
+    """
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(
+        source="sefaria:Ruth", title="T", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="curated:tanakh",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(start=0, end=3, surface="זבח", lemma="זבח", band=2, word_register="biblical"),
+                # The registers agreed about this one, and the table still lines up.
+                Token(start=4, end=7, surface="בית", lemma="בית", band=1),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["lemmas"] == ["זבח", "בית"]
+    assert data["registers"] == ["biblical", ""]
+    # Where the reader is standing, so the card can say the same fact from here.
+    assert data["sourceRegister"] == "biblical"
+
+
+def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> None:
+    """Rather than a row of empty strings nothing would ever read."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: [Token(start=0, end=3, surface="בית", lemma="בית", band=1)]},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert "registers" not in data
+    assert data["sourceRegister"] == "modern"

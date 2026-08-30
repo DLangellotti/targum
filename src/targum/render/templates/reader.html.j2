@@ -84,6 +84,20 @@
       </button>
     </div>
     {% endif %}
+    {#- Play the scene, and follow it. Only on a text that has audio, which today means a
+        dialogue and nothing else. The drawing is what it does: a play mark, and the lines
+        of text it is going to walk down. -#}
+    {% if spoken %}
+    <div class="group">
+      <button type="button" data-play-scene aria-pressed="false"
+              title="Play {{ spoken_label }} and follow along" aria-label="Play {{ spoken_label }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 3 6.5 5.5 2.5 8Z"/>
+          <path d="M9 5.5h4.5M2.5 11h11M2.5 13.5h7" class="faint"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
     {#- Pages, or one long scroll. The drawing is two leaves. -#}
     <div class="group">
       <button type="button" data-paged aria-pressed="false"
@@ -108,6 +122,22 @@
       </button>
     </div>
     {% endif %}
+    {%- if siblings %}
+    {#- The same news at another level. One press, and the reader keeps their place in
+        the issue rather than being sent back to the library to find the easy one. -#}
+    <div class="group levels" role="group" aria-label="Level">
+      {%- for other in siblings %}
+      {%- if other.current %}
+      <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
+      {%- else %}
+      {#- The same section, not the other level's front. A reader who finds Sport too
+          hard wants Sport again in easier Hebrew, not to be put back at the top of the
+          issue and made to find their way down to it. -#}
+      <a class="level" href="../../{{ other.folder }}/reader/{{ 'index.html' if standalone else section.filename }}" title="Written for {{ other.figure }}">{{ other.name }}</a>
+      {%- endif %}
+      {%- endfor %}
+    </div>
+    {%- endif %}
     <div class="group" role="group" aria-label="Type size">
       <button type="button" data-type="smaller" aria-label="Smaller type">A−</button>
       <button type="button" data-type="larger" aria-label="Larger type">A+</button>
@@ -119,6 +149,21 @@
     </div>
   </div>
 </header>
+
+{#- The sections, straight from the bar.
+
+    The weekly is one long targum, which is right for reading it through and wrong for
+    somebody who does not want the politics. A strip under the bar rather than more
+    controls inside it: five Hebrew section names would crowd a toolbar that is already
+    a mark, a title, three modes, three levels, three type buttons and two toggles — and
+    a row of section names under the masthead is what a newspaper does anyway. -#}
+{%- if parts %}
+<nav class="parts" aria-label="Sections">
+  {%- for part in parts %}
+  <a href="#" data-to="{{ part.id }}" lang="{{ source_language }}" dir="{{ source_direction }}">{{ part.title }}</a>
+  {%- endfor %}
+</nav>
+{%- endif %}
 
 {#- What a keystroke just did, for anyone who is listening rather than looking. Marking a
     word moves a ring and a number in the far corner; neither is announced, and a reader
@@ -145,6 +190,43 @@
   <button type="button" id="translate-chapter" hidden>Translate</button>
 </div>
 {% endif %}
+{#- The player. Shown on a dialogue the moment it opens, because a reader who does not
+    know the audio is there will not go looking for it in a toolbar — and put away with the
+    × for anyone who would rather read. The bar keeps its own button, which is how it comes
+    back.
+
+    In the corner rather than across the top: a bar over the text is a second toolbar,
+    and it moves the reading down to make room for something a reader may never press. -#}
+{% if spoken %}
+<div class="player" id="player" role="group" aria-label="Play {{ spoken_label }}">
+  <button type="button" class="player-play" data-play-scene aria-pressed="false" aria-label="Play {{ spoken_label }}">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path>
+      <rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect>
+    </svg>
+  </button>
+  <span class="player-body">
+    <span class="player-said">Listen to {{ spoken_label }}</span>
+    <span class="player-track" aria-hidden="true"><span class="player-fill"></span></span>
+    <span class="player-clock" dir="ltr" aria-hidden="true"></span>
+  </span>
+  {#- A real file, carried in the page already, so saving it costs no request. -#}
+  <a class="player-get" download aria-label="Download the audio" title="Download the audio">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M8 2.5v8"></path>
+      <path d="M4.5 7.5 8 11l3.5-3.5"></path>
+      <path d="M3 13.5h10"></path>
+    </svg>
+  </a>
+  <button type="button" class="player-close" aria-label="Close the player">×</button>
+</div>
+{% endif %}
+{#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of
+    a recorded book are the same control over the same audio, and two copies of an inline
+    SVG is how the two quietly stop matching. -#}
+{%- macro hear(id) -%}
+<button type="button" class="say" data-id="{{ id }}" aria-label="Play this line"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path><rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg></button>
+{%- endmacro -%}
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
@@ -163,8 +245,23 @@
     {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
+  {% elif segment.kind.value == 'turn' %}
+  {#- A line of a dialogue. Who said it sits beside the words rather than inside them, so
+      the speaker is never pointed, never counted as vocabulary and never read aloud. The
+      play control appears only where that line has a span of the scene's audio: a turn
+      with no sound shows none, rather than a button that does nothing. -#}
+  <div class="pair said{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" data-speaker="{{ speakers.get(segment.id, '') }}" tabindex="-1">
+    <span class="who" aria-hidden="true">{{ speakers.get(segment.id, '') }}</span>
+    {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
+    <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
+    {% if segment.id in pointed %}
+    <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
+    {% endif %}
+    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+  </div>
   {% else %}
-  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+    {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
@@ -269,7 +366,8 @@
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     <dt>b</dt><dd>pages, or one long scroll</dd>
-    <dt>Space</dt><dd>next page; with Shift, back. On the last page, the next chapter</dd>
+    {% if spoken and spoken_space %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
+    {% else %}<dt>Space</dt><dd>next page; with Shift, back. On the last page, the next chapter</dd>{% endif %}
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
@@ -277,6 +375,13 @@
     <dt>l</dt><dd>interlinear — the translation under each line</dd>
     <dt>o</dt><dd>source only</dd>
   </dl>
+  {#- Who read it. A recording the library serves is somebody else's work under a licence
+      that asks for them to be named, and naming them in a file nobody opens is not
+      naming them. The text's own credit is on the library page; this one travels with
+      the audio, because the audio is what can be saved and carried off. -#}
+  {% if speech_credit %}
+  <p class="keys-credit">Read by {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
+  {% endif %}
 </div>
 <script type="application/json" id="targum-data">{{ data }}</script>
 <script>{{ asset('vocab.js') }}</script>

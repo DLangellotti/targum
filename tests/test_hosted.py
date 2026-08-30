@@ -10,6 +10,7 @@ import json
 import re
 import threading
 import time
+from collections.abc import Callable
 from http.client import HTTPConnection
 from pathlib import Path
 
@@ -27,7 +28,9 @@ STORE: list[Path] = []
 
 
 @pytest.fixture(scope="module")
-def hosted(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, str]:
+def hosted(
+    tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]
+) -> tuple[int, str]:
     """A server started the way the deployment starts it, with somebody signed in."""
     tmp = tmp_path_factory.mktemp("hosted")
     store_path = tmp / "targum.db"
@@ -36,7 +39,7 @@ def hosted(tmp_path_factory: pytest.TempPathFactory) -> tuple[int, str]:
     token = store.start_sign_in("reader@example.com")
     signed_in = store.finish_sign_in(token)
     assert signed_in is not None
-    port = 8491
+    port = free_port()
 
     threading.Thread(
         target=lambda: serve.start(
@@ -172,14 +175,14 @@ def test_no_key_gets_a_stranger_through_the_door(hosted: tuple[int, str], query:
     assert b"Coming soon" in body, "a stranger should meet the holding page, whatever they guess"
 
 
-def test_run_locally_the_key_is_still_there(tmp_path: Path) -> None:
+def test_run_locally_the_key_is_still_there(tmp_path: Path, free_port: Callable[[], int]) -> None:
     """The mechanism is right for the case it was built for and stays.
 
     One person, one machine, nobody else able to reach it, and reading the terminal is
     the same as being the person sitting at it.
     """
     announced: list[str] = []
-    port = 8492
+    port = free_port()
     threading.Thread(
         target=lambda: serve.start(
             out=tmp_path / "out",
@@ -258,6 +261,57 @@ def test_the_sitemap_lists_every_text_and_nothing_private(
         assert f"/library/{entry.id}" in paths, entry.id
     for private in ("/progress", "/readers", "/health", "/account/signin"):
         assert private not in paths, f"{private} should not be advertised"
+    # Shut for the alpha, so a crawler is told about none of them.
+    for shut in ("/privacy", "/terms", "/retention", "/deletion"):
+        assert shut not in paths, shut
+
+
+def test_the_legal_documents_are_shut_for_the_alpha(hosted: tuple[int, str]) -> None:
+    """Shut all the way down, as the catalogue is: 404 rather than the holding page.
+
+    The holding page would be the worse answer. It says "Coming soon" with a way in, so
+    a privacy notice that answered with it would look present and be absent, which is
+    the failure that is hardest to notice from outside.
+    """
+    port, _ = hosted
+    for route in ("/privacy", "/terms", "/retention", "/deletion"):
+        status, body = ask(port, route, "targum.page")
+        assert status == 404, route
+        assert b"Coming soon" not in body, f"{route} answered with the holding page"
+
+
+def test_the_legal_documents_answer_once_the_switch_is_thrown(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What beta turns on, asserted now so that throwing the switch is all it takes.
+
+    Hosted is the shape that matters: an account is required for everything, so a route
+    left out of `OPEN_TO_STRANGERS` would answer with the holding page rather than the
+    document. They open whether or not the shelves are, being no part of the shop
+    window.
+    """
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_LEGAL", "1")
+    for route in ("/privacy", "/terms", "/retention", "/deletion"):
+        status, body = ask(port, route, "targum.page")
+        assert status == 200, route
+        assert b"Coming soon" not in body, f"{route} fell through to the holding page"
+        assert b"hello@targum.page" in body, f"{route} gives nobody to write to"
+
+
+def test_the_sitemap_and_robots_name_the_documents_once_they_are_open(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both lists are built from `LEGAL_ROUTES` behind the same switch, so neither can
+    advertise a document that answers 404."""
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setenv("TARGUM_PUBLIC_LEGAL", "1")
+    robots = ask(port, "/robots.txt", "targum.page")[1].decode()
+    sitemap = ask(port, "/sitemap.xml", "targum.page")[1].decode()
+    for route in ("/privacy", "/terms", "/retention", "/deletion"):
+        assert f"Allow: {route}" in robots, route
+        assert f"<loc>https://targum.page{route}</loc>" in sitemap, route
 
 
 def test_every_text_answers_at_one_address(
@@ -317,7 +371,7 @@ def test_an_empty_list_means_nobody_rather_than_everybody(tmp_path: Path) -> Non
     assert not store.may_join("stranger@example.com")
 
 
-def test_only_an_invited_address_gets_a_link(tmp_path: Path) -> None:
+def test_only_an_invited_address_gets_a_link(tmp_path: Path, free_port: Callable[[], int]) -> None:
     sent: list[str] = []
 
     class Mailer:
@@ -326,7 +380,7 @@ def test_only_an_invited_address_gets_a_link(tmp_path: Path) -> None:
 
     store_path = tmp_path / "invite.db"
     store = Store(store_path)
-    port = 8494
+    port = free_port()
     threading.Thread(
         target=lambda: serve.start(
             out=tmp_path / "out",

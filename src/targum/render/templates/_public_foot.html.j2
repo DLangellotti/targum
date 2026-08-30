@@ -1,0 +1,20 @@
+{#- The foot of every page a stranger can reach, and now of the sign-in page too.
+
+    There were three copies of this — the holding page, the shelf and a text — and they
+    had already drifted apart: two carried the licence and one did not. That is the
+    lesson `_public_head.html.j2` records, arriving a second time.
+
+    `back` adds the way to the catalogue, which only a text's own page wants. -#}
+<footer class="foot">
+  {%- if back %}
+  <a href="/library">{{ back }}</a>
+  {%- endif %}
+  <a href="/about">What's built</a>
+  {#- Shown only once the documents are open. See `_foot.html.j2`. -#}
+  {%- if legal_is_public() %}
+  <a href="/privacy">Privacy</a>
+  <a href="/terms">Terms</a>
+  {%- endif %}
+  <a href="https://github.com/DLangellotti/targum">Source</a>
+  <span>AGPL-3.0</span>
+</footer>

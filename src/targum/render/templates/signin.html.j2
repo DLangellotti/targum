@@ -57,6 +57,12 @@
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>
+
+  {#- The foot the rest of the site has. Not navigation — there is still nothing to
+      navigate to from out here — but somebody handing an address over deserves to read
+      what happens to it before they do, which is what the privacy link is for once the
+      documents are open. Until then this is the same three links as everywhere else. -#}
+  {% include '_public_foot.html.j2' %}
 </main>
 <script>{{ asset('signin.js') }}</script>
 </body>

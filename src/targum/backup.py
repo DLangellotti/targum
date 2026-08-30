@@ -99,6 +99,108 @@ def archive_cache(root: Path, into: Path, now: datetime | None = None) -> Path |
     return target
 
 
+def archive_weekly(root: Path, into: Path, now: datetime | None = None) -> Path | None:
+    """Zip the weekly. Returns the file, or None if no issue has been made yet.
+
+    The cache can be re-bought and the readers can be rebuilt from it. An issue cannot
+    be either: it is the output of a model on a particular morning, from feeds that have
+    since moved on, and asking the same model the same question tomorrow does not return
+    it. Losing a week of the weekly loses that week permanently.
+
+    The composed markdown and the index only — not the built readers under it, which are
+    rebuilt from the markdown for nothing. Kilobytes, so it rides with the nightly copy
+    rather than waiting for somebody to think of it.
+    """
+    if not root.is_dir():
+        return None
+    kept = sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and path.suffix in {".md", ".json"} and "reader" not in path.parts
+    )
+    if not kept:
+        return None
+
+    into.mkdir(parents=True, exist_ok=True)
+    stamped = (now or datetime.now()).strftime(STAMP)
+    target = into / f"weekly-{stamped}.zip"
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for path in kept:
+            bundle.write(path, path.relative_to(root).as_posix())
+    return target
+
+
+# The one file in a weekly archive that is a list rather than a thing. Unpacking it
+# the way everything else is unpacked replaces the list, which is why it is merged.
+WEEKLY_INDEX = "index.json"
+
+
+def restore_weekly(archive: Path, root: Path) -> int:
+    """Unpack a weekly archive over the weekly. Returns how many files were written.
+
+    Additive, like the cache: an issue that is already there is the same issue, and one
+    published since the archive was taken should survive being restored onto.
+
+    `index.json` is the exception that has to be handled rather than extracted. Every
+    other member is one issue's own file, so unpacking it over an existing copy writes
+    the same bytes back. The index is the list of *all* issues, so unpacking it replaces
+    what is standing with what was true on the night of the copy -- and a week published
+    since then keeps its files on disk while disappearing from the product entirely.
+    That is this month's issue vanishing during the restore run to save last month's,
+    which is the failure the whole archive exists to prevent. So the two lists are
+    merged and what is standing wins, because it is the more recent account of the same
+    issue: withdrawing an issue and then restoring must not put it back on sale.
+    """
+    problem = check_archive(archive)
+    if problem:
+        raise ValueError(f"That weekly archive is not usable: {problem}")
+    root.mkdir(parents=True, exist_ok=True)
+    standing = _issues_in(root / WEEKLY_INDEX)
+    with zipfile.ZipFile(archive) as bundle:
+        names = bundle.namelist()
+        bundle.extractall(root)
+    if standing:
+        _merge_issues(root / WEEKLY_INDEX, standing)
+    return len(names)
+
+
+def _issues_in(path: Path) -> dict[str, object]:
+    """The issues in an index file, by id -- empty if there is no readable index.
+
+    Read as plain JSON rather than through the weekly models on purpose: a restore must
+    not fail because the standing index carries a field this version has never heard of.
+    Unreadable counts as absent, which is the right reading -- an index nobody can parse
+    is what somebody is restoring to get away from, and it should not veto the archive.
+    """
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    issues = loaded.get("issues")
+    if not isinstance(issues, list):
+        return {}
+    return {
+        one["id"]: one for one in issues if isinstance(one, dict) and isinstance(one.get("id"), str)
+    }
+
+
+def _merge_issues(path: Path, standing: dict[str, object]) -> None:
+    """Put the issues that were standing back into a freshly unpacked index."""
+    restored = _issues_in(path)
+    together = {**restored, **standing}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(loaded, dict):
+        return
+    # Sorted by id, which for "2026-w36" is also date order.
+    loaded["issues"] = [together[key] for key in sorted(together)]
+    path.write_text(json.dumps(loaded, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def check_archive(path: Path) -> str:
     """What is wrong with this cache archive, or "" if nothing is.
 

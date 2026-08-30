@@ -67,6 +67,13 @@
       <button type="button" class="go-quiet" id="you-out">Sign out</button>
       <button type="button" class="go-quiet danger" id="you-forget">Delete account</button>
     </div>
+    {#- Next to the button it describes, which is the only place anybody looks for it.
+        The sentence stands without the link while the documents are shut: seven days is
+        the fact somebody about to press this needs, and it is true either way. -#}
+    <p class="note">Deleting waits seven days.
+      {%- if legal_is_public() %}
+      <a href="/deletion">What that means</a>.
+      {%- endif %}</p>
     <p class="said" id="you-ending-said" hidden></p>
   </section>
 </main>

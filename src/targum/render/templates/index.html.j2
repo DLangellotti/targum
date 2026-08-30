@@ -30,6 +30,19 @@
     <span>{{ title }}</span>
   </div>
   <div class="controls" dir="ltr">
+    {%- if siblings %}
+    {#- The same news at another level. One press, and the reader keeps their place in
+        the issue rather than being sent back to the library to find the easy one. -#}
+    <div class="group levels" role="group" aria-label="Level">
+      {%- for other in siblings %}
+      {%- if other.current %}
+      <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
+      {%- else %}
+      <a class="level" href="../../{{ other.folder }}/reader/{{ sections[0].filename }}" title="Written for {{ other.figure }}">{{ other.name }}</a>
+      {%- endif %}
+      {%- endfor %}
+    </div>
+    {%- endif %}
     <div class="group">
       <button type="button" data-theme-toggle aria-label="Switch theme"></button>
     </div>

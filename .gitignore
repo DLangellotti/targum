@@ -35,3 +35,34 @@ deploy/targum.env
 # The catalogue is private data; it never enters the repository.
 catalogue.json
 !tests/fixtures/catalogue.json
+
+# The half of the weekly that *makes* an issue. Content targum creates is proprietary,
+# and so is the code that creates it — the same split `catalogue.py` already makes,
+# where the types and the loader are open and the data is not. Two consequences worth
+# knowing: hatchling leaves VCS-ignored files out of the wheel, so none of this ships
+# and it has to run from a working tree; and running it off the server rather than on
+# it keeps the generator clear of AGPL section 13. Everything that *serves* an issue —
+# models, index, entries, verify, the routes and the templates — stays in the repo.
+src/targum/weekly/sources.py
+src/targum/weekly/facts.py
+src/targum/weekly/prompts.py
+src/targum/weekly/write.py
+# Issues themselves live under targum-out/, already ignored above.
+
+# The half of a dialogue that *writes* one. Same split, same reason: the scenes are
+# content and so is the code that composes and voices them. Everything that *serves* a
+# dialogue — the models, the index, the fetcher, the reader — stays in the repo, so a
+# checkout can open a scene it is given and cannot invent one.
+src/targum/dialogue/write.py
+src/targum/dialogue/voice.py
+src/targum/dialogue/shelf.py
+# The scenes themselves live under targum-out/dialogues/, already ignored above.
+#
+# `feeds.py` and `verify.py` are deliberately NOT here. Parsing somebody else's XML is
+# not content and not a moat, and `verify.py` holds the licence guard and the band gate
+# — the two things that stop this doing harm. Private, both would sit where CI can never
+# run them, which is the worst home for the code that enforces a licence boundary.
+
+# Content, and the code that makes it: a recording is somebody else's reading of a
+# text, cut and aligned here and never committed.
+src/targum/recording/cut.py

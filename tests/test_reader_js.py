@@ -498,10 +498,15 @@ def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
 # -- pages, not a scroll ----------------------------------------------------------
 
 
-def pages(tops: list[int], heights: list[int], room: int) -> list[list[int]]:
+def pages(
+    tops: list[int], heights: list[int], room: int, opens: list[bool] | None = None
+) -> list[list[int]]:
     words, lemmas = chapter(["a"])
     return run(
-        [], chapter=words, lemmas=lemmas, pages={"tops": tops, "heights": heights, "room": room}
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        pages={"tops": tops, "heights": heights, "room": room, "opens": opens},
     )["pages"]
 
 
@@ -515,6 +520,27 @@ def test_a_page_is_the_pairs_that_fit_the_room() -> None:
 def test_a_pair_too_tall_for_the_room_is_a_page_of_its_own() -> None:
     """Rather than a page nobody can turn to. That page scrolls, which is honest."""
     assert pages([0, 500, 560], [480, 50, 50], 250) == [[0, 0], [1, 2]]
+
+
+def test_a_section_starts_a_page() -> None:
+    """The weekly is one long targum with five sections in it, and its section links
+    turned to the page a section was *in* — which can begin halfway through the one
+    before it, so "take me to sport" landed the reader near sport rather than on it.
+
+    A section opening a page is what a paper does anyway. Nothing else in the library is
+    affected: a book's chapters are separate files, so only the weekly has a top-level
+    heading part-way down one.
+    """
+    tall = [0, 100, 200, 300, 400]
+    short = [90, 90, 90, 90, 90]
+    assert pages(tall, short, 1000) == [[0, 4]], "everything fits, so one page"
+    assert pages(tall, short, 1000, [False, False, True, False, False]) == [[0, 1], [2, 4]]
+
+
+def test_the_first_pair_never_opens_a_page_on_its_own() -> None:
+    """It is already the top of the first page; forcing a break there would make an
+    empty page in front of it."""
+    assert pages([0, 100], [90, 90], 1000, [True, False]) == [[0, 1]]
 
 
 def test_no_pairs_is_no_pages() -> None:
@@ -557,3 +583,33 @@ def test_finishing_survives_everything_else_the_reader_writes() -> None:
         [], chapter=words, lemmas=lemmas, finish=[True], levels=[{"word": "a", "status": 9}]
     )["finished"]
     assert kept["record"] > 0
+
+
+def notes(registers: list[str], source: str) -> list[str]:
+    """What the card would say about each word, reading a text of this register."""
+    return run(
+        [],
+        lemmas=[f"w{index}" for index in range(len(registers))],
+        registers=registers,
+        sourceRegister=source,
+    )["registers"]
+
+
+def test_a_biblical_word_is_ordinary_where_the_reader_is_standing() -> None:
+    """The same word, said from the two places a reader can be reading it."""
+    assert notes(["biblical"], "biblical") == ["ordinary in the Tanakh, rare today"]
+    assert notes(["biblical"], "modern") == ["from the Tanakh, rare today"]
+
+
+def test_a_modern_word_is_never_claimed_inside_scripture() -> None:
+    """A lemma the Tanakh does not contain, in a text that is the Tanakh, is almost
+    always the lemmatizer having produced something the table was built without —
+    `annotate/biblical.py` says so where it bands them. Calling it modern would invent."""
+    assert notes(["modern"], "biblical") == [""]
+    assert notes(["modern"], "modern") == ["modern; not in the Tanakh"]
+
+
+def test_a_word_whose_registers_agree_says_nothing() -> None:
+    assert notes(["", ""], "modern") == ["", ""]
+    # And a text built before any of this shipped no table at all.
+    assert run([], lemmas=["a"], sourceRegister="modern")["registers"] == [""]

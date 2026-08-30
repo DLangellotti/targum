@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public legal">
+{#- Four documents, one template. They share a head, a lockup and a foot, and the three
+    hand-written copies of that foot are the reason this is not four files.
+
+    design.md governs the product. It does not govern these: a privacy notice and terms
+    of service are legal instruments and are drafted as such, in formal register with
+    defined terms and numbered clauses a reader can cite. They still pass the brand
+    tests unchanged — the name stays lowercase and nothing is exclaimed — because
+    defining the Service in clause 1 means the name need not carry a formal sentence.
+
+    Substance and structure adapted from 37signals' open-source policies under CC BY 4.0,
+    credited at the foot as that licence requires. The privacy notice follows the order
+    of GDPR Article 13; a notice omitting any of its items is not a notice. -#}
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  {% if which == 'privacy' %}
+  <h1>Privacy Notice</h1>
+  <p class="lede">This Notice is given pursuant to Articles 13 and 14 of Regulation (EU)
+    2016/679 (the "General Data Protection Regulation") and describes the processing of
+    personal data carried out in connection with targum.</p>
+
+  <h2>Identity of the Controller</h2>
+  <ol class="clauses">
+    <li>The controller of the personal data described in this Notice is David
+      Langellotti (the "Controller"), who operates the service made available at
+      targum.page (the "Service").</li>
+    <li>The Controller may be contacted at
+      <a href="mailto:hello@targum.page">hello@targum.page</a> in respect of any matter
+      arising under this Notice, including the exercise of any right set out at clause 7
+      below.</li>
+    <li>The Controller has not appointed a data protection officer, no such appointment
+      being required under Article 37.</li>
+  </ol>
+
+  <h2>Scope</h2>
+  <ol class="clauses">
+    <li>This Notice applies to personal data relating to persons who hold an account
+      with the Service, who request access to it, or who otherwise access the pages
+      made available at targum.page (each, a "Data Subject").</li>
+    <li>This Notice does not apply to any website to which the Service links and over
+      which the Controller exercises no control.</li>
+  </ol>
+
+  <h2>Categories of data, purposes and legal bases</h2>
+  <p>The Controller processes only such personal data as is necessary for the purposes
+    stated. The categories processed, the purpose of each and the legal basis relied
+    upon are as follows.</p>
+  <ol class="clauses">
+    <li><b>Electronic mail address.</b> Processed for the purposes of authenticating
+      the Data Subject, maintaining the account and communicating with the Data Subject
+      in relation to the Service. The Service employs no password; the address
+      constitutes the account. Legal basis: Article 6(1)(b), performance of a contract
+      to which the Data Subject is party.</li>
+    <li><b>Material retained by the Data Subject.</b> Namely words and phrases marked
+      by the Data Subject, together with any notes, meanings, documents opened, reading
+      positions and dates of reading. Processed for the purpose of providing the Service.
+      Legal basis: Article 6(1)(b).</li>
+    <li><b>Material uploaded by the Data Subject.</b> Namely any file supplied by the
+      Data Subject and any targum generated from it. Processed for the purpose of
+      providing the Service. Legal basis: Article 6(1)(b).</li>
+    <li><b>Records of requests for authentication links.</b> Namely the electronic mail
+      address to which each such request relates and the time of the request, whether or
+      not an account exists for that address. Processed for the purpose of enforcing a
+      rate limit, without which the authentication form could be employed to transmit
+      unsolicited mail to third parties from the Controller's domain. Legal basis:
+      Article 6(1)(f), the legitimate interests of the Controller and of such third
+      parties in preventing the misuse of the Service.</li>
+    <li><b>Server access records.</b> Namely the internet protocol address from which a
+      connection is made, the resource requested and the time of the request, recorded
+      by the reverse proxy through which the Service is served. Authentication tokens
+      are removed from each record before it is written. Processed for the purposes of
+      diagnosing faults and detecting misuse. Legal basis: Article 6(1)(f).</li>
+    <li>Where processing is founded upon Article 6(1)(f), the Data Subject may object
+      to that processing in accordance with clause 7.6, and the Controller shall state
+      which of the operations concerned it is able to cease without terminating the
+      account.</li>
+    <li>Authentication tokens and session identifiers are stored in the form of a
+      one-way cryptographic digest and not in their original form.</li>
+    <li>No processing is undertaken for the purposes of advertising, profiling or
+      behavioural analytics. The Service transmits no analytics data, employs no
+      third-party script, and sets no cookie other than that which maintains an
+      authenticated session. A generated targum makes no network request whatsoever.</li>
+  </ol>
+
+  <h2>Recipients</h2>
+  <ol class="clauses">
+    <li>Personal data is not sold, and is not disclosed to any person for that person's
+      own marketing purposes.</li>
+    <li>The Controller engages the following processors, each of which processes
+      personal data only upon the Controller's instructions and for the purpose stated.
+      <dl>
+    <dt>Hetzner Online GmbH (Federal Republic of Germany)</dt>
+    <dd>Provision of the server upon which the Service and its data reside.</dd>
+
+    <dt>Resend, Inc. (United States of America)</dt>
+    <dd>Transmission of authentication messages. Receives the electronic mail address of
+      the Data Subject and the content of that message.</dd>
+
+    <dt>Anthropic PBC (United States of America)</dt>
+    <dd>Translation of text presented for reading. Receives that text and does not
+      receive the electronic mail address of the Data Subject. Anthropic states that
+      inputs and outputs are deleted within thirty days of receipt or generation and are
+      not used to train models.</dd>
+      </dl>
+    </li>
+    <li>Save as provided at clause 4.2, the Controller discloses personal data only
+      where compelled to do so by law, or where disclosure is necessary to investigate
+      use of the Service against another person.</li>
+  </ol>
+
+  <h2>Transfers to third countries</h2>
+  <ol class="clauses">
+    <li>The server upon which the Service operates is situated at Falkenstein in the
+      Federal Republic of Germany.</li>
+    <li>Two of the processors identified at clause 4.2 are established in the United
+      States of America. Accordingly, the electronic mail address of the Data Subject
+      and the text presented for translation are transferred to that third country.</li>
+    <li>No other transfer of personal data outside the European Economic Area is
+      undertaken.</li>
+  </ol>
+
+  <h2>Retention</h2>
+  <ol class="clauses">
+    <li>Personal data is retained for no longer than is necessary for the purposes for
+      which it is processed.</li>
+    <li>The period applicable to each category, or the criteria by which that period is
+      determined, is set out in the
+      <a href="/retention">Data Retention Schedule</a>, which forms part of this
+      Notice.</li>
+  </ol>
+
+  <h2>Rights of the Data Subject</h2>
+  <p>Subject to the conditions and exceptions provided by the General Data Protection
+    Regulation, the Data Subject has the following rights.</p>
+  <ol class="clauses">
+    <li><b>Access</b> (Article 15). To obtain confirmation as to whether personal data
+      concerning the Data Subject is processed and, where it is, a copy of that data.
+      This right may be exercised directly and without application by means of the
+      function styled "Download your words" upon
+      <a href="/you">the profile page</a>, which returns the entirety of the account in
+      machine-readable form.</li>
+    <li><b>Rectification</b> (Article 16). To obtain the correction of inaccurate
+      personal data.</li>
+    <li><b>Erasure</b> (Article 17). To obtain the deletion of personal data. The
+      procedure is set out in the
+      <a href="/deletion">Erasure and Account Closure Procedure</a>.</li>
+    <li><b>Restriction of processing</b> (Article 18).</li>
+    <li><b>Portability</b> (Article 20). To receive personal data in a structured,
+      commonly used and machine-readable format, and to transmit it to another
+      controller. The function identified at clause 7.1 satisfies this right.</li>
+    <li><b>Objection</b> (Article 21). To object, on grounds relating to the Data
+      Subject's particular situation, to processing founded upon Article 6(1)(f).</li>
+    <li>Rights not exercisable by the means described above may be exercised by written
+      application to <a href="mailto:hello@targum.page">hello@targum.page</a>. The
+      Controller shall respond within one month of receipt, which period may be extended
+      by two further months where necessary, the Data Subject being informed of any such
+      extension.</li>
+    <li>The Controller shall require that any such application be made from the
+      electronic mail address recorded against the account, verification of identity
+      being necessary in order that disclosure does not itself occasion the harm the
+      right exists to prevent.</li>
+  </ol>
+
+  <h2>Complaints</h2>
+  <ol class="clauses">
+    <li>The Data Subject has the right under Article 77 to lodge a complaint with a
+      supervisory authority, in particular in the Member State of the Data Subject's
+      habitual residence, place of work or of the alleged infringement.</li>
+    <li>The exercise of that right is without prejudice to any other administrative or
+      judicial remedy.</li>
+  </ol>
+
+  <h2>Requirement to provide data</h2>
+  <ol class="clauses">
+    <li>The provision of an electronic mail address is a requirement necessary to enter
+      into a contract for the Service. The Data Subject is under no obligation to
+      provide it, but the Controller is unable to furnish an account in its absence.</li>
+    <li>No decision producing legal effects concerning the Data Subject, or similarly
+      significantly affecting the Data Subject, is taken on the basis of automated
+      processing within the meaning of Article 22.</li>
+  </ol>
+
+  <h2>Amendment of this Notice</h2>
+  <ol class="clauses">
+    <li>The Controller may amend this Notice from time to time. The date of the last
+      amendment appears below.</li>
+    <li>The Service is developed in the open and the history of every amendment is
+      publicly recorded.</li>
+  </ol>
+
+  {% elif which == 'terms' %}
+  <h1>Terms of Service</h1>
+  <p class="lede">These terms of service ("Terms") govern access to and use of targum.
+    By accessing or using the Service the User accepts these Terms. A person who does
+    not accept them must not use the Service.</p>
+
+  <h2>Definitions</h2>
+  <ol class="clauses">
+    <li>"Operator" means David Langellotti, who operates the Service.</li>
+    <li>"Service" means the software made available at targum.page, together with any
+      page, interface or output forming part of it.</li>
+    <li>"User" means any person who holds an account with the Service or who otherwise
+      accesses it.</li>
+    <li>"User Content" means any file, text or other material supplied to the Service by
+      the User, together with any output generated from it for the User.</li>
+  </ol>
+
+  <h2>The Service</h2>
+  <ol class="clauses">
+    <li>The Service is provided in a pre-release form, by invitation, and without
+      charge. No term of these Terms obliges the Operator to maintain the Service, to
+      continue to provide it without charge, or to provide it at any particular standard
+      of availability.</li>
+    <li>Translations produced by the Service are generated by automated means and are
+      not warranted to be accurate. Passages of low confidence are marked as such within
+      the output. The User must not rely upon a translation for any purpose in which
+      accuracy is material.</li>
+    <li>The Operator may modify, suspend or discontinue any part of the Service, with or
+      without notice.</li>
+  </ol>
+
+  <h2>Accounts</h2>
+  <ol class="clauses">
+    <li>The User is responsible for the security of the account and of the electronic
+      mail address by which it is accessed.</li>
+    <li>An account is personal to one natural person. The User must not permit another
+      person to use the account.</li>
+    <li>An account must be registered by a natural person. Registration by automated
+      means is not permitted.</li>
+    <li>The User is responsible for all activity occurring under the account.</li>
+  </ol>
+
+  <h2>User Content</h2>
+  <ol class="clauses">
+    <li>As between the parties, the User retains all right, title and interest in User
+      Content. The Operator claims no ownership in it.</li>
+    <li>The User grants the Operator a non-exclusive, worldwide, royalty-free licence to
+      store, reproduce, transmit and process User Content, and to transmit it to the
+      processors identified in the <a href="/privacy">Privacy Notice</a>, in each case
+      solely to the extent necessary to provide the Service to the User. That licence
+      terminates upon deletion of the User Content or closure of the account, whichever
+      first occurs.</li>
+    <li>Where a text is publicly available, a translation of it may be generated once
+      and made available to every User who reads that text. User Content that is not
+      publicly available is stored under the User's account alone and is not made
+      available to any other User.</li>
+    <li>The User warrants that the User is entitled to supply User Content to the
+      Service and that doing so infringes no right of any third party.</li>
+    <li>The Operator does not review User Content before it is processed. The Operator
+      reserves the right, but assumes no obligation, to remove any User Content.</li>
+  </ol>
+
+  <h2>Intellectual property</h2>
+  <ol class="clauses">
+    <li>The translation pipeline is licensed under the GNU Affero General Public
+      License, version 3 or later. The source is linked at the foot of every page.</li>
+    <li>The catalogue, the works listed in it and the material accompanying them are not
+      so licensed. Nothing in these Terms grants the User any right in a work beyond
+      that granted by the person entitled to it.</li>
+    <li>The name targum, the mark and the visual design of the Service remain the
+      property of the Operator. Nothing in these Terms grants a licence to use them.</li>
+  </ol>
+
+  <h2>Notice of infringement</h2>
+  <ol class="clauses">
+    <li>A person who considers that material available through the Service infringes a
+      right of that person may give notice in writing to
+      <a href="mailto:hello@targum.page">hello@targum.page</a>, identifying the material
+      complained of.</li>
+    <li>Upon receipt of such a notice the Operator shall remove the material complained
+      of. No form of notice is prescribed and no fee is payable.</li>
+  </ol>
+
+  <h2>Suspension and termination</h2>
+  <ol class="clauses">
+    <li>The User may close the account at any time. The procedure and its consequences
+      are set out in the
+      <a href="/deletion">Erasure and Account Closure Procedure</a> and the
+      <a href="/retention">Data Retention Schedule</a>.</li>
+    <li>The Operator may suspend or terminate an account where the User is in breach of
+      these Terms, where the account is used against the Service or against another
+      person, or where the Operator is required to do so by law.</li>
+    <li>Abuse of, or a threat directed at, the Operator terminates the account
+      immediately and without notice.</li>
+    <li>Termination does not affect any right or liability accrued before it takes
+      effect.</li>
+  </ol>
+
+  <h2>Disclaimer</h2>
+  <ol class="clauses">
+    <li>The Service is provided on an "as is" and "as available" basis. To the fullest
+      extent permitted by law the Operator excludes all warranties, conditions and terms
+      implied by statute or common law, including any implied warranty of satisfactory
+      quality, fitness for a particular purpose or non-infringement.</li>
+    <li>The Operator does not warrant that the Service will be uninterrupted, secure or
+      free from error, nor that any defect will be corrected.</li>
+  </ol>
+
+  <h2>Limitation of liability</h2>
+  <ol class="clauses">
+    <li>To the fullest extent permitted by law, the Operator shall not be liable for any
+      indirect, incidental, special, consequential or exemplary loss, nor for any loss
+      of profit, revenue, goodwill or data, arising out of or in connection with the use
+      of or inability to use the Service, whether in contract, tort including negligence,
+      or otherwise, and whether or not the Operator was advised of the possibility of
+      such loss.</li>
+    <li>Nothing in these Terms excludes or limits liability for death or personal injury
+      caused by negligence, for fraud or fraudulent misrepresentation, or for any other
+      liability which may not lawfully be excluded or limited.</li>
+    <li>Nothing in these Terms affects the statutory rights of a User dealing as a
+      consumer.</li>
+    <li>The User is advised to retain an independent copy of User Content by means of
+      the function styled "Download your words" upon
+      <a href="/you">the profile page</a>.</li>
+  </ol>
+
+  <h2>General</h2>
+  <ol class="clauses">
+    <li>The Operator may amend these Terms. The date of the last amendment appears
+      below, and continued use of the Service after that date constitutes acceptance of
+      the Terms as amended.</li>
+    <li>If any provision of these Terms is held to be invalid or unenforceable, that
+      provision shall be severed and the remaining provisions shall continue in
+      force.</li>
+    <li>No failure or delay by the Operator in exercising any right constitutes a waiver
+      of that right.</li>
+    <li>These Terms, together with the <a href="/privacy">Privacy Notice</a>, the
+      <a href="/retention">Data Retention Schedule</a> and the
+      <a href="/deletion">Erasure and Account Closure Procedure</a>, constitute the
+      entire agreement between the parties in respect of the Service.</li>
+    <li>The User may not assign or transfer any right under these Terms. The Operator
+      may assign these Terms upon a transfer of the Service, notice of which shall be
+      given to the User.</li>
+  </ol>
+
+  {% elif which == 'retention' %}
+  <h1>Data Retention Schedule</h1>
+  <p class="lede">This Schedule is given pursuant to Article 13(2)(a) of the General
+    Data Protection Regulation and forms part of the
+    <a href="/privacy">Privacy Notice</a>. Each period stated is enforced by the
+    software rather than by administrative practice.</p>
+
+  <h2>Periods of retention</h2>
+  <ol class="clauses">
+    <li><b>Authentication link.</b> Twenty minutes from issue, and one use. A link
+      presented a second time is refused and a further link must be requested.</li>
+    <li><b>Authenticated session.</b> Ninety days from the date upon which the session
+      was last used, whereupon it expires.</li>
+    <li><b>Record of a request for an authentication link.</b> Retained for so long as
+      is required to operate the rate limit described at clause 3.4 of the
+      <a href="/privacy">Privacy Notice</a>, and no longer.</li>
+    <li><b>A targum deleted by the User.</b> Seven days, during which period it is held
+      in the trash, the number of days remaining is displayed and restoration is
+      available. Upon expiry the directory and all material generated within it are
+      deleted.</li>
+    <li><b>An account closed by the User.</b> Seven days from the request for closure.
+      Upon expiry the following are deleted: words, meanings, phrases, documents, dates
+      of reading, sessions, authentication links and the account record itself, together
+      with all files generated for the account.</li>
+    <li><b>Material retained by the User.</b> Until deleted by the User or until closure
+      of the account. No period of inactivity causes such material to be deleted.</li>
+    <li><b>Server access records.</b> Written by the reverse proxy and rotated by file
+      size, such that the records held comprise the recent past rather than the whole.
+      Retained for so long as they remain of use in diagnosing faults and detecting
+      misuse.</li>
+  </ol>
+
+  <h2>Qualifications</h2>
+  <ol class="clauses">
+    <li>Deletion of expired material is performed upon restart of the Service.
+      Accordingly a period of seven days stated above is to be construed as a period of
+      not less than seven days.</li>
+    <li>The database is copied nightly and the fourteen most recent copies are retained.
+      An account deleted in accordance with clause 1.5 above may therefore persist
+      within a backup for a further period not exceeding fourteen days. A copy
+      transmitted from the server is encrypted before transmission. No backup is read
+      save where restoration is required.</li>
+    <li>Text transmitted to Anthropic PBC for translation is deleted by that processor
+      in accordance with its own published policy, namely within thirty days of receipt.
+      Deletion effected under this Schedule does not accelerate that period.</li>
+  </ol>
+
+  <h2>Erasure upon request</h2>
+  <ol class="clauses">
+    <li>The procedure by which a Data Subject may obtain erasure is set out in the
+      <a href="/deletion">Erasure and Account Closure Procedure</a>.</li>
+    <li>Enquiries concerning this Schedule may be addressed to
+      <a href="mailto:hello@targum.page">hello@targum.page</a>.</li>
+  </ol>
+
+  {% else %}
+  <h1>Erasure and Account Closure</h1>
+  <p class="lede">This document sets out the procedure by which a User may obtain the
+    deletion of an individual targum or the closure of an account, and the consequences
+    of each. It gives effect to the right of erasure under Article 17 of the General
+    Data Protection Regulation.</p>
+
+  <h2>Export prior to closure</h2>
+  <ol class="clauses">
+    <li>Before closing an account the User is advised to obtain a copy of its contents
+      by means of the function styled "Download your words" upon
+      <a href="/you">the profile page</a>, which returns the whole of the account,
+      comprising every word, phrase, meaning and note, in machine-readable form.</li>
+    <li>No copy is retained by the Operator for the User's benefit after the period
+      specified at clause 2.3, and none can be furnished thereafter.</li>
+  </ol>
+
+  <h2>Closure of an account</h2>
+  <ol class="clauses">
+    <li>The function styled "Delete account" upon
+      <a href="/you">the profile page</a> initiates closure. Confirmation is required
+      before the request takes effect.</li>
+    <li>Upon confirmation the User is signed out of every browser and the account ceases
+      to function immediately.</li>
+    <li>Seven days thereafter the account record and all data associated with it are
+      deleted in accordance with clause 1.5 of the
+      <a href="/retention">Data Retention Schedule</a>.</li>
+    <li>No reason for closure is required and none is requested.</li>
+  </ol>
+
+  <h2>Withdrawal of a request for closure</h2>
+  <ol class="clauses">
+    <li>A request for closure may be withdrawn at any time within the period specified
+      at clause 2.3 by written application to
+      <a href="mailto:hello@targum.page">hello@targum.page</a>.</li>
+    <li>No function is provided within the Service for that purpose, the account having
+      already been signed out of every browser.</li>
+    <li>Upon expiry of that period the deletion is irreversible and cannot be
+      effected in reverse by the Operator or by any other person.</li>
+  </ol>
+
+  <h2>Matters not reached by deletion</h2>
+  <ol class="clauses">
+    <li>Backups retain the fourteen most recent nightly copies, and an account may
+      persist within one of them for a further period not exceeding fourteen days.</li>
+    <li>Server access records persist until rotated.</li>
+    <li>Text transmitted for translation is deleted by Anthropic PBC within thirty days
+      of receipt in accordance with its own policy.</li>
+    <li>Each of the foregoing is stated in full in the
+      <a href="/retention">Data Retention Schedule</a>.</li>
+  </ol>
+
+  <h2>Deletion of an individual targum</h2>
+  <ol class="clauses">
+    <li>The function styled "Delete" upon the corresponding row within the library
+      deletes a single targum. The account is unaffected.</li>
+    <li>The targum is held in the trash for seven days, during which period the number
+      of days remaining is displayed and restoration is available by means of the
+      function styled "Put back".</li>
+  </ol>
+
+  <h2>Material published in error</h2>
+  <ol class="clauses">
+    <li>A person who considers that material available through the Service infringes a
+      right of that person may give notice under clause 6.1 of the
+      <a href="/terms">Terms of Service</a>.</li>
+  </ol>
+  {% endif %}
+
+  {#- CC BY 4.0 requires attribution where the work is adapted, and this is where it
+      goes. The credit names 37signals.com rather than the repository the text was read
+      in, that repository now stating that it is no longer maintained. -#}
+  <p class="changed">Last amended {{ changed }}. Adapted in part from
+    <a href="https://37signals.com/policies">37signals' open-source policies</a>,
+    used under CC BY 4.0. This document is not legal advice.</p>
+</main>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

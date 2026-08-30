@@ -227,3 +227,450 @@ body.public {
 .public .foot a {
   color: var(--ink-soft);
 }
+
+/* --- the four pages about a reader's own data --- */
+
+/* Privacy, terms, the retention rule and the deletion path. Prose and nothing else, so
+   §9 is the whole of the design: full ink for the text somebody came to read, muted only
+   on the section labels and the date, and the one accent left on the Sign in pill in the
+   corner. No raised layer, no inversion — a page explaining what happens to your email
+   address is not a hero moment. */
+.legal .sheet {
+  padding-block-end: 2rem;
+}
+
+.legal p,
+.legal li,
+.legal dd {
+  color: var(--ink);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+.legal p {
+  margin: 0 0 1rem;
+}
+.legal h2 {
+  margin-block-start: 2.5rem;
+}
+
+/* §4 rations the accent to the single primary action in a view, and on a page that is
+   nothing but prose an accent on every link makes the accent the body-text colour —
+   the one thing §10 names outright. Same ruling as the about page, same reason. */
+.legal .sheet a:not(.brand) {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.legal .sheet a:not(.brand):hover {
+  border-block-end-color: var(--ink-soft);
+}
+
+.legal ul.rule {
+  margin: 0 0 1rem;
+  padding-inline-start: 1.1rem;
+}
+.legal ul.rule li {
+  margin-block-end: 0.4rem;
+}
+
+/* Numbered clauses, so a sentence can be cited rather than described. The numbers are
+   drawn by counters rather than typed: `<ol>` renumbers itself when a clause is added,
+   and a hand-typed 7.4 is wrong the first time somebody inserts a 7.2. Sections count
+   off the headings, so 7.4 is the fourth clause of the seventh heading either way. */
+.legal .sheet {
+  counter-reset: section;
+}
+.legal h2 {
+  counter-increment: section;
+}
+.legal h2::before {
+  content: counter(section) ". ";
+}
+.legal ol.clauses {
+  counter-reset: clause;
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+}
+.legal ol.clauses > li {
+  counter-increment: clause;
+  position: relative;
+  margin-block-end: 0.7rem;
+  padding-inline-start: 2.8rem;
+}
+.legal ol.clauses > li::before {
+  content: counter(section) "." counter(clause);
+  position: absolute;
+  inset-inline-start: 0;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.legal ol.clauses dl {
+  margin-block-start: 0.7rem;
+}
+
+/* What is collected, who else sees it, how long it is kept: each one reads as a term
+   and a plain answer, so each one is marked up as a definition list. */
+.legal dl {
+  margin: 0 0 1rem;
+}
+.legal dl dt {
+  margin-block-start: 1.2rem;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+.legal dl dd {
+  margin: 0;
+}
+
+.legal .changed {
+  margin-block-start: 3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+/* --- the weekly ---------------------------------------------------------------------
+
+   The one public page that renews itself, and the first thing a stranger can read
+   rather than read about. The Hebrew is the page: full ink, at the reading size, with
+   the parity rule kept — Hebrew never scales down, and the leading does the work
+   instead (1.95 against 1.75).
+
+   §9 rations the accent to the single primary action, which here is the door at the
+   foot. The level chips are therefore ink, not accent: three of them all in accent
+   would make the accent the navigation colour. The one a reader is on is marked by
+   weight and a rule, not by hue. */
+
+.public .dated {
+  margin: 0 0 1.25rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+
+.public .levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-end: 1.5rem;
+}
+.public .level {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.public .level .figure {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.public .level:hover {
+  border-color: var(--ink-soft);
+}
+/* Where the reader is. Ink and a solid border rather than a fill: §9 keeps one raised
+   layer to a view, and this page already spends it on nothing. */
+.public .level.here {
+  color: var(--ink);
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
+/* How the issue was made. Body size and full ink, above everything it made — a line a
+   reader cannot miss without missing the article. Muted here would be exactly the use
+   §9 forbids: muted is for genuinely secondary lines, and this is not one. */
+.public .made {
+  margin: 0 0 2rem;
+  padding-inline-start: 0.9rem;
+  border-inline-start: 2px solid var(--rule);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.public .part {
+  margin-block-end: 2.5rem;
+}
+/* Section headings here are Hebrew — ישראל, ספורט — and the shelf's h2 is a Latin label
+   style: uppercase, tracked, and below reading size. All three are wrong on Hebrew. §5
+   forbids scaling Hebrew under Latin, §7 keeps tracking for labels, and case does not
+   exist in the script. So this is the reading face, above reading size, as typed. */
+.public .part h2 {
+  margin: 0 0 0.9rem;
+  padding-block-end: 0.4rem;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.public .part .he {
+  margin: 0 0 1rem;
+  font-family: var(--reading);
+  font-size: var(--size);
+  line-height: var(--leading-rtl);
+}
+/* The English, where an edition has been built. Muted and at the same size: a
+   translation at rest is the one thing §9 names as properly secondary. */
+.public .part .en {
+  margin: 0 0 1.4rem;
+  font-family: var(--reading);
+  font-size: var(--size);
+  line-height: var(--leading);
+  color: var(--ink-soft);
+}
+
+.public .weekly .door {
+  margin-block-end: 2.5rem;
+}
+
+.public .sources,
+.public .archive {
+  margin-block-end: 2.5rem;
+}
+.public .sources ul,
+.public .archive ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.public .sources li,
+.public .archive li {
+  margin-block-end: 0.7rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.public .sources .outlets,
+.public .sources .licence {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public .archive a {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.public .archive a:hover {
+  border-block-end-color: var(--ink-soft);
+}
+
+/* The Monday ask, and the same ask again at the foot of an issue.
+
+   §9 rations the accent to one primary action per view, and on this page that is the
+   door into the reader. The subscribe button carries it too, because it is the primary
+   action of the block it is in — a beige button on a beige card is the thing §9 forbids
+   outright, and a form nobody can see the submit of is worse than no form. */
+
+.public .subscribe {
+  margin-block-end: 2.5rem;
+  padding-block: 1.4rem;
+  border-block: 1px solid var(--rule);
+}
+.public .subscribe label {
+  display: block;
+  margin-block-end: 0.7rem;
+  font-size: 0.9375rem;
+}
+.public .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.public .row input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.9375rem;
+}
+.public .row input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.public .row .go {
+  border: 0;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+/* The one floating overlay on the page, which is what §8 keeps shadows for. Shown once
+   ever: a card the first time, a nag the second. */
+.public dialog {
+  max-width: 28rem;
+  padding: 1.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 10%);
+}
+.public dialog::backdrop {
+  background: rgb(0 0 0 / 30%);
+}
+.public dialog h2 {
+  margin: 0 0 0.7rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink);
+}
+.public dialog p {
+  margin: 0 0 1.2rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.public dialog .quiet {
+  margin: 1rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public dialog .quiet a {
+  color: var(--ink-soft);
+}
+/* Ink-bordered rather than filled: §9 gives the accent to one action, and inside this
+   card that is Send it. */
+.public dialog .quiet button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* An item's own headline, inside a section. The reading face at reading size, so the
+   Hebrew is never smaller than the Latin around it; §5 forbids that outright. Weight
+   and space do the separating rather than a rule — the section already has one, and a
+   second would be a card inside a card. */
+.public .part h3 {
+  margin: 1.6rem 0 0.5rem;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: var(--leading-rtl);
+}
+.public .part h3:first-child {
+  margin-block-start: 0;
+}
+
+/* The weekly's landing page: a pitch, then the product working.
+
+   The reader is framed rather than linked to. A link away is a decision somebody has to
+   make before they have been shown anything, and a stranger makes that decision by
+   leaving — so the first thing under the headline is the real reader, with its own
+   level switcher and its own word cards, running. */
+
+.public .pitch {
+  margin: 0 0 0.9rem;
+  font-family: var(--reading);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.public .embed {
+  margin-block-end: 1.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  /* The reader draws its own bar to the edge; without this the corners show through. */
+  overflow: hidden;
+}
+.public .embed iframe {
+  display: block;
+  width: 100%;
+  /* The reader paginates to whatever height it is given, so the height is the whole of
+     whether page mode needs a scrollbar. A fixed cap left a short window on a tall
+     screen and an overflowing one on a laptop; this takes the window and subtracts the
+     chrome around it, with a floor so a phone still gets a readable page. */
+  height: max(30rem, calc(100svh - 5rem));
+  border: 0;
+}
+
+/* Wider than a reading column: the frame holds two columns of its own, and a 34rem
+   measure would put a whole reader in a slot meant for one of them. */
+.public .weekly .embed,
+.public .weekly .pitch,
+.public .weekly .lede {
+  max-width: min(64rem, 100%);
+}
+.public .weekly {
+  max-width: min(64rem, 100%);
+}
+
+/* What the three levels are, above the reader. A visitor has to choose one before they
+   can start, and three names alone leave them guessing which is theirs. */
+.public .ladder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.2rem;
+  margin: 0 0 1.5rem;
+}
+.public .ladder div {
+  padding-block-start: 0.7rem;
+  border-block-start: 1px solid var(--rule);
+}
+.public .ladder dt {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.public .ladder dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.public .ladder dd.figure {
+  color: var(--ink);
+}
+
+/* The sources, each a way in.
+
+   The headline is a link because a citation nobody can follow is not one, and the outlet
+   who did the reporting should get the visit. Ink with a hairline under it rather than
+   the accent: §9 keeps the accent for the one primary action in a view, and on this page
+   that is the reader above. */
+.public .sources .story {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.public .sources .story:hover {
+  border-block-end-color: var(--ink-soft);
+}
+.public .sources li .row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin-block-start: 0.15rem;
+}
+.public .sources li .row .outlets,
+.public .sources li .row .licence {
+  display: inline;
+  margin: 0;
+}
+.public .sources .import {
+  color: var(--accent);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.public .sources .import:hover {
+  text-decoration: underline;
+}

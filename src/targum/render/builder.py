@@ -11,18 +11,21 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import os
 import re
 import shutil
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from jinja2 import Environment, FileSystemLoader
 
 if TYPE_CHECKING:  # imported for types only; the real import is inside each function,
     from ..catalogue import Entry  # because catalogue imports nothing from here
+    from ..weekly.models import Issue as WeeklyIssue
+    from ..weekly.models import Level as WeeklyLevel
 from markupsafe import Markup, escape
 
 from ..annotate.base import BAND_NAMES, KIND_COLUMN, method_label
@@ -31,6 +34,7 @@ from ..models import (
     BlockKind,
     Document,
     Glossary,
+    Segment,
     SegmentedDocument,
     Translation,
     Vocalization,
@@ -141,6 +145,7 @@ def _environment() -> Environment:
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     env.globals["hebrew_face"] = _hebrew_face
+    env.globals["legal_is_public"] = legal_is_public
     return env
 
 
@@ -281,6 +286,151 @@ def _data_uri(name: str) -> str:
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
+class Spoken(NamedTuple):
+    """The sound of one section: who says each line, where each line is, and the file.
+
+    `credit` and `licence` are not decoration. A dialogue is ours and needs neither; a
+    recording is somebody else's reading, used under a licence that requires them to be
+    named, and the page carries the naming because a credit kept in a spreadsheet is one
+    the person listening never sees.
+    """
+
+    speakers: dict[str, str]
+    spans: dict[str, list[float]]
+    audio: str
+    credit: str = ""
+    licence: str = ""
+    licence_url: str = ""
+    #: What the page calls this sound, in the one place a reader reads it: "Listen to the
+    #: scene", "play the reading". A dialogue is a scene and a recorded book is a reading,
+    #: and calling a chapter of Ruth a scene is the kind of wrong word a reader notices
+    #: and nothing else does.
+    label: str = "the scene"
+    #: Whether Space plays it. True for a dialogue, which is three pages long and opened
+    #: to be listened to; false for a recorded book, where Space is the pager's and a
+    #: library-wide key is not worth one press on the player.
+    keyed: bool = True
+
+
+SILENT = Spoken({}, {}, "")
+
+
+def _inlined(path: Path) -> str:
+    """An audio file as a data URI, or "" where it is not there.
+
+    In the page rather than beside it, because a reader fetches nothing — the rule that
+    decides the fonts and the icons decides this too.
+    """
+    if not path.exists():
+        return ""
+    mime = mimetypes.guess_type(path.name)[0] or "audio/mpeg"
+    return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+
+
+def _scene(document: Document, segments: list[Segment]) -> Spoken:
+    """A dialogue: written here, voiced here, so the audio and the text are one thing."""
+    from ..dialogue import index as dialogue_index
+
+    try:
+        scene = dialogue_index.load(document.source.split(":", 1)[1])
+    except Exception:  # noqa: BLE001 - a missing scene must not stop a rebuild
+        return SILENT
+    by_block = {f"b{n:04d}": turn for n, turn in enumerate(scene.turns)}
+    speakers: dict[str, str] = {}
+    spans: dict[str, list[float]] = {}
+    for segment in segments:
+        turn = by_block.get(segment.block_id)
+        if turn is None:
+            continue
+        speakers[segment.id] = getattr(scene.cast, turn.who).name or turn.who
+        # Asked of the two values rather than through `Turn.voiced`, which says the same
+        # thing and says it in a way a type checker cannot follow into the list below.
+        if turn.start is not None and turn.end is not None:
+            spans[segment.id] = [turn.start, turn.end]
+    audio = _inlined(dialogue_index.root() / scene.audio) if scene.audio and spans else ""
+    return Spoken(speakers, spans, audio)
+
+
+def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
+    """A recording of scripture, found by ref and never by position.
+
+    The section decides which part of the recording it wants by naming the verses it
+    holds. A reader built for one chapter, for a range, or for a whole book all ask the
+    same question and all get the right answer — where a positional rule would hand a
+    reader of Job 3 the sound of Job 1 and say nothing.
+    """
+    from ..recording import index as recording_index
+
+    recording = recording_index.load(document.source)
+    if recording is None:
+        return SILENT
+    part = recording.part_for([segment.ref for segment in segments])
+    if part is None:
+        return SILENT
+    spans = {
+        segment.id: list(part.spans[segment.ref])
+        for segment in segments
+        if segment.ref and segment.ref in part.spans
+    }
+    if not spans:
+        return SILENT
+    audio = _inlined(recording_index.folder(document.source) / part.audio)
+    if not audio:
+        return SILENT
+    return Spoken(
+        {},
+        spans,
+        audio,
+        recording.credit,
+        recording.licence,
+        recording.licence_url,
+        "the reading",
+        False,
+    )
+
+
+def speech(document: Document, segments: list[Segment]) -> Spoken:
+    """Where in the audio each line of this section is said, and the audio itself.
+
+    The spans are per line and the reader plays a slice of one file rather than fetching
+    a clip for each — a folder of small files is not a thing a one-file reader can carry,
+    and a reader fetches nothing.
+
+    A line whose span is missing is simply left without a control. That is the same rule
+    the rest of the build follows: a gap a reader can see past beats a button that lies.
+    """
+    if document.source.startswith("dialogue:"):
+        return _scene(document, segments)
+    if is_biblical(document.source):
+        return _read_aloud(document, segments)
+    return SILENT
+
+
+def _this_week() -> dict[str, Any] | None:
+    """The newest readable issue of the weekly, as Learn needs it."""
+    from ..weekly import index as weekly
+    from ..weekly.models import LEVELS, folder
+
+    issue = next(iter(weekly.readable()), None)
+    if issue is None:
+        return None
+    return {
+        "id": issue.id,
+        "dated": issue.dated,
+        "title": issue.title,
+        "levels": [
+            {
+                "level": edition.level.value,
+                "name": LEVELS[edition.level].name,
+                "figure": LEVELS[edition.level].figure,
+                "written_for": LEVELS[edition.level].written_for,
+                "folder": folder(issue.id, edition.level),
+            }
+            for edition in issue.editions
+        ],
+    }
+
+
 def learn_page(token: str) -> str:
     """The page you land on: carry on, what you have, what you know.
 
@@ -291,7 +441,7 @@ def learn_page(token: str) -> str:
     Nothing about the reader is baked in. The shelf comes from `/readers` and the words
     from the browser's own stores, which is what lets one rendered page serve everybody.
     """
-    from ..catalogue import CATALOGUE
+    from ..catalogue import everything
     from ..translate.prompts import OFFERED, language_name
 
     return (
@@ -300,6 +450,11 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
+            # The week's issue, if there is a readable one. Learn is the only surface
+            # that knows who is reading, so it is the only one that can open the digest
+            # at the reader's own rung rather than asking them to pick a level — see
+            # `charts.levelFor`. Absent where no issue has been published and built.
+            weekly=_this_week(),
             # Enough of the catalogue to suggest the next thing to read and then to
             # build it: a title and a line about it, the two numbers that say whether it
             # is the right size and the right difficulty for this reader, and what a
@@ -320,7 +475,7 @@ def learn_page(token: str) -> str:
                     "source": entry.source,
                     "translations": [t.source for t in entry.translations],
                 }
-                for entry in CATALOGUE
+                for entry in everything()
             ],
         )
     )
@@ -421,6 +576,75 @@ def holding_page() -> str:
     return _environment().get_template("holding.html.j2").render()
 
 
+#: The date the four legal pages say they were last changed on. One line rather than
+#: four, because the date is the sentence on those pages nobody would notice going stale.
+LEGAL_CHANGED = "29 August 2026"
+
+#: The four pages A7 owes a reader about their own data, and what a search engine is told
+#: each one is. Keyed on the route so `serve` dispatches from this rather than from a
+#: second list that would drift away from it.
+LEGAL = {
+    "privacy": (
+        "Privacy Notice — targum",
+        "The controller, the categories of personal data processed and the legal basis "
+        "for each, the recipients, the transfers and the rights of the data subject.",
+    ),
+    "terms": (
+        "Terms of Service — targum",
+        "The terms governing access to and use of targum: accounts, user content, "
+        "intellectual property, notice of infringement, and limitation of liability.",
+    ),
+    "retention": (
+        "Data Retention Schedule — targum",
+        "The period for which each category of personal data is retained, and the "
+        "criteria where no fixed period applies.",
+    ),
+    "deletion": (
+        "Erasure and Account Closure — targum",
+        "The procedure for deleting a targum or closing an account, and the consequences of each.",
+    ),
+}
+
+
+def legal_is_public() -> bool:
+    """Whether the four legal documents are reachable. Off unless the deployment says so.
+
+    Shut for the alpha the same way the catalogue is shut, and for the same reason it is
+    written that way there: built, tested, and deliberately not open yet. Shut means shut
+    all the way — the routes answer 404, nothing links to them, and neither robots nor
+    the sitemap mentions them. `TARGUM_PUBLIC_LEGAL=1` opens them, which is the switch to
+    throw at beta.
+
+    Worth knowing while the switch is off: the documents describe processing that is
+    happening now, to an account that exists now. Article 13 wants the notice available
+    where the address is collected, and while this is off it is not. That is a decision
+    rather than an oversight — David's, taken on 2026-08-30 with the position stated —
+    and it stops being one the moment somebody who is not him signs up.
+    """
+    return os.environ.get("TARGUM_PUBLIC_LEGAL", "").strip().lower() in {"1", "true", "yes"}
+
+
+def legal_page(which: str, address: str = "") -> str:
+    """One of the four pages the alpha owes a reader about their own data.
+
+    One template with four states rather than four files, which is the shape
+    `signin_page` already uses: they differ in prose and in nothing else, and the three
+    hand-written copies of the public footer are what four files cost.
+    """
+    title, description = LEGAL[which]
+    return (
+        _environment()
+        .get_template("legal.html.j2")
+        .render(
+            which=which,
+            title=title,
+            description=description,
+            canonical=f"{address}/{which}" if address else "",
+            changed=LEGAL_CHANGED,
+        )
+    )
+
+
 def signin_page(*, landing: str = "", token: str = "", expired: bool = False) -> str:
     """The door. Three states, one template.
 
@@ -450,6 +674,11 @@ def progress_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
+            # The week's issue, if there is a readable one. Learn is the only surface
+            # that knows who is reading, so it is the only one that can open the digest
+            # at the reader's own rung rather than asking them to pick a level — see
+            # `charts.levelFor`. Absent where no issue has been published and built.
+            weekly=_this_week(),
         )
     )
 
@@ -457,6 +686,25 @@ def progress_page(token: str) -> str:
 #: One catalogue, one name for it. There were two — a Library and a Beit Midrash — and
 #: the split made the Tanakh harder to find rather than easier to avoid. What the Beit
 #: Midrash was for is now a tag on the entries themselves.
+#: What each level of the weekly is, for somebody choosing one before they can read any
+#: of it. Short, second person, and about the Hebrew rather than about the reader: a
+#: level named after the person reading it grades them, which the voice rules refuse.
+WEEKLY_LEVELS: dict[str, str] = {
+    "aleph": (
+        "Short sentences, one clause each, present and past. Every place and person "
+        "is said in a few words the first time it appears."
+    ),
+    "bet": (
+        "Ordinary reporting: subordinate clauses, past and future, the register a "
+        "news site writes in when it is not trying to be difficult."
+    ),
+    "gimel": (
+        "Unsimplified. Officialese inside quotation marks, idiom, and the "
+        "constructions a paper actually uses. The week's biggest story runs at length."
+    ),
+}
+
+
 SHELF = (
     "Library",
     "Hebrew — Tanakh, novels, essays and speeches — each with a translation beside it, "
@@ -470,7 +718,7 @@ def shelf_page(address: str = "") -> str:
     Public on purpose. It is the shop window, and until it exists there is nothing for a
     search engine to find but a page saying "Coming soon".
     """
-    from ..catalogue import CATALOGUE
+    from ..catalogue import everything
 
     name, blurb = SHELF
     return (
@@ -482,7 +730,7 @@ def shelf_page(address: str = "") -> str:
             canonical=f"{address}/library" if address else "",
             shelf_name=name,
             shelf_blurb=blurb,
-            entries=CATALOGUE,
+            entries=everything(),
         )
     )
 
@@ -508,6 +756,74 @@ def text_page(entry: Entry, address: str = "") -> str:
             direction=direction_for(entry.language),
             sample=entry.sample,
             minutes=max(1, round(entry.words / 130)),
+        )
+    )
+
+
+def weekly_page(
+    issue: WeeklyIssue,
+    level: WeeklyLevel,
+    *,
+    address: str = "",
+    archive: list[WeeklyIssue] | None = None,
+) -> str:
+    """A landing page for the weekly, with the issue's own reader inside it.
+
+    Everything it needs comes off the index. It used to read the composed markdown and
+    parse it on every request, back when the page rendered the prose itself; the reader
+    is framed now, so that was a file read and a markdown parse per visit for a value
+    the template had stopped using — and it meant a box serving the weekly needed the
+    source files as well as the built readers. It needs the readers and the index.
+    """
+    from ..weekly.entries import NOTICE
+    from ..weekly.models import LEVELS
+    from ..weekly.models import folder as weekly_folder
+
+    spec = LEVELS[level]
+    blurb = issue.blurb
+    return (
+        _environment()
+        .get_template("weekly.html.j2")
+        .render(
+            title=f"{issue.title} — {spec.label} — targum",
+            description=blurb,
+            canonical=f"{address}/weekly/{issue.id}/{level.value}" if address else "",
+            issue=issue,
+            level=level,
+            spec=spec,
+            folder=weekly_folder(issue.id, level),
+            levels=LEVELS,
+            explained=WEEKLY_LEVELS,
+            notice=NOTICE,
+            shelf_name=SHELF[0],
+            archive=[other for other in (archive or []) if other.id != issue.id],
+        )
+    )
+
+
+def weekly_note(
+    message: str,
+    *,
+    address: str = "",
+    done: bool = True,
+    pending: dict[str, str] | None = None,
+) -> str:
+    """A sentence back from the weekly's own door.
+
+    Separate from `weekly_page` because these are read in a mail client, arrived at from
+    a link, by somebody who has no account and may never have seen targum. Nothing here
+    needs JavaScript and nothing here is behind anything.
+    """
+    return (
+        _environment()
+        .get_template("weekly-note.html.j2")
+        .render(
+            title="the weekly — targum",
+            description="A weekly digest of the news in Modern Hebrew, at three levels.",
+            canonical=f"{address}/weekly" if address else "",
+            message=message,
+            done=done,
+            pending=pending,
         )
     )
 
@@ -541,7 +857,7 @@ def library_page(token: str) -> str:
     ship with targum, and a page that has to ask the server for them would be a page
     that can be empty.
     """
-    from ..catalogue import CATALOGUE
+    from ..catalogue import everything
     from ..translate.prompts import OFFERED
 
     return (
@@ -549,7 +865,7 @@ def library_page(token: str) -> str:
         .get_template("library.html.j2")
         .render(
             token=token,
-            catalogue=[entry.state() for entry in CATALOGUE],
+            catalogue=[entry.state() for entry in everything()],
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )
@@ -645,6 +961,8 @@ def render(
     glossary_pending: str = "",
     covers: Path | None = None,
     reads: Collection[str] | None = None,
+    siblings: list[dict[str, str]] | None = None,
+    whole: bool = False,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
@@ -668,6 +986,18 @@ def render(
     beside the source is not a reader at all, which is the worse of the two answers — and
     it only arises where somebody stopped reading a language they had already built in.
 
+    `siblings` are other readers of the same text at other levels, each a dict of
+    `name`, `figure`, `href` and `current`. The weekly is one issue written three times,
+    and a reader who finds one level too hard should be able to say so in one press
+    rather than going back out to the library to look for the easier one. Relative
+    hrefs, so a folder that travels to a disk keeps working.
+
+    `whole` keeps the text in one piece instead of breaking it at its headings. A book
+    is chapters and a reader wants them one at a time; an issue of the weekly is five
+    short sections that add up to a twenty-minute read, and splitting it gave a stranger
+    a contents page and five clicks before any Hebrew. One file, no contents page, and
+    the headings stay headings inside it.
+
     `clean=False` writes over what is already there instead of emptying the directory
     first. It is for the second pass, once the word meanings have arrived: the same
     segments produce the same section files under the same names, so overwriting leaves
@@ -686,7 +1016,17 @@ def render(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     env = _environment()
-    sections = split_sections(segmented)
+    sections = (
+        [
+            Section(
+                number=1,
+                title=document.title or "",
+                segment_ids=[segment.id for segment in segmented.segments],
+            )
+        ]
+        if whole
+        else split_sections(segmented)
+    )
     by_id = {segment.id: segment for segment in segmented.segments}
     single = len(sections) == 1
 
@@ -727,9 +1067,22 @@ def render(
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
 
+    # Where a reader may jump to. Only the top-level headings, and never the first one,
+    # which is the masthead: the weekly is one long targum, and somebody who does not
+    # want the politics should not have to scroll past them to find the sport.
+    parts: list[dict[str, str]] = []
+    for segment in segmented.segments:
+        if segment.kind is not BlockKind.heading or (segment.level or 1) > 1:
+            continue
+        parts.append({"id": segment.id, "title": segment.text})
+    # The first is the masthead, which is where a reader already is.
+    parts = parts[1:]
+
     drawn = cover_name(document)
     shared = {
+        "parts": parts,
         "document": document,
+        "siblings": siblings or [],
         "title": document.title or "targum",
         # The whole tile, once, on the page that lists the chapters.
         "cover": cover_uri(covers, drawn),
@@ -807,6 +1160,10 @@ def render(
         # word that is not a Hebrew verb, and for the verbs whose root could not be had.
         roots: list[str] = []
         binyanim: list[str] = []
+        # And so does the register, for the same reason: which Hebrew a word belongs to
+        # is a fact about the dictionary form. Codes rather than sentences, so the words
+        # on the card can be rewritten without re-annotating a library.
+        registers: list[str] = []
         # How a word is said belongs to the occurrence, not to the dictionary form — that
         # is the whole reason it is worth having — so it cannot ride beside the lemmas.
         # It rides in its own table instead, with an index on each token: a chapter has
@@ -827,6 +1184,7 @@ def render(
                         lemmas.append(token.lemma)
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
+                        registers.append(token.word_register or "")
                     # Offsets arrive measured against the segment as ingested, which may
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
@@ -858,6 +1216,10 @@ def render(
             for code, book in (glossaries or {}).items()
             if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
         }
+        # Who speaks each line and where it is said, for a dialogue. Empty for every
+        # other text, and computed per section so a scene split across pages carries only
+        # the spans its own page needs.
+        spoken = speech(document, segments)
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -879,6 +1241,13 @@ def render(
             bare=bare,
             pointed=pointed,
             machine=machine,
+            speakers=spoken.speakers,
+            spoken=spoken.spans,
+            spoken_label=spoken.label,
+            spoken_space=spoken.keyed,
+            speech_credit=spoken.credit,
+            speech_licence=spoken.licence,
+            speech_licence_url=spoken.licence_url,
             primary=translations[0].segments,
             primary_coarse=set(translations[0].coarse),
             data=embed_json(
@@ -888,6 +1257,14 @@ def render(
                     "lemmas": lemmas,
                     "roots": roots,
                     "binyanim": binyanim,
+                    # Left out where the two registers agreed about every word on the
+                    # page, and for every language the question is not asked of, rather
+                    # than shipping a row of empty strings the reader would never read.
+                    **({"registers": registers} if any(registers) else {}),
+                    # Which register the reader is standing in, so the card can say the
+                    # same fact from where they are: a word out of the Tanakh is
+                    # ordinary in a Tanakh and an import in a newspaper.
+                    "sourceRegister": "biblical" if is_biblical(document.source) else "modern",
                     # Left out entirely where nothing was read, rather than shipping a
                     # table holding one empty string in every reader that has no Hebrew.
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
@@ -909,6 +1286,19 @@ def render(
                     # a language nobody bought a glossary for must not start asking
                     # either.
                     "glossPending": glossary_pending,
+                    # A dialogue's audio and where each line sits in it. Absent for every
+                    # other kind of text, rather than an empty table in every reader.
+                    **(
+                        {
+                            "speech": {
+                                "audio": spoken.audio,
+                                "spans": spoken.spans,
+                                "space": spoken.keyed,
+                            }
+                        }
+                        if spoken.spans
+                        else {}
+                    ),
                 }
             ),
             previous=None if section.number == 1 else sections[section.number - 2],

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from targum.annotate import BAND_COUNT, BAND_NAMES, Annotator
@@ -272,6 +274,67 @@ def test_hebrew_prefixes_are_stripped_for_real(needs_hebrew_model: None) -> None
     assert all(token.split for token in tokens if token.surface.startswith("ה"))
     bands = {token.surface: token.band for token in tokens}
     assert bands.get("קוממיות", 0) >= 4  # archaic, and banded as such
+
+
+def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
+    """Stanza's default Hebrew tokenizer hands שרוצים over whole, and the lemmatizer then
+    returns שרץ: a modern dialogue banded hard and told it was quoting Leviticus. The build
+    with a character model behind it splits the clitic, and is worse on the Tanakh, whose
+    band table was counted with the default. So the source decides, the way it does for
+    the bands — and the scripture name is the old name, so no Tanakh is redone."""
+    from targum.annotate.lemma import MODERN_TOKENIZERS, StanzaLemmatizer, for_source
+
+    tanakh = for_source("sefaria:Ruth")
+    dialogue = for_source("dialogue:08-that-is-my-spot")
+    assert tanakh.scripture and not dialogue.scripture
+    assert tanakh.packages("he") == {}
+    assert dialogue.packages("he") == {"tokenize": MODERN_TOKENIZERS["he"]}
+    assert dialogue.packages("iw") == dialogue.packages("he"), "the same language"
+    assert dialogue.packages("ru") == {}, "only Hebrew has a second build to choose"
+    assert tanakh.name == StanzaLemmatizer(scripture=True).name
+    assert dialogue.name != tanakh.name, "a modern text built before is read again"
+    assert dialogue.name.startswith(tanakh.name), "and the old name is still in it"
+    assert StanzaLemmatizer().name == dialogue.name, "the default is the modern reading"
+
+
+def test_a_named_build_is_missing_until_that_file_is_on_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Any tokenizer on disk used to mean the tokenizer was on disk, and a machine with
+    the default build would then fail to load the named one and be told to fetch what it
+    already had."""
+    from targum.segment import has_processors
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    for processor, build in (("tokenize", "combined_nocharlm"), ("pos", "x"), ("lemma", "x")):
+        (tmp_path / "he" / processor).mkdir(parents=True)
+        (tmp_path / "he" / processor / f"{build}.pt").write_bytes(b"")
+    assert has_processors("he", "tokenize,pos,lemma")
+    assert not has_processors("he", "tokenize,pos,lemma", {"tokenize": "combined_charlm"})
+    (tmp_path / "he" / "tokenize" / "combined_charlm.pt").write_bytes(b"")
+    assert has_processors("he", "tokenize,pos,lemma", {"tokenize": "combined_charlm"})
+
+
+@pytest.mark.stanza
+def test_a_modern_verb_behind_a_clitic_is_not_a_rare_biblical_word(
+    needs_hebrew_model: None,
+) -> None:
+    """שֶׁרוֹצִים in a dialogue is ש + רוצים, "that they want". Read whole it became שרץ,
+    "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today"."""
+    from targum.annotate.lemma import PROCESSORS, for_source
+    from targum.segment import has_processors
+
+    lemmatizer = for_source("dialogue:08-that-is-my-spot")
+    if not has_processors("he", PROCESSORS, lemmatizer.packages("he")):
+        pytest.skip("Hebrew lemmatizer not downloaded")
+
+    segmented = document(["קוראים לזה איך שרוצים."])
+    annotation = Annotator(lemmatizer=lemmatizer).annotate(segmented)
+    tokens = {token.surface: token for token in next(iter(annotation.tokens.values()))}
+    assert tokens["שרוצים"].lemma == "רצה"
+    assert tokens["שרוצים"].split
+    assert tokens["שרוצים"].word_register != "biblical"
+    assert tokens["שרוצים"].band <= 2
 
 
 def test_a_language_with_no_frequency_data_is_not_rated() -> None:
@@ -684,3 +747,59 @@ def test_a_name_is_not_in_the_lemma_count() -> None:
         ]
         (folder / "annotation.json").write_text(json.dumps({"tokens": {"s": tokens}}))
         assert lemmas(folder) == ["מלך"]
+
+
+# --- register ----------------------------------------------------------------
+
+
+def test_the_register_is_recorded_beside_the_band() -> None:
+    """Real Hebrew, because the point of the field is the two real corpora behind it.
+
+    זבח is everywhere in the Tanakh and has left the street; אוטובוס is on every street
+    and is not in the Tanakh; בית is in both and so has nothing to say for itself.
+    """
+    annotation = annotator().annotate(document(["זבח אוטובוס בית"]))
+    (tokens,) = annotation.tokens.values()
+    assert [token.word_register for token in tokens] == ["biblical", "modern", None]
+
+
+def test_a_name_has_no_register() -> None:
+    """A name is not vocabulary, which is already why it has no band.
+
+    The same word tagged PROPN, so the only thing that changed is whether it is a word
+    the reader has to learn. אוטובוס is modern Hebrew as a word and says nothing as a
+    name — a foreign name is not a modern Hebrew coinage for having stayed out of the
+    Tanakh, and neither is a numeral.
+    """
+    from targum.annotate import register
+
+    class Named(FakeLemmatizer):
+        """Everything is a name here, which is what a chronicle of them looks like."""
+
+        def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+            found = super().lemmas(segments, language)
+            return {
+                sid: [token.model_copy(update={"pos": "PROPN"}) for token in tokens]
+                for sid, tokens in found.items()
+            }
+
+    assert register.of("אוטובוס", "he") == "modern", "the lexicon would say so"
+    annotation = Annotator(lemmatizer=Named(), bands=FakeBands()).annotate(document(["אוטובוס"]))
+    (tokens,) = annotation.tokens.values()
+    assert tokens[0].word_register is None
+    assert tokens[0].band == 0, "and no band either, for the same reason"
+
+
+def test_a_language_with_no_second_register_is_not_asked() -> None:
+    annotation = annotator().annotate(document(["mundus"], language="la"))
+    (tokens,) = annotation.tokens.values()
+    assert all(token.word_register is None for token in tokens)
+
+
+def test_the_annotator_is_named_for_the_register_too() -> None:
+    """Which is what makes a text built before this get built again — free, since this
+    runs on the machine doing the reading. `SCHEMA_VERSION` would have cost a library
+    of re-translation to do the same job."""
+    from targum.annotate import register
+
+    assert register.NAME in annotator().name

@@ -1,7 +1,18 @@
 {#- The same footer on every page inside the app. Quiet, and mostly there so the open
-    source half is reachable from the product rather than only from the front door. -#}
+    source half is reachable from the product rather than only from the front door.
+
+    Privacy and terms sit here rather than four legal links, which is a footer nobody
+    reads. The schedule and the erasure procedure are one click on from privacy.
+
+    They appear only once the documents are open, which they are not during the alpha —
+    a link to a 404 is worse than no link. `legal_is_public()` is the same switch the
+    routes themselves answer to, so the two cannot drift apart. -#}
 <footer class="site-foot">
   <a href="/about">What's built</a>
+  {%- if legal_is_public() %}
+  <a href="/privacy">Privacy</a>
+  <a href="/terms">Terms</a>
+  {%- endif %}
   <a href="https://github.com/DLangellotti/targum">Source</a>
   <span>AGPL-3.0</span>
 </footer>

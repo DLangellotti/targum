@@ -1,0 +1,164 @@
+{#- One edition of the weekly.
+
+    The Hebrew is given whole. It is ours, it is the reason the page is worth indexing,
+    and a stranger who can read it is the reader this exists for. What stays behind the
+    door is the product: the English beside every sentence, and the word cards. -#}
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public">
+<div class="corner">
+  <a class="enter" href="/account/signin">Sign in</a>
+  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+</div>
+
+<main class="sheet weekly">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  {#- A landing page for one thing: learning to read the news. The pitch is in English
+      because the person it is for cannot yet read the Hebrew — that is the whole
+      premise — and everything below it is the product itself rather than a picture of
+      it. -#}
+  <h1 class="pitch">Learn to read the news in Hebrew</h1>
+  <p class="lede">
+    Every Monday, the week from Israel and the world in Modern Hebrew, written three
+    times over. Tap any word for what it means and how common it is. Switch level in the
+    bar below whenever a sentence is too hard, or too easy.
+  </p>
+
+  {#- What the three levels actually are. A reader has to choose one before they can
+      start, and "Easy / Simplified / Real Hebrew" alone leaves them guessing which is
+      theirs. The counts are the ladder in `progress.js`, said in words rather than in
+      Hebrew letters. -#}
+  <dl class="ladder">
+    {%- for other, other_spec in levels.items() %}
+    <div>
+      <dt>{{ other_spec.name }}</dt>
+      <dd class="figure">for {{ other_spec.figure }} words</dd>
+      <dd>{{ explained[other] }}</dd>
+    </div>
+    {%- endfor %}
+  </dl>
+
+  {#- The reader, embedded rather than linked to.
+      
+      A link away is a decision to make before anything has been shown, and a stranger
+      makes it by leaving. Framed, the first thing on the page is the product working:
+      the same built file a signed-in reader gets, with its own level switcher, its word
+      cards and its vocabulary count. Same origin both ways, and `frame-ancestors 'self'`
+      keeps every other site out. -#}
+  <div class="embed">
+    <iframe
+      src="/weekly/read/{{ folder }}/reader/index.html"
+      title="{{ issue.title }} — {{ spec.label }}"
+      loading="lazy"></iframe>
+  </div>
+
+  <p class="made">{{ notice }}</p>
+
+  <p class="door">
+    <a class="go" href="/account/signin">Keep what you learn</a>
+    <span class="free">Signed in, every word you mark follows you into whatever you read next.</span>
+  </p>
+
+  {#- A form, not a script. Somebody arrives here from a search result and may have
+      JavaScript off, blocked, or still loading; and the same markup is reused inside
+      the dialog below, so if that opens and its script then fails the ask still
+      works. -#}
+  <section class="subscribe">
+    <h2>Mondays</h2>
+    <form method="post" action="/weekly/subscribe">
+      <label for="weekly-email">A new issue every Monday. Nothing else.</label>
+      <span class="row">
+        <input id="weekly-email" name="email" type="email" required
+               autocomplete="email" placeholder="you@example.com">
+        <button class="go" type="submit">Send it</button>
+      </span>
+    </form>
+  </section>
+
+  {%- if issue.sources %}
+  {#- Where the week came from, and a way into any of it.
+
+      The headline links out because a citation nobody can follow is not a citation, and
+      because the outlet who reported it should get the visit. `rel` on every one: these
+      addresses arrive from somebody else's feed, so the tab that opens gets no handle
+      back on this one, and the link passes on no ranking.
+
+      Import builds the article as the reader's own targum — their account, their spend,
+      their shelf, exactly as pasting the link into Add would. Signed out it meets the
+      door first, which is the point: somebody who wants to read a whole article is
+      further along than somebody who wants to read a digest. -#}
+  <section class="sources">
+    <h2>Sources</h2>
+    <ul>
+      {%- for story in issue.sources %}
+      <li>
+        {%- if story.links %}
+        <a class="story" href="{{ story.links[0] }}" rel="noopener noreferrer nofollow"
+           lang="he" dir="rtl">{{ story.headline }}</a>
+        {%- else %}
+        <bdi lang="he" dir="rtl">{{ story.headline }}</bdi>
+        {%- endif %}
+        <span class="row">
+          {%- if story.outlets %}
+          <span class="outlets">{{ story.outlets | join(', ') }}</span>
+          {%- endif %}
+          {%- if story.licence %}
+          <span class="licence">{{ story.licence }}</span>
+          {%- endif %}
+          {%- if story.links %}
+          <a class="import" href="/add?source={{ story.links[0]|urlencode }}">Read the whole thing</a>
+          {%- endif %}
+        </span>
+      </li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if archive %}
+  <section class="archive">
+    <h2>Earlier</h2>
+    <ul>
+      {%- for other in archive %}
+      <li><a href="/weekly/{{ other.id }}/{{ level.value }}">{{ other.dated }}</a></li>
+      {%- endfor %}
+    </ul>
+  </section>
+  {%- endif %}
+</main>
+
+{#- The end of the issue, once. §8 allows a shadow on a floating overlay and this is
+    the only one on the page; §6 keeps it to a sentence. Shown a single time ever and
+    never again, which is what keeps it a card rather than a nag. -#}
+<dialog id="finished" aria-labelledby="finished-title">
+  <h2 id="finished-title">that was the week</h2>
+  <p>targum keeps the words you have read, and puts the English beside every sentence.</p>
+  <form method="post" action="/weekly/subscribe">
+    <label for="finished-email">A new issue every Monday.</label>
+    <span class="row">
+      <input id="finished-email" name="email" type="email" required
+             autocomplete="email" placeholder="you@example.com">
+      <button class="go" type="submit">Send it</button>
+    </span>
+  </form>
+  <p class="quiet"><a href="/account/signin">Sign in</a> · <button type="button" data-close>Not now</button></p>
+</dialog>
+
+<script>{{ asset('weekly.js') }}</script>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

@@ -21,7 +21,9 @@ says so.
 
 Run when the catalogue changes; write what it prints into `catalogue.py`. Kept out of
 the package because it is minutes of Stanza over a hundred thousand words, and no reader
-should ever wait for it.
+should ever wait for it — but the counting itself moved into `annotate/difficulty.py`,
+because the weekly measures an issue before publishing it and does that from the
+installed package, which cannot import a script.
 
     uv run python scripts/measure_difficulty.py [--out targum-out] [--only <id>]
 """
@@ -31,45 +33,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import Counter
-from functools import lru_cache
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import ingest  # noqa: E402
 from targum.annotate import Annotator  # noqa: E402
-from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
-from targum.annotate.frequency import FrequencyBands  # noqa: E402
+from targum.annotate.difficulty import hard_share  # noqa: E402
 from targum.catalogue import CATALOGUE, Entry  # noqa: E402
 from targum.models import Annotation, read_artifact  # noqa: E402
 from targum.segment import StanzaSegmenter, segment_document  # noqa: E402
-
-#: Where a word stops being one a reader knows and starts being one they look up.
-LOOKED_UP = 4
-
-_bands = FrequencyBands()
-
-
-@lru_cache(maxsize=200_000)
-def _band(lemma: str, language: str) -> int:
-    return _bands.band(lemma, language)
-
-
-def hard_share(annotation: Annotation, language: str) -> int:
-    """The percentage of running words a learner would have to look up."""
-    counts: Counter[int] = Counter()
-    for tokens in annotation.tokens.values():
-        for token in tokens:
-            # The same rule the server applies to an upload: a name is a token the
-            # reader can tap, not a word they have to learn.
-            if token.pos in NOT_VOCABULARY:
-                continue
-            counts[_band(token.lemma, language)] += 1
-    total = sum(counts.values())
-    if not total:
-        return 0
-    return round(sum(n for band, n in counts.items() if band >= LOOKED_UP) / total * 100)
 
 
 def on_disk(root: Path, source: str) -> Annotation | None:

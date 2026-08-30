@@ -39,6 +39,8 @@ document.documentElement.setAttribute("lang", language);
 document.getElementById("targum-data").textContent = JSON.stringify({
   words: payload.chapter || {},
   lemmas: payload.lemmas || [],
+  registers: payload.registers || [],
+  sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
 });
 
@@ -126,9 +128,16 @@ process.stdout.write(
       button: byId["done-mark"].textContent,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
     },
+    // Which Hebrew each word belongs to, as the card would say it from this text.
+    registers: (payload.lemmas || []).map((_, index) => reader.registerNote(index)),
     // The arithmetic of a page, asked of the pure half: a stub lays nothing out.
     pages: payload.pages
-      ? reader.boundariesFrom(payload.pages.tops, payload.pages.heights, payload.pages.room)
+      ? reader.boundariesFrom(
+          payload.pages.tops,
+          payload.pages.heights,
+          payload.pages.room,
+          payload.pages.opens,
+        )
       : null,
     pageFor: payload.pageFor
       ? reader.pageFor(payload.pageFor.index, payload.pageFor.pages)

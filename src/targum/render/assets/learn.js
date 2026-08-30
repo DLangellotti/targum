@@ -391,7 +391,11 @@
     });
     var open = catalogue
       .filter(function (entry) {
-        return base(entry.language) === code && !built[entry.id] && entry.difficulty;
+        // `difficulty >= 0` rather than a truth test. Zero is a measurement, not a
+        // missing one: a twenty-word beginner scene has no uncommon word in it, and
+        // reading it as "not measured" dropped the seven easiest texts in the library
+        // out of the one list a beginner is shown.
+        return base(entry.language) === code && !built[entry.id] && entry.difficulty >= 0;
       })
       .sort(function (a, b) {
         return a.difficulty - b.difficulty;
@@ -593,4 +597,61 @@
       lists.offerExports(!!window.TargumSync.who);
     });
   }
+
+  /* --- the week's issue ------------------------------------------------------
+   *
+   * A line above the doors, not a third box. The weekly is written three times over and
+   * this is the one page that knows who is reading, so it opens at the reader's own
+   * rung — `charts.levelFor` weighs their marked words on the same ladder the progress
+   * page draws, rather than a second count that would disagree with it.
+   *
+   * Once they have opened this week's issue the line goes quiet rather than away: gone,
+   * there is no way back to it from here, and nagging is what the brand rules refuse.
+   */
+  function drawWeekly() {
+    var issue = window.TARGUM_WEEKLY;
+    var line = document.getElementById("weekly-line");
+    if (!issue || !line || !issue.levels || !issue.levels.length) return;
+
+    var READ = "targum:weekly:opened";
+    var opened = false;
+    try {
+      opened = window.localStorage.getItem(READ) === issue.id;
+    } catch (error) {
+      opened = false;
+    }
+
+    // The same store the progress page reads, asked for Hebrew. Empty is the ordinary
+    // state for somebody who has marked nothing yet, and the ladder answers with its
+    // lowest rung, which is the right issue for them.
+    var words = [];
+    try {
+      var store = charts.collect(charts.meaningLanguage("he"))["he"];
+      words = (store && store.words) || [];
+    } catch (error) {
+      words = [];
+    }
+    var level = charts.levelFor(words, issue.levels) || issue.levels[0];
+
+    var link = document.getElementById("weekly-link");
+    document.getElementById("weekly-title").textContent = issue.title;
+    document.getElementById("weekly-at").textContent = "in " + level.name;
+    document.getElementById("weekly-when").textContent = opened ? "read" : "this week";
+    link.href = keyed("/reader/" + encodeURIComponent(level.folder) + "/reader/index.html");
+    line.classList.toggle("done", opened);
+    line.hidden = false;
+
+    link.addEventListener("click", function () {
+      try {
+        window.localStorage.setItem(READ, issue.id);
+      } catch (error) {
+        /* A private window. The line offers itself again next time, which is no worse
+           than the first time. */
+      }
+    });
+  }
+
+  drawWeekly();
+
+
 })();

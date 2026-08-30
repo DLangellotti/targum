@@ -11,6 +11,7 @@ import contextlib
 import io
 import logging
 import shutil
+from collections.abc import Mapping
 from typing import Any
 
 from ..errors import ModelMissing, TargumError
@@ -29,14 +30,18 @@ def model_path(language: str) -> Any:
     return model_dir() / stanza_code(language)
 
 
-def is_downloaded(language: str, processor: str = "tokenize") -> bool:
+def is_downloaded(language: str, processor: str = "tokenize", package: str | None = None) -> bool:
     """Whether one processor's model is on disk.
 
     Segmentation needs the tokenizer; difficulty bands also need the part-of-speech
-    and lemma models, which are separate files beside it.
+    and lemma models, which are separate files beside it. A processor Stanza ships
+    several builds of is asked for by name, since any one of them on disk says nothing
+    about whether the one wanted is.
     """
     path = model_path(language) / processor
-    return path.is_dir() and any(path.glob("*.pt"))
+    if package:
+        return bool((path / f"{package}.pt").is_file())
+    return bool(path.is_dir() and any(path.glob("*.pt")))
 
 
 def downloaded_languages() -> list[str]:
@@ -46,23 +51,38 @@ def downloaded_languages() -> list[str]:
     return sorted(p.name for p in root.iterdir() if p.is_dir() and any(p.rglob("*.pt")))
 
 
-def has_processors(language: str, processors: str) -> bool:
+def has_processors(
+    language: str, processors: str, packages: Mapping[str, str] | None = None
+) -> bool:
+    """Whether every processor named is on disk — by build, where one is named."""
     return all(
-        is_downloaded(language, processor)
+        is_downloaded(language, processor, (packages or {}).get(processor))
         for processor in processors.split(",")
         # mwt exists only for some languages, and stanza adds it when it applies.
         if processor not in {"mwt"}
     )
 
 
-def download(language: str, processors: str = "tokenize") -> None:
-    """Fetch models for one language. Loud on failure, quiet on success."""
+def download(
+    language: str, processors: str = "tokenize", packages: Mapping[str, str] | None = None
+) -> None:
+    """Fetch models for one language. Loud on failure, quiet on success.
+
+    `packages` names a build for a processor, as `annotate.lemma` does for the Hebrew
+    tokenizer; every processor it leaves unnamed comes as Stanza's default.
+    """
     import stanza
 
     code = stanza_code(language)
     ensure(model_dir())
     try:
-        stanza.download(code, model_dir=str(model_dir()), processors=processors, verbose=True)
+        stanza.download(
+            code,
+            model_dir=str(model_dir()),
+            processors=processors,
+            package=dict(packages or {}),
+            verbose=True,
+        )
     except Exception as exc:  # stanza raises a mix of its own and network errors
         raise TargumError(f"Could not download the {code} language model.", str(exc)) from exc
 

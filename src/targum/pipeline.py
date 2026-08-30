@@ -121,6 +121,11 @@ class Build:
         # is left out of the reader — see `render`. None asks nobody, which is the command
         # line and a machine somebody runs themselves.
         reads: Sequence[str] | None = None,
+        # The weekly's chrome: other levels of the same issue, and the line saying how
+        # it was made. Both ride into `render` untouched; nothing else in the pipeline
+        # looks at them.
+        siblings: list[dict[str, str]] | None = None,
+        whole: bool = False,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -139,6 +144,8 @@ class Build:
         self.machine = (not self.translation_files) if machine is None else machine
         self._aligner = aligner
         # Glosses need the same lemmas difficulty does, so asking for one implies the other.
+        self.siblings = siblings
+        self.whole = whole
         self.difficulty = difficulty or gloss
         self.gloss = gloss
         # Meanings may be bought on a cheaper model than the prose; hosted, they are.
@@ -272,6 +279,12 @@ class Build:
         "http://",
         "https://",
         "catalogue:",
+        # An issue of the weekly is one public text that everybody reads. Its English
+        # is bought once and shared, like a Gutenberg novel's.
+        "weekly:",
+        # A dialogue likewise, and more simply: its English is written with the scene,
+        # so there is nothing to buy at all.
+        "dialogue:",
     )
 
     def shared_source(self) -> bool:
@@ -575,6 +588,39 @@ class Build:
             out.append(projected)
         return out
 
+    def authored(self, source: Document, segmented: SegmentedDocument) -> Translation | None:
+        """A dialogue's English, which arrives with it and is never bought.
+
+        The catalogue's rule, applied to a text targum wrote itself: where a translation
+        already exists, no model is asked for one. A dialogue goes further than a
+        catalogue pair — there is nothing to align either, because the English was
+        written line by line against the Hebrew and the correspondence is a fact of the
+        file rather than something to infer from shapes. One turn is one block is one
+        segment, which is what `UNSPLIT` guarantees.
+        """
+        if not source.source.startswith("dialogue:"):
+            return None
+        from .dialogue import index as dialogue_index
+
+        scene = dialogue_index.load(source.source.split(":", 1)[1])
+        english = {f"b{n:04d}": turn.english for n, turn in enumerate(scene.turns) if turn.english}
+        segments = {
+            segment.id: english[segment.block_id]
+            for segment in segmented.segments
+            if segment.block_id in english
+        }
+        if not segments:
+            return None
+        return Translation(
+            name=scene.english or scene.id,
+            document_hash=segmented.document_hash,
+            source_language=segmented.language,
+            target_language="en",
+            provider="authored",
+            kind="authored",
+            segments=segments,
+        )
+
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
     ) -> Annotation | None:
@@ -589,7 +635,7 @@ class Build:
         # would show as "very hard" to somebody for whom it is the first thing to learn.
         # `for_source` returns None for everything else, and `Annotator` then takes its
         # own default, so no other text is affected.
-        from .annotate import biblical
+        from .annotate import biblical, lemma
 
         # A reading needs vowels above the word and phonikud installed to turn them into
         # sounds. Where either is missing the annotation is made without readings and
@@ -602,7 +648,9 @@ class Build:
                 pronouncer = candidate
 
         annotator = self._annotator or annotate_module.Annotator(
-            bands=biblical.for_source(self.source), pronouncer=pronouncer
+            lemmatizer=lemma.for_source(self.source),
+            bands=biblical.for_source(self.source),
+            pronouncer=pronouncer,
         )
         if not self.force:
             existing = read_artifact(Annotation, path)
@@ -835,7 +883,13 @@ class Build:
         only = self._first_chapters(segmented, chapters) if chapters else None
 
         translations: list[Translation] = []
-        if self.machine:
+        # Before anything is bought: a dialogue carries its own English, so a build of one
+        # spends nothing and needs no network.
+        written = self.authored(plan.document, segmented)
+        if written is not None:
+            written.write(self.resolved_out / "translations" / "authored.en.json")
+            translations.append(written)
+        if self.machine and written is None:
             translations.append(
                 plan.cached_translation or self.translate(segmented, on_progress, only=only)
             )
@@ -873,6 +927,8 @@ class Build:
                 glossary_pending=(self.target_language if self.gloss and glossary is None else ""),
                 covers=self.covers,
                 reads=self.reads,
+                siblings=self.siblings,
+                whole=self.whole,
             )
 
         result = Result(
