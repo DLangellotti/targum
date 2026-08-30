@@ -39,16 +39,26 @@ def folder(source: str) -> Path:
     return root() / slug(source)
 
 
-def load(source: str) -> Recording | None:
-    """The recording for a text, or None where there is none.
+def load_folder(folder: Path) -> Recording | None:
+    """The recording in a folder, or None where it will not read.
 
-    None rather than an error: most texts have no recording, and a library that raised
-    here would be a library where adding audio to one book breaks every other.
+    Split out so a caller walking the whole directory does not have to work out which
+    source each folder is the slug of — a slug is not reversible, and guessing at it is
+    how a book comes to be listed under a name nothing else uses.
     """
-    path = folder(source) / MANIFEST
+    path = folder / MANIFEST
     if not path.exists():
         return None
     try:
         return Recording.model_validate(json.loads(path.read_text(encoding="utf-8")))
     except Exception:  # noqa: BLE001 - a malformed recording must not stop a build
         return None
+
+
+def load(source: str) -> Recording | None:
+    """The recording for a text, or None where there is none.
+
+    None rather than an error: most texts have no recording, and a library that raised
+    here would be a library where adding audio to one book breaks every other.
+    """
+    return load_folder(folder(source))

@@ -1806,6 +1806,12 @@ body.paged:not(.last-page) .finished { display: none; }
 
 .player-said { font-size: 0.8125rem; color: var(--ink-soft); }
 .player.playing .player-said { display: none; }
+/* Except when it has something to report. A player that failed shows why, in the space
+   the label was using, and keeps showing it — the reader pressed a thing and is owed an
+   answer more than the page is owed its tidiness. */
+.player.refused .player-said { display: block; color: var(--ink); }
+.player.refused .player-track,
+.player.refused .player-clock { display: none; }
 
 .player-track {
   block-size: 2px;
@@ -1869,24 +1875,15 @@ body.paged .player { inset-block-end: 5.5rem; }
 }
 
 /* A short window — a laptop with the browser's own chrome taking a third of it — is
-   mostly furniture unless the furniture gives way. At 420px of viewport the bar, the top
-   margin, the player's band and the slack came to 337px, leaving 83px for the text: two
-   lines of a dialogue a page.
+   mostly furniture unless the furniture gives way, so the margin above the text shrinks.
 
-   So the margin above the text shrinks, and the floating player goes. Not moved — gone.
-   The foot of a short window already holds the words chip, both turning arrows and the
-   page count, and the player was put down on top of the chip, which shares its corner.
-   There is no free corner down there to move it to, and stacking one more thing on a
-   strip that is already three deep is not a layout.
-   
-   Nothing is lost but the progress bar: the bar keeps its play button, which is the
-   control that matters, and `room` stops reserving a band for a player that is not
-   drawn — so the page gets that height back as text, which is what a short window was
-   short of in the first place. */
+   The player stays. It was hidden here for a while, which was the wrong answer twice
+   over: 40rem is an ordinary laptop, not an edge case, and the reason for hiding it was
+   a pile-up I had caused myself by moving it down into the foot on top of the words
+   chip, which shares its corner. Left where it belongs — above the turning arrows — it
+   clears the chip and collides with nothing. */
 @media (max-height: 40rem) {
   main { padding-block-start: 1.25rem; padding-block-end: 4rem; }
-
-  .player { display: none; }
 }
 }
 

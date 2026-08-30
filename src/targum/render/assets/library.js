@@ -64,6 +64,13 @@
     ["modern", "Modern"],
   ];
 
+  //: Only one direction is worth offering. "Without audio" is not a thing anybody looks
+  //: for — the question is always whether there is something to listen to.
+  var SPOKEN = [
+    ["", "Any"],
+    ["yes", "With audio"],
+  ];
+
   var LENGTHS = [
     ["", "Any"],
     ["short", "Under 20 min"],
@@ -181,6 +188,7 @@
         register: entry.register,
         difficulty: entry.difficulty,
         minutes: entry.minutes,
+        spoken: !!entry.spoken,
         built: built || null,
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
@@ -198,6 +206,7 @@
         register: reader.register,
         difficulty: reader.difficulty,
         minutes: reader.minutes,
+        spoken: !!reader.spoken,
         built: reader,
         opened: reader.opened || 0,
       });
@@ -263,6 +272,13 @@
       what.appendChild(
         el("span", "row-fit", "you know " + Math.round(row.built.known * 100) + "% of its words")
       );
+    }
+    // The one thing on a row that is not a column: a text either can be listened to or
+    // cannot, and a column of blanks down the page to say "no audio" would be noise.
+    if (row.spoken) {
+      var heard = el("span", "row-audio", "audio");
+      heard.title = "There is a recording of this";
+      what.appendChild(heard);
     }
     open.appendChild(what);
 
@@ -349,6 +365,7 @@
     if (state.kind && row.kind !== state.kind) return false;
     if (state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
+    if (state.spoken === "yes" && !row.spoken) return false;
     if (state.level && level(row.difficulty) !== state.level) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;
@@ -642,6 +659,7 @@
         "chip",
         present(everything, "kind", chosen)
       );
+      choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
       choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
       tabs(document.getElementById("where"), WHERE, "where", redraw);

@@ -1019,6 +1019,7 @@ class Library:
         that could be worked out here. Everything else is the reader's own.
         """
         from . import catalogue as catalogue_module
+        from . import spoken
 
         entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
         if entry is not None:
@@ -1027,6 +1028,7 @@ class Library:
                 "register": entry.register.value,
                 "difficulty": entry.difficulty,
                 "minutes": entry.minutes,
+                "spoken": spoken.is_spoken(source),
                 "entry": entry.id,
                 "drawn": any(
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
@@ -1048,6 +1050,7 @@ class Library:
             "register": "biblical" if is_biblical(source) else "modern",
             "difficulty": difficulty,
             "minutes": max(1, round(words / 130)),
+            "spoken": spoken.is_spoken(source),
             "entry": "",
             "drawn": False,
         }

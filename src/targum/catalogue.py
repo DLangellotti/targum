@@ -207,6 +207,8 @@ class Entry:
         return sample_for(self.id)
 
     def state(self) -> dict[str, object]:
+        from .spoken import is_spoken as _is_spoken
+
         return {
             "id": self.id,
             "title": self.title,
@@ -219,6 +221,11 @@ class Entry:
             "kind": self.kind.value,
             "register": self.register.value,
             "difficulty": self.difficulty,
+            # Whether it can be listened to. Asked of the disk rather than stored here,
+            # so an entry never claims a recording this machine has not got — see
+            # `spoken.py`. Imported inside the method for the same reason `everything`
+            # does it: this module reads the catalogue file and nothing else.
+            "spoken": _is_spoken(self.source),
             "tags": sorted(tag.value for tag in self.tags),
             # Not the model: the page has no use for it and it is not the browser's to
             # ask for. The server reads it back from here when a build starts.

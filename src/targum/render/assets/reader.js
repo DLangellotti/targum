@@ -4616,6 +4616,7 @@
   var player = document.getElementById("player");
   var fill = player && player.querySelector(".player-fill");
   var clock = player && player.querySelector(".player-clock");
+  var said = player && player.querySelector(".player-said");
   var scene = scenes[0] || null;
   var stopAt = null;
   var playing = null;      /* the one-line button, when a single line is playing */
@@ -4677,9 +4678,40 @@
   }
 
   function play(from) {
-    audio.currentTime = from;
+    try {
+      audio.currentTime = from;
+    } catch (why) {
+      return refused("This recording will not play in this browser.", why);
+    }
     var done = audio.play();
-    if (done && done.catch) done.catch(halt);
+    if (done && done.catch) {
+      done.catch(function (why) {
+        // Chrome rejects here when the tab is not allowed to make a sound — a site muted
+        // in the address bar, or a policy about autoplay — and the promise is the only
+        // place it says so. Silently stopping made that indistinguishable from a broken
+        // file: the control flipped back and the page had nothing to say for itself.
+        refused(
+          why && why.name === "NotAllowedError"
+            ? "This tab is not allowed to play sound. Check the address bar."
+            : "This recording would not play.",
+          why
+        );
+      });
+    }
+  }
+
+  /* Playback failed, and the reader is told which. A control that reverts and explains
+     nothing is the worst of both: it looks broken and gives nobody anything to act on. */
+  function refused(message, why) {
+    halt();
+    if (player) {
+      player.classList.add("refused");
+      if (said) said.textContent = message;
+    }
+    try {
+      var trouble = audio.error ? " (media error " + audio.error.code + ")" : "";
+      console.error("targum: " + message + trouble, why || "");
+    } catch (e) {}
   }
 
   /* One line. */
