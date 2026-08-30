@@ -111,6 +111,18 @@
   var PROMISE = "You'll be updated by email when your targum is ready.";
   var promising = null;
 
+  // Following the link is as final as the ×: a reader who has opened the text has no
+  // further use for a strip that says it is ready, and it used to follow them from
+  // page to page until they found the × themselves.
+  link.addEventListener("click", function () {
+    if (!showing) return;
+    var gone = dismissed();
+    gone[showing.id] = Date.now();
+    try {
+      localStorage.setItem(DISMISSED, JSON.stringify(gone));
+    } catch (e) {}
+  });
+
   dismiss.addEventListener("click", function () {
     if (!showing) return;
     var was = showing;
