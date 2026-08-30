@@ -25,7 +25,13 @@ const byId = install({
   TARGUM_KEY: "k",
   TARGUM_CATALOGUE: payload.catalogue,
   TARGUM_LANGUAGES: { he: "Hebrew", ru: "Russian" },
-  stored: { "targum:library": JSON.stringify(payload.view || {}) },
+  // A first visit is a browser with no view remembered at all; every other run hands
+  // the page the view a reader chose. `stored` lets a test put anything else in the
+  // browser's store — the vocabulary the page counts, for one.
+  stored: Object.assign(
+    payload.firstVisit ? {} : { "targum:library": JSON.stringify(payload.view || {}) },
+    payload.stored || {}
+  ),
   // The language switcher is not what is under test, and the real one wants a document
   // to hang tabs off. Its answer is fixed here so the rows are the only variable.
   TargumLang: {
@@ -47,6 +53,8 @@ if (payload.hash) global.location.hash = payload.hash;
 global.fetch = () =>
   Promise.resolve({ json: () => Promise.resolve({ readers: payload.readers || [], covers: !!payload.covers }) });
 
+require(path.join(assets, "charts.js"));
+require(path.join(assets, "scenes.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "library.js"));
 
@@ -74,6 +82,17 @@ setTimeout(() => {
       kinds: byId["kind-chips"].children.map((c) => c.textContent),
       registers: byId["register-chips"].children.map((c) => c.textContent),
       empty: byId["picked-empty"].textContent,
+      // The one line that says what the list is, and whether it was drawn under the
+      // heading (a first visit that opened on the Scenes) or under the controls.
+      note: byId["picked-lead"].hidden ? byId["picked-note"].textContent : byId["picked-lead"].textContent,
+      noteLeads: !byId["picked-lead"].hidden,
+      // The heading over the share column, and whether it can be pressed.
+      shareHead: (() => {
+        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /New words|Scene number/.test(c.textContent));
+        return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
+      })(),
+      kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
+      gauges: rows.map((row) => row.children[0].children.find((c) => String(c.className).includes("gauge")).getAttribute("aria-label") || ""),
     })
   );
 }, 20);

@@ -1156,10 +1156,16 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
 
     assert CATALOGUE, "an empty catalogue is a page with nothing on it"
     for entry in CATALOGUE:
+        assert by_id(entry.id) is entry
+        # A scene is the third way to be cheap: its English is authored beside the
+        # Hebrew, so a build asks no model for anything and names none. And twenty
+        # words is the whole of it, by design, not an index page.
+        if entry.kind.value == "dialogue":
+            assert not entry.translations and not entry.model, entry.id
+            continue
         assert entry.translations or entry.model, f"{entry.id} would cost a reader money"
         assert not (entry.translations and entry.model), f"{entry.id} claims to be both"
         assert entry.words > 100, entry.id  # an index page, not a text
-        assert by_id(entry.id) is entry
 
     # The cards are drawn in the browser, from the payload, so that picking a language
     # can filter them. What the page has to carry is the payload itself.

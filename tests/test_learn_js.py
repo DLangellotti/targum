@@ -131,7 +131,9 @@ def test_a_shelf_row_is_a_row_of_columns() -> None:
     assert drawn["head"] is False, "the columns are labelled"
     assert row["title"] == "בראשית"
     assert row["cover"] is not None
-    assert row["chapters"] == "50 of 50", "how much of it is bought, on its own"
+    assert row["chapters"] == "50 chapters", (
+        "all of it bought, said as a count rather than a fraction"
+    )
     assert "ago" in row["opened"] or row["opened"] == "not opened yet"
     assert row["controls"] == ["Chapters", "Delete"]
 
@@ -674,3 +676,36 @@ def test_a_text_with_no_uncommon_word_in_it_is_still_offered() -> None:
     drawn = draw([], vocabulary(word("ספר", "book", status=2)), catalogue=shelf)
     assert drawn["suggested"]["entry"] == "scene"
     assert drawn["suggested"]["title"] == "סצנה"
+
+
+def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
+    """ "2 of 4" is a fraction with nothing to say what it is a fraction of."""
+    drawn = draw(
+        [
+            reader("psalms-he", "תהילים", entry="psalms", opened=2),
+            reader(
+                "genesis-he",
+                "בראשית",
+                entry="genesis",
+                opened=1,
+                chapters=[{"number": n} for n in range(4)],
+                readyChapters=2,
+            ),
+        ]
+    )
+    (row,) = drawn["shelf"]
+    assert row["chapters"] == "2 of 4 translated"
+
+
+def test_every_empty_list_says_what_fills_it() -> None:
+    """A new account meets three empty lists at once. Each says what lands in it and
+    where to go, rather than naming a stage the reader has not met."""
+    drawn = draw([], {})
+    assert (
+        drawn["wordsEmpty"] == "Nothing yet. Tap a word while reading and say how well you know it."
+    )
+    assert drawn["shelfNote"] == "Nothing here yet. Texts you open land here."
+
+    # With words kept but none still being learned, the stage is the honest answer.
+    known_only = draw([], vocabulary(word("שלום", "hello", status=9)))
+    assert known_only["wordsEmpty"] == "Nothing at that stage yet."

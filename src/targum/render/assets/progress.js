@@ -394,9 +394,8 @@
     rung.hidden = code !== "he";
     basis.hidden = code !== "he";
     if (code === "he") {
-      basis.textContent =
-        "Ulpan level, estimated from the words you have marked known and how common " +
-        "they are. A rough guide, not a placement test.";
+      // The limit is all that is said (§6, and the 2026-08-24 amendment in §12).
+      basis.textContent = "A guide, not a placement.";
       drawLevel(inside, entry.words);
       return;
     }

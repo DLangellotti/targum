@@ -17,6 +17,17 @@
   gap: 0.4rem;
   margin-block-end: 0.9rem;
 }
+/* The line that says what the list is. Ink, not the soft ink the words page gives a
+   note: for a reader who cannot yet read the titles it is the primary sentence on the
+   page, and §9 keeps muted for secondary content. As `.lead` it sits under the heading,
+   above every control, on the first visit of an account that knows no words. */
+#picked-note,
+.note.lead {
+  color: var(--ink);
+  font-size: 0.8125rem;
+}
+.note.lead { margin: 0 0 0.9rem; }
+
 .find {
   flex: 1 1 11rem;
   min-inline-size: 7rem;
@@ -107,6 +118,9 @@
 }
 .rows-head button:hover { color: var(--ink); }
 .rows-head button[aria-sort] { color: var(--ink); }
+/* Under the Scenes chip the list has one order and the heading says which; a heading
+   that cannot be pressed does not invite it. */
+.rows-head button[aria-disabled="true"] { color: var(--ink); cursor: default; }
 .rows-head .arrow { font-size: 0.6875rem; }
 
 .rows { list-style: none; margin: 0; padding: 0; }

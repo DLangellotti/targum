@@ -293,7 +293,11 @@
       ? ""
       : search.value.trim()
         ? "Nothing here matches that."
-        : "Nothing at that stage yet.";
+        : entry.words.length
+          ? "Nothing at that stage yet."
+          // Nothing at all, which is every new account: say what fills the list and
+          // where, rather than naming a stage the reader has not met.
+          : "Nothing yet. Tap a word while reading and say how well you know it.";
     // Capped, there is no paging: the rest of the list is a page away, not a press away.
     moreButton.hidden = cap ? true : rows.length <= shown;
     moreButton.textContent = "Show " + Math.min(PAGE, rows.length - shown) + " more";

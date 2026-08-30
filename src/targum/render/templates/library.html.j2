@@ -21,6 +21,13 @@
   {#- Two halves of one question, and they are not a filter: the catalogue is everybody's
       and the uploads are yours alone. As a select called "Access" among five other
       controls, the reader's own texts were a setting nobody found. -#}
+  {#- The one line that says what the list is, for the reader who cannot yet read a
+      title on it. It lives under the controls as `#picked-note`; on the first visit of
+      an account that knows no words, when the page opens on the Scenes, it is drawn
+      here instead — under the heading and above every control — because it is the
+      first thing that reader has to read, and thirteen chips they do not yet
+      understand should not come before it. -#}
+  <p class="note lead" id="picked-lead" hidden></p>
   <div class="tabs" id="where" role="tablist" aria-label="Which texts"></div>
 
   <section class="panel" id="picked">
@@ -45,7 +52,9 @@
       <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
       <label class="pick"><span>Audio</span><select id="audio"></select></label>
       <label class="pick"><span>Length</span><select id="length"></select></label>
-      <label class="pick"><span>Difficulty</span><select id="difficulty"></select></label>
+      {#- One name for one measure: the column below is "New words", and a select called
+          "Difficulty" over it was two names for the same number. -#}
+      <label class="pick"><span>New words</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>Clear</button>
     </div>
 
@@ -67,6 +76,8 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 </script>
+<script>{{ asset('charts.js') }}</script>
+<script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>

@@ -200,7 +200,13 @@
 
     var facts = [];
     if (reader.chapters && reader.chapters.length > 1) {
-      facts.push(reader.readyChapters + " of " + reader.chapters.length + " chapters");
+      // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
+      // the fraction is a fraction of.
+      facts.push(
+        reader.readyChapters === reader.chapters.length
+          ? reader.chapters.length + " chapters"
+          : reader.readyChapters + " of " + reader.chapters.length + " translated"
+      );
     } else if (reader.sections > 1) {
       facts.push(reader.sections + " parts");
     }
@@ -465,7 +471,7 @@
     var known = charts.known(store && store.words);
     if (choosing && !known) {
       line.textContent = "Two ways in, both ready. Tap one to start reading.";
-      document.getElementById("step-progress").textContent = "What you have built.";
+      document.getElementById("step-progress").textContent = "Words known, days reading.";
       return;
     }
     // The same numbers the progress page opens with, said in one line as a reason to go
@@ -473,7 +479,7 @@
     var days = charts.days().length;
     document.getElementById("step-progress").textContent = known
       ? known + (known === 1 ? " word" : " words") + ", " + days + (days === 1 ? " day" : " days")
-      : "What you have built.";
+      : "Words known, days reading.";
     // A count of a real thing, and nothing when there is nothing: "You know 0 words" is
     // a score of zero, which is the arcade the brand rules keep out.
     // Named, because a reader with Hebrew and Russian has two counts and this line is

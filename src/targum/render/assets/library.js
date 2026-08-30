@@ -43,20 +43,24 @@
      Tanakh, and beside "Novels" and "Stories", which are also prose, it says nothing to
      anybody. "News" is what an article is.
 
-     Ordered by how much of the catalogue each one holds, so the first chips a reader
-     meets are the ones with fifty texts behind them rather than the ones with two. Fixed
-     rather than recomputed: a row of filters that rearranges itself as you use it is a
-     row you have to read every time. */
+     Scenes first: the hundred numbered dialogues are where a reader with no words at all
+     starts, and the chip that opens that path should be the first one met. After it,
+     ordered by how much of the catalogue each one holds, so the next chips a reader
+     meets are the ones with fifty texts behind them rather than the ones with two.
+     Fixed rather than recomputed: a row of filters that rearranges itself as you use it
+     is a row you have to read every time. "Bible narrative" rather than "Narrative":
+     beside Novels and Stories the bare word said nothing, and what it names is the story
+     books of the Bible. */
   var KINDS = [
+    ["dialogue", "Scenes"],
     ["story", "Stories"],
     ["article", "News"],
     ["novel", "Novels"],
     ["essay", "Essays"],
-    ["prose", "Narrative"],
+    ["prose", "Bible narrative"],
     ["poetry", "Poetry"],
     ["document", "Documents"],
     ["play", "Plays"],
-    ["dialogue", "Dialogues"],
   ];
 
   var REGISTERS = [
@@ -89,10 +93,67 @@
     ["hard", "Harder — more than 1 in 4"],
   ];
 
-  // The same number as a sentence: 17% is "about 1 word in 6 is new to you".
+  // The same number as a sentence: 17% is "about 1 word in 6 is uncommon". Not "new to
+  // you": the share is a fact about the text — how much of it is rare Hebrew — and a
+  // reader who knows no words looks up all twenty-two of a text that says 0%.
   function inWords(share) {
     if (!share) return "";
-    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " will be new to you";
+    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " is uncommon";
+  }
+
+  /* One line under the controls that says what the active one means — for the reader
+     who cannot yet read a title on the page, the most important sentence on it. Stated,
+     never justified. At most two clauses; the first is the one that changes what the
+     list is. "—" is explained only while one is on screen. */
+  var NOTES = {
+    base: "Tap a text to read it.",
+    kind: {
+      dialogue: "Scenes — numbered conversations with audio. Start at 1.",
+      prose: "Bible narrative — the Bible's story books.",
+      article: "News — the Israeli press, in the week it was written.",
+      play: "Plays — a speaker, then a line.",
+    },
+    register: {
+      biblical: "Biblical — the Hebrew of the Bible.",
+      modern: "Modern — Hebrew as it is written today.",
+    },
+    spoken: "With audio — a recording, line by line.",
+    sort: {
+      difficulty: "New words — the share of a text that is uncommon Hebrew.",
+    },
+    unmeasured: "— means not measured yet.",
+  };
+
+  function noteFor(showing) {
+    var clauses = [];
+    if (view.kind && NOTES.kind[view.kind]) clauses.push(NOTES.kind[view.kind]);
+    if (view.register && NOTES.register[view.register]) clauses.push(NOTES.register[view.register]);
+    if (view.spoken === "yes") clauses.push(NOTES.spoken);
+    if (NOTES.sort[view.sort]) clauses.push(NOTES.sort[view.sort]);
+    if (!clauses.length) clauses.push(NOTES.base);
+    clauses = clauses.slice(0, 2);
+    var dashed = showing.some(function (row) {
+      return !measured(row);
+    });
+    if (dashed) clauses[Math.min(1, clauses.length)] = NOTES.unmeasured;
+    return clauses.join(" · ");
+  }
+
+  /* Where the line is drawn. Under the controls, as `#picked-note`, every time but one:
+     on the first visit of an account that knows no words, when the page has opened on
+     the Scenes for them, it goes under the heading and above every control, because
+     "Start at 1" has to be read before thirteen chips they do not yet understand. */
+  var leading = false;
+  function placeNote(text) {
+    var note = document.getElementById("picked-note");
+    var top = document.getElementById("picked-lead");
+    var lead = leading && view.kind === "dialogue" && !!top;
+    if (top) {
+      top.hidden = !lead;
+      top.textContent = lead ? text : "";
+    }
+    note.hidden = lead;
+    note.textContent = lead ? "" : text;
   }
 
   /* The two halves of the page. The catalogue is everybody's; an upload is yours and
@@ -150,8 +211,17 @@
 
   /* --- what the list holds --------------------------------------------------- */
 
-  function level(share) {
-    if (!share) return "";
+  /* Whether a row's share means anything. Zero is a measurement on a catalogue text — a
+     twenty-word scene with no uncommon word in it — and "not measured" on an upload
+     built without word-level annotation. The two are different claims, and only the
+     second is drawn as a dash. */
+  function measured(row) {
+    return row.difficulty > 0 || !!row.entry;
+  }
+
+  function level(row) {
+    if (!measured(row)) return "";
+    var share = row.difficulty || 0;
     if (share <= 20) return "easy";
     return share <= 28 ? "mid" : "hard";
   }
@@ -216,12 +286,13 @@
 
   /* --- drawing one ----------------------------------------------------------- */
 
-  function gauge(share) {
+  function gauge(row) {
     var box = el("span", "gauge");
-    if (!share) {
+    if (!measured(row)) {
       box.appendChild(el("span", "col count", "—"));
       return box;
     }
+    var share = row.difficulty || 0;
     var track = el("span", "track");
     var fill = el("span", "fill");
     var reach = Math.max(6, Math.min(100, ((share - FLOOR) / (CEILING - FLOOR)) * 100));
@@ -229,8 +300,9 @@
     track.appendChild(fill);
     box.appendChild(track);
     box.appendChild(el("span", "col count", share + "%"));
-    box.title = inWords(share);
-    box.setAttribute("aria-label", share + "% new words: " + inWords(share));
+    var said = inWords(share);
+    if (said) box.title = said;
+    box.setAttribute("aria-label", share + "% new words" + (said ? ": " + said : ""));
     return box;
   }
 
@@ -266,26 +338,26 @@
     what.appendChild(title);
     if (row.author) what.appendChild(el("span", "row-by", row.author));
     // Personal, where it can be: a text on the shelf is measured against the reader's
-    // own words. Absent for one never built, and for one built without word-level
-    // annotation — "not measured" and "you know none of this" are different claims.
-    if (row.built && typeof row.built.known === "number") {
+    // own words. Absent for one never built, for one built without word-level
+    // annotation — "not measured" and "you know none of this" are different claims —
+    // and at zero: "you know 0% of its words" is true and unkind, and the line starts
+    // once there is something to say (as Learn's does).
+    if (row.built && typeof row.built.known === "number" && row.built.known > 0) {
       what.appendChild(
         el("span", "row-fit", "you know " + Math.round(row.built.known * 100) + "% of its words")
       );
     }
     // The one thing on a row that is not a column: a text either can be listened to or
     // cannot, and a column of blanks down the page to say "no audio" would be noise.
-    if (row.spoken) {
-      var heard = el("span", "row-audio", "audio");
-      heard.title = "There is a recording of this";
-      what.appendChild(heard);
-    }
+    // No tooltip: what the word means is said in the line under the controls, where a
+    // phone can read it.
+    if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
     open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
     open.appendChild(el("span", "col count", said(row.minutes)));
-    var hard = gauge(row.difficulty);
+    var hard = gauge(row);
     hard.className = "gauge drop";
     open.appendChild(hard);
 
@@ -346,6 +418,16 @@
   // image key offers nothing rather than offering and failing.
   var canDraw = false;
 
+  // Whether this browser has ever drawn the page. A remembered view means the reader has
+  // made choices here before, and those win over anything the page would choose for
+  // them; only a first visit is the page's to open somewhere.
+  var firstVisit = false;
+  try {
+    firstVisit = localStorage.getItem("targum:library") === null;
+  } catch (e) {
+    firstVisit = false;
+  }
+
   var view = stored("targum:library");
   // Easiest first. The default was by access, which sorted the catalogue into public and
   // private — a fact about who may read a text rather than about whether this reader
@@ -366,7 +448,7 @@
     if (state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
     if (state.spoken === "yes" && !row.spoken) return false;
-    if (state.level && level(row.difficulty) !== state.level) return false;
+    if (state.level && level(row) !== state.level) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;
     if (state.find) {
@@ -383,6 +465,10 @@
   }
 
   function sorted(list) {
+    // A numbered sequence has one order. Under the Scenes chip the list is scene 1, 2,
+    // 3… whatever column was last sorted on — their measured shares are noise at twenty
+    // words — and the heading says so (see `heading()`).
+    if (view.kind === "dialogue" && window.TargumScenes) return window.TargumScenes.ordered(list);
     var pick = SORTS[view.sort] || SORTS.title;
     return list.slice().sort(function (a, b) {
       var left = pick(a);
@@ -483,13 +569,21 @@
       }
       var button = el("button", pair[0] === "kind" || pair[0] === "register" ? "drop" : null);
       button.type = "button";
-      button.appendChild(document.createTextNode(pair[1]));
+      // Under the Scenes chip the list is in scene order whatever this column says, so
+      // the column says that instead, and cannot be pressed: a heading reading "New
+      // words" over a list not in that order would be a lie.
+      var scenes = pair[0] === "difficulty" && view.kind === "dialogue";
+      button.appendChild(document.createTextNode(scenes ? "Scene number" : pair[1]));
       if (pair[0] === "difficulty") button.className = "drop";
-      if (view.sort === pair[0]) {
+      if (scenes) {
+        button.disabled = true;
+        button.setAttribute("aria-disabled", "true");
+      } else if (view.sort === pair[0]) {
         button.setAttribute("aria-sort", view.dir > 0 ? "ascending" : "descending");
         button.appendChild(el("span", "arrow", view.dir > 0 ? " ↑" : " ↓"));
       }
       button.addEventListener("click", function () {
+        if (scenes) return;
         if (view.sort === pair[0]) view.dir = -view.dir;
         else {
           view.sort = pair[0];
@@ -674,6 +768,7 @@
       showing.forEach(function (row) {
         host.appendChild(draw(row));
       });
+      placeNote(noteFor(showing));
       pointAt();
       // Counted within the list being looked at, not across both: "2 of 116" under Your
       // Uploads would be counting somebody's two texts against everybody's catalogue.
@@ -686,7 +781,7 @@
         empty.textContent = here.length
           ? "Nothing here matches that."
           : view.where === "mine"
-            ? "Nothing uploaded yet."
+            ? "Nothing uploaded yet. Paste your own from Upload Text."
             : "Nothing here yet.";
       }
       var total = here.length;
@@ -777,6 +872,24 @@
     var codes = lang.order(all, names);
     chosen = lang.current(codes);
     var betaNote = document.getElementById("beta-note");
+
+    /* Where the page opens for an account that knows nothing. A first visit, no word
+       marked in Hebrew and nothing of their own in it: the list opens on the Scenes,
+       in order, with the line that says to start at 1 above everything else. Once
+       only — from then on the view is remembered and the reader's own choices win. The
+       count is the same one Learn opens with, from the same store. */
+    if (firstVisit && chosen === lang.HOME && !view.kind) {
+      var charts = window.TargumCharts;
+      var store = charts ? charts.collect(charts.meaningLanguage(chosen))[chosen] : null;
+      var known = charts ? charts.known(store && store.words) : 0;
+      var ownHebrew = readers.some(function (reader) {
+        return base(reader.language) === chosen;
+      });
+      if (!known && !ownHebrew) {
+        view.kind = "dialogue";
+        leading = true;
+      }
+    }
 
     function show(code) {
       chosen = code;

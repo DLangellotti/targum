@@ -162,10 +162,16 @@ def test_every_text_is_classified_and_measured() -> None:
     for entry in CATALOGUE:
         assert isinstance(entry.kind, Kind), entry.id
         assert isinstance(entry.register, Register), entry.id
-        assert entry.difficulty, f"{entry.id} has never been measured"
-        # A share of running words, so anything outside these is a bug in the counting
-        # rather than an unusually hard book.
-        assert 5 <= entry.difficulty <= 60, entry.id
+        # A twenty-word scene can hold no uncommon word at all, and then zero is the
+        # measurement rather than the absence of one; everywhere else zero means an
+        # entry added with the field left blank.
+        if entry.kind is Kind.dialogue:
+            assert 0 <= entry.difficulty <= 60, entry.id
+        else:
+            assert entry.difficulty, f"{entry.id} has never been measured"
+            # A share of running words, so anything outside these is a bug in the
+            # counting rather than an unusually hard book.
+            assert 5 <= entry.difficulty <= 60, entry.id
         assert entry.minutes >= 1, entry.id
         if entry.language.startswith("he"):
             assert entry.register is not Register.none, entry.id

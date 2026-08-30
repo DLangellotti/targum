@@ -1,363 +1,423 @@
 {
- "bought_with": "claude-opus-5",
- "entries": [
-  {
-   "id": "il-declaration",
-   "title": "מגילת העצמאות",
-   "author": "State of Israel, 1948",
-   "language": "he",
-   "source": "test:il-declaration",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [
+  "bought_with": "claude-opus-5",
+  "entries": [
     {
-     "name": "A test rendering",
-     "source": "test:il-declaration-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "document",
-   "register": "modern",
-   "difficulty": 18,
-   "model": ""
-  },
-  {
-   "id": "us-declaration",
-   "title": "הכרזת העצמאות של ארצות הברית",
-   "author": "",
-   "language": "he",
-   "source": "test:us-declaration",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [
+      "id": "il-declaration",
+      "title": "מגילת העצמאות",
+      "author": "State of Israel, 1948",
+      "language": "he",
+      "source": "test:il-declaration",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:il-declaration-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "document",
+      "register": "modern",
+      "difficulty": 18,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:us-declaration-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "document",
-   "register": "modern",
-   "difficulty": 20,
-   "model": ""
-  },
-  {
-   "id": "ruth",
-   "title": "רות",
-   "author": "",
-   "language": "he",
-   "source": "test:ruth",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "us-declaration",
+      "title": "הכרזת העצמאות של ארצות הברית",
+      "author": "",
+      "language": "he",
+      "source": "test:us-declaration",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:us-declaration-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "document",
+      "register": "modern",
+      "difficulty": 20,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:ruth-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "prose",
-   "register": "biblical",
-   "difficulty": 24,
-   "model": ""
-  },
-  {
-   "id": "esther",
-   "title": "אסתר",
-   "author": "",
-   "language": "he",
-   "source": "test:esther",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "ruth",
+      "title": "רות",
+      "author": "",
+      "language": "he",
+      "source": "test:ruth",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:ruth-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "prose",
+      "register": "biblical",
+      "difficulty": 24,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:esther-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "prose",
-   "register": "biblical",
-   "difficulty": 17,
-   "model": ""
-  },
-  {
-   "id": "kohelet",
-   "title": "קהלת",
-   "author": "",
-   "language": "he",
-   "source": "test:kohelet",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "esther",
+      "title": "אסתר",
+      "author": "",
+      "language": "he",
+      "source": "test:esther",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:esther-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "prose",
+      "register": "biblical",
+      "difficulty": 17,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:kohelet-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "prose",
-   "register": "biblical",
-   "difficulty": 19,
-   "model": ""
-  },
-  {
-   "id": "genesis",
-   "title": "בראשית",
-   "author": "",
-   "language": "he",
-   "source": "test:genesis",
-   "blurb": "A short blurb for the tests.",
-   "words": 20000,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "kohelet",
+      "title": "קהלת",
+      "author": "",
+      "language": "he",
+      "source": "test:kohelet",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:kohelet-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "prose",
+      "register": "biblical",
+      "difficulty": 19,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:genesis-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "prose",
-   "register": "biblical",
-   "difficulty": 22,
-   "model": ""
-  },
-  {
-   "id": "job",
-   "title": "איוב",
-   "author": "",
-   "language": "he",
-   "source": "test:job",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "genesis",
+      "title": "בראשית",
+      "author": "",
+      "language": "he",
+      "source": "test:genesis",
+      "blurb": "A short blurb for the tests.",
+      "words": 20000,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:genesis-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "prose",
+      "register": "biblical",
+      "difficulty": 22,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:job-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
-    }
-   ],
-   "kind": "poetry",
-   "register": "biblical",
-   "difficulty": 33,
-   "model": ""
-  },
-  {
-   "id": "psalms",
-   "title": "תהילים",
-   "author": "",
-   "language": "he",
-   "source": "test:psalms",
-   "blurb": "A short blurb for the tests.",
-   "words": 20000,
-   "tags": [
-    "tanakh"
-   ],
-   "translations": [
+      "id": "job",
+      "title": "איוב",
+      "author": "",
+      "language": "he",
+      "source": "test:job",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:job-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "poetry",
+      "register": "biblical",
+      "difficulty": 33,
+      "model": ""
+    },
     {
-     "name": "A test rendering",
-     "source": "test:psalms-en",
-     "note": "For the tests.",
-     "publisher": "Test Press",
-     "licence": "CC-BY"
+      "id": "psalms",
+      "title": "תהילים",
+      "author": "",
+      "language": "he",
+      "source": "test:psalms",
+      "blurb": "A short blurb for the tests.",
+      "words": 20000,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:psalms-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
+      "kind": "poetry",
+      "register": "biblical",
+      "difficulty": 35,
+      "model": ""
+    },
+    {
+      "id": "altneuland",
+      "title": "תל־אביב",
+      "author": "Theodor Herzl",
+      "language": "he",
+      "source": "test:altneuland",
+      "blurb": "A short blurb for the tests.",
+      "words": 60000,
+      "tags": [],
+      "translations": [],
+      "kind": "novel",
+      "register": "modern",
+      "difficulty": 21,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "kabtsanim",
+      "title": "ספר הקבצנים",
+      "author": "Mendele Mocher Sforim",
+      "language": "he",
+      "source": "test:kabtsanim",
+      "blurb": "A short blurb for the tests.",
+      "words": 40000,
+      "tags": [],
+      "translations": [],
+      "kind": "novel",
+      "register": "modern",
+      "difficulty": 27,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "judenstaat",
+      "title": "מדינת היהודים",
+      "author": "Theodor Herzl",
+      "language": "he",
+      "source": "test:judenstaat",
+      "blurb": "A short blurb for the tests.",
+      "words": 25000,
+      "tags": [],
+      "translations": [],
+      "kind": "essay",
+      "register": "modern",
+      "difficulty": 25,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "story-a",
+      "title": "סיפור ראשון",
+      "author": "A Test Author",
+      "language": "he",
+      "source": "test:story-a",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [],
+      "kind": "story",
+      "register": "modern",
+      "difficulty": 15,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "story-b",
+      "title": "סיפור שני",
+      "author": "",
+      "language": "he",
+      "source": "test:story-b",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [],
+      "kind": "story",
+      "register": "modern",
+      "difficulty": 16,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "story-c",
+      "title": "סיפור שלישי",
+      "author": "",
+      "language": "he",
+      "source": "test:story-c",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [],
+      "kind": "story",
+      "register": "modern",
+      "difficulty": 23,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "story-d",
+      "title": "סיפור רביעי",
+      "author": "",
+      "language": "he",
+      "source": "test:story-d",
+      "blurb": "A short blurb for the tests.",
+      "words": 1300,
+      "tags": [],
+      "translations": [],
+      "kind": "story",
+      "register": "modern",
+      "difficulty": 29,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "news-a",
+      "title": "כותרת ראשונה",
+      "author": "",
+      "language": "he",
+      "source": "test:news-a",
+      "blurb": "A short blurb for the tests.",
+      "words": 600,
+      "tags": [],
+      "translations": [],
+      "kind": "article",
+      "register": "modern",
+      "difficulty": 12,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "news-b",
+      "title": "כותרת שנייה",
+      "author": "",
+      "language": "he",
+      "source": "test:news-b",
+      "blurb": "A short blurb for the tests.",
+      "words": 800,
+      "tags": [],
+      "translations": [],
+      "kind": "article",
+      "register": "modern",
+      "difficulty": 13,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "sport-holon-basketball",
+      "title": "כותרת שלישית",
+      "author": "",
+      "language": "he",
+      "source": "test:sport-holon-basketball",
+      "blurb": "A short blurb for the tests.",
+      "words": 700,
+      "tags": [],
+      "translations": [],
+      "kind": "article",
+      "register": "modern",
+      "difficulty": 14,
+      "model": "claude-opus-5"
+    },
+    {
+      "id": "scene-01-nice-to-meet-you",
+      "title": "נעים מאוד",
+      "author": "targum",
+      "language": "he",
+      "source": "dialogue:01-nice-to-meet-you",
+      "blurb": "Two people meet. Names, where you are from, how you are.",
+      "words": 22,
+      "tags": [],
+      "translations": [],
+      "kind": "dialogue",
+      "register": "modern",
+      "difficulty": 5,
+      "model": ""
+    },
+    {
+      "id": "scene-02-in-a-cafe",
+      "title": "בבית קפה",
+      "author": "targum",
+      "language": "he",
+      "source": "dialogue:02-in-a-cafe",
+      "blurb": "Ordering, asking the price, saying thanks.",
+      "words": 21,
+      "tags": [],
+      "translations": [],
+      "kind": "dialogue",
+      "register": "modern",
+      "difficulty": 0,
+      "model": ""
+    },
+    {
+      "id": "scene-03-which-way",
+      "title": "איפה הרחוב",
+      "author": "targum",
+      "language": "he",
+      "source": "dialogue:03-which-way",
+      "blurb": "Asking the way and being told it.",
+      "words": 18,
+      "tags": [],
+      "translations": [],
+      "kind": "dialogue",
+      "register": "modern",
+      "difficulty": 2,
+      "model": ""
+    },
+    {
+      "id": "scene-18-two-coffees",
+      "title": "שני קפה",
+      "author": "targum",
+      "language": "he",
+      "source": "dialogue:18-two-coffees",
+      "blurb": "Two coffees, one is wrong.",
+      "words": 12,
+      "tags": [],
+      "translations": [],
+      "kind": "dialogue",
+      "register": "modern",
+      "difficulty": 0,
+      "model": ""
     }
-   ],
-   "kind": "poetry",
-   "register": "biblical",
-   "difficulty": 35,
-   "model": ""
-  },
-  {
-   "id": "altneuland",
-   "title": "תל־אביב",
-   "author": "Theodor Herzl",
-   "language": "he",
-   "source": "test:altneuland",
-   "blurb": "A short blurb for the tests.",
-   "words": 60000,
-   "tags": [],
-   "translations": [],
-   "kind": "novel",
-   "register": "modern",
-   "difficulty": 21,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "kabtsanim",
-   "title": "ספר הקבצנים",
-   "author": "Mendele Mocher Sforim",
-   "language": "he",
-   "source": "test:kabtsanim",
-   "blurb": "A short blurb for the tests.",
-   "words": 40000,
-   "tags": [],
-   "translations": [],
-   "kind": "novel",
-   "register": "modern",
-   "difficulty": 27,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "judenstaat",
-   "title": "מדינת היהודים",
-   "author": "Theodor Herzl",
-   "language": "he",
-   "source": "test:judenstaat",
-   "blurb": "A short blurb for the tests.",
-   "words": 25000,
-   "tags": [],
-   "translations": [],
-   "kind": "essay",
-   "register": "modern",
-   "difficulty": 25,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "story-a",
-   "title": "סיפור ראשון",
-   "author": "A Test Author",
-   "language": "he",
-   "source": "test:story-a",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [],
-   "kind": "story",
-   "register": "modern",
-   "difficulty": 15,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "story-b",
-   "title": "סיפור שני",
-   "author": "",
-   "language": "he",
-   "source": "test:story-b",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [],
-   "kind": "story",
-   "register": "modern",
-   "difficulty": 16,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "story-c",
-   "title": "סיפור שלישי",
-   "author": "",
-   "language": "he",
-   "source": "test:story-c",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [],
-   "kind": "story",
-   "register": "modern",
-   "difficulty": 23,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "story-d",
-   "title": "סיפור רביעי",
-   "author": "",
-   "language": "he",
-   "source": "test:story-d",
-   "blurb": "A short blurb for the tests.",
-   "words": 1300,
-   "tags": [],
-   "translations": [],
-   "kind": "story",
-   "register": "modern",
-   "difficulty": 29,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "news-a",
-   "title": "כותרת ראשונה",
-   "author": "",
-   "language": "he",
-   "source": "test:news-a",
-   "blurb": "A short blurb for the tests.",
-   "words": 600,
-   "tags": [],
-   "translations": [],
-   "kind": "article",
-   "register": "modern",
-   "difficulty": 12,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "news-b",
-   "title": "כותרת שנייה",
-   "author": "",
-   "language": "he",
-   "source": "test:news-b",
-   "blurb": "A short blurb for the tests.",
-   "words": 800,
-   "tags": [],
-   "translations": [],
-   "kind": "article",
-   "register": "modern",
-   "difficulty": 13,
-   "model": "claude-opus-5"
-  },
-  {
-   "id": "sport-holon-basketball",
-   "title": "כותרת שלישית",
-   "author": "",
-   "language": "he",
-   "source": "test:sport-holon-basketball",
-   "blurb": "A short blurb for the tests.",
-   "words": 700,
-   "tags": [],
-   "translations": [],
-   "kind": "article",
-   "register": "modern",
-   "difficulty": 14,
-   "model": "claude-opus-5"
+  ],
+  "samples": {
+    "il-declaration": [
+      {
+        "source": "בארץ־ישראל קם העם היהודי, לדוגמה.",
+        "target": "The Land of Israel was the birthplace of the Jewish people, for example."
+      },
+      {
+        "source": "וזו שורה שנייה של הדוגמה.",
+        "target": "And this is the second line of the example."
+      }
+    ]
   }
- ],
- "samples": {
-  "il-declaration": [
-   {
-    "source": "בארץ־ישראל קם העם היהודי, לדוגמה.",
-    "target": "The Land of Israel was the birthplace of the Jewish people, for example."
-   },
-   {
-    "source": "וזו שורה שנייה של הדוגמה.",
-    "target": "And this is the second line of the example."
-   }
-  ]
- }
 }

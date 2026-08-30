@@ -160,7 +160,7 @@ def test_an_empty_tab_says_which_kind_of_empty_it_is(tmp_path: Path) -> None:
     """ "Nothing here matches that" is what a filter says. A reader who has uploaded
     nothing has not filtered anything out."""
     drawn = draw(tmp_path, view={"where": "mine"})
-    assert drawn["empty"] == "Nothing uploaded yet."
+    assert drawn["empty"] == "Nothing uploaded yet. Paste your own from Upload Text."
 
     filtered = draw(tmp_path, view={"find": "zzzzz"})
     assert filtered["empty"] == "Nothing here matches that."
@@ -203,11 +203,12 @@ def test_the_list_opens_on_what_a_learner_can_read_now(tmp_path: Path) -> None:
     shares = [int(row["cells"][3].rstrip("%")) for row in rows]
     assert shares == sorted(shares), "easiest first"
 
-    easiest = min(
-        (entry for entry in CATALOGUE if entry.language.startswith("he") and entry.difficulty),
-        key=lambda entry: entry.difficulty,
-    )
-    assert rows[0]["title"] == easiest.title
+    # Zero is a measurement on a catalogue text — a twenty-word scene with no uncommon
+    # word in it — so the easiest texts in the library read "0%" and come first, rather
+    # than reading "—" and being anybody's guess.
+    least = min(entry.difficulty for entry in CATALOGUE if entry.language.startswith("he"))
+    assert shares[0] == least == 0
+    assert all(row["cells"][3] == "0%" for row in rows if row["title"] in {"בבית קפה", "שני קפה"})
 
 
 def test_the_hardest_column_says_what_it_counts(tmp_path: Path) -> None:
@@ -225,12 +226,13 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
     offered is what the rest of the filters leave standing."""
     assert draw(tmp_path, view={"register": "biblical"})["kinds"] == [
         "All",
-        "Narrative",
+        "Bible narrative",
         "Poetry",
     ]
     modern = draw(tmp_path, view={"register": "modern"})["kinds"]
-    assert "Narrative" not in modern and "Poetry" not in modern
-    assert modern[:3] == ["All", "Stories", "News"], "the biggest ones first"
+    assert "Bible narrative" not in modern and "Poetry" not in modern
+    # Scenes first — where a reader with no words starts — then the biggest ones.
+    assert modern[:4] == ["All", "Scenes", "Stories", "News"]
 
 
 def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
@@ -238,8 +240,9 @@ def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     "Novels" and "Stories", which are also prose, it says nothing to anybody."""
     rows = draw(tmp_path)["rows"]
     genesis = next(row for row in rows if row["title"] == "בראשית")
-    assert genesis["cells"][0] == "Narrative"
+    assert genesis["cells"][0] == "Bible narrative", "not bare Narrative beside Novels and Stories"
     assert "News" in {row["cells"][0] for row in rows}
+    assert "Scenes" in {row["cells"][0] for row in rows}, "not Dialogues"
     assert "Prose" not in {row["cells"][0] for row in rows}
     assert "Articles" not in {row["cells"][0] for row in rows}
 
@@ -305,3 +308,122 @@ def test_a_text_on_the_shelf_says_how_much_of_it_is_yours(tmp_path: Path) -> Non
     assert by_title["אסתר"]["fit"] == "you know 82% of its words"
     others = [row["fit"] for title, row in by_title.items() if title != "אסתר"]
     assert set(others) == {""}, "and nothing is claimed for a text never measured"
+
+    # "You know 0% of its words" is true and unkind; the line starts once there is
+    # something to say, exactly as Learn's does.
+    nothing = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.0)])
+    assert {row["title"]: row for row in nothing["rows"]}["אסתר"]["fit"] == ""
+
+
+def vocabulary(*lemmas: str) -> dict[str, str]:
+    """A store with those words marked known, the shape the reader writes."""
+    kept = {lemma: {"surface": lemma, "status": 9, "band": "moderate", "at": 0} for lemma in lemmas}
+    return {"targum:vocab:he": json.dumps(kept, ensure_ascii=False)}
+
+
+def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Path) -> None:
+    """The one sentence on the page written for a reader who cannot yet read a title.
+    It used to live in tooltips, which is nowhere on a phone."""
+    assert draw(tmp_path)["note"] == "New words — the share of a text that is uncommon Hebrew."
+    assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
+        "Scenes — numbered conversations with audio. Start at 1."
+    )
+    assert draw(tmp_path, view={"kind": "prose"})["note"].startswith("Bible narrative —")
+    assert draw(tmp_path, view={"register": "biblical"})["note"].startswith(
+        "Biblical — the Hebrew of the Bible."
+    )
+    assert draw(tmp_path, view={"spoken": "yes", "register": "modern"})["note"] == (
+        "Modern — Hebrew as it is written today. · With audio — a recording, line by line."
+    )
+    # Never more than two clauses, kind before register before audio before the sort;
+    # a kind with nothing to explain (Stories) takes no slot.
+    three = draw(tmp_path, view={"kind": "story", "register": "modern", "spoken": "yes"})["note"]
+    assert (
+        three == "Modern — Hebrew as it is written today. · With audio — a recording, line by line."
+    )
+    four = draw(tmp_path, view={"kind": "prose", "register": "biblical", "spoken": "yes"})["note"]
+    assert (
+        four == "Bible narrative — the Bible's story books. · Biblical — the Hebrew of the Bible."
+    )
+
+
+def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None:
+    """Zero on a catalogue text is a measurement and reads 0%. An upload built without
+    word-level annotation is not measured, reads "—", and the line says so — but only
+    then."""
+    plain = draw(tmp_path)
+    assert "—" not in {row["cells"][3] for row in plain["rows"]}
+    assert "not measured" not in plain["note"]
+
+    unmeasured = draw(
+        tmp_path, readers=[shelf("", "my-upload-he", difficulty=0)], view={"where": "mine"}
+    )
+    (row,) = unmeasured["rows"]
+    assert row["cells"][3] == "—"
+    assert unmeasured["note"].endswith("— means not measured yet.")
+
+
+def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
+    """The share is a fact about the text — how much of it is uncommon Hebrew. A reader
+    who knows no words looks up all twenty-two of a text that says 0%, so "will be new
+    to you" was a promise the number could not keep."""
+    labels = draw(tmp_path)["gauges"]
+    assert any("is uncommon" in label for label in labels)
+    assert not any("new to you" in label for label in labels)
+
+
+def test_a_first_visit_that_knows_nothing_opens_on_the_scenes(tmp_path: Path) -> None:
+    """No view remembered, no word marked, nothing of their own: the list opens on the
+    Scenes, in scene order, with the line that says to start at 1 above every control,
+    and the share column says what order the list is in and cannot be pressed."""
+    drawn = draw(tmp_path, firstVisit=True)
+    assert drawn["kindOn"] == "Scenes"
+    assert drawn["noteLeads"] is True
+    assert drawn["note"].startswith("Scenes — numbered conversations with audio. Start at 1.")
+    assert [row["title"] for row in drawn["rows"]] == [
+        "נעים מאוד",
+        "בבית קפה",
+        "איפה הרחוב",
+        "שני קפה",
+    ]
+    assert drawn["shareHead"] == {"text": "Scene number", "disabled": True}
+
+
+def test_a_first_visit_with_words_or_texts_of_your_own_is_left_alone(tmp_path: Path) -> None:
+    """The opening is for the reader who knows nothing. Anybody with a word marked or a
+    text of their own has started already, and gets the list as it is."""
+    with_words = draw(tmp_path, firstVisit=True, stored=vocabulary("שלום"))
+    assert with_words["kindOn"] == "All"
+    assert with_words["noteLeads"] is False
+
+    with_texts = draw(tmp_path, firstVisit=True, readers=[shelf("", "my-upload-he")])
+    assert with_texts["kindOn"] == "All"
+
+
+def test_a_remembered_view_wins_over_the_opening(tmp_path: Path) -> None:
+    """Once the reader has been here, their own choices stand — including having chosen
+    nothing. The opening happens once, never on every visit with an empty store."""
+    drawn = draw(tmp_path, view={})
+    assert drawn["kindOn"] == "All"
+    assert drawn["noteLeads"] is False
+    assert drawn["shareHead"] == {"text": "New words ↑", "disabled": False}
+
+
+def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> None:
+    """Their measured shares are noise at twenty words — scene 18 scores lower than
+    scene 1 — and a numbered sequence has one order whatever column was last sorted."""
+    drawn = draw(tmp_path, view={"kind": "dialogue", "sort": "difficulty", "dir": 1})
+    assert [row["title"] for row in drawn["rows"]] == [
+        "נעים מאוד",
+        "בבית קפה",
+        "איפה הרחוב",
+        "שני קפה",
+    ]
+    by_minutes = draw(tmp_path, view={"kind": "dialogue", "sort": "minutes", "dir": -1})
+    assert [row["title"] for row in by_minutes["rows"]] == [
+        "נעים מאוד",
+        "בבית קפה",
+        "איפה הרחוב",
+        "שני קפה",
+    ]
+    assert drawn["shareHead"]["text"] == "Scene number"

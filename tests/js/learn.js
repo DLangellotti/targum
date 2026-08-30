@@ -191,6 +191,7 @@ setTimeout(() => {
       words: words(),
       wordsTitle: at("words-title").textContent,
       wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,
+      shelfNote: at("shelf-note").textContent,
       editors: at("word-rows").children.filter((row) =>
         String(row.className).includes("editor-row")
       ).length,

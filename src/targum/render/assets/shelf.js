@@ -84,7 +84,7 @@
     if (!mine.length) {
       note.textContent = readers.length
         ? "Nothing in " + named(code) + " yet."
-        : "Nothing here yet.";
+        : "Nothing here yet. Texts you open land here.";
       return;
     }
     note.textContent = settings.note || "";
@@ -125,8 +125,11 @@
       // under a heading that says so.
       var bought = document.createElement("span");
       bought.className = "cell count";
+      // "4 of 4" is a fraction with nothing left to say.
       bought.textContent = reader.chapters && reader.chapters.length
-        ? reader.readyChapters + " of " + reader.chapters.length
+        ? reader.readyChapters === reader.chapters.length
+          ? reader.chapters.length + (reader.chapters.length === 1 ? " chapter" : " chapters")
+          : reader.readyChapters + " of " + reader.chapters.length + " translated"
         : reader.sections > 1
           ? reader.sections + " parts"
           : "—";
