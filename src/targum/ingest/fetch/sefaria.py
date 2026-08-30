@@ -59,6 +59,11 @@ HEBREW = "Tanach with Ta'amei Hamikra"
 # Metsudah covers Torah, the Five Megillot and part of Nevi'im; Silverstein's Rashi
 # Ketuvim covers the rest of what is worth reading. A book with neither is not on the
 # shelf — which is why there is no Jonah here, its only Orthodox English being CC-BY-NC.
+#
+# JPS 1917 is public domain and covers every book in the Tanakh, so what keeps the rest
+# off this list is editorial rather than legal: it is not the English an Orthodox reader
+# reaches for. That is a decision worth restating rather than rediscovering, because the
+# licence check will always say yes to JPS and the shelf still should not take it.
 ENGLISH: dict[str, str] = {
     "Genesis": "Metsudah Chumash, Metsudah Publications, 2009",
     "Exodus": "Metsudah Chumash, Metsudah Publications, 2009",
@@ -77,6 +82,10 @@ ENGLISH: dict[str, str] = {
     "Psalms": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
     "Proverbs": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
     "Job": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
+    # Silverstein covers these two whole — 357 and 280 verses, none empty — so they join
+    # on the edition already here rather than on a new decision about which English.
+    "Daniel": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
+    "Ezra": "The Rashi Ketuvim by Rabbi Shraga Silverstein",
 }
 
 _TAG = {"he": "hebrew", "en": "english"}
