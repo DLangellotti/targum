@@ -1791,6 +1791,15 @@ body.has-player .next-up { margin-block-end: 9rem; }
   }
 }
 
+/* The comment above gets the principle right and the query below it measured the wrong
+   axis: an iPad in landscape is wider than 60rem and still cannot hover. Where there is
+   no hover, the waiting controls are simply there — the per-line play at any width, and
+   the remove button on a saved word, which had no touch path at all. */
+@media (hover: none) {
+  .pair.voiced .say { opacity: 1; }
+  .list-items .drop { opacity: 1; }
+}
+
 @media (min-width: 60rem) {
   /* Room outside the column on both sides: the name hangs off one edge and the play
      control off the other, and a margin cut for one of them clips the other. */
