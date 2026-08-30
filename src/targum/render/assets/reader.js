@@ -3687,12 +3687,16 @@
         prefs.marking = !prefs.marking;
         applyMarking();
         save();
+        // Said aloud: the pressed state on a 24px icon is the whole visual change, and
+        // a mode that alters what reading does deserves more than that.
+        say(prefs.marking ? "Marking words as you read." : "Not marking.");
         return;
       }
       if (button.hasAttribute("data-paged")) {
         prefs.paged = !prefs.paged;
         applyPaged();
         save();
+        say(prefs.paged ? "Pages." : "One long scroll.");
         return;
       }
       if (button.hasAttribute("data-turn")) {
@@ -3710,6 +3714,7 @@
         applyMode();
         settle();
         save();
+        say(button.getAttribute("aria-label") || mode);
         return;
       }
       if (button.hasAttribute("data-nikkud-toggle")) {
@@ -4160,12 +4165,14 @@
         applyMode();
         settle();
         save();
+        say("Parallel.");
         return;
       case "o":
         prefs.mode = "source";
         applyMode();
         settle();
         save();
+        say("Source only.");
         return;
       // `l` rather than `i`: `i` is ignore, on a word, and it cannot also be a mode.
       // The translation goes under each line, which is where the letter comes from.
@@ -4174,6 +4181,7 @@
         applyMode();
         settle();
         save();
+        say("Interlinear.");
         return;
       // The card is asked for, never offered. Walking the page fires no windows; this is
       // the second action that opens one. Open already, the same key asks the question
@@ -4197,11 +4205,13 @@
         prefs.marking = !prefs.marking;
         applyMarking();
         save();
+        say(prefs.marking ? "Marking words as you read." : "Not marking.");
         return;
       case "b":
         prefs.paged = !prefs.paged;
         applyPaged();
         save();
+        say(prefs.paged ? "Pages." : "One long scroll.");
         return;
       case "s":
         if (listBox) showList(!!listBox.hidden);
