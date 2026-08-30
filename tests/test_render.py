@@ -3203,3 +3203,79 @@ def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> Non
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert "registers" not in data
     assert data["sourceRegister"] == "modern"
+
+
+# -- what to read next -------------------------------------------------------------
+
+
+def catalogue_of(*rows: tuple[str, str, int, str]) -> list[object]:
+    """A stand-in catalogue: id, source, difficulty, register."""
+    from targum.catalogue import Entry, Kind, Register
+
+    return [
+        Entry(
+            id=entry_id,
+            title=entry_id,
+            author="",
+            language="he",
+            source=source,
+            blurb="A line about it.",
+            words=100 * (n + 1),
+            kind=Kind.prose,
+            register=Register(register),
+            difficulty=difficulty,
+        )
+        for n, (entry_id, source, difficulty, register) in enumerate(rows)
+    ]
+
+
+def suggestion(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object]) -> str:
+    from targum.render.builder import next_after
+
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    document = Document(source=source, language="he", blocks=[], content_hash="h")
+    return str(next_after(document).get("id", ""))
+
+
+def test_the_next_text_is_the_next_step_up(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = catalogue_of(
+        ("here", "s:here", 10, "modern"),
+        ("easier", "s:easier", 4, "modern"),
+        ("just-above", "s:above", 12, "modern"),
+        ("far-above", "s:far", 30, "modern"),
+    )
+    assert suggestion(monkeypatch, "s:here", rows) == "just-above"
+
+
+def test_it_never_suggests_the_text_you_are_reading(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = catalogue_of(("here", "s:here", 10, "modern"), ("other", "s:other", 12, "modern"))
+    assert suggestion(monkeypatch, "s:here", rows) == "other"
+
+
+def test_it_stays_in_the_same_hebrew(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Somebody who has just finished a dialogue is not looking for scripture, and a
+    step of one point of difficulty is no reason to hand them some."""
+    rows = catalogue_of(
+        ("here", "s:here", 10, "modern"),
+        ("scripture", "s:bible", 11, "biblical"),
+        ("modern-next", "s:modern", 18, "modern"),
+    )
+    assert suggestion(monkeypatch, "s:here", rows) == "modern-next"
+
+
+def test_the_hardest_text_still_gets_an_offer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nothing harder exists, so the nearest does — a door out beats a dead end."""
+    rows = catalogue_of(("here", "s:here", 40, "modern"), ("near", "s:near", 36, "modern"))
+    assert suggestion(monkeypatch, "s:here", rows) == "near"
+
+
+def test_a_text_the_catalogue_never_heard_of_is_still_offered_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An upload. It has no difficulty of its own, so the easiest thing is the answer."""
+    rows = catalogue_of(("easy", "s:easy", 5, "modern"), ("hard", "s:hard", 30, "modern"))
+    assert suggestion(monkeypatch, "https://example.com/mine.txt", rows) == "easy"
+
+
+def test_an_empty_catalogue_offers_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert suggestion(monkeypatch, "s:here", []) == ""

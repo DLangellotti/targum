@@ -1443,6 +1443,10 @@
   // Whether this chapter has had anything waiting while you were on it. One you open
   // already finished shows the ordinary count; one you finish yourself is told so.
   var wasWaiting = false;
+  //: Whether this visit has already marked the text finished on the reader's behalf. One
+  //: at most: pressing Done afterwards to un-finish it is a decision, and repeating the
+  //: automatic one on the next redraw would take it back.
+  var finishedBySelf = false;
 
   var restBox = document.getElementById("rest");
   var restText = document.getElementById("rest-text");
@@ -1495,6 +1499,16 @@
         headerKnown.textContent = "";
         var done = !left && wasWaiting;
         headerKnown.classList.toggle("done", done);
+        // Clearing the last word is finishing the text. Asking for Done as well is asking
+        // somebody to tell the page what it has just watched them do.
+        //
+        // Once a visit, and never over the reader: `finishedAt` already being set means
+        // there is nothing to do, and somebody who presses Done again to un-finish it has
+        // said something, so the flag stops this from saying it back.
+        if (done && !finishedBySelf && !finishedAt()) {
+          finishedBySelf = true;
+          setFinished(true);
+        }
         if (done) {
           // A milestone bragged the brand's way: what is true, in type, once. Not a
           // banner, and nothing moves.
@@ -4408,6 +4422,20 @@
     // of the page says so.
     relayout: relayout,
   };
+})();
+
+/* Where to go next, shown only where there is somewhere to go.
+ *
+ * The address is the library's, so it means nothing to a reader opened from a disk —
+ * which is a real way to read one of these and the reason nothing here is fetched. The
+ * suggestion is written into the page either way and revealed only when the page arrived
+ * over a connection, rather than offering a link that leads nowhere.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+  var next = document.getElementById("next-up");
+  if (next) next.hidden = false;
 })();
 
 /* --- the next chapter, bought before it is needed ---------------------------

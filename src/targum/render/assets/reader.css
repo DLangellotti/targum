@@ -1465,6 +1465,43 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
   color: var(--ink-soft);
 }
 .finished > span { flex: 1; }
+
+/* Where to go next, at the foot of a finished text.
+ *
+ * Under the Done line rather than beside it: finishing is what the reader just did and
+ * the next text is what they might do, and a row holding both makes them one decision.
+ * Quiet — a rule, a name and a sentence. The library is where choosing happens; this is
+ * a door out of a text that has ended, not a shelf.
+ */
+.next-up {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 2rem;
+  padding: 0.75rem 1rem 0;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.next-up[hidden] { display: none; }
+
+.next-up-lead { color: var(--ink-soft); }
+
+.next-up-link {
+  font-size: 0.9375rem;
+  color: var(--accent);
+  text-decoration: none;
+}
+.next-up-link:hover { text-decoration: underline; }
+.next-up-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The blurb takes the rest of the row and steps out of the way when there is no room
+   for it: the name is the offer and the sentence is the reason. */
+.next-up-why { flex: 1 1 14rem; }
 .finished > span[hidden] { display: none; }
 body.paged:not(.last-page) .finished { display: none; }
 

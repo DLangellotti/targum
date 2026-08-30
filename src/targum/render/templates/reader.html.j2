@@ -302,6 +302,15 @@
   <span id="done-said" hidden></span>
   <button type="button" id="done-mark">Done</button>
 </div>
+{#- And where to go next. Hidden until the script says the page is being served: the
+    address is the library's, and a reader opened from a disk has no library to go to. -#}
+{% if suggested %}
+<aside class="next-up" id="next-up" dir="ltr" hidden>
+  <span class="next-up-lead">Read next</span>
+  <a class="next-up-link" href="/library/{{ suggested.id }}">{{ suggested.title }}</a>
+  {% if suggested.blurb %}<span class="next-up-why">{{ suggested.blurb }}</span>{% endif %}
+</aside>
+{% endif %}
 {% endif %}
 
 {% if not standalone %}

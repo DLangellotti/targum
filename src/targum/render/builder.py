@@ -431,6 +431,49 @@ def _this_week() -> dict[str, Any] | None:
     }
 
 
+def next_after(document: Document) -> dict[str, str]:
+    """What to read after this one, decided when the reader is written.
+
+    A reader fetches nothing, so it cannot ask a library what else there is — the answer
+    is baked in. That means it is the same suggestion for everybody, which rules out the
+    one the learn page makes: that one is measured against a reader's own marked words,
+    and this one can only know what is true of the texts themselves.
+
+    So: the next step up. The nearest text harder than this one, in the same Hebrew,
+    because somebody who has just finished a dialogue is not looking for Psalms — and the
+    shorter of two at the same difficulty, because the step should be one thing at a time.
+    """
+    from ..catalogue import CATALOGUE
+
+    mine = next((entry for entry in CATALOGUE if entry.source == document.source), None)
+    here = mine.difficulty if mine else 0
+    rest = [
+        entry
+        for entry in CATALOGUE
+        if entry.language == document.language
+        and entry.difficulty > 0
+        and (mine is None or entry.id != mine.id)
+    ]
+    if not rest:
+        return {}
+    # Same register first. Falling back to any of them is better than offering nothing,
+    # but a learner reading modern Hebrew should not be handed scripture by arithmetic.
+    same = [entry for entry in rest if mine is not None and entry.register is mine.register]
+    for pool in (same, rest):
+        harder = [entry for entry in pool if entry.difficulty > here]
+        if harder:
+            pick = min(harder, key=lambda entry: (entry.difficulty, entry.words))
+            break
+    else:
+        pick = min(rest, key=lambda entry: (abs(entry.difficulty - here), entry.words))
+    return {
+        "id": pick.id,
+        "title": pick.title,
+        "blurb": pick.blurb,
+        "minutes": str(pick.minutes),
+    }
+
+
 def learn_page(token: str) -> str:
     """The page you land on: carry on, what you have, what you know.
 
@@ -1080,6 +1123,8 @@ def render(
 
     drawn = cover_name(document)
     shared = {
+        # What to read next, worked out here because a reader cannot ask anybody.
+        "suggested": next_after(document),
         "parts": parts,
         "document": document,
         "siblings": siblings or [],
