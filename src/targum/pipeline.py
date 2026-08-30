@@ -22,6 +22,7 @@ from .ids import slug
 from .models import (
     Alignment,
     Annotation,
+    BlockKind,
     Document,
     Glossary,
     Segment,
@@ -588,6 +589,28 @@ class Build:
             out.append(projected)
         return out
 
+    def named(self, source: Document, segmented: SegmentedDocument) -> dict[str, str]:
+        """Segments whose English is known, and must not be bought or guessed at.
+
+        One case so far: the weekly's byline. It is the product's own name written in
+        Hebrew — חובר בידי צוות תרגום — and תרגום is also the ordinary word for a
+        translation, so a translator did the reasonable thing and rendered it "Compiled by
+        the translation team". A name is not a thing to translate, and the English for
+        this one was decided when it was written.
+
+        Applied to whichever translation the build ends up with, cached or fresh, so a
+        rebuild cannot quietly put the wrong one back.
+        """
+        if not source.source.startswith("weekly:"):
+            return {}
+        from .weekly.entries import BYLINE, BYLINE_HE
+
+        return {
+            segment.id: BYLINE
+            for segment in segmented.segments
+            if segment.kind is BlockKind.byline and segment.text.strip() == BYLINE_HE.strip()
+        }
+
     def authored(self, source: Document, segmented: SegmentedDocument) -> Translation | None:
         """A dialogue's English, which arrives with it and is never bought.
 
@@ -896,6 +919,12 @@ class Build:
         translations.extend(self.aligned(plan.document, segmented))
         if not translations:
             raise TargumError("Nothing to render.", "Pass --translation, or drop --no-machine")
+        # After every source of English and before anything is written: a name the build
+        # already knows beats whatever a translator made of it.
+        known = self.named(plan.document, segmented)
+        for rendering in translations:
+            if rendering.target_language == "en":
+                rendering.segments.update(known)
         translations.extend(self.already_here(translations))
 
         # Vowels first. The bands do not need them, but the reading of each word is

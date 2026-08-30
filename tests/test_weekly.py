@@ -451,3 +451,78 @@ def test_an_issue_is_one_targum_not_chapters(tmp_path: Path, fake_segmenter: obj
 
     whole = Section(number=1, title="", segment_ids=[segment.id for segment in segmented.segments])
     assert len(whole.segment_ids) == len(segmented.segments), "every segment, one section"
+
+
+# -- the byline is a name ------------------------------------------------------------
+
+
+def test_the_bylines_english_is_not_bought(tmp_path: Path) -> None:
+    """תרגום is the product's name and also the ordinary word for a translation, so a
+    translator rendered the byline "Compiled by the translation team" — reasonable, and
+    wrong. The English for this one was decided when it was written.
+    """
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument
+    from targum.pipeline import Build
+    from targum.weekly.entries import BYLINE, BYLINE_HE
+
+    document = Document(
+        source="weekly:2026-w36-bet",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.byline, text=BYLINE_HE)],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h",
+        language="he",
+        segmenter="test/1",
+        segments=[
+            Segment(
+                id="0000.000-aaaaaa",
+                block_id="b0000",
+                block_index=0,
+                index=0,
+                kind=BlockKind.byline,
+                text=BYLINE_HE,
+            ),
+            Segment(
+                id="0001.000-aaaaaa",
+                block_id="b0001",
+                block_index=1,
+                index=0,
+                text="משהו אחר",
+            ),
+        ],
+    )
+    build = Build("weekly:2026-w36-bet", target_language="en", out_root=tmp_path)
+    named = build.named(document, segmented)
+    assert named == {"0000.000-aaaaaa": BYLINE}, "the byline, and nothing else in the issue"
+
+
+def test_nothing_else_has_its_english_decided_for_it(tmp_path: Path) -> None:
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument
+    from targum.pipeline import Build
+    from targum.weekly.entries import BYLINE_HE
+
+    document = Document(
+        source="sefaria:Ruth",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.byline, text=BYLINE_HE)],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h",
+        language="he",
+        segmenter="test/1",
+        segments=[
+            Segment(
+                id="0000.000-aaaaaa",
+                block_id="b0000",
+                block_index=0,
+                index=0,
+                kind=BlockKind.byline,
+                text=BYLINE_HE,
+            )
+        ],
+    )
+    build = Build("sefaria:Ruth", target_language="en", out_root=tmp_path)
+    assert build.named(document, segmented) == {}
