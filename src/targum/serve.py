@@ -401,11 +401,17 @@ class Job:
     made: int = field(default_factory=now)
 
     def state(self) -> dict[str, Any]:
+        from . import catalogue as catalogue_module
+
+        # Worked out when asked rather than stored on the job: the catalogue is the one
+        # place a title's English lives, and a column here would be a second.
+        entry = catalogue_module.matching(self.source) if self.source else None
         return {
             "blocked": self.blocked,
             "id": self.id,
             "made": self.made,
             "title": self.title,
+            "english": entry.english if entry else "",
             "language": self.language,
             "segments": self.segments,
             "chapters": self.chapters,
@@ -1051,6 +1057,7 @@ class Library:
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
                 "entry": entry.id,
+                "english": entry.english,
                 "drawn": any(
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
                 ),
@@ -1073,6 +1080,9 @@ class Library:
             "minutes": max(1, round(words / 130)),
             "spoken": spoken.is_spoken(source),
             "entry": "",
+            # An upload has no English title anywhere: the reader gave it a Hebrew one
+            # and that is what every page shows.
+            "english": "",
             "drawn": False,
         }
 

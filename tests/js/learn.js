@@ -166,6 +166,7 @@ setTimeout(() => {
             title: at("suggest-title").textContent,
             why: at("suggest-why").textContent,
             blurb: at("suggest-blurb").textContent,
+            english: at("suggest-english").hidden ? "" : at("suggest-english").textContent,
             cover: tile(at("suggest-cover")),
             // A button has no href. What it is offering is on the card itself.
             entry: at("suggest").getAttribute("data-entry"),
@@ -198,6 +199,7 @@ setTimeout(() => {
       phrases: phrases(),
       phrasesTitle: at("phrases-title").textContent,
       carry: {
+        english: at("carry-english").hidden ? "" : at("carry-english").textContent,
         known: at("carry-known").hidden ? "" : at("carry-known").textContent,
         title: at("carry-title").textContent,
         hidden: at("carry").hidden,
@@ -211,10 +213,14 @@ setTimeout(() => {
         const link = row.children[0];
         const controls = row.children[1];
         const cells = (link.children || []).map((child) => child.textContent);
+        // The title cell holds the Hebrew title and, under it, its English if any.
+        const what = link.children[1] || { children: [] };
+        const part = (name) => (what.children.find((c) => c.className === name) || {}).textContent || "";
         return {
           cover: tile(link),
           // thumb, title, chapters, last opened — one cell each, in column order.
-          title: cells[1] || "",
+          title: part("book-title") || cells[1] || "",
+          english: part("book-english"),
           chapters: cells[2] || "",
           opened: cells[3] || "",
           controls: controls ? controls.children.map((c) => c.textContent) : [],

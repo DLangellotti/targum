@@ -47,7 +47,10 @@
   }
 
   function line(job) {
+    // The English first where there is one: this strip is read by somebody waiting, and
+    // a title they can read is the one that tells them which build this is.
     var title = job.title || "your text";
+    if (job.english) title = job.english + " · " + title;
     if (job.stage === "done") return title + " is ready.";
     if (job.stage === "failed") return title + ": " + (job.error || "that did not work.");
     if (job.stage === "blocked") return title + ": " + (job.blocked || "not now.");

@@ -164,6 +164,15 @@
     return Math.round(reader.known * 100) + "% of its words are ones you know";
   }
 
+  // The title in English under the Hebrew one, where the catalogue has one. An upload
+  // has none and the line stays away.
+  function english(id, text) {
+    var line = document.getElementById(id);
+    if (!line) return;
+    line.hidden = !text;
+    line.textContent = text || "";
+  }
+
   function drawCarry(reader, start) {
     var panel = document.getElementById("carry");
     if (!reader) {
@@ -197,6 +206,7 @@
     var title = document.getElementById("carry-title");
     title.textContent = reader.title;
     title.setAttribute("lang", reader.language);
+    english("carry-english", reader.english);
 
     var facts = [];
     if (reader.chapters && reader.chapters.length > 1) {
@@ -373,6 +383,7 @@
     var title = document.getElementById("suggest-title");
     title.textContent = reader.title;
     title.setAttribute("lang", reader.language);
+    english("suggest-english", reader.english);
     var facts = [];
     if (reader.kind === "article") facts.push("Israeli news");
     else if (reader.kind) facts.push(reader.kind);
@@ -455,6 +466,7 @@
     var title = document.getElementById("suggest-title");
     title.textContent = pick.title;
     title.setAttribute("lang", pick.language);
+    english("suggest-english", pick.english);
     document.getElementById("suggest-why").textContent =
       pick.minutes ? why + " · " + pick.minutes + " min" : why;
     document.getElementById("suggest-blurb").textContent = pick.blurb || "";

@@ -67,6 +67,7 @@ setTimeout(() => {
     return {
       title: open.children[1].children[0].textContent,
       fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
+      english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
       cells: open.children.slice(2).map((cell) => cell.textContent.trim()),
       draws: row.children.length > 1 ? row.children[1].textContent : "",
       opens: open.tagName,

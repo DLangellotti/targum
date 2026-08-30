@@ -166,6 +166,12 @@ class Entry:
     source: str
     blurb: str
     words: int
+    #: The title in English, under the Hebrew one wherever a title is shown. Every title
+    #: and byline in the catalogue is Hebrew script, which for a reader who cannot yet
+    #: read it is a list of things they cannot tell apart. Drafted once by
+    #: `scripts/english_titles.py` and reviewed by hand; empty means nothing is shown,
+    #: never a fallback to the blurb, which in a title's place reads as a title.
+    english: str = ""
     tags: frozenset[Tag] = frozenset()
     translations: list[Rendering] = field(default_factory=list)
 
@@ -216,6 +222,7 @@ class Entry:
             "language": self.language,
             "source": self.source,
             "blurb": self.blurb,
+            "english": self.english,
             "words": self.words,
             "minutes": self.minutes,
             "kind": self.kind.value,
@@ -378,6 +385,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         language=str(raw["language"]),
         source=str(raw["source"]),
         blurb=str(raw.get("blurb", "")),
+        english=str(raw.get("english", "")),
         words=int(raw.get("words", 0)),
         tags=frozenset(Tag(tag) for tag in raw.get("tags", [])),
         translations=[

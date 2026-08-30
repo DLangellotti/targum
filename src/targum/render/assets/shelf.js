@@ -114,11 +114,26 @@
         })
       );
 
+      // One cell for the title and, under it, its English where the catalogue has one.
+      // The link lays its children out as the row's own grid cells, so the two share a
+      // wrapper rather than taking a column each; an upload has no English and the
+      // wrapper holds the Hebrew alone.
+      var what = document.createElement("span");
+      what.className = "book-what";
       var title = document.createElement("bdi");
       title.setAttribute("lang", reader.language || "und");
       title.className = "book-title";
       title.textContent = reader.title;
-      link.appendChild(title);
+      what.appendChild(title);
+      if (reader.english) {
+        var english = document.createElement("span");
+        english.className = "book-english";
+        english.setAttribute("lang", "en");
+        english.setAttribute("dir", "ltr");
+        english.textContent = reader.english;
+        what.appendChild(english);
+      }
+      link.appendChild(what);
 
       // A column each, rather than one line of facts separated by dots. "25 of 36" is
       // the whole of what paying by the chapter looks like from here, and it belongs

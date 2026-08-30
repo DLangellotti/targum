@@ -79,6 +79,9 @@ body.public {
   color: var(--ink-soft);
   font-size: 0.9375rem;
 }
+/* The title in English under the Hebrew one, in ink. */
+.public .english { margin: 0.1rem 0 0; color: var(--ink); font-size: 0.9375rem; }
+.public .texts .english { display: block; font-size: 0.8125rem; }
 .public .lede {
   margin: 0 0 2.5rem;
   font-size: 1.0625rem;

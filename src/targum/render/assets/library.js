@@ -252,6 +252,7 @@
         id: entry.id,
         entry: entry,
         title: entry.title,
+        english: entry.english || "",
         author: entry.author,
         language: entry.language,
         kind: entry.kind,
@@ -270,6 +271,7 @@
         id: reader.name,
         entry: null,
         title: reader.title,
+        english: "",
         author: "",
         language: reader.language,
         kind: reader.kind,
@@ -336,7 +338,19 @@
     var bdi = el("bdi", null, row.title);
     title.appendChild(bdi);
     what.appendChild(title);
-    if (row.author) what.appendChild(el("span", "row-by", row.author));
+    // The English under the Hebrew, in ink, with the byline after it: for a reader who
+    // cannot yet read the line above, this is the title. Its own element, so the two
+    // directions never share a string. An upload has no English and keeps its byline
+    // line as it was.
+    if (row.english) {
+      var english = el("span", "row-english", row.english);
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      if (row.author) english.appendChild(el("span", "row-by-after", " · " + row.author));
+      what.appendChild(english);
+    } else if (row.author) {
+      what.appendChild(el("span", "row-by", row.author));
+    }
     // Personal, where it can be: a text on the shelf is measured against the reader's
     // own words. Absent for one never built, for one built without word-level
     // annotation — "not measured" and "you know none of this" are different claims —
@@ -384,8 +398,10 @@
   /* --- sorting and sifting ---------------------------------------------------- */
 
   var SORTS = {
+    // By the English where there is one: for the reader this page is sorted for, the
+    // Hebrew titles are not yet in an order.
     title: function (row) {
-      return row.title || "";
+      return row.english || row.title || "";
     },
     kind: function (row) {
       return named(KINDS, row.kind);
@@ -456,7 +472,7 @@
       // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
       // titles and the bylines are both in Hebrew, and the only Latin a text carries is
       // the sentence describing it and its own id.
-      var hay = [row.title, row.author, row.entry ? row.entry.blurb : "", row.id]
+      var hay = [row.title, row.english, row.author, row.entry ? row.entry.blurb : "", row.id]
         .join(" ")
         .toLowerCase();
       if (hay.indexOf(state.find.toLowerCase()) < 0) return false;

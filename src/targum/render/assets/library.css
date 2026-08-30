@@ -213,6 +213,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The title in English under the Hebrew one, in ink (§9: what the reader came for is
+   ink), the byline soft after it. One line: a row is a row. */
+.row-english {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-by-after { color: var(--ink-soft); }
 .row-by {
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -319,6 +329,16 @@
 /* §8: hover lifts muted to ink. The accent on this page belongs to .rows li.pointed,
    which is the row the reader was sent here to find. */
 .books.shelf-rows li > a:hover .book-title { color: var(--ink); }
+/* The title cell: the Hebrew title and, under it, its English in ink. */
+.book-what { min-inline-size: 0; }
+.book-english {
+  display: block;
+  color: var(--ink);
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Narrow: the two middle columns go and the row is cover, title, controls. They were
    fixed tracks — 5rem, 7.5rem, 9.75rem — which is 27rem of row before the title has

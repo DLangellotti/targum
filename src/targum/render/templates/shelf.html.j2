@@ -30,6 +30,7 @@
     <li>
       <a href="/library/{{ entry.id }}">
         <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
+        {% if entry.english %}<span class="english" lang="en" dir="ltr">{{ entry.english }}</span>{% endif %}
       </a>
       <span class="byline">{{ entry.author }}</span>
       <span class="blurb">{{ entry.blurb }}</span>

@@ -25,6 +25,7 @@
 
   <p class="where"><a href="/library">{{ shelf_name }}</a></p>
   <h1 lang="{{ entry.language }}" dir="{{ direction }}"><bdi>{{ entry.title }}</bdi></h1>
+  {% if entry.english %}<p class="english" lang="en" dir="ltr">{{ entry.english }}</p>{% endif %}
   <p class="byline">{{ entry.author }}</p>
   <p class="lede">{{ entry.blurb }}</p>
 

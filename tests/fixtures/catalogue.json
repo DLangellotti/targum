@@ -8,6 +8,7 @@
       "language": "he",
       "source": "test:il-declaration",
       "blurb": "A short blurb for the tests.",
+      "english": "Declaration of Independence",
       "words": 1300,
       "tags": [],
       "translations": [
@@ -31,6 +32,7 @@
       "language": "he",
       "source": "test:us-declaration",
       "blurb": "A short blurb for the tests.",
+      "english": "The American Declaration",
       "words": 1300,
       "tags": [],
       "translations": [
@@ -54,6 +56,7 @@
       "language": "he",
       "source": "test:ruth",
       "blurb": "A short blurb for the tests.",
+      "english": "Ruth",
       "words": 1300,
       "tags": [
         "tanakh"
@@ -79,6 +82,7 @@
       "language": "he",
       "source": "test:esther",
       "blurb": "A short blurb for the tests.",
+      "english": "Esther",
       "words": 1300,
       "tags": [
         "tanakh"
@@ -104,6 +108,7 @@
       "language": "he",
       "source": "test:kohelet",
       "blurb": "A short blurb for the tests.",
+      "english": "Ecclesiastes",
       "words": 1300,
       "tags": [
         "tanakh"
@@ -129,6 +134,7 @@
       "language": "he",
       "source": "test:genesis",
       "blurb": "A short blurb for the tests.",
+      "english": "Genesis",
       "words": 20000,
       "tags": [
         "tanakh"
@@ -154,6 +160,7 @@
       "language": "he",
       "source": "test:job",
       "blurb": "A short blurb for the tests.",
+      "english": "Job",
       "words": 1300,
       "tags": [
         "tanakh"
@@ -179,6 +186,7 @@
       "language": "he",
       "source": "test:psalms",
       "blurb": "A short blurb for the tests.",
+      "english": "Psalms",
       "words": 20000,
       "tags": [
         "tanakh"
@@ -204,6 +212,7 @@
       "language": "he",
       "source": "test:altneuland",
       "blurb": "A short blurb for the tests.",
+      "english": "Old New Land",
       "words": 60000,
       "tags": [],
       "translations": [],
@@ -219,6 +228,7 @@
       "language": "he",
       "source": "test:kabtsanim",
       "blurb": "A short blurb for the tests.",
+      "english": "The Book of Beggars",
       "words": 40000,
       "tags": [],
       "translations": [],
@@ -234,6 +244,7 @@
       "language": "he",
       "source": "test:judenstaat",
       "blurb": "A short blurb for the tests.",
+      "english": "The Jewish State",
       "words": 25000,
       "tags": [],
       "translations": [],
@@ -249,6 +260,7 @@
       "language": "he",
       "source": "test:story-a",
       "blurb": "A short blurb for the tests.",
+      "english": "Story A",
       "words": 1300,
       "tags": [],
       "translations": [],
@@ -264,6 +276,7 @@
       "language": "he",
       "source": "test:story-b",
       "blurb": "A short blurb for the tests.",
+      "english": "Story B",
       "words": 1300,
       "tags": [],
       "translations": [],
@@ -279,6 +292,7 @@
       "language": "he",
       "source": "test:story-c",
       "blurb": "A short blurb for the tests.",
+      "english": "Story C",
       "words": 1300,
       "tags": [],
       "translations": [],
@@ -294,6 +308,7 @@
       "language": "he",
       "source": "test:story-d",
       "blurb": "A short blurb for the tests.",
+      "english": "Story D",
       "words": 1300,
       "tags": [],
       "translations": [],
@@ -309,6 +324,7 @@
       "language": "he",
       "source": "test:news-a",
       "blurb": "A short blurb for the tests.",
+      "english": "News A",
       "words": 600,
       "tags": [],
       "translations": [],
@@ -324,6 +340,7 @@
       "language": "he",
       "source": "test:news-b",
       "blurb": "A short blurb for the tests.",
+      "english": "News B",
       "words": 800,
       "tags": [],
       "translations": [],
@@ -339,6 +356,7 @@
       "language": "he",
       "source": "test:sport-holon-basketball",
       "blurb": "A short blurb for the tests.",
+      "english": "Holon take the title",
       "words": 700,
       "tags": [],
       "translations": [],
@@ -354,6 +372,7 @@
       "language": "he",
       "source": "dialogue:01-nice-to-meet-you",
       "blurb": "Two people meet. Names, where you are from, how you are.",
+      "english": "Nice to meet you",
       "words": 22,
       "tags": [],
       "translations": [],
@@ -369,6 +388,7 @@
       "language": "he",
       "source": "dialogue:02-in-a-cafe",
       "blurb": "Ordering, asking the price, saying thanks.",
+      "english": "In a café",
       "words": 21,
       "tags": [],
       "translations": [],
@@ -384,6 +404,7 @@
       "language": "he",
       "source": "dialogue:03-which-way",
       "blurb": "Asking the way and being told it.",
+      "english": "Which way",
       "words": 18,
       "tags": [],
       "translations": [],
@@ -399,6 +420,7 @@
       "language": "he",
       "source": "dialogue:18-two-coffees",
       "blurb": "Two coffees, one is wrong.",
+      "english": "Two coffees",
       "words": 12,
       "tags": [],
       "translations": [],

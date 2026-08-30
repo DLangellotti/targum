@@ -709,3 +709,28 @@ def test_every_empty_list_says_what_fills_it() -> None:
     # With words kept but none still being learned, the stage is the honest answer.
     known_only = draw([], vocabulary(word("שלום", "hello", status=9)))
     assert known_only["wordsEmpty"] == "Nothing at that stage yet."
+
+
+def test_a_card_carries_the_title_in_english_under_the_hebrew() -> None:
+    """Both doors, from the same field the library shows; an upload has none and the
+    line stays away."""
+    drawn = draw([reader("ruth-he", "רות", entry="ruth", english="Ruth", opened=2)])
+    assert drawn["carry"]["english"] == "Ruth"
+
+    plain = draw([reader("mine-he", "שלי", opened=2)])
+    assert plain["carry"]["english"] == ""
+
+    offered = draw(
+        [reader("mine-he", "שלי", opened=2)],
+        catalogue=[
+            entry(
+                "altneuland",
+                "תל־אביב",
+                19,
+                english="Old New Land",
+                source="test:a",
+                translations=[],
+            )
+        ],
+    )
+    assert offered["suggested"] and offered["suggested"]["english"] == "Old New Land"

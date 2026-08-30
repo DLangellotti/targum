@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ title }}{% if not standalone %} — {{ section.title }}{% endif %}</title>
+<title>{{ title }}{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
 {{ hebrew_face(biblical) }}
@@ -35,6 +35,10 @@
   </span>
   <div class="bar-title">
     {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
+    {#- The English beside the Hebrew, its own element so the two directions never share
+        a string; gone under 40rem, where the bar has no room, while the document title
+        keeps both. -#}
+    {% if english %}<span class="bar-english" lang="en" dir="ltr">{{ english }}</span>{% endif %}
     {#- How much of this text you can already read. Filled in by the reader from the
         words it has, and hidden outright on a text that carries none. -#}
     <span class="known" id="known" hidden></span>

@@ -1175,6 +1175,7 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title
+        assert sent["english"] == entry.english, "the title a reader with no Hebrew reads"
         assert sent["language"] == entry.language
         assert sent["translations"] == [
             {

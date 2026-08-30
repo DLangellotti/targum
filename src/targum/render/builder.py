@@ -533,6 +533,7 @@ def learn_page(token: str) -> str:
                 {
                     "id": entry.id,
                     "title": entry.title,
+                    "english": entry.english,
                     "language": entry.language,
                     "blurb": entry.blurb,
                     "difficulty": entry.difficulty,
@@ -1014,6 +1015,23 @@ def cover_name(document: Document) -> str:
     return entry.id if entry else ""
 
 
+def english_title(document: Document) -> str:
+    """The title in English, for a catalogue text; nothing for anything else.
+
+    Render-time context, like the cover: it reaches every reader on the next rebuild and
+    touches no cache key, and an upload — which has no English title anywhere — shows
+    its Hebrew one alone.
+    """
+    from .. import catalogue as catalogue_module
+
+    # `matching` knows the public source shapes; a source it does not recognise is still
+    # a catalogue text if an entry names it exactly, which is how `/readers` decides too.
+    entry = catalogue_module.matching(document.source) or next(
+        (e for e in catalogue_module.CATALOGUE if e.source == document.source), None
+    )
+    return entry.english if entry else ""
+
+
 def render(
     document: Document,
     segmented: SegmentedDocument,
@@ -1151,6 +1169,7 @@ def render(
         "document": document,
         "siblings": siblings or [],
         "title": document.title or "targum",
+        "english": english_title(document),
         # The whole tile, once, on the page that lists the chapters.
         "cover": cover_uri(covers, drawn),
         "sections": sections,

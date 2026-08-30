@@ -1732,6 +1732,57 @@ def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
     assert row["kind"] == "poetry" and row["register"] == "biblical"
     assert row["difficulty"] == entry.difficulty
     assert row["minutes"] == entry.minutes, "the whole book, not the one line built here"
+    assert row["english"] == "Psalms", "and the title a reader with no Hebrew can read"
+
+    # The reader carries it too — its tab title and its bar — with no cache key touched:
+    # it is render-time context, like the cover. One section, so this is the standalone
+    # reader rather than a contents page.
+    page = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert '<span class="bar-english" lang="en" dir="ltr">Psalms</span>' in page
+    assert "<title>תהילים · Psalms</title>" in page
+
+
+def test_an_upload_has_no_english_title_anywhere(tmp_path: Path) -> None:
+    """The reader gave it a Hebrew title and that is what every page shows: no line, no
+    fallback to a description, and the row says so with an empty string."""
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "mine-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source="paste:mine",
+        title="שלי",
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text="שלום")],
+    )
+    document.content_hash = document.recompute_hash()
+    segment = Segment(id="s1", block_id="b0", block_index=0, index=0, text="שלום")
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+
+    row = Library(out).readers(out / "local")[0]
+    assert row["entry"] == "" and row["english"] == ""
+    page = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    # The stylesheet inlined into every reader names `.bar-english`; the markup is what
+    # must be absent.
+    assert '<span class="bar-english"' not in page and '<p class="english"' not in page
+    assert "<title>שלי</title>" in page
 
 
 def test_a_cover_is_served_and_only_from_the_covers_directory(

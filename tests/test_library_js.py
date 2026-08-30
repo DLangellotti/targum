@@ -427,3 +427,32 @@ def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> Non
         "שני קפה",
     ]
     assert drawn["shareHead"]["text"] == "Scene number"
+
+
+def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> None:
+    """Under the Hebrew, in ink, with the byline after it. For the reader who cannot yet
+    read the line above, this is the title. An upload has none and shows none."""
+    drawn = draw(tmp_path, readers=[shelf("", "my-upload-he")])
+    by_title = {row["title"]: row for row in drawn["rows"]}
+    assert by_title["רות"]["english"] == "Ruth · Ketuvim · Ruth" or by_title["רות"][
+        "english"
+    ].startswith("Ruth")
+    assert by_title["נעים מאוד"]["english"].startswith("Nice to meet you")
+    assert all(row["english"] for row in drawn["rows"]), "every catalogue row"
+
+    mine = draw(tmp_path, readers=[shelf("", "my-upload-he")], view={"where": "mine"})["rows"]
+    assert mine[0]["english"] == ""
+
+
+def test_search_reaches_a_text_through_its_english_title(tmp_path: Path) -> None:
+    titles = {row["title"] for row in draw(tmp_path, view={"find": "meet"})["rows"]}
+    assert "נעים מאוד" in titles
+
+
+def test_sorting_by_title_sorts_by_the_english_where_there_is_one(tmp_path: Path) -> None:
+    """For the reader this page is sorted for, the Hebrew titles are not yet in an order."""
+    drawn = draw(tmp_path, view={"sort": "title", "dir": 1, "kind": "dialogue"})
+    # Under Scenes the order is scene number (see above); sort by title on the catalogue:
+    drawn = draw(tmp_path, view={"sort": "title", "dir": 1})
+    english = [row["english"].split(" · ")[0] for row in drawn["rows"]]
+    assert english == sorted(english, key=str.lower)

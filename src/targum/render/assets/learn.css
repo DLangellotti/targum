@@ -200,6 +200,13 @@ button.door:disabled {
    That put Hebrew titles in the Latin stack — which has no Hebrew — so they fell
    through to whatever the platform had. §5 names the faces for a reason. */
 .card-title:lang(he) { font-family: var(--reading-hebrew); }
+/* The title in English, in ink: a reader who cannot yet read the Hebrew title above it
+   came for this line. */
+.card-english {
+  margin: 0.1rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
 .card-meta {
   margin: 0.35rem 0 0;
   color: var(--ink-soft);
