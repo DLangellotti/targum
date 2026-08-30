@@ -1201,6 +1201,33 @@ body.marking .w.here,
   ) {
     min-block-size: 44px;
   }
+
+  /* The reader's own controls, which the lists above never covered: the bar's mode and
+     type buttons, the grading buttons on a word's card, the player, the per-line play,
+     a saved word's remove. Grown by hit-area rather than by drawing — a thumb's 44px
+     of glass, the same 22px of ink. The inline growth stops at the midline of the gap
+     to the neighbour, so a near-miss lands on the button it looks like it landed on. */
+  :is(
+    .bar .group button, .modes button, [data-theme-toggle],
+    .vocab-editor .level, .keys-close,
+    .player-play, .player-get, .player-close, .pair.voiced .say,
+    .list-items .drop, .toc .get, .rest .keep, .picked-note button
+  ) {
+    position: relative;
+  }
+  :is(
+    .bar .group button, .modes button, [data-theme-toggle],
+    .vocab-editor .level, .keys-close,
+    .player-play, .player-get, .player-close, .pair.voiced .say,
+    .list-items .drop, .toc .get, .rest .keep, .picked-note button
+  )::after {
+    content: "";
+    position: absolute;
+    inset-inline: -0.25rem;
+    inset-block-start: 50%;
+    block-size: max(100%, 44px);
+    transform: translateY(-50%);
+  }
 }
 
 /* --- source only --------------------------------------------------------- */
