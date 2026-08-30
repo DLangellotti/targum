@@ -1146,6 +1146,32 @@ body.marking .w.here,
   body.has-list.list-open { padding-inline-end: 15rem; }
 }
 
+/* No width to give still leaves the bottom edge. The full-height overlay this used to
+   be sat on the very words being read — and on the weekly, on the masthead and the
+   level pills. As a sheet the reading column keeps the window and the list takes a
+   band a reader can dismiss; the text can always scroll clear of it. `svh` because the
+   sheet is anchored to the bottom, where the browser's own chrome comes and goes. */
+@media (max-width: 60rem) {
+  .list {
+    inset-block: auto 0;
+    inset-inline: 0;
+    width: auto;
+    max-block-size: 42svh;
+    /* Above the player and the arrows: it covers the corner they live in. */
+    z-index: 27;
+    border-inline-start: none;
+    border-block-start: 1px solid var(--overlay-rule);
+    border-start-start-radius: 8px;
+    border-start-end-radius: 8px;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.14);
+  }
+  body.has-list.list-open { padding-block-end: 46svh; }
+  body.has-list.list-open .player {
+    inset-inline-end: 0.75rem;
+    inset-block-end: calc(42svh + 0.9rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .list-items li { animation: none; }
   .gloss-card.going { transition: none; }
@@ -1967,8 +1993,11 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player-get:focus-visible, .player-close:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
-   than sitting under it. */
-body.has-list.list-open .player { inset-inline-end: 15rem; }
+   than sitting under it. Wide windows only: below 60rem the list is a bottom sheet and
+   the player rises above it instead — that rule lives with the sheet's. */
+@media (min-width: 60rem) {
+  body.has-list.list-open .player { inset-inline-end: 15rem; }
+}
 
 /* The turning arrows are 2.75rem tall and sit 2.25rem up; this clears them. */
 body.paged .player { inset-block-end: 5.5rem; }
