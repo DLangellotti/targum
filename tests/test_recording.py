@@ -109,11 +109,24 @@ def test_the_credit_is_required(tmp_path) -> None:
 def test_a_verse_carries_its_ref_from_ingest_to_segment() -> None:
     """The whole mapping rests on this: the recording is aligned to verses, so a verse
     has to be addressable after segmentation and not only before it."""
+    import json
+    from pathlib import Path
+
     from targum.ingest.fetch import sefaria
     from targum.segment.base import segment_document
-    from tests.test_sefaria import payload
 
-    document = sefaria.document_from_payload(payload("he"), "Ruth", "he")
+    # Read here rather than imported from `test_sefaria`. One test module importing
+    # another only resolves while the repository root happens to be on `sys.path`, which
+    # is true of one way of running pytest and not of the way the deploy runs it — so it
+    # passed every time I ran it and stopped the deploy the first time that mattered.
+    body = json.loads(
+        (Path(__file__).parent / "fixtures" / "sefaria" / "ruth.he.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    document = sefaria.document_from_payload(
+        {"edition": body["versions"][0], "body": body}, "Ruth", "he"
+    )
 
     class Whole:
         name = "test/1"
