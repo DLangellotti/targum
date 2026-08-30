@@ -499,14 +499,18 @@ def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
 
 
 def pages(
-    tops: list[int], heights: list[int], room: int, opens: list[bool] | None = None
+    tops: list[int],
+    heights: list[int],
+    room: int,
+    opens: list[bool] | None = None,
+    glue: list[bool] | None = None,
 ) -> list[list[int]]:
     words, lemmas = chapter(["a"])
     return run(
         [],
         chapter=words,
         lemmas=lemmas,
-        pages={"tops": tops, "heights": heights, "room": room, "opens": opens},
+        pages={"tops": tops, "heights": heights, "room": room, "opens": opens, "glue": glue},
     )["pages"]
 
 
@@ -545,6 +549,30 @@ def test_the_first_pair_never_opens_a_page_on_its_own() -> None:
 
 def test_no_pairs_is_no_pages() -> None:
     assert pages([], [], 250) == []
+
+
+def test_a_heading_never_ends_a_page() -> None:
+    """A chapter's plate is a promise about what follows; a page that ends on one sends
+    the reader forward to find out what it promised. The cut walks back so the plate
+    opens the page its text is on. Found on a landscape phone, where the shrunken room
+    made 'Reactions' a page of its own — '1 of 15', and the first said only the title."""
+    tops = [0, 40, 230, 270]
+    heights = [30, 180, 30, 190]
+    glue = [False, False, True, False]
+    # Without glue the first page ends on the heading at index 2; with it, the cut
+    # walks back and the heading opens the page its paragraph is on.
+    assert pages(tops, heights, 260) == [[0, 2], [3, 3]]
+    assert pages(tops, heights, 260, None, glue) == [[0, 1], [2, 3]]
+
+
+def test_a_page_of_nothing_but_plates_overflows_instead() -> None:
+    """When the plate and its first paragraph together are taller than the room, the
+    page keeps them both and scrolls — the same honesty as a single pair too tall for
+    the room. A title alone is never a page."""
+    tops = [0, 40, 640]
+    heights = [30, 590, 90]
+    glue = [True, False, False]
+    assert pages(tops, heights, 250, None, glue) == [[0, 1], [2, 2]]
 
 
 def test_which_page_a_pair_is_on() -> None:

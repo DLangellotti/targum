@@ -441,8 +441,9 @@ main {
   /* The bar is sticky, so scrolling a sentence to the top of the window puts it behind
      the bar. Every way of reaching a sentence goes through `scrollIntoView` — the
      arrows, the queue, the sentence list — so the clearance belongs here rather than at
-     each of the call sites. */
-  scroll-margin-block-start: 4rem;
+     each of the call sites. The measurement is the script's (`ceiling`): a wrapped bar
+     on a narrow window is taller than any number written here could promise. */
+  scroll-margin-block-start: var(--ceiling, 4rem);
 }
 /* Tighter again where a pair is one pasuk rather than one paragraph. A chapter of Tanakh
    is continuous text that happens to be numbered; spacing its verses apart turns it into

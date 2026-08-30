@@ -137,6 +137,7 @@ process.stdout.write(
           payload.pages.heights,
           payload.pages.room,
           payload.pages.opens,
+          payload.pages.glue,
         )
       : null,
     pageFor: payload.pageFor

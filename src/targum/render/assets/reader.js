@@ -2749,8 +2749,19 @@
 
   // The top of the reading area. The bar is sticky, so the top of the window is not the
   // top of the text.
+  var ceilingSaid = "";
   function ceiling() {
-    return (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    var band = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    // Written where the stylesheet can read it: `scroll-margin-block-start` used to say
+    // 4rem while this measured the truth, and on a narrow window the bar wraps past
+    // 4rem — so `scrollIntoView` landed the sentence behind it. One measurement, two
+    // readers.
+    var px = band + "px";
+    if (px !== ceilingSaid) {
+      ceilingSaid = px;
+      document.documentElement.style.setProperty("--ceiling", px);
+    }
+    return band;
   }
 
   // The sentence in the middle of the reading area, which is where a reader's eye is
@@ -3330,7 +3341,7 @@
   // arithmetic is decided here so it can be tested without a browser to lay anything
   // out. A pair too tall for the room is a page on its own rather than a page nobody
   // can turn to.
-  function boundariesFrom(tops, heights, room, opens) {
+  function boundariesFrom(tops, heights, room, opens, glue) {
     var out = [];
     if (!tops.length) return out;
     var start = 0;
@@ -3344,9 +3355,17 @@
       // which "take me to sport" and what the eye lands on are the same thing.
       var forced = opens && opens[n];
       if ((forced || bottom > room) && n > start) {
-        out.push([start, n - 1]);
-        start = n;
-        base = tops[n];
+        // A heading closes nothing. On a short window the budget shrinks until a
+        // chapter's plate was a page of its own — "1 of 15", and the first of the
+        // fifteen said only the title. The cut walks back so a plate opens the page
+        // its text is on; if that leaves nothing at all, the page overflows instead,
+        // the same way a pair too tall for the room already does.
+        var cut = n;
+        while (glue && cut > start && glue[cut - 1]) cut--;
+        if (cut === start) continue;
+        out.push([start, cut - 1]);
+        start = cut;
+        base = tops[cut];
       }
     }
     out.push([start, tops.length - 1]);
@@ -3404,7 +3423,11 @@
     // was one, under the player.
     var over = bar ? bar.getBoundingClientRect().bottom + window.scrollY : window.scrollY;
     var lead = tops.length ? Math.max(0, tops[0] - over) : 0;
-    pages = boundariesFrom(tops, heights, Math.max(160, room() - lead), opens);
+    // Which pairs are plates rather than text — the built page marks them `head`.
+    var glue = pairs.map(function (pair) {
+      return pair.classList.contains("head");
+    });
+    pages = boundariesFrom(tops, heights, Math.max(160, room() - lead), opens, glue);
     if (!pages.length) pages = [[0, pairs.length - 1]];
   }
 

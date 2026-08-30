@@ -58,7 +58,16 @@ for folder in $FOLDERS; do
   scp -qr "$LOCAL/$folder" "$HOST:$REMOTE/.staging/$folder"
 done
 
+# The issue's own sources ride along — the markdown the editions were composed as, and
+# the brief they were composed from. Not decoration: a build on the box re-ingests from
+# the markdown, and shipping the readers without it left every library-row build failing
+# with "No such file or directory: …-aleph.md" the first time somebody pressed one.
+echo "   $WEEK (sources)"
+ssh "$HOST" "rm -rf '$REMOTE/.staging/$WEEK'"
+scp -qr "$LOCAL/$WEEK" "$HOST:$REMOTE/.staging/$WEEK"
+
 echo "== putting in place =="
+ssh "$HOST" "rm -rf '$REMOTE/$WEEK' && mv '$REMOTE/.staging/$WEEK' '$REMOTE/$WEEK'"
 for folder in $FOLDERS; do
   ssh "$HOST" "rm -rf '$REMOTE/$folder' && mv '$REMOTE/.staging/$folder' '$REMOTE/$folder'"
 done
