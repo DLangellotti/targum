@@ -1106,6 +1106,40 @@ SEED = ("ruth", "sport-holon-basketball")
 
 
 @app.command()
+def refs(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Give older Tanakh targums their verse refs, so a recording can reach them.
+
+    A recording is addressed by verse, and refs arrived with a later ingester. A targum
+    made before that has segments with nothing to map a recording onto, and rewriting the
+    page cannot help — `rebuild` renders from those same segments. This asks the source
+    for the document again and copies the refs across.
+
+    Free. It fetches the text, nothing else: no model, no lemmatizer, and a reader's own
+    marked words are untouched, because the annotation is not rewritten.
+
+    Run `targum rebuild` afterwards to write the pages that can now carry their audio.
+    """
+    from .ingest import fetch
+    from .refs import backfill
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
+
+    filled, skipped = backfill(root, fetch.load, lambda line: console.print(f"[dim]{line}[/dim]"))
+    if not filled and not skipped:
+        console.print("[dim]Every targum here already carries its refs.[/dim]")
+        return
+    console.print(f"[green]{filled}[/green] given their refs[dim], {skipped} left alone.[/dim]")
+    console.print("[dim]Now `targum rebuild` to write the pages with their audio in.[/dim]")
+
+
+@app.command()
 def seed(
     out: Annotated[
         Path | None,

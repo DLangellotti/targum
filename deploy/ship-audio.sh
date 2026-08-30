@@ -10,13 +10,13 @@
 # Nothing here builds or spends. It carries, points the service at what it carried, and
 # stops.
 #
-# **An existing reader does not gain audio from this.** A recording is addressed by verse
-# ref, and refs arrived with ingester `sefaria/3` — so a targum ingested before that has
-# segments with no refs in them and nothing to map a recording onto. `targum rebuild`
-# rewrites the page from those same segments and cannot help. Only a re-ingest can, which
-# is `targum build` and is free for a catalogue text: the fetch costs nothing, Stanza runs
-# on the box, and the translation is already cached. Texts built after this lands get
-# their audio with no ceremony. See the note at the foot for doing it to the old ones.
+# Targums already on the box gain their audio too. A recording is addressed by verse ref,
+# refs arrived with ingester `sefaria/3`, and anything older has segments with nothing to
+# map a recording onto — so `targum refs` asks each source for its document again and
+# copies the refs across, and `targum rebuild` then writes the pages. Both are free and
+# neither touches a reader's own words: the annotation is not rewritten, the segment ids
+# do not move, and a text whose wording has changed since it was built is declined whole
+# rather than mapped onto the wrong verses.
 set -euo pipefail
 
 HOST="${TARGUM_HOST:?set TARGUM_HOST=user@box}"
@@ -70,6 +70,17 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   systemctl restart targum
 EOF
 
+echo "== give the targums already here their refs, and write their pages =="
+# Free, and safe to run again: a text that already carries refs is skipped without a
+# fetch, and one whose wording has moved on is left exactly as it was.
+ssh "$HOST" "bash -euo pipefail -s" <<'EOF'
+  run() {
+    systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum       --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env "$@"
+  }
+  run /usr/local/bin/targum refs --out /var/lib/targum/targums | tail -3 | sed 's/^/   /'
+  run /usr/local/bin/targum rebuild --out /var/lib/targum/targums | tail -1 | sed 's/^/   /'
+EOF
+
 echo "== verify =="
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
   books=\$(find '$REMOTE_RECORDINGS' -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
@@ -80,13 +91,10 @@ EOF
 
 cat <<'NOTE'
 
-The texts already on the box keep the readers they have. To give one its audio it has to
-be ingested again, which is free:
+Done. Texts built from here on carry their audio with no ceremony; the ones already on
+the box have just been given their refs and rewritten.
 
-  ssh $TARGUM_HOST systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
-    --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum build 'sefaria:Ruth' --out /var/lib/targum/targums/<home>
-
-Per home, because a targum belongs to whoever built it. Nothing is fetched from a model
-and nothing is spent — the English is published and the cache already holds it.
+If a book was declined above, its wording on Sefaria has moved since it was built. That
+is a real difference and not a migration problem: rebuild that text properly rather than
+mapping a recording onto verses it no longer matches.
 NOTE
