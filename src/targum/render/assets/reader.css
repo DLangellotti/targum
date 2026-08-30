@@ -1896,7 +1896,10 @@ body.has-player .next-up { margin-block-end: 9rem; }
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 0.55rem 0.4rem 0.4rem;
+  /* Logical, like everything else here (§8): the wider side is the clock's, which is
+     the inline end whichever way the page runs. */
+  padding-block: 0.4rem;
+  padding-inline: 0.4rem 0.55rem;
   border: 1px solid var(--rule);
   border-radius: 8px;
   background: var(--paper-raised);
