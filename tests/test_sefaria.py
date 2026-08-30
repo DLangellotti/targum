@@ -179,6 +179,43 @@ def test_a_verse_is_never_split() -> None:
     assert len(cut.segments) == 2, "the segmenter is not splitting, so the test is empty"
 
 
+# -- the edition -------------------------------------------------------------
+
+
+def test_the_hebrew_is_the_accented_edition() -> None:
+    """`Tanach with Nikkud` is not an edition; it is this one with the accents deleted
+    by machine, and that delete is lossy. Pinned here so the shorter name cannot creep
+    back in as a simplification."""
+    assert sefaria.HEBREW == "Tanach with Ta'amei Hamikra"
+
+
+def test_the_edition_carries_its_accents() -> None:
+    """Every test below about the trope is vacuous on an unaccented fixture, so the
+    fixture is checked rather than trusted."""
+    text = "".join(verse for chapter in payload("he")["edition"]["text"] for verse in chapter)
+    assert any(0x0591 <= ord(char) <= 0x05AF for char in text), "no accents in the fixture"
+
+
+def test_no_meteg_was_lost_on_the_way_in() -> None:
+    """The bug this edition exists to undo, held as a number.
+
+    Unicode gives meteg and silluq one codepoint, so a program stripping accents takes
+    the metagim with them — and meteg is what separates a qamats gadol from a qamats
+    qatan. The accent-stripped edition has none at all in the whole of Ruth.
+    """
+    document = sefaria.document_from_payload(payload("he"), "Ruth", "he")
+    text = "".join(block.text for block in document.blocks)
+    assert text.count("\u05bd") > 100, "the accented edition lost its metagim"
+
+
+def test_both_sides_of_the_shelf_count_their_verses_the_same() -> None:
+    """`parallel.pair` matches by position inside a chapter, so an edition that numbered
+    its verses differently would shift the pairing of a whole book without saying so."""
+    hebrew = [len(chapter) for chapter in payload("he")["edition"]["text"]]
+    english = [len(chapter) for chapter in payload("en")["edition"]["text"]]
+    assert hebrew == english
+
+
 # -- pointing -----------------------------------------------------------------
 
 

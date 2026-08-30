@@ -11,7 +11,10 @@ from ..models import Block, BlockKind, Document, Segment, SegmentedDocument
 # numbered by verse and the published translations are numbered the same way, so a verse
 # is the unit both sides agree on. Let the segmenter split one long verse into two and
 # that agreement is gone — which is the whole basis on which a Tanakh pairs for nothing.
-UNSPLIT = frozenset({BlockKind.heading, BlockKind.byline, BlockKind.verse})
+# A turn joins these: one line is one thing a person said, and splitting it into
+# sentences would break the only mapping the audio has — a span per turn — and put
+# the speaker's name beside half of what they said.
+UNSPLIT = frozenset({BlockKind.heading, BlockKind.byline, BlockKind.verse, BlockKind.turn})
 
 
 class Segmenter(Protocol):
@@ -55,4 +58,5 @@ def _segment(block_index: int, order: int, block: Block, text: str) -> Segment:
         kind=block.kind,
         level=block.level,
         text=text,
+        ref=block.ref,
     )

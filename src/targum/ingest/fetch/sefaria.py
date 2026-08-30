@@ -19,6 +19,15 @@ neither is theoretical. `Metsudah Chumash, Metsudah Publications, 2009` is CC-BY
 `… 2009 [with Onkelos translation]` is CC-BY-NC, which a paid product may not use — they
 differ by a bracketed suffix, so a name match would quietly ship the wrong one. And an
 unpinned version can change what it points at without warning.
+
+**The Hebrew is the accented edition, and the shorter name is a trap.** Sefaria also
+carries `Tanach with Nikkud`, which sounds like precisely what a reader of vowels wants.
+It is not an edition; it is this one with the accents deleted by machine, and that delete
+is lossy. Unicode gives meteg and silluq one codepoint, U+05BD, so a program removing
+te'amim takes the metagim with them — and meteg is what separates a qamats gadol from a
+qamats qatan. The whole of Ruth in that version contains no U+05BD at all. Taking the
+complete text and hiding the accents in the reader is the only way round it, so that is
+what targum does. Do not shorten this name.
 """
 
 from __future__ import annotations
@@ -29,6 +38,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ...errors import TargumError
+from ...ids import block_id
 from ...models import BlockKind, Document
 from ..base import Paragraph, blocks_from_paragraphs, build_document, normalize
 from ..url import get
@@ -44,7 +54,7 @@ USABLE = frozenset({"Public Domain", "CC0", "CC-BY"})
 # Exact titles, checked against the licence the API reports for each. Hebrew is one
 # edition throughout; English is whichever Orthodox translation covers the book, because
 # an Orthodox reader is who most of this shelf is for and JPS is not what they reach for.
-HEBREW = "Tanach with Nikkud"
+HEBREW = "Tanach with Ta'amei Hamikra"
 
 # Metsudah covers Torah, the Five Megillot and part of Nevi'im; Silverstein's Rashi
 # Ketuvim covers the rest of what is worth reading. A book with neither is not on the
@@ -209,20 +219,38 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     named = body.get("heRef") if language == "he" else body.get("ref")
     title = str(named or ref)
 
+    # The English book name, whatever language the text is in: a ref is an address, and
+    # an address has to be the same one the recording and Sefaria itself use. The Hebrew
+    # title is what the reader sees; it is not what a verse is called.
+    named_in_english = book_of(str(body.get("ref") or ref))
+
     paragraphs: list[Paragraph] = []
+    # Which verse each paragraph is, by its place in the list. Kept beside the paragraphs
+    # rather than inside them: `Paragraph` is the shape every ingester builds, and only a
+    # numbered text has anything to put here.
+    refs: dict[int, str] = {}
     for offset, verses in enumerate(chapters(payload)):
         number = start + offset
         label = hebrew_numeral(number) if language == "he" else str(number)
         paragraphs.append((BlockKind.heading, 2, f"{book_of(title)} {label}".strip()))
-        for verse in verses:
+        for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
             clean = normalize(_MARKUP.sub("", verse or "")).strip()
+            refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
             paragraphs.append((BlockKind.verse, None, clean or "—"))
+
+    blocks = blocks_from_paragraphs(paragraphs)
+    # By id rather than by position: `blocks_from_paragraphs` drops an empty paragraph and
+    # numbers what is left by its original index, so zipping the two lists would silently
+    # slide every ref after the first gap onto the wrong verse.
+    by_id = {block_id(index): text for index, text in refs.items()}
+    for block in blocks:
+        block.ref = by_id.get(block.id, "")
 
     return build_document(
         f"sefaria:{ref}" if language == DEFAULT_LANGUAGE else f"sefaria:{language}:{ref}",
-        blocks_from_paragraphs(paragraphs),
+        blocks,
         ingester=SefariaFetcher.name,
         language=language,
         title=title,
@@ -231,8 +259,10 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
 
 class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
-    # somebody hand-edited the document on disk.
-    name = "sefaria/1"
+    # somebody hand-edited the document on disk. 2: the accented Hebrew edition. 3: every
+    # verse carries its ref. Free to bump — the hash a document is keyed by is its text,
+    # and the text has not changed, so nothing downstream is bought again.
+    name = "sefaria/3"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)
