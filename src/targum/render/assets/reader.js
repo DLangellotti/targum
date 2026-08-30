@@ -3684,9 +3684,16 @@
     // clear it, and the whole point of the mode is clearing them.
     var word = event.target.closest ? event.target.closest(".w") : null;
     // With the chip up, this click is the tail of the drag that drew it: mouseup fires
-    // first, and a one-word drift drew the word's card there already. A second card
-    // over the first, for the same word, was the "pop up card is a mess".
-    if (chip && !chip.hidden && word) return;
+    // first, and drew a card there already. A second card over the first was the "pop up
+    // card is a mess".
+    //
+    // Whatever the click landed on, and that is the point. A click fires on the nearest
+    // common ancestor of where the pointer went down and where it came up, so a drag
+    // across two words reports the cell rather than a word — and requiring a word here
+    // meant every phrase closed the card it had just drawn, which looked from the outside
+    // like selecting a phrase doing nothing at all. A tap cannot reach this: mousedown
+    // puts the chip away, and a tap draws no new one.
+    if (chip && !chip.hidden) return;
     // Either way the pointer has taken over from the arrows, and the ring goes with them.
     leaveQueue();
     // And from the page: wherever it was holding a place for them, they have just said

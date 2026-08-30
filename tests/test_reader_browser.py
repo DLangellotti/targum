@@ -1615,3 +1615,71 @@ def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
     assert laid["seat"] and laid["shown"]
     for line in laid["shown"]:
         assert line["bottom"] <= laid["seat"]["top"], line["id"]
+
+
+# -- keeping a phrase ----------------------------------------------------------------
+
+
+def drag_across_words(open_page, count: int = 3) -> None:
+    """Select from the first word to the `count`th, the way a reader drags."""
+    box = open_page.evaluate(
+        """(count) => {
+          // In view, not merely in the document: the scrolling reader keeps every pair
+          // shown, and the first of them is usually above the window — dragging there
+          // means dragging at a negative coordinate, which selects nothing.
+          const cell = [...document.querySelectorAll('.pair:not([hidden]) .src')].find(c => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && r.top > 80 && r.bottom < innerHeight - 80
+              && c.querySelectorAll('.w').length >= count;
+          });
+          const ws = cell.querySelectorAll('.w');
+          const a = ws[0].getBoundingClientRect(), b = ws[count - 1].getBoundingClientRect();
+          const rtl = getComputedStyle(cell).direction === 'rtl';
+          return rtl
+            ? {x1: a.right - 2, y1: a.top + a.height / 2, x2: b.left + 2, y2: b.top + b.height / 2}
+            : {x1: a.left + 2, y1: a.top + a.height / 2, x2: b.right - 2, y2: b.top + b.height / 2};
+        }""",
+        count,
+    )
+    open_page.mouse.move(box["x1"], box["y1"])
+    open_page.mouse.down()
+    open_page.mouse.move(box["x2"], box["y2"], steps=10)
+    open_page.mouse.up()
+    open_page.wait_for_timeout(150)
+
+
+def test_a_phrase_you_select_offers_itself_to_be_kept(page) -> None:
+    """The card has to survive the click that ends the drag.
+
+    A click fires on the nearest common ancestor of where the pointer went down and where
+    it came up, so a drag across two words reports the cell rather than a word. The guard
+    that keeps the card up required a word, so every phrase closed the card it had just
+    drawn — which from the outside was selecting a phrase and nothing happening at all.
+    """
+    drag_across_words(page)
+    assert page.evaluate("() => !document.getElementById('pick-chip').hidden"), (
+        "the card stayed up after the click that ended the drag"
+    )
+    assert page.evaluate("() => document.querySelectorAll('#pick-chip button').length") >= 1
+
+
+def test_keeping_a_phrase_writes_it_down(page) -> None:
+    drag_across_words(page)
+    page.click("#pick-chip button")
+    page.wait_for_timeout(300)
+    kept = page.evaluate(
+        """() => {
+          const key = Object.keys(localStorage).find(k => k.indexOf('targum:picked:') === 0);
+          const held = JSON.parse(localStorage.getItem(key) || '{}');
+          return Object.keys(held).map(id => held[id].length).reduce((a, b) => a + b, 0);
+        }"""
+    )
+    assert kept == 1, "the phrase is on the reader's own list"
+
+
+def test_a_tap_still_opens_the_word_it_landed_on(page) -> None:
+    """The guard above lets go of every click while the card is up, so the ordinary tap
+    has to keep working: mousedown puts the card away, and a tap draws no new one."""
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden")

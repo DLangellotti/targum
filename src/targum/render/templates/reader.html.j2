@@ -307,7 +307,11 @@
 {% if suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">Read next</span>
-  <a class="next-up-link" href="/library/{{ suggested.id }}">{{ suggested.title }}</a>
+  {#- `/library#id`, which is where Learn sends a reader for the same reason: the library
+      marks the row and scrolls to it, and lifts a filter that would have hidden it.
+      `/library/<id>` is a different page — the public one, off unless the shelves are —
+      and linking there gave a signed-in reader "not found". -#}
+  <a class="next-up-link" href="/library#{{ suggested.id }}">{{ suggested.title }}</a>
   {% if suggested.blurb %}<span class="next-up-why">{{ suggested.blurb }}</span>{% endif %}
 </aside>
 {% endif %}
