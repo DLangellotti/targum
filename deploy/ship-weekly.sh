@@ -79,6 +79,12 @@ echo "== index =="
 scp -q "$INDEX" "$HOST:$REMOTE/index.json.new"
 ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json' && rmdir '$REMOTE/.staging' 2>/dev/null || true"
 
+# The path a standalone build reads the issue from. The server works it out from its own
+# --out, but `targum build weekly:…` run for one person's shelf does not — it fell back
+# to the working directory and failed with a path that exists on no box. Appended only
+# when absent, never rewritten: the file holds every secret the box has.
+ssh "$HOST" "grep -q '^TARGUM_WEEKLY_DIR=' /etc/targum/targum.env || echo 'TARGUM_WEEKLY_DIR=$REMOTE' >> /etc/targum/targum.env"
+
 echo "== check =="
 for folder in $FOLDERS; do
   code="$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/weekly/read/$folder/reader/index.html")"
