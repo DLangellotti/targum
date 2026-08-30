@@ -2862,19 +2862,21 @@ def test_the_word_decides_whether_to_scroll_and_the_sentence_moves() -> None:
     assert "var room = window.innerHeight - top - 16;" in body
 
 
-def test_the_arrows_come_round_rather_than_stop_with_work_left() -> None:
-    """Entering the queue starts where you are reading, so reaching the last word of the
-    chapter usually means the words before where you came in are still waiting. Stopping
-    there left the arrows dead against an invisible wall while the header went on saying
-    how many were left — the page contradicting its own counter.
+def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
+    """A reader who walks to the end of a text is at the end of it.
 
-    `step` itself still answers nothing at either end: it is the primitive the tests
-    pin, and the coming-round is the caller's decision.
+    This came round to the first waiting word for a while, which is right by the counter
+    — it can still say five left while the arrow refuses — and wrong by the reading:
+    being thrown back to page one at the moment you finish is the page taking the text
+    away from you. The words earlier are still reachable by the other arrow and by tapping
+    one, so what went is a shortcut.
     """
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "return step(from, forward) || step(null, forward);" in script
+    assert "  function onward(from, forward) {\n    return step(from, forward);\n  }" in script, (
+        "onward must not fall back to the first waiting word any more"
+    )
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script
     # `false`: a card is spent by the level it was answered with, so what the arrows

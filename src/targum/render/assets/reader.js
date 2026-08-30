@@ -3803,14 +3803,17 @@
     return null;
   }
 
-  // The next word, and round to the beginning when the end is reached with words still
-  // waiting earlier in the chapter — which is what happens whenever you started in the
-  // middle, and starting in the middle is the ordinary case. The header says how many are
-  // left, so stopping dead against an invisible wall would be the page contradicting its
-  // own counter. It cannot spin: every word it lands on is one the queue still holds, and
-  // dealing with a word takes it out.
+  // The next word, and nothing past the last one. It used to round to the beginning when
+  // the end was reached with words still waiting earlier — right by the counter, which
+  // would otherwise say five left while the arrow refused, and wrong by the reading: a
+  // reader who walks to the end of a text is at the end of it, and being thrown back to
+  // page one is the page taking the text away at the moment they finished it.
+  //
+  // The words earlier are still reachable — the other arrow walks back through the text
+  // as written, and a tap reaches any word at all — so what is lost is a shortcut, and
+  // what is gained is an end that behaves like one.
   function onward(from, forward) {
-    return step(from, forward) || step(null, forward);
+    return step(from, forward);
   }
 
   // Entering the queue from where you are reading, not from the top of the chapter. On a
@@ -3980,7 +3983,18 @@
     var entry = place ? onward(place, forward) : enterFrom(forward);
     // Nothing that way. A card already open stays open: closing it out from under
     // somebody who pressed an arrow at the end of the chapter answers the wrong question.
-    if (!entry) return !!place;
+    //
+    // Walking off the end of a text puts the keyboard on Done, which is the only thing
+    // left to do with it. Rather than giving Enter a second meaning — the thing this file
+    // refuses to do with a key — the button is focused and Enter presses it because that
+    // is what Enter does to a focused button. The focus ring is also the answer to "it
+    // stopped, now what".
+    if (!entry) {
+      if (forward && place && finishedMark && !finishedAt() && finishedMark.focus) {
+        finishedMark.focus();
+      }
+      return !!place;
+    }
     // Stepping through words the page is not painting is a mode you can be lost in. `m`
     // puts it back.
     if (!prefs.marking) {
@@ -4042,13 +4056,20 @@
       return;
     }
 
-    // Turning the page. Space and PageDown forward, Shift+Space and PageUp back — the
-    // keys a scroll already answers to, which is the point: nothing to relearn. On the
-    // last page, forward is the next chapter. Not paged, they scroll as they always did.
-    if (key === " " || key === "PageDown" || key === "PageUp") {
+    // Turning the page. PageDown forward, PageUp back — the keys a scroll already answers
+    // to, which is the point: nothing to relearn. On the last page, forward is the next
+    // chapter. Not paged, they scroll as they always did.
+    //
+    // Space is not among them. It turns the page in every reader on earth, and it is
+    // still the wrong key here: it plays the recording, on every text that has one, and a
+    // key that means two things means neither. Half the library has no recording, and
+    // leaving Space to page there is the version of this bug that is hardest to see —
+    // the key works until the text happens to have audio, and then it does something
+    // else. The arrows either side of the page count turn it, and so do these two.
+    if (key === "PageDown" || key === "PageUp") {
       if (!paged()) return;
       event.preventDefault();
-      var back = key === "PageUp" || (key === " " && event.shiftKey);
+      var back = key === "PageUp";
       if (!turnBy(back ? -1 : 1) && !back) {
         var onward = pager && pager.querySelector("[data-next]");
         if (onward) location.href = onward.getAttribute("href");
@@ -4824,8 +4845,11 @@
     if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey) return;
     var on = document.activeElement;
     if (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.isContentEditable)) return;
-    /* A focused button already answers Space itself; taking it here would fire twice. */
-    if (on && on.tagName === "BUTTON") return;
+    /* Not even for a focused button, which would otherwise answer Space itself. On a page
+       that can be listened to Space plays and does nothing else, so a button under the
+       keyboard must not quietly take it — walking to the end of a text puts the keyboard
+       on Done, and Space there would finish the text instead of playing it. Enter is what
+       presses a button. */
     event.preventDefault();
     event.stopPropagation();
     toggleScene();

@@ -1100,14 +1100,23 @@ def test_a_chapter_opens_as_pages_that_fit_the_window(paged) -> None:
     assert int(seen["of"].split(" of ")[1]) > 1
 
 
-def test_space_turns_the_page_and_shift_space_turns_it_back(paged) -> None:
+def test_the_page_keys_turn_it_and_space_is_not_one_of_them(paged) -> None:
+    """PageDown and PageUp turn the page. Space does not, on any text.
+
+    Space plays the recording where there is one, and half the library has none — so
+    leaving it to page on the rest is the version of that clash which is hardest to see:
+    the key works until the text happens to have audio, and then it does something else.
+    """
     first = paged.evaluate(PAGE)
-    paged.keyboard.press("Space")
+    paged.keyboard.press("PageDown")
     second = paged.evaluate(PAGE)
     assert second["first"] == first["last"] + 1, "the next page starts where this one ended"
     assert second["of"].startswith("2 of ")
-    paged.keyboard.press("Shift+Space")
+    paged.keyboard.press("PageUp")
     assert paged.evaluate(PAGE)["first"] == 0
+
+    paged.keyboard.press("Space")
+    assert paged.evaluate(PAGE)["first"] == 0, "Space left the page where it was"
 
 
 def test_the_page_control_turns_it_too(paged) -> None:
@@ -1136,13 +1145,20 @@ def test_the_arrows_turn_the_page_to_the_word_they_reach(paged) -> None:
     """The walk goes through every word in the chapter; a word on the next page is
     reached by turning to it, not by walking off the edge of this one."""
     on = paged.evaluate(PAGE)
-    for _ in range(80):
-        paged.keyboard.press("ArrowRight")
+    # Forward is whichever arrow points the way the text reads, and it has to be walked
+    # for real: this used to pass on eighty presses of the *backward* arrow, which came
+    # round from the first word to the last and turned the page by arriving at the end.
+    # The walk stops at the ends now, so the only way to the next page is across the
+    # words of this one — and a page of this fixture holds a hundred and seventy of them.
+    forward = "ArrowLeft" if paged.evaluate("() => document.dir === 'rtl'") else "ArrowRight"
+    for _ in range(30):
+        for _ in range(20):
+            paged.keyboard.press(forward)
         now = paged.evaluate(PAGE)
         if now["first"] != on["first"]:
             break
     else:
-        raise AssertionError("eighty words in and the page never turned")
+        raise AssertionError("six hundred words in and the page never turned")
     standing = paged.evaluate("() => document.querySelector('.w.queued')?.closest('.pair')?.hidden")
     assert standing is False, "the word the arrows are on is on the page on show"
 
