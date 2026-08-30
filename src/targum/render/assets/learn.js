@@ -190,6 +190,7 @@
       window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
         title: reader.title,
         language: reader.language,
+        drawn: reader.drawn,
       })
     );
 
@@ -360,6 +361,7 @@
       window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
         title: reader.title,
         language: reader.language,
+        drawn: reader.drawn,
       })
     );
     var title = document.getElementById("suggest-title");

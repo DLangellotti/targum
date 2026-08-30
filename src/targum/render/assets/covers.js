@@ -36,7 +36,10 @@
     glyph.setAttribute("aria-hidden", "true");
     box.appendChild(glyph);
 
-    if (source) {
+    // `drawn: false` is the server saying outright that no picture exists. Asking
+    // anyway bought nothing but a 404 in the console on every page that showed the
+    // tile; the letter is the resting state, not the error.
+    if (source && settings.drawn !== false) {
       var image = new Image();
       image.onload = function () {
         box.textContent = "";

@@ -110,6 +110,7 @@
         window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
           title: reader.title,
           language: reader.language,
+          drawn: reader.drawn,
         })
       );
 
