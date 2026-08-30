@@ -604,6 +604,18 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     assert back["at"] == 0 and back["button"] == "Done"
 
 
+def test_finishing_names_the_language_on_a_record_born_without_one() -> None:
+    """The sync sweeps opened texts before a word is kept, and a row made that way has
+    no language. The progress page drops a finish it cannot place — so the celebration
+    said "your 1st" while the ledger said 0. Finishing writes the page's own language
+    onto whatever record is already there."""
+    words, lemmas = chapter(["a"])
+    nameless = {"a-chapter": {"title": "", "language": "", "updated": 5, "done": 0}}
+    done = run([], chapter=words, lemmas=lemmas, docs=nameless, finish=[True])["finished"]
+    assert done["at"] > 0 and done["record"] == done["at"]
+    assert done["language"] == "he", "the ledger can place it now"
+
+
 def test_finishing_survives_everything_else_the_reader_writes() -> None:
     """`updateDocs` rewrites the text's record on every change to a word."""
     words, lemmas = chapter(["a", "b"])

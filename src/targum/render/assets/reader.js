@@ -547,7 +547,14 @@
 
   function setFinished(on) {
     var all = read(DOCS, "{}");
-    var record = all[documentId] || { title: documentTitle, language: language };
+    var record = all[documentId] || {};
+    // Said every time, not only on a fresh record. A record can be born nameless —
+    // the sync sweeps opened texts before a word is kept, and a row made that way
+    // has no language — and the progress page drops a finish it cannot place, so
+    // the celebration said "your 1st" while the ledger said 0. This page knows who
+    // it is; the record is told so whenever it is touched.
+    record.title = documentTitle || record.title || "";
+    record.language = language || record.language || "";
     record.done = on ? Date.now() : 0;
     record.updated = Date.now();
     all[documentId] = record;

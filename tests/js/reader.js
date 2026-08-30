@@ -30,7 +30,11 @@ install({
   innerHeight: payload.window.height,
   // What you have already said about words in this language, as the browser would have
   // it — the reader reads its vocabulary out of localStorage and nowhere else.
-  stored: { ["targum:vocab:" + language]: JSON.stringify(payload.vocab || {}) },
+  stored: Object.assign(
+    { ["targum:vocab:" + language]: JSON.stringify(payload.vocab || {}) },
+    // A doc record that predates this page — the sync writes some with no language.
+    payload.docs ? { "targum:docs": JSON.stringify(payload.docs) } : {},
+  ),
 });
 
 // Both before the script runs: it reads the language off the page and parses the
@@ -125,6 +129,8 @@ process.stdout.write(
     finished: {
       at: reader.finishedAt(),
       record: (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).done || 0,
+      language:
+        (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).language || "",
       button: byId["done-mark"].textContent,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
     },
