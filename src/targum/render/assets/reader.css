@@ -1144,6 +1144,7 @@ body.marking .w.here,
      only asks that the file mentions reduced motion, so the sheet passed while the
      mode buttons and the sentence tint kept moving. */
   .modes button, .pair { transition: none; }
+  .bar .levels .level { transition: none; }
 }
 
 /* --- reaching things with a thumb -------------------------------------------
