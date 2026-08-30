@@ -84,7 +84,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -345,6 +345,40 @@ CREATE INDEX IF NOT EXISTS doc_since    ON doc    (person, revision);
 CREATE INDEX IF NOT EXISTS day_since    ON day    (person, revision);
 CREATE INDEX IF NOT EXISTS link_person  ON link   (person);
 CREATE INDEX IF NOT EXISTS session_seen ON session(seen);
+
+-- Who asked for the weekly issue. Deliberately not a person: a subscriber has no
+-- account, no words and no library, and nothing here may turn into one. The two are
+-- joined by an address and by nothing else, which is the point — unsubscribing must not
+-- touch an account, and closing an account must not leave targum still mailing them.
+--
+-- Schema 10 adds this. It is a new table, so `CREATE TABLE IF NOT EXISTS` is the whole
+-- of it and MIGRATIONS gets nothing: that list is for columns on tables already sitting
+-- on somebody's disk.
+CREATE TABLE IF NOT EXISTS subscriber (
+  email   TEXT    PRIMARY KEY,
+  -- pending until the address is confirmed, on once it is, off once they stop. A row
+  -- is never deleted: "they asked to stop" and "they were never here" are different
+  -- facts, and only one of them means it is safe to mail again.
+  state   TEXT    NOT NULL DEFAULT 'pending',
+  -- Hashed, like a sign-in link, because it grants "yes, mail this address".
+  confirm TEXT,
+  -- In the clear, and deliberately asymmetric with the line above. Its only power is to
+  -- stop mail to its own address, and hashing it would make it unmintable at send time —
+  -- every issue carries an unsubscribe link, so the token has to be readable to be put
+  -- in one. The worst it allows somebody who can read this table is unsubscribing an
+  -- address they can already see, which is strictly less than they can already do.
+  stop    TEXT    NOT NULL,
+  asked   INTEGER NOT NULL,
+  joined  INTEGER NOT NULL DEFAULT 0,
+  ended   INTEGER NOT NULL DEFAULT 0,
+  -- When the last issue went, and which one it was. Together these are what make a
+  -- resumed mailout skip whoever already has it: a run that re-sends the whole list is
+  -- the failure that costs a sending domain its reputation.
+  sent    INTEGER NOT NULL DEFAULT 0,
+  issue   TEXT    NOT NULL DEFAULT '',
+  bounces INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS subscriber_state ON subscriber (state);
 """
 
 
@@ -653,6 +687,171 @@ class Store:
             db.execute("INSERT INTO asked (who, made) VALUES (?, ?)", (tidy(who), now()))
             return False
 
+    # -- the weekly ------------------------------------------------------------
+    #
+    # A subscriber is not an account and never becomes one. Different table, no foreign
+    # key, no `person` row, `invited` untouched, and the mail carries no sign-in link —
+    # only the public issue and the way out. The one thing the two share is an address,
+    # which is what makes the pleasant case work by itself: somebody who subscribed
+    # signed out and later opens an account finds the box already ticked, because both
+    # doors write the same row.
+
+    def following(self, email: str) -> bool:
+        address = tidy(email)
+        row = self.db.execute("SELECT state FROM subscriber WHERE email = ?", (address,)).fetchone()
+        return row is not None and str(row["state"]) == "on"
+
+    def subscribe(self, email: str) -> str | None:
+        """The public door. Mint a token to confirm this address, or None if it is on.
+
+        Idempotent: asking twice re-mints rather than making a second row, because
+        asking twice is what somebody does when the first mail did not arrive.
+        """
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        if self.following(address):
+            return None
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                """
+                INSERT INTO subscriber (email, state, confirm, stop, asked)
+                VALUES (?, 'pending', ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET state = 'pending', confirm = ?, asked = ?
+                """,
+                (
+                    address,
+                    digest(token),
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    now(),
+                    digest(token),
+                    now(),
+                ),
+            )
+        return token
+
+    def follow(self, email: str, on: bool = True) -> bool:
+        """The signed-in door, and it confirms nothing.
+
+        Somebody with a session proved they control this address by following a link to
+        get in. Mailing them to ask whether they control it would be asking them to
+        confirm what they confirmed at the door.
+        """
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        with self.write() as db:
+            if not on:
+                db.execute(
+                    "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
+                    (now(), address),
+                )
+                return False
+            db.execute(
+                """
+                INSERT INTO subscriber (email, state, confirm, stop, asked, joined)
+                VALUES (?, 'on', NULL, ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET state = 'on', confirm = NULL, joined = ?
+                """,
+                (address, secrets.token_urlsafe(TOKEN_BYTES), now(), now(), now()),
+            )
+        return True
+
+    def peek_subscription(self, token: str) -> str | None:
+        """Whose address this token would confirm, without spending it.
+
+        The same reason `/account/enter` stopped being a bare GET: a mail client that
+        fetches every link in a message would otherwise confirm the subscription before
+        the person had read the sentence asking whether they wanted it.
+        """
+        row = self.db.execute(
+            "SELECT email FROM subscriber WHERE confirm = ? AND state = 'pending'",
+            (digest(token),),
+        ).fetchone()
+        return str(row["email"]) if row else None
+
+    def confirm_subscription(self, token: str) -> str | None:
+        """Spend a confirmation. Returns the address, or None if it was not one."""
+        with self.write() as db:
+            row = db.execute(
+                "SELECT email FROM subscriber WHERE confirm = ? AND state = 'pending'",
+                (digest(token),),
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute(
+                "UPDATE subscriber SET state = 'on', confirm = NULL, joined = ? WHERE email = ?",
+                (now(), row["email"]),
+            )
+            return str(row["email"])
+
+    def stop_subscription(self, token: str) -> bool:
+        """One click, from an email, with no account and no JavaScript."""
+        if not token:
+            return False
+        with self.write() as db:
+            row = db.execute("SELECT email FROM subscriber WHERE stop = ?", (token,)).fetchone()
+            if row is None:
+                return False
+            db.execute(
+                "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
+                (now(), row["email"]),
+            )
+            return True
+
+    def subscribers(self, not_sent: str = "") -> list[tuple[str, str]]:
+        """Everyone to mail about this issue, with the token that stops it.
+
+        Selecting on "has not had this one" rather than on "is subscribed" is what makes
+        a mailout safe to resume: a run that died halfway picks up where it stopped, and
+        one started twice sends nothing the second time.
+
+        And on "has not had a later one", which is what makes announcing the wrong week
+        harmless. Rows carry the last issue sent, not a history, so a plain "not this
+        one" would post last week's issue to everybody who already had this week's.
+        """
+        rows = self.db.execute(
+            "SELECT email, stop FROM subscriber WHERE state = 'on' "
+            # Not this issue, and not one already past it. The column holds the last
+            # issue sent rather than a history, so "not this one" alone would re-send
+            # last week to everybody the moment somebody typed the wrong week — and an
+            # email is the one thing here that cannot be taken back. Issue ids are
+            # `YYYY-wNN`, zero-padded, so they sort in the order the weeks happened.
+            "AND (issue IS NULL OR issue < ?) "
+            "ORDER BY joined",
+            (not_sent,),
+        ).fetchall()
+        return [(str(row["email"]), str(row["stop"])) for row in rows]
+
+    def mark_sent(self, email: str, issue_id: str) -> None:
+        with self.write() as db:
+            db.execute(
+                "UPDATE subscriber SET sent = ?, issue = ?, bounces = 0 WHERE email = ?",
+                (now(), issue_id, tidy(email)),
+            )
+
+    def bounced(self, email: str, limit: int = 3) -> bool:
+        """Count a failure, and stop mailing an address that keeps failing.
+
+        Returns whether this was the one that stopped it. Three, because a full mailbox
+        and a domain that is briefly unreachable both clear up, and an address that has
+        genuinely gone will fail every time.
+        """
+        address = tidy(email)
+        with self.write() as db:
+            db.execute("UPDATE subscriber SET bounces = bounces + 1 WHERE email = ?", (address,))
+            row = db.execute(
+                "SELECT bounces FROM subscriber WHERE email = ?", (address,)
+            ).fetchone()
+            if row is None or int(row["bounces"]) < limit:
+                return False
+            db.execute(
+                "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
+                (now(), address),
+            )
+            return True
+
     def invite(self, email: str) -> str:
         """Let one address open an account. Returns the address as it was stored."""
         address = tidy(email)
@@ -906,6 +1105,14 @@ class Store:
             db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
+            # The weekly stops too. A subscription is deliberately not part of the
+            # account — it outlives one, and that is the point of keeping it in its own
+            # table — but somebody who asked to be forgotten did not mean "keep mailing
+            # me". Reversed by subscribing again, which they can do without an account.
+            db.execute(
+                "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
+                (now(), person.email),
+            )
 
     def stay(self, person: Person) -> None:
         """Change their mind, while there is still something to change it about."""
