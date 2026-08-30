@@ -1246,6 +1246,11 @@ def test_a_page_carries_a_policy_naming_its_own_blocks(served: tuple[int, str, P
     # served reader while every check that opened the file directly passed — a page with
     # no accents in its face, found by a reader rather than a test.
     assert "font-src data:" in policy, "the embedded Hebrew face is refused by policy"
+    # And the recordings, which ride in the page the same way and fail the same way. The
+    # player reported "this recording would not play" on every served page while every
+    # check that opened the file passed, because a file has no policy — the identical
+    # blind spot the line above was written for, two months apart.
+    assert "media-src data:" in policy, "the embedded recording is refused by policy"
 
     # The fixture serves a stub, so the hashing itself is checked against a page that
     # has the shape a real one does: inline style, inline script, and a data block.

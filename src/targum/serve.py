@@ -129,6 +129,12 @@ POLICY = (
     # accented letter is borrowed from whatever face the machine has — which was invisible
     # for as long as readers were checked by opening the file, where no policy applies.
     "font-src data:; "
+    # And the recordings, which ride inside the page the same way. Left out, `default-src
+    # 'none'` refuses the audio and the player reports a recording that will not play —
+    # the identical bug the font line above exists for, missed the identical way: every
+    # check of the player was made by opening the file, where no policy applies. The one
+    # served page is the only place either of them can be seen to fail.
+    "media-src data:; "
     "connect-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
