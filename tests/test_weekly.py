@@ -526,3 +526,32 @@ def test_nothing_else_has_its_english_decided_for_it(tmp_path: Path) -> None:
     )
     build = Build("sefaria:Ruth", target_language="en", out_root=tmp_path)
     assert build.named(document, segmented) == {}
+
+
+def test_the_masthead_carries_the_week_it_belongs_to() -> None:
+    """Every issue has the same masthead, so without a date the reader's title, the
+    browser tab and the library row all read "מבט השבוע" and none of them said which
+    week."""
+    from targum.weekly.models import dated_title
+
+    assert dated_title("מבט השבוע", "2026-08-24") == "מבט השבוע · 24 באוגוסט 2026"
+    assert dated_title("מבט השבוע", "2026-01-05") == "מבט השבוע · 5 בינואר 2026"
+
+
+def test_a_date_it_cannot_read_is_left_off() -> None:
+    """Rather than guessed at, or shown as a stray ISO string in the middle of Hebrew."""
+    from targum.weekly.models import dated_title
+
+    assert dated_title("מבט השבוע", "") == "מבט השבוע"
+    assert dated_title("מבט השבוע", "later this week") == "מבט השבוע"
+
+
+def test_the_composed_markdown_is_dated_in_both_places() -> None:
+    from targum.weekly.entries import BYLINE_HE
+    from targum.weekly.models import markdown
+
+    written = _written()
+    page = markdown(written, BYLINE_HE, "2026-08-24")  # type: ignore[arg-type]
+    dated = f"{written.title} · 24 באוגוסט 2026"
+    assert f"title: {dated}" in page, "the frontmatter, which is the reader's title"
+    assert f"# {dated}" in page, "and the masthead on the page"

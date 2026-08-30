@@ -247,7 +247,43 @@ class Written(BaseModel):
     sections: list[WrittenSection] = Field(default_factory=list)
 
 
-def markdown(written: Written, byline: str) -> str:
+#: Month names as a Hebrew paper writes them, with the prefix a date takes: 24 באוגוסט.
+HEBREW_MONTHS = (
+    "בינואר",
+    "בפברואר",
+    "במרץ",
+    "באפריל",
+    "במאי",
+    "ביוני",
+    "ביולי",
+    "באוגוסט",
+    "בספטמבר",
+    "באוקטובר",
+    "בנובמבר",
+    "בדצמבר",
+)
+
+
+def dated_title(title: str, dated: str) -> str:
+    """The masthead with the week's own date on it.
+
+    An issue without one is indistinguishable from every other issue: the masthead is the
+    same words every week, so the reader's title, the browser tab and the library row all
+    said "מבט השבוע" and nothing said which week. The date is the Monday the issue belongs
+    to, which is what `Issue.dated` holds.
+
+    A date it cannot read is left off rather than guessed at or shown as a stray ISO
+    string in the middle of Hebrew.
+    """
+    try:
+        year, month, day = (int(part) for part in dated.split("-", 2))
+        named = HEBREW_MONTHS[month - 1]
+    except (ValueError, IndexError):
+        return title
+    return f"{title} · {day} {named} {year}"
+
+
+def markdown(written: Written, byline: str, dated: str = "") -> str:
     """The composed issue, as a file a person can edit.
 
     Masthead heading, byline, standfirst, then one level-1 heading per section. The
@@ -256,14 +292,15 @@ def markdown(written: Written, byline: str) -> str:
     byline and the first section heading the issue comes out one section short with the
     first one mislabelled.
     """
+    titled = dated_title(written.title, dated) if dated else written.title
     lines = [
         "---",
-        f"title: {written.title}",
+        f"title: {titled}",
         f"author: {byline}",
         "language: he",
         "---",
         "",
-        f"# {written.title}",
+        f"# {titled}",
         "",
         written.standfirst.strip(),
     ]
