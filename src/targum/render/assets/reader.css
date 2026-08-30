@@ -1359,6 +1359,10 @@ body.paged:not(.last-page) .rest { display: none; }
   cursor: pointer;
 }
 .turn button:hover { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+/* On the first page there is nothing behind you, and the back arrow says so instead
+   of sitting there looking pressable. */
+body.first-page .turn button[data-turn="-1"] { opacity: 0.35; cursor: default; }
+body.first-page .turn button[data-turn="-1"]:hover { background: var(--paper-raised, var(--paper)); }
 .turn .back::before { content: "\2190"; }
 .turn .forward::before { content: "\2192"; }
 [dir="rtl"] .turn .back::before { content: "\2192"; }

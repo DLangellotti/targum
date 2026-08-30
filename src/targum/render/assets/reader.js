@@ -3396,6 +3396,12 @@
     var range = pages[current];
     for (var i = 0; i < pairs.length; i++) pairs[i].hidden = i < range[0] || i > range[1];
     body.classList.toggle("last-page", current === pages.length - 1);
+    // The back arrow does nothing on the first page, and a button that does nothing
+    // should say so — dimmed by the stylesheet, named inert for a screen reader. The
+    // forward arrow stays live on the last page: it goes on to the next chapter.
+    body.classList.toggle("first-page", current === 0);
+    var back = document.querySelector('.turn button[data-turn="-1"]');
+    if (back) back.setAttribute("aria-disabled", current === 0 ? "true" : "false");
     if (pageOf) pageOf.textContent = current + 1 + " of " + pages.length;
     for (i = range[0]; i <= range[1]; i++) markPair(pairs[i]);
     if (!quiet && window.scrollTo) window.scrollTo(0, 0);
