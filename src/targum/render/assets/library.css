@@ -92,9 +92,18 @@
 .rows-head,
 .rows .row-open {
   display: grid;
-  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 4.5rem 4rem 6.25rem auto;
+  /* The last track was `auto`, and each row is its own grid: the one row that said
+     "finished" in it was wider there than its neighbours, and its other columns sat in
+     different places from theirs. Fixed, and what it holds is clipped rather than
+     allowed to move the row. */
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 4.5rem 4rem 6.25rem 6rem;
   align-items: center;
   gap: 0.7rem;
+}
+.row-state {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A heading and its sort arrow are one label: wrapped, "New words ↑" puts the arrow on
@@ -309,7 +318,7 @@
    the title, how long it is, and whether they already have it. */
 @media (max-width: 46rem) {
   .rows-head,
-  .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 4rem 5rem; }
+  .rows .row-open { grid-template-columns: 2.25rem minmax(6rem, 3fr) 4rem 4.5rem; }
   .rows-head .drop,
   .rows .drop { display: none; }
   /* The title cell carries more on a phone: the chip goes to a line of its own under

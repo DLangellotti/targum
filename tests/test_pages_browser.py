@@ -167,3 +167,79 @@ def test_pasted_text_reaches_the_server_when_the_button_is_pressed(browser, tmp_
     assert sent["name"].endswith(".txt")
     assert base64.b64decode(sent["content"]).decode("utf-8") == "בארץ־ישראל קם העם היהודי"
     assert sent["to"] and sent["words"] is True
+
+
+def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
+    """A row now carries a scene label, a chip, a Hebrew title and an English one. At
+    390px the chip takes a line of its own under the Hebrew, and the Hebrew title never
+    breaks across lines — a title in two pieces reads as two titles."""
+    page_file = tmp_path / "library.html"
+    page_file.write_text(library_page(TOKEN), encoding="utf-8")
+
+    shared = [
+        {
+            "name": "scene-01-nice-to-meet-you-he",
+            "title": "נעים מאוד",
+            "english": "Nice to meet you",
+            "language": "he",
+            "document": "h1",
+            "entry": "scene-01-nice-to-meet-you",
+            "kind": "dialogue",
+            "register": "modern",
+            "difficulty": 5,
+            "minutes": 1,
+            "words": 22,
+            "spoken": True,
+            "shared": True,
+            "drawn": False,
+            "sections": 1,
+            "chapters": [],
+            "readyChapters": 0,
+            "built": 0,
+        }
+    ]
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    open_page = context.new_page()
+    # Over http, not off the disk: a page on `file:` cannot fetch at all, and the shared
+    # rows arrive by fetch. Both the page and its one request are answered here.
+    html = page_file.read_text(encoding="utf-8")
+    # The last route registered is asked first, so the catch-all goes in before the two
+    # that answer.
+    open_page.route("http://targum.test/**", lambda route: route.fulfill(status=404, body=""))
+    open_page.route(
+        "http://targum.test/library*",
+        lambda route: route.fulfill(status=200, content_type="text/html", body=html),
+    )
+    open_page.route(
+        "**/readers*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"readers": [], "shared": shared, "trash": [], "covers": False}),
+        ),
+    )
+    open_page.goto("http://targum.test/library")
+    open_page.wait_for_timeout(500)
+    measured = open_page.evaluate(
+        """() => {
+          const row = document.querySelector('[data-row="scene-01-nice-to-meet-you"]');
+          if (!row) return { missing: true };
+          const bdi = row.querySelector('.row-title bdi');
+          const chip = row.querySelector('.row-next');
+          const b = bdi.getBoundingClientRect();
+          const c = chip ? chip.getBoundingClientRect() : null;
+          return {
+            titleLines: bdi.getClientRects().length,
+            chipBelow: c ? c.top >= b.bottom - 1 : null,
+            chipText: chip ? chip.textContent : "",
+            width: document.documentElement.scrollWidth,
+          };
+        }"""
+    )
+    context.close()
+
+    assert not measured.get("missing"), "the shared scene has a row"
+    assert measured["titleLines"] == 1, "the Hebrew title never breaks"
+    assert measured["chipText"] == "Start here"
+    assert measured["chipBelow"] is True, "the chip sits on its own line under the title"
+    assert measured["width"] <= 390, "and the page does not scroll sideways"
