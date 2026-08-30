@@ -5,7 +5,7 @@
    and nowhere else. A sign-in page is mostly white space and one thing to press. */
 
 body.signin {
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   place-items: center;
   padding: 1.5rem;

@@ -5,7 +5,7 @@
    one thing a visitor can actually do. */
 
 body.holding {
-  min-height: 100vh;
+  min-height: 100svh;
   margin: 0;
   display: grid;
   place-items: center;

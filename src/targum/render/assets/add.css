@@ -11,7 +11,7 @@ body.add {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  min-height: 100vh;
+  min-height: 100svh;
 }
 body.add > .site-head { justify-self: stretch; }
 /* The column starts where the header's name starts, so the whole site shares one

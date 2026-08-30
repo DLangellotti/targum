@@ -535,7 +535,7 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
      ceiling the first rows run off the top of the window with no way to reach them.
      Clear of the sticky bar as well as of the bottom edge — the bar wraps on a narrow
      window, so the room left for it is generous rather than exact. */
-  max-block-size: calc(100vh - 8rem);
+  max-block-size: calc(100svh - 8rem);
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0.9rem 1.15rem;
