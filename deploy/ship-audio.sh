@@ -48,11 +48,15 @@ echo "== ship =="
 # rsync rather than scp: this is a gigabyte the first time and almost nothing after it.
 # --delay-updates so a build that runs mid-copy reads the old file whole rather than the
 # new one half-written — a truncated mp3 becomes a reader with a recording that stops.
+# Every flag here is one both openrsync — which is what macOS ships, and which has no
+# `--info` at all — and rsync 3 accept. Check any new one against the older of the two:
+# `--info=stats1` cost a deploy, because rsync answered with a usage message, the
+# script stopped on it, and the box was left looking for a shelf that never arrived.
 command -v rsync >/dev/null || { echo "rsync is not installed here" >&2; exit 1; }
 ssh "$HOST" "install -d -o targum -g targum -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES'"
-rsync -a --delete --delay-updates --info=stats1 \
+rsync -a --delete --delay-updates --stats \
   "$RECORDINGS/" "$HOST:$REMOTE_RECORDINGS/" | sed 's/^/   /'
-rsync -a --delete --delay-updates --info=stats1 \
+rsync -a --delete --delay-updates --stats \
   "$DIALOGUES/" "$HOST:$REMOTE_DIALOGUES/" | sed 's/^/   /'
 
 echo "== point the service at it =="
