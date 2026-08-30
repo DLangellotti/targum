@@ -73,6 +73,11 @@
   --gloss: rgb(255 255 255 / 0.14);
   --gloss-strong: rgb(255 255 255 / 0.22);
   --lift: 0 2px 10px rgb(0 0 0 / 0.10);
+
+  /* What separates a floating overlay from the page. On paper the shadows do it and
+     this is just the ordinary hairline; on ink a black shadow draws nothing, so the
+     dark blocks lighten this edge instead — the shadow's job done by a line. */
+  --overlay-rule: var(--rule);
 }
 
 /* Three states, not two. With nothing stamped on <html> the system decides, which is
@@ -99,6 +104,7 @@
     --divider: #322e29;
     --page-max: #121110;
     --ink-max: #fffdf9;
+    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
   }
 }
 
@@ -121,6 +127,7 @@
     --divider: #322e29;
     --page-max: #121110;
     --ink-max: #fffdf9;
+    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
 }
 
 * { box-sizing: border-box; }
@@ -135,6 +142,10 @@
    blue — which is what a phrase-drag painted before this rule existed. The tokens
    carry both themes. */
 ::selection { background: var(--ink-soft); color: var(--paper); }
+
+/* Every surface that floats (§8) takes the overlay edge, so the dark theme's lighter
+   line reaches all of them from one place. */
+.keys-card, .gloss-card, .pick-card, .player, .list, .list-tab { border-color: var(--overlay-rule); }
 
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a

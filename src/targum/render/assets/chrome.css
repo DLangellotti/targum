@@ -103,7 +103,7 @@
 
 .upload {
   padding: 0.25rem 0.7rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--overlay-rule, var(--rule));
   border-radius: 999px;
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -163,7 +163,7 @@
   z-index: 20;
   width: min(22rem, calc(100vw - 2rem));
   padding: 0.9rem 1rem 1rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--overlay-rule, var(--rule));
   border-radius: 8px;
   background: var(--paper);
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
@@ -222,7 +222,7 @@
 .segmented {
   display: inline-flex;
   padding: 2px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--overlay-rule, var(--rule));
   border-radius: 999px;
   /* §9: one raised layer per view. This always sits inside a raised card or
      panel, so the fill repeated the surface underneath it and the hairline is
@@ -275,7 +275,7 @@
   max-width: min(22rem, calc(100vw - 2rem));
   margin: 0;
   padding: 0.45rem 0.6rem 0.45rem 0.9rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--overlay-rule, var(--rule));
   border-radius: 999px;
   background: var(--paper-raised, var(--paper));
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
