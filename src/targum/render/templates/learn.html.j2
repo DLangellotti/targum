@@ -6,6 +6,7 @@
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
+{{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
 {#- `words` as well as `learn`: the panels, the list controls, the word table and the
@@ -29,6 +30,25 @@
       target, which is what anybody moving a mouse at it expects. That is also why the
       cover and the title inside this one are no longer anchors — an anchor inside an
       anchor is not a thing a browser can make sense of. -#}
+  {#- The week's issue, as a line rather than a card.
+
+      A third box the size of the two below would make this page a menu — the note on
+      the doors says as much — and the weekly is not a third choice, it is a thing that
+      is new on a Monday. So: a masthead, which is the shape a weekly has anyway. Type
+      and a hairline, no raised layer, no accent: it is read on the way to what somebody
+      came for, and it says nothing again once they have read it.
+
+      Above the doors because a returning reader looks straight at Continue Reading and
+      never comes back up. Filled in by learn.js, at the level their own vocabulary puts
+      them on, and left hidden where no issue is out. -#}
+  <p class="weekly-line" id="weekly-line" hidden>
+    <a id="weekly-link" href="/">
+      <bdi id="weekly-title" lang="he" dir="rtl"></bdi>
+      <span class="at" id="weekly-at"></span>
+    </a>
+    <span class="when" id="weekly-when"></span>
+  </p>
+
   <div class="doors">
     <a class="door carry" id="carry" href="/" hidden>
       <h2 id="carry-heading">Continue Reading</h2>
@@ -190,6 +210,7 @@
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
+window.TARGUM_WEEKLY = {{ weekly|tojson }};
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>

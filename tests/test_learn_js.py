@@ -657,3 +657,20 @@ def test_with_one_shared_text_the_catalogue_suggestion_still_draws() -> None:
     assert drawn["suggested"] is None, (
         "nothing in the catalogue to offer, and no second shared text"
     )
+
+
+def test_a_text_with_no_uncommon_word_in_it_is_still_offered() -> None:
+    """Zero is a measurement, not a missing one.
+
+    A twenty-word beginner scene has no word in it that a learner would look up, and
+    the share of running words needing one is honestly nought. Read as "nobody has
+    measured this" it took the seven easiest texts in the library out of the one list a
+    beginner is shown — which is the list they are shown *because* they are beginners.
+    """
+    shelf = [
+        entry("scene", "סצנה", 0, minutes=1, source="dialogue:scene", translations=[]),
+        *CATALOGUE,
+    ]
+    drawn = draw([], vocabulary(word("ספר", "book", status=2)), catalogue=shelf)
+    assert drawn["suggested"]["entry"] == "scene"
+    assert drawn["suggested"]["title"] == "סצנה"

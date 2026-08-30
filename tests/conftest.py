@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -35,6 +37,89 @@ def isolated_cache(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest
 
     monkeypatch.setenv("TARGUM_MODEL_DIR", str(model_dir()))
     monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path_factory.mktemp("cache")))
+
+
+@pytest.fixture(autouse=True)
+def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The public catalogue is off unless a test says otherwise.
+
+    It is read from the environment, so a developer who has it exported — anybody who
+    has just been looking at the public pages on a local server — saw three unrelated
+    tests fail with no hint as to why. The suite decides this, not the shell.
+    """
+    monkeypatch.delenv("TARGUM_PUBLIC_SHELVES", raising=False)
+
+
+@pytest.fixture(scope="session")
+def free_port() -> Callable[[], int]:
+    """A port to start a test server on, asked of the operating system.
+
+    Fixed ports were the obvious thing and the wrong one. Every server here is a daemon
+    thread that outlives the test that started it, so an interrupted run leaves one
+    holding the port; the next run's server then fails to bind, its tests talk to the
+    *previous* run's server over the previous run's directories, and what you get is
+    dozens of failures about accounts and shelves with nothing anywhere saying "port".
+    Two suites at once does the same thing. Both cost an afternoon to recognise once.
+
+    Binding to port 0 asks the kernel for one nothing is using and hands it back. There
+    is a gap between closing this socket and the server opening its own, so this is not
+    a guarantee — but it is a race against the rest of the machine rather than a
+    certainty of colliding with ourselves.
+
+    A factory rather than a port: a session fixture handing out one number would give
+    every server the same one, which is the bug it is here to fix.
+    """
+
+    def pick() -> int:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
+
+    return pick
+
+
+@pytest.fixture(autouse=True)
+def isolated_weekly(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """No test sees a real issue of the weekly.
+
+    Its root falls back to `./targum-out/weekly`, and the suite runs in a working tree
+    that has a `targum-out` in it — so without this a developer's own published issues
+    would turn up inside `catalogue.everything()` and the library tests would pass or
+    fail depending on what was on that laptop. The read is cached on the file's mtime,
+    so that is cleared too: two tests can otherwise write different issues to the same
+    path inside one clock tick.
+    """
+    from targum.weekly import index
+
+    monkeypatch.setenv("TARGUM_WEEKLY_DIR", str(tmp_path_factory.mktemp("weekly")))
+    monkeypatch.setattr(index, "_cached", None)
+    yield
+    index._cached = None
+
+
+@pytest.fixture
+def weekly_root(monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The fixture weekly: two published issues at three levels, and one draft.
+
+    Checked before it is handed over, because this is a directory on disk rather than
+    something built per test, and a missing reader in it is invisible: `readable` drops
+    an edition whose reader is not there, so the catalogue quietly loses that entry and
+    the tests downstream fail on arithmetic that never mentions a file. One edition's
+    reader going missing failed two tests here with `assert None is not None` and no
+    hint of why. This says which file, once, in the fixture that owns it.
+    """
+    from targum.weekly import index
+
+    root = FIXTURES / "weekly"
+    absent = [
+        str(reader.relative_to(root))
+        for reader in sorted(root.glob("weekly-*-he"))
+        if not (reader / "reader" / "index.html").is_file()
+    ]
+    assert not absent, f"the weekly fixture is missing readers: {', '.join(absent)}"
+    monkeypatch.setenv("TARGUM_WEEKLY_DIR", str(root))
+    monkeypatch.setattr(index, "_cached", None)
+    return root
 
 
 @pytest.fixture(autouse=True)

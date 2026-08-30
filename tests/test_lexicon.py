@@ -51,3 +51,34 @@ def test_peel_finds_the_word_under_the_morphology() -> None:
     assert "סגולה" in lexicon.peel("סגולתנו")
     # Nothing is peeled down to a stem too short to mean anything.
     assert all(len(stem) >= 2 for stem in lexicon.peel("ולה"))
+
+
+def test_strengths_keeps_the_two_registers_apart() -> None:
+    """What `strength` collapses, said separately — which is the word card's question.
+
+    A modern word the Tanakh never had, and a biblical word modern Hebrew has let go
+    of. `strength` calls both of them ordinary and cannot say why.
+    """
+    modern, biblical = lexicon.strengths("אוטובוס")
+    assert modern >= 4.0 and biblical == 0.0
+    modern, biblical = lexicon.strengths("חסידיו")
+    assert biblical >= 4.0 and modern < 4.0
+    assert lexicon.strengths("") == (0.0, 0.0)
+
+
+def test_the_two_halves_answer_the_same_questions_apart() -> None:
+    """`strengths` peels because it reads running text; the halves do not.
+
+    The peeling is what lets a lexicon recognise a word in a sentence, and it is exactly
+    what makes it the wrong tool for asking whether the Tanakh had a word: משטרה peels
+    down to שטר, and Deuteronomy has שוטרים, but it does not have a police force.
+    """
+    assert lexicon.strengths("משטרה")[1] >= 4.0, "the generous reading calls it biblical"
+    assert lexicon.biblical_strength("משטרה") is None, "the exact one does not"
+    assert lexicon.modern_strength("משטרה") == lexicon.strengths("משטרה")[0]
+    assert lexicon.modern_strength("") == 0.0
+
+
+def test_strength_is_still_the_better_of_the_two() -> None:
+    for word in ("ממשלה", "חסידיו", "ברקוביץהקדמה", ""):
+        assert lexicon.strength(word) == max(lexicon.strengths(word))

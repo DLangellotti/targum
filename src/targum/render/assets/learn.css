@@ -348,3 +348,44 @@ body.learn .nothing .hint {
 .back a:hover {
   color: var(--ink);
 }
+
+/* The week's issue, above the doors.
+
+   A masthead, not a card. Three boxes the size of the two below would turn the page you
+   land on into a menu, and the weekly is not a third choice — it is a thing that is new
+   on a Monday. So type and a hairline: no raised layer, and no accent, which §9 keeps
+   for the one primary action here and that is Continue Reading. */
+.weekly-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding-block-end: 0.6rem;
+  border-block-end: 1px solid var(--rule);
+  font-size: 0.9375rem;
+}
+.weekly-line[hidden] {
+  display: none;
+}
+.weekly-line a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--ink);
+  font-family: var(--reading);
+  text-decoration: none;
+}
+.weekly-line a:hover {
+  text-decoration: underline;
+}
+.weekly-line .at,
+.weekly-line .when {
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+}
+/* Read already: still there, and no longer asking. */
+.weekly-line.done a {
+  color: var(--ink-soft);
+}

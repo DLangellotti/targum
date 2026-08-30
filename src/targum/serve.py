@@ -36,9 +36,24 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style, glossary_path
+from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
-from .render.builder import about_page, holding_page, shelf_page, signin_page, text_page
+from .render.builder import (
+    LEGAL,
+    about_page,
+    holding_page,
+    legal_is_public,
+    legal_page,
+    shelf_page,
+    signin_page,
+    text_page,
+    weekly_note,
+    weekly_page,
+)
+from .weekly import index as weekly_index
+from .weekly.models import Issue as WeeklyIssue
+from .weekly.models import Level as WeeklyLevel
+from .weekly.models import parse_identifier as parse_weekly_id
 
 MAX_UPLOAD = 32 * 1024 * 1024
 
@@ -108,6 +123,12 @@ TRASHED = "trashed"
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
+    # The Hebrew faces ride inside the page as data: URIs, the same way the icons do,
+    # and `default-src 'none'` covers fonts unless they are named. Without this line the
+    # font is refused by policy, `document.fonts` reports it as an error, and every
+    # accented letter is borrowed from whatever face the machine has — which was invisible
+    # for as long as readers were checked by opening the file, where no policy applies.
+    "font-src data:; "
     "connect-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
@@ -141,9 +162,20 @@ MONTH_BUDGET = 10.00
 # opposite is true: there is one person, they are the only one who can reach it, and
 # making them make an account to read their own files would be absurd. So it is a
 # switch, off by default, and the hosted deployment is what turns it on.
+#: The privacy notice, the terms, the retention schedule and the erasure procedure.
+#: Derived from the documents themselves rather than typed again here, so the routes,
+#: robots and the sitemap cannot disagree about which four exist.
+#:
+#: Shut for the alpha behind `legal_is_public()`. They are dispatched before
+#: `_needs_account` so that shut means 404 rather than the holding page — a legal page
+#: that answers with "Coming soon" is worse than one that answers with nothing, because
+#: it looks like it is there. They stay in `OPEN_TO_STRANGERS` for when the switch is
+#: thrown: reaching them has never needed an account and never will.
+LEGAL_ROUTES = tuple(f"/{name}" for name in LEGAL)
+
 OPEN_TO_STRANGERS = frozenset(
     {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
-)
+) | frozenset(LEGAL_ROUTES)
 
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
 # nothing is open to strangers until there is something worth arriving at and a
@@ -154,6 +186,56 @@ OPEN_TO_STRANGERS = frozenset(
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
 PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
+
+
+#: Which level `/weekly` and `/weekly/<week>` land on. The middle one, because it is
+#: the one most readers can read and the other two are one click either side of it.
+DEFAULT_LEVEL = WeeklyLevel.bet
+
+
+def weekly_url(entry_id: str) -> str | None:
+    """The address an edition would rather be found at, or None if this is not one.
+
+    Only for a *published* edition: a catalogue id that names a draft is not a thing to
+    redirect to, because there is nothing at the other end.
+    """
+    if not entry_id.startswith("weekly-"):
+        return None
+    parsed = parse_weekly_id(entry_id.removeprefix("weekly-"))
+    if parsed is None:
+        return None
+    week, level = parsed
+    issue = next((one for one in weekly_index.readable() if one.id == week), None)
+    if issue is None or issue.edition(level) is None:
+        return None
+    return f"/weekly/{week}/{level.value}"
+
+
+#: The three the weekly's own door answers, all of them plain forms so they work with
+#: no JavaScript at all — which matters because two of them are followed out of an email
+#: client, where JavaScript is not a thing that exists.
+WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"})
+
+#: A file inside a published edition's built reader.
+#:
+#: The path mirrors the folder on disk — `<edition>/reader/<file>` — so the level
+#: switcher's relative hrefs resolve the same way served as they do off a disk. A reader
+#: that travels is the promise this product makes, and two link shapes for one file is
+#: how a promise like that quietly stops being true.
+#:
+#: The names are deliberately narrow: a reader writes `index.html` and `sec-0001.html`
+#: and nothing else, so a path carrying a slash or a dot-dot never reaches the
+#: filesystem check at all.
+WEEKLY_READER = re.compile(r"^/weekly/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
+
+#: How often one address may ask to be subscribed. The `asked` table and its rail are
+#: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
+#: to send mail from this domain into somebody else's inbox.
+SUBSCRIBE_ASKS_PER_HOUR = 3
+
+#: A cap on how many unconfirmed rows may sit there at once, so the address rail cannot
+#: be walked around by using a different address every time.
+MAX_PENDING = 500
 
 
 def shelves_are_public() -> bool:
@@ -390,6 +472,15 @@ class Library:
         # request — nothing routed through `within(home, …)` can reach it, so a shared
         # text cannot be bought, trashed or rebuilt by whoever is reading it.
         self.shared = out / "shared"
+        # Where published issues of the weekly land. A third read-only home, owned by
+        # nobody, written only by `targum weekly publish` and never by a request.
+        self.weekly = out / "weekly"
+        # Where the weekly's loader should look, since nothing but this process knows
+        # where a given box keeps its readers and the fallback is the working directory,
+        # which on a box is `/`. `setdefault`, not assignment: a caller who named one
+        # meant it, and overwriting theirs is how two servers in one process end up
+        # reading each other's issues.
+        os.environ.setdefault("TARGUM_WEEKLY_DIR", str(self.weekly))
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
@@ -954,7 +1045,7 @@ class Library:
         )
         return {
             "kind": kind,
-            "register": "biblical" if source.startswith("sefaria:") else "modern",
+            "register": "biblical" if is_biblical(source) else "modern",
             "difficulty": difficulty,
             "minutes": max(1, round(words / 130)),
             "entry": "",
@@ -974,6 +1065,7 @@ class Library:
             if bool(when) != trashed:
                 continue
             title = folder.name
+            author = ""
             language = ""
             content_hash = ""
             source = ""
@@ -985,6 +1077,10 @@ class Library:
                 try:
                     data = json.loads(document.read_text(encoding="utf-8"))
                     title = data.get("title") or title
+                    # Who wrote it, which for the weekly is how it was made. It rides on
+                    # the document rather than being looked up per row, so the shelf
+                    # cannot show an issue without also showing that a model compiled it.
+                    author = data.get("author", "")
                     language = data.get("language", "")
                     source = data.get("source", "")
                     words = sum(len(str(b.get("text", "")).split()) for b in data.get("blocks", []))
@@ -997,6 +1093,7 @@ class Library:
                 {
                     "name": folder.name,
                     "title": title,
+                    "author": author,
                     "language": language,
                     # And which languages it can be read *into*. A text built twice is
                     # one text with two translations, and a shelf that said only what
@@ -1119,7 +1216,7 @@ class Library:
         The count is worth returning rather than discarding: it is what lets the page say
         how long they will keep arriving for after the reader opens.
         """
-        from .annotate import Annotator, biblical
+        from .annotate import Annotator, biblical, lemma
         from .annotate.gloss import AnthropicGlosses, estimate, unique_lemmas, unpaid
 
         run = SegmentedDocument(
@@ -1132,7 +1229,10 @@ class Library:
         # covering one chapter, written under the whole document's name, would be reused
         # by the build that follows and leave every other chapter unmarked.
         try:
-            annotation = Annotator(bands=biblical.for_source(builder.source)).annotate(run)
+            annotation = Annotator(
+                lemmatizer=lemma.for_source(builder.source),
+                bands=biblical.for_source(builder.source),
+            ).annotate(run)
         except TargumError:
             # Word help is worth saying goodbye to out loud; it is not worth a card that
             # will not draw. The build itself says so when it gets there.
@@ -1603,8 +1703,15 @@ class Handler(BaseHTTPRequestHandler):
         return self._person() is not None
 
     @staticmethod
-    def _policy(body: bytes) -> str:
-        """The content policy for one page, naming its own inline blocks by hash."""
+    def _policy(body: bytes, frames: str = "") -> str:
+        """The content policy for one page, naming its own inline blocks by hash.
+
+        `frames` is `"in"` for a page that embeds a reader, `"out"` for the reader being
+        embedded. Both are same-origin only: the landing page may frame targum and
+        nothing else, and the reader may be framed by targum and nobody else. The
+        clickjacking guard that `frame-ancestors 'none'` gives every other page is kept
+        exactly — `'self'` is not `'*'`.
+        """
         import base64
         import hashlib
 
@@ -1613,7 +1720,12 @@ class Handler(BaseHTTPRequestHandler):
             digested = base64.b64encode(hashlib.sha256(block).digest()).decode("ascii")
             hashes.append(f"'sha256-{digested}'")
         allowed = " ".join(dict.fromkeys(hashes))
-        return f"{POLICY}; script-src {allowed}; style-src {allowed}"
+        policy = POLICY
+        if frames == "out":
+            policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+        elif frames == "in":
+            policy = policy + "; frame-src 'self'"
+        return f"{policy}; script-src {allowed}; style-src {allowed}"
 
     # A reader page is around 180 kB, most of it the same stylesheet and script every
     # other page carries, and gzip takes it to a third of that. In front of the deployed
@@ -1629,12 +1741,14 @@ class Handler(BaseHTTPRequestHandler):
             and "gzip" in self.headers.get("Accept-Encoding", "")
         )
 
-    def _send(self, status: int, body: bytes, kind: str, cache: str = "no-store") -> None:
+    def _send(
+        self, status: int, body: bytes, kind: str, cache: str = "no-store", frames: str = ""
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed.
-        policy = self._policy(body) if kind.startswith("text/html") else None
+        policy = self._policy(body, frames) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
             body = gzip.compress(body, 6)
@@ -1663,6 +1777,19 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
 
+    def _moved(self, where: str) -> None:
+        """Permanently, for an address that has a better name now.
+
+        A link that exists should not die: an edition of the weekly answers under its
+        catalogue id too, because it is a catalogue entry, and that address is the one
+        somebody may already have written down.
+        """
+        self.send_response(301)
+        self.send_header("Location", where)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     @staticmethod
     def _session_cookie(token: str, days: int) -> str:
         # HttpOnly so a script on the page cannot read it, SameSite=Lax so another site
@@ -1673,6 +1800,196 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     # -- routes -------------------------------------------------------------
+
+    def _serve_weekly(self, route: str) -> None:
+        """The weekly, at three addresses.
+
+            /weekly                  the newest issue, at the middle level
+            /weekly/<week>           sent on to that issue's middle level
+            /weekly/<week>/<level>   one edition, canonical to itself
+
+        Self-canonical rather than pointing every level at one page, because the three
+        are genuinely different Hebrew rather than near-duplicates. Answered before
+        `_needs_account` is consulted: a variable path cannot be named in the exact-match
+        `OPEN_TO_STRANGERS`, so the only way to make it public is to return first.
+        """
+        from .weekly import index as weekly
+        from .weekly.models import Level
+
+        rest = route.removeprefix("/weekly").strip("/")
+
+        # The two doors that arrive from an email. Both are a page with a button rather
+        # than a link that acts: a mail client that fetches every link in a message
+        # would otherwise answer for the person it was sent to, which is the same reason
+        # `/account/enter` stopped being a bare GET.
+        if rest in {"confirm", "stop"}:
+            store = self.library.store
+            token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            if store is None:
+                return self._send(404, b"not found", "text/plain")
+            if rest == "confirm":
+                waiting = store.peek_subscription(token)
+                if waiting is None:
+                    return self._send(
+                        200,
+                        weekly_note(
+                            "That link has been used, or it has expired.",
+                            address=self.address,
+                            done=False,
+                        ).encode("utf-8"),
+                        HTML,
+                    )
+                message = f"Send the weekly to {waiting} on Mondays?"
+                button = "Yes, send it"
+            else:
+                message = "Stop sending you the weekly?"
+                button = "Yes, stop"
+            page = weekly_note(
+                message,
+                address=self.address,
+                pending={"action": f"/weekly/{rest}", "token": token, "button": button},
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+
+        # The reader itself, for anybody at all. A published issue is already public at
+        # its own address, and the built reader is a self-contained file that fetches
+        # nothing — its meanings, its vowel points and its word list are all baked in —
+        # so serving it to a stranger hands over exactly what the prose page already
+        # hands over, and the whole of what makes this worth signing up for.
+        #
+        # A route of its own rather than opening `/reader/`, which reaches a person's
+        # own home and the shared one. Those must never answer without an account, and
+        # the surest way to keep that true is not to touch the branch that serves them.
+        reading = WEEKLY_READER.match(route)
+        if reading is not None:
+            return self._serve_weekly_reader(reading.group(1), reading.group(2))
+
+        # Readable, not merely published: an issue whose reader never arrived is one
+        # nobody can open, and offering it is offering a 404.
+        published = weekly.readable()
+        if not rest:
+            # The newest issue somebody can actually read, at a level that is actually
+            # there. An index says an issue is published; the built reader is what makes
+            # it readable, and the two can disagree — a half-finished copy to the box, a
+            # publish that ran before a build. Sending a visitor to a page whose reader
+            # 404s is worse than sending them to the issue before it.
+            newest = published[0] if published else None
+            if newest is None:
+                return self._send(404, b"not found", "text/plain")
+            return self._go(f"/weekly/{newest.id}/{self._opens_at(newest).value}")
+
+        week, _, wanted = rest.partition("/")
+        issue = next((one for one in published if one.id == week), None)
+        if issue is None:
+            # A draft is on disk and is not published, which from out here is the same
+            # thing as not existing. Saying "not yet" would be telling a stranger what
+            # is coming.
+            return self._send(404, b"not found", "text/plain")
+        if not wanted:
+            return self._go(f"/weekly/{issue.id}/{self._opens_at(issue).value}")
+        if wanted not in set(Level) or issue.edition(Level(wanted)) is None:
+            return self._send(404, b"not found", "text/plain")
+
+        page = weekly_page(issue, Level(wanted), address=self.address, archive=published)
+        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+
+    def _weekly_said(self, message: str, done: bool = True) -> None:
+        """One sentence, on the weekly page's own furniture.
+
+        Says the same thing whatever state the address is in — subscribed already,
+        never seen, or stopped — for the reason `start_sign_in` does: an endpoint that
+        answered differently would be a way to ask whether somebody is a reader here.
+        """
+        page = weekly_note(message, address=self.address, done=done)
+        return self._send(200 if done else 429, page.encode("utf-8"), HTML)
+
+    def _weekly_post(self, route: str, form: dict[str, str]) -> None:
+        store = self.library.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+
+        if route == "/weekly/subscribe":
+            address = (form.get("email") or "").strip()
+            if not plausible(address):
+                return self._weekly_said("That does not look like an email address.", done=False)
+            if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
+                return self._weekly_said("You have asked a few times. Try again in an hour.", False)
+            token = store.subscribe(address)
+            # `can_mail` asks about a build's owner; a subscriber has none, so the two
+            # halves it actually needs are checked here instead.
+            postable = self.library.mailer is not None and bool(self.address)
+            if token is not None and postable:
+                where = f"{self.address.rstrip('/')}/weekly/confirm?t={token}"
+                with contextlib.suppress(Exception):
+                    self.library.mailer.notify(  # type: ignore[union-attr]
+                        address,
+                        "Confirm the targum weekly",
+                        f"Press the button on this page and the weekly starts arriving "
+                        f"on Mondays:\n\n{where}\n\n"
+                        f"If you did not ask for it, nothing has happened and you can "
+                        f"ignore this.\n",
+                    )
+            # The same sentence either way, including when the address is already on.
+            return self._weekly_said("Check your email, and press the button in it.")
+
+        if route == "/weekly/confirm":
+            found = store.confirm_subscription(form.get("t", ""))
+            if found is None:
+                return self._weekly_said("That link has been used, or it has expired.", False)
+            return self._weekly_said("You will get the weekly on Mondays.")
+
+        if route == "/weekly/stop":
+            store.stop_subscription(form.get("t", ""))
+            # Nothing is said about whether the token was one: an unsubscribe endpoint
+            # that reported back would answer whether an address is on the list.
+            return self._weekly_said("You will not get the weekly again.")
+
+        return self._send(404, b"not found", "text/plain")
+
+    def _weekly_follow(self, payload: dict[str, Any]) -> None:
+        """The signed-in door. Reads the session's address and never the payload's."""
+        person = self._person()
+        store = self.library.store
+        if person is None or store is None:
+            return self._json({"error": "Sign in first."}, 401)
+        wanted = bool(payload.get("on", True))
+        store.follow(person.email, wanted)
+        return self._json({"following": store.following(person.email)})
+
+    @staticmethod
+    def _opens_at(issue: WeeklyIssue) -> WeeklyLevel:
+        """Which level to open an issue at: the usual one where it is there, otherwise
+        whichever is.
+
+        Only ever called with an issue from `weekly.readable`, whose editions are the
+        ones with a reader on disk — so there is always one, and the caller never has to
+        wonder what an issue nobody can open would redirect to.
+        """
+        if issue.edition(DEFAULT_LEVEL) is not None:
+            return DEFAULT_LEVEL
+        return issue.editions[0].level
+
+    def _serve_weekly_reader(self, edition: str, name: str | None) -> None:
+        """One file out of a published edition's built reader, and nothing else.
+
+        Two gates, each on its own: the folder has to belong to an edition of a
+        *published* issue, and the file has to resolve inside that folder's reader
+        directory. The second is what makes a name carrying a dot-dot a 404 rather than
+        a way out of the weekly.
+        """
+        from .weekly import index as weekly
+
+        known = {one.folder for issue in weekly.readable() for one in issue.editions}
+        if edition not in known:
+            return self._send(404, b"not found", "text/plain")
+
+        root = (weekly.root() / edition / "reader").resolve()
+        target = (root / (name or "index.html")).resolve()
+        if not target.is_file() or root not in target.parents:
+            return self._send(404, b"not found", "text/plain")
+        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+        # Framed by the issue's own page and by nothing else on the web.
+        return self._send(200, target.read_bytes(), kind, frames="out")
 
     def _robots(self) -> str:
         """What a crawler may have.
@@ -1690,6 +2007,8 @@ class Handler(BaseHTTPRequestHandler):
             "Allow: /$",
             "Allow: /about",
             "Allow: /library",
+            "Allow: /weekly",
+            *(f"Allow: {route}" for route in LEGAL_ROUTES if legal_is_public()),
             "Disallow: /account/",
             "Disallow: /reader/",
             "Disallow: /readers",
@@ -1713,7 +2032,19 @@ class Handler(BaseHTTPRequestHandler):
 
         where = self.address or ""
         paths = ["/", "/about", "/library"]
+        if legal_is_public():
+            paths += list(LEGAL_ROUTES)
         paths += [f"/library/{entry.id}" for entry in catalogue_module.CATALOGUE]
+        # The weekly by its own addresses rather than its catalogue ids, which redirect.
+        from .weekly import index as weekly
+
+        published = weekly.readable()
+        paths += ["/weekly"] if published else []
+        paths += [
+            f"/weekly/{issue.id}/{edition.level.value}"
+            for issue in published
+            for edition in issue.editions
+        ]
         urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
         return (
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -1785,13 +2116,30 @@ class Handler(BaseHTTPRequestHandler):
             if not shelves_are_public():
                 return self._send(404, b"not found", "text/plain")
             return self._send(200, self._sitemap().encode("utf-8"), "application/xml")
+        # The four legal documents, and the switch that keeps them shut until beta.
+        # Ahead of `_needs_account` on purpose: shut has to be 404 for everybody, signed
+        # in or out, rather than the holding page a stranger would otherwise be handed.
+        if route in LEGAL_ROUTES:
+            if not legal_is_public():
+                return self._send(404, b"not found", "text/plain")
+            page = legal_page(route.lstrip("/"), self.address)
+            return self._send(200, page.encode("utf-8"), HTML)
         # A text's own page. It carries a sample rather than the whole text, so there is
         # nothing here to protect — but it stays shut with the rest until the catalogue
         # is opened, because a shop window onto an empty shop is not worth having.
+        if shelves_are_public() and (route == "/weekly" or route.startswith("/weekly/")):
+            return self._serve_weekly(route)
+
         naming = PUBLIC_TEXT.match(route) if shelves_are_public() else None
         if naming is not None:
             from . import catalogue as catalogue_module
 
+            # An edition is a catalogue entry, so it answers here too — but it has a
+            # better address of its own, and two URLs for one page is a duplicate a
+            # search engine has to guess between.
+            weekly_at = weekly_url(naming.group(1))
+            if weekly_at is not None:
+                return self._moved(weekly_at)
             entry = catalogue_module.by_id(naming.group(1))
             if entry is None:
                 return self._send(404, b"not found", "text/plain")
@@ -1926,6 +2274,12 @@ class Handler(BaseHTTPRequestHandler):
         # to an address the asker typed themselves.
         if route == "/account/enter":
             return self._enter(self._form().get("t", ""))
+        # Subscribing to the weekly, confirming it, and stopping it. Public by
+        # necessity: somebody who reads an issue signed out has no account and is not
+        # going to open one to be told when the next is out. Plain forms, before the
+        # account check and before the start-up key, exactly as the door above is.
+        if route in WEEKLY_POSTS and shelves_are_public():
+            return self._weekly_post(route, self._form())
         if self._needs_account(route):
             return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
         if route != "/account/sign-in" and not self._authorised():
@@ -1943,6 +2297,11 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._json({"error": "bad request"}, 400)
 
+        if route == "/weekly/follow":
+            # Takes no address at all: it reads the session's own. With nothing to
+            # supply there is no way to sign somebody else's inbox up and nothing to
+            # validate, which is a shorter argument than any amount of checking.
+            return self._weekly_follow(payload)
         if route == "/prepare":
             return self._prepare(payload)
         if route == "/build":
@@ -2551,11 +2910,17 @@ class Handler(BaseHTTPRequestHandler):
     def _serve_reader(self, relative: str) -> None:
         """This person's readers, and the shared ones — never another person's.
 
-        Two roots, each guarded on its own: the file has to resolve to *inside* the
-        root it was looked for under. The shared home is a second allowed root, not a
-        relaxation of the first, and the person's own wins where a name is in both.
+        Three roots, each guarded on its own: the file has to resolve to *inside* the
+        root it was looked for under. The shared home and the weekly are further allowed
+        roots, not a relaxation of the first, and the person's own wins where a name is
+        in more than one.
         """
-        for root in (self._home().resolve(), self.library.shared.resolve()):
+        roots = (
+            self._home().resolve(),
+            self.library.shared.resolve(),
+            self.library.weekly.resolve(),
+        )
+        for root in roots:
             target = (root / unquote(relative)).resolve()
             if target.is_file() and root in target.parents:
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"

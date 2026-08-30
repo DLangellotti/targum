@@ -6,8 +6,10 @@ from typing import Protocol
 
 from ...errors import UnsupportedSource
 from ...models import Document
+from .dialogue import DialogueFetcher
 from .gutenberg import GutenbergFetcher
 from .sefaria import SefariaFetcher
+from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
 __all__ = ["FETCHERS", "Fetcher", "is_identifier", "load"]
@@ -22,9 +24,11 @@ class Fetcher(Protocol):
 
 
 FETCHERS: dict[str, Fetcher] = {
+    "dialogue": DialogueFetcher(),
     "gutenberg": GutenbergFetcher(),
     "sefaria": SefariaFetcher(),
     "wikisource": WikisourceFetcher(),
+    "weekly": WeeklyFetcher(),
 }
 
 

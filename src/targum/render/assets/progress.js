@@ -425,79 +425,16 @@
 
   /* --- how far into Hebrew ---------------------------------------------------
    *
-   * Ulpan levels are a real ladder with real names, which is why they are worth saying
-   * at all — but what is behind them here is a reader's own marked words, not a
-   * placement test, and the card says so. `annotate/base.py` refuses to call band 3 "B1"
-   * for exactly this reason; this is the same caution, kept where a reader can see it.
+   * The ladder itself — the rungs, the band weighting, and what a reader's marked words
+   * add up to — moved into the chart kit, because Learn needs it too: it opens the
+   * weekly at the reader's own rung, and a second copy of a weighting is two pages
+   * disagreeing about the same person. `charts.ULPAN`, `charts.reach`,
+   * `charts.standingIn`.
    */
 
-  // Rarer words count for more, because a word further out is evidence of the commoner
-  // ones behind it. The bands are Zipf cuts and each step out covers several times more
-  // of the language than the one before — these weights rise far more slowly than that,
-  // deliberately. A reader who has marked a handful of rare words out of a hard text has
-  // not thereby reached gimel, and a scale that said so would be flattering them.
-  // Centred near one rather than rising from it, so the total stays readable as a
-  // vocabulary size and can be compared with the rungs below. Weighted upward from one
-  // instead, a mixed six thousand words scored near twelve and came out at hey, which is
-  // most of the way to reading a newspaper unaided.
-  var BAND_WEIGHT = {
-    easy: 0.8,
-    "fairly easy": 1,
-    moderate: 1.3,
-    hard: 1.7,
-    "very hard": 2.2,
-    "extremely hard": 2.8,
-  };
-  // A word from a language with no frequency data behind it. Counted at its face value,
-  // not guessed at.
-  var UNRATED_WEIGHT = 1;
-
-  // The ladder, with the vocabulary each rung is usually reckoned to want. Estimates,
-  // and round on purpose: the figures behind ulpan levels vary between ulpanim, and
-  // false precision here would be a claim nobody can support.
-  var ULPAN = [
-    { at: 250, letter: "א", name: "aleph" },
-    { at: 900, letter: "א+", name: "aleph plus" },
-    { at: 1800, letter: "ב", name: "bet" },
-    { at: 3000, letter: "ב+", name: "bet plus" },
-    { at: 4500, letter: "ג", name: "gimel" },
-    { at: 6500, letter: "ד", name: "dalet" },
-    { at: 9000, letter: "ה", name: "hey" },
-    { at: 12000, letter: "ו", name: "vav" },
-  ];
-
-  /** The known words, weighted by how common each is. */
-  function reach(words) {
-    var total = 0;
-    var counted = 0;
-    // Names and numbers are not on the ladder. Rare by corpus frequency, a known name
-    // would otherwise weigh as much as three everyday words.
-    charts.vocabulary(words).forEach(function (word) {
-      if (word.status !== KNOWN) return;
-      counted += 1;
-      total += Object.prototype.hasOwnProperty.call(BAND_WEIGHT, word.band)
-        ? BAND_WEIGHT[word.band]
-        : UNRATED_WEIGHT;
-    });
-    return { weighted: total, words: counted };
-  }
-
-  /** Which rung that reaches, and the one after it. */
-  function standingIn(weighted) {
-    var here = null;
-    var next = null;
-    ULPAN.forEach(function (rung) {
-      if (weighted >= rung.at) here = rung;
-      else if (next === null) next = rung;
-    });
-    return { here: here, next: next };
-  }
-
-  // Into the ledger's standing line rather than a panel of its own: this is what the
-  // block at the top of the page is about, and it was being said twice otherwise.
   function drawLevel(host, words) {
-    var got = reach(words);
-    var found = standingIn(got.weighted);
+    var got = charts.reach(words);
+    var found = charts.standingIn(got.weighted);
 
     // The rung takes the celebration chip §9 allows one of per screen. Hebrew and Latin
     // at the same size inside it, because §3 does not let Hebrew be the small half.

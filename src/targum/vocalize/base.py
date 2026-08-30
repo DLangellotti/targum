@@ -29,6 +29,16 @@ MARKS = frozenset(cp for cp in range(0x0591, 0x05C8) if unicodedata.category(chr
 # Alef through tav, final forms included.
 LETTERS = frozenset(range(0x05D0, 0x05EB))
 
+# The te'amim, U+0591-U+05AF: the chanting marks a Masoretic edition carries above and
+# below its vowels, and the one part of the pointing a reader may reasonably want out of
+# the way. Derived from Unicode the same way MARKS is, and a strict subset of it.
+#
+# Meteg is deliberately not in here. U+05BD is meteg and silluq both — Unicode gives the
+# two one codepoint — so no rule can tell them apart, and a rule that guessed would delete
+# the meteg that separates a qamats gadol from a qamats qatan. That deletion is the bug
+# this whole feature exists to undo, so the ambiguous mark stays on the vowels' side.
+TAAMIM = frozenset(cp for cp in range(0x0591, 0x05B0) if unicodedata.category(chr(cp)) == "Mn")
+
 
 def strip_nikkud(text: str) -> tuple[str, list[int]]:
     """The bare text, and where each index in `text` lands in it.
@@ -44,6 +54,16 @@ def strip_nikkud(text: str) -> tuple[str, list[int]]:
             bare.append(char)
     index.append(len(bare))
     return "".join(bare), index
+
+
+def strip_taamim(text: str) -> str:
+    """The text with its chanting marks gone and every vowel where it was.
+
+    No index map, unlike `strip_nikkud`: nothing is ever measured against this form.
+    Offsets live in the bare text, and the reader maps onto whichever form it is showing
+    from that form's own characters.
+    """
+    return "".join(char for char in text if ord(char) not in TAAMIM)
 
 
 def pointed_positions(text: str) -> list[int]:
@@ -65,6 +85,10 @@ def map_span(start: int, end: int, index: list[int]) -> tuple[int, int]:
 
 def has_nikkud(text: str) -> bool:
     return any(ord(char) in MARKS for char in text)
+
+
+def has_taamim(text: str) -> bool:
+    return any(ord(char) in TAAMIM for char in text)
 
 
 def _units(text: str) -> list[tuple[str, str]]:

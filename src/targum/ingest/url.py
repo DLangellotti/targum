@@ -85,6 +85,11 @@ class Fetched:
 
     text: str
     content_type: str
+    #: The undecoded body. An XML document declares its own encoding in its prolog, and
+    #: a Hebrew feed served as windows-1255 without saying so in a header would come out
+    #: of `text` as mojibake — decoded here as UTF-8 because that is all the header said.
+    #: A parser given the bytes honours the declaration instead.
+    raw: bytes = b""
 
     @property
     def is_html(self) -> bool:
@@ -132,6 +137,7 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
                     return Fetched(
                         body.decode(response.charset_encoding or "utf-8", errors="replace"),
                         response.headers.get("Content-Type", ""),
+                        bytes(body),
                     )
             except TargumError:
                 raise

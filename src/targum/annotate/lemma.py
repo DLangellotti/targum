@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from ..errors import TargumError
-from ..models import Segment, Token
+from ..models import Segment, Token, is_biblical
 from ..paths import model_dir
 from ..segment.stanza_segmenter import download, has_processors, stanza_code
 from .hebrew import binyan_of, root_of
@@ -31,6 +31,27 @@ PROCESSORS = "tokenize,pos,lemma"
 # a file written before a feature existed and redo it. Redoing one is free: Stanza runs
 # on the machine, so nothing is fetched and nothing is spent.
 FEATURES = "roots+everyword+names"
+
+# Stanza's Hebrew tokenizer comes in two builds, one with a character language model
+# trained on the modern web behind it and one without, and the tokenizer is where a
+# clitic is or is not split off: the lemmatizer only ever sees what it is handed. Stanza's
+# default is the one without, and on common modern verbs it hands over the whole string
+# — שרוצים, שיעשה, שראה, שלקח — which the lemmatizer then reads as a word that does not
+# exist and returns as one that does. שרוצים came back as שרץ, and a line of dialogue was
+# banded hard, given the root of "to swarm", and told it was quoting Leviticus. The build
+# with the character model splits every one of those. It is not right everywhere — it
+# takes הֶרְגֵּל for the foot and שָׁמוּר for myrrh — but over eighteen thousand words of
+# modern prose the two disagreed on one token in thirty-five, and read by hand
+# (2026-08-30, 131 of them) the character model was right three times for every one it
+# was wrong.
+#
+# Scripture keeps the default, on purpose. The character model is modern, and on the
+# Tanakh it misses ו on the verbs — ואשר, וראה, ורעה stay whole — where the default does
+# not; and `biblical.py`'s table was counted with the default, so a lemma the table was
+# built without would band as unknown. Each register is read with the tokenizer it does
+# better with, and the name says which, so only the texts whose reading changed are read
+# again.
+MODERN_TOKENIZERS = {"he": "combined_charlm"}
 
 # Not a word at all. Everything else is a token the reader can tap, names and numerals
 # included: this set used to hold NUM, PROPN and X as "not vocabulary", and dropping
@@ -57,8 +78,11 @@ def _installed_version() -> str:
 
 
 class StanzaLemmatizer:
-    def __init__(self, *, auto_download: bool = True) -> None:
+    def __init__(self, *, auto_download: bool = True, scripture: bool = False) -> None:
         self.auto_download = auto_download
+        # Read with Stanza's default tokenizer, the one the Tanakh table was counted
+        # with. Everything else gets `MODERN_TOKENIZERS`.
+        self.scripture = scripture
         self._pipelines: dict[str, Any] = {}
         self._version: str | None = None
 
@@ -70,8 +94,20 @@ class StanzaLemmatizer:
         module, because the name is read to decide whether an existing annotation can
         be reused — and importing Stanza to answer that would pay most of the cost the
         reuse is there to avoid.
+
+        The scripture name is the one every annotation carried before the tokenizer
+        was chosen by register, because scripture is read exactly as it was: no Tanakh
+        is redone for a change that would read it the same.
         """
-        return f"stanza/{self._version or _installed_version()}/{PROCESSORS}+{FEATURES}"
+        base = f"stanza/{self._version or _installed_version()}/{PROCESSORS}+{FEATURES}"
+        return base if self.scripture else f"{base}+charlm"
+
+    def packages(self, language: str) -> dict[str, str]:
+        """The builds asked for by name, beside Stanza's defaults for the rest."""
+        code = stanza_code(language)
+        if self.scripture or code not in MODERN_TOKENIZERS:
+            return {}
+        return {"tokenize": MODERN_TOKENIZERS[code]}
 
     def pipeline(self, language: str) -> Any:
         code = stanza_code(language)
@@ -89,14 +125,16 @@ class StanzaLemmatizer:
             )
 
         # The lemma and part-of-speech models are extra files beside the tokenizer, so
-        # a language fetched for segmentation alone is still missing them.
-        if not has_processors(code, PROCESSORS):
+        # a language fetched for segmentation alone is still missing them — and so is
+        # one fetched with the default tokenizer when a named build is wanted.
+        packages = self.packages(code)
+        if not has_processors(code, PROCESSORS, packages):
             if not self.auto_download:
                 raise TargumError(
                     f"The {code} lemmatizer is not downloaded.",
                     f"targum models fetch {code}",
                 )
-            download(code, processors=PROCESSORS)
+            download(code, processors=PROCESSORS, packages=packages)
 
         logging.getLogger("stanza").setLevel(logging.ERROR)
         try:
@@ -104,6 +142,7 @@ class StanzaLemmatizer:
                 self._pipelines[code] = stanza.Pipeline(
                     lang=code,
                     processors=PROCESSORS,
+                    package=packages,
                     dir=str(model_dir()),
                     download_method=None,
                     verbose=False,
@@ -124,6 +163,16 @@ class StanzaLemmatizer:
             segment.id: _tokens(document)
             for segment, document in zip(segments, documents, strict=True)
         }
+
+
+def for_source(source: object, *, auto_download: bool = True) -> StanzaLemmatizer:
+    """The lemmatizer for a text, by where the text came from.
+
+    The Tanakh is read with the tokenizer its band table was counted with; everything
+    else with the one that reads modern Hebrew. Decided from the source rather than by
+    guessing at the content, for the reason `biblical.for_source` gives.
+    """
+    return StanzaLemmatizer(auto_download=auto_download, scripture=is_biblical(source))
 
 
 def _tokens(document: Any) -> list[Token]:

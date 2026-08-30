@@ -31,12 +31,25 @@ def direction_for(language: str) -> str:
     return "rtl" if language.split("-")[0].lower() in RTL_LANGUAGES else "ltr"
 
 
+# The one shelf targum serves from a pinned, published, Masoretic edition. Scripture gets
+# rules the rest of the library does not: verses are never re-split, never machine-pointed,
+# and paired by their numbering rather than matched. Asked in four places, so it is written
+# once — four hand-copied prefix tests is how the fifth comes to disagree with the others.
+def is_biblical(source: object) -> bool:
+    return str(source or "").startswith("sefaria:")
+
+
 class BlockKind(StrEnum):
     heading = "heading"
     byline = "byline"
     paragraph = "paragraph"
     verse = "verse"
     blockquote = "blockquote"
+    #: One person's line in a dialogue. Its own kind rather than a paragraph because a
+    #: reader shows it differently — who is speaking sits beside it — and because the
+    #: speaker must not be words inside the text, where the diacritizer would point it,
+    #: the lemmatizer would count it as vocabulary and a voice would read it aloud.
+    turn = "turn"
 
 
 class Style(StrEnum):
@@ -85,6 +98,15 @@ class Block(Artifact):
     kind: BlockKind = BlockKind.paragraph
     level: int | None = None
     text: str
+    #: Where this block sits in the work that numbers itself — "Ruth 1:1". Set only by a
+    #: source that has such numbering, which today is scripture. It is not decoration and
+    #: it is not the block's id: a recording is aligned to verses, and a verse is the only
+    #: thing a recording and a text both agree on. Left out of `body()` on purpose, so
+    #: giving an existing document its refs costs a re-ingest and not a re-translation.
+    ref: str = ""
+    #: Which side of a dialogue said this, where the block is a turn. Absent everywhere
+    #: else, and optional so every artifact written before dialogues existed still reads.
+    speaker: str | None = None
 
 
 class Document(Artifact):
@@ -125,6 +147,9 @@ class Segment(Artifact):
     kind: BlockKind = BlockKind.paragraph
     level: int | None = None
     text: str
+    #: The block's own ref, carried through. A verse is never split, so a segment of a
+    #: numbered text is a verse and can be addressed as one.
+    ref: str = ""
 
 
 class SegmentedDocument(Artifact):
@@ -164,6 +189,13 @@ class Token(Artifact):
     # done honestly — see annotate/hebrew.py.
     binyan: str | None = None
     root: str | None = None
+    # Which Hebrew this word belongs to, where its two registers disagree: "biblical"
+    # for a word ordinary in the Tanakh and rare today, "modern" for one in use that the
+    # Tanakh never had. None wherever they agree, which is most words. On the lemma's
+    # behalf rather than the occurrence's — see annotate/register.py. Named at length
+    # because a field called `register` shadows the metaclass method of the same name
+    # and pydantic warns about it; everything downstream of here calls it the register.
+    word_register: str | None = None
     # How this occurrence is said, in IPA with the stress marked. On the token rather
     # than on the lemma because the reading is a property of the occurrence: בצל is
     # batsˈal in one sentence and btsˈel in the next, and the lemma cannot say which.

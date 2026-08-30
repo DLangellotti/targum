@@ -417,8 +417,24 @@ def beit_midrash() -> list[Entry]:
     return [entry for entry in CATALOGUE if entry.tags & JEWISH]
 
 
+def everything() -> list[Entry]:
+    """The curated catalogue, plus whatever the box has published this week.
+
+    `CATALOGUE` stays exactly what it is — a list, built once at import, that tests
+    replace wholesale — because making it mutable would make every reader of it racy
+    for the sake of one caller. The weekly is generated content with its own clock and
+    its own file, so it is joined on at the point of asking rather than merged in.
+
+    Imported here rather than at the top so `catalogue` keeps importing nothing from
+    the rest of the package: the weekly reads `Entry` from this module.
+    """
+    from .weekly import entries as weekly_entries
+
+    return [*CATALOGUE, *weekly_entries.entries()]
+
+
 def by_id(entry_id: str) -> Entry | None:
-    for entry in CATALOGUE:
+    for entry in everything():
         if entry.id == entry_id:
             return entry
     return None
@@ -442,7 +458,7 @@ def matching(source: str) -> Entry | None:
     wanted = _key(source)
     if not wanted:
         return None
-    for entry in CATALOGUE:
+    for entry in everything():
         if _key(entry.source) == wanted:
             return entry
         for rendering in entry.translations:

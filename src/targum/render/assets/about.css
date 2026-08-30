@@ -113,3 +113,20 @@ body.about {
 .key .more { margin-inline-start: 0.2rem; }
 
 .log-more { margin: 2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+
+/* The foot the rest of the site carries. This page had none, so nothing on it reached
+   the terms — and the inline-link rule above would have underlined every item in it. */
+.about .foot {
+  max-width: 40rem;
+  margin: 3rem auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.about .foot a {
+  color: var(--ink-soft);
+  border-block-end: none;
+}
+.about .foot a:hover { color: var(--ink); }

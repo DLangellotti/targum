@@ -12,18 +12,29 @@ from targum.vocalize import vocalize_document
 from targum.vocalize.base import (
     LETTERS,
     MARKS,
+    TAAMIM,
     has_nikkud,
+    has_taamim,
     is_fully_pointed,
     map_span,
     pointed_positions,
     splice,
     strip_nikkud,
+    strip_taamim,
 )
 
 # One verse, pointed and bare. Carries a maqaf, which is the character three of the four
 # surveyed diacritizers damage.
 POINTED = "שָׁלוֹם רָב שׁוּבֵךְ, צִפֹּרָה נֶחְמֶדֶת, מֵאַרְצוֹת הַחֹם אֶל־חַלּוֹנִי"
 BARE = "שלום רב שובך, צפרה נחמדת, מארצות החם אל־חלוני"
+
+# Ruth 1:2, from the pinned Masoretic edition. Carries accents, a maqaf, a paseq, and —
+# the reason this text and not another — four metagim, the mark the accent-stripped
+# edition deletes.
+TROPE = (
+    "וְשֵׁ֣ם הָאִ֣ישׁ אֱ‍ֽלִימֶ֡לֶךְ וְשֵׁם֩ אִשְׁתּ֨וֹ נָעֳמִ֜י וְשֵׁ֥ם שְׁנֵֽי־בָנָ֣יו ׀ "
+    "מַחְל֤וֹן וְכִלְיוֹן֙ אֶפְרָתִ֔ים מִבֵּ֥ית לֶ֖חֶם יְהוּדָ֑ה וַיָּב֥וֹאוּ שְׂדֵי־מוֹאָ֖ב וַיִּֽהְיוּ־שָֽׁם׃"
+)
 
 
 class TestMarks:
@@ -36,6 +47,63 @@ class TestMarks:
     def test_vowels_and_dagesh_are_marks(self) -> None:
         for char in ("ָ", "ְ", "ּ", "ׁ", "ׂ", "ֻ", "ׇ"):
             assert ord(char) in MARKS, unicodedata.name(char)
+
+
+class TestTaamim:
+    """The accents, and where the line between them and the vowels is drawn."""
+
+    def test_the_accents_are_marks_but_not_every_mark_is_an_accent(self) -> None:
+        assert TAAMIM < MARKS
+
+    def test_no_vowel_is_an_accent(self) -> None:
+        # Sheva, hataf, hiriq, tsere, segol, patah, qamats, holam, qubuts, dagesh, the
+        # shin and sin dots, and qamats qatan. None of these ever comes off.
+        for char in ("ְ", "ֱ", "ִ", "ֵ", "ֶ", "ַ", "ָ", "ֹ", "ֻ", "ּ", "ׁ", "ׂ", "ׇ"):
+            assert ord(char) not in TAAMIM, unicodedata.name(char)
+
+    def test_meteg_stays_with_the_vowels(self) -> None:
+        """The whole reason this feature exists, held as a rule.
+
+        U+05BD is meteg and silluq both — Unicode gives them one codepoint. Putting it
+        with the accents would delete the meteg that separates a qamats gadol from a
+        qamats qatan, which is exactly the damage the accent-stripped Sefaria edition
+        does and exactly what moving to the accented one undoes.
+        """
+        assert ord("ֽ") in MARKS
+        assert ord("ֽ") not in TAAMIM
+        assert "ֽ" in strip_taamim(TROPE)
+
+    def test_an_accent_is_an_accent(self) -> None:
+        # Munah, pashta, zaqef qatan, etnahta, sof pasuq's silluq excepted above.
+        for char in ("֣", "֙", "֔", "֑", "֡", "֜"):
+            assert ord(char) in TAAMIM, unicodedata.name(char)
+
+    def test_has_taamim_asks_about_accents_only(self) -> None:
+        assert has_taamim(TROPE)
+        assert not has_taamim(POINTED), "a pointed verse with no accents has none"
+        assert not has_taamim(BARE)
+
+
+class TestStripTaamim:
+    def test_the_accents_go_and_the_vowels_stay(self) -> None:
+        vowels = strip_taamim(TROPE)
+        assert not has_taamim(vowels)
+        assert has_nikkud(vowels)
+
+    def test_the_consonants_are_the_same_underneath(self) -> None:
+        """The invariant the reader's offset map rests on: all three forms of a sentence
+        share one skeleton, so one map drawn off any of them lands on the same letters."""
+        assert strip_nikkud(strip_taamim(TROPE))[0] == strip_nikkud(TROPE)[0]
+
+    def test_the_punctuation_of_a_verse_survives(self) -> None:
+        # Maqaf, paseq and sof pasuq are characters of the text and sit outside TAAMIM
+        # for the same reason they sit outside MARKS.
+        for char in ("־", "׀", "׃"):
+            assert char in strip_taamim(TROPE), unicodedata.name(char)
+
+    def test_a_text_with_no_accents_is_returned_as_it_was(self) -> None:
+        assert strip_taamim(POINTED) == POINTED
+        assert strip_taamim(BARE) == BARE
 
 
 class TestStripNikkud:
@@ -227,6 +295,51 @@ def _document(*texts: str) -> SegmentedDocument:
             for i, text in enumerate(texts)
         ],
     )
+
+
+class TestScriptureIsNeverGuessedAt:
+    """The one shelf a diacritizer may not touch, whatever shape the text arrives in.
+
+    Until this existed the refusal was an accident: a Tanakh happens to arrive pointed,
+    so `wants_pointing` never loaded a model. That held only while the edition did. If
+    one ever degraded, Nakdimon would have invented vowels in Genesis and the page would
+    have shown them behind a dotted rule, which a reader has no way to doubt.
+    """
+
+    def test_a_biblical_source_never_reaches_the_engine(self) -> None:
+        engine = FakeEngine()
+        result = vocalize_document(_document(BARE, BARE), engine, source="sefaria:Ruth")
+        assert engine.asked == [], "a diacritizer was asked about scripture"
+        assert result.segments == {}, "a bare verse was pointed"
+        assert result.vocalizer == "source"
+        assert result.model is None
+
+    def test_a_bare_verse_stays_bare_rather_than_failing(self) -> None:
+        """No guess, and no crash either: the verse renders as the edition published it."""
+        result = vocalize_document(_document(POINTED, BARE), FakeEngine(), source="sefaria:Ruth")
+        assert result.segments == {"s0": POINTED}
+        assert result.machine == []
+
+    def test_a_ketiv_keeps_its_bare_word(self) -> None:
+        """`מידע [מוֹדַע]` in Ruth 2:1 is bare on purpose — the one form tradition insists
+        is unvowelled. A model filling it in would print an invention as the text."""
+        ketiv = "וּֽלְנׇעֳמִי֙ מידע לְאִישָׁ֔הּ"
+        result = vocalize_document(_document(ketiv), FakeEngine(), source="sefaria:Ruth")
+        assert result.segments == {"s0": ketiv}
+
+    def test_the_rule_is_not_the_call_site_s_to_keep(self) -> None:
+        """`targum repair` builds an engine of its own, so a guard in the pipeline would
+        be walked straight past. It lives in `vocalize_document`, which both callers use."""
+        engine = FakeEngine()
+        vocalize_document(_document(BARE), engine, source="sefaria:en:Genesis 1-11")
+        assert engine.asked == []
+
+    def test_everything_else_is_still_pointed(self) -> None:
+        """The refusal is narrow. A news article is exactly as it was."""
+        engine = FakeEngine()
+        result = vocalize_document(_document(BARE), engine, source="https://example.com/news")
+        assert engine.asked == ["s0"]
+        assert result.machine == ["s0"]
 
 
 class TestVocalizeDocument:

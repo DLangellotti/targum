@@ -19,7 +19,7 @@ from targum.models import (
     direction_for,
 )
 from targum.render import MAX_SEGMENTS_PER_SECTION, isolate, render, split_sections
-from targum.vocalize import MARKS, strip_nikkud
+from targum.vocalize import MARKS, strip_nikkud, strip_taamim
 
 
 @pytest.mark.parametrize(
@@ -712,6 +712,9 @@ def test_hostile_source_text_cannot_script_the_reader(tmp_path: Path) -> None:
 
 POINTED_TEXT = "אֶל־חַלּוֹנִי"
 BARE_TEXT = "אל־חלוני"
+# Ruth 1:1 as the pinned Masoretic edition writes it: vowels and accents both.
+TROPE_TEXT = "וַיְהִ֗י בִּימֵי֙ שְׁפֹ֣ט הַשֹּׁפְטִ֔ים"
+VOWELS_TEXT = strip_taamim(TROPE_TEXT)
 
 
 def hebrew(index: int, text: str) -> Segment:
@@ -725,10 +728,14 @@ def hebrew(index: int, text: str) -> Segment:
 
 
 def render_with_vocalization(
-    tmp_path: Path, segments: list[Segment], vocalization: Vocalization | None, **kwargs: object
+    tmp_path: Path,
+    segments: list[Segment],
+    vocalization: Vocalization | None,
+    source: str = "m",
+    **kwargs: object,
 ) -> str:
     segmented = make_segmented(segments)
-    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    document = Document(source=source, title="T", language="he", blocks=[], content_hash="h")
     translation = Translation(
         name="English",
         document_hash="h",
@@ -795,9 +802,168 @@ def test_the_pointed_cell_differs_from_the_bare_one_only_by_its_marks(tmp_path: 
         [segment],
         vocalization_for([segment], {segment.id: POINTED_TEXT}, [segment.id]),
     )
-    cells = re.findall(r'class="src (?:plain|pointed)"[^>]*>(.*?)<', html)
+    # Every form, not just the two this text has — so the day a third appears on a page
+    # this reads, it is counted rather than quietly skipped over.
+    cells = re.findall(r'class="src (?:plain|pointed|trope)"[^>]*>(.*?)<', html)
     assert len(cells) == 2
     assert strip_nikkud(cells[1])[0] == cells[0]
+
+
+def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) -> None:
+    """A font a page merely names is a font some readers do not have.
+
+    Two faces, one per shelf, and a page carries exactly one: paying for both would
+    double the cost of the thing for no reader's benefit.
+    """
+    from targum.render.builder import BIBLICAL_FACE, MODERN_FACE
+
+    segment = hebrew(0, TROPE_TEXT)
+    voc = vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
+    scripture = render_with_vocalization(tmp_path / "a", [segment], voc, source="sefaria:Esther")
+    news = render_with_vocalization(tmp_path / "b", [hebrew(0, BARE_TEXT)], None)
+
+    # What matters is which face is *embedded*, not which names appear: `--reading-hebrew`
+    # in reader.css still lists the faces worth reaching for, and one of them shares a
+    # name with the face this shelf carries.
+    def embedded(html: str) -> set[str]:
+        return set(re.findall(r'@font-face\{font-family:"([^"]+)"', html))
+
+    assert embedded(scripture) == {BIBLICAL_FACE[0]}, "scripture carries the wrong face"
+    assert embedded(news) == {MODERN_FACE[0]}, "a modern text carries the wrong face"
+    # One face per page, and one only: paying for both helps no reader.
+    assert scripture.count("url(data:font/woff2") == 1
+    assert news.count("url(data:font/woff2") == 1
+    # And the face is actually reached for, not merely defined.
+    assert f'--reading-hebrew:"{BIBLICAL_FACE[0]}"' in scripture
+    # Carried in the page, not fetched. `test_loads_nothing_from_the_network` holds the
+    # general rule; this says the font in particular obeys it.
+    assert "url(data:font/woff2;base64," in scripture
+
+
+def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> None:
+    """A page measured in the wrong font is a page whose last verse falls off it.
+
+    The face rides inside the page, but the browser still resolves it a beat after the
+    first layout. Paginating before that happened put a verse outside the window — which
+    the paging tests in `test_reader_browser.py` caught, and which this records so the
+    two halves of the fix are not quietly separated later.
+    """
+    from targum.render.builder import ASSETS
+
+    segment = hebrew(0, TROPE_TEXT)
+    html = render_with_vocalization(
+        tmp_path, [segment], vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
+    )
+    # Nothing painted in a fallback, so nothing is measured in one either.
+    assert "font-display:block" in html
+    assert "font-display:swap" not in html
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "document.fonts.ready" in script, "the page never measures itself again"
+
+
+def test_every_page_that_reads_hebrew_carries_a_face() -> None:
+    """A page that carries the stylesheet carries the face, or it has neither.
+
+    The face is per page rather than per stylesheet, because a page needs one of the two
+    and paying for both helps nobody — which means a new template can be written, or an
+    existing one rewritten, without it, and nothing would say so. The page would simply
+    fall back to whatever the machine has, which for Hebrew on a stock Mac is a font with
+    no accents in it. That is the whole bug this began as, so it is checked rather than
+    remembered.
+    """
+    from targum.render.builder import ASSETS
+
+    templates = sorted((ASSETS.parent / "templates").glob("*.j2"))
+    assert templates, "no templates found"
+    missing = [
+        path.name
+        for path in templates
+        if "asset('reader.css')" in path.read_text(encoding="utf-8")
+        and "hebrew_face(" not in path.read_text(encoding="utf-8")
+    ]
+    assert not missing, f"these carry the stylesheet but no Hebrew face: {', '.join(missing)}"
+
+
+def test_the_embedded_faces_can_draw_every_mark(tmp_path: Path) -> None:
+    """The check that would have caught this before a reader did.
+
+    The reading font was New Peninim MT for years, which cannot draw one of the 31
+    accents, nor meteg, paseq, sof pasuq or qamats qatan. Nothing said so until a
+    Masoretic edition arrived and every accented letter came out in a borrowed font at a
+    borrowed size. A face that cannot draw the text is not a candidate.
+    """
+    fontTools = pytest.importorskip("fontTools.ttLib", reason="fontTools reads the faces")
+    from targum.render.builder import ASSETS, BIBLICAL_FACE, MODERN_FACE
+
+    # Every mark and every letter a Hebrew page can hold, plus the maqaf that joins words,
+    # the digits a modern sentence carries, and a Latin letter for a name in the middle.
+    letters = list(range(0x05D0, 0x05EB)) + [0x05BE, ord("0"), ord("9"), ord(":"), ord("A")]
+    # Everything a Masoretic text holds, against everything a modern one can. The two
+    # differ by more than the accents: the masoretic dots (U+05C4, U+05C5) and the nun
+    # hafukha (U+05C6) occur in scripture and nowhere else.
+    masoretic = list(range(0x0591, 0x05C8))
+    points = list(range(0x05B0, 0x05BE)) + [0x05BF, 0x05C1, 0x05C2, 0x05C7]
+
+    # The biblical face has to draw everything a Masoretic text holds.
+    cmap = fontTools.TTFont(ASSETS / BIBLICAL_FACE[1]).getBestCmap()
+    missing = [f"U+{c:04X}" for c in letters + masoretic if c not in cmap]
+    assert not missing, f"{BIBLICAL_FACE[1]} cannot draw {', '.join(missing[:8])}"
+
+    # The modern face is only ever asked for text without accents — `builder.accented`
+    # sends anything carrying one to the biblical face instead — so it owes the letters
+    # and the vowel points, and nothing that belongs to scripture.
+    cmap = fontTools.TTFont(ASSETS / MODERN_FACE[1]).getBestCmap()
+    missing = [f"U+{c:04X}" for c in letters + points if c not in cmap]
+    assert not missing, f"{MODERN_FACE[1]} cannot draw {', '.join(missing[:8])}"
+
+
+def test_an_accented_text_keeps_its_accents_in_the_pointed_cell(tmp_path: Path) -> None:
+    """Two cells, and the pointed one is the whole text — vowels and accents together.
+
+    One switch, two positions: bare, or everything the edition wrote. A middle step that
+    showed the vowels without the accents existed for a day and went.
+    """
+    segment = hebrew(0, TROPE_TEXT)
+    html = render_with_vocalization(
+        tmp_path, [segment], vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
+    )
+    cells = re.findall(r'class="src (?:plain|pointed|trope)"[^>]*>(.*?)<', html)
+    assert len(cells) == 2
+    bare, pointed = cells
+    assert strip_nikkud(pointed)[0] == bare
+    assert pointed == TROPE_TEXT, "the accents came off the pointed cell"
+    assert 'class="src trope"' not in html
+    assert " taamim" not in html
+
+
+def test_a_quoted_verse_keeps_its_accents_and_gets_the_face_for_them(tmp_path: Path) -> None:
+    """One verse among many pointed sentences keeps its accents inside the pointed cell,
+    and the page carries the face that can draw them — which face follows the text, not
+    the shelf."""
+    from targum.render.builder import BIBLICAL_FACE
+
+    quote = hebrew(0, TROPE_TEXT)
+    prose = [hebrew(i, BARE_TEXT) for i in range(1, 4)]
+    segments = [quote, *prose]
+    pointed = {quote.id: TROPE_TEXT}
+    pointed.update({segment.id: POINTED_TEXT for segment in prose})
+    html = render_with_vocalization(
+        tmp_path, segments, vocalization_for(segments, pointed, [s.id for s in prose])
+    )
+    assert TROPE_TEXT in html
+    assert f'@font-face{{font-family:"{BIBLICAL_FACE[0]}"' in html
+
+
+def test_token_offsets_still_land_on_the_vowels_of_an_accented_text(tmp_path: Path) -> None:
+    """Offsets are measured against the bare text, and there are now two pointed forms
+    to map them onto. Both share one consonant skeleton, which is what makes one map do."""
+    bare = strip_nikkud(TROPE_TEXT)[0]
+    assert strip_nikkud(VOWELS_TEXT)[0] == bare
+    # Every position in the bare text has a home in both pointed forms, and the two
+    # agree on how many consonants there are — the thing markMap counts in the browser.
+    for form in (VOWELS_TEXT, TROPE_TEXT):
+        assert len([c for c in form if ord(c) not in MARKS]) == len(bare)
 
 
 def test_only_machine_pointed_segments_are_marked(tmp_path: Path) -> None:
@@ -1282,6 +1448,24 @@ def test_the_about_page_shows_thirty_days_and_no_inline_styles() -> None:
     assert not re.search(r'<[^>]+\sstyle="', page), "inline style attributes will not apply"
 
 
+def test_a_commit_from_tomorrow_counts_as_today(monkeypatch) -> None:
+    """Git prints the author's date in the author's timezone. A commit made late in the
+    evening three hours east of UTC is dated tomorrow on a runner whose today is still
+    today — and on a shallow checkout that one commit is the whole log. It has to land
+    in the window, on its last day, rather than fall off the end and leave the page
+    drawing nothing."""
+    from datetime import date
+
+    from targum import about
+
+    monkeypatch.setattr(about, "_git", lambda *args: "2026-08-30\n2026-08-29\n")
+    work = about._from_git(date(2026, 8, 29))
+    assert len(work.days) == about.DAYS
+    assert work.days[-1] == ("2026-08-29", 2), "the day from tomorrow did not land on today"
+    assert work.commits == 2
+    assert work.through == "29 August"
+
+
 def test_the_activity_shading_never_rounds_an_empty_day_up() -> None:
     """A day with nothing on it must read as nothing, not as a faint success."""
     from targum.render.builder import about_page
@@ -1350,7 +1534,8 @@ def test_only_a_verse_text_is_spaced_like_verses() -> None:
     builder = (Path(__file__).resolve().parents[1] / "src/targum/render/builder.py").read_text(
         encoding="utf-8"
     )
-    assert '"verse_by_verse": document.source.startswith("sefaria:")' in builder
+    assert "biblical = is_biblical(document.source)" in builder
+    assert '"verse_by_verse": biblical,' in builder
 
 
 # -- reading, or marking ---------------------------------------------------------
@@ -1867,7 +2052,14 @@ def test_hebrew_is_set_from_its_own_stack() -> None:
     hebrew = css[css.index("--reading-hebrew:") : css.index("--measure:")]
     for face in ("Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew"):
         assert face in hebrew, f"{face} is named by §5 and has to stay somewhere"
-    assert ":lang(he) { font-family: var(--reading-hebrew); }" in css
+    # Matched on the attribute, not on `:lang(he)`. `:lang()` matches an element's
+    # *inherited* language, so on a reader whose <html> says lang="he" it also matched
+    # <body> and every wrapper — outranking the font-family on `body` — and the English
+    # translation column inherited the Hebrew face. Harmless while that stack could not
+    # draw Latin at all; the day the page carried a Hebrew face with Latin glyphs, every
+    # translation on the shelf was set in them.
+    assert '[lang|="he"]:not(html) { font-family: var(--reading-hebrew); }' in css
+    assert ":lang(he) { font-family: var(--reading-hebrew); }" not in css
 
 
 def test_no_scope_reads_a_constant_from_another_one() -> None:
@@ -1981,10 +2173,17 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
 
 
 def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None:
-    """It is a thing that is on or off. Two buttons made a scale out of it."""
+    """It is a thing that is on or off. Two buttons made a scale out of it, and for a day
+    a third position did the same in one button."""
     controls = _reader_controls(tmp_path)
     assert controls.count("data-nikkud") == 1
     assert 'data-nikkud="on"' not in controls and 'data-nikkud="off"' not in controls
+
+    vowels = re.search(r"<button\b[^>]*data-nikkud-toggle.*?</button>", controls, re.S)
+    assert vowels is not None
+    assert 'aria-pressed="false"' in vowels.group(0)
+    assert "data-step" not in vowels.group(0)
+    assert 'class="dots"' in vowels.group(0)
 
     from targum.render.builder import ASSETS
 
@@ -2419,7 +2618,11 @@ def test_nothing_scrolls_for_a_reader_who_asked_it_not_to() -> None:
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert 'window.matchMedia("(prefers-reduced-motion: reduce)")' in script
     assert 'behavior: "smooth"' not in script
-    assert script.count("behavior: behaviour()") == 1, "the queue, which is the only walk"
+    # The rule is that nothing hard-codes the answer, which the line above is. It used
+    # to also count `behaviour()` to exactly one, back when walking the word queue was
+    # the only animated scroll; jumping to a section is a second, and a count that has
+    # to be edited every time a legitimate one is added was measuring the wrong thing.
+    assert "behavior: behaviour()" in script
 
 
 def test_walking_the_page_opens_no_windows() -> None:
@@ -2848,3 +3051,82 @@ def test_nothing_about_a_page_is_fixed_height_or_clipped() -> None:
     paged = css[css.index("/* --- pages, not a scroll") : css.index("@media print")]
     assert "overflow: hidden" not in paged
     assert "block-size: calc(100" not in paged and "height: 100vh" not in paged
+
+
+def test_the_register_rides_beside_the_lemmas(tmp_path: Path) -> None:
+    """Which Hebrew a word belongs to is a fact about the dictionary form, so it goes in
+    a table parallel to the lemmas rather than on every token that spells it.
+
+    Codes rather than sentences: the words the card says are in `reader.js`, so they can
+    be rewritten without re-annotating a library.
+    """
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(
+        source="sefaria:Ruth", title="T", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="curated:tanakh",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(start=0, end=3, surface="זבח", lemma="זבח", band=2, word_register="biblical"),
+                # The registers agreed about this one, and the table still lines up.
+                Token(start=4, end=7, surface="בית", lemma="בית", band=1),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["lemmas"] == ["זבח", "בית"]
+    assert data["registers"] == ["biblical", ""]
+    # Where the reader is standing, so the card can say the same fact from here.
+    assert data["sourceRegister"] == "biblical"
+
+
+def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> None:
+    """Rather than a row of empty strings nothing would ever read."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: [Token(start=0, end=3, surface="בית", lemma="בית", band=1)]},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert "registers" not in data
+    assert data["sourceRegister"] == "modern"

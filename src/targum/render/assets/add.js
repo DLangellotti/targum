@@ -643,6 +643,35 @@
     }, 700);
   }
 
+  /* --- arriving with a link already in hand ---------------------------------
+   *
+   * The weekly's sources each carry a "Read the whole thing", which is this page with
+   * the article's address in the query. Signed out it goes to the door first and comes
+   * back here afterwards, so the address has to survive the round trip — which it does,
+   * because it rides in the URL rather than in anything this page remembers.
+   *
+   * Only http and https are accepted. The address came from somebody else's feed, and
+   * `javascript:` in a field that is later fetched or rendered is exactly the thing that
+   * `facts.canonical` refuses at the other end; refused here too, because a query string
+   * is typed by whoever sends the link and not only by us.
+   */
+  (function () {
+    if (!sourceInput || !window.URLSearchParams) return;
+    var asked = new URLSearchParams(window.location.search).get("source");
+    if (!asked) return;
+    var url;
+    try {
+      url = new URL(asked, window.location.href);
+    } catch (error) {
+      return;
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") return;
+    sourceInput.value = url.href;
+    if (sourceInput.dispatchEvent) {
+      sourceInput.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  })();
+
   /* --- getting about ------------------------------------------------------- */
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a, .to-library"), function (link) {

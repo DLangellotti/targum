@@ -3,6 +3,7 @@
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="public">
@@ -68,10 +69,7 @@
   </p>
 </main>
 
-<footer class="foot">
-  <a href="/library">{{ shelf_name }}</a>
-  <a href="/about">What's built</a>
-  <a href="https://github.com/DLangellotti/targum">Source</a>
-</footer>
+{% set back = shelf_name %}
+{% include '_public_foot.html.j2' %}
 </body>
 </html>

@@ -252,6 +252,7 @@
   padding: 1.2rem 1rem 2rem;
   border-block-start: 1px solid var(--rule);
   display: flex;
+  flex-wrap: wrap;
   gap: 1.2rem;
   color: var(--ink-soft);
   font-size: 0.6875rem;

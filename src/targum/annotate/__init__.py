@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
 from ..vocalize.base import map_span, pointed_positions, strip_nikkud
+from . import register as register_module
 from .base import (
     BAND_COUNT,
     BAND_NAMES,
@@ -60,7 +61,11 @@ class Annotator:
 
     @property
     def name(self) -> str:
-        base = f"{self.lemmatizer.name}+{self.bands.name}"
+        # The register is in here unconditionally, even for a language it has nothing to
+        # say about. The name is the annotator's, not the document's, and an annotator
+        # that would now record something it did not record before is a different one —
+        # which is exactly what makes a text built before this get built again.
+        base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
     def annotate(
@@ -85,6 +90,9 @@ class Annotator:
         source_text = {segment.id: segment.text for segment in segmented.segments}
         banded: dict[str, list[Token]] = {}
         cache: dict[str, int] = {}
+        # Beside the band cache and for the same reason: a text has far fewer distinct
+        # lemmas than tokens, and both questions are asked of the dictionary form.
+        registers: dict[str, str | None] = {}
 
         for segment_id, tokens in by_segment.items():
             positions = to_source.get(segment_id)
@@ -93,14 +101,19 @@ class Annotator:
                 if token.pos in NOT_VOCABULARY:
                     # A name is rare in any corpus, and rating it would call every name
                     # in a chronicle "extremely hard". It has no difficulty: it is a
-                    # token the reader can tap, not a word they have to learn.
+                    # token the reader can tap, not a word they have to learn. The same
+                    # goes for its register — אחשורוש is not modern Hebrew for having
+                    # stayed out of the Tanakh.
                     band = UNRATED
-                elif token.lemma in cache:
-                    band = cache[token.lemma]
+                    in_register = None
                 else:
-                    # A text has far fewer distinct lemmas than tokens.
-                    band = cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
-                update: dict[str, object] = {"band": band}
+                    if token.lemma not in cache:
+                        # A text has far fewer distinct lemmas than tokens.
+                        cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
+                        registers[token.lemma] = register_module.of(token.lemma, segmented.language)
+                    band = cache[token.lemma]
+                    in_register = registers[token.lemma]
+                update: dict[str, object] = {"band": band, "word_register": in_register}
                 if positions is not None:
                     # Back into the segment's own coordinates, so a token still spans
                     # exactly its own text and carries the marks belonging to it.

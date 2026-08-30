@@ -106,3 +106,17 @@ body.signin {
 @media (prefers-reduced-motion: reduce) {
   .gate .go { transition: none; }
 }
+
+/* Somebody handing over an address deserves to read what happens to it first, so the
+   door carries the same foot as everywhere else. Inside the gate rather than beside it:
+   the page is a centred grid of one column, and a second child would move the door. */
+.gate .foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-block-start: 2.5rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+}
+.gate .foot a { color: var(--ink-soft); text-decoration: none; }
+.gate .foot a:hover { color: var(--ink); }

@@ -14,10 +14,13 @@ reason the sign-in page says the same thing to a known address and an unknown on
 
 from __future__ import annotations
 
+import contextlib
 import os
 import smtplib
 import sys
-from dataclasses import dataclass
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from email.message import EmailMessage
 from typing import Protocol, TextIO
 
@@ -37,9 +40,18 @@ nothing has happened to your account and you can ignore this.
 class Mailer(Protocol):
     def send(self, to: str, link: str) -> None: ...
 
-    def notify(self, to: str, subject: str, body: str) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+    ) -> None:
         """A plain message that is not a sign-in link: a build that finished while
-        the reader was away. Same delivery, same plain text."""
+        the reader was away, or the week's issue. Same delivery, same plain text.
+
+        `headers` exists for one thing — RFC 8058's `List-Unsubscribe` pair, which is
+        what lets a mail client offer its own unsubscribe button. Without it a reader
+        who wants out has the report-as-spam button to hand instead, and enough of those
+        cost the sending domain its reputation, which takes the sign-in link down with
+        it. Optional, so every existing caller is unaffected.
+        """
         ...
 
 
@@ -61,7 +73,9 @@ class ConsoleMailer:
         )
         out.flush()
 
-    def notify(self, to: str, subject: str, body: str) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+    ) -> None:
         out = self.stream if self.stream is not None else sys.stdout
         out.write(f"\n  To {to} — {subject}\n  {body.strip()}\n\n")
         out.flush()
@@ -77,17 +91,48 @@ class SmtpMailer:
     password: str
     sender: str
 
+    #: The connection a mailout is holding open, if one is. Not a constructor argument:
+    #: it is the state of a `session()`, and outside one this is None and every message
+    #: opens and closes its own, exactly as before.
+    _open: smtplib.SMTP | None = field(default=None, repr=False)
+
     def send(self, to: str, link: str) -> None:
         self._deliver(to, SUBJECT, BODY.format(link=link))
 
-    def notify(self, to: str, subject: str, body: str) -> None:
-        self._deliver(to, subject, body)
+    def notify(
+        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+    ) -> None:
+        self._deliver(to, subject, body, headers)
 
-    def _deliver(self, to: str, subject: str, body: str) -> None:
+    @contextmanager
+    def session(self) -> Iterator[None]:
+        """Hold one connection open across a mailout.
+
+        Without it every address costs a fresh TCP connection, a STARTTLS handshake and
+        a login. Two hundred subscribers is two hundred of each, which is slow enough to
+        matter and looks enough like a script to be rate-limited by the provider.
+        """
+        server = smtplib.SMTP(self.host, self.port, timeout=20)
+        try:
+            server.starttls()
+            if self.user:
+                server.login(self.user, self.password)
+            self._open = server
+            yield
+        finally:
+            self._open = None
+            with contextlib.suppress(smtplib.SMTPException, OSError):
+                server.quit()
+
+    def _deliver(
+        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+    ) -> None:
         note = EmailMessage()
         note["Subject"] = subject
         note["From"] = self.sender
         note["To"] = to
+        for name, value in (headers or {}).items():
+            note[name] = value
         # Sent as 7-bit rather than quoted-printable, which is the default and which
         # wraps at 76 characters. A sign-in link is 79: quoted-printable puts a soft
         # break inside the token, and although a correct client rejoins it, plenty of
@@ -99,6 +144,9 @@ class SmtpMailer:
             note.set_content(body, cte="7bit")
         except (UnicodeEncodeError, ValueError):
             note.set_content(body)
+        if self._open is not None:
+            self._open.send_message(note)
+            return
         with smtplib.SMTP(self.host, self.port, timeout=20) as server:
             server.starttls()
             if self.user:
