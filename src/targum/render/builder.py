@@ -306,10 +306,6 @@ class Spoken(NamedTuple):
     #: and calling a chapter of Ruth a scene is the kind of wrong word a reader notices
     #: and nothing else does.
     label: str = "the scene"
-    #: Whether Space plays it. True for a dialogue, which is three pages long and opened
-    #: to be listened to; false for a recorded book, where Space is the pager's and a
-    #: library-wide key is not worth one press on the player.
-    keyed: bool = True
 
 
 SILENT = Spoken({}, {}, "")
@@ -385,7 +381,6 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
         recording.licence,
         recording.licence_url,
         "the reading",
-        False,
     )
 
 
@@ -1289,7 +1284,6 @@ def render(
             speakers=spoken.speakers,
             spoken=spoken.spans,
             spoken_label=spoken.label,
-            spoken_space=spoken.keyed,
             speech_credit=spoken.credit,
             speech_licence=spoken.licence,
             speech_licence_url=spoken.licence_url,
@@ -1334,13 +1328,7 @@ def render(
                     # A dialogue's audio and where each line sits in it. Absent for every
                     # other kind of text, rather than an empty table in every reader.
                     **(
-                        {
-                            "speech": {
-                                "audio": spoken.audio,
-                                "spans": spoken.spans,
-                                "space": spoken.keyed,
-                            }
-                        }
+                        {"speech": {"audio": spoken.audio, "spans": spoken.spans}}
                         if spoken.spans
                         else {}
                     ),

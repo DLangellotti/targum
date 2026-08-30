@@ -1564,15 +1564,25 @@ def test_a_verse_plays_and_the_text_follows(read_aloud) -> None:
     )
 
 
-def test_space_still_turns_the_page_of_a_book(read_aloud) -> None:
-    """A dialogue is three pages and Space plays it. A book is not, and Space is the
-    pager's — taking it away across a library to save one press is not a trade."""
+def test_space_plays_a_book_too_rather_than_turning_its_page(read_aloud) -> None:
+    """Space means one thing: play, and pause where it is.
+
+    It was narrower for a day — dialogues only, so a book's pager could keep the key.
+    That was the wrong call. A reader who has pressed Space on one recorded text has
+    learned what Space does, and having it mean something else on the next one is the
+    confusion the rule against two meanings exists to prevent. The arrows and the pager
+    still turn pages.
+    """
     was = read_aloud.inner_text("#page-of")
     read_aloud.keyboard.press("Space")
     read_aloud.wait_for_function(
-        f"() => document.getElementById('page-of').textContent !== {was!r}"
+        "() => document.getElementById('player').classList.contains('playing')"
     )
-    assert read_aloud.evaluate(PLAYING)["playing"] is False, "and it did not start playing"
+    assert read_aloud.inner_text("#page-of") == was, "and it did not turn the page"
+    read_aloud.keyboard.press("Space")
+    read_aloud.wait_for_function(
+        "() => !document.getElementById('player').classList.contains('playing')"
+    )
 
 
 def test_the_reader_of_a_recording_is_credited_on_the_page(read_aloud) -> None:

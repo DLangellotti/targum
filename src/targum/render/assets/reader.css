@@ -1503,7 +1503,18 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
    for it: the name is the offer and the sentence is the reason. */
 .next-up-why { flex: 1 1 14rem; }
 .finished > span[hidden] { display: none; }
-body.paged:not(.last-page) .finished { display: none; }
+/* Both of them belong to the end of the text, so neither appears until the reader is at
+   it. The suggestion was left out of this when it was added and turned up under page one
+   of five, offering somewhere else to go to somebody who had just arrived. */
+body.paged:not(.last-page) .finished,
+body.paged:not(.last-page) .next-up { display: none; }
+
+/* Room under the last block for the player to sit in. The pairs are budgeted around it —
+   `room` takes its band out of every page — but the Done line and the suggestion come
+   after the pairs and are not pairs, so without this they land underneath it. The last
+   page is the one page allowed to scroll, and this is what it scrolls to. */
+body.has-player .finished,
+body.has-player .next-up { margin-block-end: 9rem; }
 
 /* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
    on the one block that earned it — and brags the brand's way: a real count in the

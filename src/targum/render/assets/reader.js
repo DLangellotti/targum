@@ -4808,19 +4808,19 @@
   /* Space plays and pauses — on a dialogue, and only on a dialogue.
    *
    * Space is already spoken for here: in paged mode it turns the page. Two meanings for
-   * one key is the thing this file says elsewhere means neither, so the split is by text
-   * rather than by mode, and the build decides which text — `speech.space`.
+   * one key is the thing this file says elsewhere means neither, so the split is by text:
+   * where a text can be listened to, Space plays it, and nowhere else.
    *
-   * A dialogue gets it: it is two or three pages long, the arrows are right there, and
-   * playing the scene is what a reader opened it to do. A recorded book does not. Ruth is
-   * four chapters of four pages each and Genesis is fifty; taking the pager's key away
-   * across a whole library to save one press on the player is not a trade, and the help
-   * card says whichever is true of the page you are on.
+   * This was narrower for a day — dialogues only, on the reasoning that a book is fifty
+   * chapters and the pager should keep its key. That was overruled, and it is the right
+   * call: a reader who has pressed Space on one recorded text has learned what Space
+   * does, and having it mean something else on the next one is the confusion the rule
+   * against two meanings exists to prevent. The arrows and the pager still turn pages,
+   * and the help card says which it is.
    *
    * Captured, because the pager listens on the way back up and would turn the page as
    * well — one keystroke doing two things is exactly what this is avoiding. */
   document.addEventListener("keydown", function (event) {
-    if (!speech.space) return;
     if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey) return;
     var on = document.activeElement;
     if (on && (on.tagName === "INPUT" || on.tagName === "TEXTAREA" || on.isContentEditable)) return;
@@ -4862,6 +4862,13 @@
     // was closing it on one scene and finding every other scene silent, with a control
     // that was simply not on the page and no way to know why. Put away means put away
     // here.
+    // The page needs to know a player is out: the blocks at the foot of a text sit after
+    // the pairs, and the pairs are the only thing `room` budgets for — so the Done line
+    // and the suggestion land inside the band the player is fixed in.
+    function standing(out) {
+      document.body.classList.toggle("has-player", !!out);
+    }
+
     var STORE = "targum:player-closed:" + spokenOf;
 
     /* The pages were laid out before this ran, with room kept for a player that may be
@@ -4877,6 +4884,7 @@
         remeasure();
       }
     } catch (e) {}
+    standing(!player.hidden);
 
     var shut = player.querySelector(".player-close");
     if (shut) {
@@ -4884,6 +4892,7 @@
         halt();
         player.hidden = true;
         try { localStorage.setItem(STORE, "1"); } catch (e) {}
+        standing(false);
         remeasure();
       });
     }
@@ -4894,6 +4903,7 @@
         if (!player.hidden) return;
         player.hidden = false;
         try { localStorage.removeItem(STORE); } catch (e) {}
+        standing(true);
         remeasure();
       });
     }
