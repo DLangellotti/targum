@@ -179,7 +179,9 @@ body {
 .bar {
   position: sticky;
   inset-block-start: 0;
-  z-index: 10;
+  /* Above the word-list panel (15): the bar is the one strip of the window that is
+     always targum's, and nothing that opens below it may stand in front of it. */
+  z-index: 16;
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
@@ -1151,6 +1153,14 @@ body.marking .w.here,
    on exactly the screens with the most room. */
 @media (min-width: 60rem) and (max-width: 101rem) {
   body.has-list.list-open { padding-inline-end: 15rem; }
+  /* The text gives up the width; the bar does not. It is the window's strip, not the
+     column's, so the mark keeps the far corner of the screen — on an RTL page the
+     panel's side is the mark's side, and the shift above was carrying the mark 15rem
+     in from the edge. Written per page direction because the bar itself is forced
+     ltr (see its `direction` above), so its own logical margins never follow the
+     page the way the body's padding does. */
+  body.has-list.list-open .bar { margin-inline-end: -15rem; }
+  [dir="rtl"] body.has-list.list-open .bar { margin-inline-end: 0; margin-inline-start: -15rem; }
 }
 
 /* No width to give still leaves the bottom edge. The full-height overlay this used to
