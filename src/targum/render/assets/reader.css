@@ -131,6 +131,11 @@
    draws its own ring, or deliberately none, still wins. */
 :where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+/* Selection is quiet ink with paper text (§4), never accent and never the browser's
+   blue — which is what a phrase-drag painted before this rule existed. The tokens
+   carry both themes. */
+::selection { background: var(--ink-soft); color: var(--paper); }
+
 /* Hebrew is set from its own stack. Every element that holds source text carries a
    `lang`, so this reaches the text without reaching the chrome around it — and a
    Russian or Latin source still takes the reading stack above.
