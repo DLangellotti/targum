@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Protocol
 
 from ..ids import segment_id
@@ -39,7 +40,7 @@ def segment_document(document: Document, segmenter: Segmenter) -> SegmentedDocum
     for index, block in enumerate(document.blocks):
         pieces = [block.text] if block.kind in UNSPLIT else by_block.get(index, [])
         for order, text in enumerate(piece for piece in pieces if piece.strip()):
-            segments.append(_segment(index, order, block, text.strip()))
+            segments.append(_segment(_index_of(index, block), order, block, text.strip()))
 
     return SegmentedDocument(
         document_hash=document.content_hash,
@@ -47,6 +48,19 @@ def segment_document(document: Document, segmenter: Segmenter) -> SegmentedDocum
         segmenter=segmenter.name,
         segments=segments,
     )
+
+
+# Every ingester so far writes b0000, b0001… — the block's position, zero-padded. An
+# audio document numbers its blocks by part instead (see `ids.audio_block_id`), so the
+# index a segment id is built from is read off the block's own id wherever the id
+# carries one. For every existing document the two are equal, byte for byte, which a
+# test pins: this must never re-key a text somebody has paid to translate.
+_NUMBERED = re.compile(r"b(\d+)$")
+
+
+def _index_of(position: int, block: Block) -> int:
+    found = _NUMBERED.fullmatch(block.id)
+    return int(found.group(1)) if found else position
 
 
 def _segment(block_index: int, order: int, block: Block, text: str) -> Segment:

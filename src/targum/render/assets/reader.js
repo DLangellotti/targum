@@ -130,6 +130,16 @@
   // Absent in every reader with no Hebrew in it, and in one built before there was
   // anything to read the vowels with.
   var sounds = data.sounds || [];
+  // How split words are put together and how each occurrence is conjugated or declined
+  // — tables of distinct strings, like the sounds, with an index on each token. Absent
+  // on annotations written before they existed, and the card then simply says less.
+  var builts = data.built || [];
+  var grammarTable = data.grammar || [];
+  // A verb's citation form and a noun's lying plural, parallel to the lemmas. Facts
+  // about the source word, so one table serves every target language — and grown at
+  // runtime as words are looked up, since most texts were glossed before they existed.
+  var citations = data.citations || [];
+  var plurals = data.plurals || [];
   // What the words mean, per target language: `{ en: [...], ru: [...] }`, each table
   // parallel to `lemmas`. A meaning is written in one language and a text may carry a
   // translation into two, so there is no such thing as "the" meaning of a word here —
@@ -735,6 +745,8 @@
         if (answer && answer.meaning) {
           keepMeaning(lemma, answer.meaning, into);
           if (into === targetLanguage) glosses[index] = answer.meaning;
+          if (answer.citation) citations[index] = String(answer.citation);
+          if (answer.plural) plurals[index] = String(answer.plural);
           onDone(true);
         } else {
           onDone(false);
@@ -772,6 +784,8 @@
         if (answer && answer.meaning) {
           keepMeaning(lemma, answer.meaning, into);
           if (into === targetLanguage) glosses[index] = answer.meaning;
+          if (answer.citation) citations[index] = String(answer.citation);
+          if (answer.plural) plurals[index] = String(answer.plural);
           delete lookup[lemma];
         } else {
           // A lemma the lemmatiser mangled is not a word, and the model is right to
@@ -834,7 +848,12 @@
       .then(function (answer) {
         phraseAnswers[key] =
           answer && answer.meaning
-            ? { meaning: String(answer.meaning), quoted: !!answer.quoted }
+            ? {
+                meaning: String(answer.meaning),
+                quoted: !!answer.quoted,
+                kind: String(answer.kind || ""),
+                citation: String(answer.citation || ""),
+              }
             : false;
         onDone(phraseAnswers[key], into);
       })
@@ -2178,24 +2197,141 @@
     return !!(token[6] && KIND_NAMES[token[6]]);
   }
 
-  // What the card says about a word's register, from where the reader is standing. The
-  // same word is an ordinary word in a Tanakh and a borrowing in a newspaper, and the
-  // interesting half of that is which of the two the reader is holding.
-  function registerNote(index) {
-    var code = registers[index] || "";
-    if (code === "biblical") {
-      return sourceRegister === "biblical"
-        ? "ordinary in the Tanakh, rare today"
-        : "from the Tanakh, rare today";
-    }
-    if (code === "modern") {
-      // Not claimed inside scripture. A lemma the Tanakh does not contain, in a text
-      // that is the Tanakh, is almost always the lemmatizer having produced something
-      // the table was built without — `annotate/biblical.py` says as much where it
-      // bands them — and calling that a modern word would be an invention.
-      return sourceRegister === "biblical" ? "" : "modern; not in the Tanakh";
+  // One entry of the grammar string the annotator kept — "UPOS=VERB|Person=1|Tense=Past"
+  // and nothing more. A missing key is "", never a guess.
+  function feat(line, key) {
+    var parts = (line || "").split("|");
+    for (var i = 0; i < parts.length; i++) {
+      var eq = parts[i].indexOf("=");
+      if (eq > 0 && parts[i].slice(0, eq) === key) return parts[i].slice(eq + 1);
     }
     return "";
+  }
+
+  // Who a form is about, in plain words. "past · I" reads to a novice and is
+  // unambiguous to a student; "1cs perfect" is neither, on either shelf.
+  function personWord(line) {
+    var person = feat(line, "Person");
+    var gender = feat(line, "Gender");
+    var plural = feat(line, "Number") === "Plur";
+    if (person === "1") return plural ? "we" : "I";
+    if (person === "2") {
+      var marks = [];
+      if (gender === "Masc") marks.push("m");
+      if (gender === "Fem") marks.push("f");
+      if (plural) marks.push("pl");
+      return marks.length ? "you (" + marks.join(", ") + ")" : "you";
+    }
+    if (person === "3") {
+      if (plural) return "they";
+      if (gender === "Masc") return "he";
+      if (gender === "Fem") return "she";
+    }
+    return "";
+  }
+
+  var TENSE_WORDS = { Past: "past", Pres: "present", Fut: "future" };
+  var POS_WORDS = {
+    NOUN: "noun",
+    ADJ: "adjective",
+    ADP: "preposition",
+    PRON: "pronoun",
+    PART: "particle",
+    CCONJ: "conjunction",
+    SCONJ: "conjunction",
+  };
+
+  // The part of speech's own line: for each kind of word, the one fact whose absence
+  // is the usual reason a learner mis-reads it. A verb is parsed, a noun declares its
+  // gender and number, an adjective its agreement — and an adverb needs nothing, so
+  // it gets nothing.
+  function useLine(line) {
+    var pos = feat(line, "UPOS");
+    if (pos === "VERB" || pos === "AUX") {
+      var parts = [];
+      var form = feat(line, "VerbForm");
+      var tense = TENSE_WORDS[feat(line, "Tense")];
+      if (form === "Inf") parts.push("infinitive");
+      else if (tense) parts.push(tense);
+      // The beinoni: tagged as a participle, met as the present tense.
+      else if (form === "Part") parts.push("present");
+      var who = personWord(line);
+      if (who) parts.push(who);
+      return parts.join(" · ");
+    }
+    if (pos === "NOUN") {
+      var noun = ["noun"];
+      var gender = feat(line, "Gender");
+      if (gender === "Masc") noun.push("m");
+      if (gender === "Fem") noun.push("f");
+      if (feat(line, "Number") === "Plur") noun.push("pl.");
+      if (feat(line, "Definite") === "Cons") noun.push("construct");
+      return noun.length > 1 ? noun.join(" · ") : "";
+    }
+    if (pos === "ADJ") {
+      var agree = ["adjective"];
+      if (feat(line, "Gender") === "Fem") agree.push("f");
+      if (feat(line, "Number") === "Plur") agree.push("pl.");
+      return agree.join(" · ");
+    }
+    if (pos === "PRON") return personWord(line);
+    return POS_WORDS[pos] || "";
+  }
+
+  // A line that mixes Hebrew pieces with English glue — "ו and + ל to + בית". The
+  // Hebrew runs get their own bdi with the page's language, so they take the carried
+  // face and hold their own direction inside the English sentence.
+  function mixedLine(container, text) {
+    var hebrew = /[֐-׿]+/g;
+    var at = 0;
+    var found;
+    while ((found = hebrew.exec(text))) {
+      if (found.index > at) {
+        container.appendChild(document.createTextNode(text.slice(at, found.index)));
+      }
+      var piece = document.createElement("bdi");
+      piece.setAttribute("lang", language);
+      piece.textContent = found[0];
+      container.appendChild(piece);
+      at = found.index + found[0].length;
+    }
+    if (at < text.length) container.appendChild(document.createTextNode(text.slice(at)));
+  }
+
+  // The word's own sound, where the page's recording covers it. The audio lives in the
+  // player's closure and `TargumSpeech` is its one window — never opened on a silent
+  // page, so the card, like the phrase chip, offers only what the page can.
+  var HEAR_GLYPH =
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<path d="M5 3.5 12.5 8 5 12.5Z"></path></svg>';
+
+  function hearButton(segmentId, start, end, label) {
+    if (!window.TargumSpeech) return null;
+    var slice = window.TargumSpeech.clockFor(segmentId, start, end);
+    if (!slice) return null;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "hear";
+    button.title = "Hear";
+    button.setAttribute("aria-label", label);
+    button.innerHTML = HEAR_GLYPH;
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      window.TargumSpeech.playSlice(slice);
+    });
+    return button;
+  }
+
+  function hearFor(word) {
+    var pair = word.closest ? word.closest(".pair") : null;
+    var span = (word.getAttribute("data-bare") || "").split(",");
+    if (!pair || span.length !== 2) return null;
+    return hearButton(
+      pair.getAttribute("data-id"),
+      parseInt(span[0], 10),
+      parseInt(span[1], 10),
+      "Hear this word"
+    );
   }
 
   function levelOf(word) {
@@ -2369,16 +2505,23 @@
   // word in both and the row drawn here is the only thing that knows which was meant.
   function readingOf(word) {
     if (!sounds.length) return "";
+    var row = rowOf(word);
+    return row ? sounds[row[5]] || "" : "";
+  }
+
+  // The token row under a tapped word — the one thing that knows this occurrence's
+  // sound, build and grammar, which its dictionary form cannot.
+  function rowOf(word) {
     var pair = word.closest ? word.closest(".pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
-    if (!pair || span.length !== 2) return "";
+    if (!pair || span.length !== 2) return null;
     var rows = wordData[pair.getAttribute("data-id")] || [];
     var start = parseInt(span[0], 10);
     var end = parseInt(span[1], 10);
     for (var i = 0; i < rows.length; i++) {
-      if (rows[i][0] === start && rows[i][1] === end) return sounds[rows[i][5]] || "";
+      if (rows[i][0] === start && rows[i][1] === end) return rows[i];
     }
-    return "";
+    return null;
   }
 
   function showCard(word) {
@@ -2417,82 +2560,8 @@
     headline.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
     card.appendChild(headline);
 
-    // Directly under the word, because it is about the word rather than about its
-    // dictionary form, and because the stress is the half of it a learner cannot get
-    // from the spelling and will not find in any dictionary entry either.
-    var said = readingOf(word);
-    if (said) {
-      // Not `say`: that is the reader's announcer, and the copy controls below need it.
-      var saying = document.createElement("span");
-      saying.className = "said";
-      saying.appendChild(document.createTextNode("said "));
-      var heard = document.createElement("bdi");
-      heard.setAttribute("dir", "ltr");
-      heard.textContent = said;
-      saying.appendChild(heard);
-      card.appendChild(saying);
-    }
-
-    if (lemma !== surface.toLowerCase() && lemma !== surface) {
-      var form = document.createElement("span");
-      form.className = "form copy-line";
-      form.appendChild(document.createTextNode("dictionary form "));
-      var bdi = document.createElement("bdi");
-      bdi.setAttribute("lang", language);
-      bdi.textContent = lemma;
-      form.appendChild(bdi);
-      form.appendChild(window.TargumVocab.copyButton(lemma, { say: say }));
-      card.appendChild(form);
-    }
-
-    // A Hebrew verb, taken apart. This is the half of the card that costs nothing and
-    // never leaves the machine: the binyan is what the lemmatizer already worked out,
-    // and the root follows from it. Where the root could not be had honestly the
-    // binyan still shows on its own, and Pealim answers the rest.
-    var root = roots[index];
-    var binyan = binyanim[index];
-    if (root || binyan) {
-      var verb = document.createElement("span");
-      verb.className = "verb";
-      if (root) {
-        verb.appendChild(document.createTextNode("root "));
-        var shoresh = document.createElement("bdi");
-        shoresh.className = "root";
-        shoresh.setAttribute("lang", language);
-        // Spaced out the way a root is written, so it reads as three letters rather
-        // than as a word: כ־ת־ב, not כתב.
-        shoresh.textContent = root.split("").join("\u05be");
-        verb.appendChild(shoresh);
-      }
-      if (binyan) {
-        if (root) verb.appendChild(document.createTextNode(" · "));
-        var built = document.createElement("bdi");
-        built.setAttribute("lang", language);
-        built.textContent = binyan;
-        verb.appendChild(built);
-      }
-      var pealim = document.createElement("a");
-      pealim.className = "pealim";
-      pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
-      pealim.target = "_blank";
-      pealim.rel = "noopener noreferrer";
-      pealim.textContent = "conjugations";
-      verb.appendChild(pealim);
-      card.appendChild(verb);
-    }
-
-    // How hard the word is and which Hebrew it is, on one line. Two lines said the same
-    // kind of thing twice, and the register is only ever here because the level alone
-    // could not tell וְעִקֵּשׁ from מקרר. A name or a numeral has neither.
-    var level = levelOf(word);
-    var note = level === "name" || level === "number" ? "" : registerNote(index);
-    if (level || note) {
-      var tag = document.createElement("span");
-      tag.className = "pos";
-      tag.textContent = level && note ? level + " · " + note : level || note;
-      card.appendChild(tag);
-    }
-
+    // The meaning first — it is the question the tap asked — and everything else
+    // under it. The old card made the reader walk four lines of metadata to reach it.
     var meaning = inTarget(document.createElement("span"));
     meaning.className = "meaning";
     var own = noteOf(lemma);
@@ -2545,30 +2614,125 @@
       }
     }
 
-    card.appendChild(statusRow(index, surface, level));
+    // How it is said — the IPA bare, its stress mark being the half of the reading a
+    // learner cannot get from the spelling — and, where the page's own recording
+    // covers this word, the word itself, said by the voice that read the page.
+    var said = readingOf(word);
+    var hear = hearFor(word);
+    if (said || hear) {
+      var saying = document.createElement("span");
+      saying.className = "copy-line";
+      if (said) {
+        // Not `say`: that is the reader's announcer, and the copy controls need it.
+        var notation = document.createElement("span");
+        notation.className = "said";
+        var heard = document.createElement("bdi");
+        heard.setAttribute("dir", "ltr");
+        heard.textContent = said;
+        notation.appendChild(heard);
+        saying.appendChild(notation);
+      }
+      if (hear) saying.appendChild(hear);
+      card.appendChild(saying);
+    }
 
-    if (word.classList.contains("split")) {
-      // Say so rather than presenting one reading of an ambiguous string as settled.
+    // How the string is put together. A split token names its pieces — that is the
+    // line that lets a learner find ולביתו in a dictionary at all — and a plain
+    // inflected one names its dictionary form; a surface that is its own lemma says
+    // nothing here.
+    var row = rowOf(word);
+    var built = row && row.length > 7 ? builts[row[7]] || "" : "";
+    if (built) {
+      var pieces = document.createElement("span");
+      pieces.className = "form";
+      pieces.appendChild(document.createTextNode("from "));
+      mixedLine(pieces, built);
+      card.appendChild(pieces);
+    } else if (lemma !== surface.toLowerCase() && lemma !== surface) {
+      var form = document.createElement("span");
+      form.className = "form";
+      form.appendChild(document.createTextNode("from "));
+      var bdi = document.createElement("bdi");
+      bdi.setAttribute("lang", language);
+      bdi.textContent = lemma;
+      form.appendChild(bdi);
+      card.appendChild(form);
+    }
+
+    // A Hebrew verb, taken apart. This is the half of the card that costs nothing and
+    // never leaves the machine: the binyan is what the lemmatizer already worked out,
+    // and the root follows from it. Where the root could not be had honestly the
+    // binyan still shows on its own, and Pealim answers the rest.
+    var root = roots[index];
+    var binyan = binyanim[index];
+    if (root || binyan) {
+      var verb = document.createElement("span");
+      verb.className = "verb";
+      if (root) {
+        verb.appendChild(document.createTextNode("root "));
+        var shoresh = document.createElement("bdi");
+        shoresh.className = "root";
+        shoresh.setAttribute("lang", language);
+        // Spaced out the way a root is written, so it reads as three letters rather
+        // than as a word: כ־ת־ב, not כתב.
+        shoresh.textContent = root.split("").join("\u05be");
+        verb.appendChild(shoresh);
+      }
+      if (binyan) {
+        if (root) verb.appendChild(document.createTextNode(" · "));
+        // Not `built`: that name is the pieces line above, and `var` is one binding
+        // per function — shadowing it here silenced the split caveat for every verb.
+        var pattern = document.createElement("bdi");
+        pattern.setAttribute("lang", language);
+        pattern.textContent = binyan;
+        verb.appendChild(pattern);
+      }
+      var pealim = document.createElement("a");
+      pealim.className = "pealim";
+      pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
+      pealim.target = "_blank";
+      pealim.rel = "noopener noreferrer";
+      pealim.textContent = "conjugations";
+      verb.appendChild(pealim);
+      card.appendChild(verb);
+    }
+
+    // The part of speech's own line. A name and a number say which they are — that is
+    // all a card can honestly say about either — and a word says the one grammatical
+    // fact its kind usually hides from a learner.
+    var kindWord = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
+    var usage = kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "");
+    if (!kindWord) {
+      // The paid half of the line, where a gloss has supplied it: the form a learner
+      // keeps in front of a verb's parsing, the lying plural after a noun's gender.
+      var cite = citations[index] || "";
+      var lying = plurals[index] || "";
+      if (cite) usage = usage ? cite + " · " + usage : cite;
+      if (lying) {
+        usage = usage.replace(" · pl.", "");
+        usage = (usage ? usage + " · " : "") + "pl. " + lying;
+      }
+    }
+    if (usage) {
+      var use = document.createElement("span");
+      use.className = "use";
+      mixedLine(use, usage);
+      card.appendChild(use);
+    }
+
+    // A name or a number takes no scale: neither is vocabulary, and the reader's key
+    // for either is `i`. Everything else keeps the editor exactly as it was.
+    var level = levelOf(word);
+    if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+
+    if (word.classList.contains("split") && !built) {
+      // Say so rather than presenting one reading of an ambiguous string as settled —
+      // but only on an annotation too old to name the pieces, which say it better.
       var caveat = document.createElement("span");
       caveat.className = "caveat";
       caveat.textContent = "read as a prefix plus a word";
       card.appendChild(caveat);
     }
-
-    // The card teaches its own keys. Shown whether or not you arrived by keyboard,
-    // because a reader who taps is exactly the one who has not found out yet that there
-    // is a faster way through a page — and the place they are already looking is here.
-    // The arrow is the one that goes forward on this page: §7 wants the typed character
-    // per reading direction.
-    var legend = document.createElement("span");
-    legend.className = "legend";
-    var offering = !!card.querySelector(".look-up");
-    legend.textContent =
-      (rtl ? "←" : "→") +
-      " next · k known · 1 2 3 · i ignore · " +
-      (offering ? "Enter look up · " : "") +
-      "u back · ? all keys";
-    card.appendChild(legend);
 
     card.hidden = false;
     seatNear(card, word.getBoundingClientRect());
@@ -2820,8 +2984,10 @@
     text.setAttribute("lang", language);
     text.textContent = parts.title;
     phrase.appendChild(text);
-    // The phrase and its reading each copy on their own, as the card's lines do.
+    // The phrase and its reading each copy on their own, as the card's lines do — and
+    // the run plays where the page's recording covers it.
     phrase.appendChild(window.TargumVocab.copyButton(parts.title, { say: say }));
+    if (parts.hear) phrase.appendChild(parts.hear);
     chip.appendChild(phrase);
 
     if (parts.reading) {
@@ -2836,6 +3002,26 @@
       note.className = "source-note";
       note.textContent = parts.note;
       chip.appendChild(note);
+    }
+    // What kind of unit this run is — an idiom, a construct chain — which is what
+    // tells a learner what sort of thing to remember. Absent for a plain run of words.
+    if (parts.kind) {
+      var kind = document.createElement("span");
+      kind.className = "kind";
+      kind.textContent = parts.kind;
+      chip.appendChild(kind);
+    }
+    // The form worth keeping, for a run built on a verb: the inflected run a reader
+    // dragged is one conjugation of the thing, and unlearnable as such.
+    if (parts.cite) {
+      var cite = document.createElement("span");
+      cite.className = "cite";
+      cite.appendChild(document.createTextNode("to keep: "));
+      var cited = document.createElement("bdi");
+      cited.setAttribute("lang", language);
+      cited.textContent = parts.cite;
+      cite.appendChild(cited);
+      chip.appendChild(cite);
     }
 
     if (parts.editor) chip.appendChild(parts.editor);
@@ -2968,7 +3154,8 @@
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",
-        note: lemma && lemma !== surface ? "dictionary form " + lemma : "",
+        note: lemma && lemma !== surface ? "from " + lemma : "",
+        hear: hearButton(picked.segmentId, token[0], token[1], "Hear this word"),
         editor: statusRow(index, surface, band),
       });
       placeChip(picked.rect);
@@ -3005,12 +3192,14 @@
     pickCard({
       title: picked.text,
       reading: reading,
+      // Status only, never provenance. The captions that told the reader where an
+      // answer came from said nothing anyone could act on; what remains says only
+      // that an answer is still owed, or that this one is a stand-in built from the
+      // words' own glosses.
       note: whole
         ? "the whole sentence"
         : held
-          ? held.quoted
-            ? "in the parallel text"
-            : "as it is used here"
+          ? ""
           : asking
             ? reading
               ? "word by word — looking…"
@@ -3018,6 +3207,9 @@
             : reading
               ? "word by word — the sentence is in parallel"
               : "",
+      hear: hearButton(picked.segmentId, picked.start, picked.end, "Hear this phrase"),
+      kind: held ? held.kind : "",
+      cite: held ? held.citation : "",
       editor: existing > -1 ? editing.element : null,
       action: existing > -1 ? "Remove" : "Keep",
       onclick: function () {
@@ -5323,9 +5515,10 @@
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
-    // What the card says about a word's register, which is decided in the chapter data
-    // and the text's own register — no page needed to settle it either.
-    registerNote: registerNote,
+    // The card's grammar line, for tests with no card to open: the plain words a
+    // grammar string comes out as, and who a form is about.
+    useLine: useLine,
+    personWord: personWord,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
@@ -5468,7 +5661,9 @@
   press.hidden = false;
   press.onclick = function () {
     press.disabled = true;
-    press.textContent = "Translating…";
+    // The page set the button's word to the work owed — a translation, or for an
+    // imported recording a transcript — and the working form keeps that promise.
+    press.textContent = press.textContent === "Transcribe" ? "Transcribing…" : "Translating…";
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -5547,6 +5742,9 @@
 
   var audio = new Audio(speech.audio);
   var spans = speech.spans || {};
+  /* Each written word's clock, where the build could pair one: rows of
+     [charStart, charEnd, start, end] per segment, in the bare text's own offsets. */
+  var wordClocks = speech.words || {};
   /* In reading order, because the object came from the page in that order and following
      along means walking it. */
   var order = Object.keys(spans).map(function (id) {
@@ -5768,6 +5966,46 @@
     // Wall-clock, so the span's length is divided by the speed it is played at.
     stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));
   });
+
+  /* One word, or one run of them, for the cards. The audio and its timers live in this
+     closure, so this window is the whole bridge — and it only exists on a page with a
+     recording, which is how a card on a silent page finds no ear to offer. */
+  window.TargumSpeech = {
+    /* Where a tapped span's sound sits: the clocks of every written word it overlaps,
+       breathing a little either side — the chapter cutter's move — but never into the
+       neighbouring word. Null where the recording never said it. */
+    clockFor: function (segmentId, start, end) {
+      var rows = wordClocks[segmentId];
+      if (!rows || !rows.length) return null;
+      var from = null;
+      var until = null;
+      var before = 0;
+      var after = Infinity;
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        if (row[0] < end && row[1] > start) {
+          if (from === null || row[2] < from) from = row[2];
+          if (until === null || row[3] > until) until = row[3];
+        } else if (row[1] <= start) {
+          if (row[3] > before) before = row[3];
+        } else if (row[0] >= end && row[2] < after) {
+          after = row[2];
+        }
+      }
+      if (from === null || until <= from) return null;
+      var PAD = 0.15;
+      /* Rounded like the build side's clocks, so a slice is a tidy number and not
+         float dust the tests would have to forgive. */
+      var opens = Math.max(before, from - PAD, 0);
+      var closes = Math.min(after, until + PAD);
+      return [Math.round(opens * 1000) / 1000, Math.round(closes * 1000) / 1000];
+    },
+    playSlice: function (slice) {
+      halt();
+      play(slice[0]);
+      stopAt = setTimeout(halt, Math.max(0, ((slice[1] - slice[0]) * 1000) / audio.playbackRate));
+    },
+  };
 
   /* The whole scene: play, and pause where it stands rather than starting over. A
      control that only restarts is a control nobody presses twice. */

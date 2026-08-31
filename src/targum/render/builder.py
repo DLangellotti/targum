@@ -53,7 +53,10 @@ ASSETS = Path(__file__).parent / "assets"
 
 # A run keeps its interior spaces, so "Magma Devs" isolates as one name rather than
 # two words with a gap the bidi algorithm is free to reorder.
-_LATIN_RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,:/'’&-]*[A-Za-z0-9]|[A-Za-z0-9]")
+# The en dash is in the run: a range — a clock's 0:00–10:58, a year's 1897–1948 — is
+# one thing to say, and split at the dash its halves are two isolates an RTL paragraph
+# reorders, so every range read backwards.
+_LATIN_RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,:/'’&–-]*[A-Za-z0-9]|[A-Za-z0-9]")
 _RTL_RUN = re.compile(r"[֐-׿؀-ۿ][֐-ۿ\s.,'\"־-]*[֐-׿؀-ۿ]|[֐-׿]")
 
 
@@ -306,6 +309,10 @@ class Spoken(NamedTuple):
     #: and calling a chapter of Ruth a scene is the kind of wrong word a reader notices
     #: and nothing else does.
     label: str = "the scene"
+    #: Per segment, each written word's clock — [charStart, charEnd, start, end] — for
+    #: the card's own ear. Only the imported path has these today; everywhere else the
+    #: card simply offers no sound, the way the phrase chip asks only where the page can.
+    words: dict[str, list[list[float]]] = {}
 
 
 SILENT = Spoken({}, {}, "")
@@ -409,7 +416,41 @@ def _read_through(document: Document) -> Spoken:
     )
 
 
-def speech(document: Document, segments: list[Segment]) -> Spoken:
+def _imported(folder: Path, segments: list[Segment]) -> Spoken:
+    """A recording somebody brought, found by the manifest beside the reader.
+
+    No credit line and no licence link: the file is the reader's own, and a licence
+    targum cannot verify is one it must not print. The artist tag became the byline at
+    ingest, which is where a name a page can stand behind belongs.
+    """
+    from ..audio import manifest as manifest_module
+
+    kept = manifest_module.load(folder)
+    if kept is None:
+        return SILENT
+    part = kept.part_for([segment.id for segment in segments])
+    if part is None or not part.audio:
+        return SILENT
+    spans = {
+        segment.id: list(part.spans[segment.id]) for segment in segments if segment.id in part.spans
+    }
+    if not spans:
+        return SILENT
+    audio = _inlined(folder / part.audio)
+    if not audio:
+        return SILENT
+    speakers = {
+        segment.id: part.speakers[segment.id] for segment in segments if segment.id in part.speakers
+    }
+    word_clocks = {
+        segment.id: [list(row) for row in part.words[segment.id]]
+        for segment in segments
+        if segment.id in part.words
+    }
+    return Spoken(speakers, spans, audio, "", "", "", "the recording", word_clocks)
+
+
+def speech(document: Document, segments: list[Segment], folder: Path | None = None) -> Spoken:
     """Where in the audio each line of this section is said, and the audio itself.
 
     The spans are per line and the reader plays a slice of one file rather than fetching
@@ -418,7 +459,15 @@ def speech(document: Document, segments: list[Segment]) -> Spoken:
 
     A line whose span is missing is simply left without a control. That is the same rule
     the rest of the build follows: a gap a reader can see past beats a button that lies.
+
+    `folder` is the targum's own directory. An imported recording lives inside it and is
+    found by the manifest beside the reader — asked of the disk, like `spoken.sources()`,
+    but per text and per build, so new audio needs no restart to be seen.
     """
+    from ..audio import manifest as manifest_module
+
+    if folder is not None and (folder / manifest_module.MANIFEST).is_file():
+        return _imported(folder, segments)
     if document.source.startswith("dialogue:"):
         return _scene(document, segments)
     if is_biblical(document.source):
@@ -1064,8 +1113,12 @@ def render(
     reads: Collection[str] | None = None,
     siblings: list[dict[str, str]] | None = None,
     whole: bool = False,
+    folder: Path | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
+
+    `folder` is the targum's own directory, where an imported recording's manifest and
+    parts live — see `speech`. None for every text that has no such folder to ask.
 
     `glossaries` is keyed by target language, because a meaning is written in one and a
     reader may hold translations into two. A word means what it means in Russian and
@@ -1180,7 +1233,13 @@ def render(
     parts = parts[1:]
 
     drawn = cover_name(document)
+    # Whether this text is an imported recording. The contents page asks so its
+    # waiting rows can offer the work actually owed — a transcript, not a translation.
+    from ..audio import manifest as manifest_module
+
+    has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
     shared = {
+        "has_audio": has_audio,
         # What to read next, worked out here because a reader cannot ask anybody.
         "suggested": next_after(document),
         "parts": parts,
@@ -1275,6 +1334,15 @@ def render(
         # stored once.
         sounds: list[str] = [""]
         sound_at: dict[str, int] = {"": 0}
+        # How a split surface is put together, and the occurrence's grammar. Both are
+        # facts about the occurrence, like the sound, and ride the same way: a table of
+        # distinct strings with an index on each token, because ולבית is built the same
+        # way every time it appears and a chapter conjugates far fewer ways than it has
+        # words. Index 0 is "nothing to say".
+        builts: list[str] = [""]
+        built_at: dict[str, int] = {"": 0}
+        grammar: list[str] = [""]
+        grammar_at: dict[str, int] = {"": 0}
         words: dict[str, list[list[int]]] = {}
         if annotation is not None:
             for sid in section.segment_ids:
@@ -1296,6 +1364,12 @@ def render(
                     if token.ipa and token.ipa not in sound_at:
                         sound_at[token.ipa] = len(sounds)
                         sounds.append(token.ipa)
+                    if token.built and token.built not in built_at:
+                        built_at[token.built] = len(builts)
+                        builts.append(token.built)
+                    if token.feats and token.feats not in grammar_at:
+                        grammar_at[token.feats] = len(grammar)
+                        grammar.append(token.feats)
                     start, end = map_span(token.start, token.end, to_bare[sid])
                     rows.append(
                         [
@@ -1308,6 +1382,8 @@ def render(
                             # A name or a number, which the reader can tap and mark but
                             # which is never counted as vocabulary.
                             KIND_COLUMN.get(token.pos or "", 0),
+                            built_at.get(token.built or "", 0),
+                            grammar_at.get(token.feats or "", 0),
                         ]
                     )
                 words[sid] = rows
@@ -1320,10 +1396,21 @@ def render(
             for code, book in (glossaries or {}).items()
             if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
         }
+        # Facts about the source word itself — a verb's citation form, a lying plural —
+        # which any glossary that holds them can supply: they do not vary by target.
+        citations = [""] * len(lemmas)
+        plurals = [""] * len(lemmas)
+        for book in (glossaries or {}).values():
+            for at, lemma in enumerate(lemmas):
+                citations[at] = citations[at] or book.citations.get(lemma, "")
+                plurals[at] = plurals[at] or book.plurals.get(lemma, "")
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
-        spoken = speech(document, segments)
+        spoken = speech(document, segments, folder)
+        # Whether this section is an imported recording's part still waiting for its
+        # transcript. The page says which work is owed, and the button asks for it.
+        audio_waiting = any(segment.ref.endswith(":waiting") for segment in segments)
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -1340,6 +1427,7 @@ def render(
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
             translated=translated,
+            audio_waiting=audio_waiting,
             words=bool(words),
             segments=segments,
             bare=bare,
@@ -1374,6 +1462,17 @@ def render(
                     # Left out entirely where nothing was read, rather than shipping a
                     # table holding one empty string in every reader that has no Hebrew.
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
+                    # How split words are put together and how each occurrence is
+                    # conjugated or declined, for the card's own lines. Left out, like
+                    # the sounds, wherever an annotation written before they existed —
+                    # or a language they say nothing about — gave the tables nothing.
+                    **({"built": builts} if len(builts) > 1 else {}),
+                    **({"grammar": grammar} if len(grammar) > 1 else {}),
+                    # A verb's citation form and a noun's lying plural, parallel to the
+                    # lemmas. Left out while nothing on the page has either — which is
+                    # every text glossed before they existed.
+                    **({"citations": citations} if any(citations) else {}),
+                    **({"plurals": plurals} if any(plurals) else {}),
                     "glosses": glosses,
                     "levelNames": BAND_NAMES,
                     # Which text this is. Lists are kept per document, not per
@@ -1398,7 +1497,29 @@ def render(
                     # and keying this on spans left the player on the page with nothing
                     # behind it — a control that does nothing, which is worse than none.
                     **(
-                        {"speech": {"audio": spoken.audio, "spans": spoken.spans}}
+                        {
+                            "speech": {
+                                "audio": spoken.audio,
+                                "spans": spoken.spans,
+                                # Each written word's clock, char offsets mapped into
+                                # the bare text like every token row, so the card can
+                                # find the sound under a tapped word by overlap alone.
+                                **(
+                                    {
+                                        "words": {
+                                            sid: [
+                                                [*map_span(int(cs), int(ce), to_bare[sid]), s, e]
+                                                for cs, ce, s, e in rows
+                                            ]
+                                            for sid, rows in spoken.words.items()
+                                            if sid in to_bare
+                                        }
+                                    }
+                                    if spoken.words
+                                    else {}
+                                ),
+                            }
+                        }
                         if spoken.audio
                         else {}
                     ),

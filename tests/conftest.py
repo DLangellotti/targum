@@ -24,6 +24,7 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "stanza: needs a downloaded Stanza model")
     config.addinivalue_line("markers", "network: reaches a real site; off unless asked")
     config.addinivalue_line("markers", "benchmark: scores the aligner; off unless asked")
+    config.addinivalue_line("markers", "ffmpeg: needs ffmpeg on the PATH")
 
 
 @pytest.fixture(autouse=True)
@@ -235,3 +236,60 @@ def cassette_factory():
         return Cassette(responses)
 
     return make
+
+
+class FakeAudioTools:
+    """Stands in for ffmpeg and ffprobe, so no audio fixture is ever shipped.
+
+    What the audio tests assert is the plumbing — parts, caching, spans, budgets — and
+    a described recording keeps the same time as a real one. Cut files get their own
+    name as bytes, so a page holding the wrong part is caught by its content.
+    """
+
+    def __init__(self) -> None:
+        self.duration = 3600.0
+        self.title = ""
+        self.artist = ""
+        #: (start, end, title) chapter marks the file claims to carry.
+        self.chapters: list[tuple[float, float, str]] = []
+        #: (start, end) silences, in seconds into the whole file.
+        self.pauses: list[tuple[float, float]] = []
+        self.cuts: list[tuple[str, float, float]] = []
+        self._lengths: dict[str, float] = {}
+
+    def probe(self, path: object) -> dict:
+        return {
+            "format": {
+                "duration": str(self.duration),
+                "tags": {"title": self.title, "artist": self.artist},
+            },
+            "streams": [{"codec_type": "audio", "codec_name": "mp3"}],
+            "chapters": [
+                {"start_time": str(a), "end_time": str(b), "tags": {"title": t}}
+                for a, b, t in self.chapters
+            ],
+        }
+
+    def cut(self, source: Path, into: Path, start: float, end: float) -> None:
+        into.parent.mkdir(parents=True, exist_ok=True)
+        into.write_bytes(into.name.encode("utf-8"))
+        self.cuts.append((into.name, round(start, 3), round(end, 3)))
+        self._lengths[into.name] = end - start
+
+    def length(self, path: Path) -> float:
+        return self._lengths.get(Path(path).name, self.duration)
+
+    def silences(self, path: object, start: float, length: float) -> list[tuple[float, float]]:
+        return [(a, b) for a, b in self.pauses if start <= a and b <= start + length]
+
+
+@pytest.fixture
+def fake_audio(monkeypatch: pytest.MonkeyPatch) -> FakeAudioTools:
+    from targum.audio import tools
+
+    fake = FakeAudioTools()
+    monkeypatch.setattr(tools, "ffprobe_json", fake.probe)
+    monkeypatch.setattr(tools, "duration", fake.length)
+    monkeypatch.setattr(tools, "cut", fake.cut)
+    monkeypatch.setattr(tools, "silences", fake.silences)
+    return fake

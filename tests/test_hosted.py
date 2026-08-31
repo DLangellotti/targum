@@ -647,7 +647,10 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
         conn.close()
         return response.status, out
 
-    assert ask("ארץ") == (200, {"lemma": "ארץ", "meaning": "land", "cached": True})
+    assert ask("ארץ") == (
+        200,
+        {"lemma": "ארץ", "meaning": "land", "citation": "", "plural": "", "cached": True},
+    )
     status, answer = ask("שלום")
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False
 
@@ -697,7 +700,16 @@ def test_a_phrase_already_answered_is_free_to_ask_for(
     def ask(**changes: object) -> tuple[int, dict[str, object]]:
         return _signed_post(port, "/phrase", {**base, **changes}, session)
 
-    assert ask() == (200, {"meaning": "a new military committee", "quoted": True, "cached": True})
+    assert ask() == (
+        200,
+        {
+            "meaning": "a new military committee",
+            "quoted": True,
+            "kind": "",
+            "citation": "",
+            "cached": True,
+        },
+    )
     status, answer = ask(phrase="ראש הממשלה")
     assert status == 402 and answer["error"], "not held and nothing can be bought"
     assert ask(phrase="שלום")[0] == 400, "not in the sentence"

@@ -375,14 +375,12 @@ def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
 
     cache = Cache(tmp_path)
     provider = Contextual()
-    assert (
-        gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == "meaning of עם"
-    )
+    first = gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם")
+    assert first is not None and first.gloss == "meaning of עם"
     assert provider.contexts == [{"עם": "ויצא עם העם"}]
     # Cached under the lemma alone: met again in another sentence, nothing is asked.
-    assert (
-        gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי") == "meaning of עם"
-    )
+    again = gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי")
+    assert again is not None and again.gloss == "meaning of עם"
     assert provider.asked == [["עם"]]
     # And a word with no sentence behind it is asked for the old way.
     gloss_one("בית", "he", "en", provider, cache=cache)
@@ -803,3 +801,126 @@ def test_the_annotator_is_named_for_the_register_too() -> None:
     from targum.annotate import register
 
     assert register.NAME in annotator().name
+
+
+# -- how a word is built, and how it is conjugated --------------------------------
+
+
+class _Piece:
+    """The shape of a Stanza word, as `pieces_of` and `kept_feats` read it."""
+
+    def __init__(self, upos: str, text: str, feats: str | None = None) -> None:
+        self.upos = upos
+        self.text = text
+        self.lemma = text
+        self.feats = feats
+
+
+def test_a_split_token_names_its_pieces() -> None:
+    """ולביתו is ו + ל + בית + a suffix, and the card says so — clitics with their
+    gloss, the content word bare, the suffix in English alone because the written
+    form Stanza reconstructs for it is הוא, which nobody wrote."""
+    from targum.annotate.hebrew import pieces_of
+
+    walls = _Piece("CCONJ", "ו")
+    to = _Piece("ADP", "ל")
+    house = _Piece("NOUN", "בית", "Definite=Cons|Gender=Masc|Number=Sing")
+    his = _Piece("PRON", "הוא", "Case=Gen|Gender=Masc|Number=Sing|Person=3")
+    assert pieces_of([walls, to, house, his], house) == "ו and + ל to + בית + his"
+
+
+def test_a_suffix_is_possessive_on_a_noun_and_an_object_anywhere_else() -> None:
+    """ספרו is "his book" and ממנו is "from him", and the head's part of speech is
+    what tells them apart."""
+    from targum.annotate.hebrew import pieces_of
+
+    him = _Piece("PRON", "הוא", "Gender=Masc|Number=Sing|Person=3")
+    frm = _Piece("ADP", "מן")
+    book = _Piece("NOUN", "ספר")
+    assert pieces_of([frm, him], frm) == "מן + him"
+    assert pieces_of([book, him], book) == "ספר + his"
+
+
+def test_an_unsplit_token_has_no_pieces_line() -> None:
+    from targum.annotate.hebrew import pieces_of
+
+    word = _Piece("NOUN", "בית")
+    assert pieces_of([word], word) is None
+
+
+def test_the_card_keeps_only_the_grammar_it_reads() -> None:
+    """Person, gender, number, tense, verb form — and the construct state, which is
+    kept while ordinary definiteness is not: the ה the pieces line already shows."""
+    from targum.annotate.hebrew import kept_feats
+
+    assert (
+        kept_feats("Gender=Fem|Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin|Voice=Act")
+        == "Person=1|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Fin"
+    )
+    assert (
+        kept_feats("Definite=Cons|Gender=Masc|Number=Sing")
+        == "Gender=Masc|Number=Sing|Definite=Cons"
+    )
+    assert kept_feats("Definite=Def|Gender=Fem|Number=Plur") == "Gender=Fem|Number=Plur"
+    assert kept_feats(None) is None
+    assert kept_feats("HebBinyan=PAAL") is None, "the binyan has its own field"
+
+
+def test_grammar_is_in_the_annotator_name_so_old_annotations_are_redone() -> None:
+    from targum.annotate.lemma import FEATURES
+
+    assert "grammar" in FEATURES
+
+
+def test_a_sense_carries_the_citation_and_the_lying_plural(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A verb's citation form and an irregular plural ride with the gloss, into the
+    cache and the glossary — and only where there is one to say, so a glossary of
+    thirty thousand lemmas does not carry that many empty strings."""
+    from targum.annotate.gloss import Sense, build_glossary
+
+    class Rich(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append(list(lemmas))
+            return {
+                lemma: Sense(f"meaning of {lemma}", "verb", "לְהִשְׁתַּמֵּשׁ בְּ־", "")
+                if lemma == "השתמש"
+                else Sense(f"meaning of {lemma}", "noun")
+                for lemma in lemmas
+            }
+
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="",
+        tokens={
+            "s1": [
+                Token(start=0, end=5, surface="השתמש", lemma="השתמש", band=3),
+                Token(start=6, end=9, surface="ספר", lemma="ספר", band=1),
+            ]
+        },
+    )
+    cache = Cache(tmp_path)
+    glossary, paid = build_glossary(annotation, "en", Rich(), cache=cache)
+    assert paid == 2
+    assert glossary.citations == {"השתמש": "לְהִשְׁתַּמֵּשׁ בְּ־"}
+    assert glossary.plurals == {}
+    # And the second build reads the whole sense back from the cache, fields and all.
+    held, unpaid_count = build_glossary(annotation, "en", Rich(), cache=cache, buy=False)
+    assert unpaid_count == 0
+    assert held.citations == {"השתמש": "לְהִשְׁתַּמֵּשׁ בְּ־"}
+
+
+def test_a_gloss_bought_before_the_fields_existed_still_stands(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """The provider name did not move when citation and plural arrived, on purpose:
+    nothing already paid for is bought again, and the old entries read back whole with
+    the new fields empty."""
+    from targum.annotate.gloss import cached_gloss, gloss_key
+
+    cache = Cache(tmp_path)
+    key = gloss_key(cache, "בית", "he", "en", "fake")
+    cache.put("gloss", key, {"gloss": "house", "part_of_speech": "noun"})
+    held = cached_gloss("בית", "he", "en", "fake", cache=cache)
+    assert held is not None
+    assert (held.gloss, held.citation, held.plural) == ("house", "", "")

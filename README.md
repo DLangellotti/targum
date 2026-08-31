@@ -16,7 +16,7 @@ numbers are marked as what they are.
 What sets it apart is that everything is curated to what a learner needs. A library that
 runs from Tanakh to this week's news, sorted by how much of it you can already read, with
 a published translation wherever one exists and AI translation, sentence by sentence, in
-context, for everything else. Your own texts welcome: an EPUB, an article, a link. One
+context, for everything else. Your own texts welcome: an EPUB, an article, a link, a recording. One
 vocabulary across biblical and modern Hebrew, held by dictionary form, so every word you
 learn in Tanakh is yours in a newspaper too. Vowel points where the text has them,
 guessed elsewhere, with every guess marked. Progress that counts real things, words known,
@@ -34,7 +34,7 @@ export ANTHROPIC_API_KEY=...
 targum serve
 ```
 
-Drop in an EPUB, a text file, or a link. The library of texts with published translations
+Drop in an EPUB, a text file, an audio file, or a link — a podcast episode counts. The library of texts with published translations
 that targum.page carries is data, kept privately alongside the code.
 
 ## Licence

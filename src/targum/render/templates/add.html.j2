@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Add a text — targum</title>
+<title>Add — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
 {{ hebrew_face() }}
@@ -17,7 +17,7 @@
   {#- This page used to be the front door and opened by saying what targum is. Reached
       from the nav by somebody who already has an account and a shelf, that reads as a
       stranger's greeting to a regular. It says what it is for instead. -#}
-  <h1 class="lede">Add a text</h1>
+  <h1 class="lede">Add</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
   <p class="hint">It may already be in
@@ -35,9 +35,10 @@
       <h2>The text</h2>
 
       <div class="drop" id="drop" tabindex="0">
-        <p class="drop-label">Drop a book or an article</p>
-        <p class="drop-note">EPUB, plain text, or markdown</p>
-        <input type="file" id="file" accept=".txt,.md,.markdown,.epub" hidden>
+        <p class="drop-label">Drop a book, an article, or a recording</p>
+        <p class="drop-note">EPUB, plain text, markdown, or audio</p>
+        <input type="file" id="file"
+               accept=".txt,.md,.markdown,.epub,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav" hidden>
         <button type="button" id="choose">Choose file</button>
         <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
       </div>
@@ -51,8 +52,33 @@
         <textarea id="pasted" rows="4" spellcheck="false"
                   placeholder="Or paste the text"></textarea>
       </label>
-      <p class="hint">Articles and wiki pages, no logins or PDFs. A pasted text takes its
+      <p class="hint">Articles, wiki pages, and podcast episodes. A pasted text takes its
         title from its first line.</p>
+      {#- The refusals, named before they are met: a reader who tries a PDF or a Spotify
+          link learns the limit from a sentence here rather than from a failed attempt. -#}
+      <p class="hint">Not PDF, video, protected audiobooks (.aax), or Spotify. Nothing
+        behind a login.</p>
+
+      {#- Only when the file is a recording. A transcript with its own timings makes the
+          import free of transcription; without one, targum writes down what is said,
+          part by part, as each part is asked for. -#}
+      <section class="step" id="audio-extra" hidden>
+        <h2>The transcript</h2>
+        <div class="segmented" id="spoken-how" role="group" aria-label="Where the transcript comes from">
+          <button type="button" class="segment" data-spoken="make" aria-pressed="true">Transcribe</button>
+          <button type="button" class="segment" data-spoken="mine" aria-pressed="false">I have one</button>
+        </div>
+        <p class="hint" id="spoken-note">targum writes down what is said, part by part.</p>
+        <div id="have-transcript" hidden>
+          <div class="drop small" id="drop-transcript" tabindex="0">
+            <p class="drop-label">Drop the transcript</p>
+            <p class="drop-note">SRT or VTT, timings kept</p>
+            <input type="file" id="transcript" accept=".srt,.vtt" hidden>
+            <button type="button" id="choose-transcript">Choose file</button>
+            <button type="button" id="unchoose-transcript" class="unchoose" hidden>Something else</button>
+          </div>
+        </div>
+      </section>
     </section>
 
     <div class="beside">

@@ -34,7 +34,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from .accounts import Person, Store, now, plausible
-from .errors import TargumError
+from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
@@ -56,6 +56,17 @@ from .weekly.models import Level as WeeklyLevel
 from .weekly.models import parse_identifier as parse_weekly_id
 
 MAX_UPLOAD = 32 * 1024 * 1024
+
+#: The chunked door, for recordings. An audiobook is a gigabyte and the JSON door reads
+#: its whole body into memory as base64; chunks arrive raw, 8 MiB at a time — under
+#: Caddy's 48 MB body ceiling with room to spare — and are assembled on disk.
+CHUNK_BYTES = 8 * 1024 * 1024
+MAX_AUDIO_BYTES = 1024 * 1024 * 1024
+#: Per account, measured from the disk. Enough for a few audiobooks; a bound, because
+#: audio is the first thing a reader can put here whose size is theirs to choose.
+AUDIO_QUOTA_BYTES = 2 * 1024 * 1024 * 1024
+#: An upload nobody finished is swept after a day.
+UPLOAD_TTL_MS = 24 * 60 * 60 * 1000
 
 # Which `Host` a request may claim. Loopback always, because that is what a machine
 # somebody runs themselves is reached by and what a reverse proxy connects to. Hosted,
@@ -398,6 +409,12 @@ class Job:
     spent: float = 0.0
     # How many chapters the text has. One means it is not a book.
     chapters: int = 1
+    # An imported recording: its length, how it divides, and what hearing it costs.
+    # Zero and false for every text that is not one.
+    audio: bool = False
+    seconds: float = 0.0
+    parts: int = 0
+    transcription: float = 0.0
     made: int = field(default_factory=now)
 
     def state(self) -> dict[str, Any]:
@@ -427,7 +444,13 @@ class Job:
             # bought separately: one line quoting the sum made the meanings look free
             # and hid that unticking the box halves the bill.
             "meanings": round(self.meanings, 2),
-            "translation": round(max(0.0, self.estimate - self.meanings), 2),
+            "translation": round(max(0.0, self.estimate - self.meanings - self.transcription), 2),
+            # The audio card's facts: shown in ui-monospace as a clock and a count,
+            # never as dollars — the page already takes that position.
+            "audio": self.audio,
+            "seconds": round(self.seconds, 1),
+            "parts": self.parts,
+            "transcription": round(self.transcription, 2),
         }
 
 
@@ -518,6 +541,9 @@ class Library:
         self.purge_departed()
         self._committed = 0.0
         self.jobs: dict[str, Job] = {}
+        # The quota's view of each home, cached a minute: a gigabyte arrives in a
+        # hundred chunks and the disk should not be walked for every one of them.
+        self._used: dict[Path, tuple[int, int]] = {}
         self.lock = threading.Lock()
         self.queue: queue.Queue[str] = queue.Queue()
         self._workers: list[threading.Thread] = []
@@ -885,6 +911,77 @@ class Library:
         (folder / TRASHED).unlink(missing_ok=True)
         return True
 
+    def used(self, home: Path) -> int:
+        """What this home's recordings hold, in bytes, asked of the disk.
+
+        Uploads in flight and audio already imported both count — they are the two
+        places a recording can be.
+        """
+        cached = self._used.get(home)
+        if cached is not None and now() - cached[0] < 60_000:
+            return cached[1]
+        total = 0
+        for area in (home / "uploads", *home.glob("*/audio")):
+            if not area.is_dir():
+                continue
+            for path in area.rglob("*"):
+                try:
+                    if path.is_file():
+                        total += path.stat().st_size
+                except OSError:
+                    continue
+        self._used[home] = (now(), total)
+        return total
+
+    def sweep_uploads(self, home: Path) -> None:
+        """Chunked uploads nobody finished, gone after a day.
+
+        Only folders carrying `.meta.json` — the chunked door's own mark. The JSON
+        door's uploads live beside them and are the source a document points back at,
+        which is exactly what a sweep must never eat.
+        """
+        uploads = home / "uploads"
+        if not uploads.is_dir():
+            return
+        for folder in uploads.iterdir():
+            meta = folder / ".meta.json"
+            if not meta.is_file():
+                continue
+            try:
+                made = int(json.loads(meta.read_text(encoding="utf-8")).get("made") or 0)
+            except (json.JSONDecodeError, OSError, TypeError, ValueError):
+                made = 0
+            if now() - made > UPLOAD_TTL_MS:
+                shutil.rmtree(folder, ignore_errors=True)
+        self._used.pop(home, None)
+
+    def holding(self, home: Path, sha256: str, except_for: Path) -> dict[str, Any] | None:
+        """Whether these bytes are already here, and how the page should point at them.
+
+        The same file uploaded twice is one file: a finished chunk upload answers with
+        its own id, a recording already imported with its reader. Asked of hashes
+        already written down rather than by hashing everything again — a quota's worth
+        of re-reading per upload would be the expensive way to save disk.
+        """
+        uploads = home / "uploads"
+        if uploads.is_dir():
+            for folder in uploads.iterdir():
+                if folder == except_for:
+                    continue
+                mark = folder / ".sha256"
+                if mark.is_file() and mark.read_text(encoding="utf-8").strip() == sha256:
+                    if any(f.is_file() and not f.name.startswith(".") for f in folder.iterdir()):
+                        return {"upload": folder.name}
+        for probe in home.glob("*/audio/probe.json"):
+            try:
+                if json.loads(probe.read_text(encoding="utf-8")).get("sha256") == sha256:
+                    reader = probe.parent.parent / "reader" / "index.html"
+                    if reader.is_file():
+                        return {"reader": f"{probe.parent.parent.name}/reader/index.html"}
+            except (json.JSONDecodeError, OSError):
+                continue
+        return None
+
     @staticmethod
     def within(home: Path, name: str) -> Path | None:
         """A folder in this home, and nowhere else.
@@ -1078,7 +1175,9 @@ class Library:
             "register": "biblical" if is_biblical(source) else "modern",
             "difficulty": difficulty,
             "minutes": max(1, round(words / 130)),
-            "spoken": spoken.is_spoken(source),
+            # The claim is made by whatever is actually there — for an import, the
+            # manifest sitting beside the reader.
+            "spoken": spoken.is_spoken(source) or (folder / "audio.json").is_file(),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.
@@ -1161,6 +1260,27 @@ class Library:
     def prepare(self, job: Job) -> None:
         """Ingest and segment, which costs nothing, then price the rest."""
         try:
+            from urllib.parse import urlparse
+
+            if urlparse(job.source).scheme in ("http", "https"):
+                from .audio import episode as episode_module
+
+                if episode_module.sounds_like_audio(job.source):
+                    # A recording on the other end of a link is not downloaded inside
+                    # the request — that is a gigabyte on a click that only asked for a
+                    # price. The estimate leans on what the address says; the worker
+                    # fetches when the reader has said yes.
+                    return self._prepare_episode(job, episode_module.Episode(audio_url=job.source))
+                try:
+                    found = episode_module.find(job.source)
+                except UnsupportedSource as refusal:
+                    # This is Library.prepare, not the handler: a refusal travels on
+                    # the job, the way every prepare failure does.
+                    job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+                    job.stage = "failed"
+                    return
+                if found is not None:
+                    return self._prepare_episode(job, found)
             builder = self._builder(job)
             # Priced for what the build will buy, which for a book is one chapter. The
             # cap then applies to a chapter, not to a novel — which is the difference
@@ -1171,6 +1291,11 @@ class Library:
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
             job.chapters = plan.chapters
             job.estimate = plan.estimated_cost
+            if plan.audio is not None:
+                job.audio = True
+                job.seconds = plan.audio.duration
+                job.parts = plan.audio.parts
+                job.transcription = plan.audio.transcription
             # The progress bar counts what is being translated now, not the whole book.
             job.total = plan.buying or job.segments
             usable, _ = builder.provider.available()
@@ -1197,6 +1322,50 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    def _prepare_episode(self, job: Job, found: Any) -> None:
+        """Price an episode from the feed's own claims, before a byte of audio moves.
+
+        The feed says how long it runs, or says nothing; an hour stands in where it
+        says nothing, which errs on the side the budget wants. Hearing is bought a
+        part at a time either way, so the first click is bounded by a part.
+        """
+        from .audio import SPEECH_WORDS_PER_MINUTE, TARGET_MINUTES_GUESS
+        from .transcribe import PRICES, default_name
+        from .transcribe import build as build_transcriber
+
+        job.title = found.title or job.source
+        job.audio = True
+        job.seconds = float(found.seconds or 0.0) or TARGET_MINUTES_GUESS * 60.0
+        job.parts = max(1, round(job.seconds / 720))
+        rate = 0.0
+        try:
+            chosen = build_transcriber(default_name())
+            rate = float(chosen.price_per_minute())
+        except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
+            rate = max(PRICES.values()) if PRICES else 0.0
+        first = job.seconds / job.parts / 60
+        transcription = first * rate
+        # The first part's words, guessed at speech rate and priced on the arithmetic
+        # the real estimate uses — the same coin, counted the same way.
+        import math
+
+        from .audio import TOKENS_PER_SPOKEN_WORD, WORDS_PER_SENTENCE
+        from .translate.anthropic_provider import AnthropicProvider
+
+        words = first * SPEECH_WORDS_PER_MINUTE
+        batches = max(1, math.ceil(words / WORDS_PER_SENTENCE / 20))
+        translating = AnthropicProvider(model=HOSTED_MODEL).estimate_from_counts(
+            words * TOKENS_PER_SPOKEN_WORD, batches
+        )
+        job.transcription = round(transcription, 4)
+        job.estimate = round(transcription + translating, 4)
+        if found.transcript_url:
+            job.transcription = 0.0
+            job.estimate = round(translating, 4)
+        job.options["episode"] = True
+        job.blocked = self.why_blocked(job.estimate)
+        job.stage = "blocked" if job.blocked else "ready"
 
     def claim(self, job: Job) -> str:
         """Check the budget and spend from it in one step.
@@ -1291,6 +1460,8 @@ class Library:
         # On the list, not on `chapter`: preparing a whole book sets no single chapter
         # number, and a falsy 0 sent this down the ordinary build path — which then tried
         # to ingest the folder name as though it were a file.
+        if job.options.get("parts"):
+            return self.run_part(job)
         if job.options.get("chapters"):
             return self.run_chapter(job)
         try:
@@ -1474,7 +1645,9 @@ class Library:
         from .models import read_artifact as read
         from .render import render as render_reader
 
-        folder = (job.home or self.out) / str(job.options.get("folder") or "")
+        folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+        if folder is None:
+            return self._blame(job, "That one is no longer on disk.")
         document = read(Document, folder / "document.json")
         segmented = read(SegmentedDocument, folder / "segments.json")
         if document is None or segmented is None:
@@ -1528,6 +1701,50 @@ class Library:
         self.settle(job)
         self.remember(job)
         self.tell(job)
+
+    def run_part(self, job: Job) -> None:
+        """Hear one more part of an imported recording, and rebuild around it.
+
+        Through `Build.run` rather than `run_chapter`: hearing a part grows the
+        document, so everything keyed to its hash — segments, spans, the manifest —
+        must follow, and the build path is the one that knows how. What is already
+        bought is a cache hit, so the rerun pays for the new part alone.
+        """
+        try:
+            job.stage = "working"
+            self.remember(job)
+            # The folder rides in from the request with the rest of the options, so it
+            # is resolved and checked the way every other folder in this file is —
+            # joined bare, "../" in it would write a reader into someone else's home.
+            folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+            if folder is None:
+                return self._blame(job, "That one is no longer on disk.")
+            builder = self._builder(job)
+            builder._resolved_out = folder
+            builder.notify = lambda message: setattr(job, "message", message)
+            wanted = [int(n) for n in job.options.get("parts") or []]
+
+            def ready(result: Result) -> None:
+                job.reader = f"{result.out_dir.name}/reader/index.html"
+                job.stage = "done"
+                job.message = ""
+                self.remember(job)
+                self.tell(job)
+
+            result = builder.run(
+                on_progress=lambda done: setattr(job, "done", job.done + done),
+                on_ready=ready,
+                chapters=FIRST_CHAPTERS,
+                also=wanted,
+            )
+            job.spent = result.spent.cost()
+            self.settle(job)
+            self.remember(job)
+        except TargumError as error:
+            self._blame(job, error.message)
+        except Exception:
+            traceback.print_exc()
+            self._blame(job, "Something went wrong. The Terminal has the detail.")
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -1603,6 +1820,9 @@ class Library:
             # is the title and the author, as prose. Without this a book lands on somebody's
             # shelf called "6600".
             title=entry.title if entry else "",
+            # For an imported recording: the transcript that came with it, and nothing
+            # else — the transcriber is the box's own choice, never the request's.
+            transcript=str(options.get("transcript")) if options.get("transcript") else None,
         )
 
 
@@ -2353,6 +2573,10 @@ class Handler(BaseHTTPRequestHandler):
                 {"error": "This page is from an earlier session. Open the Terminal link."},
                 403,
             )
+        # The chunked door, before the JSON parse: a chunk's body is raw bytes, and
+        # holding it to the JSON ceiling would refuse the very uploads it exists for.
+        if route.startswith("/upload/"):
+            return self._upload(route)
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_UPLOAD:
             return self._json(
@@ -2616,6 +2840,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": error.message}, 400)
         if mine:
             payload = dict(payload, translations=mine)
+        try:
+            spoken_text = self._transcript_from(payload)
+        except TargumError as error:
+            return self._json({"error": error.message}, 400)
+        if spoken_text:
+            payload = dict(payload, transcript=spoken_text)
 
         # Somebody has already translated this one, and that translation is better and
         # free. Said before anything is priced, not after it has been paid for.
@@ -2747,6 +2977,13 @@ class Handler(BaseHTTPRequestHandler):
         here = self.library.targets(folder)
         wanted = str(payload.get("to") or "").strip()
         target = wanted if wanted in here else (here[0] if here else "en")
+
+        # An imported recording buys by the part: a chapter that is waiting is waiting
+        # on a transcript, and the build path — not run_chapter — is what knows how to
+        # grow the document around one.
+        if (folder / "audio" / "parts.json").is_file():
+            return self._buy_parts(folder, number, whole, target)
+
         standing = self.library.chapters(folder, target)
         waiting: list[int] = []
         if whole:
@@ -2768,6 +3005,50 @@ class Handler(BaseHTTPRequestHandler):
             owner=person.id if person else None,
             admin=bool(person and person.admin),
             home=home,
+        )
+        blocked = self.library.already_over(job)
+        if blocked:
+            job.blocked = blocked
+            job.stage = "blocked"
+            return self._json(job.state(), 402)
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        self.library.enqueue(job)
+        self._json(job.state())
+
+    def _buy_parts(self, folder: Path, number: int, whole: bool, target: str) -> None:
+        """Queue the hearing of one part — or of every part still waiting."""
+        from .ingest.audio import refined_path
+
+        try:
+            data = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+            source = str(data.get("source") or "")
+        except (OSError, json.JSONDecodeError):
+            source = ""
+        if not source:
+            return self._json({"error": "not found"}, 404)
+        plan = json.loads((folder / "audio" / "parts.json").read_text(encoding="utf-8"))
+        waiting = [
+            int(span.get("number") or 0)
+            for span in plan.get("parts") or []
+            if not refined_path(folder / "audio", int(span.get("number") or 0)).exists()
+        ]
+        buying = waiting if whole else [number]
+        if not whole and number not in {int(s.get("number") or 0) for s in plan.get("parts") or []}:
+            return self._json({"error": "not found"}, 404)
+        if not whole and number not in waiting:
+            return self._json({"ready": True})
+        if whole and not waiting:
+            return self._json({"ready": True})
+
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=source,
+            options={"parts": buying, "folder": folder.name, "to": target},
+            owner=person.id if person else None,
+            admin=bool(person and person.admin),
+            home=self._home(),
         )
         blocked = self.library.already_over(job)
         if blocked:
@@ -2831,19 +3112,34 @@ class Handler(BaseHTTPRequestHandler):
         if payload.get("free"):
             # A card opening asks this first: is the meaning already held? Answered from
             # the cache and never bought, so a page can ask for every word it shows.
-            meaning = cached_gloss(lemma, source, target, provider.name)
-            return self._json({"lemma": lemma, "meaning": meaning or None, "cached": bool(meaning)})
+            held = cached_gloss(lemma, source, target, provider.name)
+            return self._json(
+                {
+                    "lemma": lemma,
+                    "meaning": held.gloss if held else None,
+                    "citation": held.citation if held else "",
+                    "plural": held.plural if held else "",
+                    "cached": bool(held),
+                }
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json({"error": NO_KEY}, 402)
         try:
-            meaning = gloss_one(lemma, source, target, provider, context=sentence)
+            sense = gloss_one(lemma, source, target, provider, context=sentence)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
         except Exception:
             traceback.print_exc()
             return self._json({"error": "Could not look that word up just now."}, 502)
-        return self._json({"lemma": lemma, "meaning": meaning})
+        return self._json(
+            {
+                "lemma": lemma,
+                "meaning": sense.gloss if sense else "",
+                "citation": sense.citation if sense else "",
+                "plural": sense.plural if sense else "",
+            }
+        )
 
     def _gloss_phrase(self, payload: dict[str, Any]) -> None:
         """A few words of a sentence, because a reader selected them.
@@ -2878,21 +3174,42 @@ class Handler(BaseHTTPRequestHandler):
         held = cached_phrase(phrase, sentence, translation, source, target, provider.name)
         if held is not None:
             # Answered from the cache and never bought, so it needs no key to ask.
-            return self._json({"meaning": held[0], "quoted": held[1], "cached": True})
+            return self._json(
+                {
+                    "meaning": held.meaning,
+                    "quoted": held.quoted,
+                    "kind": held.kind,
+                    "citation": held.citation,
+                    "cached": True,
+                }
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json({"error": NO_KEY}, 402)
         try:
-            meaning, quoted = phrase_one(phrase, sentence, translation, source, target, provider)
+            answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
         except Exception:
             traceback.print_exc()
             return self._json({"error": "Could not look that phrase up just now."}, 502)
-        return self._json({"meaning": meaning, "quoted": quoted})
+        return self._json(
+            {
+                "meaning": answer.meaning,
+                "quoted": answer.quoted,
+                "kind": answer.kind,
+                "citation": answer.citation,
+            }
+        )
 
     #: What a text or a translation may arrive as. An epub is a book; the rest is text.
-    READABLE = frozenset({".txt", ".md", ".markdown", ".epub"})
+    #: Subtitles are a transcript with its timings, which is the cheapest transcript
+    #: there is. Audio rides through the same door while it fits under MAX_UPLOAD —
+    #: a podcast episode does; an audiobook waits on the chunked door.
+    READABLE = frozenset(
+        {".txt", ".md", ".markdown", ".epub", ".srt", ".vtt"}
+        | {".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".flac", ".wav"}
+    )
 
     def _written(self, name: str, content: str) -> Path:
         """One uploaded file on disk, under a directory nothing else will land in.
@@ -2902,6 +3219,8 @@ class Handler(BaseHTTPRequestHandler):
         the whole path.
         """
         suffix = Path(name).suffix.lower()
+        if suffix in {".aax", ".aa"}:
+            raise TargumError("This file is protected, so targum cannot read it.")
         if suffix not in self.READABLE:
             raise TargumError(
                 f"targum cannot read '{suffix}' files. Save it as plain text or "
@@ -2916,6 +3235,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _source_from(self, payload: dict[str, Any]) -> str:
         """A dropped file is written next to the readers; anything else is a source."""
+        upload = str(payload.get("upload") or "")
+        if upload:
+            held = self._upload_folder(upload)
+            if held is None:
+                raise TargumError("That upload is no longer here. Start it again.")
+            folder, meta = held
+            target = folder / Path(str(meta.get("name") or "")).name
+            if not target.is_file():
+                raise TargumError("That upload is no longer here. Start it again.")
+            return str(target)
         name = payload.get("name")
         content = payload.get("content")
         if name and content:
@@ -2940,6 +3269,147 @@ class Handler(BaseHTTPRequestHandler):
         if not (name and content):
             return []
         return [str(self._written(str(name), str(content)))]
+
+    # -- the chunked door ---------------------------------------------------
+
+    UPLOAD_ID = re.compile(r"^[0-9a-f]{16}$")
+
+    def _upload(self, route: str) -> None:
+        pieces = route.split("/")[2:]
+        if pieces == ["begin"]:
+            return self._upload_begin(self._small_json())
+        if len(pieces) == 2 and self.UPLOAD_ID.match(pieces[0]):
+            if pieces[1] == "end":
+                return self._upload_end(pieces[0], self._small_json())
+            if pieces[1].isdigit():
+                return self._upload_chunk(pieces[0], int(pieces[1]))
+        self._json({"error": "not found"}, 404)
+
+    def _small_json(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > 4096:
+            return {}
+        try:
+            data = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _upload_begin(self, payload: dict[str, Any]) -> None:
+        """Refuse everything refusable before a byte arrives."""
+        from .audio import AUDIO_SUFFIXES, DRM_SUFFIXES
+
+        name = Path(str(payload.get("name") or "")).name
+        suffix = Path(name).suffix.lower()
+        try:
+            size = int(payload.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        if suffix in DRM_SUFFIXES:
+            return self._json({"error": "This file is protected, so targum cannot read it."}, 400)
+        if suffix not in AUDIO_SUFFIXES:
+            return self._json({"error": "That is not an audio file targum can read."}, 400)
+        if size <= 0 or size > MAX_AUDIO_BYTES:
+            limit = MAX_AUDIO_BYTES // (1024 * 1024 * 1024)
+            return self._json({"error": f"That recording is over {limit} GB."}, 413)
+        home = self._home()
+        self.library.sweep_uploads(home)
+        if self.library.used(home) + size > AUDIO_QUOTA_BYTES:
+            gigs = AUDIO_QUOTA_BYTES // (1024 * 1024 * 1024)
+            return self._json(
+                {"error": f"That would put your recordings over {gigs} GB. Delete one first."},
+                413,
+            )
+        upload = secrets.token_hex(8)
+        folder = home / "uploads" / upload
+        (folder / ".part").mkdir(parents=True, exist_ok=True)
+        (folder / ".meta.json").write_text(
+            json.dumps({"name": name, "size": size, "made": now()}), encoding="utf-8"
+        )
+        self._json({"upload": upload, "chunk": CHUNK_BYTES})
+
+    def _upload_folder(self, upload: str) -> tuple[Path, dict[str, Any]] | None:
+        folder = self.library.within(self._home() / "uploads", upload)
+        if folder is None or not (folder / ".meta.json").is_file():
+            return None
+        try:
+            meta = json.loads((folder / ".meta.json").read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
+        return folder, meta
+
+    def _upload_chunk(self, upload: str, number: int) -> None:
+        held = self._upload_folder(upload)
+        if held is None:
+            return self._json({"error": "not found"}, 404)
+        folder, meta = held
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > CHUNK_BYTES:
+            return self._json({"error": "That chunk is too big."}, 413)
+        expected = int(meta.get("size") or 0)
+        if number * CHUNK_BYTES >= expected + CHUNK_BYTES:
+            # A chunk the declared size has no room for is a lie about the size.
+            return self._json({"error": "not found"}, 404)
+        body = self.rfile.read(length)
+        (folder / ".part" / f"{number:06d}").write_bytes(body)
+        self._json({"got": number})
+
+    def _upload_end(self, upload: str, payload: dict[str, Any]) -> None:
+        """Assemble the chunks in order, prove the file, and say what it is."""
+        import hashlib
+
+        from .audio import parts as parts_module
+        from .audio import probe as probe_module
+
+        held = self._upload_folder(upload)
+        if held is None:
+            return self._json({"error": "not found"}, 404)
+        folder, meta = held
+        name = Path(str(meta.get("name") or "recording.mp3")).name
+        target = folder / name
+        pieces = sorted((folder / ".part").glob("[0-9]*"), key=lambda piece: int(piece.name))
+        if [int(piece.name) for piece in pieces] != list(range(len(pieces))):
+            return self._json({"error": "The upload is missing a chunk. Start it again."}, 400)
+        digest = hashlib.sha256()
+        with target.open("wb") as out:
+            for piece in pieces:
+                body = piece.read_bytes()
+                digest.update(body)
+                out.write(body)
+        claimed = str(payload.get("sha256") or "")
+        if claimed and claimed != digest.hexdigest():
+            target.unlink()
+            return self._json({"error": "The upload arrived damaged. Start it again."}, 400)
+        for piece in pieces:
+            piece.unlink()
+        (folder / ".sha256").write_text(digest.hexdigest(), encoding="utf-8")
+        # The same bytes already here — another upload, or a recording already
+        # imported — are the same file: point at what exists rather than keep two.
+        twin = self.library.holding(self._home(), digest.hexdigest(), except_for=folder)
+        if twin is not None:
+            shutil.rmtree(folder, ignore_errors=True)
+            return self._json(twin)
+        try:
+            found = probe_module.examine(target)
+        except TargumError as error:
+            shutil.rmtree(folder, ignore_errors=True)
+            return self._json({"error": error.message}, 400)
+        drafted = parts_module.plan(found)
+        self._json(
+            {"upload": upload, "seconds": round(found.duration, 1), "parts": len(drafted.parts)}
+        )
+
+    def _transcript_from(self, payload: dict[str, Any]) -> str:
+        """A transcript the reader already has, for the audio they are importing.
+
+        Timings and all, which is what makes the import free of transcription. Same
+        door as every upload, for the same reason as `_translation_from`.
+        """
+        name = payload.get("transcriptName")
+        content = payload.get("transcriptContent")
+        if not (name and content):
+            return ""
+        return str(self._written(str(name), str(content)))
 
     def _serve_glossary(self, folder: str) -> None:
         """The word meanings for one build and one target language, once they exist.

@@ -41,6 +41,15 @@ class Item:
     summary: str = ""
     published: datetime | None = None
     guid: str = ""
+    #: The audio a podcast feed attaches, where it attaches one. RSS writes an
+    #: <enclosure url type>; Atom writes a link with rel="enclosure".
+    enclosure: str = ""
+    #: A transcript the feed points at (Podcasting 2.0's <podcast:transcript>), which
+    #: makes an import free of transcription. The url and its stated type.
+    transcript: str = ""
+    transcript_type: str = ""
+    #: Seconds, from itunes:duration, or 0 where the feed does not say.
+    seconds: float = 0.0
 
 
 def _name(tag: str) -> str:
@@ -65,6 +74,41 @@ def _when(raw: str) -> datetime | None:
             continue
         return when if when.tzinfo else when.replace(tzinfo=UTC)
     return None
+
+
+def _enclosure(entry: ElementTree.Element) -> str:
+    """The audio attached to one entry, in whichever spelling the feed uses."""
+    for child in entry:
+        name = _name(child.tag)
+        kind = child.get("type", "")
+        if name == "enclosure" and (not kind or kind.startswith("audio/")):
+            return child.get("url", "") or _text(child)
+        if name == "link" and child.get("rel") == "enclosure" and kind.startswith("audio/"):
+            return child.get("href", "")
+    return ""
+
+
+def _transcript(entry: ElementTree.Element) -> tuple[str, str]:
+    """A <podcast:transcript url type>, matched on the local name like everything here."""
+    for child in entry:
+        if _name(child.tag) == "transcript":
+            return child.get("url", ""), child.get("type", "")
+    return "", ""
+
+
+def _seconds(raw: str) -> float:
+    """itunes:duration arrives as seconds, M:SS or H:MM:SS, and misspelt."""
+    raw = raw.strip()
+    if not raw:
+        return 0.0
+    try:
+        pieces = [float(piece) for piece in raw.split(":")]
+    except ValueError:
+        return 0.0
+    total = 0.0
+    for piece in pieces:
+        total = total * 60 + piece
+    return total
 
 
 def _link(entry: ElementTree.Element) -> str:
@@ -110,6 +154,7 @@ def parse(xml: bytes) -> list[Item]:
             or _text(fields.get("published"))
             or _text(fields.get("updated"))
         )
+        spoken, spoken_type = _transcript(element)
         items.append(
             Item(
                 title=title,
@@ -117,6 +162,10 @@ def parse(xml: bytes) -> list[Item]:
                 summary=summary[:MAX_SUMMARY],
                 published=_when(stamp),
                 guid=_text(fields.get("guid")) or _text(fields.get("id")),
+                enclosure=_enclosure(element),
+                transcript=spoken,
+                transcript_type=spoken_type,
+                seconds=_seconds(_text(fields.get("duration"))),
             )
         )
     return items

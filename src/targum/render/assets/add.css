@@ -261,3 +261,10 @@ body.add > .add-main {
 }
 .instead b { color: var(--ink); }
 .instead .row { margin-block-start: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* A duration is a count, and counts are set in the details face with lined-up digits
+   (§5) — a clock whose colons wander reads as three numbers. */
+.status .clock {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}

@@ -29,6 +29,10 @@ class Usage:
     # Kept per model because one build can span two: translation on one, word meanings
     # on another, and a price that is an average of both is a price for neither.
     by_model: dict[str, tuple[int, int]] = field(default_factory=dict)
+    # Transcription is bought by the minute, not the token, so it counts on its own
+    # axis. Seconds rather than minutes: what a provider reports is a file's length,
+    # and rounding here would round sixty times per audiobook.
+    seconds_by_model: dict[str, float] = field(default_factory=dict)
 
     def add(self, model: str, input_tokens: int, output_tokens: int) -> None:
         self.calls += 1
@@ -37,20 +41,28 @@ class Usage:
         was_in, was_out = self.by_model.get(model, (0, 0))
         self.by_model[model] = (was_in + input_tokens, was_out + output_tokens)
 
+    def add_seconds(self, model: str, seconds: float) -> None:
+        self.calls += 1
+        self.seconds_by_model[model] = self.seconds_by_model.get(model, 0.0) + seconds
+
     def __add__(self, other: Usage) -> Usage:
         total = Usage(
             calls=self.calls + other.calls,
             input_tokens=self.input_tokens + other.input_tokens,
             output_tokens=self.output_tokens + other.output_tokens,
             by_model=dict(self.by_model),
+            seconds_by_model=dict(self.seconds_by_model),
         )
         for model, (used_in, used_out) in other.by_model.items():
             was_in, was_out = total.by_model.get(model, (0, 0))
             total.by_model[model] = (was_in + used_in, was_out + used_out)
+        for model, seconds in other.seconds_by_model.items():
+            total.seconds_by_model[model] = total.seconds_by_model.get(model, 0.0) + seconds
         return total
 
     def cost(self) -> float:
         """USD, from the prices the provider publishes for each model it used."""
+        from .transcribe import PRICES as MINUTES
         from .translate.anthropic_provider import PRICES
 
         total = 0.0
@@ -60,12 +72,21 @@ class Usage:
                 # Counted, not priced. Better than inventing a number for it.
                 continue
             total += (used_in * prices[0] + used_out * prices[1]) / 1_000_000
+        for model, seconds in self.seconds_by_model.items():
+            rate = MINUTES.get(model)
+            if rate is None:
+                # Counted, not priced, for the reason above.
+                continue
+            total += seconds / 60 * rate
         return total
 
     def state(self) -> dict[str, object]:
-        return {
+        state: dict[str, object] = {
             "calls": self.calls,
             "input": self.input_tokens,
             "output": self.output_tokens,
             "cost": round(self.cost(), 4),
         }
+        if self.seconds_by_model:
+            state["seconds"] = round(sum(self.seconds_by_model.values()), 1)
+        return state

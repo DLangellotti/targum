@@ -160,7 +160,7 @@ def test_an_empty_tab_says_which_kind_of_empty_it_is(tmp_path: Path) -> None:
     """ "Nothing here matches that" is what a filter says. A reader who has uploaded
     nothing has not filtered anything out."""
     drawn = draw(tmp_path, view={"where": "mine"})
-    assert drawn["empty"] == "Nothing uploaded yet. Paste your own from Upload Text."
+    assert drawn["empty"] == "Nothing uploaded yet. Add your own from Upload."
 
     filtered = draw(tmp_path, view={"find": "zzzzz"})
     assert filtered["empty"] == "Nothing here matches that."

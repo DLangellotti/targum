@@ -18,7 +18,7 @@ from ..errors import TargumError
 from ..models import Segment, Token, is_biblical
 from ..paths import model_dir
 from ..segment.stanza_segmenter import download, has_processors, stanza_code
-from .hebrew import binyan_of, root_of
+from .hebrew import binyan_of, kept_feats, pieces_of, root_of
 
 # Multi-word tokens are not asked for by name. Only some languages have an mwt model,
 # and naming it for one that does not, Russian among them, fails the download outright.
@@ -30,7 +30,7 @@ PROCESSORS = "tokenize,pos,lemma"
 # into the name, and so into every annotation.json, which is what lets the pipeline spot
 # a file written before a feature existed and redo it. Redoing one is free: Stanza runs
 # on the machine, so nothing is fetched and nothing is spent.
-FEATURES = "roots+everyword+names"
+FEATURES = "roots+everyword+names+grammar"
 
 # Stanza's Hebrew tokenizer comes in two builds, one with a character language model
 # trained on the modern web behind it and one without, and the tokenizer is where a
@@ -201,6 +201,8 @@ def _tokens(document: Any) -> list[Token]:
                     pos=content.upos or None,
                     binyan=binyan,
                     root=root_of(lemma, binyan),
+                    built=pieces_of(words, content),
+                    feats=kept_feats(content.feats),
                 )
             )
     return out

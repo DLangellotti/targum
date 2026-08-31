@@ -625,31 +625,49 @@ def test_finishing_survives_everything_else_the_reader_writes() -> None:
     assert kept["record"] > 0
 
 
-def notes(registers: list[str], source: str) -> list[str]:
-    """What the card would say about each word, reading a text of this register."""
-    return run(
-        [],
-        lemmas=[f"w{index}" for index in range(len(registers))],
-        registers=registers,
-        sourceRegister=source,
-    )["registers"]
+def grammar(*lines: str) -> list[str]:
+    """The card's part-of-speech line, as each grammar string comes out in words."""
+    return run([], grammarLines=list(lines))["grammar"]
 
 
-def test_a_biblical_word_is_ordinary_where_the_reader_is_standing() -> None:
-    """The same word, said from the two places a reader can be reading it."""
-    assert notes(["biblical"], "biblical") == ["ordinary in the Tanakh, rare today"]
-    assert notes(["biblical"], "modern") == ["from the Tanakh, rare today"]
+def test_a_verb_is_parsed_in_plain_words() -> None:
+    """ "past · I" reads to a novice and is unambiguous to a student, on either shelf —
+    never "1cs perfect"."""
+    assert grammar("UPOS=VERB|Person=1|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Fin") == [
+        "past · I"
+    ]
+    assert grammar("UPOS=VERB|Person=3|Gender=Fem|Number=Sing|Tense=Fut|VerbForm=Fin") == [
+        "future · she"
+    ]
+    assert grammar("UPOS=VERB|VerbForm=Inf") == ["infinitive"]
+    # The beinoni: tagged as a participle, met as the present tense.
+    assert grammar("UPOS=VERB|Gender=Masc|Number=Plur|VerbForm=Part|Person=3") == ["present · they"]
 
 
-def test_a_modern_word_is_never_claimed_inside_scripture() -> None:
-    """A lemma the Tanakh does not contain, in a text that is the Tanakh, is almost
-    always the lemmatizer having produced something the table was built without —
-    `annotate/biblical.py` says so where it bands them. Calling it modern would invent."""
-    assert notes(["modern"], "biblical") == [""]
-    assert notes(["modern"], "modern") == ["modern; not in the Tanakh"]
+def test_a_noun_declares_its_gender_and_state() -> None:
+    assert grammar("UPOS=NOUN|Gender=Fem|Number=Plur") == ["noun · f · pl."]
+    assert grammar("UPOS=NOUN|Gender=Masc|Number=Sing|Definite=Cons") == ["noun · m · construct"]
+    assert grammar("UPOS=NOUN") == [""], "a bare noun line says nothing"
 
 
-def test_a_word_whose_registers_agree_says_nothing() -> None:
-    assert notes(["", ""], "modern") == ["", ""]
-    # And a text built before any of this shipped no table at all.
-    assert run([], lemmas=["a"], sourceRegister="modern")["registers"] == [""]
+def test_an_adjective_declares_its_agreement() -> None:
+    assert grammar("UPOS=ADJ|Gender=Fem|Number=Plur") == ["adjective · f · pl."]
+    assert grammar("UPOS=ADJ|Gender=Masc|Number=Sing") == ["adjective"]
+
+
+def test_function_words_say_only_what_they_are() -> None:
+    assert grammar("UPOS=ADP", "UPOS=PART", "UPOS=CCONJ", "UPOS=SCONJ") == [
+        "preposition",
+        "particle",
+        "conjunction",
+        "conjunction",
+    ]
+    # An adverb needs nothing, so it gets nothing — and an empty or unknown line too.
+    assert grammar("UPOS=ADV", "", "UPOS=X") == ["", "", ""]
+
+
+def test_a_pronoun_is_its_person() -> None:
+    assert grammar("UPOS=PRON|Person=2|Gender=Masc|Number=Plur") == ["you (m, pl)"]
+    assert run([], personLines=["Person=1|Number=Plur", "Person=3|Gender=Fem|Number=Sing"])[
+        "persons"
+    ] == ["we", "she"]

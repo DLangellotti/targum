@@ -29,6 +29,21 @@ def block_id(index: int) -> str:
     return f"b{index:04d}"
 
 
+# A recording's parts are bought out of order, and a block id that is its position in
+# the list moves every time an earlier part's text arrives — taking every segment id,
+# and every translation keyed to one, with it. So an audio document reserves a range of
+# indices per part: part p's blocks are numbered from p * PART_STRIDE and nothing that
+# lands in another part's range can move them. The segmenter reads the index back off
+# the id, so position in the list stops mattering for exactly these documents.
+PART_STRIDE = 10_000
+MAX_PARTS = 999
+
+
+def audio_block_id(part: int, n: int) -> str:
+    """Block n of part p, in the id space growth cannot shift."""
+    return f"b{part * PART_STRIDE + n:07d}"
+
+
 def segment_id(block_index: int, sentence_index: int, text: str) -> str:
     return f"{block_index:04d}.{sentence_index:03d}-{short_hash(text)}"
 

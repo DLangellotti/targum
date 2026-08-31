@@ -838,7 +838,7 @@
         empty.textContent = here.length
           ? "Nothing here matches that."
           : view.where === "mine"
-            ? "Nothing uploaded yet. Paste your own from Upload Text."
+            ? "Nothing uploaded yet. Add your own from Upload."
             : "Nothing here yet.";
       }
       var total = here.length;

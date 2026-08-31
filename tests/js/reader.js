@@ -134,8 +134,9 @@ process.stdout.write(
       button: byId["done-mark"].textContent,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
     },
-    // Which Hebrew each word belongs to, as the card would say it from this text.
-    registers: (payload.lemmas || []).map((_, index) => reader.registerNote(index)),
+    // The card's grammar line, as the annotator's pipe strings come out in words.
+    grammar: (payload.grammarLines || []).map((line) => reader.useLine(line)),
+    persons: (payload.personLines || []).map((line) => reader.personWord(line)),
     // The arithmetic of a page, asked of the pure half: a stub lays nothing out.
     pages: payload.pages
       ? reader.boundariesFrom(

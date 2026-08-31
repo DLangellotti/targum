@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "== packages =="
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates debian-keyring debian-archive-keyring apt-transport-https sqlite3
+apt-get install -y -qq curl ca-certificates debian-keyring debian-archive-keyring apt-transport-https sqlite3 ffmpeg
 
 echo "== caddy =="
 if ! command -v caddy >/dev/null; then
