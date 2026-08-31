@@ -2252,6 +2252,37 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
     assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
 
 
+def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
+    rendered: Path,
+) -> None:
+    """A step down, the number, a step up. Typed rather than drawn — §7 has − and + as
+    themselves, and × after a number as a multiplier — and in the player, not the bar."""
+    from targum.render.builder import ASSETS
+
+    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    player = re.search(r'<div class="player".*?</div>', template, re.S)
+    assert player is not None
+    card = player.group(0)
+    assert '<button type="button" class="player-slower" aria-label="Slower">−</button>' in card
+    assert '<button type="button" class="player-faster" aria-label="Faster">+</button>' in card
+    assert 'class="player-rate" role="group" aria-label="Speed"' in card
+    assert ">1×<" in card, "the reading's own pace, to begin with"
+    assert ">-<" not in card, "a minus sign, not a hyphen"
+    assert card.index("player-rate") < card.index("player-get"), "before the download"
+
+    # The keys card lists them beside Space, under the same guard.
+    guard = r"{% if spoken_audio %}<dt>Space</dt>.*?"
+    keys = r"<dt>&lt; &gt;</dt><dd>slower, faster</dd>{% endif %}"
+    assert re.search(guard + keys, template, re.S)
+
+    # A text with no voice has no player and so no speed, and the keys card does not
+    # promise keys that do nothing. (The stylesheet rides in every page; the markup is
+    # what is looked for.)
+    silent = rendered.read_text(encoding="utf-8")
+    assert 'class="player-slower"' not in silent
+    assert "&lt; &gt;" not in silent
+
+
 def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None:
     """It is a thing that is on or off. Two buttons made a scale out of it, and for a day
     a third position did the same in one button."""
@@ -3143,6 +3174,37 @@ def test_the_pager_and_the_offer_belong_to_the_last_page() -> None:
     css = _reader_css()
     assert "body.paged:not(.last-page) .pager" in css
     assert "body.paged:not(.last-page) .rest" in css
+
+
+def test_the_foot_of_a_narrow_window_is_one_band() -> None:
+    """Everything fixed at the foot stacks upward — sheet, arrows, player's row — and the
+    page is laid out above the highest. The tab takes the start corner so it shares a
+    corner with nothing, and every lift over the sheet comes from the sheet's measured
+    height rather than its ceiling, which is what parked the player in mid-page."""
+    from targum.render.builder import ASSETS
+
+    css = _reader_css()
+    tab = css.split("\n.list-tab {", 1)[1].split("}", 1)[0]
+    assert "inset-inline-start: 1rem" in tab
+    assert "inset-inline-end" not in tab, "the end corner is the player's and the arrows'"
+    assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row"
+    narrow = css.split("@media (max-width: 60rem) {\n  .list {", 1)[1].split("\n}\n", 1)[0]
+    assert "42svh + 0.9rem" not in narrow, "lifted by the ceiling, not the sheet"
+    assert "body.has-list.list-open .player {" in narrow
+    assert "inset-block-end: calc(var(--sheet, 42svh) + 0.9rem);" in narrow
+    lift = "inset-block-end: calc(var(--sheet, 42svh) + "
+    assert "body.paged.has-list.list-open .turn { " + lift + "0.9rem); }" in narrow
+    assert "body.paged.has-list.list-open .player { " + lift + "4.15rem); }" in narrow
+    assert (
+        "body.has-list.list-open { padding-block-end: calc(var(--sheet, 42svh) + 2rem); }" in narrow
+    )
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'document.documentElement.style.setProperty("--sheet", seat);' in script
+    room = script[script.index("  function room() {") :]
+    room = room[: room.index("\n  }\n")]
+    assert "seatSheet();" in room, "measured before the things it lifts are"
+    assert "[turn, scenePlayer, listTab, roomy.matches ? null : listBox]" in room
 
 
 def test_nothing_about_a_page_is_fixed_height_or_clipped() -> None:

@@ -1808,6 +1808,8 @@
     fill(listItems, words);
     fill(phraseItems, phrases);
     renderEmpty();
+    // A sheet grows when a word is kept, and the controls standing on it go up with it.
+    if (seatSheet()) relayout();
   }
 
   function showList(open, remembered) {
@@ -1823,11 +1825,46 @@
     body.classList.toggle("list-open", open);
     keep(held);
     relay();
+    // Before the pages are measured: the arrows and the player stand on the sheet, and
+    // `room` reads where they stand.
+    seatSheet();
     relayout();
     if (remembered !== false) save();
   }
 
   var roomy = window.matchMedia("(min-width: 60rem)");
+
+  // How tall the sheet is, told to the stylesheet. On a narrow window the list is a sheet
+  // at the foot, and the arrows and the player are lifted to stand on it — by its
+  // measured height, not its ceiling. It has a ceiling of 42svh and a list of two words
+  // is nowhere near it, and lifting by the ceiling parked the player in the middle of the
+  // page with nothing under it. Cleared when the sheet is shut or the window is wide
+  // enough for the list to be a column, so the stylesheet's own numbers apply. Returns
+  // whether anything changed, so a caller knows the pages need measuring again.
+  var sheetSaid = null;
+
+  function seatSheet() {
+    var seat = null;
+    if (listBox && !listBox.hidden && !roomy.matches) {
+      var height = listBox.getBoundingClientRect().height;
+      if (height) seat = Math.round(height) + "px";
+    }
+    if (seat === sheetSaid) return false;
+    sheetSaid = seat;
+    if (seat) document.documentElement.style.setProperty("--sheet", seat);
+    else document.documentElement.style.removeProperty("--sheet");
+    return true;
+  }
+
+  // The sheet changes height without anyone here touching it — the face arrives, the
+  // browser's own chrome comes and goes and moves `svh` — and the controls on it must
+  // follow. No loop: laying the pages out again hides pairs and pads the body, neither
+  // of which sizes a fixed sheet.
+  if (listBox && window.ResizeObserver) {
+    new ResizeObserver(function () {
+      if (seatSheet()) relayout();
+    }).observe(listBox);
+  }
 
   /* --- what a word means --------------------------------------------------- */
 
@@ -3225,6 +3262,7 @@
   });
 
   function refit() {
+    seatSheet();
     relayout();
     if (living && seen && seen.pair.parentNode) {
       toLine(refind(seen), seen.pair, seen.top);
@@ -3422,17 +3460,24 @@
   }
 
   // What is left of the window under the bar and above whatever floats at its foot.
-  // Under the bar, and above the arrows and the player — the whole band they sit in,
-  // from the top edge of the highest of them to the foot of the window, not their own
-  // heights: a page is laid out so that no line of it can end up under either.
+  // Under the bar, and above the arrows, the player, the words tab and the sheet — the
+  // whole band they stand in, from the top edge of the highest of them to the foot of
+  // the window, not their own heights: a page is laid out so that no line of it can end
+  // up under any of them.
   //
   // This is why the player can float without covering anything. A control fixed over a
   // page of text either takes its room out of the layout or takes it out of the reading,
   // and the second is not a trade a reader agreed to.
+  //
+  // The sheet only where it is one. On a wide window the list is a column from the bar
+  // to the foot, and measuring that would leave the page its 160px floor and nothing
+  // more. And the sheet is measured first: the arrows and the player are lifted by its
+  // height, so where they stand is only right once the stylesheet has been told it.
   function room() {
+    seatSheet();
     var top = bar ? bar.getBoundingClientRect().bottom : 0;
     var foot = 0;
-    [turn, scenePlayer].forEach(function (thing) {
+    [turn, scenePlayer, listTab, roomy.matches ? null : listBox].forEach(function (thing) {
       if (!thing || thing.hidden) return;
       var box = thing.getBoundingClientRect();
       if (box.height) foot = Math.max(foot, window.innerHeight - box.top + 12);
@@ -4859,6 +4904,7 @@
   var scene = scenes[0] || null;
   var stopAt = null;
   var playing = null;      /* the one-line button, when a single line is playing */
+  var playingEnd = 0;      /* where that line ends, for re-arming its timer at a new speed */
   var following = false;   /* whether the whole scene is running */
   var marked = null;
 
@@ -4957,6 +5003,79 @@
     } catch (e) {}
   }
 
+  /* How fast. Steps either side of the recording's own pace, and a pair of buttons rather
+     than one that cycles: a cycle from 2× comes round to 0.5×, which is the one step
+     nobody pressing "faster" means.
+
+     Held per browser rather than per text — the opposite of the closed player below,
+     and for the opposite reason. Which texts you would rather read in silence is a fact
+     about each text; how fast you can follow a voice is a fact about you, like the type
+     size, and a reader who wanted the last scene slower wants this one slower too.
+
+     The pitch is kept. A slowed voice should drop in speed and not turn into somebody
+     else; browsers default to keeping it, but the default is not what the file relies
+     on. */
+  var RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  var RATE_STORE = "targum:player-rate";
+  var slower = player && player.querySelector(".player-slower");
+  var faster = player && player.querySelector(".player-faster");
+  var rateNow = player && player.querySelector(".player-rate-now");
+
+  /* Whatever was stored, the nearest step — a number from a version of this table that
+     no longer exists is snapped rather than obeyed, and anything else is the pace it was
+     read at. */
+  function nearestRate(value) {
+    var n = parseFloat(value);
+    if (isNaN(n)) return 1;
+    var best = 1;
+    RATES.forEach(function (rate) {
+      if (Math.abs(rate - n) < Math.abs(best - n)) best = rate;
+    });
+    return best;
+  }
+
+  function setRate(value, chosen) {
+    var rate = nearestRate(value);
+    audio.playbackRate = rate;
+    try {
+      audio.preservesPitch = true;
+      audio.webkitPreservesPitch = true;   // Safari answered to this one for years
+    } catch (e) {}
+    var i = RATES.indexOf(rate);
+    if (rateNow) rateNow.textContent = rate + "×";
+    // aria-disabled rather than disabled: a disabled button drops the keyboard focus that
+    // was on it, and the reader who just pressed it is still standing there.
+    if (slower) slower.setAttribute("aria-disabled", i === 0 ? "true" : "false");
+    if (faster) faster.setAttribute("aria-disabled", i === RATES.length - 1 ? "true" : "false");
+    /* A single line stops on a timer set from its length at the old speed. Re-armed from
+       what is left of it at the new one, or the line runs into the next speaker. */
+    if (playing && stopAt) {
+      clearTimeout(stopAt);
+      stopAt = setTimeout(halt, Math.max(0, ((playingEnd - audio.currentTime) * 1000) / rate));
+    }
+    if (chosen) {
+      try {
+        localStorage.setItem(RATE_STORE, String(rate));
+      } catch (e) {}
+      var reader = window.TargumReader;
+      if (reader && reader.say) reader.say(rate + "×");
+    }
+  }
+
+  function stepRate(by) {
+    var i = RATES.indexOf(nearestRate(audio.playbackRate)) + by;
+    if (i < 0 || i >= RATES.length) return;
+    setRate(RATES[i], true);
+  }
+
+  var keptRate = 1;
+  try {
+    keptRate = localStorage.getItem(RATE_STORE) || 1;
+  } catch (e) {}
+  setRate(keptRate, false);
+  if (slower) slower.addEventListener("click", function () { stepRate(-1); });
+  if (faster) faster.addEventListener("click", function () { stepRate(1); });
+
   /* One line. */
   document.addEventListener("click", function (event) {
     var button = event.target.closest ? event.target.closest(".say") : null;
@@ -4967,9 +5086,11 @@
     halt();
     if (again) return;
     playing = button;
+    playingEnd = span[1];
     button.classList.add("saying");
     play(span[0]);
-    stopAt = setTimeout(halt, Math.max(0, (span[1] - span[0]) * 1000));
+    // Wall-clock, so the span's length is divided by the speed it is played at.
+    stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));
   });
 
   /* The whole scene: play, and pause where it stands rather than starting over. A
@@ -5035,9 +5156,17 @@
    * and the help card says which it is.
    *
    * Captured, because the pager listens on the way back up and would turn the page as
-   * well — one keystroke doing two things is exactly what this is avoiding. */
+   * well — one keystroke doing two things is exactly what this is avoiding.
+   *
+   * `<` and `>` step the speed, the keys every video player has taught. Read off the
+   * physical key as well as the character: under a Hebrew layout Shift on the comma
+   * arrives as something else entirely, the way the letters do further up. */
   document.addEventListener("keydown", function (event) {
-    if (event.key !== " " || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    var key = event.key;
+    if (event.shiftKey && event.code === "Comma") key = "<";
+    if (event.shiftKey && event.code === "Period") key = ">";
+    if (!/^[ <>]$/.test(key)) return;
     var on = document.activeElement;
     // SELECT is in this list and not in the argument below: Space is how a keyboard
     // opens one, and taking it away leaves the translations menu unopenable.
@@ -5053,7 +5182,8 @@
        presses a button. */
     event.preventDefault();
     event.stopPropagation();
-    toggleScene();
+    if (key === " ") toggleScene();
+    else stepRate(key === "<" ? -1 : 1);
   }, true);
 
   /* Saving the audio. The file is already in the page, so this asks the network for

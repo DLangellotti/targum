@@ -217,6 +217,15 @@
     <span class="player-track" aria-hidden="true"><span class="player-fill"></span></span>
     <span class="player-clock" dir="ltr" aria-hidden="true"></span>
   </span>
+  {#- How fast. A pair rather than one button that cycles: a cycle from 2× comes round to
+      0.5×, which is the one step nobody pressing "faster" means. In the card and not the
+      bar, because the bar's button is only "play" and the speed is a fact about listening,
+      not about the page. The readout is the typed × after a number (design.md §7). -#}
+  <span class="player-rate" role="group" aria-label="Speed">
+    <button type="button" class="player-slower" aria-label="Slower">−</button>
+    <span class="player-rate-now" dir="ltr" aria-hidden="true">1×</span>
+    <button type="button" class="player-faster" aria-label="Faster">+</button>
+  </span>
   {#- A real file, carried in the page already, so saving it costs no request. -#}
   <a class="player-get" download aria-label="Download the audio" title="Download the audio">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -386,7 +395,8 @@
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     <dt>b</dt><dd>pages, or one long scroll</dd>
-    {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>{% endif %}
+    {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
+    <dt>&lt; &gt;</dt><dd>slower, faster</dd>{% endif %}
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}

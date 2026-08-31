@@ -1137,10 +1137,15 @@ body.marking .w.here,
 .list-empty { color: var(--ink-soft); line-height: 1.5; margin: 0; }
 .list-empty[hidden] { display: none; }
 
+/* The start corner, not the end one. The end corner is the player's, and in the paged
+   reader the forward arrow's: three things in one corner is one thing nobody can press,
+   which is what a phone showed. The tab's side never said anything — it is a count with
+   a door in it, not an arrow at the panel — so it takes the corner nothing else wants.
+   Logical, so on a Hebrew page it is the right-hand corner, as the player is the left. */
 .list-tab {
   position: fixed;
   inset-block-end: 1rem;
-  inset-inline-end: 1rem;
+  inset-inline-start: 1rem;
   z-index: 14;
   padding: 0.45rem 0.9rem;
   border-radius: 999px;
@@ -1174,14 +1179,27 @@ body.marking .w.here,
    be sat on the very words being read — and on the weekly, on the masthead and the
    level pills. As a sheet the reading column keeps the window and the list takes a
    band a reader can dismiss; the text can always scroll clear of it. `svh` because the
-   sheet is anchored to the bottom, where the browser's own chrome comes and goes. */
+   sheet is anchored to the bottom, where the browser's own chrome comes and goes.
+
+   The foot of a narrow window is one band, and everything fixed in it stacks upward from
+   the bottom edge in one order: the sheet, then the turning arrows, then the player. The
+   page is laid out above the highest of them (`room` in reader.js), so nothing sits on a
+   line of text, and the arrows stand on the sheet rather than under it — a control that
+   is there but cannot be pressed is worse than none.
+
+   The lifts come from `--sheet`, the sheet's measured height, which the script writes
+   whenever the sheet is open at this width. They used to come from its ceiling, 42svh,
+   and a sheet with two words in it is far shorter than its ceiling — so the player was
+   parked in the middle of the page, over the byline, with nothing under it to explain
+   why. The ceiling remains as the fallback for the moment before the script has run. */
 @media (max-width: 60rem) {
   .list {
     inset-block: auto 0;
     inset-inline: 0;
     width: auto;
     max-block-size: 42svh;
-    /* Above the player and the arrows: it covers the corner they live in. */
+    /* Above the words tab and the wide panel's own layer; the arrows and the player
+       rise clear of it rather than fighting it for the corner. */
     z-index: 27;
     border-inline-start: none;
     border-block-start: 1px solid var(--overlay-rule);
@@ -1189,11 +1207,28 @@ body.marking .w.here,
     border-start-end-radius: 8px;
     box-shadow: 0 -6px 24px rgb(0 0 0 / 0.14);
   }
-  body.has-list.list-open { padding-block-end: 46svh; }
+  body.has-list.list-open { padding-block-end: calc(var(--sheet, 42svh) + 2rem); }
+  /* The scrolling reader reserves nothing, so the text is given enough foot to scroll
+     clear of the player standing on the sheet. */
+  body.has-list.list-open.has-player { padding-block-end: calc(var(--sheet, 42svh) + 5.5rem); }
   body.has-list.list-open .player {
     inset-inline-end: 0.75rem;
-    inset-block-end: calc(42svh + 0.9rem);
+    inset-block-end: calc(var(--sheet, 42svh) + 0.9rem);
   }
+  /* Arrows on the sheet; the player above the arrows. 4.15rem is the arrows' own
+     0.9rem plus their 2.75rem plus a 0.5rem gap. */
+  body.paged.has-list.list-open .turn { inset-block-end: calc(var(--sheet, 42svh) + 0.9rem); }
+  body.paged.has-list.list-open .player { inset-block-end: calc(var(--sheet, 42svh) + 4.15rem); }
+  /* A player with its speed control is wider than a phone can share with the tab, so
+     with a player out the tab is a row of its own above it — the band grows by the tab's
+     height, and `room` measures the tab. Without a player the tab keeps the corner.
+
+     Not conditional on whether they would fit: "0 words" clears the player at 390px by
+     a dozen pixels, but the tab grows with its count — "12 words · 3 phrases" is twice
+     as wide — and a 360px phone is ordinary. A row that fits sometimes is a collision
+     that happens to whoever has kept the most words. */
+  body.has-player .list-tab { inset-block-end: 4.75rem; }
+  body.paged.has-player .list-tab { inset-block-end: 9rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1260,7 +1295,7 @@ body.marking .w.here,
   :is(
     .bar .group button, .modes button, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .pair.voiced .say,
+    .player-play, .player-get, .player-close, .player-slower, .player-faster, .pair.voiced .say,
     .list-items .drop, .toc .get, .rest .keep, .picked-note button
   ) {
     position: relative;
@@ -1268,7 +1303,7 @@ body.marking .w.here,
   :is(
     .bar .group button, .modes button, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .pair.voiced .say,
+    .player-play, .player-get, .player-close, .player-slower, .player-faster, .pair.voiced .say,
     .list-items .drop, .toc .get, .rest .keep, .picked-note button
   )::after {
     content: "";
@@ -1990,7 +2025,9 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player.playing .player-clock { display: block; }
 
 .player-get,
-.player-close {
+.player-close,
+.player-slower,
+.player-faster {
   flex: none;
   display: grid;
   place-items: center;
@@ -2005,6 +2042,27 @@ body.has-player .next-up { margin-block-end: 9rem; }
   text-decoration: none;
 }
 
+/* The speed: a step down, the number, a step up. The number is set wide enough for its
+   longest value so the card does not breathe as it changes, and tabular so the digits
+   stand still. An end of the range fades rather than vanishes — the button is still
+   where the thumb learnt it was. */
+.player-rate {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.player-slower,
+.player-faster { font-size: 1.0625rem; line-height: 1; }
+.player-rate button[aria-disabled="true"] { opacity: 0.4; cursor: default; }
+.player-rate-now {
+  min-inline-size: 2.4rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
 .player-get svg {
   inline-size: 0.9rem;
   block-size: 0.9rem;
@@ -2016,8 +2074,10 @@ body.has-player .next-up { margin-block-end: 9rem; }
 }
 
 .player-close { font-size: 1.0625rem; line-height: 1; }
-.player-get:hover, .player-close:hover { color: var(--ink); }
-.player-get:focus-visible, .player-close:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.player-get:hover, .player-close:hover,
+.player-slower:hover, .player-faster:hover { color: var(--ink); }
+.player-get:focus-visible, .player-close:focus-visible,
+.player-slower:focus-visible, .player-faster:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
    than sitting under it. Wide windows only: below 60rem the list is a bottom sheet and
@@ -2026,13 +2086,25 @@ body.has-player .next-up { margin-block-end: 9rem; }
   body.has-list.list-open .player { inset-inline-end: 15rem; }
 }
 
-/* The turning arrows are 2.75rem tall and sit 2.25rem up; this clears them. */
+/* The turning arrows are 2.75rem tall and sit 2.25rem up; this clears them. The words
+   tab takes the same row at the other corner: it was in the arrows' row, on top of one
+   of them. The two rows are the whole of the band `room` reserves under a page — except
+   on a phone with a player out, where the row is not wide enough for both and the tab
+   stands above the player instead; that rule is with the other narrow ones. */
 body.paged .player { inset-block-end: 5.5rem; }
+body.paged .list-tab { inset-block-end: 5.5rem; }
 
 @media (max-width: 60rem) {
-  .player { inset-inline-end: 0.75rem; }
-  .player-body { inline-size: 7rem; }
+  /* Everything a step closer, since the speed took a column: on a phone the card has to
+     stop short of the words tab in the other corner. The body drops to 5rem, which
+     wraps the idle label onto two lines — and two lines of the small size stand inside
+     the play button's height, so the card is no taller for it. */
+  .player { inset-inline-end: 0.75rem; gap: 0.35rem; }
+  .player-body { inline-size: 5rem; }
   .player-said { font-size: 0.6875rem; }
+  .player-rate { gap: 0; }
+  .player-slower, .player-faster { inline-size: 1.25rem; }
+  .player-rate-now { min-inline-size: 1.8rem; }
 }
 
 /* A short window — a laptop with the browser's own chrome taking a third of it — is
@@ -2041,8 +2113,8 @@ body.paged .player { inset-block-end: 5.5rem; }
    The player stays. It was hidden here for a while, which was the wrong answer twice
    over: 40rem is an ordinary laptop, not an edge case, and the reason for hiding it was
    a pile-up I had caused myself by moving it down into the foot on top of the words
-   chip, which shares its corner. Left where it belongs — above the turning arrows — it
-   clears the chip and collides with nothing. */
+   tab, which shared its corner then. Left where it belongs — above the turning arrows,
+   with the tab in the other corner — it collides with nothing. */
 @media (max-height: 40rem) {
   main { padding-block-start: 1.25rem; padding-block-end: 4rem; }
 }

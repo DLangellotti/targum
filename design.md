@@ -162,7 +162,8 @@ scale Hebrew down**. Parity comes from leading: **1.75 Latin, 1.95 Hebrew**.
 No icon font, no emoji, no icon library. Icons are tiny inline SVG strokes at text weight:
 **16px viewBox, no fill, stroke `currentColor` at 1.4, round caps** — line diagrams of what
 they do (the three reading-mode glyphs are literally the three layouts). Typed characters
-elsewhere: ← → per reading direction, × to close, A− A+ ? as themselves.
+elsewhere: ← → per reading direction, × to close and after a number as a multiplier
+(1.25×), A− A+ ? as themselves.
 
 ## 8 · Surfaces, states, motion
 

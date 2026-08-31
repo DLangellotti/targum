@@ -776,6 +776,10 @@ COVERING = """
 #: shorter so a line near the bottom of the old window is off the new one.
 CRAMPED = {"width": 860, "height": 560}
 
+#: A phone, upright. Below 60rem the word list is a sheet at the foot rather than a
+#: column, and the foot is where everything fixed on the page ends up.
+PHONE = {"width": 390, "height": 844}
+
 
 def test_a_resize_hands_back_the_word_you_are_on(page) -> None:
     """The one change of layout the page cannot measure first: the browser reflows and
@@ -1417,11 +1421,15 @@ def voice(path: Path, seconds: float) -> None:
         out.writeframes(b"\x00" * int(8000 * 2 * seconds))
 
 
-def dialogue(home: Path, out: Path, turns: int = TURNS, span: float = TURN) -> Path:
+def dialogue(
+    home: Path, out: Path, turns: int = TURNS, span: float = TURN, words: bool = False
+) -> Path:
     """A built dialogue reader: turns, an audio file, and a span over each turn.
 
     Longer than three where a test needs the scene to run past the foot of the window —
-    a page that fits in one screenful cannot show whether the layout kept room.
+    a page that fits in one screenful cannot show whether the layout kept room. With
+    `words`, one token per word as `chapter` has, so the page has a words tab and a sheet
+    to stand the player on.
     """
     from targum.dialogue.models import Cast, Dialogue, Speaker, Turn
 
@@ -1484,7 +1492,32 @@ def dialogue(home: Path, out: Path, turns: int = TURNS, span: float = TURN) -> P
         provider="authored",
         segments={s.id: t.english for s, t in zip(segments, scene.turns, strict=True)},
     )
-    return render(document, segmented, [translation], out)[0]
+    annotation = None
+    if words:
+        tokens = {}
+        for segment in segments:
+            offset, marks = 0, []
+            for word in segment.text.split(" "):
+                marks.append(
+                    Token(
+                        start=offset,
+                        end=offset + len(word),
+                        surface=word,
+                        lemma=word,
+                        band=1 + (offset % 5),
+                    )
+                )
+                offset += len(word) + 1
+            tokens[segment.id] = marks
+        annotation = Annotation(
+            document_hash="h",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens=tokens,
+        )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
 
 
 #: Long enough that the scene runs past the foot of any window a test opens, with spans
@@ -1561,7 +1594,7 @@ def test_the_player_is_there_before_anyone_asks_for_it(scene) -> None:
 def test_the_player_stands_clear_of_the_arrows(paged_scene) -> None:
     """Two controls in one corner is one control nobody can press."""
     player = paged_scene.locator("#player").bounding_box()
-    for other in (".turn button.back", ".turn button.next"):
+    for other in (".turn button.back", ".turn button.forward"):
         arrow = paged_scene.locator(other)
         if arrow.count() == 0 or not arrow.is_visible():
             continue
@@ -1663,6 +1696,269 @@ def test_the_bar_brings_the_player_back(scene) -> None:
     scene.click(".player-close")
     scene.click(".bar [data-play-scene]")
     assert scene.evaluate(PLAYING)["hidden"] is False
+
+
+# The speed.
+#
+# Six steps from half to double, a button either side of the number. What a browser can
+# tell that a template cannot: that a faster scene ends sooner, that a slower line is
+# still held when its second is up, that the ends of the range are ends, and that the
+# choice is still there after a reload.
+
+#: The speed as the player shows it, and whether either button has run out of steps.
+SPEED = """
+() => {
+  const at = (s) => document.querySelector(s);
+  return {
+    rate: at(".player-rate-now").textContent,
+    slowerEnd: at(".player-slower").getAttribute("aria-disabled") === "true",
+    fasterEnd: at(".player-faster").getAttribute("aria-disabled") === "true",
+  };
+}
+"""
+
+STILL_SAYING = "() => !document.querySelector('.say.saying')"
+
+
+def test_the_player_opens_at_the_pace_it_was_read(scene) -> None:
+    seen = scene.evaluate(SPEED)
+    assert seen["rate"] == "1×"
+    assert not seen["slowerEnd"] and not seen["fasterEnd"], "a step each way from the start"
+
+
+def test_faster_plays_faster(scene) -> None:
+    """Three seconds of scene at double speed is a second and a half. At its own pace it
+    would still be running when this stops waiting."""
+    for _ in range(3):
+        scene.click(".player-faster")
+    assert scene.evaluate(SPEED)["rate"] == "2×"
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    scene.wait_for_function(
+        "() => !document.getElementById('player').classList.contains('playing')", timeout=2500
+    )
+
+
+def test_slower_holds_a_single_line_for_longer(scene) -> None:
+    """A line stops on a clock set from its length — which has to be its length at the
+    speed it is played, or a slowed line is cut off half-way."""
+    scene.click(".player-slower")
+    scene.click(".player-slower")
+    assert scene.evaluate(SPEED)["rate"] == "0.5×"
+    scene.locator(".pair.voiced .say").first.click()
+    scene.wait_for_timeout(int(TURN * 1300))
+    assert scene.locator(".say.saying").count() == 1, "a one-second line is still going"
+    scene.wait_for_function(STILL_SAYING, timeout=int(TURN * 1500))
+
+
+def test_changing_the_speed_mid_line_moves_where_it_stops(scene) -> None:
+    scene.locator(".pair.voiced .say").first.click()
+    scene.click(".player-slower")
+    scene.click(".player-slower")
+    scene.wait_for_timeout(int(TURN * 1300))
+    assert scene.locator(".say.saying").count() == 1, "the clock was re-set for the new speed"
+    scene.wait_for_function(STILL_SAYING, timeout=int(TURN * 1500))
+
+
+def test_the_ends_of_the_range_are_ends(scene) -> None:
+    """A spent button says so and does nothing more. Forced, because Playwright reads
+    aria-disabled the way a screen reader does and will not press it on its own."""
+    for _ in range(3):
+        scene.click(".player-faster")
+    seen = scene.evaluate(SPEED)
+    assert seen["rate"] == "2×" and seen["fasterEnd"], seen
+    scene.click(".player-faster", force=True)
+    assert scene.evaluate(SPEED)["rate"] == "2×", "the top stays the top"
+    for _ in range(5):
+        scene.click(".player-slower")
+    seen = scene.evaluate(SPEED)
+    assert seen["rate"] == "0.5×" and seen["slowerEnd"], seen
+    scene.click(".player-slower", force=True)
+    assert scene.evaluate(SPEED)["rate"] == "0.5×", "and the bottom the bottom"
+
+
+def test_the_speed_is_kept(scene) -> None:
+    """Per browser, not per text: a reader who wanted the last scene slower wants this
+    one slower too."""
+    scene.click(".player-faster")
+    scene.reload()
+    scene.wait_for_selector("#player")
+    assert scene.evaluate(SPEED)["rate"] == "1.25×"
+
+
+def test_the_angle_brackets_step_the_speed_and_turn_no_page(paged_scene) -> None:
+    before = paged_scene.evaluate(PAGE)
+    paged_scene.keyboard.press(">")
+    assert paged_scene.evaluate(SPEED)["rate"] == "1.25×"
+    paged_scene.keyboard.press("<")
+    assert paged_scene.evaluate(SPEED)["rate"] == "1×"
+    assert paged_scene.evaluate(PAGE)["first"] == before["first"], "the page stood still"
+
+
+def test_the_player_still_fits_a_phone(browser, tmp_path, monkeypatch) -> None:
+    """The speed took a column. The card is wider for it, and on the narrowest window
+    it has to stay inside the edge."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector("#player")
+    box = page.locator("#player").bounding_box()
+    assert box["x"] >= 0 and box["x"] + box["width"] <= PHONE["width"], box
+    for control in (".player-play", ".player-slower", ".player-faster", ".player-get"):
+        assert page.locator(control).is_visible(), control
+    context.close()
+
+
+# The foot of a phone.
+#
+# Everything fixed at the foot of a narrow window — the words sheet, the turning arrows,
+# the player, the words tab — stacks upward from the bottom edge in one order, and the
+# page is laid out above the highest of them. What a phone showed before this was three
+# controls in one corner and a player parked in the middle of the page, lifted by the
+# sheet's ceiling rather than by the sheet.
+
+
+def phone(browser, tmp_path, monkeypatch, scrolling: bool):
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(
+        tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF, words=True
+    )
+    context = opened(browser, viewport=PHONE, scrolling=scrolling)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector("#player")
+    open_page.wait_for_selector("#list-tab")
+    if not scrolling:
+        open_page.wait_for_function("() => document.body.classList.contains('paged')")
+    return context, open_page
+
+
+@pytest.fixture
+def phone_scene(browser, tmp_path, monkeypatch):
+    """A long dialogue with a word list, as pages, on a phone."""
+    context, open_page = phone(browser, tmp_path, monkeypatch, scrolling=False)
+    yield open_page
+    context.close()
+
+
+@pytest.fixture
+def phone_scene_scrolling(browser, tmp_path, monkeypatch):
+    """The same dialogue as one long scroll."""
+    context, open_page = phone(browser, tmp_path, monkeypatch, scrolling=True)
+    yield open_page
+    context.close()
+
+
+@pytest.fixture
+def phone_chapter(browser, built: Path):
+    """A chapter with no voice, as pages, on a phone: the tab and the arrows alone."""
+    context = opened(browser, viewport=PHONE, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector("#list-tab")
+    open_page.wait_for_function("() => document.body.classList.contains('paged')")
+    yield open_page
+    context.close()
+
+
+#: Where everything fixed at the foot stands, and every line on show, in one frame.
+#: A control that is hidden is null.
+SEATS = """
+() => {
+  const box = (el) => {
+    if (!el || el.hidden || el.closest("[hidden]")) return null;
+    const b = el.getBoundingClientRect();
+    if (!b.height) return null;
+    return { top: b.top, bottom: b.bottom, left: b.left, right: b.right };
+  };
+  return {
+    tab: box(document.getElementById("list-tab")),
+    player: box(document.getElementById("player")),
+    back: box(document.querySelector(".turn .back")),
+    forward: box(document.querySelector(".turn .forward")),
+    sheet: box(document.getElementById("list")),
+    shown: [...document.querySelectorAll(".pair:not([hidden])")].map((pair) => {
+      const b = pair.getBoundingClientRect();
+      return { id: pair.getAttribute("data-id"), top: b.top, bottom: b.bottom };
+    }),
+  };
+}
+"""
+
+
+def apart(a: dict, b: dict) -> bool:
+    """Whether two boxes share no pixel."""
+    return (
+        a["right"] <= b["left"]
+        or b["right"] <= a["left"]
+        or a["bottom"] <= b["top"]
+        or b["bottom"] <= a["top"]
+    )
+
+
+def nothing_shares_a_spot(seats: dict, names: tuple[str, ...]) -> None:
+    boxes = {name: seats[name] for name in names}
+    for name, box in boxes.items():
+        assert box, f"{name} is not on show"
+    done = list(boxes)
+    for n, one in enumerate(done):
+        for other in done[n + 1 :]:
+            assert apart(boxes[one], boxes[other]), f"{one} and {other} overlap"
+
+
+def every_line_above(seats: dict, names: tuple[str, ...]) -> None:
+    ceiling = min(seats[name]["top"] for name in names if seats[name])
+    assert seats["shown"], "there are lines on show"
+    for line in seats["shown"]:
+        assert line["bottom"] <= ceiling, f"{line['id']} runs to {line['bottom']}, under {ceiling}"
+
+
+def test_on_a_phone_nothing_at_the_foot_shares_a_spot(phone_scene) -> None:
+    """The tab, the player and both arrows, each with a place of its own — and no line
+    of the page under any of them."""
+    seats = phone_scene.evaluate(SEATS)
+    nothing_shares_a_spot(seats, ("tab", "player", "back", "forward"))
+    every_line_above(seats, ("tab", "player", "back", "forward"))
+
+
+def test_the_player_stands_on_the_sheet_not_where_its_ceiling_is(phone_scene_scrolling) -> None:
+    """A sheet with nothing much in it is far shorter than the 42svh it may grow to. The
+    player stands on the sheet there is, not on the one there might have been."""
+    page = phone_scene_scrolling
+    page.click("#list-tab")
+    page.wait_for_function("() => document.body.classList.contains('list-open')")
+    seats = page.evaluate(SEATS)
+    assert seats["sheet"], "the sheet is open"
+    assert seats["player"], "the player is out"
+    assert seats["player"]["bottom"] <= seats["sheet"]["top"], "the player is not on the sheet"
+    assert seats["sheet"]["top"] - seats["player"]["bottom"] < 24, "the player is above the sheet"
+
+
+def test_with_the_sheet_open_the_arrows_stand_on_it_and_the_page_above_them(phone_scene) -> None:
+    """The sheet used to cover the arrows. Now they stand on it, the player stands on
+    them, and the page is laid out above the lot — and grows back when the sheet goes."""
+    phone_scene.click("#list-tab")
+    phone_scene.wait_for_function("() => document.body.classList.contains('list-open')")
+    seats = phone_scene.evaluate(SEATS)
+    assert seats["sheet"] and seats["back"] and seats["forward"] and seats["player"]
+    for arrow in ("back", "forward"):
+        assert seats[arrow]["bottom"] <= seats["sheet"]["top"], f"{arrow} is under the sheet"
+    assert seats["player"]["bottom"] <= seats["back"]["top"], "the player is not above the arrows"
+    every_line_above(seats, ("player", "back", "forward", "sheet"))
+    before = len(seats["shown"])
+    phone_scene.click(".list-close")
+    phone_scene.wait_for_function(
+        f"() => document.querySelectorAll('.pair:not([hidden])').length > {before}"
+    )
+
+
+def test_a_text_with_no_voice_keeps_its_tab_clear_of_the_arrows(phone_chapter) -> None:
+    seats = phone_chapter.evaluate(SEATS)
+    assert seats["player"] is None
+    nothing_shares_a_spot(seats, ("tab", "back", "forward"))
+    every_line_above(seats, ("tab", "back", "forward"))
 
 
 # A recorded book.
