@@ -628,10 +628,10 @@ body.public {
 .public .embed .handle:hover { color: var(--ink); }
 .public .embed .handle::after { content: " ⤢"; }
 
-/* Given the screen: the frame is the window, the page under it neither scrolls nor
-   shows, and the row above reads the other way. `body.locked` is the classic phone
-   scroll lock — fixed, with the scroll it had held in `top`, so nothing moves under a
-   thumb that has nothing to move. */
+/* Pinned by hand, where the browser has no full screen of its own: the frame is the
+   window, the page under it neither scrolls nor shows, and the row above reads the
+   other way. `body.locked` is the classic phone scroll lock — fixed, with the scroll it
+   had held in `top`, so nothing moves under a thumb that has nothing to move. */
 .public .embed.locked {
   position: fixed;
   inset: 0;
@@ -657,15 +657,31 @@ body.public.locked {
   inline-size: 100%;
   overflow: hidden;
 }
-/* In flight between the slot and the window, above everything either way, and with
-   the slot's corners kept until it lands. */
-.public .embed.flying {
-  position: fixed;
-  z-index: 40;
-  will-change: transform;
+/* The browser's own full screen, where the row above the reader is still the way back. */
+.public .embed:fullscreen,
+.public .embed.full {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  margin: 0;
+  border: 0;
+  background: var(--paper);
 }
-.public .embed.flying:not(.locked) {
-  inset: auto;
+.public .embed:fullscreen iframe,
+.public .embed.full iframe {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  height: auto;
+}
+
+/* The page settles around the reader rather than seizing it: scrolling near the
+   reader lands it filling the screen, and scrolling on goes on. Proximity, never
+   mandatory — a page that will not let you scroll past is the thing this replaced. */
+html:has(main.weekly) {
+  scroll-snap-type: y proximity;
+}
+.public .weekly .embed {
+  scroll-snap-align: start;
 }
 .public .embed iframe {
   display: block;

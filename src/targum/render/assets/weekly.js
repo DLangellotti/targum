@@ -35,19 +35,15 @@
     }
   }
 
-  /* The frame takes the screen.
+  /* Full screen, asked for and never imposed.
 
-     A reader inside a page that scrolls is the worst of both: the page takes the
-     scroll the reader wanted, and the reader is cramped inside a slot. So the moment
-     somebody starts reading in it — a tap or a click inside the frame, which the page
-     can hear because the frame is the same origin — the frame is given the whole
-     window, and the page under it is held still. On a phone, scrolling the frame to
-     the top of the window is starting to read too.
-
-     Given back from the row above the reader, or on Escape — unless the reader has a
-     card or a sheet up, which is what Escape closes first. And once somebody has let
-     themselves out, scrolling does not pull them back in; only touching the reader
-     again does. */
+     For a while the frame took the window on its own — when scrolling reached it, or
+     at the first tap inside — and that felt like being pushed. Nothing here is
+     automatic now: the page settles around the reader by scroll-snap in the stylesheet,
+     a tap inside just reads, and the row above the reader is the one way to the whole
+     screen. Through the browser's own full screen where there is one, which brings its
+     own way out (the system's gesture, Escape); pinned by hand only where there is
+     none, which is Safari on a phone, and given back from the same row or Escape. */
   var embed = document.getElementById("embed");
   var handle = document.getElementById("embed-handle");
   var framed = embed && embed.querySelector("iframe");
@@ -69,73 +65,67 @@
   window.addEventListener("resize", placeStage);
 
   if (embed && handle && framed) {
-    var locked = false;
-    var left = false;
+    var native = !!(embed.requestFullscreen || embed.webkitRequestFullscreen);
+    var pinned = false;
     var held = 0;
-    var narrow = window.matchMedia("(max-width: 60rem)");
 
-    /* From the slot to the window and back as one movement, not a cut. The frame is
-       laid out where it is going first; then a transform puts it back where it was and
-       is let go of on the mode pill's curve, so the box is seen to grow from the slot
-       (and to shrink back into it). The reader inside lays itself out for the new size
-       at the start, under the transform — a small shift at the slot's size, then the
-       rise. Nothing, where stillness was asked for. */
-    var still = window.matchMedia("(prefers-reduced-motion: reduce)");
-    var flying = 0;
-
-    function fly(from) {
-      if (still.matches) return;
-      var to = embed.getBoundingClientRect();
-      if (!to.width || !to.height) return;
-      var sx = from.width / to.width;
-      var sy = from.height / to.height;
-      var dx = from.left - to.left;
-      var dy = from.top - to.top;
-      embed.style.transformOrigin = "0 0";
-      embed.style.transition = "none";
-      embed.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
-      void embed.offsetWidth;
-      embed.style.transition = "transform 260ms cubic-bezier(0.32, 0.72, 0, 1)";
-      embed.style.transform = "";
-      embed.classList.add("flying");
-      clearTimeout(flying);
-      flying = setTimeout(function () {
-        embed.style.transition = "";
-        embed.style.transformOrigin = "";
-        embed.classList.remove("flying");
-      }, 300);
+    function isFull() {
+      return document.fullscreenElement === embed || document.webkitFullscreenElement === embed;
     }
 
-    function lock() {
-      if (locked) return;
-      locked = true;
-      left = false;
-      var from = embed.getBoundingClientRect();
+    function say(open) {
+      handle.textContent = open ? "Back to the page" : "Full screen";
+      handle.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    function pin() {
+      if (pinned) return;
+      pinned = true;
       held = window.scrollY;
       document.body.style.top = -held + "px";
       document.body.classList.add("locked");
       embed.classList.add("locked");
-      handle.textContent = "Back to the page";
-      handle.setAttribute("aria-expanded", "true");
-      fly(from);
+      say(true);
     }
 
-    function unlock() {
-      if (!locked) return;
-      locked = false;
-      left = true;
-      var from = embed.getBoundingClientRect();
+    function unpin() {
+      if (!pinned) return;
+      pinned = false;
       embed.classList.remove("locked");
       document.body.classList.remove("locked");
       document.body.style.top = "";
       window.scrollTo(0, held);
-      handle.textContent = "Full screen";
-      handle.setAttribute("aria-expanded", "false");
+      say(false);
       placeStage();
-      fly(from);
     }
 
-    /* Whether the reader has something of its own up that Escape should close first. */
+    handle.addEventListener("click", function () {
+      if (native) {
+        if (isFull()) {
+          (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+        } else {
+          var ask = embed.requestFullscreen || embed.webkitRequestFullscreen;
+          var asked = ask.call(embed);
+          /* Refused — a browser that has the call but not the permission — falls back
+             to pinning, so the row always does something. */
+          if (asked && asked.catch) asked.catch(pin);
+        }
+        return;
+      }
+      if (pinned) unpin();
+      else pin();
+    });
+
+    function changed() {
+      var open = isFull();
+      embed.classList.toggle("full", open);
+      say(open);
+    }
+    document.addEventListener("fullscreenchange", changed);
+    document.addEventListener("webkitfullscreenchange", changed);
+
+    /* Escape gives the pinned page back — unless the reader has a card or a sheet up,
+       which is what Escape closes first. The browser's own full screen handles its own. */
     function readerIsBusy() {
       try {
         var doc = framed.contentDocument;
@@ -146,15 +136,9 @@
         return false;
       }
     }
-
-    handle.addEventListener("click", function () {
-      if (locked) unlock();
-      else lock();
-    });
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && locked) unlock();
+      if (event.key === "Escape" && pinned) unpin();
     });
-
     function listenInside() {
       var doc;
       try {
@@ -164,23 +148,12 @@
       }
       if (!doc || doc.__targumListening) return;
       doc.__targumListening = true;
-      doc.addEventListener("pointerdown", function () { lock(); }, true);
       doc.addEventListener("keydown", function (event) {
-        if (event.key === "Escape" && locked && !readerIsBusy()) unlock();
+        if (event.key === "Escape" && pinned && !readerIsBusy()) unpin();
       });
     }
     framed.addEventListener("load", listenInside);
     listenInside();
-
-    window.addEventListener(
-      "scroll",
-      function () {
-        if (locked || left || !narrow.matches) return;
-        var top = embed.getBoundingClientRect().top;
-        if (top <= 12 && top > -embed.offsetHeight / 2) lock();
-      },
-      { passive: true }
-    );
   }
 
   /* The sources, folded on a phone. Open in the markup, so that without this file

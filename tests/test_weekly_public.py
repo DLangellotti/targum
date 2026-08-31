@@ -825,13 +825,13 @@ LOCKED = """
 
 
 @pytest.mark.parametrize("phone", [True, False], ids=["a phone", "a desktop"])
-def test_the_framed_reader_takes_the_screen_and_gives_it_back(
+def test_the_framed_reader_is_never_forced_on_anyone(
     open_shelves: tuple[int, Path], phone: bool
 ) -> None:
-    """A reader in a slot on a page that scrolls is cramped and fights the page for the
-    scroll. So the frame takes the whole window when reading starts in it — a press
-    inside, and on a phone scrolling it to the top — and gives it back from the row above
-    it or on Escape. Out once, scrolling does not pull you back; a press inside does."""
+    """Nothing about the frame is automatic: scrolling to it and pressing inside it
+    leave the page as it is. The row above it is the one way to the whole screen — the
+    browser's own where there is one, pinned by hand where there is not — and the same
+    row, or Escape, is the way back, with the page where it was."""
     playwright_api = pytest.importorskip("playwright.sync_api")
     port = open_shelves[0]
     size = {"width": 390, "height": 844} if phone else {"width": 1280, "height": 800}
@@ -840,41 +840,34 @@ def test_the_framed_reader_takes_the_screen_and_gives_it_back(
             browser = driver.chromium.launch()
         except Exception as why:  # pragma: no cover - the browser itself is not installed
             pytest.skip(f"no Chromium ({why})")
-        # Stillness asked for: the frame flies between the slot and the window on the
-        # way in and out, and a box measured in flight is neither.
         page = browser.new_page(
             viewport=size, has_touch=phone, is_mobile=phone, reduced_motion="reduce"
         )
         page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
         page.wait_for_selector("#embed-handle")
-        assert not page.evaluate(LOCKED)["locked"], "at rest, a slot on the page"
-
-        # Scrolling the frame to the top of the window.
         page.evaluate("() => window.scrollTo(0, document.getElementById('embed').offsetTop)")
-        page.wait_for_timeout(200)
-        seen = page.evaluate(LOCKED)
-        if phone:
-            assert seen["locked"], "on a phone, scrolling it to the top is starting to read"
-            assert seen["embed"] == {"top": 0, "height": 844, "width": 390}, seen
-            assert seen["handle"] == "Back to the page"
-            page.click("#embed-handle")
-            seen = page.evaluate(LOCKED)
-            assert not seen["locked"] and seen["handle"] == "Full screen"
-            slot = page.evaluate("() => document.getElementById('embed').offsetTop")
-            assert abs(seen["scrollY"] - slot) < 4, "the page is back where it was"
-            page.evaluate("() => window.scrollBy(0, 30)")
-            page.wait_for_timeout(200)
-            assert not page.evaluate(LOCKED)["locked"], "out once, scrolling does not pull you back"
-        else:
-            assert not seen["locked"], "a desktop is not scroll-jacked"
-
-        # A press inside the reader.
+        page.wait_for_timeout(250)
         page.frame_locator(".embed iframe").locator("body").dispatch_event("pointerdown")
-        page.wait_for_function("() => document.body.classList.contains('locked')")
-        seen = page.evaluate(LOCKED)
-        assert seen["embed"]["top"] == 0 and seen["embed"]["height"] == size["height"]
-        page.keyboard.press("Escape")
-        assert not page.evaluate(LOCKED)["locked"], "Escape gives the page back"
+        page.wait_for_timeout(250)
+        state = page.evaluate(LOCKED)
+        assert not state["locked"], "neither scrolling to it nor pressing inside it seizes the page"
+        assert not page.evaluate("() => !!document.fullscreenElement")
+        assert state["handle"] == "Full screen"
+
+        page.click("#embed-handle")
+        page.wait_for_function(
+            "() => document.fullscreenElement || document.body.classList.contains('locked')"
+        )
+        page.wait_for_timeout(200)
+        assert page.evaluate(LOCKED)["handle"] == "Back to the page"
+        page.click("#embed-handle")
+        page.wait_for_function(
+            "() => !document.fullscreenElement && !document.body.classList.contains('locked')"
+        )
+        state = page.evaluate(LOCKED)
+        assert state["handle"] == "Full screen"
+        slot = page.evaluate("() => document.getElementById('embed').offsetTop")
+        assert abs(state["scrollY"] - slot) < 8, "the page is back where it was"
         browser.close()
 
 
