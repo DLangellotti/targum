@@ -417,6 +417,13 @@ button, select {
   cursor: pointer;
 }
 button:hover, select:hover { color: var(--ink); border-color: var(--ink-soft); }
+/* Pressed. A touch screen has no hover, so this is the whole of the feedback for a tap
+   on a control: the same lift, muted to ink, at the moment of the press. A word takes
+   the look-up wash it will wear a beat later anyway, so the tap and the card read as
+   one act. */
+button:active, select:active, .list-tab:active { color: var(--ink); border-color: var(--ink-soft); }
+.w:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.player-play:active { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
 button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
 
 [data-theme-toggle] {
