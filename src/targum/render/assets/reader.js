@@ -4305,6 +4305,18 @@
       return;
     }
 
+    // A row of the menu is one control with its name beside it, and on a phone the
+    // name is most of the row. A tap on the name presses the control. Not a row of
+    // several — the type sizes, the levels — where the name says nothing about which.
+    var row = event.target.closest ? event.target.closest(".bar-more.open .group") : null;
+    if (row && !button) {
+      var controls = row.querySelectorAll("button, a");
+      if (controls.length === 1 && !row.querySelector("select")) {
+        controls[0].click();
+        return;
+      }
+    }
+
     // A word answers the same way whichever mode you are in. Marking changes what the
     // page shows you, never what it lets you do — you have to be able to mark a word to
     // clear it, and the whole point of the mode is clearing them.
