@@ -150,6 +150,38 @@ def check_api_key() -> Check:
     )
 
 
+def check_ffmpeg() -> Check:
+    """Whether audio can be imported at all. A warning: a box that reads only text is
+    a working product, and the /add page simply does not offer what the box cannot do."""
+    from .audio import ffmpeg_available
+
+    usable, fix = ffmpeg_available()
+    if usable:
+        return Check("ffmpeg", True, "audio imports are on")
+    return Check("ffmpeg", False, "ffmpeg is not installed.", f"apt-get {fix}", fatal=False)
+
+
+def check_transcriber() -> Check:
+    """Whether a recording without a transcript can be heard, and on whose key."""
+    from .transcribe import build, default_name
+
+    try:
+        chosen = build(default_name())
+    except Exception:  # noqa: BLE001 - a misnamed transcriber is the same warning
+        chosen = None
+    if chosen is not None:
+        usable, detail = chosen.available()
+        if usable:
+            return Check("transcriber", True, chosen.name)
+    return Check(
+        "transcriber",
+        False,
+        "No transcriber key.",
+        "Set ELEVENLABS_API_KEY or OPENAI_API_KEY. Audio without a transcript is off until one is.",
+        fatal=False,
+    )
+
+
 def check_covers() -> Check:
     """Whether a cover can be drawn, which is a thing to know rather than a thing to fix.
 
@@ -295,6 +327,8 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks += check_mail(connect=connect)
     checks.append(check_api_key())
     checks.append(check_covers())
+    checks.append(check_ffmpeg())
+    checks.append(check_transcriber())
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

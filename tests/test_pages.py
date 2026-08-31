@@ -160,7 +160,8 @@ def test_add_no_longer_introduces_the_product() -> None:
     who already has an account and a shelf, it is a stranger's greeting to a regular."""
     add = PAGES["add"]
     assert "Hebrew, with the translation beside it" not in add
-    assert "Add a text" in add
+    # "Add", since a recording is as welcome as a text: the page's one word is the act.
+    assert '<h1 class="lede">Add</h1>' in add
 
 
 def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
@@ -169,7 +170,7 @@ def test_add_points_at_the_library_before_asking_anybody_to_pay() -> None:
     "Library", card "Explore the Library", route /library — so it is Library everywhere
     now, and the route it always was."""
     add = PAGES["add"]
-    said = add[add.index("Add a text") : add.index('id="drop"')]
+    said = add[add.index('<h1 class="lede">Add</h1>') : add.index('id="drop"')]
     assert "Library" in said and 'href="/library"' in said
 
 

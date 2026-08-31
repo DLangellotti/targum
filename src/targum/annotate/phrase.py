@@ -19,7 +19,7 @@ after the first. Nothing here touches SCHEMA_VERSION.
 from __future__ import annotations
 
 import re
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from pydantic import BaseModel
 
@@ -46,6 +46,24 @@ _QUOTES = "\"'“”‘’«»"
 class _Answer(BaseModel):
     meaning: str
     quoted: bool = False
+    kind: str = ""
+    citation: str = ""
+
+
+#: The kinds of unit a run of words can be, which is what tells a learner what sort of
+#: thing to remember. Anything else the model says is dropped rather than shown: a
+#: category invented once is a category the card teaches.
+KINDS = frozenset({"idiom", "construct chain", "verb + preposition", "fixed expression"})
+
+
+class PhraseAnswer(NamedTuple):
+    """What the card gets to say about a run: the meaning, whether it quotes the
+    translation, what kind of unit it is (or ""), and the form worth keeping (or "")."""
+
+    meaning: str
+    quoted: bool = False
+    kind: str = ""
+    citation: str = ""
 
 
 class PhraseProvider(Protocol):
@@ -59,7 +77,7 @@ class PhraseProvider(Protocol):
         translation: str,
         source_language: str,
         target_language: str,
-    ) -> tuple[str, bool]: ...
+    ) -> PhraseAnswer: ...
 
 
 SYSTEM = """You are helping a {target} speaker read {source} with the translation beside the text.
@@ -73,7 +91,13 @@ sentence. Say what the run means.
 - Otherwise — the run is spread across the translation, or the idiom does not carry —
   return a short {target} rendering of the run as it is used in this sentence, and set
   quoted to false.
-- The meaning only. No notes, no transliteration, no grammar."""
+- The meaning only. No notes, no transliteration, no grammar.
+- If the run is a unit worth remembering as one, say which kind: exactly one of
+  "idiom", "construct chain", "verb + preposition" or "fixed expression". A plain run
+  of words gets an empty kind.
+- For a run built on a verb, give citation: the form a learner would keep, in
+  {source} — the infinitive, with its preposition where the verb takes one. Otherwise
+  leave citation empty."""
 
 
 def tidy(text: str) -> str:
@@ -124,7 +148,7 @@ class AnthropicPhrases:
         translation: str,
         source_language: str,
         target_language: str,
-    ) -> tuple[str, bool]:
+    ) -> PhraseAnswer:
         import anthropic
 
         from ..translate.anthropic_provider import output_config
@@ -154,8 +178,13 @@ class AnthropicPhrases:
         )
         parsed: Any = response.parsed_output
         if not isinstance(parsed, _Answer):
-            return "", False
-        return parsed.meaning.strip(), bool(parsed.quoted)
+            return PhraseAnswer("")
+        return PhraseAnswer(
+            parsed.meaning.strip(),
+            bool(parsed.quoted),
+            parsed.kind.strip().lower(),
+            tidy(parsed.citation),
+        )
 
 
 def phrase_key(
@@ -189,14 +218,22 @@ def cached_phrase(
     target: str,
     provider: str,
     cache: Cache | None = None,
-) -> tuple[str, bool] | None:
-    """The answer already held, or None. Never spends."""
+) -> PhraseAnswer | None:
+    """The answer already held, or None. Never spends.
+
+    An answer bought before kind and citation existed comes back with both empty —
+    what was paid for stands, and the card simply says less about it."""
     cache = cache or Cache()
     stored = cache.get(
         "phrase", phrase_key(cache, phrase, sentence, translation, source, target, provider)
     )
     if isinstance(stored, dict) and stored.get("meaning"):
-        return str(stored["meaning"]), bool(stored.get("quoted"))
+        return PhraseAnswer(
+            str(stored["meaning"]),
+            bool(stored.get("quoted")),
+            str(stored.get("kind", "")),
+            str(stored.get("citation", "")),
+        )
     return None
 
 
@@ -209,34 +246,40 @@ def phrase_one(
     provider: PhraseProvider,
     *,
     cache: Cache | None = None,
-) -> tuple[str, bool]:
+) -> PhraseAnswer:
     """One run of words, looked up because someone selected it.
 
     Returns the meaning and whether it is a quotation from the translation. `quoted` is
     only ever true when the words really are in the translation, whatever the model
-    claimed, and then the meaning is the translation's own spelling of them. An empty
-    answer is returned empty and not remembered, so the next reader asks again.
+    claimed, and then the meaning is the translation's own spelling of them. The kind
+    is kept only when it is one of KINDS — a category invented once is a category the
+    card teaches — and the citation only when its letters appear in the sentence's own
+    language. An empty answer is returned empty and not remembered, so the next reader
+    asks again.
     """
     cache = cache or Cache()
     held = cached_phrase(phrase, sentence, translation, source, target, provider.name, cache)
     if held is not None:
         return held
 
-    meaning, quoted = provider.explain(phrase, sentence, translation, source, target)
-    meaning = tidy(meaning)
+    answer = provider.explain(phrase, sentence, translation, source, target)
+    meaning = tidy(answer.meaning)
     if not meaning:
-        return "", False
+        return PhraseAnswer("")
+    quoted = answer.quoted
     piece = quoted_piece(meaning, translation) if quoted else None
     if piece is not None:
         meaning, quoted = piece, True
     else:
         quoted = False
+    kind = answer.kind if answer.kind in KINDS else ""
+    citation = answer.citation if answer.citation and answer.citation != meaning else ""
     cache.put(
         "phrase",
         phrase_key(cache, phrase, sentence, translation, source, target, provider.name),
-        {"meaning": meaning, "quoted": quoted},
+        {"meaning": meaning, "quoted": quoted, "kind": kind, "citation": citation},
     )
-    return meaning, quoted
+    return PhraseAnswer(meaning, quoted, kind, citation)
 
 
 # Kept importable for a caller that wants to reject before it asks, the way the server does.

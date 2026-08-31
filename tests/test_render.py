@@ -697,7 +697,7 @@ def test_the_reader_styles_every_floating_card() -> None:
     from targum.render.builder import ASSETS
 
     css = (ASSETS / "reader.css").read_text(encoding="utf-8")
-    for selector in (".gloss-card {", ".gloss-card .keep {", ".pick-card {", ".list {"):
+    for selector in (".gloss-card {", ".pick-card {", ".list {"):
         assert selector in css, selector
     # Each floats over the text, so each needs taking out of the flow.
     for block in (".gloss-card {", ".pick-card {", ".list {"):
@@ -715,8 +715,8 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
     css = (ASSETS / "reader.css").read_text(encoding="utf-8")
     assert ".copy {" in css and ".gloss-card .copy-line {" in css
     reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert reader.count("window.TargumVocab.copyButton(") == 6, (
-        "the word, its dictionary form, its meaning, the phrase, its reading, a row"
+    assert reader.count("window.TargumVocab.copyButton(") == 5, (
+        "the word, its meaning, the phrase, its reading, a row"
     )
     assert reader.count("copyButton(") == reader.count(", { say: say })"), (
         "in the reader, every copy announces through #spoken"
@@ -1362,6 +1362,147 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
     assert data["binyanim"] == ["התפעל", ""]
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert PEALIM in html
+
+
+def test_how_a_word_is_built_and_conjugated_ride_in_tables_of_their_own(tmp_path: Path) -> None:
+    """Both are facts about the occurrence, like the sound, and ride the same way: a
+    table of distinct strings with an index on each token, index 0 meaning nothing to
+    say. A reader with no Hebrew ships neither table at all."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=0,
+                    end=6,
+                    surface="לביתו",
+                    lemma="בית",
+                    band=1,
+                    split=True,
+                    built="ל to + בית + his",
+                    feats="Gender=Masc|Number=Sing",
+                ),
+                # The same grammar again: the table holds it once, both rows point at it.
+                Token(
+                    start=7,
+                    end=10,
+                    surface="ספר",
+                    lemma="ספר",
+                    band=1,
+                    feats="Gender=Masc|Number=Sing",
+                ),
+                # Nothing to say on either count: both indices are 0.
+                Token(start=10, end=11, surface="גם", lemma="גם", band=1),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["built"] == ["", "ל to + בית + his"]
+    assert data["grammar"] == ["", "Gender=Masc|Number=Sing"]
+    rows = data["words"][segments[0].id]
+    assert [row[7] for row in rows] == [1, 0, 0]
+    assert [row[8] for row in rows] == [1, 1, 0]
+
+
+def test_a_reader_with_nothing_built_ships_no_built_table(tmp_path: Path) -> None:
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: [Token(start=0, end=3, surface="גם", lemma="גם", band=1)]},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert "built" not in data
+    assert "grammar" not in data
+
+
+def test_citations_and_lying_plurals_ride_beside_the_lemmas(tmp_path: Path) -> None:
+    """Facts about the source word itself, from whichever glossary holds them — they do
+    not vary by target language. Left out entirely while no word on the page has one."""
+    from targum.models import Annotation, Glossary, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(start=0, end=5, surface="השתמש", lemma="השתמש", band=3),
+                Token(start=6, end=9, surface="ספר", lemma="ספר", band=1),
+            ]
+        },
+    )
+    glossary = Glossary(
+        source_language="he",
+        target_language="en",
+        provider="p",
+        entries={"השתמש": "use", "ספר": "book"},
+        citations={"השתמש": "להשתמש ב־"},
+        plurals={"ספר": "ספרים"},
+    )
+    html = render(
+        document,
+        segmented,
+        [translation],
+        tmp_path / "r",
+        annotation=annotation,
+        glossaries={"en": glossary},
+    )[0].read_text(encoding="utf-8")
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["citations"] == ["להשתמש ב־", ""]
+    assert data["plurals"] == ["", "ספרים"]
 
 
 def test_the_readings_ride_in_a_table_of_their_own(tmp_path: Path) -> None:
@@ -2023,16 +2164,17 @@ def test_a_phrase_asks_only_where_the_page_can() -> None:
         script.index("function phrasePending(picked)") : script.index("function askPhrase(")
     ]
     assert "canAsk()" in pending and "translationFor(picked.segmentId)" in pending
-    # The three things the caption can say about a part of a sentence, and the one it
-    # says while the answer is on its way.
+    # The caption says only what is still owed or standing in — never provenance:
+    # "in the parallel text" and "as it is used here" told the reader where an answer
+    # came from, which nobody could act on. Removed 2026-08-31.
     chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     for caption in (
-        "in the parallel text",
-        "as it is used here",
         "word by word — looking…",
         "word by word — the sentence is in parallel",
     ):
         assert caption in chip, caption
+    for gone in ("in the parallel text", "as it is used here"):
+        assert gone not in chip, gone
     # An answer that lands after Keep reaches the kept phrase, and the card is restated
     # only if it is still open on that selection.
     assert "keepMeaning(phraseTerm(item), answer.meaning, into);" in chip
@@ -2754,24 +2896,21 @@ def test_the_count_of_what_is_left_is_not_the_colour_of_an_achievement() -> None
     assert '"nothing left to mark here"' in script
 
 
-def test_the_card_says_which_keys_it_answers_to() -> None:
-    """How anybody who taps finds out there is a faster way: the legend is where they are
-    already looking. The arrow is the one that goes forward on this page — §7 asks for
-    the typed character per reading direction."""
+def test_the_card_carries_no_key_legend() -> None:
+    """It used to teach its own keys on every opening, in 11px mono — the card carrying
+    a manual. The keys card (?) is the manual; the card is the answer. Decided with the
+    perfected middle road, 2026-08-31."""
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert '" next · k known · 1 2 3 · i ignore · "' in script
-    # Look-up is on the legend only while the card is offering it: Enter closes the card
-    # otherwise, and a legend that said otherwise would be lying half the time.
-    assert '(offering ? "Enter look up · " : "")' in script
-    assert "g look up" not in script
-
+    assert '" next · k known · 1 2 3 · i ignore · "' not in script
+    assert 'className = "legend"' not in script
     css = _reader_css()
-    rules = css.split("\n.gloss-card .legend {", 1)[1].split("}", 1)[0]
-    # §5 gives keys the monospace face, at the label size.
-    assert "ui-monospace" in rules
-    assert "font-size: 0.6875rem" in rules
+    assert ".gloss-card .legend" not in css
+    # The manual itself is still there to open.
+    assert 'id="keys"' in (ASSETS.parent / "templates" / "reader.html.j2").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_the_queue_keys_are_written_down() -> None:

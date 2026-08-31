@@ -142,6 +142,14 @@ class AnthropicProvider:
             language = source.split("-")[0].lower()
             body_tokens = len(body) / CHARS_PER_TOKEN.get(language, DEFAULT_CHARS_PER_TOKEN)
         batch_count = len(list(batches(segments, self.batch_size)))
+        return self.estimate_from_counts(body_tokens, batch_count)
+
+    def estimate_from_counts(self, body_tokens: float, batch_count: int) -> float:
+        """The estimate's arithmetic, for a text that does not exist yet.
+
+        An imported recording is priced before it is transcribed, from its length and
+        a speech rate; only the counting differs, so the pricing must not.
+        """
         context_share = CONTEXT_SEGMENTS_PER_BATCH / self.batch_size
         input_tokens = body_tokens * (1.0 + context_share) + TOKENS_PER_BATCH * batch_count
         output_tokens = body_tokens * OUTPUT_RATIO

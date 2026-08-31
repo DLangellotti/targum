@@ -108,12 +108,14 @@
     chosen = file;
     sourceInput.value = "";
     showChosen();
+    if (window.TargumAddAudio) window.TargumAddAudio.toggle(/\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav)$/i.test(file.name));
   }
 
   function forget() {
     chosen = null;
     fileInput.value = "";
     showChosen();
+    if (window.TargumAddAudio) window.TargumAddAudio.toggle(false);
   }
 
   if (unchoose) unchoose.onclick = forget;
@@ -219,6 +221,137 @@
       });
     });
   })();
+
+  /* --- a recording, and the transcript it may have come with ----------------- */
+
+  var AUDIO = /\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav)$/i;
+
+  function isAudio(file) {
+    return !!(file && AUDIO.test(file.name));
+  }
+
+  //: The transcript the reader brought for their recording, if they brought one.
+  var spokenText = null;
+
+  (function () {
+    var step = document.getElementById("audio-extra");
+    var zone = document.getElementById("drop-transcript");
+    var field = document.getElementById("transcript");
+    var choose = document.getElementById("choose-transcript");
+    var undo = document.getElementById("unchoose-transcript");
+    var how = document.getElementById("spoken-how");
+    var note = document.getElementById("spoken-note");
+    var half = document.getElementById("have-transcript");
+    if (!step || !zone || !field || !how) return;
+
+    var LABEL = zone.querySelector(".drop-label").textContent;
+    var NOTE = zone.querySelector(".drop-note").textContent;
+
+    function show() {
+      var picked = spokenText !== null;
+      zone.querySelector(".drop-label").textContent = picked ? spokenText.name : LABEL;
+      zone.querySelector(".drop-note").textContent = picked
+        ? Math.round(spokenText.size / 1024) + " KB"
+        : NOTE;
+      choose.hidden = picked;
+      undo.hidden = !picked;
+    }
+
+    choose.onclick = function () {
+      field.click();
+    };
+    field.onchange = function () {
+      if (field.files[0]) {
+        spokenText = field.files[0];
+        show();
+      }
+    };
+    undo.onclick = function () {
+      spokenText = null;
+      field.value = "";
+      show();
+    };
+    ["dragenter", "dragover"].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        event.preventDefault();
+        zone.classList.add("over");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (name) {
+      zone.addEventListener(name, function (event) {
+        event.preventDefault();
+        zone.classList.remove("over");
+      });
+    });
+    zone.addEventListener("drop", function (event) {
+      var file = event.dataTransfer && event.dataTransfer.files[0];
+      if (file) {
+        spokenText = file;
+        show();
+      }
+    });
+
+    Array.prototype.forEach.call(how.querySelectorAll("[data-spoken]"), function (press) {
+      press.addEventListener("click", function () {
+        var mine = press.getAttribute("data-spoken") === "mine";
+        Array.prototype.forEach.call(how.querySelectorAll("[data-spoken]"), function (other) {
+          other.setAttribute("aria-pressed", other === press ? "true" : "false");
+        });
+        half.hidden = !mine;
+        note.textContent = mine
+          ? "Its timings are kept, so nothing is transcribed."
+          : "targum writes down what is said, part by part.";
+        if (!mine && spokenText) {
+          spokenText = null;
+          field.value = "";
+          show();
+        }
+      });
+    });
+
+    // The step exists only while the chosen file is a recording.
+    window.TargumAddAudio = {
+      toggle: function (on) {
+        step.hidden = !on;
+        if (!on && spokenText) {
+          spokenText = null;
+          field.value = "";
+          show();
+        }
+      },
+    };
+  })();
+
+  /* A recording goes up in pieces: the JSON door reads its whole body into memory as
+     base64, which for an audiobook is the wrong door. Sequential on purpose — the
+     server is one worker and the reader's uplink is the bottleneck either way. */
+  function uploadInChunks(file, tell) {
+    return ask("/upload/begin", { name: file.name, size: file.size }).then(function (opened) {
+      if (opened.error) throw opened.error;
+      var piece = opened.chunk;
+      var count = Math.ceil(file.size / piece);
+
+      function send(n) {
+        if (n >= count) {
+          return ask("/upload/" + opened.upload + "/end", {});
+        }
+        return fetch(keyed("/upload/" + opened.upload + "/" + n), {
+          method: "POST",
+          headers: keyHeaders({ "Content-Type": "application/octet-stream" }),
+          body: file.slice(n * piece, (n + 1) * piece),
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (state) {
+            if (state.error) throw state.error;
+            tell(Math.round(((n + 1) / count) * 100));
+            return send(n + 1);
+          });
+      }
+      return send(0);
+    });
+  }
 
   /* --- building ------------------------------------------------------------ */
 
@@ -411,8 +544,37 @@
       });
     }
 
+    /* The transcript the reader brought for their recording, read the same way a
+       translation is. */
+    function withTranscript(body) {
+      if (!spokenText) return Promise.resolve(body);
+      return readFile(spokenText).then(function (content) {
+        body.transcriptName = spokenText.name;
+        body.transcriptContent = content;
+        return body;
+      });
+    }
+
     var text = pasted ? pasted.value.trim() : "";
-    if (chosen) {
+    if (chosen && isAudio(chosen)) {
+      prepared = uploadInChunks(chosen, function (share) {
+        say(line("Uploading… " + share + "%"));
+      }).then(function (done) {
+        if (done.error) throw done.error;
+        // The same bytes were already imported: the reader is the answer.
+        if (done.reader) {
+          window.location.href = keyed(
+            "/reader/" + done.reader.split("/").map(encodeURIComponent).join("/")
+          );
+          return { id: "" };
+        }
+        payload.upload = done.upload;
+        say(waiting());
+        return withTranscript(payload).then(function (body) {
+          return ask("/prepare", body);
+        });
+      });
+    } else if (chosen) {
       prepared = readFile(chosen).then(function (content) {
         payload.name = chosen.name;
         payload.content = content;
@@ -442,6 +604,7 @@
     prepared
       .then(function (job) {
         go.disabled = false;
+        if (!job.id && !job.error && !job.blocked && !job.catalogue) return;
         if (job.error) return say(line(job.error), true);
         if (job.catalogue) return instead(job.catalogue);
         if (job.blocked) return refuse(job);
@@ -453,17 +616,51 @@
       });
   };
 
+  function clock(seconds) {
+    var whole = Math.round(seconds);
+    var h = Math.floor(whole / 3600);
+    var m = Math.floor((whole % 3600) / 60);
+    var s = whole % 60;
+    function two(n) {
+      return (n < 10 ? "0" : "") + n;
+    }
+    return h ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s);
+  }
+
   function describe(job) {
+    if (job.audio) {
+      var box = document.createDocumentFragment();
+      box.appendChild(document.createTextNode(named(job.language) + " · "));
+      var when = document.createElement("span");
+      when.className = "clock";
+      when.textContent = clock(job.seconds);
+      box.appendChild(when);
+      if (job.parts > 1) {
+        box.appendChild(document.createTextNode(" · " + job.parts + " parts"));
+      }
+      return box;
+    }
     var what =
       job.chapters > 1
         ? job.chapters + " chapters"
         : job.segments + " sentences";
-    return named(job.language) + " · " + what;
+    return document.createTextNode(named(job.language) + " · " + what);
   }
 
   // What it will take, in the only currency the reader is spending: their time. What
   // it costs us is our business and never theirs — they pay by the month.
   function price(job) {
+    if (job.audio && job.parts > 0) {
+      // The wait is the first part's: hearing it, then translating it.
+      var spoken = job.seconds / job.parts / 60;
+      var listening = Math.max(1, Math.round(spoken / 6));
+      var translating = Math.max(1, Math.round((job.total || 25) / 25));
+      var wait = listening + translating;
+      var opener = job.parts > 1 ? "First part in " : "Ready in ";
+      if (wait <= 1) return opener + "about a minute.";
+      if (wait <= 4) return opener + "a few minutes.";
+      return opener + "about " + wait + " minutes.";
+    }
     if (!job.estimate) return "Ready in a moment.";
     // A book opens on its first chapter, so the wait is that chapter's — not the
     // novel's. `total` is what is being translated now.
@@ -550,7 +747,8 @@
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
     head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · " + describe(job)));
+    head.appendChild(document.createTextNode(" · "));
+    head.appendChild(describe(job));
     box.appendChild(head);
     var why = document.createElement("span");
     why.className = "cost";
@@ -566,7 +764,8 @@
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
     head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · " + describe(job)));
+    head.appendChild(document.createTextNode(" · "));
+    head.appendChild(describe(job));
     box.appendChild(head);
 
     var cost = document.createElement("span");
@@ -600,6 +799,8 @@
     if (!message) return "Getting it ready…";
     if (PLAIN[message]) return PLAIN[message];
     if (message.indexOf("Matching") === 0) return "Lining up…";
+    if (message.indexOf("Transcribing") === 0) return "Writing down what is said…";
+    if (message.indexOf("Finding the pauses") === 0) return "Finding the pauses…";
     if (message.indexOf("Looking up") === 0) return "Looking words up…";
     return "Getting it ready…";
   }

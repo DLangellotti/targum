@@ -13,7 +13,7 @@ translation, so Wiktionary through Wiktextract can slot in beside it later.
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Mapping
-from typing import Any, Protocol
+from typing import Any, NamedTuple, Protocol
 
 from pydantic import BaseModel
 
@@ -38,6 +38,27 @@ class _Entry(BaseModel):
     lemma: str
     gloss: str
     part_of_speech: str = ""
+    citation: str = ""
+    plural: str = ""
+
+
+class Sense(NamedTuple):
+    """Everything a gloss can say about a dictionary form.
+
+    `citation` and `plural` arrived 2026-08-31 and are empty on everything glossed
+    before then. Deliberately: the provider name did not move, so nothing already paid
+    for is bought again — the fields fill in lemma by lemma as words are looked up,
+    the way contextual senses do.
+    """
+
+    gloss: str
+    part: str = ""
+    #: Verbs: the form a learner keeps — the infinitive, with the preposition the verb
+    #: takes where it takes one. לְהִשְׁתַּמֵּשׁ בְּ־, not השתמש.
+    citation: str = ""
+    #: Nouns: the plural, only where it lies about the gender or changes the stem.
+    #: מִלִּים beside מילה; nothing beside ספר.
+    plural: str = ""
 
 
 class _Batch(BaseModel):
@@ -65,7 +86,7 @@ class GlossProvider(Protocol):
         target_language: str,
         on_progress: Progress | None = None,
         contexts: Mapping[str, str] | None = None,
-    ) -> dict[str, tuple[str, str]]: ...
+    ) -> Mapping[str, Any]: ...
 
 
 SYSTEM = """You are writing a learner's glossary for {source} read by a {target} speaker.
@@ -80,6 +101,14 @@ For each {source} dictionary form you are given, return one short {target} gloss
 - No transliteration, no grammatical explanation, no example sentences.
 - Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
   pronoun, conjunction, particle, other.
+- For a verb, give citation: the form a learner would keep, in {source} — the
+  infinitive, with the preposition the verb takes where it takes one. Otherwise leave
+  citation empty.
+- For a noun whose plural is irregular — the ending does not match the gender, or the
+  stem changes — give plural: that plural form, in {source}. For a regular plural
+  leave it empty.
+- For a grammatical word with no {target} equivalent, the gloss is a short note on
+  what it does instead of a translation.
 - If a form is not a word of {source}, return it with an empty gloss rather than
   guessing."""
 
@@ -122,7 +151,7 @@ class AnthropicGlosses:
         target_language: str,
         on_progress: Progress | None = None,
         contexts: Mapping[str, str] | None = None,
-    ) -> dict[str, tuple[str, str]]:
+    ) -> dict[str, Sense]:
         import anthropic
 
         from ..translate.anthropic_provider import output_config
@@ -130,7 +159,7 @@ class AnthropicGlosses:
         system = SYSTEM.format(
             source=language_name(source_language), target=language_name(target_language)
         )
-        out: dict[str, tuple[str, str]] = {}
+        out: dict[str, Sense] = {}
         for start in range(0, len(lemmas), self.batch_size):
             batch = lemmas[start : start + self.batch_size]
             try:
@@ -159,7 +188,12 @@ class AnthropicGlosses:
                 wanted = set(batch)
                 for entry in parsed.entries:
                     if entry.lemma in wanted and entry.gloss.strip():
-                        out[entry.lemma] = (entry.gloss.strip(), entry.part_of_speech.strip())
+                        out[entry.lemma] = Sense(
+                            entry.gloss.strip(),
+                            entry.part_of_speech.strip(),
+                            entry.citation.strip(),
+                            entry.plural.strip(),
+                        )
             if on_progress:
                 on_progress(len(batch))
         return out
@@ -232,13 +266,22 @@ def cached_gloss(
     target_language: str,
     provider: str,
     cache: Cache | None = None,
-) -> str:
-    """The meaning already held for a word, or nothing. Never spends."""
+) -> Sense | None:
+    """The sense already held for a word, or None. Never spends."""
     cache = cache or Cache()
     stored = cache.get("gloss", gloss_key(cache, lemma, source_language, target_language, provider))
     if isinstance(stored, dict) and stored.get("gloss"):
-        return str(stored["gloss"])
-    return ""
+        return _sense_of(stored)
+    return None
+
+
+def _sense_of(stored: dict[str, Any]) -> Sense:
+    return Sense(
+        str(stored["gloss"]),
+        str(stored.get("part_of_speech", "")),
+        str(stored.get("citation", "")),
+        str(stored.get("plural", "")),
+    )
 
 
 class _Held:
@@ -247,7 +290,7 @@ class _Held:
     def __init__(self, model: str = GLOSS_MODEL) -> None:
         self.name = gloss_provider_name(model)
 
-    def gloss(self, *args: Any, **kwargs: Any) -> dict[str, tuple[str, str]]:
+    def gloss(self, *args: Any, **kwargs: Any) -> dict[str, Sense]:
         raise TargumError("Nothing is bought here.")
 
 
@@ -267,17 +310,23 @@ def fill_from_cache(
         have = glossaries.get(target)
         entries = dict(have.entries) if have else {}
         parts = dict(have.parts_of_speech) if have else {}
+        citations = dict(have.citations) if have else {}
+        plurals = dict(have.plurals) if have else {}
         new = {lemma: gloss for lemma, gloss in held.entries.items() if lemma not in entries}
         if not new:
             continue
         entries |= new
         parts |= {lemma: held.parts_of_speech.get(lemma, "") for lemma in new}
+        citations |= {lemma: held.citations[lemma] for lemma in new if lemma in held.citations}
+        plurals |= {lemma: held.plurals[lemma] for lemma in new if lemma in held.plurals}
         grown[target] = Glossary(
             source_language=annotation.language,
             target_language=target,
             provider=have.provider if have else held.provider,
             entries=entries,
             parts_of_speech=parts,
+            citations=citations,
+            plurals=plurals,
         )
     return grown
 
@@ -290,7 +339,7 @@ def gloss_one(
     *,
     cache: Cache | None = None,
     context: str = "",
-) -> str:
+) -> Sense | None:
     """One word, looked up because someone asked for it.
 
     The whole-text pass is the expensive half of a build and most of what it buys is
@@ -314,7 +363,7 @@ def gloss_one(
     )
     stored = cache.get("gloss", key)
     if isinstance(stored, dict) and stored.get("gloss"):
-        return str(stored["gloss"])
+        return _sense_of(stored)
 
     if context:
         fresh = provider.gloss(
@@ -324,9 +373,19 @@ def gloss_one(
         fresh = provider.gloss([lemma], source_language, target_language, None)
     found = fresh.get(lemma)
     if not found:
-        return ""
-    cache.put("gloss", key, {"gloss": found[0], "part_of_speech": found[1]})
-    return found[0]
+        return None
+    sense = Sense(*found)
+    cache.put(
+        "gloss",
+        key,
+        {
+            "gloss": sense.gloss,
+            "part_of_speech": sense.part,
+            "citation": sense.citation,
+            "plural": sense.plural,
+        },
+    )
+    return sense
 
 
 def build_glossary(
@@ -355,13 +414,25 @@ def build_glossary(
 
     entries: dict[str, str] = {}
     parts: dict[str, str] = {}
+    citations: dict[str, str] = {}
+    plurals: dict[str, str] = {}
+
+    def keep(lemma: str, sense: Sense) -> None:
+        entries[lemma] = sense.gloss
+        parts[lemma] = sense.part
+        # Only where there is something to say: most words have neither, and a
+        # glossary of thirty thousand lemmas must not carry that many empty strings.
+        if sense.citation:
+            citations[lemma] = sense.citation
+        if sense.plural:
+            plurals[lemma] = sense.plural
+
     missing: list[str] = []
     for lemma in wanted:
         key = gloss_key(cache, lemma, annotation.language, target_language, provider.name)
         stored = cache.get("gloss", key)
         if isinstance(stored, dict) and stored.get("gloss"):
-            entries[lemma] = str(stored["gloss"])
-            parts[lemma] = str(stored.get("part_of_speech", ""))
+            keep(lemma, _sense_of(stored))
         else:
             missing.append(lemma)
 
@@ -372,6 +443,8 @@ def build_glossary(
             provider=provider.name,
             entries=dict(entries),
             parts_of_speech=dict(parts),
+            citations=dict(citations),
+            plurals=dict(plurals),
         )
 
     # Handed over a batch at a time rather than all at once, so a partial glossary can
@@ -384,13 +457,20 @@ def build_glossary(
     for start in range(0, len(missing), size):
         chunk = missing[start : start + size]
         fresh = provider.gloss(chunk, annotation.language, target_language, on_progress)
-        for lemma, (gloss, part) in fresh.items():
-            entries[lemma] = gloss
-            parts[lemma] = part
+        for lemma, found in fresh.items():
+            # `Sense(*found)` reads a bare (gloss, part) pair as readily as a full
+            # sense, so a provider that says less still fits.
+            sense = Sense(*found)
+            keep(lemma, sense)
             cache.put(
                 "gloss",
                 gloss_key(cache, lemma, annotation.language, target_language, provider.name),
-                {"gloss": gloss, "part_of_speech": part},
+                {
+                    "gloss": sense.gloss,
+                    "part_of_speech": sense.part,
+                    "citation": sense.citation,
+                    "plural": sense.plural,
+                },
             )
         if on_batch:
             on_batch(assembled())

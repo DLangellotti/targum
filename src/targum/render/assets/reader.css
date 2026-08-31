@@ -395,8 +395,7 @@ a.bar-brand:hover { color: var(--accent); }
 }
 @media (max-width: 60rem) {
   body:not(.has-keyboard) .bar [data-keys],
-  body:not(.has-keyboard) .bar-more .group[data-what="Keys"],
-  body:not(.has-keyboard) .gloss-card .legend { display: none; }
+  body:not(.has-keyboard) .bar-more .group[data-what="Keys"] { display: none; }
 }
 
 /* No blue flash. Chrome on Android paints its own highlight over anything tapped, in
@@ -782,7 +781,9 @@ body.marking .w.here,
   padding: 0.15rem 0.45rem;
   border: 1px solid var(--rule);
   border-radius: 4px;
-  font-size: 0.8125em;
+  /* rem, not em: em compounded with each card's base size, and 0.75em of the card's
+     15px was 11.3px — under §9's 13px floor for anything muted on raised paper. */
+  font-size: 0.8125rem;
   line-height: 1.4;
 }
 .vocab-editor .level.on {
@@ -798,7 +799,6 @@ body.marking .w.here,
   background: var(--leaf);
   border-color: var(--leaf);
 }
-.vocab-editor .level-9, .vocab-editor .level-0 { font-size: 0.75em; }
 .vocab-editor .note-field {
   width: 100%;
   padding: 0.2rem 0.4rem;
@@ -807,7 +807,7 @@ body.marking .w.here,
   background: var(--paper);
   color: var(--ink);
   font: inherit;
-  font-size: 0.8125em;
+  font-size: 0.8125rem;
 }
 .vocab-editor .note-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
@@ -823,7 +823,7 @@ body.marking .w.here,
   border-radius: 4px;
   background: var(--ink);
   color: var(--paper);
-  font-size: 0.8125em;
+  font-size: 0.8125rem;
   line-height: 1.4;
 }
 
@@ -850,13 +850,11 @@ body.marking .w.here,
 }
 .gloss-card .form bdi { font-family: var(--reading); color: var(--ink); }
 
-/* How the word is said, under the word itself. The label is metadata and stays muted;
-   the reading is what the reader came to the line for, so it is ink — §9. Left in the
-   UI face rather than the reading face: IPA is notation, not text, and Palatino has no
-   glyph for half of it. */
+/* How the word is said, under the meaning, bare — the IPA needs no introduction and
+   "said" was one. Left in the UI face rather than the reading face: IPA is notation,
+   not text, and Palatino has no glyph for half of it. */
 .gloss-card .said {
   display: block;
-  margin-block-start: 0.2rem;
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
@@ -885,22 +883,14 @@ body.marking .w.here,
   border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
-.gloss-card .pos {
+/* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
+   is one. Muted like the other metadata; the answer above it is the ink. */
+.gloss-card .use {
+  display: block;
   color: var(--ink-soft);
-  font-style: italic;
-  margin-inline-start: 0.4rem;
   font-size: 0.8125rem;
 }
 .gloss-card .meaning { display: block; margin-block-start: 0.2rem; }
-.gloss-card .keep {
-  display: block;
-  margin-block-start: 0.6rem;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.8125rem;
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
-.gloss-card .keep:hover { color: var(--paper); background: var(--accent); }
 .gloss-card .caveat {
   display: block;
   margin-block-start: 0.35rem;
@@ -908,20 +898,6 @@ body.marking .w.here,
   font-size: 0.8125rem;
 }
 
-/* What the keys do, under the buttons that do it. Metadata, so muted is honest here —
-   and mono at the label size, because §5 gives keys the monospace face. Always shown:
-   a reader who taps is the one who has not found out there is a faster way, and this
-   is where they are already looking. Its own direction — it is a row of key names,
-   and the reading direction reordered the dots around them on a Hebrew page. */
-.gloss-card .legend {
-  display: block;
-  margin-block-start: 0.45rem;
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 0.6875rem;
-  color: var(--ink-soft);
-  direction: ltr;
-  unicode-bidi: isolate;
-}
 
 /* --- copying a word out --------------------------------------------------- */
 
@@ -955,6 +931,31 @@ body.marking .w.here,
   stroke-linejoin: round;
 }
 .copy:hover, .copy.copied { color: var(--ink); }
+
+/* The word's own sound, drawn with the line-audio button's triangle so one glyph means
+   "play" everywhere. Filled, per the hear macro; soft until hovered, like the copy —
+   playing a word back is not the reader's achievement either. */
+.hear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.4rem;
+  block-size: 1.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  vertical-align: middle;
+  cursor: pointer;
+}
+.hear svg {
+  inline-size: 1em;
+  block-size: 1em;
+  font-size: 0.9375rem;
+  fill: currentColor;
+  stroke: none;
+}
+.hear:hover { color: var(--ink); }
 /* A card line that carries one: the text, then the control, on the same baseline. */
 .gloss-card .copy-line {
   display: flex;
@@ -1036,6 +1037,23 @@ table.rows tr:hover .copy,
   margin-block-start: 0.15rem;
   color: var(--ink-soft);
   font-size: 0.8125rem;
+}
+/* What kind of unit the run is, and the form worth keeping. Muted like the source
+   note; the kind in the same italic the card's other category words wear. */
+.pick-card .kind {
+  display: block;
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.8125rem;
+}
+.pick-card .cite {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.pick-card .cite bdi {
+  font-family: var(--reading);
+  color: var(--ink);
 }
 .pick-card button {
   margin-block-start: 0.5rem;
@@ -1735,7 +1753,7 @@ body.has-player .next-up { margin-block-end: 9rem; }
 }
 
 /* What the pressed step means, under the scale. Secondary by §9. */
-.vocab-editor .level-legend { font-size: 0.75em; color: var(--ink-soft); }
+.vocab-editor .level-legend { font-size: 0.8125rem; color: var(--ink-soft); }
 
 /* The one primary action on a contents page, and so the one place the accent goes. */
 .contents .start { margin-block: 1.5rem 2rem; }

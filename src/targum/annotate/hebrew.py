@@ -14,6 +14,8 @@ one is a lie told with confidence.
 
 from __future__ import annotations
 
+from typing import Any
+
 # Stanza's values, in the order a learner meets them. The name is what the reader sees.
 BINYANIM = {
     "PAAL": "פעל",
@@ -33,6 +35,98 @@ ENDINGS = str.maketrans("מנצפכ", "םןץףך")
 # The letter that swaps places with the ת of התפעל, and what it becomes after it.
 SIBILANTS = frozenset("סשׂשׁשזצ")
 INFIXES = frozenset("תטד")
+
+# The one-letter words Hebrew writes onto the front of the next word, glossed the way
+# the card says them. English on purpose: the card's own labels are English whatever
+# the reader's target language is, the way `Glossary.parts_of_speech` already is.
+CLITIC_GLOSSES = {
+    "ו": "and",
+    "ה": "the",
+    "ל": "to",
+    "ב": "in",
+    "כ": "as",
+    "מ": "from",
+    "ש": "that",
+}
+
+# The slice of Stanza's morphology the card reads. Everything else it says about a
+# word — HebBinyan aside, which has its own field — is thrown away as before.
+KEPT_FEATS = ("Person", "Gender", "Number", "Tense", "VerbForm", "Definite")
+
+# A pronominal suffix, said in English. Keyed by (person, gender, number), gender ""
+# where it does not matter; two forms because ספרו is "his book" and ממנו is "from him".
+_PRONOUNS = {
+    ("1", "", "Sing"): ("my", "me"),
+    ("1", "", "Plur"): ("our", "us"),
+    ("2", "", "Sing"): ("your", "you"),
+    ("2", "", "Plur"): ("your", "you"),
+    ("3", "Masc", "Sing"): ("his", "him"),
+    ("3", "Fem", "Sing"): ("her", "her"),
+    ("3", "", "Plur"): ("their", "them"),
+}
+
+
+def _feat(feats: str | None, key: str) -> str:
+    for part in (feats or "").split("|"):
+        name, _, value = part.partition("=")
+        if name == key:
+            return value
+    return ""
+
+
+def kept_feats(feats: str | None) -> str | None:
+    """The card's slice of the morphology, in Stanza's own pipe format.
+
+    `Definite` is kept only as `Cons` — the construct state is a fact the card names,
+    while ordinary definiteness is the ה the pieces line already shows.
+    """
+    kept = []
+    for key in KEPT_FEATS:
+        value = _feat(feats, key)
+        if key == "Definite" and value != "Cons":
+            continue
+        if value:
+            kept.append(f"{key}={value}")
+    return "|".join(kept) or None
+
+
+def pieces_of(words: list[Any], content: Any) -> str | None:
+    """How a split token is put together, as the card's own line.
+
+    "ו and + ל to + בית" for ולבית; "ל to + בית + his" for לביתו — the clitics carry
+    their gloss, the content word stands bare, and a pronominal suffix is said in
+    English alone, because the written suffix cannot be recovered from the word
+    Stanza reconstructs for it (הוא, not ־וֹ).
+    """
+    if len(words) < 2:
+        return None
+    seen_content = False
+    chunks: list[str] = []
+    for word in words:
+        text = (word.text or "").strip()
+        if word is content:
+            seen_content = True
+            chunks.append(text)
+        elif seen_content and (word.upos or "") == "PRON":
+            possessive = (content.upos or "") == "NOUN"
+            gloss = _pronoun(word.feats, possessive)
+            chunks.append(gloss or text)
+        elif not seen_content and text in CLITIC_GLOSSES:
+            chunks.append(f"{text} {CLITIC_GLOSSES[text]}")
+        elif text:
+            chunks.append(text)
+    return " + ".join(chunk for chunk in chunks if chunk) or None
+
+
+def _pronoun(feats: str | None, possessive: bool) -> str:
+    person = _feat(feats, "Person")
+    gender = _feat(feats, "Gender")
+    number = _feat(feats, "Number")
+    for key in ((person, gender, number), (person, "", number)):
+        if key in _PRONOUNS:
+            mine, me = _PRONOUNS[key]
+            return mine if possessive else me
+    return ""
 
 
 def binyan_of(feats: str | None) -> str | None:

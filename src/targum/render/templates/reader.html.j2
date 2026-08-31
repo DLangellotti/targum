@@ -215,8 +215,11 @@
     why, and read as a page that had broken. -#}
 {% if not translated and not standalone %}
 <div class="waiting-note" id="waiting-note" data-chapter="{{ section.number }}">
-  <p>Not translated yet.</p>
-  <button type="button" id="translate-chapter" hidden>Translate</button>
+  {#- An imported recording's part that nobody has bought is waiting on a transcript,
+      not on a translation, and a button that names the wrong work makes a promise the
+      click will not keep. -#}
+  <p>{% if audio_waiting %}Not transcribed yet.{% else %}Not translated yet.{% endif %}</p>
+  <button type="button" id="translate-chapter" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
 </div>
 {% endif %}
 {#- The player. Shown on a dialogue the moment it opens, because a reader who does not

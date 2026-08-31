@@ -122,10 +122,13 @@
       var get = document.createElement("button");
       get.type = "button";
       get.className = "get";
-      get.textContent = "Translate";
+      // An imported recording's chapter is waiting on a transcript, not a
+      // translation, and a button that names the wrong work makes the wrong promise.
+      var hearing = row.hasAttribute("data-audio");
+      get.textContent = hearing ? "Transcribe" : "Translate";
       get.onclick = function () {
         get.disabled = true;
-        get.textContent = "Translating…";
+        get.textContent = hearing ? "Transcribing…" : "Translating…";
         ask("/chapter", { name: name, number: number }).then(function (job) {
           watch(job.id, get);
         });

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -143,6 +144,74 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
                 raise
             except Exception as exc:
                 raise TargumError(f"Could not fetch {url}", str(exc)) from exc
+    raise TargumError(f"Could not fetch {url}", f"More than {MAX_REDIRECTS} redirects")
+
+
+@dataclass(frozen=True)
+class Downloaded:
+    """A file pulled to disk, and what the wire said about it."""
+
+    path: Path
+    content_type: str
+    final_url: str
+
+
+#: A podcast episode or an audiobook chapter, not an article. Streamed to disk rather
+#: than held in memory, with its own ceiling.
+MAX_AUDIO_BYTES = 1024 * 1024 * 1024
+
+
+def download(url: str, into: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Downloaded:
+    """A large file, through the same door and past the same checks as every fetch.
+
+    The redirect chain is walked by hand with `_reachable` on every hop — podtrac and
+    its cousins put two or three trackers between a feed and its audio, and any one of
+    them could point inward. The body goes to disk as it arrives: a recording does not
+    fit in memory, and would not be text if it did.
+    """
+    import httpx
+
+    into.parent.mkdir(parents=True, exist_ok=True)
+    target = url
+    with httpx.Client(
+        timeout=TIMEOUT,
+        follow_redirects=False,
+        headers={"User-Agent": USER_AGENT},
+    ) as client:
+        for _ in range(MAX_REDIRECTS + 1):
+            _reachable(target)
+            try:
+                with client.stream("GET", target) as response:
+                    if response.is_redirect:
+                        location = response.headers.get("location")
+                        if not location:
+                            raise TargumError(
+                                f"Could not fetch {url}", "Redirect with nowhere to go"
+                            )
+                        target = urljoin(target, location)
+                        continue
+                    response.raise_for_status()
+                    declared = response.headers.get("content-length")
+                    if declared and declared.isdigit() and int(declared) > max_bytes:
+                        raise TargumError(f"{url} is too big to fetch.")
+                    written = 0
+                    with into.open("wb") as out:
+                        for chunk in response.iter_bytes():
+                            written += len(chunk)
+                            if written > max_bytes:
+                                raise TargumError(
+                                    f"{url} is too big to fetch.",
+                                    f"targum stops at {max_bytes // (1024 * 1024)} MB.",
+                                )
+                            out.write(chunk)
+                    return Downloaded(into, response.headers.get("Content-Type", ""), target)
+            except TargumError:
+                into.unlink(missing_ok=True)
+                raise
+            except Exception as exc:
+                into.unlink(missing_ok=True)
+                raise TargumError(f"Could not fetch {url}", str(exc)) from exc
+    into.unlink(missing_ok=True)
     raise TargumError(f"Could not fetch {url}", f"More than {MAX_REDIRECTS} redirects")
 
 

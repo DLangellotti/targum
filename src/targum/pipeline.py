@@ -17,7 +17,7 @@ from . import annotate as annotate_module
 from . import ingest, render
 from . import vocalize as vocalize_module
 from .cache import Cache
-from .errors import TargumError
+from .errors import TargumError, UnsupportedSource
 from .ids import slug
 from .models import (
     Alignment,
@@ -46,6 +46,20 @@ Ready = Callable[["Result"], None]
 
 
 @dataclass(slots=True)
+class AudioPlan:
+    """The audio half of a plan: parts, seconds, and dollars, before a cent is spent."""
+
+    duration: float = 0.0
+    parts: int = 0
+    buying_parts: list[int] = field(default_factory=list)
+    buying_seconds: float = 0.0
+    # Transcription priced from the clock, translation guessed from a speech rate —
+    # the words do not exist yet, and the page says "about" for exactly this reason.
+    transcription: float = 0.0
+    translation_guess: float = 0.0
+
+
+@dataclass(slots=True)
 class Plan:
     """What a build will do, decided before anything is spent."""
 
@@ -60,6 +74,8 @@ class Plan:
     # The segments that number counts. Kept rather than recomputed, so what the page
     # prices and what the build buys cannot come apart.
     buying_segments: list[Segment] = field(default_factory=list)
+    # For an imported recording: what this build will hear, and what hearing costs.
+    audio: AudioPlan | None = None
 
     @property
     def needs_payment(self) -> bool:
@@ -132,6 +148,14 @@ class Build:
         # looks at them.
         siblings: list[dict[str, str]] | None = None,
         whole: bool = False,
+        # Audio import: which transcriber turns the recording into words, and a
+        # transcript the reader already has — an .srt or .vtt whose timings are used
+        # as given. Both ignored for every source that is not audio.
+        transcriber_name: str = "",
+        # Or the transcriber itself, the way a segmenter or annotator can arrive
+        # already built: what the tests hand in, and what a server could share.
+        transcriber: Any = None,
+        transcript: Path | str | None = None,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -168,6 +192,10 @@ class Build:
         self.owner = owner
         self.reads = set(reads) if reads is not None else None
         self._glosser: Any = None
+        self.transcriber_name = transcriber_name
+        self.transcript = Path(transcript) if transcript else None
+        self._episode: Any = None
+        self._transcriber: Any = transcriber
         self._out = out
         self._out_root = out_root
         self._resolved_out: Path | None = None
@@ -212,6 +240,30 @@ class Build:
     # -- stages ------------------------------------------------------------
 
     def ingest(self) -> Document:
+        from urllib.parse import urlparse
+
+        if not self.is_audio_source and urlparse(str(self.source)).scheme in ("http", "https"):
+            # An episode page or a feed resolves to its audio before anything is read
+            # as an article. One extra fetch for a page that turns out to be prose —
+            # against silently reading a podcast's show notes as the text, cheap.
+            from .audio import episode as episode_module
+
+            found = None
+            try:
+                found = episode_module.find(str(self.source))
+            except UnsupportedSource:
+                # A platform that keeps its audio to itself is refused by name —
+                # reading its page as an article would import the show notes.
+                raise
+            except TargumError:
+                found = None
+            if found is not None:
+                self._episode = found
+                self.source = found.audio_url
+                if self.title == "" and found.title:
+                    self.title = found.title
+        if self.is_audio_source:
+            self._adopt_audio()
         fresh = ingest.load(self.source, language=self.source_language)
         # Where the source will not name itself, the caller may. Only ever as a fallback:
         # a title parsed out of the text is the text's own and beats anything passed in.
@@ -352,6 +404,10 @@ class Build:
             return cached
 
         run = only if only is not None else segmented.segments
+        # An imported recording's untranscribed parts sit in the text as placeholders —
+        # a clock range each — so a heading can open their section. A clock is not a
+        # sentence anybody should pay to translate.
+        run = [segment for segment in run if not segment.ref.endswith(":waiting")]
         mapping = dict(cached.segments) if cached is not None else {}
 
         # Whatever this run already has, from a previous sitting or from somebody else
@@ -372,7 +428,9 @@ class Build:
         translation.write(self.translation_path(self.resolved_out))
         return translation
 
-    def _first_chapters(self, segmented: SegmentedDocument, count: int) -> list[Segment] | None:
+    def _first_chapters(
+        self, segmented: SegmentedDocument, count: int, also: Sequence[int] = ()
+    ) -> list[Segment] | None:
         """What this build will translate now: the first `count` sections, and anything
         already paid for.
 
@@ -390,6 +448,15 @@ class Build:
         if len(sections) < 2:
             return None
         wanted = {sid for section in sections[:count] for sid in section.segment_ids}
+        if also:
+            # The named parts of an imported recording, wherever their sections landed.
+            # By ref rather than by number: a long part can split into two sections.
+            by_id = {segment.id: segment for segment in segmented.segments}
+            names = {f"part {n}" for n in also}
+            for section in sections:
+                refs = {by_id[sid].ref.split(":", 1)[0] for sid in section.segment_ids}
+                if refs & names:
+                    wanted |= set(section.segment_ids)
         if not self.force:
             for section in sections[count:]:
                 run = self.chapter_segments(segmented, section.number)
@@ -458,6 +525,26 @@ class Build:
         )
         whole = held | fresh
         self.cache.put("translate", key, {"segments": whole})
+        # And under each chapter's own key. A run of several chapters — the first part
+        # of a recording plus the one somebody asked for — caches under the key of its
+        # combined text, which no later run ever recomputes; `held_for` asks by the
+        # chapter, so the chapter is where the money must be findable.
+        from .render.builder import split_sections
+
+        sections = split_sections(segmented)
+        if len(sections) >= 2:
+            translated = set(whole)
+            for section in sections:
+                ids = set(section.segment_ids)
+                if not (ids & translated):
+                    continue
+                chapter = [segment for segment in segmented.segments if segment.id in ids]
+                section_key = self.cache_key(segmented, chapter)
+                if section_key == key:
+                    continue
+                kept = self.held(section_key)
+                mine = {sid: whole[sid] for sid in ids if sid in whole}
+                self.cache.put("translate", section_key, {"segments": kept | mine})
         return whole
 
     def held_for(self, segmented: SegmentedDocument, run: list[Segment]) -> dict[str, str]:
@@ -846,6 +933,548 @@ class Build:
         # The whole label is built here, so the reader template just prints it.
         return f"{language_name(self.target_language)} (machine, {self.style.value})"
 
+    # -- audio -------------------------------------------------------------
+
+    @property
+    def is_audio_source(self) -> bool:
+        from urllib.parse import urlparse
+
+        from .audio import is_audio
+
+        source = str(self.source)
+        if urlparse(source).scheme in ("http", "https"):
+            from .audio.episode import sounds_like_audio
+
+            return sounds_like_audio(source)
+        return is_audio(source)
+
+    @property
+    def transcriber(self) -> Any:
+        if self._transcriber is None:
+            from .transcribe import build as build_transcriber
+            from .transcribe import default_name
+
+            self._transcriber = build_transcriber(self.transcriber_name or default_name())
+        return self._transcriber
+
+    def _audio_workspace(self) -> Path:
+        return self.resolved_out / "audio"
+
+    def _audio_file(self, workspace: Path) -> Path | None:
+        return next(iter(sorted(workspace.glob("source.*"))), None)
+
+    def _adopt_audio(self) -> None:
+        """The recording, inside its own folder, with its probe and part plan beside it.
+
+        Runs before ingest, because the ingester reads what this writes. Adoption
+        resolves the folder from the file's name and the declared language — the
+        document does not exist yet, and the folder is where everything else lands.
+        """
+        from urllib.parse import unquote, urlparse
+
+        from .audio import DEFAULT_LANGUAGE, ffmpeg_available
+        from .audio import parts as parts_module
+        from .audio import probe as probe_module
+
+        address = ""
+        if urlparse(str(self.source)).scheme in ("http", "https"):
+            address = str(self.source)
+            stem = Path(unquote(urlparse(address).path)).stem or "episode"
+            suffix = Path(urlparse(address).path).suffix.lower() or ".mp3"
+            name = slug(str(self.title) or stem)
+        else:
+            name = slug(Path(self.source).stem)
+            suffix = ""
+        if self._resolved_out is None:
+            language = self.source_language or DEFAULT_LANGUAGE
+            root = self._out_root or (Path.cwd() / "targum-out")
+            self._resolved_out = self._out or (root / f"{name}-{language}")
+        workspace = self._audio_workspace()
+        if address:
+            from .ingest.url import download
+
+            target = workspace / f"source{suffix}"
+            if not target.is_file() or probe_module.load(workspace) is None:
+                usable, hint = ffmpeg_available()
+                if not usable:
+                    raise TargumError("ffmpeg is not installed.", hint)
+                self.notify("Fetching the recording…")
+                download(address, target)
+                probe_module.adopt(target, workspace)
+            self.source = str(target)
+            # The episode's own name, written down where the ingester reads names —
+            # over the file's tag, not only into its absence: a podcast export's tag
+            # is an internal name ("Osim Historia_Altalena - V3"), and the page the
+            # reader pasted names the episode the way its own feed does.
+            if self.title:
+                found_probe = probe_module.load(workspace)
+                if found_probe is not None and found_probe.title != str(self.title):
+                    found_probe.title = str(self.title)
+                    from .paths import write_atomic
+
+                    write_atomic(
+                        workspace / probe_module.PROBE,
+                        found_probe.model_dump_json(indent=2) + "\n",
+                    )
+            self._fetch_episode_transcript(workspace)
+        source = Path(self.source)
+
+        target = workspace / f"source{source.suffix.lower()}"
+        if source.resolve() != target.resolve() or probe_module.load(workspace) is None:
+            usable, hint = ffmpeg_available()
+            if not usable:
+                raise TargumError("ffmpeg is not installed.", hint)
+            adopted = probe_module.adopt(source, workspace)
+            self.source = str(adopted)
+        else:
+            self.source = str(target)
+
+        found = probe_module.load(workspace)
+        assert found is not None
+        drafted = parts_module.load(workspace)
+        if drafted is None:
+            drafted = parts_module.plan(found, language=self.source_language or "")
+            parts_module.write(workspace, drafted)
+
+        if self.transcript is not None:
+            self._write_subtitle_refinements(workspace, drafted)
+
+    def _fetch_episode_transcript(self, workspace: Path) -> None:
+        """The transcript the feed pointed at, saved beside the recording.
+
+        Only SRT and VTT: they carry timings, which is what makes them worth a fetch.
+        A JSON or HTML transcript is a different project and is left where it is.
+        """
+        if self.transcript is not None or self._episode is None:
+            return
+        url = getattr(self._episode, "transcript_url", "")
+        kind = getattr(self._episode, "transcript_type", "").lower()
+        if not url:
+            return
+        from urllib.parse import urlparse
+
+        suffix = Path(urlparse(url).path).suffix.lower()
+        if suffix not in (".srt", ".vtt"):
+            suffix = {"application/x-subrip": ".srt", "text/vtt": ".vtt"}.get(kind, "")
+        if not suffix:
+            return
+        from .ingest.url import fetch
+
+        try:
+            got = fetch(url)
+        except TargumError:
+            return
+        kept = workspace / f"transcript{suffix}"
+        kept.write_text(got.text, encoding="utf-8")
+        self.transcript = kept
+
+    def _write_subtitle_refinements(self, workspace: Path, drafted: Any) -> None:
+        """A supplied SRT or VTT, written down as every part's refinement.
+
+        The timings are the file's own, so nothing is transcribed and nothing is paid.
+        Boundaries that still wanted a pause settle on the largest gap between cues —
+        the transcript already says where the voice stopped, so no audio is scanned.
+        """
+        from .audio import PAD
+        from .audio import parts as parts_module
+        from .ingest.audio import refined_path
+        from .ingest.subtitles import load_cues, refined_from
+        from .transcribe.models import write as write_model
+
+        assert self.transcript is not None
+        if self.transcript.suffix.lower() not in {".srt", ".vtt"}:
+            return self._write_aligned_refinements(workspace, drafted)
+        cues = load_cues(self.transcript)
+
+        if not drafted.settled:
+            for index, span in enumerate(drafted.parts):
+                if not span.snap_start:
+                    continue
+                before = drafted.parts[index - 1]
+                low = max(before.start, span.start - parts_module.WINDOW_S)
+                high = min(span.end, span.start + parts_module.WINDOW_S)
+                gaps = [
+                    (a.end, b.start)
+                    for a, b in zip(cues, cues[1:], strict=False)
+                    if low <= a.end and b.start <= high and b.start > a.end
+                ]
+                if gaps:
+                    a, b = max(gaps, key=lambda pair: pair[1] - pair[0])
+                    seam = round((a + b) / 2, 3)
+                    before.end = seam
+                    span.start = seam
+                span.snap_start = False
+            drafted.settled = True
+            parts_module.write(workspace, drafted)
+
+        for span in drafted.parts:
+            path = refined_path(workspace, span.number)
+            if path.exists():
+                continue
+            mine = [cue for cue in cues if span.start <= cue.start < span.end]
+            offset = max(0.0, span.start - PAD)
+            write_model(path, refined_from(mine, language=drafted.language, offset=offset))
+
+    def _write_aligned_refinements(self, workspace: Path, drafted: Any) -> None:
+        """A text transcript, timed against the recording by the forced aligner.
+
+        Free and local, cached by the audio and the text, and cut per part with a
+        cursor so a mismatched opening does not derail a chapter. Words the aligner
+        scored below the floor are trimmed at the edges; a part whose mean score sits
+        below the match floor keeps no spans, and the build says so once.
+        """
+        from .audio import PAD
+        from .audio import parts as parts_module
+        from .audio import probe as probe_module
+        from .audio.align import MATCH_FLOOR, CtcAligner
+        from .ingest.audio import refined_path
+        from .transcribe.models import Refined, RefinedParagraph, Word
+        from .transcribe.models import write as write_model
+
+        assert self.transcript is not None
+        aligner = CtcAligner()
+        usable, hint = aligner.available()
+        if not usable:
+            self.notify(f"{hint}. The recording plays without following along.")
+            return
+        found = probe_module.load(workspace)
+        recording = self._audio_file(workspace)
+        if found is None or recording is None:
+            return
+        if all(refined_path(workspace, span.number).exists() for span in drafted.parts):
+            return
+
+        written = ingest.load(str(self.transcript))
+        flowing = [block for block in written.blocks if block.kind not in (BlockKind.byline,)]
+        words = [piece for block in flowing for piece in block.text.split()]
+        if not drafted.settled:
+            drafted = parts_module.settle(recording, drafted, self.notify)
+            parts_module.write(workspace, drafted)
+
+        key = self.cache.key(
+            "speech-align",
+            audio=found.sha256,
+            text=written.content_hash,
+            aligner=aligner.name,
+            parts=[[round(p.start, 3), round(p.end, 3)] for p in drafted.parts],
+        )
+        stored = self.cache.get("speech-align", key)
+        if isinstance(stored, list):
+            timed = [(float(a), float(b), float(c)) for a, b, c in stored]
+        else:
+            self.notify("Lining the text up with the recording…")
+            timed = aligner.align(recording, words, written.language or drafted.language)
+            self.cache.put("speech-align", key, [list(row) for row in timed])
+        if len(timed) != len(words):
+            self.notify(
+                "The text and the recording do not match closely. The recording "
+                "plays without following along."
+            )
+            return
+
+        # Walk the text and the clock together: each part takes the words whose start
+        # falls inside it, kept as the blocks they came from.
+        for span in drafted.parts:
+            path = refined_path(workspace, span.number)
+            if path.exists():
+                continue
+            offset = max(0.0, span.start - PAD)
+            paragraphs: list[RefinedParagraph] = []
+            at = 0
+            scores: list[float] = []
+            for block in flowing:
+                mine = block.text.split()
+                rows = timed[at : at + len(mine)]
+                at += len(mine)
+                inside = [
+                    Word(
+                        text=piece,
+                        start=round(max(0.0, start - offset), 3),
+                        end=round(max(0.0, end - offset), 3),
+                        confidence=score,
+                    )
+                    for piece, (start, end, score) in zip(mine, rows, strict=True)
+                    if span.start <= start < span.end
+                ]
+                if not inside:
+                    continue
+                scores.extend(word.confidence for word in inside)
+                paragraphs.append(
+                    RefinedParagraph(
+                        text=" ".join(word.text for word in inside),
+                        speaker=block.speaker or "",
+                        words=inside,
+                    )
+                )
+            if scores and sum(scores) / len(scores) < MATCH_FLOOR:
+                self.notify(
+                    "The text and the recording do not match closely. The recording "
+                    "plays without following along."
+                )
+                return
+            write_model(
+                path,
+                Refined(
+                    refiner=aligner.name,
+                    provider="aligned",
+                    language=written.language or drafted.language,
+                    paragraphs=paragraphs,
+                ),
+            )
+            if written.language and drafted.language != written.language:
+                drafted.language = written.language
+                parts_module.write(workspace, drafted)
+
+    def _needs_hearing(self, workspace: Path, number: int) -> bool:
+        """Whether this part still owes work: never heard, or refined by a stage that
+        has since been replaced. The transcript underneath is cached, so a better
+        refiner redoes its half for the price of its own tokens and nothing else."""
+        from .ingest.audio import refined_path
+        from .transcribe.models import Refined, load
+        from .transcribe.refine import build as build_refiner
+
+        kept = load(Refined, refined_path(workspace, number))
+        if kept is None:
+            return True
+        if kept.provider in ("subtitles", "aligned"):
+            # A supplied transcript is the source, not a refinement of a hearing —
+            # there is nothing better to redo it with.
+            return False
+        return kept.refiner != build_refiner().name
+
+    def _parts_owed(self, chapters: int | None, also: Sequence[int] = ()) -> list[int]:
+        """Which parts this run buys: the first `chapters` still unheard, plus `also`.
+
+        None means all of them, which is what the command line asks and what a short
+        recording — one part — needs.
+        """
+        from .audio import parts as parts_module
+
+        workspace = self._audio_workspace()
+        drafted = parts_module.load(workspace)
+        if drafted is None:
+            return []
+        waiting = {
+            span.number for span in drafted.parts if self._needs_hearing(workspace, span.number)
+        }
+        if chapters is None:
+            return sorted(waiting)
+        # The first `chapters` parts of the recording — not the first still waiting,
+        # or asking for part nine would quietly buy part two as well.
+        first = [span.number for span in drafted.parts[:chapters]]
+        return sorted({*(n for n in first if n in waiting), *(n for n in also if n in waiting)})
+
+    def transcribe_parts(self, wanted: Sequence[int]) -> bool:
+        """Hear the named parts, and write down what was said. True if anything new was.
+
+        Cached by the audio's own hash and the part's exact span, so a part is never
+        paid for twice — not across rebuilds, not across a worker dying mid-book.
+        """
+        from .audio import PAD, tools
+        from .audio import parts as parts_module
+        from .audio import probe as probe_module
+        from .ingest.audio import refined_path, transcript_path
+        from .transcribe.models import Transcript
+        from .transcribe.models import write as write_model
+        from .transcribe.refine import build as build_refiner
+
+        if not wanted:
+            return False
+        workspace = self._audio_workspace()
+        found = probe_module.load(workspace)
+        drafted = parts_module.load(workspace)
+        recording = self._audio_file(workspace)
+        if found is None or drafted is None or recording is None:
+            return False
+        owed = [n for n in wanted if self._needs_hearing(workspace, n)]
+        if not owed:
+            return False
+
+        if not drafted.settled:
+            drafted = parts_module.settle(recording, drafted, self.notify)
+            parts_module.write(workspace, drafted)
+
+        nothing_heard_yet = not any(
+            refined_path(workspace, span.number).exists() for span in drafted.parts
+        )
+        if nothing_heard_yet and not self.source_language and self.transcriber.price_per_minute():
+            drafted = self._probe_language(recording, found, drafted, workspace)
+
+        refiner = build_refiner()
+        by_number = {span.number: span for span in drafted.parts}
+        heard = False
+        said_nothing: list[int] = []
+        for number in owed:
+            span = by_number.get(number)
+            if span is None:
+                continue
+            self.notify(f"Transcribing part {number} of {len(drafted.parts)}…")
+            piece = workspace / "parts" / f"part-{number:03d}.mp3"
+            start = max(0.0, span.start - PAD)
+            end = min(drafted.duration, span.end + PAD)
+            if not piece.exists():
+                tools.cut(recording, piece, start, end)
+            key = self.cache.key(
+                "transcribe",
+                audio=found.sha256,
+                span=[round(start, 3), round(end, 3)],
+                provider=self.transcriber.name,
+                model=self.transcriber.model,
+                language=drafted.language,
+            )
+            stored = self.cache.get("transcribe", key)
+            if isinstance(stored, dict):
+                transcript = Transcript.model_validate(stored)
+                self.reused.append(f"transcript (part {number})")
+            else:
+                transcript = self.transcriber.transcribe(piece, drafted.language)
+                self.cache.put("transcribe", key, transcript.model_dump(mode="json"))
+            write_model(transcript_path(workspace, number), transcript)
+            refined = self._refined(transcript, refiner)
+            write_model(refined_path(workspace, number), refined)
+            if not refined.paragraphs:
+                said_nothing.append(number)
+            heard = True
+
+        if said_nothing and len(said_nothing) == len(
+            [n for n in by_number if refined_path(workspace, n).exists()]
+        ):
+            # Every part heard so far came back empty. Music, or silence — either way
+            # an honest sentence beats a reader with nothing on its pages.
+            minutes = max(1, round(sum(by_number[n].end - by_number[n].start for n in owed) / 60))
+            raise TargumError(f"Nothing was said in the first {minutes} minutes.")
+        return heard
+
+    def _probe_language(self, recording: Path, found: Any, drafted: Any, workspace: Path) -> Any:
+        """A minute is heard before a part is bought, to learn what language this is.
+
+        A recording in a language targum does not read is refused for a cent, not a
+        chapter — and one in a language it does read has its parts read as that
+        language from here on, so the folder's plan is written back.
+        """
+        from .audio import LANGUAGE_PROBE_S, PAD
+        from .audio import parts as parts_module
+        from .translate.prompts import READING, language_name
+
+        first = drafted.parts[0]
+        start = max(0.0, first.start - PAD)
+        end = min(drafted.duration, start + LANGUAGE_PROBE_S)
+        clip = workspace / "parts" / "probe.mp3"
+        key = self.cache.key(
+            "transcribe",
+            audio=found.sha256,
+            span=[round(start, 3), round(end, 3)],
+            provider=self.transcriber.name,
+            model=self.transcriber.model,
+            language="",
+        )
+        stored = self.cache.get("transcribe", key)
+        if isinstance(stored, dict):
+            spoken = str(stored.get("language") or "")
+        else:
+            from .audio import tools
+
+            tools.cut(recording, clip, start, end)
+            transcript = self.transcriber.transcribe(clip)
+            self.cache.put("transcribe", key, transcript.model_dump(mode="json"))
+            spoken = transcript.language
+        code = spoken.split("-")[0].lower()
+        readable = {tag for tag, _ in READING}
+        if code and code not in readable:
+            names = ", ".join(language_name(tag) for tag, _ in READING)
+            raise TargumError(f"This recording is in {language_name(code)}. targum reads {names}.")
+        if code and code != drafted.language:
+            drafted.language = code
+            parts_module.write(workspace, drafted)
+        return drafted
+
+    def _refined(self, transcript: Any, refiner: Any) -> Any:
+        """One transcript, refined, and never re-refined while nothing changed.
+
+        Keyed on the transcript and the refiner's name, so renaming a better refiner
+        redoes this everywhere for nothing — the hearing it reads is already paid for.
+        """
+        from .transcribe.models import Refined, transcript_hash
+
+        key = self.cache.key("refine", transcript=transcript_hash(transcript), refiner=refiner.name)
+        stored = self.cache.get("refine", key)
+        if isinstance(stored, dict):
+            try:
+                return Refined.model_validate(stored)
+            except Exception:  # noqa: BLE001 - a malformed entry is a miss
+                pass
+        refined = refiner.refine(transcript)
+        self.cache.put("refine", key, refined.model_dump(mode="json"))
+        return refined
+
+    def _write_audio_manifest(self, segmented: SegmentedDocument) -> None:
+        """The manifest the renderer reads: parts, spans and speakers, per segment id.
+
+        Spans are derived here at every build, from the word timings each refinement
+        kept, so a re-split or an edited transcript re-maps for nothing. Cut files are
+        made for any heard part still missing one — cutting is free.
+        """
+        from .audio import PAD, tools
+        from .audio import manifest as manifest_module
+        from .audio import parts as parts_module
+        from .audio import probe as probe_module
+        from .audio.spans import spans_for, word_spans_for
+        from .ids import audio_block_id
+        from .ingest.audio import refined_path
+        from .transcribe.models import Refined
+        from .transcribe.models import load as load_model
+
+        workspace = self._audio_workspace()
+        found = probe_module.load(workspace)
+        drafted = parts_module.load(workspace)
+        if found is None or drafted is None:
+            return
+        recording = self._audio_file(workspace)
+
+        entries: list[manifest_module.ManifestPart] = []
+        for span in drafted.parts:
+            entry = manifest_module.ManifestPart(
+                number=span.number, title=span.title, start=span.start, end=span.end
+            )
+            refined = load_model(Refined, refined_path(workspace, span.number))
+            if refined is not None:
+                piece = workspace / "parts" / f"part-{span.number:03d}.mp3"
+                if not piece.exists() and recording is not None:
+                    start = max(0.0, span.start - PAD)
+                    end = min(drafted.duration, span.end + PAD)
+                    tools.cut(recording, piece, start, end)
+                if piece.exists():
+                    entry.audio = str(piece.relative_to(self.resolved_out))
+                    entry.transcribed = True
+                    entry.provider = refined.provider
+                    entry.refiner = refined.refiner
+                    prefix = f"part {span.number}:"
+                    by_block: dict[str, list[Segment]] = {}
+                    for segment in segmented.segments:
+                        if segment.ref.startswith(prefix) and not segment.ref.endswith(":waiting"):
+                            by_block.setdefault(segment.block_id, []).append(segment)
+                    for n, paragraph in enumerate(refined.paragraphs, start=1):
+                        lines = by_block.get(audio_block_id(span.number, n), [])
+                        if not lines:
+                            continue
+                        entry.spans |= spans_for(lines, paragraph.words)
+                        entry.words |= word_spans_for(lines, paragraph.words)
+                        if paragraph.speaker:
+                            for line in lines:
+                                entry.speakers[line.id] = paragraph.speaker
+            entries.append(entry)
+
+        manifest_module.write(
+            self.resolved_out,
+            manifest_module.AudioManifest(
+                source=str(self.source),
+                sha256=found.sha256,
+                duration=found.duration,
+                language=drafted.language,
+                parts=entries,
+            ),
+        )
+
     # -- driving -----------------------------------------------------------
 
     @property
@@ -853,7 +1482,12 @@ class Build:
         """What this build has really cost so far, across every provider it used."""
         total = getattr(self.provider, "spent", None) or Usage()
         glossing = getattr(self._glosser, "spent", None) if self._glosser else None
-        return total + glossing if glossing else total
+        if glossing:
+            total = total + glossing
+        heard = getattr(self._transcriber, "spent", None) if self._transcriber else None
+        if heard:
+            total = total + heard
+        return total
 
     def plan(self, chapters: int | None = None) -> Plan:
         """Ingest, segment, and price what a build would actually spend.
@@ -885,7 +1519,51 @@ class Build:
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
             plan.buying_segments = list(buying)
+        if self.is_audio_source:
+            plan.audio = self._audio_plan(chapters)
+            if plan.audio is not None:
+                plan.estimated_cost += plan.audio.transcription + plan.audio.translation_guess
         return plan
+
+    def _audio_plan(self, chapters: int | None) -> AudioPlan | None:
+        """What hearing the recording will cost, priced from its clock.
+
+        Transcription is by the minute at the transcriber's own price; the translation
+        of words nobody has heard yet is guessed from a speech rate, on the arithmetic
+        the real estimate uses, and said with "about" wherever it is shown.
+        """
+        import math
+
+        from .audio import SPEECH_WORDS_PER_MINUTE, TOKENS_PER_SPOKEN_WORD, WORDS_PER_SENTENCE
+        from .audio import parts as parts_module
+
+        drafted = parts_module.load(self._audio_workspace())
+        if drafted is None:
+            return None
+        owed = set(self._parts_owed(chapters, ()))
+        by_number = {span.number: span for span in drafted.parts}
+        seconds = sum(by_number[n].end - by_number[n].start for n in owed if n in by_number)
+        priced = AudioPlan(
+            duration=drafted.duration,
+            parts=len(drafted.parts),
+            buying_parts=sorted(owed),
+            buying_seconds=seconds,
+        )
+        if not seconds:
+            return priced
+        try:
+            rate = float(self.transcriber.price_per_minute())
+        except TargumError:
+            rate = 0.0
+        priced.transcription = seconds / 60 * rate
+        if self.machine and hasattr(self.provider, "estimate_from_counts"):
+            words = seconds / 60 * SPEECH_WORDS_PER_MINUTE
+            sentences = max(1.0, words / WORDS_PER_SENTENCE)
+            batch_count = max(1, math.ceil(sentences / getattr(self.provider, "batch_size", 20)))
+            priced.translation_guess = self.provider.estimate_from_counts(
+                words * TOKENS_PER_SPOKEN_WORD, batch_count
+            )
+        return priced
 
     def run(
         self,
@@ -893,6 +1571,7 @@ class Build:
         on_progress: Progress | None = None,
         on_ready: Ready | None = None,
         chapters: int | None = None,
+        also: Sequence[int] = (),
     ) -> Result:
         """Build the reader, then keep filling it in.
 
@@ -905,11 +1584,19 @@ class Build:
         assert plan.segmented is not None
         segmented = plan.segmented
 
+        # An imported recording is heard before anything else happens: the transcript
+        # is the text, and every stage below reads the text. What was heard lands on
+        # disk, so the re-plan that follows is a re-read, not a re-purchase.
+        if self.is_audio_source and self.transcribe_parts(self._parts_owed(chapters, also)):
+            plan = self.plan(chapters=chapters)
+            assert plan.segmented is not None
+            segmented = plan.segmented
+
         # How much of a book to pay for now. `chapters=1` translates the first section
         # and leaves the rest waiting, which is what stops a reader who opens a novel and
         # reads one chapter from buying nineteen they will never reach. None means all of
         # it, which is what the command line does and what a single-section text needs.
-        only = self._first_chapters(segmented, chapters) if chapters else None
+        only = self._first_chapters(segmented, chapters, also) if chapters else None
 
         translations: list[Translation] = []
         # Before anything is bought: a dialogue carries its own English, so a build of one
@@ -932,6 +1619,11 @@ class Build:
             if rendering.target_language == "en":
                 rendering.segments.update(known)
         translations.extend(self.already_here(translations))
+
+        # Where each line sits in its part's audio, before any page is written: the
+        # renderer reads the manifest, and a page built first would be silent.
+        if self.is_audio_source:
+            self._write_audio_manifest(segmented)
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
@@ -964,6 +1656,7 @@ class Build:
                 reads=self.reads,
                 siblings=self.siblings,
                 whole=self.whole,
+                folder=self.resolved_out,
             )
 
         result = Result(

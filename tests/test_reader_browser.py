@@ -2296,12 +2296,14 @@ def test_a_phrase_reads_from_the_parallel_text(browser, built: Path) -> None:
     context, page = served(browser, built, on_phrase)
     drag_across_words(page)
     page.wait_for_function(
-        "() => (document.querySelector('#pick-chip .source-note') || {}).textContent"
-        " === 'in the parallel text'"
+        "() => document.getElementById('pick-chip')"
+        " && !document.getElementById('pick-chip').hidden"
+        " && !document.querySelector('#pick-chip .source-note')"
     )
     sent = calls[0]
     piece = " ".join(sent["translation"].split()[:2])
-    assert page.evaluate(CHIP) == {"reading": piece, "note": "in the parallel text"}
+    # No caption at all: where the answer came from is not a thing a reader can act on.
+    assert page.evaluate(CHIP) == {"reading": piece, "note": ""}
     assert sent["phrase"] and sent["phrase"] in sent["sentence"], "the run, in its sentence"
     assert (sent["source"], sent["target"]) == ("he", "en")
     assert page.evaluate(ECHOED) == [piece], "the quoted words are marked in the translation"
@@ -2316,7 +2318,7 @@ def test_a_phrase_reads_from_the_parallel_text(browser, built: Path) -> None:
     # The same words again: answered from what the page already holds, no second call —
     # and marked again.
     drag_across_words(page)
-    assert page.evaluate(CHIP) == {"reading": piece, "note": "in the parallel text"}
+    assert page.evaluate(CHIP) == {"reading": piece, "note": ""}
     assert page.evaluate(ECHOED) == [piece]
     assert len(calls) == 1, f"the phrase was asked for {len(calls)} times"
     context.close()
@@ -2324,14 +2326,15 @@ def test_a_phrase_reads_from_the_parallel_text(browser, built: Path) -> None:
 
 def test_a_phrase_the_translation_does_not_quote_is_rendered(browser, built: Path) -> None:
     """Word order or idiom can leave a run with no piece of the translation to quote. The
-    card then says what the run means here, and its caption does not claim a quotation."""
+    card then says what the run means here — and, like a quoted one, carries no caption
+    about where that came from."""
     context, page = served(browser, built, answered("as they put it", False))
     drag_across_words(page)
     page.wait_for_function(
-        "() => (document.querySelector('#pick-chip .source-note') || {}).textContent"
-        " === 'as it is used here'"
+        "() => { const el = document.querySelector('#pick-chip .reading');"
+        " return el && el.textContent.indexOf('as they put it') === 0; }"
     )
-    assert page.evaluate(CHIP) == {"reading": "as they put it", "note": "as it is used here"}
+    assert page.evaluate(CHIP) == {"reading": "as they put it", "note": ""}
     assert page.evaluate(ECHOED) == [], "nothing in the translation is these words"
     context.close()
 
@@ -2380,7 +2383,7 @@ def test_a_phrase_kept_before_the_answer_gets_it(browser, built: Path) -> None:
             break
         page.wait_for_timeout(100)
     assert page.evaluate(KEPT_MEANINGS) == [PIECE], "the kept phrase never got its meaning"
-    assert page.evaluate(CHIP) == {"reading": PIECE, "note": "in the parallel text"}
+    assert page.evaluate(CHIP) == {"reading": PIECE, "note": ""}
     context.close()
 
 
@@ -2894,3 +2897,125 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
     assert settled["pages"] == closed_at_once
     assert settled["under"] == 0
     context.close()
+
+
+# The card's own ear.
+#
+# An imported recording carries per-word clocks in its manifest, and the card plays a
+# slice of the one audio element the page already holds. What needs a browser is the
+# join: the button only exists where the clocks cover the word, the slice breathes but
+# never into the neighbouring word, and a silent page offers no ear at all.
+
+
+def imported(out: Path) -> Path:
+    """A built reader over an imported recording: manifest beside it, word clocks in."""
+    from targum.audio import manifest as manifest_module
+
+    text = "אחד שתים שלוש"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    tokens = []
+    offset = 0
+    for word in text.split(" "):
+        tokens.append(Token(start=offset, end=offset + len(word), surface=word, lemma=word, band=1))
+        offset += len(word) + 1
+    out.mkdir(parents=True, exist_ok=True)
+    voice(out / "voice.wav", 2.0)
+    manifest_module.write(
+        out,
+        manifest_module.AudioManifest(
+            source="audio:x",
+            sha256="s",
+            duration=2.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=0.0,
+                    end=2.0,
+                    audio="voice.wav",
+                    transcribed=True,
+                    spans={segment.id: [0.2, 1.9]},
+                    # The middle word's clock ends before the next begins, so the pad
+                    # has room on one side and a neighbour to stop at on the other.
+                    words={segment.id: [[0, 3, 0.2, 0.7], [4, 8, 0.8, 1.3], [9, 13, 1.4, 1.9]]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source="audio:x",
+        title="A recording",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="authored",
+        segments={segment.id: "one two three"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={segment.id: tokens},
+    )
+    # `clean=False`: the recording and its manifest are already in the folder, and
+    # emptying it would take them with it — the same shape a real targum folder has.
+    return render(
+        document, segmented, [translation], out, annotation=annotation, folder=out, clean=False
+    )[0]
+
+
+def test_a_word_on_a_spoken_page_offers_its_own_sound(browser, tmp_path: Path) -> None:
+    """The ear sits on the said line, and the slice it would play breathes 0.15s each
+    way — except into a neighbouring word, where it stops at the neighbour's clock."""
+    built = imported(tmp_path / "reader")
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector(".pair .src .w")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !!document.querySelector('#gloss-card .hear')"), (
+        "the recording covers this word, so the card offers it"
+    )
+    # The first word: free air behind (clamped at 0), the second word's clock ahead.
+    assert page.evaluate("() => window.TargumSpeech.clockFor('0000.000-aaaaaa', 0, 3)") == [
+        0.05,
+        0.8,
+    ]
+    # The middle word: both neighbours close in before the full pad.
+    assert page.evaluate("() => window.TargumSpeech.clockFor('0000.000-aaaaaa', 4, 8)") == [
+        0.7,
+        1.4,
+    ]
+    # A run of words takes the first covered start to the last covered end.
+    assert page.evaluate("() => window.TargumSpeech.clockFor('0000.000-aaaaaa', 0, 8)") == [
+        0.05,
+        1.4,
+    ]
+    # A span the clocks never covered gets no slice, and would get no button.
+    assert page.evaluate("() => window.TargumSpeech.clockFor('0000.000-aaaaaa', 200, 205)") is None
+    # Pressing it is a press on the card, not past it: the card stays.
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
+    context.close()
+
+
+def test_a_silent_page_offers_no_ear(page) -> None:
+    """The `built` fixture has no recording, so the card asks nothing of it — the same
+    rule as the phrase chip: a control the page cannot answer is not drawn."""
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !document.querySelector('#gloss-card .hear')")
+    assert page.evaluate("() => !window.TargumSpeech")

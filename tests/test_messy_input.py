@@ -67,3 +67,12 @@ def test_niqqud_passes_through(tmp_path: Path, fake_segmenter: object) -> None:
         segmenter=fake_segmenter,  # type: ignore[arg-type]
     )
     assert "בְּרֵאשִׁית" in builder.run().index.read_text(encoding="utf-8")
+
+
+def test_a_clock_range_in_hebrew_stays_one_run_rather_than_flipping() -> None:
+    """0:00–10:58 in an RTL heading is one thing to say. Split at the en dash, its
+    halves are two isolates the paragraph reorders, and every range read backwards."""
+    from targum.render.builder import isolate
+
+    html = str(isolate("חלק 1 · 0:00–10:58", "rtl"))
+    assert "<bdi>0:00–10:58</bdi>" in html

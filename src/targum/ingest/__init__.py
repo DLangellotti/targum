@@ -6,14 +6,17 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ..audio import is_audio, is_drm
 from ..errors import TargumError, UnsupportedSource
 from ..ids import content_hash
 from ..models import Document
 from . import fetch
+from .audio import AudioIngester
 from .base import Ingester, detect_language, normalize, parse_frontmatter, to_markdown
 from .epub import EpubIngester
 from .markdown import MarkdownIngester
 from .plaintext import PlainTextIngester
+from .subtitles import SubtitleIngester
 from .url import UrlIngester
 
 __all__ = [
@@ -32,19 +35,27 @@ _BY_SUFFIX: dict[str, Ingester] = {
     ".md": MarkdownIngester(),
     ".markdown": MarkdownIngester(),
     ".epub": EpubIngester(),
+    ".srt": SubtitleIngester(),
+    ".vtt": SubtitleIngester(),
 }
 
 
 def sources() -> list[str]:
-    return sorted({*_BY_SUFFIX, "http(s)://", *(f"{name}:" for name in fetch.FETCHERS)})
+    from ..audio import AUDIO_SUFFIXES
+
+    return sorted(
+        {*_BY_SUFFIX, *AUDIO_SUFFIXES, "http(s)://", *(f"{name}:" for name in fetch.FETCHERS)}
+    )
 
 
 def load(source: str, language: str | None = None) -> Document:
     document = _load(source)
     path = Path(source)
-    if path.exists() and path.is_file():
+    if path.exists() and path.is_file() and not document.source_hash:
         # What the file held when it was read. Lets a rerun tell "the user edited the
-        # artifact" apart from "the user pointed this at a different text".
+        # artifact" apart from "the user pointed this at a different text". Only where
+        # the ingester did not already say: an audio document's hash states which parts
+        # have been transcribed, and decoding a recording as UTF-8 says nothing anyway.
         document.source_hash = content_hash(path.read_bytes().decode("utf-8", "replace"))
     if language:
         document.language = language
@@ -75,8 +86,12 @@ def _load(source: str) -> Document:
 
     if suffix == ".pdf":
         raise UnsupportedSource("PDF ingest is not supported yet.")
+    if is_drm(source):
+        raise UnsupportedSource("This file is protected, so targum cannot read it.")
     if not path.exists():
         raise TargumError(f"No such file: {source}")
+    if is_audio(source):
+        return AudioIngester().load(source)
 
     ingester = _BY_SUFFIX.get(suffix)
     if ingester is None:

@@ -201,6 +201,15 @@ class Token(Artifact):
     # batsˈal in one sentence and btsˈel in the next, and the lemma cannot say which.
     # Absent where the word has no vowels to read — see annotate/pronounce.py.
     ipa: str | None = None
+    # How a split surface is put together, said the card's way: "ו and + ל to + בית".
+    # English like the card's other labels, whatever the reader's target language —
+    # the precedent `Glossary.parts_of_speech` set. Only on split tokens, and absent
+    # on annotations written before it existed — see annotate/hebrew.py.
+    built: str | None = None
+    # The slice of Stanza's morphology the card reads — person, gender, number, tense,
+    # verb form, and the construct state — in the pipe format Stanza gave it. On the
+    # occurrence, because agreement is: מילים is Plur where מילה is Sing.
+    feats: str | None = None
 
 
 class Annotation(Artifact):
@@ -234,6 +243,12 @@ class Glossary(Artifact):
     provider: str
     entries: dict[str, str] = Field(default_factory=dict)
     parts_of_speech: dict[str, str] = Field(default_factory=dict)
+    #: Verbs: the form a learner keeps — the infinitive with its governing preposition.
+    #: Facts about the source word riding with the pair, only where there is one to say;
+    #: absent for every lemma glossed before 2026-08-31, filling in as words are looked up.
+    citations: dict[str, str] = Field(default_factory=dict)
+    #: Nouns: the plural, only where it lies about the gender or changes the stem.
+    plurals: dict[str, str] = Field(default_factory=dict)
 
 
 def glossary_path(folder: Path, target: str) -> Path:

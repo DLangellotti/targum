@@ -30,6 +30,9 @@ dependencies = [
 
 [project.optional-dependencies]
 align = ["sentence-transformers>=3.0"]
+# Forced alignment of a supplied transcript against its recording. Torch rides in with
+# it; on the box Stanza already brought torch, so the marginal weight is the model.
+speech-align = ["ctc-forced-aligner>=0.3"]
 covers = ["pillow>=10.0"]
 difficulty = ["wordfreq>=3.1"]
 # Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
@@ -89,6 +92,8 @@ module = [
   "wordfreq.*",
   "nakdimon.*",
   "phonikud.*",
+  "ctc_forced_aligner.*",
+  "torch.*",
 ]
 ignore_missing_imports = true
 

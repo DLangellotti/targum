@@ -1288,6 +1288,21 @@ def build(
         bool,
         typer.Option("--force", help="Rebuild from scratch, ignoring anything cached."),
     ] = False,
+    transcript: Annotated[
+        Path | None,
+        typer.Option(
+            "--transcript",
+            help="For audio: a transcript you already have. SRT or VTT, timings kept.",
+        ),
+    ] = None,
+    transcriber: Annotated[
+        str | None,
+        typer.Option("--transcriber", help="For audio: which transcriber to use."),
+    ] = None,
+    parts: Annotated[
+        int | None,
+        typer.Option("--parts", help="For audio: how many parts to buy now. Default: all."),
+    ] = None,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
     """Build a targum — one text with its translation beside it."""
@@ -1322,6 +1337,8 @@ def build(
             machine=machine,
             difficulty=words,
             gloss=gloss,
+            transcriber_name=transcriber or "",
+            transcript=transcript,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
 
@@ -1333,7 +1350,7 @@ def build(
                 raise TargumError(*MISSING)
 
         with console.status("Reading and segmenting..."):
-            plan = builder.plan()
+            plan = builder.plan(chapters=parts)
 
         # After ingest, not before it. Checked first, a .pdf and a file that is not
         # there both answered "Provider 'anthropic' is not ready", which is neither
@@ -1356,8 +1373,14 @@ def build(
                 ):
                     raise typer.Abort()
 
+        if plan.audio is not None and plan.audio.transcription:
+            minutes = plan.audio.buying_seconds / 60
+            console.print(
+                f"[dim]Transcribing {minutes:.0f} minutes: about "
+                f"${plan.audio.transcription:.2f}[/dim]"
+            )
         if plan.cached_translation is not None:
-            result = builder.run(plan)
+            result = builder.run(plan, chapters=parts)
         else:
             with Progress(
                 TextColumn("[dim]translating[/dim]"),
@@ -1367,7 +1390,9 @@ def build(
                 console=console,
             ) as progress:
                 task = progress.add_task("translate", total=count)
-                result = builder.run(plan, lambda done: progress.advance(task, done))
+                result = builder.run(
+                    plan, lambda done: progress.advance(task, done), chapters=parts
+                )
     except TargumError as error:
         fail(error)
 
@@ -1557,8 +1582,9 @@ def align(
 @app.command()
 def sources() -> None:
     """List everything targum can read."""
-    console.print("  [bold]Files[/bold]      .epub, .txt, .md")
-    console.print("  [bold]Links[/bold]      any article, essay or wiki page")
+    console.print("  [bold]Files[/bold]      .epub, .txt, .md, .srt, .vtt")
+    console.print("  [bold]Audio[/bold]      .mp3, .m4a, .m4b, .aac, .ogg, .opus, .flac, .wav")
+    console.print("  [bold]Links[/bold]      any article, essay, wiki page or podcast episode")
     console.print("  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>")
     console.print("[dim]Not PDF. Save one as text or markdown first.[/dim]")
 
