@@ -691,6 +691,9 @@ html:has(main.weekly) {
 }
 .public .weekly {
   max-width: min(64rem, 100%);
+  /* The inverted door ends the page; the reading sheet's own foot (reader.css gives
+     `main` 6rem) would hold it away from the footer over a band of dead paper. */
+  padding-block-end: 0;
 }
 
 /* The masthead: the name and the corner on one row, on the sheet's grid, on every
@@ -900,7 +903,7 @@ html:has(main.weekly) {
   --keep-soft: #9a9288;
   inline-size: var(--stage-width, 100%);
   margin-inline-start: var(--stage-left, 0px);
-  margin-block: 0 3rem;
+  margin-block: 0;
   /* Pushed out to the window's edge by `--stage-left`, and padded back in by the same
      amount, so its text stands on the sheet's own column. */
   padding: 2.5rem calc(-1 * var(--stage-left, -1.5rem)) 2.75rem;
