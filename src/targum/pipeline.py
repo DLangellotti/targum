@@ -117,6 +117,11 @@ class Build:
         gloss_model: str | None = None,
         aligner: align_module.Aligner | None = None,
         annotator: annotate_module.Annotator | None = None,
+        # Or only the lemmatizer, shared across builds: the Stanza models it holds are
+        # most of a build's memory, and a run that builds a hundred texts with one each
+        # is a run the box kills. The annotator itself stays per build — whether a text
+        # gets readings depends on what that text has.
+        lemmatizer: annotate_module.Lemmatizer | None = None,
         vocalizer: vocalize_module.Vocalizer | None = None,
         # Which languages whoever this build is for reads. A translation into any other
         # is left out of the reader — see `render`. None asks nobody, which is the command
@@ -152,6 +157,7 @@ class Build:
         # Meanings may be bought on a cheaper model than the prose; hosted, they are.
         self.gloss_model = gloss_model
         self._annotator = annotator
+        self._lemmatizer = lemmatizer
         self._vocalizer = vocalizer
         self.provider: Any = build_provider(
             provider_name, model=model, batch_size=batch_size, effort=effort
@@ -671,7 +677,7 @@ class Build:
                 pronouncer = candidate
 
         annotator = self._annotator or annotate_module.Annotator(
-            lemmatizer=lemma.for_source(self.source),
+            lemmatizer=self._lemmatizer or lemma.for_source(self.source),
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
         )

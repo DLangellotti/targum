@@ -618,3 +618,39 @@ def test_seed_builds_ruth_the_news_piece_and_every_scene_in_order() -> None:
         "scene-03-which-way",
         "scene-18-two-coffees",
     ]
+
+
+def test_seed_shares_one_lemmatizer_per_register(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A hundred scenes each loading their own Stanza reached six and a half gigabytes
+    on the box and were killed twenty-four texts in. The models are shared across the
+    run: one lemmatizer for scripture, one for everything else."""
+    from targum import cli
+
+    handed: list[object] = []
+
+    class FakeBuild:
+        def __init__(self, source: str, **options: object) -> None:
+            handed.append(options.get("lemmatizer"))
+            self.source = source
+
+        def run(self) -> object:
+            out = tmp_path / "shared" / self.source.replace(":", "-").replace("/", "-")
+            out.mkdir(parents=True, exist_ok=True)
+            return type("Result", (), {"out_dir": out})()
+
+    monkeypatch.setattr(cli, "Build", FakeBuild)
+    monkeypatch.setattr("targum.coverage.lemmas", lambda folder: {})
+    monkeypatch.setattr("targum.annotate.lemma.for_source", lambda source, **kw: object())
+    cli.seed(out=tmp_path)
+
+    from targum.catalogue import by_id
+    from targum.models import is_biblical
+
+    registers = {is_biblical(by_id(entry_id).source) for entry_id in cli.seeds()}
+    assert len(handed) == len(cli.seeds())
+    assert all(lemmatizer is not None for lemmatizer in handed), "every build is handed one"
+    assert len({id(lemmatizer) for lemmatizer in handed}) == len(registers), (
+        "one per register, not one per text"
+    )

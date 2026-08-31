@@ -1178,17 +1178,26 @@ def seed(
     anything. Free — each has a published translation — and safe to run again.
     """
     from . import catalogue as catalogue_module
+    from .annotate import lemma
+    from .annotate.lemma import StanzaLemmatizer
     from .coverage import lemmas
     from .serve import HOSTED_MODEL
 
     root = out or Path.cwd() / "targum-out"
     shared = root / "shared"
     shared.mkdir(parents=True, exist_ok=True)
+    # One lemmatizer per register for the whole run, as `rebuild` keeps. A hundred
+    # scenes each loading their own Stanza reached six and a half gigabytes on the box
+    # and were killed twenty-four texts in; shared, the run holds two.
+    lemmatizers: dict[bool, StanzaLemmatizer] = {}
     for entry_id in seeds():
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
             fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
             continue
+        scripture = is_biblical(entry.source)
+        if scripture not in lemmatizers:
+            lemmatizers[scripture] = lemma.for_source(entry.source)
         builder = Build(
             entry.source,
             target_language="en",
@@ -1196,6 +1205,7 @@ def seed(
             model=entry.model or HOSTED_MODEL,
             out_root=shared,
             translations=[rendering.source for rendering in entry.translations],
+            lemmatizer=lemmatizers[scripture],
             # Machine-translated only where nothing published exists, and then under the
             # model it was translated with, so the cache answers rather than the API.
             machine=None,
