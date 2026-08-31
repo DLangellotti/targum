@@ -1321,14 +1321,14 @@ table.rows tr:hover .copy,
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button
+    .list-close, .list-foot button, .video-close
   ) {
     position: relative;
   }
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button
+    .list-close, .list-foot button, .video-close
   )::after {
     content: "";
     position: absolute;
