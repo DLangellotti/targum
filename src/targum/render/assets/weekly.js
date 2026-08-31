@@ -35,6 +35,39 @@
     }
   }
 
+  /* The level on the page and the level in the frame, kept the same. The reader's own
+     bar switches level by navigating the frame, and a page that only knew the level it
+     was served at would then be marking the wrong one — which is the reason it had no
+     switcher of its own for a while. Same origin, so the frame's address can be read
+     on every load: the chip moves, the sentence under it changes, and the page's own
+     address follows, so a link copied from the bar is a link to what is showing. */
+  var frame = document.querySelector(".embed iframe");
+  var ladder = document.querySelector(".ladder");
+  var what = document.getElementById("ladder-what");
+  if (frame && ladder) {
+    frame.addEventListener("load", function () {
+      var path;
+      try {
+        path = frame.contentWindow.location.pathname;
+      } catch (error) {
+        return;
+      }
+      var found = /\/weekly\/read\/weekly-(\d{4}-w\d{2})-([a-z]+)-[a-z]+\/reader\//.exec(path);
+      if (!found) return;
+      var chips = ladder.querySelectorAll("a[data-level]");
+      Array.prototype.forEach.call(chips, function (chip) {
+        var on = chip.getAttribute("data-level") === found[2];
+        chip.classList.toggle("here", on);
+        if (on) chip.setAttribute("aria-current", "page");
+        else chip.removeAttribute("aria-current");
+        if (on && what) what.textContent = chip.getAttribute("data-what") || "";
+      });
+      if (window.history && history.replaceState) {
+        history.replaceState(null, "", "/weekly/" + found[1] + "/" + found[2]);
+      }
+    });
+  }
+
   if (remembered()) return;
 
   var close = dialog.querySelector("[data-close]");

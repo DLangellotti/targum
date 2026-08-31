@@ -267,14 +267,51 @@ def test_the_page_embeds_the_reader_rather_than_linking_to_it(
     anything, and a stranger makes that decision by leaving. The first thing under the
     headline is the product running.
 
-    The level switcher rides in the framed reader's own bar, which is why the landing
-    page carries none of its own: two controls doing one thing, with only one of them
-    able to know which level is showing, is a way to be wrong on screen.
+    The page carries a level switcher of its own, above the frame. For a while it did
+    not — two controls doing one thing, with only one of them able to know which level
+    is showing, is a way to be wrong on screen — but on a phone the reader's own switch
+    went behind ⋯, and the page can know: the frame is the same origin and `weekly.js`
+    reads where it has gone on every load (see the browser test below).
     """
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
     assert "<iframe" in page
     assert f"/weekly/read/weekly-{WEEK}-bet-he/reader/index.html" in page
     assert "Learn to read the news in Hebrew" in page
+    for level in ("aleph", "bet", "gimel"):
+        assert f'href="/weekly/{WEEK}/{level}" data-level="{level}"' in page, level
+    assert 'data-level="bet"\n       data-what=' in page or 'data-level="bet"' in page
+    assert re.search(r'data-level="bet"[^>]*class="here" aria-current="page"', page)
+    assert not re.search(r'data-level="aleph"[^>]*aria-current', page)
+
+
+def test_the_page_keeps_step_with_the_level_the_frame_is_showing(
+    open_shelves: tuple[int, Path],
+) -> None:
+    """Switch level inside the framed reader and the page's own switcher, the sentence
+    under it and the address all follow — the answer to the objection that two controls
+    for one thing will disagree."""
+    playwright_api = pytest.importorskip("playwright.sync_api")
+    port = open_shelves[0]
+    with playwright_api.sync_playwright() as driver:
+        try:
+            browser = driver.chromium.launch()
+        except Exception as why:  # pragma: no cover - the browser itself is not installed
+            pytest.skip(f"no Chromium ({why})")
+        page = browser.new_page(viewport={"width": 1280, "height": 900})
+        page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
+        page.wait_for_selector(".ladder a.here")
+        frame = page.frame_locator(".embed iframe")
+        frame.locator(".bar .levels a.level").first.wait_for()
+        easier = frame.locator(f'.bar .levels a.level[href*="weekly-{WEEK}-aleph-he"]')
+        easier.click()
+        page.wait_for_function(
+            "() => document.querySelector('.ladder a.here').getAttribute('data-level') === 'aleph'"
+        )
+        assert page.url.endswith(f"/weekly/{WEEK}/aleph")
+        said = page.inner_text("#ladder-what")
+        wanted = page.get_attribute('.ladder a[data-level="aleph"]', "data-what")
+        assert said == wanted
+        browser.close()
 
 
 def test_the_page_is_canonical_to_itself(open_shelves: tuple[int, Path]) -> None:

@@ -616,30 +616,91 @@ body.public {
   max-width: min(64rem, 100%);
 }
 
-/* What the three levels are, above the reader. A visitor has to choose one before they
-   can start, and three names alone leave them guessing which is theirs. */
+/* The three levels, above the reader, each a way in. A visitor has to choose one
+   before they can start, and three names alone leave them guessing which is theirs.
+   Ink, not accent (§9): the accent is the door's. The one showing is marked by weight
+   and a heavier rule, the way the reader's own level chips mark it. */
 .public .ladder {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1.2rem;
   margin: 0 0 1.5rem;
 }
-.public .ladder div {
+.public .ladder a {
+  display: block;
   padding-block-start: 0.7rem;
   border-block-start: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
 }
-.public .ladder dt {
+.public .ladder a:hover {
+  border-block-start-color: var(--ink-soft);
+}
+.public .ladder a.here {
+  border-block-start: 2px solid var(--ink);
+  padding-block-start: calc(0.7rem - 1px);
+}
+.public .ladder b {
+  display: block;
   font-weight: 600;
   font-size: 0.9375rem;
 }
-.public .ladder dd {
-  margin: 0.2rem 0 0;
+.public .ladder .figure {
+  display: block;
+  margin-block-start: 0.2rem;
+  font-size: 0.8125rem;
+  color: var(--ink);
+}
+.public .ladder .what {
+  display: block;
+  margin-block-start: 0.2rem;
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-soft);
 }
-.public .ladder dd.figure {
-  color: var(--ink);
+/* Said once under the chips on a phone; each column says its own on a wide window. */
+.public .ladder-what {
+  display: none;
+  margin: 0 0 1.25rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* On a phone the three are a row of chips, so the reader is on the first screen — it
+   used to begin a whole screen down, under three paragraphs about it. */
+@media (max-width: 40rem) {
+  .public .ladder {
+    display: flex;
+    gap: 0.5rem;
+    margin-block-end: 0.8rem;
+  }
+  .public .ladder a,
+  .public .ladder a.here {
+    flex: 1 1 0;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    text-align: center;
+  }
+  .public .ladder a.here {
+    border-color: var(--ink);
+  }
+  .public .ladder b {
+    display: block;
+    font-size: 0.8125rem;
+  }
+  .public .ladder .figure {
+    margin: 0;
+    font-size: 0.6875rem;
+    color: var(--ink-soft);
+  }
+  .public .ladder .what {
+    display: none;
+  }
+  .public .ladder-what {
+    display: block;
+  }
 }
 
 /* The sources, each a way in.

@@ -33,23 +33,34 @@
   <h1 class="pitch">Learn to read the news in Hebrew</h1>
   <p class="lede">
     Every Monday, the week from Israel and the world in Modern Hebrew, written three
-    times over. Tap any word for what it means and how common it is. Switch level in the
-    bar below whenever a sentence is too hard, or too easy.
+    times over. Tap any word for what it means and how common it is. Pick a level, and
+    change it whenever a sentence is too hard, or too easy.
   </p>
 
-  {#- What the three levels actually are. A reader has to choose one before they can
+  {#- The three levels, each a way in. A reader has to choose one before they can
       start, and "Easy / Simplified / Real Hebrew" alone leaves them guessing which is
-      theirs. The counts are the ladder in `progress.js`, said in words rather than in
-      Hebrew letters. -#}
-  <dl class="ladder">
+      theirs — so each says who it is for. The counts are the ladder in `progress.js`,
+      said in words rather than in Hebrew letters.
+
+      Links, and the page's own: for a while the switcher lived only in the framed
+      reader's bar, on the argument that two controls doing one thing, with only one of
+      them able to know which level is showing, is a way to be wrong on screen. Then the
+      bar became one row on a phone and the switch went behind ⋯. The page can know: the
+      frame is the same origin, and `weekly.js` reads where it has gone on every load and
+      keeps this and the address in step. -#}
+  <nav class="ladder" aria-label="Level">
     {%- for other, other_spec in levels.items() %}
-    <div>
-      <dt>{{ other_spec.name }}</dt>
-      <dd class="figure">for {{ other_spec.figure }} words</dd>
-      <dd>{{ explained[other] }}</dd>
-    </div>
+    <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
+       data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
+      <b>{{ other_spec.name }}</b>
+      <span class="figure">for {{ other_spec.figure }} words</span>
+      <span class="what">{{ explained[other] }}</span>
+    </a>
     {%- endfor %}
-  </dl>
+  </nav>
+  {#- On a phone the three are a row of chips with no room for what each one is, so the
+      one chosen says it here, once. -#}
+  <p class="ladder-what" id="ladder-what">{{ explained[level] }}</p>
 
   {#- The reader, embedded rather than linked to.
       
