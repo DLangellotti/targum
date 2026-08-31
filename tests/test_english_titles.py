@@ -90,6 +90,9 @@ def test_tidy_keeps_a_title_within_what_the_brand_allows() -> None:
     script = load_script()
     assert script.tidy(" “Old New Land.” ") == "Old New Land"
     assert script.tidy("Wow! What a day!") == "Wow What a day"
+    # A question keeps its mark; nothing else ends with one.
+    assert script.tidy("How was the weekend?") == "How was the weekend?"
+    assert script.tidy("What time is it?!") == "What time is it?"
     # Never cut short: a title chopped at six words is worse than a long one.
     assert script.tidy("one two three four five six seven") == "one two three four five six seven"
 

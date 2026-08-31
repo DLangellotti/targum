@@ -41,7 +41,8 @@ INSTRUCTIONS = (
     "For each Hebrew text below, give its title in English. Use the standard English title "
     "where the work has one (a book of the Bible, a known novel or essay); otherwise a plain "
     "translation of the Hebrew title, guided by the blurb. At most six words. No quotation "
-    "marks, no trailing punctuation, no exclamation marks, no commentary. Answer with a JSON "
+    "marks, no exclamation marks, no commentary; a title that is a question ends with a "
+    "question mark and no other title ends with punctuation. Answer with a JSON "
     'array of objects {"id": ..., "english": ...}, one per text, in the order given, and '
     "nothing else."
 )
@@ -73,8 +74,11 @@ def tidy(english: str) -> str:
     words ("The Woman Who Walked Thousands of") is worse than a long one, so length is
     the model's to fix — see `shorten` — and a long title that survives that stays whole."""
     text = english.strip().strip("\"“”‘’'")
-    text = text.rstrip(".!?…").replace("!", "")
-    return " ".join(text.split())
+    # A question keeps its mark — "How was the weekend?" — and nothing else keeps any.
+    text = text.replace("!", "").rstrip()
+    asks = text.endswith("?")
+    text = text.rstrip(".?…")
+    return " ".join(text.split()) + ("?" if asks else "")
 
 
 def too_long(english: str) -> bool:
@@ -84,8 +88,8 @@ def too_long(english: str) -> bool:
 SHORTEN = (
     "Each of these English titles is too long. Give a shorter title of at most six words "
     "that still reads as a complete title — a headline may be rephrased, never cut off "
-    "mid-phrase. Same rules: no quotation marks, no trailing punctuation, no exclamation "
-    'marks. Answer with a JSON array of objects {"id": ..., "english": ...}, in the order '
+    "mid-phrase. Same rules: no quotation marks, no exclamation marks, a question mark only "
+    'on a question. Answer with a JSON array of objects {"id": ..., "english": ...}, in the order '
     "given, and nothing else."
 )
 
