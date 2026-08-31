@@ -779,3 +779,15 @@ body.public {
 .public .sources .import:hover {
   text-decoration: underline;
 }
+/* A thumb's worth of each source row. The headline and the way in are text links a
+   line tall; where there is no pointer they take the row's own height to press. */
+@media (hover: none) {
+  .public .sources li {
+    margin-block-end: 0.4rem;
+  }
+  .public .sources .story,
+  .public .sources .import {
+    display: inline-block;
+    padding-block: 0.45rem;
+  }
+}
