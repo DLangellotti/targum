@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from ..errors import TargumError
 from ..paths import write_atomic
+from ..video import MAX_VIDEO_DURATION_S
 from . import DRM_SUFFIXES, MAX_DURATION_S, MIN_DURATION_S, tools
 
 PROBE = "probe.json"
@@ -52,8 +53,13 @@ def _floated(raw: Any) -> float:
         return 0.0
 
 
-def examine(path: Path) -> Probe:
-    """Probe the file, and refuse what an import must not accept."""
+def examine(path: Path, *, allow_video: bool = False) -> Probe:
+    """Probe the file, and refuse what an import must not accept.
+
+    `allow_video` is set only when the import chose the video path by the source's own
+    suffix or address. An audio-suffixed file hiding a video stream is still refused —
+    the routing decides what the file may be, not the file.
+    """
     if path.suffix.lower() in DRM_SUFFIXES:
         raise TargumError("This file is protected, so targum cannot read it.")
     answer = tools.ffprobe_json(path)
@@ -66,13 +72,17 @@ def examine(path: Path) -> Probe:
         for s in streams
         if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic")
     ]
-    if not sound or moving:
+    if not sound and moving:
+        raise TargumError("There is nothing to transcribe in a silent video.")
+    if not sound or (moving and not allow_video):
         # A film with a soundtrack is not a recording, and extracting one from the
         # other is a different product. Attached cover art is not moving pictures.
         raise TargumError(tools.UNREADABLE)
     length = _floated(form.get("duration"))
     if length < MIN_DURATION_S:
         raise TargumError(tools.UNREADABLE)
+    if moving and length > MAX_VIDEO_DURATION_S:
+        raise TargumError("That video is over 4 hours.")
     if length > MAX_DURATION_S:
         raise TargumError("That recording is over 12 hours.")
     marks = [
@@ -89,12 +99,12 @@ def examine(path: Path) -> Probe:
         title=tags.get("title", ""),
         artist=tags.get("artist", ""),
         codec=str(sound[0].get("codec_name") or ""),
-        has_video=False,
+        has_video=bool(moving),
         chapters=[m for m in marks if m.end > m.start],
     )
 
 
-def adopt(source: Path, workspace: Path, *, move: bool = False) -> Path:
+def adopt(source: Path, workspace: Path, *, move: bool = False, allow_video: bool = False) -> Path:
     """The recording, inside the targum's own folder, with its probe beside it.
 
     Copied rather than moved unless asked: a file named on the command line is the
@@ -108,7 +118,7 @@ def adopt(source: Path, workspace: Path, *, move: bool = False) -> Path:
             shutil.move(str(source), str(target))
         else:
             shutil.copy2(source, target)
-    checked = examine(target)
+    checked = examine(target, allow_video=allow_video)
     write_atomic(workspace / PROBE, checked.model_dump_json(indent=2) + "\n")
     return target
 

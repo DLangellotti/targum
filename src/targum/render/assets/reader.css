@@ -2175,11 +2175,68 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player-get:focus-visible, .player-close:focus-visible,
 .player-slower:focus-visible, .player-faster:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
+/* The picture, above the player in the same corner and away by default: the reader is
+   a reader, not a player (§1), and the transport stays the strip below — this panel
+   only shows what the import kept. A floating overlay, so the shadow is allowed (§8);
+   the panel radius is the 8 of panels and the picture sits inside on the 4 of controls. */
+.video {
+  position: fixed;
+  inset-block-end: 4.75rem;
+  inset-inline-end: 1.25rem;
+  z-index: 26;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  inline-size: min(20rem, calc(100vw - 2.5rem));
+  padding: 0.4rem;
+  /* The overlay's lighter line directly, not via the shared border-color rule near
+     the top of the file — this shorthand is written later and would win over it. */
+  border: 1px solid var(--overlay-rule, var(--rule));
+  border-radius: 8px;
+  background: var(--paper-raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 20px -14px rgb(0 0 0 / 35%);
+}
+
+.video[hidden] { display: none; }
+
+.video-el {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: 4px;
+  /* A letterbox is dark in both themes — `--ink` flips to cream on the dark page,
+     which made the empty box the brightest thing on it. The dark page's own paper,
+     as a literal: the one place a theme-invariant dark field is the right answer. */
+  background: #171614;
+}
+
+.video-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 1.0625rem;
+  line-height: 1;
+}
+.video-close:hover { color: var(--ink); }
+.video-close:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+
 /* The word list slides in from the same edge, so the player steps aside for it rather
-   than sitting under it. Wide windows only: below 60rem the list is a bottom sheet and
-   the player rises above it instead — that rule lives with the sheet's. */
+   than sitting under it — and the video panel above the player steps the same step,
+   or the picture floats over the words. Wide windows only: below 60rem the list is a
+   bottom sheet and both rise above it instead — that rule lives with the sheet's. */
 @media (min-width: 60rem) {
-  body.has-list.list-open .player { inset-inline-end: 15rem; }
+  body.has-list.list-open .player,
+  body.has-list.list-open .video { inset-inline-end: 15rem; }
 }
 
 /* The turning arrows are 2.75rem tall and sit 2.25rem up; this clears them. The words
@@ -2264,7 +2321,7 @@ html:fullscreen { background: var(--paper); }
   .bar .more[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
 
   /* --- the occupants: one place, one at a time --- */
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
     position: fixed;
     inset-block: auto 0;
     inset-inline: 0;
@@ -2399,7 +2456,7 @@ html:fullscreen { background: var(--paper); }
     to { transform: none; }
   }
   .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
-  .keys-card:not([hidden]), .bar-more.open {
+  .keys-card:not([hidden]), .video:not([hidden]), .bar-more.open {
     animation: rise 220ms cubic-bezier(0.32, 0.72, 0, 1);
   }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
@@ -2408,10 +2465,11 @@ html:fullscreen { background: var(--paper); }
   /* Let go of, an occupant settles back or goes on down along the line the finger
      drew — the same curve. Under the finger it has no transition at all: it is the
      finger's, and a transition there would be a lag. */
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
     transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling, .bar-more.pulling {
+  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling, .video.pulling,
+  .bar-more.pulling {
     transition: none;
   }
 }
@@ -2422,8 +2480,8 @@ html:fullscreen { background: var(--paper); }
    sheet mid-flight. */
 @media (prefers-reduced-motion: reduce) {
   .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
-  .keys-card:not([hidden]), .bar-more.open,
-  .list, .gloss-card, .pick-card, .keys-card, .bar-more { animation: none; transition: none; }
+  .keys-card:not([hidden]), .video:not([hidden]), .bar-more.open,
+  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more { animation: none; transition: none; }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
     transition: none;
   }

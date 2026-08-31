@@ -94,6 +94,63 @@ def cut(source: Path, into: Path, start: float, end: float) -> None:
             check=True,
         )
     except (OSError, subprocess.CalledProcessError) as error:
+        # ffmpeg writes in place, so a failure leaves a truncated file — and a file
+        # that exists is a file the next build trusts. Gone with the error.
+        into.unlink(missing_ok=True)
+        raise TargumError(UNREADABLE) from error
+
+
+def cut_video(source: Path, into: Path, start: float, end: float) -> None:
+    """One part of a video, pictures kept, at the sidecar's modest size.
+
+    The same `-ss`/`-to` re-encode as `cut()`, for the same reason: a stream copy moves
+    the cut to a keyframe, and the spans in the part are aligned tighter than that. The
+    two cuts share their start and end exactly, so a span timed against the part's mp3
+    holds against its mp4. `faststart` moves the index to the front — a player behind a
+    Range request reads the tail first otherwise, which is a second round trip per part.
+    """
+    from ..video import VIDEO_AUDIO_BITRATE, VIDEO_CRF, VIDEO_HEIGHT
+
+    into.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-y",
+                "-ss",
+                f"{max(0.0, start):.3f}",
+                "-to",
+                f"{end:.3f}",
+                "-i",
+                str(source),
+                "-vf",
+                # floor to even: -2 keeps the width even, and an odd source height
+                # under the ceiling would otherwise fail yuv420p outright.
+                f"scale=-2:'min({VIDEO_HEIGHT},floor(ih/2)*2)'",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                str(VIDEO_CRF),
+                "-pix_fmt",
+                "yuv420p",
+                "-c:a",
+                "aac",
+                "-b:a",
+                VIDEO_AUDIO_BITRATE,
+                "-movflags",
+                "+faststart",
+                str(into),
+            ],
+            capture_output=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        # A truncated mp4 left behind would be recorded by the next manifest write
+        # and never re-cut — the guard is `exists()`, so failure must leave nothing.
+        into.unlink(missing_ok=True)
         raise TargumError(UNREADABLE) from error
 
 

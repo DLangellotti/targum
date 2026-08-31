@@ -110,6 +110,21 @@
       </button>
     </div>
     {% endif %}
+    {#- Watch the recording. Only on a text whose import kept its pictures, and off
+        until pressed: the reader is a reader, not a player (§1) — the picture is
+        optional and the player strip stays the transport. The drawing is what it
+        does: a screen, with the play mark inside it. -#}
+    {% if spoken_video %}
+    <div class="group" data-what="Watch the recording">
+      <button type="button" data-video aria-pressed="false"
+              title="The video" aria-label="The video">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <rect x="2" y="3.5" width="12" height="9" rx="1"/>
+          <path d="M6.5 6 10 8 6.5 10Z"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
     {#- Pages, or one long scroll. The drawing is two leaves. -#}
     <div class="group" data-what="Pages, or one long scroll">
       <button type="button" data-paged aria-pressed="false"
@@ -260,6 +275,22 @@
     </svg>
   </a>
   <button type="button" class="player-close" aria-label="Close the player">×</button>
+</div>
+{% endif %}
+{#- The picture, in the same corner the player stands in, and away until asked for.
+    The `<video>` is the page's one media element when it exists — the player strip
+    drives it, and closing the panel only hides the picture, never stops the sound.
+    The address is relative and the file stands beside this one: never inlined — a
+    part of video is ten times the whole page — and never fetched from any network,
+    so a folder that travels to a disk keeps its picture (design.md §12). -#}
+{% if spoken_video %}
+{#- data-src, not src: the page itself arrived with the serve key in its query, and a
+    bare relative src would ask for the sidecar without it — refused, and the fallback
+    would hide the whole feature. The script appends location.search, which is the key
+    when there is one and nothing off a disk. -#}
+<div class="video" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}">
+  <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
+  <button type="button" class="video-close" aria-label="Close the video">×</button>
 </div>
 {% endif %}
 {#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of

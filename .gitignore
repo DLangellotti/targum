@@ -64,6 +64,8 @@ src/targum/dialogue/shelf.py
 # run them, which is the worst home for the code that enforces a licence boundary.
 
 # Content, and the code that makes it: a recording is somebody else's reading of a
-# text, cut and aligned here and never committed.
+# text, cut and aligned here and never committed. `attach` is the same split as
+# `cut`: the trim the build needs back lives in models.py, which stays.
 src/targum/recording/cut.py
+src/targum/recording/attach.py
 src/targum/weekly/voice.py

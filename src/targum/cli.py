@@ -1303,6 +1303,13 @@ def build(
         int | None,
         typer.Option("--parts", help="For audio: how many parts to buy now. Default: all."),
     ] = None,
+    video: Annotated[
+        bool,
+        typer.Option(
+            "--video/--no-video",
+            help="For video: keep the pictures beside the reader, or import the sound alone.",
+        ),
+    ] = True,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
     """Build a targum — one text with its translation beside it."""
@@ -1339,6 +1346,7 @@ def build(
             gloss=gloss,
             transcriber_name=transcriber or "",
             transcript=transcript,
+            video=video,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
 

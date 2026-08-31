@@ -156,6 +156,9 @@ class Build:
         # already built: what the tests hand in, and what a server could share.
         transcriber: Any = None,
         transcript: Path | str | None = None,
+        # Whether a video source keeps its pictures. Off, the import is the audio one
+        # exactly — for whoever wants the talk, not the talking head.
+        video: bool = True,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -194,6 +197,7 @@ class Build:
         self._glosser: Any = None
         self.transcriber_name = transcriber_name
         self.transcript = Path(transcript) if transcript else None
+        self.video = video
         self._episode: Any = None
         self._transcriber: Any = transcriber
         self._out = out
@@ -242,7 +246,7 @@ class Build:
     def ingest(self) -> Document:
         from urllib.parse import urlparse
 
-        if not self.is_audio_source and urlparse(str(self.source)).scheme in ("http", "https"):
+        if not self.is_recording_source and urlparse(str(self.source)).scheme in ("http", "https"):
             # An episode page or a feed resolves to its audio before anything is read
             # as an article. One extra fetch for a page that turns out to be prose —
             # against silently reading a podcast's show notes as the text, cheap.
@@ -262,7 +266,7 @@ class Build:
                 self.source = found.audio_url
                 if self.title == "" and found.title:
                     self.title = found.title
-        if self.is_audio_source:
+        if self.is_recording_source:
             self._adopt_audio()
         fresh = ingest.load(self.source, language=self.source_language)
         # Where the source will not name itself, the caller may. Only ever as a fallback:
@@ -949,6 +953,29 @@ class Build:
         return is_audio(source)
 
     @property
+    def is_video_source(self) -> bool:
+        from urllib.parse import urlparse
+
+        from .video import is_video
+        from .video.youtube import is_youtube
+
+        source = str(self.source)
+        parsed = urlparse(source)
+        if parsed.scheme in ("http", "https"):
+            # A direct link to a video file is a video, the same way a direct link
+            # to an mp3 sounds like audio — left out, it fell through to the article
+            # path and read raw mp4 bytes as a page.
+            return is_youtube(source) or is_video(parsed.path)
+        return is_video(source)
+
+    @property
+    def is_recording_source(self) -> bool:
+        """Audio or video: everything the recording pipeline runs on. Video *is* the
+        audio import with pictures kept — one flag decides the routing, the other only
+        what the probe may accept."""
+        return self.is_audio_source or self.is_video_source
+
+    @property
     def transcriber(self) -> Any:
         if self._transcriber is None:
             from .transcribe import build as build_transcriber
@@ -975,12 +1002,23 @@ class Build:
         from .audio import DEFAULT_LANGUAGE, ffmpeg_available
         from .audio import parts as parts_module
         from .audio import probe as probe_module
+        from .video.youtube import is_youtube
 
         address = ""
+        watching = False
         if urlparse(str(self.source)).scheme in ("http", "https"):
             address = str(self.source)
-            stem = Path(unquote(urlparse(address).path)).stem or "episode"
-            suffix = Path(urlparse(address).path).suffix.lower() or ".mp3"
+            watching = is_youtube(address)
+            if watching:
+                # The video id, not the path's stem — every watch page's stem is "watch".
+                from urllib.parse import parse_qs
+
+                asked = parse_qs(urlparse(address).query).get("v") or [""]
+                stem = asked[0] or Path(urlparse(address).path).stem or "video"
+                suffix = ".mp4"
+            else:
+                stem = Path(unquote(urlparse(address).path)).stem or "episode"
+                suffix = Path(urlparse(address).path).suffix.lower() or ".mp3"
             name = slug(str(self.title) or stem)
         else:
             name = slug(Path(self.source).stem)
@@ -998,9 +1036,18 @@ class Build:
                 usable, hint = ffmpeg_available()
                 if not usable:
                     raise TargumError("ffmpeg is not installed.", hint)
-                self.notify("Fetching the recording…")
-                download(address, target)
-                probe_module.adopt(target, workspace)
+                if watching:
+                    # Through the YouTube door, not `download()` — see video/youtube.
+                    # The door names the file; taking its answer keeps that knowledge
+                    # in one module.
+                    from .video import youtube as youtube_module
+
+                    self.notify("Fetching the video…")
+                    target = youtube_module.fetch(address, workspace)
+                else:
+                    self.notify("Fetching the recording…")
+                    download(address, target)
+                probe_module.adopt(target, workspace, allow_video=self.is_video_source)
             self.source = str(target)
             # The episode's own name, written down where the ingester reads names —
             # over the file's tag, not only into its absence: a podcast export's tag
@@ -1024,7 +1071,7 @@ class Build:
             usable, hint = ffmpeg_available()
             if not usable:
                 raise TargumError("ffmpeg is not installed.", hint)
-            adopted = probe_module.adopt(source, workspace)
+            adopted = probe_module.adopt(source, workspace, allow_video=self.is_video_source)
             self.source = str(adopted)
         else:
             self.source = str(target)
@@ -1439,10 +1486,29 @@ class Build:
             refined = load_model(Refined, refined_path(workspace, span.number))
             if refined is not None:
                 piece = workspace / "parts" / f"part-{span.number:03d}.mp3"
+                start = max(0.0, span.start - PAD)
+                end = min(drafted.duration, span.end + PAD)
                 if not piece.exists() and recording is not None:
-                    start = max(0.0, span.start - PAD)
-                    end = min(drafted.duration, span.end + PAD)
                     tools.cut(recording, piece, start, end)
+                if found.has_video and self.video:
+                    # The same start and end as the mp3, so one set of spans times
+                    # both files. Transcoding is minutes, not free — only once.
+                    reel = workspace / "parts" / f"part-{span.number:03d}.mp4"
+                    if not reel.exists() and recording is not None:
+                        self.notify(f"Cutting the video for part {span.number}…")
+                        try:
+                            tools.cut_video(recording, reel, start, end)
+                        except TargumError:
+                            # The pictures are optional — `--no-video` says as much —
+                            # and the transcription above is already paid for. Said
+                            # out loud and carried on: the part plays sound alone,
+                            # and the next build tries the cut again.
+                            self.notify(
+                                f"The video for part {span.number} could not be cut — "
+                                "the page will play audio alone."
+                            )
+                    if reel.exists():
+                        entry.video = str(reel.relative_to(self.resolved_out))
                 if piece.exists():
                     entry.audio = str(piece.relative_to(self.resolved_out))
                     entry.transcribed = True
@@ -1519,7 +1585,7 @@ class Build:
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
             plan.buying_segments = list(buying)
-        if self.is_audio_source:
+        if self.is_recording_source:
             plan.audio = self._audio_plan(chapters)
             if plan.audio is not None:
                 plan.estimated_cost += plan.audio.transcription + plan.audio.translation_guess
@@ -1587,7 +1653,7 @@ class Build:
         # An imported recording is heard before anything else happens: the transcript
         # is the text, and every stage below reads the text. What was heard lands on
         # disk, so the re-plan that follows is a re-read, not a re-purchase.
-        if self.is_audio_source and self.transcribe_parts(self._parts_owed(chapters, also)):
+        if self.is_recording_source and self.transcribe_parts(self._parts_owed(chapters, also)):
             plan = self.plan(chapters=chapters)
             assert plan.segmented is not None
             segmented = plan.segmented
@@ -1622,7 +1688,7 @@ class Build:
 
         # Where each line sits in its part's audio, before any page is written: the
         # renderer reads the manifest, and a page built first would be silent.
-        if self.is_audio_source:
+        if self.is_recording_source:
             self._write_audio_manifest(segmented)
 
         # Vowels first. The bands do not need them, but the reading of each word is

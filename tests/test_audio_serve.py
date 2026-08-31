@@ -225,6 +225,34 @@ def test_a_chunked_upload_is_assembled_in_order_and_answered_with_its_length(
     assert done["parts"] == 1
 
 
+def test_sound_alone_in_a_video_container_keeps_the_audio_ceiling(
+    served, fake_audio, monkeypatch
+) -> None:
+    """The suffix chose 4 GB at the door; the probe heard no pictures, so the file is
+    a recording and a recording's ceiling holds whatever the container claims."""
+    import targum.serve as serve_module
+
+    port, token, _out = served
+    fake_audio.video = False  # an .mp4 with nothing but sound in it
+    monkeypatch.setattr(serve_module, "MAX_AUDIO_BYTES", 2)
+    _status, opened = begin(port, token, name="talk.mp4", size=3)
+    upload = opened["upload"]
+    raw(port, f"/upload/{upload}/0?k={token}", b"abc")
+    status, answer = raw(port, f"/upload/{upload}/end?k={token}", b"{}", "application/json")
+    assert status == 413
+    assert "over 1 GB" in answer["error"]
+
+
+def test_a_pasted_youtube_link_is_refused_by_name(tmp_path: Path) -> None:
+    """The one guard between a pasted watch page and the fallback that would read its
+    show notes as the text. Refused before any fetch — no network in this test."""
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "command line" in job.error
+
+
 def test_a_protected_audiobook_is_refused_at_the_door(served) -> None:
     port, token, _out = served
     status, answer = begin(port, token, name="book.aax")
@@ -232,11 +260,39 @@ def test_a_protected_audiobook_is_refused_at_the_door(served) -> None:
     assert "protected" in answer["error"]
 
 
-def test_a_file_that_is_not_audio_is_refused_at_the_door(served) -> None:
+def test_a_file_that_is_not_audio_or_video_is_refused_at_the_door(served) -> None:
     port, token, _out = served
-    status, answer = begin(port, token, name="film.mp4")
+    status, answer = begin(port, token, name="film.avi")
     assert status == 400
-    assert "not an audio file" in answer["error"]
+    assert "not an audio or video file" in answer["error"]
+
+
+def test_a_video_is_taken_at_the_door_and_probed_as_one(served, fake_audio) -> None:
+    """The suffix chose the video path, so the probe may say yes to the pictures."""
+    port, token, _out = served
+    fake_audio.video = True
+    fake_audio.duration = 600.0
+    status, opened = begin(port, token, name="talk.mp4", size=3)
+    assert status == 200 and opened["upload"]
+    upload = opened["upload"]
+    assert raw(port, f"/upload/{upload}/0?k={token}", b"abc")[0] == 200
+    status, done = raw(port, f"/upload/{upload}/end?k={token}", b"{}", "application/json")
+    assert status == 200
+    assert done["seconds"] == 600.0
+
+
+def test_a_video_may_be_bigger_than_a_recording_but_not_boundless(served) -> None:
+    """4 GB for a video where a recording stops at 1 — and the same sentence past it."""
+    port, token, _out = served
+    three = 3 * 1024 * 1024 * 1024
+    status, _answer = begin(port, token, name="talk.mp4", size=three)
+    assert status == 200
+    status, answer = begin(port, token, name="talk.mp4", size=5 * 1024 * 1024 * 1024)
+    assert status == 413
+    assert "over 4 GB" in answer["error"]
+    status, answer = begin(port, token, name="talk.mp3", size=three)
+    assert status == 413
+    assert "over 1 GB" in answer["error"]
 
 
 def test_an_upload_that_would_pass_the_quota_is_refused_before_a_byte_arrives(served) -> None:

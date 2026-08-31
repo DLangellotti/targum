@@ -35,7 +35,7 @@
       because the person it is for cannot yet read the Hebrew — that is the whole
       premise — and the first thing under it is the product itself rather than a
       picture of it. The headline is the one place §5's landing display size is used. -#}
-  <section class="hero">
+  <section class="hero with-stack">
     <h1 class="pitch">Read this week's news in Hebrew. Every word explained.</h1>
     <p class="lede">
       targum is a reader for Hebrew: tap any word for what it means, say how well you
@@ -46,6 +46,27 @@
     <p class="cta">
       <a class="go" href="#embed">Read this week's issue</a>
     </p>
+    {#- The press line: the outlets this issue cites, as their own wordmarks in their
+        own colours — §12 records the departure. Only outlets the foot's sources list
+        names; the marks and their licences are `assets/press/`. -#}
+    {%- if press %}
+    <p class="press">
+      <span class="from">From this week's reporting in</span>
+      {%- for outlet, mark in press %}
+      <img src="{{ data_uri(mark) }}" alt="{{ outlet }}">
+      {%- endfor %}
+    </p>
+    {%- endif %}
+    {#- The week's papers, beside the pitch: photographs of real Israeli front pages,
+        because nothing else on the page says "news" before the reader does. Imagery
+        (§12): aria-hidden, square corners, kept as printed in both themes, and it
+        appears only on a wide window. The images and what they are — including that
+        they are not free files — are recorded in `assets/press/README.md`. -#}
+    <div class="stack" aria-hidden="true">
+      <div class="paper"><img src="{{ data_uri('press/pages/yedioth.jpg') }}" alt=""></div>
+      <div class="paper"><img src="{{ data_uri('press/pages/haaretz.jpg') }}" alt=""></div>
+      <div class="paper"><img src="{{ data_uri('press/pages/hayom.jpg') }}" alt=""></div>
+    </div>
   </section>
 
   {#- The page's spine: one small label over each block, in the one register the page

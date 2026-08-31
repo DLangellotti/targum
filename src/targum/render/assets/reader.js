@@ -1965,6 +1965,9 @@
       showKeys(false);
     } else if (was === "more") {
       showMore(false);
+    } else if (was === "video") {
+      // Put away through its own closure, which holds the button state and the store.
+      if (window.TargumVideo) window.TargumVideo.hide();
     }
     if (which === "list") sheetWas = false;
   }
@@ -2048,9 +2051,12 @@
 
   // What can hold the band. Read at the moment of asking rather than held in a list:
   // most of these are found further down this file, and the list would be written
-  // before they were.
+  // before they were. The video panel is the one resident found by id here: its own
+  // wiring lives in the player's closure, which runs after this one.
+  var videoPanel = document.getElementById("video");
+
   function occupants() {
-    return [listBox, card, chip, keysCard, more];
+    return [listBox, card, chip, keysCard, more, videoPanel];
   }
 
   // Where a thing at the foot will stand once it has stopped moving. The strip, the
@@ -4561,6 +4567,15 @@
   dismissible(chip, hideChip);
   dismissible(keysCard, function () { showKeys(false); });
   dismissible(more, function () { showMore(false); });
+  // The video panel closes through its own closure, which runs after this one and
+  // holds the button state and the store — hence the window indirection, the same
+  // door occupy() uses to put it away. The video carries no controls of its own
+  // (the strip is the transport), so the pull conflicts with nothing.
+  if (videoPanel) {
+    dismissible(videoPanel, function () {
+      if (window.TargumVideo) window.TargumVideo.hide();
+    });
+  }
 
   /* --- clicks -------------------------------------------------------------- */
 
@@ -5530,6 +5545,11 @@
     // The page's one live region, offered to the player's closure so a refused
     // recording is announced the way everything else is.
     say: say,
+    // The band's one-at-a-time rule, offered to the video panel's closure the same
+    // way: it is an occupant like the sheet and the cards, and arbitrating from two
+    // places is how two things end up standing in one band.
+    occupy: occupy,
+    vacate: vacate,
   };
 })();
 
@@ -5740,7 +5760,23 @@
   }
   if (!speech || !speech.audio) return;
 
-  var audio = new Audio(speech.audio);
+  /* One media element, not two clocks. Where the import kept its pictures the page
+     carries a <video> pointed at the sidecar beside this file, and that element is the
+     player's whole instrument — same HTMLMediaElement, so every span, timer and rate
+     below works on it unchanged. Showing and hiding the panel never touches playback:
+     a hidden video keeps sounding, which is exactly the audio reader. The inlined
+     audio stays in the page for the download button, and as the instrument the player
+     falls back to if the sidecar did not travel with the file. */
+  var videoBox = document.getElementById("video");
+  var videoEl = videoBox ? videoBox.querySelector(".video-el") : null;
+  if (videoEl) {
+    /* The page's own address carries the serve key in its query, and the sidecar
+       request must carry the same or be turned away as a stranger. Off a disk the
+       search is empty and the relative address stands alone. */
+    videoEl.src = videoEl.getAttribute("data-src") + (location.search || "");
+  }
+  var videoDead = false;
+  var audio = videoEl || new Audio(speech.audio);
   var spans = speech.spans || {};
   /* Each written word's clock, where the build could pair one: rows of
      [charStart, charEnd, start, end] per segment, in the bare text's own offsets. */
@@ -6040,7 +6076,7 @@
     button.addEventListener("click", toggleScene);
   });
 
-  audio.addEventListener("timeupdate", function () {
+  function onTime() {
     if (fill && audio.duration) {
       fill.style.inlineSize = (audio.currentTime / audio.duration) * 100 + "%";
     }
@@ -6052,9 +6088,17 @@
     for (var i = 0; i < order.length; i++) {
       if (at >= order[i].start && at < order[i].end) { mark(order[i].id); return; }
     }
-  });
+  }
 
-  audio.addEventListener("ended", halt);
+  /* Attached through a function because the instrument can be swapped once: a page
+     whose sidecar video is gone falls back to the inlined audio, and the new element
+     needs the same ears. The handlers read `audio` at call time, so nothing else
+     changes hands. */
+  function wire(element) {
+    element.addEventListener("timeupdate", onTime);
+    element.addEventListener("ended", halt);
+  }
+  wire(audio);
 
   /* Space plays and pauses — on a dialogue, and only on a dialogue.
    *
@@ -6176,6 +6220,77 @@
         remeasure();
       });
     }
+  }
+
+  /* The picture, brought out and put away. Off by default — the reader is a reader,
+     not a player, and the transport stays the strip — so the toggle only decides
+     whether the picture is on the page, never whether anything sounds. Kept per text,
+     like the closed player and for the same reason. On a narrow window the panel is an
+     occupant of the band, one at a time with the sheet and the cards. */
+  if (videoBox && videoEl) {
+    var flips = Array.prototype.slice.call(document.querySelectorAll("[data-video]"));
+    var VIDEO_STORE = "targum:video-open:" + spokenOf;
+
+    var revideo = function () {
+      var reader = window.TargumReader;
+      if (reader && reader.relayout) reader.relayout();
+    };
+
+    var showVideo = function (out, chosen) {
+      if (videoDead) out = false;
+      videoBox.hidden = !out;
+      flips.forEach(function (button) {
+        button.setAttribute("aria-pressed", out ? "true" : "false");
+      });
+      var reader = window.TargumReader;
+      if (out && reader && reader.occupy) reader.occupy("video");
+      if (!out && reader && reader.vacate) reader.vacate("video");
+      if (chosen) {
+        try {
+          if (out) localStorage.setItem(VIDEO_STORE, "1");
+          else localStorage.removeItem(VIDEO_STORE);
+        } catch (e) {}
+      }
+      revideo();
+    };
+
+    /* How the band puts the picture away when something else takes its place. */
+    window.TargumVideo = {
+      hide: function () { showVideo(false, false); },
+    };
+
+    flips.forEach(function (button) {
+      button.addEventListener("click", function () {
+        showVideo(videoBox.hidden, true);
+      });
+    });
+    var shutVideo = videoBox.querySelector(".video-close");
+    if (shutVideo) {
+      shutVideo.addEventListener("click", function () { showVideo(false, true); });
+    }
+
+    /* The sidecar did not travel — a reader folder copied without its video/, or a
+       page opened somewhere the file is not. The player swaps to the inlined audio
+       and the page becomes exactly the audio reader, toggle and all. */
+    videoEl.addEventListener("error", function () {
+      if (videoDead) return;
+      videoDead = true;
+      var rate = nearestRate(audio.playbackRate);
+      halt();
+      showVideo(false, false);
+      flips.forEach(function (button) {
+        var group = button.closest(".group");
+        if (group) group.hidden = true;
+        else button.hidden = true;
+      });
+      audio = new Audio(speech.audio);
+      wire(audio);
+      setRate(rate, false);
+    });
+
+    try {
+      if (localStorage.getItem(VIDEO_STORE) === "1") showVideo(true, false);
+    } catch (e) {}
   }
 
   /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */

@@ -235,10 +235,18 @@ def test_an_untranscribed_part_says_not_transcribed_yet_and_offers_to_transcribe
 
 
 def test_a_text_transcript_without_the_aligner_plays_straight_through(
-    fake_audio, tmp_path: Path
+    fake_audio, tmp_path: Path, monkeypatch
 ) -> None:
     """The extra is optional, like the embedding aligner: absent, the audio still
     plays, the page just does not follow along — a shape, not a failure."""
+    from targum.audio.align import CtcAligner
+
+    # Absent by declaration rather than by environment: on a machine with the extra
+    # installed this test used to align the fake audio for real, which is a different
+    # test and a model download inside this one.
+    monkeypatch.setattr(
+        CtcAligner, "available", lambda self: (False, "uv sync --extra speech-align")
+    )
     fake_audio.duration = 90.0
     script = tmp_path / "talk.txt"
     script.write_text("the winter came early. the river froze over.", encoding="utf-8")

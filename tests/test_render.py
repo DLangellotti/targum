@@ -3423,7 +3423,8 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "inset-inline-end" not in tab, "the end corner is the player's and the arrows'"
     assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row, wide"
     phone = css[css.index("/* --- the phone: one band at the foot") :]
-    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {"
+    # The video panel is in the occupant list by design — §12's moving-pictures entry.
+    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {"
     occupants = phone.split(shared, 1)[1]
     occupants = occupants.split("\n  }\n", 1)[0]
     assert "position: fixed;" in occupants and "inset-block: auto 0;" in occupants

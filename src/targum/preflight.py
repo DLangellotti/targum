@@ -161,6 +161,17 @@ def check_ffmpeg() -> Check:
     return Check("ffmpeg", False, "ffmpeg is not installed.", f"apt-get {fix}", fatal=False)
 
 
+def check_ytdlp() -> Check:
+    """Whether a YouTube address can be fetched. A warning like ffmpeg's, and quieter:
+    the CLI is the only door this opens — the hosted box never fetches from YouTube."""
+    from .video import ytdlp_available
+
+    usable, fix = ytdlp_available()
+    if usable:
+        return Check("yt-dlp", True, "YouTube imports are on")
+    return Check("yt-dlp", False, "yt-dlp is not installed.", fix, fatal=False)
+
+
 def check_transcriber() -> Check:
     """Whether a recording without a transcript can be heard, and on whose key."""
     from .transcribe import build, default_name
@@ -328,6 +339,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_api_key())
     checks.append(check_covers())
     checks.append(check_ffmpeg())
+    checks.append(check_ytdlp())
     checks.append(check_transcriber())
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))

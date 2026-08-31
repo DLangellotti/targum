@@ -1283,8 +1283,10 @@ def test_a_page_carries_a_policy_naming_its_own_blocks(served: tuple[int, str, P
     # And the recordings, which ride in the page the same way and fail the same way. The
     # player reported "this recording would not play" on every served page while every
     # check that opened the file passed, because a file has no policy — the identical
-    # blind spot the line above was written for, two months apart.
-    assert "media-src data:" in policy, "the embedded recording is refused by policy"
+    # blind spot the line above was written for, two months apart. `'self'` joined when
+    # video became a sidecar file beside the reader (design.md §12): without it the
+    # served page refuses the file sitting next to it, the same bug a third time.
+    assert "media-src 'self' data:" in policy, "the recording or its sidecar is refused by policy"
 
     # The fixture serves a stub, so the hashing itself is checked against a page that
     # has the shape a real one does: inline style, inline script, and a data block.
@@ -1679,6 +1681,125 @@ def test_a_browser_that_does_not_ask_gets_it_whole(served: tuple[int, str, Path]
         assert body.decode("utf-8") == page
     finally:
         connection.close()
+
+
+def _video_part(out: Path, body: bytes) -> str:
+    """A sidecar part under a reader, and the address that reaches it."""
+    build = out / "local" / "book-he" / "reader" / "video"
+    build.mkdir(parents=True)
+    (build / "part-001.mp4").write_bytes(body)
+    return "/reader/book-he/reader/video/part-001.mp4"
+
+
+def _ask(port: int, path: str, **headers: str) -> tuple[Any, bytes]:
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request("GET", path, headers=headers)
+        response = connection.getresponse()
+        return response, response.read()
+    finally:
+        connection.close()
+
+
+def test_a_video_part_is_served_as_video_not_text(served: tuple[int, str, Path]) -> None:
+    """The general file route says text/plain for everything that is not a page, and a
+    video sent as text is a video no browser plays."""
+    port, key, out = served
+    reel = b"\x00\x00\x00\x18ftypmp42" + bytes(range(256)) * 8
+    where = _video_part(out, reel)
+
+    response, body = _ask(port, f"{where}?k={key}", **{"Accept-Encoding": "gzip"})
+    assert response.status == 200
+    assert response.getheader("Content-Type") == "video/mp4"
+    assert response.getheader("Accept-Ranges") == "bytes", "Safari will not play without this"
+    assert response.getheader("Content-Encoding") is None, "the codec already compressed it"
+    assert body == reel
+
+
+def test_safaris_two_byte_probe_gets_a_real_206(served: tuple[int, str, Path]) -> None:
+    """Safari opens every video with `bytes=0-1` and refuses to play unless the answer
+    is a real 206 — the failure is silent, and only on Safari."""
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=0-1")
+    assert response.status == 206
+    assert response.getheader("Content-Range") == f"bytes 0-1/{len(reel)}"
+    assert body == reel[:2]
+
+
+def test_a_seek_is_an_open_ended_range(served: tuple[int, str, Path]) -> None:
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=100-")
+    assert response.status == 206
+    assert response.getheader("Content-Range") == f"bytes 100-255/{len(reel)}"
+    assert body == reel[100:]
+
+
+def test_the_tail_index_is_a_suffix_range(served: tuple[int, str, Path]) -> None:
+    """A plain mp4 keeps its index at the end, and a player reads it as `bytes=-N`."""
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=-4")
+    assert response.status == 206
+    assert response.getheader("Content-Range") == f"bytes 252-255/{len(reel)}"
+    assert body == reel[-4:]
+
+
+def test_a_range_past_the_end_is_refused(served: tuple[int, str, Path]) -> None:
+    port, key, out = served
+    where = _video_part(out, bytes(256))
+
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=999999-")
+    assert response.status == 416
+    assert response.getheader("Content-Range") == "bytes */256"
+    assert body == b""
+
+
+def test_a_malformed_range_gets_the_whole_file_and_an_inverted_one_is_refused(
+    served: tuple[int, str, Path],
+) -> None:
+    """Per the RFC an unparseable Range is ignored; a parseable lie is refused."""
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=abc")
+    assert response.status == 200
+    assert body == reel
+    response, _body = _ask(port, f"{where}?k={key}", Range="bytes=5-2")
+    assert response.status == 416
+
+
+def test_a_kept_part_is_revalidated_not_refetched(served: tuple[int, str, Path]) -> None:
+    """A part is tens of megabytes and content-stable: the browser that kept it asks
+    again with If-Modified-Since, and 304 is the whole answer."""
+    port, key, out = served
+    where = _video_part(out, bytes(64))
+
+    response, _body = _ask(port, f"{where}?k={key}")
+    stamp = response.getheader("Last-Modified")
+    assert stamp, "no validator means a full re-download every day"
+    again, body = _ask(port, f"{where}?k={key}", **{"If-Modified-Since": stamp})
+    assert again.status == 304
+    assert body == b""
+
+
+def test_a_video_outside_the_reader_roots_stays_unreachable(
+    served: tuple[int, str, Path],
+) -> None:
+    """The media branch answers inside the same three guarded roots, not a new door."""
+    port, key, out = served
+    (out / "elsewhere.mp4").write_bytes(bytes(64))
+
+    response, _ = _ask(port, f"/reader/../elsewhere.mp4?k={key}")
+    assert response.status == 404
 
 
 def test_a_shelf_row_says_what_the_text_is(tmp_path: Path) -> None:
