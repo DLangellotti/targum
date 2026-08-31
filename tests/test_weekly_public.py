@@ -300,10 +300,12 @@ def test_the_page_keeps_step_with_the_level_the_frame_is_showing(
         page = browser.new_page(viewport={"width": 1280, "height": 900})
         page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
         page.wait_for_selector(".ladder a.here")
-        frame = page.frame_locator(".embed iframe")
-        frame.locator(".bar .levels a.level").first.wait_for()
-        easier = frame.locator(f'.bar .levels a.level[href*="weekly-{WEEK}-aleph-he"]')
-        easier.click()
+        # The fixture's readers are stubs with no bar, so the frame is sent where the
+        # bar's own level link would send it: the same navigation, the same `load`.
+        page.evaluate(
+            "(to) => { document.querySelector('.embed iframe').src = to; }",
+            f"/weekly/read/weekly-{WEEK}-aleph-he/reader/index.html",
+        )
         page.wait_for_function(
             "() => document.querySelector('.ladder a.here').getAttribute('data-level') === 'aleph'"
         )
@@ -764,8 +766,11 @@ def test_the_page_offers_the_weeks_before_it(open_shelves: tuple[int, Path]) -> 
     """And never itself: an archive listing the issue you are reading is a link that
     goes nowhere you are not."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert "/weekly/2026-w35/" in page
-    assert f'href="/weekly/{WEEK}/bet"' not in page
+    archive = page.split('class="archive"', 1)[1]
+    assert "/weekly/2026-w35/" in archive
+    # The level switcher above the frame does link this issue — at every level, this
+    # one included — so the rule is asked of the archive alone.
+    assert f'href="/weekly/{WEEK}/' not in archive
 
 
 def test_the_sitemap_carries_every_issue_once_indexing_is_invited(
