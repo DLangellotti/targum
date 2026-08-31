@@ -307,7 +307,7 @@ def browser():
 SCROLLING = """
 (() => {
   try {
-    localStorage.setItem("targum:prefs", JSON.stringify({ paged: false, defaults: 3 }));
+    localStorage.setItem("targum:prefs", JSON.stringify({ paged: false, defaults: 4 }));
   } catch (e) {}
 })();
 """
@@ -2601,3 +2601,77 @@ def test_the_keys_wait_for_a_keyboard_on_a_phone(phone_scene_scrolling) -> None:
     assert page.evaluate("() => document.body.classList.contains('has-keyboard')") is True
     page.click(".bar .more")
     assert page.evaluate(BAND)["keysButton"], "and then it is offered"
+
+
+@pytest.mark.parametrize(
+    ("viewport", "paged"),
+    [(PHONE, True), (WINDOW, False)],
+    ids=["a phone is handed pages", "a wide window keeps its choice"],
+)
+def test_the_fourth_generation_hands_pages_back_to_a_phone(
+    browser, built: Path, viewport: dict, paged: bool
+) -> None:
+    """A browser that chose the scroll before the bar was one row — where the pages
+    button was an inch from the text and pressed without being seen — opens on pages
+    once more on a phone. On a wide window the choice was made in a bar with room, and
+    stands."""
+    context = browser.new_context(viewport=viewport, reduced_motion="reduce")
+    context.add_init_script(
+        'localStorage.setItem("targum:prefs", JSON.stringify({ paged: false, defaults: 3 }));'
+    )
+    open_page = context.new_page()
+    open_page.goto(built.as_uri())
+    open_page.wait_for_selector(".pair")
+    open_page.wait_for_timeout(300)
+    assert open_page.evaluate("() => document.body.classList.contains('paged')") is paged
+    kept = open_page.evaluate("() => JSON.parse(localStorage.getItem('targum:prefs'))")
+    assert kept["defaults"] == 4 and kept["paged"] is paged, kept
+    context.close()
+
+
+#: A finger drawn down an element and lifted, as the browser reports it.
+PULL = """
+([selector, by]) => {
+  const el = document.querySelector(selector);
+  const box = el.getBoundingClientRect();
+  const x = box.left + box.width / 2, y = box.top + 24;
+  const touch = (type, cy) => {
+    const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: cy });
+    el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true,
+      touches: type === "touchend" ? [] : [t], changedTouches: [t] }));
+  };
+  touch("touchstart", y);
+  for (let step = 1; step <= 4; step++) touch("touchmove", y + (by * step) / 4);
+  touch("touchend", y + by);
+}
+"""
+
+
+@pytest.mark.parametrize(
+    ("opener", "selector", "gone"),
+    [
+        ("#list-tab", "#list", "() => document.getElementById('list').hidden"),
+        (
+            ".bar .more",
+            "#more",
+            "() => !document.getElementById('more').classList.contains('open')",
+        ),
+        (
+            ".pair:not([hidden]) .src:not([hidden]) .w >> nth=1",
+            "#gloss-card",
+            "() => document.getElementById('gloss-card').hidden",
+        ),
+    ],
+    ids=["the sheet", "the menu", "a word's card"],
+)
+def test_an_occupant_is_pulled_down_and_away(phone_scene_scrolling, opener, selector, gone) -> None:
+    """A finger drawn down an occupant of the band and lifted closes it — past a thumb's
+    length; a shorter pull lets go and the occupant stays."""
+    page = phone_scene_scrolling
+    page.click(opener)
+    page.wait_for_function(f"() => !({gone})()")
+    page.evaluate(PULL, [selector, 30])
+    page.wait_for_timeout(100)
+    assert not page.evaluate(gone), "a short pull is not a dismissal"
+    page.evaluate(PULL, [selector, 120])
+    page.wait_for_function(gone)

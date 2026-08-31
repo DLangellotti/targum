@@ -272,7 +272,12 @@
   // it overrides somebody who chose the quiet page on purpose — which is the price of
   // being able to change a default at all, and the reason to move it rarely.
   // 3: pages, for every browser that had a preference from before there were pages.
-  var DEFAULTS = 3;
+  // 4: pages again, on a phone. A phone that scrolls is one where somebody pressed the
+  // button — and until the bar was one row it sat in a bar that wrapped to four, an
+  // inch from the text, where it was pressed by readers who did not know it was a
+  // button. Handed back once, under 60rem only: a choice made on a wide window was
+  // made in a bar with room, and stands.
+  var DEFAULTS = 4;
   var RESET = { marking: true, paged: true };
 
   try {
@@ -288,7 +293,9 @@
   for (var doc in prefs.nikkudBy) prefs.nikkudBy[doc] = !!prefs.nikkudBy[doc];
 
   if ((prefs.defaults || 0) < DEFAULTS) {
-    for (var changed in RESET) prefs[changed] = RESET[changed];
+    // Generations 1 to 3 reset everybody; 4 is the phone's alone.
+    if ((prefs.defaults || 0) < 3) for (var changed in RESET) prefs[changed] = RESET[changed];
+    if (window.matchMedia && window.matchMedia("(max-width: 60rem)").matches) prefs.paged = true;
     prefs.defaults = DEFAULTS;
     save();
   }
@@ -4121,6 +4128,66 @@
   }
 
   watchFoot();
+
+  // Pulled down, and away. On a phone an occupant of the band is closed the way every
+  // sheet on a phone is closed: a finger on it, drawn down, and let go. The occupant
+  // follows the finger — that is what the gesture looks like, not an animation, so it
+  // is not subject to `prefers-reduced-motion` — and past a thumb's length it goes.
+  // Not from inside a scrolled list: a finger drawn down over words that have been
+  // scrolled is scrolling them back up, and `overscroll-behavior: contain` keeps the
+  // page itself from following. Nor from a field, where a finger is placing a caret.
+  var PULLED = 64;
+
+  function scrolledInside(from, element) {
+    for (var node = from; node && node !== element; node = node.parentNode) {
+      if (node.scrollTop > 0) return true;
+    }
+    return element.scrollTop > 0;
+  }
+
+  function dismissible(element, close) {
+    if (!element) return;
+    var startY = null;
+    var pulled = 0;
+    element.addEventListener(
+      "touchstart",
+      function (event) {
+        startY = null;
+        pulled = 0;
+        if (roomy.matches || event.touches.length !== 1) return;
+        var at = event.target;
+        if (at && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName || "")) return;
+        if (scrolledInside(at, element)) return;
+        startY = event.touches[0].clientY;
+      },
+      { passive: true }
+    );
+    element.addEventListener(
+      "touchmove",
+      function (event) {
+        if (startY === null) return;
+        pulled = event.touches[0].clientY - startY;
+        element.style.transform = pulled > 0 ? "translateY(" + pulled + "px)" : "";
+      },
+      { passive: true }
+    );
+    function letGoOf() {
+      if (startY === null) return;
+      var far = pulled > PULLED;
+      startY = null;
+      pulled = 0;
+      element.style.transform = "";
+      if (far) close();
+    }
+    element.addEventListener("touchend", letGoOf);
+    element.addEventListener("touchcancel", letGoOf);
+  }
+
+  dismissible(listBox, function () { showList(false); });
+  dismissible(card, hideCard);
+  dismissible(chip, hideChip);
+  dismissible(keysCard, function () { showKeys(false); });
+  dismissible(more, function () { showMore(false); });
 
   /* --- clicks -------------------------------------------------------------- */
 

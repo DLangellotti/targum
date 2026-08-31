@@ -2168,13 +2168,17 @@ def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "var DEFAULTS = 3;" in script
+    assert "var DEFAULTS = 4;" in script
     # 3: pages, for every browser that had a preference from before there were pages.
     # Decided 2026-08-28 — the first alpha reader is the target reader and asked twice.
     assert "var RESET = { marking: true, paged: true };" in script
     assert "if ((prefs.defaults || 0) < DEFAULTS) {" in script
     # Stored, or it re-applies on every load and the reader can never turn it off.
-    reset = script[script.index("if ((prefs.defaults || 0) < DEFAULTS) {") :][:300]
+    reset = script[script.index("if ((prefs.defaults || 0) < DEFAULTS) {") :][:600]
+    # The fourth generation hands pages back on a narrow window only: a choice made on
+    # a wide window was made in a bar with room for the button, and stands.
+    assert '(max-width: 60rem)").matches) prefs.paged = true;' in reset
+    assert "if ((prefs.defaults || 0) < 3) for (var changed in RESET)" in reset
     assert "prefs.defaults = DEFAULTS;" in reset
     assert "save();" in reset
     # And `defaults` has to be a known key, or the stored value is discarded on load.

@@ -2291,6 +2291,9 @@ body.has-player .next-up { margin-block-end: 9rem; }
   /* One speed control, not three: the figure steps on when pressed. */
   .player-slower, .player-faster { display: none; }
   .player-body { flex: 1 1 auto; inline-size: auto; min-inline-size: 0; }
+  /* One line, whatever the width: inside the weekly's front-page frame the strip is
+     narrower than a phone, and a label on three lines is a strip three lines tall. */
+  .player-said { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .player-rate-now { border: 1px solid var(--rule); padding: 0.15rem 0.5rem; }
 
   /* --- the tab: in the strip's start, or the corner when there is no strip --- */
