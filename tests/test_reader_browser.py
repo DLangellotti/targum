@@ -2761,3 +2761,82 @@ def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path)
     page.wait_for_function("() => !document.fullscreenElement")
     assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "false"
     context.close()
+
+
+#: A finger drawn across the text and lifted.
+SWIPE_TEXT = """
+([dx, dy]) => {
+  const el = document.getElementById('reader');
+  const box = el.getBoundingClientRect();
+  const x = box.left + box.width / 2, y = box.top + 120;
+  const touch = (type, cx, cy) => {
+    const t = new Touch({ identifier: 1, target: el, clientX: cx, clientY: cy });
+    el.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true,
+      touches: type === "touchend" ? [] : [t], changedTouches: [t] }));
+  };
+  touch("touchstart", x, y);
+  for (let step = 1; step <= 4; step++) {
+    touch("touchmove", x + (dx * step) / 4, y + (dy * step) / 4);
+  }
+  touch("touchend", x + dx, y + dy);
+}
+"""
+
+PAGE_NOW = "() => document.getElementById('page-of').textContent"
+
+
+@pytest.mark.parametrize("direction", ["rtl", "ltr"])
+def test_a_swipe_turns_the_page_in_the_reading_direction(
+    browser, built: Path, tmp_path: Path, direction: str
+) -> None:
+    """The next page lives at the inline end, and a finger draws it in by moving toward
+    the inline start: rightwards on a Hebrew text, leftwards on an English one. A drag
+    that is more up-and-down than across is scrolling, and turns nothing."""
+    html = built.read_text(encoding="utf-8")
+    if direction == "ltr":
+        html = html.replace('<html lang="he" dir="rtl">', '<html lang="en" dir="ltr">')
+    page_file = tmp_path / f"swipe-{direction}.html"
+    page_file.write_text(html, encoding="utf-8")
+    context = opened(browser, viewport=PHONE, scrolling=False)
+    page = context.new_page()
+    page.goto(page_file.as_uri())
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.wait_for_function(f"{PAGE_NOW}.startsWith('1 of')")
+    forward = 120 if direction == "rtl" else -120
+
+    page.evaluate(SWIPE_TEXT, [forward, 8])
+    page.wait_for_function(f"{PAGE_NOW}.startsWith('2 of')")
+    came_from = page.evaluate(
+        "() => [...document.getElementById('reader').classList]"
+        ".find((c) => c.startsWith('turned-'))"
+    )
+    assert came_from == ("turned-from-left" if direction == "rtl" else "turned-from-right")
+
+    page.evaluate(SWIPE_TEXT, [-forward, 8])
+    page.wait_for_function(f"{PAGE_NOW}.startsWith('1 of')")
+
+    page.evaluate(SWIPE_TEXT, [20, 140])
+    page.wait_for_timeout(150)
+    assert page.evaluate(PAGE_NOW).startswith("1 of"), "a scroll is not a swipe"
+    context.close()
+
+
+@pytest.mark.parametrize(
+    ("still", "name"), [(True, "none"), (False, "from-left")], ids=["stillness", "motion"]
+)
+def test_a_turned_page_moves_the_way_it_turned(browser, built: Path, still, name) -> None:
+    """Forward on a Hebrew text, the page comes in from the left — unless stillness was
+    asked for."""
+    context = browser.new_context(
+        viewport=WINDOW, reduced_motion="reduce" if still else "no-preference"
+    )
+    context.add_init_script(
+        'localStorage.setItem("targum:prefs", JSON.stringify({ paged: true, defaults: 4 }));'
+    )
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.click(".turn .forward")
+    seen = page.evaluate("() => getComputedStyle(document.getElementById('reader')).animationName")
+    context.close()
+    assert seen == name

@@ -3024,7 +3024,9 @@ def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
     walk = script[script.index("  function walk(forward) {") :]
     walk = walk[: walk.index("\n  }\n")]
     assert "current === pages.length - 1 && nextChapter()" in walk
-    assert script.count("nextChapter()") == 4, "defined once; PageDown, the control, the walk"
+    assert script.count("nextChapter()") == 5, (
+        "defined once; PageDown, the control, the walk, the swipe"
+    )
     assert script.count("location.href = ") == 1, "one door out of the chapter"
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script

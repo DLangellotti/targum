@@ -3937,11 +3937,70 @@
     var n = current + delta;
     if (n < 0 || n >= pages.length) return false;
     showPage(n);
-    // Every line on the page is a new one. The same settling a mode switch gets, for
-    // the same reason: one movement rather than a jump.
-    settle();
+    turned(delta);
     return true;
   }
+
+  // A turned page comes in from the side it lived on — from the left on a Hebrew text
+  // going forward, from the right going back, and the other way round in English — so
+  // the movement is the one thing on screen that says which way the pages run.
+  // Nothing under `prefers-reduced-motion`, where the stylesheet leaves it still.
+  function turned(delta) {
+    if (!main) return;
+    var rtl = (document.documentElement.getAttribute("dir") || "ltr") === "rtl";
+    var fromLeft = delta > 0 ? rtl : !rtl;
+    main.classList.remove("settled", "turned-from-left", "turned-from-right");
+    void main.offsetWidth;
+    main.classList.add(fromLeft ? "turned-from-left" : "turned-from-right");
+  }
+
+  /* --- a swipe turns the page -------------------------------------------------
+     On touch, a horizontal swipe across the text turns the page in the reading
+     direction: the next page lives at the inline end, and a finger draws it in by
+     moving toward the inline start — leftwards in English, rightwards in Hebrew.
+     Nothing follows the finger; the page turns on release, with the movement above,
+     which is what says which way the pages run. Not from a control, not over a
+     selection, not a slow drag, and never one that is more up-and-down than across
+     — that is scrolling, and the browser has it. Off the last page, on to the next
+     chapter, as the forward arrow goes. */
+  var SWIPE = 48;
+  (function () {
+    if (!main) return;
+    var startX = null;
+    var startY = 0;
+    var startAt = 0;
+    main.addEventListener(
+      "touchstart",
+      function (event) {
+        startX = null;
+        if (!paged() || event.touches.length !== 1) return;
+        var at = event.target;
+        if (at && at.closest && at.closest("button, a, input, select, textarea")) return;
+        startX = event.touches[0].clientX;
+        startY = event.touches[0].clientY;
+        startAt = Date.now();
+      },
+      { passive: true }
+    );
+    main.addEventListener(
+      "touchend",
+      function (event) {
+        if (startX === null || !event.changedTouches.length) return;
+        var touch = event.changedTouches[0];
+        var dx = touch.clientX - startX;
+        var dy = touch.clientY - startY;
+        startX = null;
+        if (Date.now() - startAt > 600) return;
+        if (Math.abs(dx) < SWIPE || Math.abs(dx) < Math.abs(dy) * 2) return;
+        var picked = window.getSelection && window.getSelection();
+        if (picked && String(picked).trim()) return;
+        var rtl = (document.documentElement.getAttribute("dir") || "ltr") === "rtl";
+        var forward = rtl ? dx > 0 : dx < 0;
+        if (!turnBy(forward ? 1 : -1) && forward) nextChapter();
+      },
+      { passive: true }
+    );
+  })();
 
   // On to the next chapter's file, where there is one: what PageDown, the forward arrow
   // of the page control and the walk all do off the last page. False on the last
@@ -4160,7 +4219,6 @@
      itself; this only keeps the button honest about which state it is in. */
   var fullscreenGroup = document.getElementById("fullscreen-group");
   var fullscreenButton = document.querySelector("[data-fullscreen]");
-  var root = document.documentElement;
   var fullscreenable =
     !!(root.requestFullscreen || root.webkitRequestFullscreen) &&
     document.fullscreenEnabled !== false;
