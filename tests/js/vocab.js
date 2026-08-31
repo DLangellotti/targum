@@ -48,14 +48,20 @@ if (payload.migrate) {
 if (payload.copy !== undefined) {
   const written = [];
   if (payload.clipboard === "ok" || payload.clipboard === "refuses") {
-    global.navigator = {
-      clipboard: {
-        writeText: (text) => {
-          written.push(text);
-          return payload.clipboard === "ok" ? Promise.resolve() : Promise.reject(new Error("no"));
+    // Defined rather than assigned: from Node 21 `navigator` is a getter on the global,
+    // and a plain assignment throws where CI runs and passes where a laptop still has 20.
+    Object.defineProperty(global, "navigator", {
+      configurable: true,
+      writable: true,
+      value: {
+        clipboard: {
+          writeText: (text) => {
+            written.push(text);
+            return payload.clipboard === "ok" ? Promise.resolve() : Promise.reject(new Error("no"));
+          },
         },
       },
-    };
+    });
   }
   if (payload.command) document.execCommand = () => true;
   const said = () =>
