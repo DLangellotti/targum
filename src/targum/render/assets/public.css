@@ -798,8 +798,56 @@ html:has(main.weekly) {
   margin: 0 0 0.9rem;
 }
 .public .weekly .how,
-.public .weekly .keep {
+.public .weekly .honest {
   margin-block-end: 2.5rem;
+}
+.public .honest .made {
+  margin-block-end: 1.5rem;
+}
+.public .honest details.sources {
+  margin-block-end: 0;
+}
+
+/* The door, inverted. §9's one wake-up move on a page: the dark surface with the pale
+   text and the accent's working cut for ink — the values the palette gives an ink
+   surface. It reaches the window's edges like the reader, so it reads as a band of the
+   page and not a card on it. In the dark theme the two tokens swap and the block is the
+   one light thing, which is the same move. */
+.public .keep {
+  --keep-ground: var(--ink-max, #121110);
+  --keep-ink: var(--page-max, #fffdf9);
+  --keep-soft: #9a9288;
+  --keep-accent: #c8a778;
+  inline-size: var(--stage-width, 100%);
+  margin-inline-start: var(--stage-left, 0px);
+  margin-block: 0 3rem;
+  /* Pushed out to the window's edge by `--stage-left`, and padded back in by the same
+     amount, so its text stands on the sheet's own column. */
+  padding: 2.5rem calc(-1 * var(--stage-left, -1.5rem)) 2.75rem;
+  background: var(--keep-ground);
+  color: var(--keep-ink);
+}
+.public .keep .label {
+  color: var(--keep-soft);
+}
+.public .keep .pitch-line {
+  max-width: 34rem;
+  margin: 0 0 1.4rem;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+.public .keep .door .go {
+  background: var(--keep-accent);
+  color: var(--keep-ground);
+}
+.public .keep .door .free {
+  color: var(--keep-soft);
+}
+@media (max-width: 40rem) {
+  .public .keep {
+    padding-block: 1.75rem 2rem;
+  }
 }
 .public .how ol {
   display: grid;
@@ -955,20 +1003,24 @@ html:has(main.weekly) {
 .public details.sources summary::-webkit-details-marker {
   display: none;
 }
-.public details.sources summary .label {
+.public details.sources summary .sub {
   display: inline-flex;
   align-items: baseline;
   gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 .public details.sources summary .count {
   font-weight: 400;
   letter-spacing: normal;
   text-transform: none;
 }
-.public details.sources summary .label::after {
+.public details.sources summary .sub::after {
   content: "\2193";
-  color: var(--ink-soft);
 }
-.public details.sources[open] summary .label::after {
+.public details.sources[open] summary .sub::after {
   content: "\2191";
 }

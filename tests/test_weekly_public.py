@@ -871,15 +871,19 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
     assert [label.strip() for label in labels][:4] == [
         "This week",
         "How it works",
+        "Made honestly",
         "Keep what you learn",
-        "Sources",
     ]
     how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
     assert how.count("<li>") == 3
-    assert "<b>Tap a word.</b>" in how and "<b>Mark as you read.</b>" in how
-    assert "<b>Switch level.</b>" in how
+    assert "<b>Words you know go quiet.</b>" in how
+    assert "<b>The same week, three times over.</b>" in how
+    assert "<b>What you mark follows you.</b>" in how
     assert 'class="how-card" aria-hidden="true"' in how
     assert "<button" not in how, "an illustration has no controls"
     assert '<span class="level here">Simplified</span>' in how, "the chips show this level"
     assert '<details class="sources" id="sources" open>' in page
     assert re.search(r"Sources <span class=\"count\">\(\d+\)</span>", page)
+    # The door is last, after the honesty, and it is the page's one inverted block.
+    assert page.index('<section class="honest">') < page.index('<section class="keep">')
+    assert page.index('<section class="keep">') > page.index('<details class="sources"')

@@ -37,8 +37,8 @@
       it. -#}
   <h1 class="pitch">Learn to read the news in Hebrew</h1>
   <p class="lede">
-    Every Monday, the week's news in Hebrew, written three times over. Tap any word for
-    what it means.
+    Every Monday, the week three times over. Tap any word — targum remembers what you
+    know, and the page gets quieter.
   </p>
 
   {#- The page's spine: one small label over each block, in the one register the page
@@ -91,8 +91,6 @@
       loading="lazy"></iframe>
   </div>
 
-  <p class="made">{{ notice }}</p>
-
   {#- How it works: three things the reader does, each shown with the reader's own
       piece rather than a drawing of it — the card a tap opens, a line as marking
       leaves it, the level chips. After the reader, because it explains what was just
@@ -103,27 +101,16 @@
     <h2 class="label">How it works</h2>
     <ol>
       <li>
-        <b>Tap a word.</b>
-        <span>A card says what it means, how common it is, and asks how well you know it.</span>
-        <figure class="how-card" aria-hidden="true">
-          <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
-          <span class="said">said <bdi dir="ltr">heχalˈav</bdi></span>
-          <span class="form">dictionary form <bdi lang="he" dir="rtl">חלב</bdi> <i class="pos">moderate</i></span>
-          <span class="meaning">milk</span>
-          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span><span class="level small">ignore</span></span>
-        </figure>
-      </li>
-      <li>
-        <b>Mark as you read.</b>
-        <span>Words you know go quiet on the page; what is left is what you have to learn.</span>
+        <b>Words you know go quiet.</b>
+        <span>Tap a word for what it means and how common it is; say how well you know it, and it stops asking.</span>
         <figure class="how-line marking" aria-hidden="true">
           <p class="src" lang="he" dir="rtl"><span class="w" data-status="9">סליחה</span>, <span class="w" data-status="9">איפה</span> <span class="w">החלב</span>? <span class="w" data-status="1">במקרר</span>, <span class="w" data-status="9">בסוף</span> <span class="w">המעבר</span> <span class="w" data-status="9">הזה</span>.</p>
           <p class="tr" lang="en" dir="ltr">Excuse me, where is the milk? In the fridge, at the end of this aisle.</p>
         </figure>
       </li>
       <li>
-        <b>Switch level.</b>
-        <span>The same week three times over: when a sentence is too hard, the easier one is a press away.</span>
+        <b>The same week, three times over.</b>
+        <span>Easy, Simplified, Real Hebrew. When a sentence is too hard, the easier one is a press away.</span>
         <figure class="how-levels" aria-hidden="true">
           <span class="levels">
             {%- for other, other_spec in levels.items() %}
@@ -132,16 +119,24 @@
           </span>
         </figure>
       </li>
-    </ol>
+      <li>
+        <b>What you mark follows you.</b>
+        <span>Signed in, every word you mark is remembered — into next week's issue, and everything after it.</span>
+        <figure class="how-card" aria-hidden="true">
+          <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
+          <span class="said">said <bdi dir="ltr">heχalˈav</bdi></span>
+          <span class="form">dictionary form <bdi lang="he" dir="rtl">חלב</bdi> <i class="pos">moderate</i></span>
+          <span class="meaning">milk</span>
+          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span><span class="level small">ignore</span></span>
+        </figure>
+      </li>
   </section>
 
-  <section class="keep">
-    <h2 class="label">Keep what you learn</h2>
-    <p class="door">
-      <a class="go" href="/account/signin">Keep what you learn</a>
-      <span class="free">Signed in, every word you mark follows you into whatever you read next.</span>
-    </p>
-  </section>
+  {#- How the issue was made, and where it came from: the honesty a stranger deciding
+      whether to trust a news digest is looking for, in one place. -#}
+  <section class="honest">
+    <h2 class="label">Made honestly</h2>
+    <p class="made">{{ notice }}</p>
 
 
   {%- if issue.sources %}
@@ -160,7 +155,7 @@
       twelve rows are a long tail under the ask, and a citation behind one tap is still
       a citation. -#}
   <details class="sources" id="sources" open>
-    <summary><h2 class="label">Sources <span class="count">({{ issue.sources | length }})</span></h2></summary>
+    <summary><b class="sub">Sources <span class="count">({{ issue.sources | length }})</span></b></summary>
     <ul>
       {%- for story in issue.sources %}
       <li>
@@ -186,6 +181,18 @@
     </ul>
   </details>
   {%- endif %}
+  </section>
+
+  {#- The door, last, and the page's one inverted block (§9): ink, pale text, the accent
+      button — striking because it is the only one. Full width, like the reader. -#}
+  <section class="keep">
+    <h2 class="label">Keep what you learn</h2>
+    <p class="pitch-line">Every word you mark, remembered — in next week's issue and in everything you read after it.</p>
+    <p class="door">
+      <a class="go" href="/account/signin">Keep what you learn</a>
+      <span class="free">Sign in with an email address. No password.</span>
+    </p>
+  </section>
 
   {%- if archive %}
   <section class="archive">

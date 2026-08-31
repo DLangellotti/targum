@@ -2754,6 +2754,10 @@ def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path)
     # The pairs are in the HTML before the script has run; the group being shown is the
     # script saying it is ready, and that the browser has a full screen to offer.
     page.wait_for_function("() => !document.getElementById('fullscreen-group').hidden")
+    # Full screen needs a page that is in front and has been touched: a key pressed
+    # into a page nothing has focused is not the activation the browser asks for.
+    page.bring_to_front()
+    page.mouse.click(200, 400)
     page.keyboard.press("f")
     page.wait_for_function("() => document.fullscreenElement === document.documentElement")
     assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "true"
