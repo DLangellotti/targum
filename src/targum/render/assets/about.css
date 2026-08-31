@@ -20,11 +20,13 @@ body.about {
   gap: 0.5rem;
   align-items: center;
 }
+/* A call to action is ink (§9). */
 .about .corner .enter {
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
   font-size: 0.8125rem;
   text-decoration: none;
 }

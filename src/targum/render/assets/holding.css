@@ -23,12 +23,13 @@ body.holding {
   align-items: center;
 }
 
-/* The one primary action on the page, so it takes the accent and the sheen. */
+/* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
 .corner .enter {
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
   font-size: 0.8125rem;
   text-decoration: none;
   transition: box-shadow 200ms ease;

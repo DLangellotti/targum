@@ -204,8 +204,13 @@ acts.
 - **Hue budget:** roughly 80% paper + ink, 15% structural neutrals, 5% hue — and the 5% goes
   where the reader acts or achieved something, never into decoration.
 - **Interactive means visibly different.** Every tappable element carries ink or a hue:
-  accent links and primary buttons, ink-bordered secondary buttons, leaf progress, iris
-  novelty. **A beige button on a beige card is forbidden.**
+  ink-filled calls to action, accent links and working buttons, ink-bordered secondary
+  buttons, leaf progress, iris novelty. **A beige button on a beige card is forbidden.**
+- **Calls to action are ink.** The button that asks somebody to act — sign in, start
+  reading, the door on a public page — is the max-contrast pair: ink-filled, paper text,
+  weight 600; on an inverted block it flips to paper with ink text. The accent keeps the
+  product's working actions (play, Save, Send it) and links, where its calm is the
+  point — as a call to action on warm paper it whispered. Added 2026-08-31; see §12.
 - **Numbers at display sizes are ink or leaf.** Gold is the record colour inside charts, not
   a headline colour; gold display type on cream is the sleepy publisher look this brand
   exists to avoid.
@@ -246,8 +251,17 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Four places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
+Five places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
 code back to a rule that was already retired.
+
+### Calls to action are ink, not accent — 2026-08-31
+
+§9 used to give "accent links and primary buttons" one treatment. The accent's calm is
+its whole point inside the product, and exactly wrong on the one button a stranger has
+to notice: on warm paper, `#7a5c38` whispered. The palette already held the strongest
+move it owns — §9's max-contrast pair — so a call to action takes it: ink-filled, paper
+text, weight 600, paper-on-ink inside an inverted block. Working buttons inside the
+product keep the accent; nothing else moved.
 
 ### A landing page has a headline the reader never needs — 2026-08-31
 

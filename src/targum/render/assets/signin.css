@@ -75,14 +75,15 @@ body.signin {
   border-color: var(--focus);
 }
 
-/* The one primary action on the page, so it gets the accent and the sheen. */
+/* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
 .gate .go {
   width: 100%;
   padding: 0.7rem;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
   font: inherit;
   font-size: 1.0625rem;
   cursor: pointer;

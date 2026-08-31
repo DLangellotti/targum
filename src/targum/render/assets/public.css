@@ -23,11 +23,13 @@ body.public {
   gap: 0.5rem;
   align-items: center;
 }
+/* A call to action is ink (§9): the max-contrast pair, not the accent's calm. */
 .public .corner .enter {
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
   font-size: 0.8125rem;
   text-decoration: none;
 }
@@ -173,8 +175,9 @@ body.public {
 .public .door .go {
   padding: 0.6rem 1.2rem;
   border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
   font-size: 0.9375rem;
   text-decoration: none;
 }
@@ -526,8 +529,9 @@ body.public {
   text-decoration: none;
 }
 .public .cta .go {
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  color: var(--paper);
+  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
+  color: var(--page-max, #fffdf9);
+  font-weight: 600;
 }
 .public .cta .go:hover {
   box-shadow: var(--lift);
@@ -894,7 +898,6 @@ html:has(main.weekly) {
   --keep-ground: var(--ink-max, #121110);
   --keep-ink: var(--page-max, #fffdf9);
   --keep-soft: #9a9288;
-  --keep-accent: #c8a778;
   inline-size: var(--stage-width, 100%);
   margin-inline-start: var(--stage-left, 0px);
   margin-block: 0 3rem;
@@ -917,9 +920,11 @@ html:has(main.weekly) {
   font-size: 1.0625rem;
   line-height: 1.6;
 }
+/* Paper on ink: the same pair, flipped with the block. */
 .public .keep .door .go {
-  background: var(--keep-accent);
+  background: var(--keep-ink);
   color: var(--keep-ground);
+  font-weight: 600;
 }
 .public .keep .door .free {
   color: var(--keep-soft);
