@@ -483,7 +483,7 @@ def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Pat
     assert "/weekly/subscribe" not in page
     assert "<dialog" not in page and 'name="email"' not in page
     assert page.count('class="go" href="/account/signin"') == 1
-    assert page.count('href="/account/signin"') == 3, "the corner, the hero, and the door"
+    assert page.count('href="/account/signin"') == 2, "the corner and the door"
 
 
 def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
