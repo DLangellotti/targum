@@ -595,6 +595,11 @@ html:has(main.weekly) {
   }
 }
 
+/* More air above a new subject than inside one (§9's rhythm). */
+.public .weekly .embed {
+  margin-block-end: 2.5rem;
+}
+
 /* The reader, at the size it will be read at. It was a bordered slot inside the
    measure, and then — locked — the whole window: two readers, a thin one and a big
    one, and the jump between them was the thing you noticed. So it is one size from the
@@ -904,7 +909,7 @@ html:has(main.weekly) {
 }
 .public .weekly .how,
 .public .weekly .honest {
-  margin-block-end: 2.5rem;
+  margin-block-end: 3.5rem;
 }
 .public .honest .made {
   margin-block-end: 1.5rem;
