@@ -1,6 +1,6 @@
 [project]
 name = "targum"
-version = "0.1.0.1"
+version = "0.2.0.0"
 description = "Turn a text and its translations into a self-contained HTML bilingual reader"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
@@ -32,7 +32,14 @@ dependencies = [
 align = ["sentence-transformers>=3.0"]
 # Forced alignment of a supplied transcript against its recording. Torch rides in with
 # it; on the box Stanza already brought torch, so the marginal weight is the model.
-speech-align = ["ctc-forced-aligner>=0.3"]
+# From GitHub by name on purpose: the PyPI package called ctc-forced-aligner is a
+# different project with a different API, and resolving it silently is how the aligner
+# came to be "installed" on a machine it had never once run on. Pinned to a commit:
+# an unpinned branch head is whoever controls that repository, at install time, on
+# the box.
+speech-align = [
+  "ctc-forced-aligner @ git+https://github.com/MahmoudAshraf97/ctc-forced-aligner@11855d1de76af2b490dd2e8e2db2661805ae90a0",
+]
 covers = ["pillow>=10.0"]
 difficulty = ["wordfreq>=3.1"]
 # Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
@@ -61,6 +68,11 @@ dev = ["pytest>=8.2", "mypy>=1.10", "ruff>=0.5", "fonttools[woff]>=4.50"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# For the speech-align extra's git address; hatchling refuses direct references
+# without being told they are meant.
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/targum"]
