@@ -212,20 +212,12 @@ body {
 [dir="rtl"] .bar > .controls { order: 1; margin-inline-start: 0; margin-inline-end: auto; }
 [dir="rtl"] .bar > .bar-title { order: 2; direction: rtl; }
 
-/* Under 46rem there is no one line for all of it. Left to wrap on its own, the mark
-   took the first line alone, the controls the next two, and the title — the one thing
-   in the bar that says what is being read — the last, a full bar's height below the
-   corner. The mark and the title share the first line, where they sit on a wide screen
-   too: beside each other on an English page, at the two edges on a Hebrew one. The
-   controls take the whole width beneath and wrap among themselves. */
-@media (max-width: 46rem) {
-  .bar > .controls,
-  [dir="rtl"] .bar > .controls { order: 3; flex: 1 0 100%; margin-inline: 0; }
-  /* The title runs rtl, so its inline end is its left: this is the auto margin that
-     pushes it to the far edge of a bar laid out ltr. -start would be its right margin
-     and would move nothing. */
-  [dir="rtl"] .bar > .bar-title { margin-inline-end: auto; }
-}
+/* The menu behind ⋯. On a wide window there is no menu: the wrapper is `contents`, so
+   its groups lie in the bar exactly as they always have, and neither the ⋯ nor the
+   menu's own head exists. Under 60rem the reverse — the phone rules at the foot of
+   this file. */
+.bar-more { display: contents; }
+.bar .more-head, .bar .more { display: none; }
 
 /* Full ink, not the controls' soft grey: the mark is the one thing here that is not a
    control, and the two columns need their difference in weight to read as the mark. */
@@ -393,8 +385,19 @@ a.bar-brand:hover { color: var(--accent); }
 .bar button:focus-visible, .bar select:focus-visible { border-color: var(--rule); }
 .bar button.on:hover { border-color: var(--ink-soft); }
 /* A sheet of keyboard shortcuts on a phone is a control that answers a question nobody
-   there can ask. The key itself still works for a tablet with a keyboard attached. */
-@media (hover: none) and (pointer: coarse) { .bar [data-keys] { display: none; } }
+   there can ask. Two gates, because the first one lied: the media query is what a
+   browser says about its pointer, and a phone's in-app browser said it could hover. So
+   under 60rem the button waits for proof — the first key pressed puts `has-keyboard`
+   on the body, and `reader.js` does that. The key itself still works for a tablet with
+   a keyboard attached, and the card it opens then says so in the bar. */
+@media (hover: none) and (pointer: coarse) {
+  body:not(.has-keyboard) .bar [data-keys] { display: none; }
+}
+@media (max-width: 60rem) {
+  body:not(.has-keyboard) .bar [data-keys],
+  body:not(.has-keyboard) .bar-more .group[data-what="Keys"],
+  body:not(.has-keyboard) .gloss-card .legend { display: none; }
+}
 
 button, select {
   font: inherit;
@@ -1252,62 +1255,6 @@ table.rows tr:hover .copy,
   [dir="rtl"] body.has-list.list-open .bar { margin-inline-end: 0; margin-inline-start: -15rem; }
 }
 
-/* No width to give still leaves the bottom edge. The full-height overlay this used to
-   be sat on the very words being read — and on the weekly, on the masthead and the
-   level pills. As a sheet the reading column keeps the window and the list takes a
-   band a reader can dismiss; the text can always scroll clear of it. `svh` because the
-   sheet is anchored to the bottom, where the browser's own chrome comes and goes.
-
-   The foot of a narrow window is one band, and everything fixed in it stacks upward from
-   the bottom edge in one order: the sheet, then the turning arrows, then the player. The
-   page is laid out above the highest of them (`room` in reader.js), so nothing sits on a
-   line of text, and the arrows stand on the sheet rather than under it — a control that
-   is there but cannot be pressed is worse than none.
-
-   The lifts come from `--sheet`, the sheet's measured height, which the script writes
-   whenever the sheet is open at this width. They used to come from its ceiling, 42svh,
-   and a sheet with two words in it is far shorter than its ceiling — so the player was
-   parked in the middle of the page, over the byline, with nothing under it to explain
-   why. The ceiling remains as the fallback for the moment before the script has run. */
-@media (max-width: 60rem) {
-  .list {
-    inset-block: auto 0;
-    inset-inline: 0;
-    width: auto;
-    max-block-size: 42svh;
-    /* Above the words tab and the wide panel's own layer; the arrows and the player
-       rise clear of it rather than fighting it for the corner. */
-    z-index: 27;
-    border-inline-start: none;
-    border-block-start: 1px solid var(--overlay-rule);
-    border-start-start-radius: 8px;
-    border-start-end-radius: 8px;
-    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.14);
-  }
-  body.has-list.list-open { padding-block-end: calc(var(--sheet, 42svh) + 2rem); }
-  /* The scrolling reader reserves nothing, so the text is given enough foot to scroll
-     clear of the player standing on the sheet. */
-  body.has-list.list-open.has-player { padding-block-end: calc(var(--sheet, 42svh) + 5.5rem); }
-  body.has-list.list-open .player {
-    inset-inline-end: 0.75rem;
-    inset-block-end: calc(var(--sheet, 42svh) + 0.9rem);
-  }
-  /* Arrows on the sheet; the player above the arrows. 4.15rem is the arrows' own
-     0.9rem plus their 2.75rem plus a 0.5rem gap. */
-  body.paged.has-list.list-open .turn { inset-block-end: calc(var(--sheet, 42svh) + 0.9rem); }
-  body.paged.has-list.list-open .player { inset-block-end: calc(var(--sheet, 42svh) + 4.15rem); }
-  /* A player with its speed control is wider than a phone can share with the tab, so
-     with a player out the tab is a row of its own above it — the band grows by the tab's
-     height, and `room` measures the tab. Without a player the tab keeps the corner.
-
-     Not conditional on whether they would fit: "0 words" clears the player at 390px by
-     a dozen pixels, but the tab grows with its count — "12 words · 3 phrases" is twice
-     as wide — and a 360px phone is ordinary. A row that fits sometimes is a collision
-     that happens to whoever has kept the most words. */
-  body.has-player .list-tab { inset-block-end: 4.75rem; }
-  body.paged.has-player .list-tab { inset-block-end: 9rem; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .list-items li { animation: none; }
   .gloss-card.going { transition: none; }
@@ -2135,11 +2082,17 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player-rate button[aria-disabled="true"] { opacity: 0.4; cursor: default; }
 .player-rate-now {
   min-inline-size: 2.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
   text-align: center;
   color: var(--ink-soft);
 }
+.player-rate-now:hover { color: var(--ink); }
+.player-rate-now:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
 .player-get svg {
   inline-size: 0.9rem;
@@ -2169,20 +2122,9 @@ body.has-player .next-up { margin-block-end: 9rem; }
    of them. The two rows are the whole of the band `room` reserves under a page — except
    on a phone with a player out, where the row is not wide enough for both and the tab
    stands above the player instead; that rule is with the other narrow ones. */
-body.paged .player { inset-block-end: 5.5rem; }
-body.paged .list-tab { inset-block-end: 5.5rem; }
-
-@media (max-width: 60rem) {
-  /* Everything a step closer, since the speed took a column: on a phone the card has to
-     stop short of the words tab in the other corner. The body drops to 5rem, which
-     wraps the idle label onto two lines — and two lines of the small size stand inside
-     the play button's height, so the card is no taller for it. */
-  .player { inset-inline-end: 0.75rem; gap: 0.35rem; }
-  .player-body { inline-size: 5rem; }
-  .player-said { font-size: 0.6875rem; }
-  .player-rate { gap: 0; }
-  .player-slower, .player-faster { inline-size: 1.25rem; }
-  .player-rate-now { min-inline-size: 1.8rem; }
+@media (min-width: 60rem) {
+  body.paged .player { inset-block-end: 5.5rem; }
+  body.paged .list-tab { inset-block-end: 5.5rem; }
 }
 
 /* A short window — a laptop with the browser's own chrome taking a third of it — is
@@ -2195,4 +2137,180 @@ body.paged .list-tab { inset-block-end: 5.5rem; }
    with the tab in the other corner — it collides with nothing. */
 @media (max-height: 40rem) {
   main { padding-block-start: 1.25rem; padding-block-end: 4rem; }
+}
+
+/* --- the phone: one band at the foot, one thing in it -------------------------
+
+   Under 60rem there is no width for a column beside the text and no height for a pile
+   on top of it. Everything that stands over the text — the words sheet, a word's card,
+   a phrase's chip, the keys, the menu behind ⋯ — is an occupant of one band at the foot
+   of the window, and the band holds one at a time: `occupy()` in reader.js puts the
+   last away as the next arrives. The player is a strip standing on the occupant's top
+   edge; the words tab stands in the strip's start, or in the corner when there is no
+   strip; the turning arrows stand on the strip. `room()` measures the lot and tells the
+   stylesheet — `--occupant`, `--strip`, `--tab`, `--tab-lift`, `--foot` — and the
+   page is laid out above the highest of them, or, in the scrolling reader, padded by
+   the band so the last line can be scrolled clear of it.
+
+   The bar is one row: the mark, the title, the three modes and ⋯. Everything the bar
+   lost is in the menu, as rows with names. At the end of the file on purpose: these
+   rules override the wide window's, and the wide window's are written above. */
+@media (max-width: 60rem) {
+  /* Paper, not frosted glass: a `backdrop-filter` makes the bar the containing block
+     for anything fixed inside it, and the menu is inside it — with the blur on, the
+     menu's "foot of the window" was the foot of the bar, and it drew above the top
+     edge of the screen. */
+  .bar {
+    flex-wrap: nowrap;
+    gap: 0.6rem;
+    padding: 0.5rem 1rem;
+    background: var(--paper);
+    backdrop-filter: none;
+  }
+  .bar > .bar-title {
+    order: 2;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The title keeps its own direction, and in a block that runs rtl "end" is the left
+     — beside the mark, where the title stands on a wide window too. The English title
+     and the gauge of known words go: one row has room for the title alone. */
+  [dir="rtl"] .bar > .bar-title { text-align: end; }
+  .bar-english, .bar-title .known { display: none; }
+  .bar > .controls,
+  [dir="rtl"] .bar > .controls { order: 3; flex: none; margin: 0; gap: 0.5rem; }
+  .bar .more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.45rem;
+    font-size: 1.0625rem;
+    line-height: 1;
+  }
+
+  /* --- the occupants: one place, one at a time --- */
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+    position: fixed;
+    inset-block: auto 0;
+    inset-inline: 0;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    translate: none;
+    transform: none;
+    max-block-size: 45svh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: 27;
+    padding: 0.75rem 1rem 1rem;
+    background: var(--paper-raised);
+    border: 0;
+    border-block-start: 1px solid var(--overlay-rule, var(--rule));
+    border-radius: 0;
+    border-start-start-radius: 8px;
+    border-start-end-radius: 8px;
+    box-shadow: 0 -6px 24px rgb(0 0 0 / 0.14);
+  }
+  .list {
+    max-block-size: 42svh;
+    padding: 0.9rem 1rem 1.5rem;
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  .gloss-card { width: auto; }
+
+  /* Closed, the menu is nothing. Open, it is the occupant: each group is a row, named
+     by what it says of itself, its control at the end. On raised paper a button needs
+     its edge (§9); the bar's are borderless because the bar is paper. */
+  .bar-more { display: none; }
+  .bar-more.open {
+    display: grid;
+    gap: 0;
+    direction: ltr;
+    font-family: system-ui, sans-serif;
+    font-size: 0.9375rem;
+  }
+  .bar .more-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    padding-block: 0.15rem 0.35rem;
+    color: var(--ink-soft);
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .bar .more-head b { font-weight: 500; }
+  .bar .more-head button {
+    margin-inline-start: auto;
+    border: 0;
+    font-size: 1.0625rem;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .bar-more.open .group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-block: 0.55rem;
+    border-block-end: 1px solid var(--rule);
+  }
+  .bar-more.open .group:last-child { border-block-end: 0; }
+  .bar-more.open .group::before {
+    content: attr(data-what);
+    flex: 1 1 auto;
+    color: var(--ink);
+  }
+  .bar-more.open .group .label { flex: 1 1 auto; color: var(--ink); }
+  .bar-more.open .group button,
+  .bar-more.open .group select,
+  .bar-more.open .group .level { border-color: var(--rule); }
+
+  /* --- the strip --- */
+  body .player,
+  body.paged .player {
+    inset-inline: 0;
+    inset-block-end: var(--occupant, 0px);
+    width: auto;
+    z-index: 28;
+    gap: 0.5rem;
+    padding-block: 0.35rem;
+    padding-inline: var(--tab, 0.75rem) 0.5rem;
+    border: 0;
+    border-block-start: 1px solid var(--rule);
+    border-radius: 0;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(6px);
+  }
+  /* One speed control, not three: the figure steps on when pressed. */
+  .player-slower, .player-faster { display: none; }
+  .player-body { flex: 1 1 auto; inline-size: auto; min-inline-size: 0; }
+  .player-rate-now { border: 1px solid var(--rule); padding: 0.15rem 0.5rem; }
+
+  /* --- the tab: in the strip's start, or the corner when there is no strip --- */
+  body .list-tab,
+  body.paged .list-tab {
+    inset-inline-start: 0.75rem;
+    inset-block-end: calc(var(--occupant, 0px) + 1rem);
+    z-index: 29;
+  }
+  /* Above the arrows, whose row reaches the corner the tab is in. */
+  body.paged .list-tab { inset-block-end: calc(var(--occupant, 0px) + 4rem); }
+  body.has-player .list-tab,
+  body.paged.has-player .list-tab {
+    inset-block-end: calc(var(--occupant, 0px) + var(--tab-lift, 0.4rem));
+    box-shadow: none;
+  }
+
+  /* --- the arrows, on the strip --- */
+  .turn, body.paged .turn { inset-block-end: calc(var(--occupant, 0px) + var(--strip, 0px) + 0.75rem); }
+
+  /* --- the page, above the lot --- */
+  body { padding-block-end: var(--foot, 0px); }
 }

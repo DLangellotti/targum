@@ -828,7 +828,10 @@ def test_the_card_never_ends_up_over_its_own_word(page) -> None:
         now = page.evaluate(COVERING, [was["id"], was["text"]])
         assert now["open"] and now["word"], f"the card or its word went missing at {size}"
         assert not now["over"], f"the card sat over its own word at {size}"
-        assert now["beside"] <= SLACK, f"the card came away from its word at {size}"
+        # Under 60rem the card is not beside its word at all: it is the band at the foot
+        # of the window, and the word is lifted clear of it. Beside, on anything wider.
+        if size["width"] >= 960:
+            assert now["beside"] <= SLACK, f"the card came away from its word at {size}"
         assert now["onScreen"], f"the word was not on the screen at {size}"
         assert now["cardOnScreen"], f"the card was not on the screen at {size}"
 
@@ -1800,9 +1803,10 @@ def test_the_angle_brackets_step_the_speed_and_turn_no_page(paged_scene) -> None
     assert paged_scene.evaluate(PAGE)["first"] == before["first"], "the page stood still"
 
 
-def test_the_player_still_fits_a_phone(browser, tmp_path, monkeypatch) -> None:
-    """The speed took a column. The card is wider for it, and on the narrowest window
-    it has to stay inside the edge."""
+def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> None:
+    """On a phone the player is a strip the width of the window, not a pill in a corner:
+    play, the line being said, one speed control, the download, and the ×. The speed's
+    two arrows are gone — the figure itself steps on when pressed."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
     context = opened(browser, viewport=PHONE)
@@ -1810,9 +1814,14 @@ def test_the_player_still_fits_a_phone(browser, tmp_path, monkeypatch) -> None:
     page.goto(built.as_uri())
     page.wait_for_selector("#player")
     box = page.locator("#player").bounding_box()
-    assert box["x"] >= 0 and box["x"] + box["width"] <= PHONE["width"], box
-    for control in (".player-play", ".player-slower", ".player-faster", ".player-get"):
+    assert box["x"] == 0 and box["width"] == PHONE["width"], box
+    assert box["height"] <= 56, "a strip, not a card"
+    for control in (".player-play", ".player-rate-now", ".player-get", ".player-close"):
         assert page.locator(control).is_visible(), control
+    for control in (".player-slower", ".player-faster"):
+        assert not page.locator(control).is_visible(), control
+    page.click(".player-rate-now")
+    assert page.evaluate(SPEED)["rate"] == "1.25×", "the figure steps the speed on"
     context.close()
 
 
@@ -1921,10 +1930,20 @@ def every_line_above(seats: dict, names: tuple[str, ...]) -> None:
 
 
 def test_on_a_phone_nothing_at_the_foot_shares_a_spot(phone_scene) -> None:
-    """The tab, the player and both arrows, each with a place of its own — and no line
-    of the page under any of them."""
+    """The strip and both arrows, each with a place of its own; the words tab standing in
+    the strip's start, before the play button, with the strip's own room made for it —
+    and no line of the page under any of them."""
     seats = phone_scene.evaluate(SEATS)
-    nothing_shares_a_spot(seats, ("tab", "player", "back", "forward"))
+    nothing_shares_a_spot(seats, ("player", "back", "forward"))
+    play = phone_scene.evaluate(
+        "() => { const b = document.querySelector('.player-play').getBoundingClientRect();"
+        " return { left: b.left, right: b.right }; }"
+    )
+    tab, strip = seats["tab"], seats["player"]
+    inside = strip["top"] <= tab["top"] and tab["bottom"] <= strip["bottom"]
+    assert inside, "the tab is in the strip"
+    # Before the play button in reading order: the scene is Hebrew, so that is to its right.
+    assert tab["left"] >= play["right"], "and before the play button"
     every_line_above(seats, ("tab", "player", "back", "forward"))
 
 
@@ -1942,15 +1961,17 @@ def test_the_player_stands_on_the_sheet_not_where_its_ceiling_is(phone_scene_scr
 
 
 def test_with_the_sheet_open_the_arrows_stand_on_it_and_the_page_above_them(phone_scene) -> None:
-    """The sheet used to cover the arrows. Now they stand on it, the player stands on
-    them, and the page is laid out above the lot — and grows back when the sheet goes."""
+    """The sheet used to cover the arrows. Now the strip stands on the sheet, the arrows
+    stand on the strip, and the page is laid out above the lot — and grows back when the
+    sheet goes."""
     phone_scene.click("#list-tab")
     phone_scene.wait_for_function("() => document.body.classList.contains('list-open')")
     seats = phone_scene.evaluate(SEATS)
     assert seats["sheet"] and seats["back"] and seats["forward"] and seats["player"]
+    assert seats["player"]["bottom"] <= seats["sheet"]["top"], "the strip is under the sheet"
+    assert seats["sheet"]["top"] - seats["player"]["bottom"] < 4, "the strip stands on the sheet"
     for arrow in ("back", "forward"):
-        assert seats[arrow]["bottom"] <= seats["sheet"]["top"], f"{arrow} is under the sheet"
-    assert seats["player"]["bottom"] <= seats["back"]["top"], "the player is not above the arrows"
+        assert seats[arrow]["bottom"] <= seats["player"]["top"], f"{arrow} is not above the strip"
     every_line_above(seats, ("player", "back", "forward", "sheet"))
     before = len(seats["shown"])
     phone_scene.click(".list-close")
@@ -2423,14 +2444,10 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
 def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     browser, built: Path, tmp_path: Path, direction: str
 ) -> None:
-    """Under 46rem the bar cannot hold everything on one line. Left to wrap on its own it
-    put the mark on the first line by itself, the controls on the next two, and the title
-    on the last — a full bar's height below the corner. The mark and the title share the
-    first line, the title at the far edge on a Hebrew page and beside the mark on an
-    English one, and the controls take the whole width beneath.
-
-    The Hebrew title's far edge is its own trap: the title runs rtl, so its logical
-    start is its right, and an auto start margin on it moves nothing."""
+    """Under 60rem the bar is one row: the mark, the title, the three modes and ⋯. Left
+    to wrap on its own it once put the mark on a line by itself, the controls on the next
+    two, and the title on the last, a full bar's height below the corner. Everything the
+    row has no room for is behind ⋯, and none of it is drawn in the bar."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
         html = html.replace('<html lang="he" dir="rtl">', '<html lang="en" dir="ltr">')
@@ -2445,21 +2462,142 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const bar = box('.bar'), mark = box('.bar-brand:not([hidden])');
           const title = box('.bar-title'), controls = box('.controls');
+          const shown = (s) =>
+            [...document.querySelectorAll(s)].filter((e) => e.getClientRects().length);
           return {
             titleBeside: title.top < mark.bottom && title.bottom > mark.top,
-            controlsBelow: controls.top >= mark.bottom - 1,
-            titleAtEdge: title.right >= bar.right - 24,
-            titleNextToMark: title.left - mark.right < 24,
+            controlsBeside: controls.top < mark.bottom && controls.bottom > mark.top,
+            titleBetween: title.left >= mark.right && title.right <= controls.left,
+            height: bar.height,
+            more: shown('.bar .more').length,
+            modes: shown('.bar .modes button').length,
+            others: shown('.bar .bar-more button, .bar .bar-more select').length,
             width: document.documentElement.scrollWidth,
           };
         }"""
     )
     context.close()
 
-    assert measured["titleBeside"], "the title is on the first line with the mark"
-    assert measured["controlsBelow"], "the controls are under them"
-    if direction == "rtl":
-        assert measured["titleAtEdge"], "a Hebrew title sits at the far edge"
-    else:
-        assert measured["titleNextToMark"], "an English title sits beside the mark"
+    assert measured["titleBeside"] and measured["controlsBeside"], "one row"
+    assert measured["titleBetween"], "the title sits between the mark and the modes"
+    assert measured["height"] <= 56, f"a bar {measured['height']}px tall is not one row"
+    assert measured["more"] == 1 and measured["modes"] == 3
+    assert measured["others"] == 0, "everything else is behind the ⋯"
     assert measured["width"] <= 390
+
+
+# One band, one occupant.
+#
+# Under 60rem the sheet, a word's card, a phrase's chip, the keys and the menu behind ⋯
+# take turns in one band at the foot. What is asserted here is the turn-taking, that the
+# text keeps most of the window whatever is up, and that the keys stay out of a reader's
+# way until there is a keyboard to press them on.
+
+BAND = """
+() => {
+  const box = (el) => {
+    if (!el || el.hidden || !el.getClientRects().length) return null;
+    const b = el.getBoundingClientRect();
+    return { top: b.top, bottom: b.bottom, left: b.left, right: b.right, height: b.height };
+  };
+  const bar = document.querySelector('.bar').getBoundingClientRect();
+  const told = getComputedStyle(document.documentElement).getPropertyValue('--foot');
+  const foot = parseFloat(told) || 0;
+  return {
+    sheet: box(document.getElementById('list')),
+    tab: box(document.getElementById('list-tab')),
+    card: box(document.getElementById('gloss-card')),
+    menu: box(document.querySelector('.bar-more.open')),
+    keys: box(document.getElementById('keys')),
+    strip: box(document.getElementById('player')),
+    keysButton: box(document.querySelector('.bar [data-keys]')),
+    foot,
+    room: window.innerHeight - bar.bottom - foot,
+    bodyFoot: parseFloat(getComputedStyle(document.body).paddingBottom),
+  };
+}
+"""
+
+
+def test_a_word_takes_the_band_from_the_sheet_and_gives_it_back(phone_scene_scrolling) -> None:
+    """The sheet is a mode and the card is a visit. Tap a word with the sheet open and
+    the card has the band, the sheet is folded to its tab; answer or dismiss the word
+    and the sheet is back — and its remembered preference was never touched."""
+    page = phone_scene_scrolling
+    page.click("#list-tab")
+    page.wait_for_function("() => document.body.classList.contains('list-open')")
+    page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    # The sheet is given back a frame after the band is vacated; a frame is long enough
+    # for a mistake here to have shown, so it is waited for.
+    page.wait_for_timeout(100)
+    band = page.evaluate(BAND)
+    assert band["card"] and not band["sheet"], "the card has the band, the sheet does not"
+    assert band["tab"], "the sheet is folded to its tab"
+    assert band["card"]["bottom"] == pytest.approx(page.viewport_size["height"], abs=1)
+    assert band["strip"] and band["strip"]["bottom"] <= band["card"]["top"] + 1, (
+        "the strip stands on the card"
+    )
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => !document.getElementById('list').hidden")
+    band = page.evaluate(BAND)
+    assert band["sheet"] and not band["card"], "the sheet is back"
+    prefs = page.evaluate("() => JSON.parse(localStorage.getItem('targum:prefs') || '{}')")
+    assert prefs.get("list") is True
+
+
+def test_the_text_keeps_most_of_a_phone_whatever_is_up(phone_scene_scrolling) -> None:
+    """With the sheet and the strip up, or a card and the strip, the page between the
+    bar and the band is at least two fifths of the window. Five things stacked used to
+    leave none of it."""
+    page = phone_scene_scrolling
+    height = page.viewport_size["height"]
+    page.click("#list-tab")
+    page.wait_for_function("() => document.body.classList.contains('list-open')")
+    band = page.evaluate(BAND)
+    assert band["room"] >= height * 0.4, f"{band['room']}px of {height} with the sheet up"
+    assert band["bodyFoot"] == pytest.approx(band["foot"], abs=1), "the page is padded by the band"
+    page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    band = page.evaluate(BAND)
+    assert band["room"] >= height * 0.4, f"{band['room']}px of {height} with a card up"
+
+
+def test_the_menu_takes_the_band_and_a_tap_on_the_page_closes_it(phone_scene_scrolling) -> None:
+    """⋯ opens the menu where the sheet was; a control inside it works without closing
+    it; a tap on the text puts it away."""
+    page = phone_scene_scrolling
+    page.click("#list-tab")
+    page.wait_for_function("() => document.body.classList.contains('list-open')")
+    page.click(".bar .more")
+    band = page.evaluate(BAND)
+    assert band["menu"] and not band["sheet"], "the menu has the band"
+    assert band["menu"]["bottom"] == pytest.approx(page.viewport_size["height"], abs=1)
+    names = page.evaluate(
+        "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
+        ".map((g) => g.getAttribute('data-what'))"
+    )
+    assert "Type" in names and "Pages, or one long scroll" in names, names
+    size = page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)")
+    page.click('.bar-more.open [data-type="larger"]')
+    assert page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)") > size
+    assert page.evaluate(BAND)["menu"], "the menu stayed up for its own control"
+    page.mouse.click(page.viewport_size["width"] / 2, 200)
+    assert not page.evaluate(BAND)["menu"], "a tap on the page closed it"
+
+
+def test_the_keys_wait_for_a_keyboard_on_a_phone(phone_scene_scrolling) -> None:
+    """The button that opens the shortcuts is not drawn on a phone — not by what the
+    browser says about its pointer, which a phone's in-app browser got wrong, but until
+    a key is pressed. Typing into a field is not a key pressed."""
+    page = phone_scene_scrolling
+    assert page.evaluate(BAND)["keysButton"] is None, "no keys button before a keyboard"
+    page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.fill(".gloss-card input, .gloss-card textarea", "milk")
+    assert page.evaluate("() => document.body.classList.contains('has-keyboard')") is False
+    page.keyboard.press("Escape")
+    page.keyboard.press("ArrowRight")
+    assert page.evaluate("() => document.body.classList.contains('has-keyboard')") is True
+    page.click(".bar .more")
+    assert page.evaluate(BAND)["keysButton"], "and then it is offered"

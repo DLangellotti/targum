@@ -1869,10 +1869,11 @@
     fill(phraseItems, phrases);
     renderEmpty();
     // A sheet grows when a word is kept, and the controls standing on it go up with it.
-    if (seatSheet()) relayout();
+    if (seatFoot()) relayout();
   }
 
   function showList(open, remembered) {
+    if (open) occupy("list");
     // On a wide window the list takes a column of the width from the page rather than
     // covering it, so opening one re-wraps every line above the reader as well as below.
     var held = open === body.classList.contains("list-open") ? null : hold();
@@ -1887,43 +1888,161 @@
     relay();
     // Before the pages are measured: the arrows and the player stand on the sheet, and
     // `room` reads where they stand.
-    seatSheet();
+    seatFoot();
     relayout();
+    if (!open) vacate("list");
     if (remembered !== false) save();
   }
 
   var roomy = window.matchMedia("(min-width: 60rem)");
 
-  // How tall the sheet is, told to the stylesheet. On a narrow window the list is a sheet
-  // at the foot, and the arrows and the player are lifted to stand on it — by its
-  // measured height, not its ceiling. It has a ceiling of 42svh and a list of two words
-  // is nowhere near it, and lifting by the ceiling parked the player in the middle of the
-  // page with nothing under it. Cleared when the sheet is shut or the window is wide
-  // enough for the list to be a column, so the stylesheet's own numbers apply. Returns
-  // whether anything changed, so a caller knows the pages need measuring again.
-  var sheetSaid = null;
+  /* --- the band at the foot of a narrow window --------------------------------
 
-  function seatSheet() {
-    var seat = null;
-    if (listBox && !listBox.hidden && !roomy.matches) {
-      var height = listBox.getBoundingClientRect().height;
-      if (height) seat = Math.round(height) + "px";
+     Under 60rem there is no width for a column beside the text and no height for a
+     pile on top of it. So everything that stands over the text — the words sheet, a
+     word's card, a phrase's chip, the keys, the menu behind ⋯ — is an occupant of one
+     band at the foot, and the band holds one of them at a time. Opening one puts the
+     last away.
+
+     Two kinds of occupant. The sheet is a mode: the reader opened it and means it to
+     stay. A card is transient: it is about one word and leaves when that word is
+     answered. So a card that takes the band from the sheet gives it back when it goes,
+     and the sheet's own preference is not touched by either move. Nothing else is
+     given back; a menu over a card is a reader who has moved on.
+
+     On a wide window this arbitrates nothing — the list is a column, the card sits by
+     its word, and there is room for all of them — but the bookkeeping runs anyway, so
+     turning a tablet does not find the state half-kept. */
+  var occupant = null;
+  var sheetWas = false;
+  var restoring = 0;
+
+  function occupy(which) {
+    if (restoring) {
+      cancelAnimationFrame(restoring);
+      restoring = 0;
     }
-    if (seat === sheetSaid) return false;
-    sheetSaid = seat;
-    if (seat) document.documentElement.style.setProperty("--sheet", seat);
-    else document.documentElement.style.removeProperty("--sheet");
-    return true;
+    if (occupant === which) return;
+    var was = occupant;
+    // Set before the last one is put away, so that its own `vacate` sees a band that
+    // is already somebody else's and does nothing.
+    occupant = which;
+    if (roomy.matches) return;
+    if (was === "list") {
+      sheetWas = true;
+      showList(false, false);
+    } else if (was === "card") {
+      hideCard();
+    } else if (was === "chip") {
+      hideChip();
+    } else if (was === "keys") {
+      showKeys(false);
+    } else if (was === "more") {
+      showMore(false);
+    }
+    if (which === "list") sheetWas = false;
   }
 
-  // The sheet changes height without anyone here touching it — the face arrives, the
-  // browser's own chrome comes and goes and moves `svh` — and the controls on it must
-  // follow. No loop: laying the pages out again hides pairs and pads the body, neither
-  // of which sizes a fixed sheet.
-  if (listBox && window.ResizeObserver) {
-    new ResizeObserver(function () {
-      if (seatSheet()) relayout();
-    }).observe(listBox);
+  // The occupant has gone. A frame later rather than now: tapping a second word closes
+  // the first card before it opens the next, and giving the sheet back in between
+  // would open it for one frame and shut it again, laying the pages out twice.
+  function vacate(which) {
+    if (occupant !== which) return;
+    occupant = null;
+    if (which === "list") sheetWas = false;
+    if (!sheetWas || roomy.matches) return;
+    restoring = requestAnimationFrame(function () {
+      restoring = 0;
+      if (occupant !== null || !sheetWas) return;
+      sheetWas = false;
+      showList(true, false);
+    });
+  }
+
+  // Where the band stands, told to the stylesheet. `--occupant` is the occupant's
+  // measured height — measured, not its ceiling: a sheet of two words is nowhere near
+  // the 42svh it may grow to, and lifting the player by the ceiling parked it in the
+  // middle of the page with nothing under it. `--strip` is the player's height, `--tab`
+  // the width the words tab takes at the strip's start, `--tab-lift` what centres the
+  // tab on the strip, and `--foot` the whole band from its highest edge to the bottom
+  // of the window — which is what the scrolling reader pads its body by, so the last
+  // line can be scrolled clear of it. Each is set and then the next is measured,
+  // because where the strip stands depends on the occupant and where the arrows stand
+  // on both. Cleared on a wide window, where the stylesheet's own numbers apply.
+  // Returns whether anything changed, so a caller knows the pages need measuring again.
+  var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+
+  function seatFoot() {
+    var root = document.documentElement.style;
+    var said = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+    function tell(name) {
+      if (said[name]) root.setProperty(name, said[name]);
+      else root.removeProperty(name);
+    }
+    function standing(thing) {
+      return thing && !thing.hidden && thing.getBoundingClientRect().height > 0;
+    }
+    if (!roomy.matches) {
+      var occ = 0;
+      occupants().forEach(function (thing) {
+        if (standing(thing)) occ = Math.max(occ, thing.getBoundingClientRect().height);
+      });
+      said["--occupant"] = occ ? Math.round(occ) + "px" : null;
+      tell("--occupant");
+      var strip = standing(scenePlayer) ? scenePlayer.getBoundingClientRect().height : 0;
+      said["--strip"] = strip ? Math.round(strip) + "px" : null;
+      if (standing(listTab)) {
+        var tab = listTab.getBoundingClientRect();
+        // Its own width, its inset from the edge, and the gap to the play button.
+        said["--tab"] = Math.round(tab.width + 20) + "px";
+        if (strip) said["--tab-lift"] = Math.round(Math.max(0, (strip - tab.height) / 2)) + "px";
+      }
+      tell("--strip");
+      tell("--tab");
+      tell("--tab-lift");
+      var top = window.innerHeight;
+      [turn, scenePlayer, listTab].concat(occupants()).forEach(function (thing) {
+        if (standing(thing)) top = Math.min(top, thing.getBoundingClientRect().top);
+      });
+      var foot = window.innerHeight - top;
+      said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
+    }
+    var changed = false;
+    Object.keys(said).forEach(function (name) {
+      if (footSaid[name] === said[name]) return;
+      footSaid[name] = said[name];
+      changed = true;
+      tell(name);
+    });
+    return changed;
+  }
+
+  // What can hold the band. Read at the moment of asking rather than held in a list:
+  // most of these are found further down this file, and the list would be written
+  // before they were.
+  function occupants() {
+    return [listBox, card, chip, keysCard, more];
+  }
+
+  // How much of the window the band takes, as the stylesheet was last told.
+  function footHeight() {
+    return parseFloat(footSaid["--foot"]) || 0;
+  }
+
+  // The band changes height without anyone here touching it — a word is kept and the
+  // sheet grows, a card's meaning wraps, the browser's own chrome comes and goes and
+  // moves `svh` — and everything standing on it must follow, and the page be laid out
+  // again above it. One observer for every occupant, watched from the moment the file
+  // has found them all. No loop: laying the pages out again hides pairs and pads the
+  // body, neither of which sizes a fixed occupant.
+  function watchFoot() {
+    if (!window.ResizeObserver) return;
+    var watcher = new ResizeObserver(function () {
+      if (seatFoot()) relayout();
+    });
+    occupants().forEach(function (thing) {
+      if (thing) watcher.observe(thing);
+    });
   }
 
   /* --- what a word means --------------------------------------------------- */
@@ -1943,6 +2062,7 @@
   function hideCard() {
     stopFade();
     if (card) card.hidden = true;
+    vacate("card");
     // And the phrase chip with it. One popup at a time: mouseup drew the chip and the
     // click that followed drew the card over it, for the same word, and nothing that
     // closed one knew about the other.
@@ -2228,7 +2348,10 @@
     var lemma = lemmas[index];
     if (!lemma) return;
 
+    // The old card first, then the band: `hideCard` vacates the band, and taking it
+    // before that would hand it straight back to the sheet under the new card.
     hideCard();
+    occupy("card");
     lookedUp = word;
     word.classList.add("looked-up");
     card.textContent = "";
@@ -2409,7 +2532,9 @@
     card.appendChild(legend);
 
     card.hidden = false;
-    placeNear(card, word.getBoundingClientRect());
+    seatNear(card, word.getBoundingClientRect());
+    keepOnPage(word);
+    lift(word);
   }
 
   /* --- keeping a phrase ---------------------------------------------------- */
@@ -2572,7 +2697,55 @@
   // and every later call throws. Which is what killed dragging a phrase outright, since
   // this is the only thing that takes the chip out of `hidden`.
   function placeChip(rect) {
-    placeNear(chip, rect);
+    occupy("chip");
+    seatNear(chip, rect);
+  }
+
+  // Beside the thing on a wide window; in the band on a narrow one, where the
+  // stylesheet places it and anything `placeNear` last wrote has to be taken back.
+  // Not `place` and not `bring`: both are names this scope already has, and a `var`
+  // and a `function` with one name are one binding — see the note above `placeChip`.
+  function seatNear(element, rect) {
+    if (roomy.matches) {
+      placeNear(element, rect);
+      return;
+    }
+    element.style.translate = "";
+    element.style.transform = "";
+    element.style.left = "";
+    element.style.top = "";
+    element.style.maxHeight = "";
+    element.hidden = false;
+    // Measured here and laid out here. The observer on the occupant would do both a
+    // frame later, but it sees no change by then — this measurement already took it —
+    // and the page would stay laid out for a band that is no longer there.
+    if (seatFoot()) relayout();
+  }
+
+  // The pair an occupant is about, kept on the page. Laying the pages out around a
+  // band that has just grown by a card's height moves the page's end up, and the pair
+  // the card is about can fall off it — a card about a word that is not on the screen.
+  function keepOnPage(element) {
+    if (!paged() || !pages.length || !element) return;
+    var pair = element.closest ? element.closest(".pair") : null;
+    var index = pair ? pairs.indexOf(pair) : -1;
+    if (index > -1 && pair.hidden) showPage(pageFor(index, pages), true);
+  }
+
+  // The line a card is about, kept above the band the card is in. The scrolling reader
+  // reserves nothing — text passes under the band by definition — so the one line that
+  // must not is moved, the way the line being spoken is moved clear of the player.
+  // Only when it has to be: scrolling a word that is already in front of the reader
+  // moves the text under their eyes for no reason. The paged reader lays itself out
+  // above the band instead, and has nothing to do here.
+  function lift(element) {
+    if (roomy.matches || paged() || !element) return;
+    var box = element.getBoundingClientRect();
+    var floor = window.innerHeight - footHeight() - 12;
+    var ceiling = (bar ? bar.getBoundingClientRect().bottom : 0) + 12;
+    if (box.bottom <= floor && box.top >= ceiling) return;
+    var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    element.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" });
   }
 
   // Whether the selection is the whole sentence, give or take the whitespace at its
@@ -2713,6 +2886,7 @@
   // rather than two lines that have to be remembered together at four call sites.
   function hideChip() {
     if (chip) chip.hidden = true;
+    vacate("chip");
     pickLevel = null;
     picking = null;
     unecho();
@@ -3435,7 +3609,7 @@
   });
 
   function refit() {
-    seatSheet();
+    seatFoot();
     relayout();
     if (living && seen && seen.pair.parentNode) {
       toLine(refind(seen), seen.pair, seen.top);
@@ -3453,7 +3627,7 @@
   // very word it was opened for, which `placeNear` is otherwise careful never to do.
   function relay() {
     if (card && !card.hidden && lookedUp && lookedUp.parentNode) {
-      placeNear(card, lookedUp.getBoundingClientRect());
+      seatNear(card, lookedUp.getBoundingClientRect());
     }
     if (chip && !chip.hidden) {
       var picked = currentSelection();
@@ -3647,10 +3821,13 @@
   // more. And the sheet is measured first: the arrows and the player are lifted by its
   // height, so where they stand is only right once the stylesheet has been told it.
   function room() {
-    seatSheet();
+    seatFoot();
     var top = bar ? bar.getBoundingClientRect().bottom : 0;
     var foot = 0;
-    [turn, scenePlayer, listTab, roomy.matches ? null : listBox].forEach(function (thing) {
+    // On a wide window the occupants are not in the band: the list is a column from
+    // the bar to the foot, and measuring that would leave the page its 160px floor and
+    // nothing more; a card sits beside its word.
+    [turn, scenePlayer, listTab].concat(roomy.matches ? [] : occupants()).forEach(function (thing) {
       if (!thing || thing.hidden) return;
       var box = thing.getBoundingClientRect();
       if (box.height) foot = Math.max(foot, window.innerHeight - box.top + 12);
@@ -3900,11 +4077,50 @@
 
   function showKeys(open) {
     if (!keysCard) return;
+    if (open) occupy("keys");
     keysCard.hidden = !open;
     // The button discloses the panel, so it has to say whether the panel is open. Focus
     // stays on the word either way: looking up a key must not cost you your place.
     if (keysButton) keysButton.setAttribute("aria-expanded", open ? "true" : "false");
+    if (!open) vacate("keys");
+    if (seatFoot()) relayout();
   }
+
+  // Whether there is a keyboard here at all. The stylesheet hides the keys button on a
+  // phone by a media query, and the query lies: a phone's in-app browser reported a
+  // pointer that could hover, the button showed, and the card of shortcuts opened over
+  // a screen with nothing to press them on. So under 60rem the button waits for proof
+  // — the first key pressed. Not a key typed into a field: a phone's own keyboard
+  // sends those, and typing a meaning is not evidence of arrow keys.
+  document.addEventListener(
+    "keydown",
+    function (event) {
+      if (!event.key || event.key === "Unidentified") return;
+      var into = event.target && event.target.tagName;
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(into || "")) return;
+      body.classList.add("has-keyboard");
+    },
+    true
+  );
+
+  // The menu behind ⋯: on a narrow window, everything the bar has no row for. Under
+  // 60rem it opens in the band like the sheet and the card; on a wide window it is
+  // not a menu at all — its groups lie in the bar — and this is never called.
+  var more = document.getElementById("more");
+  var moreButtons = Array.prototype.slice.call(document.querySelectorAll("[data-more]"));
+
+  function showMore(open) {
+    if (!more) return;
+    if (open) occupy("more");
+    more.classList.toggle("open", !!open);
+    moreButtons.forEach(function (button) {
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    if (!open) vacate("more");
+    if (seatFoot()) relayout();
+  }
+
+  watchFoot();
 
   /* --- clicks -------------------------------------------------------------- */
 
@@ -3935,6 +4151,10 @@
       if (whichList) {
         showTab(whichList);
         save();
+        return;
+      }
+      if (button.hasAttribute("data-more")) {
+        showMore(!(more && more.classList.contains("open")));
         return;
       }
       if (button.hasAttribute("data-keys")) {
@@ -4030,6 +4250,9 @@
     }
     hideCard();
     showKeys(false);
+    // And the menu, unless this is a press inside it: its own buttons — the theme, the
+    // player's — fall through to here.
+    if (!(more && more.contains(event.target))) showMore(false);
   });
 
   /* --- the word queue ------------------------------------------------------ */
@@ -4553,6 +4776,10 @@
       case "Escape": {
         // One layer a press. Closing the keys and then dropping out of the queue in the
         // same keystroke costs a reader their place for looking a shortcut up.
+        if (more && more.classList.contains("open")) {
+          showMore(false);
+          return;
+        }
         if (keysCard && !keysCard.hidden) {
           showKeys(false);
           return;
@@ -5106,6 +5333,10 @@
       var seat = player.getBoundingClientRect();
       if (seat.height) floor = Math.min(floor, seat.top - 12);
     }
+    /* On a narrow window the player is a strip standing on whatever holds the band —
+       the sheet, a card — and the reader's own stylesheet knows how tall the lot is. */
+    var band = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--foot"));
+    if (band > 0) floor = Math.min(floor, window.innerHeight - band - 12);
     if (box.top < 64 || box.bottom > floor) {
       marked.scrollIntoView({ block: "center", behavior: behaviour() });
     }
@@ -5248,6 +5479,15 @@
   setRate(keptRate, false);
   if (slower) slower.addEventListener("click", function () { stepRate(-1); });
   if (faster) faster.addEventListener("click", function () { stepRate(1); });
+  /* The figure itself steps on, and round: on a phone it is the only speed control there
+     is room for, and one button that cycles is a control, where two arrows for a scale
+     of six were a column. */
+  if (rateNow) {
+    rateNow.addEventListener("click", function () {
+      var i = RATES.indexOf(nearestRate(audio.playbackRate));
+      setRate(RATES[(i + 1) % RATES.length], true);
+    });
+  }
 
   /* One line. */
   document.addEventListener("click", function (event) {

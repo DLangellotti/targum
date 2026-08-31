@@ -63,6 +63,12 @@
         </svg>
       </button>
     </div>
+    {#- Everything but the modes. On a wide window this wrapper is nothing — its groups
+        lay out in the bar as they always have — and under 60rem it is the menu the ⋯
+        opens, in the band at the foot with the sheet and the card. Each group names
+        itself in `data-what`, which is the row's label there and nothing here. -#}
+    <div class="bar-more" id="more">
+      <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
     {% if translations|length > 1 %}
     <label class="group">
       <span class="label">Translation</span>
@@ -75,7 +81,7 @@
         made a scale out of a switch. The drawing is a letter with its points beneath —
         §7 wants a line diagram of what the thing does, and this is literally it. -#}
     {% if has_nikkud %}
-    <div class="group">
+    <div class="group" data-what="Vowel points">
       <button type="button" data-nikkud-toggle aria-pressed="false"
               {%- if mark_guessed %} title="Vowel points (n). Where this text left a word bare, targum guessed — about 90% right on modern Hebrew, less on classical. Guessed sentences are marked."
               {%- elif source_pointed %} title="Vowel points, as this text writes them (n)"
@@ -92,7 +98,7 @@
         dialogue and nothing else. The drawing is what it does: a play mark, and the lines
         of text it is going to walk down. -#}
     {% if spoken_audio %}
-    <div class="group">
+    <div class="group" data-what="Listen to {{ spoken_label }}">
       <button type="button" data-play-scene aria-pressed="false"
               title="Play {{ spoken_label }} and follow along" aria-label="Play {{ spoken_label }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -103,7 +109,7 @@
     </div>
     {% endif %}
     {#- Pages, or one long scroll. The drawing is two leaves. -#}
-    <div class="group">
+    <div class="group" data-what="Pages, or one long scroll">
       <button type="button" data-paged aria-pressed="false"
               title="Pages, or one long scroll (b)" aria-label="Pages">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -115,7 +121,7 @@
     {#- Reading, or marking. Off is reading: the page is just a page. Only offered on a
         text that has words to mark — the rest carry no annotation at all. -#}
     {% if words %}
-    <div class="group">
+    <div class="group" data-what="Highlight what you have not learned">
       <button type="button" data-marking aria-pressed="false"
               title="Highlight the words you have not learned yet, and clear them as you mark them (m)"
               aria-label="Highlight what you have not learned">
@@ -129,7 +135,7 @@
     {%- if siblings %}
     {#- The same news at another level. One press, and the reader keeps their place in
         the issue rather than being sent back to the library to find the easy one. -#}
-    <div class="group levels" role="group" aria-label="Level">
+    <div class="group levels" role="group" aria-label="Level" data-what="Level">
       {%- for other in siblings %}
       {%- if other.current %}
       <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
@@ -142,15 +148,19 @@
       {%- endfor %}
     </div>
     {%- endif %}
-    <div class="group" role="group" aria-label="Type size">
+    <div class="group" role="group" aria-label="Type size" data-what="Type">
       <button type="button" data-type="smaller" aria-label="Smaller type">A−</button>
       <button type="button" data-type="larger" aria-label="Larger type">A+</button>
       <button type="button" data-type="looser" aria-label="Line spacing" title="Line spacing">↕</button>
     </div>
-    <div class="group">
+    <div class="group" data-what="Keys">
       <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+    </div>
+    <div class="group" data-what="Theme">
       <button type="button" data-theme-toggle aria-label="Switch theme"></button>
     </div>
+    </div>
+    <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="More">⋯</button>
   </div>
 </header>
 
@@ -223,7 +233,7 @@
       not about the page. The readout is the typed × after a number (design.md §7). -#}
   <span class="player-rate" role="group" aria-label="Speed">
     <button type="button" class="player-slower" aria-label="Slower">−</button>
-    <span class="player-rate-now" dir="ltr" aria-hidden="true">1×</span>
+    <button type="button" class="player-rate-now" dir="ltr" aria-label="Speed" title="Speed">1×</button>
     <button type="button" class="player-faster" aria-label="Faster">+</button>
   </span>
   {#- A real file, carried in the page already, so saving it costs no request. -#}

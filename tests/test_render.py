@@ -1835,10 +1835,13 @@ def test_a_word_card_opens_beside_its_word() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "placeNear(card, word.getBoundingClientRect());" in script
+    # Through `seatNear`, which is `placeNear` on a wide window and the band at the foot
+    # on a narrow one — see the phone rules at the foot of reader.css.
+    assert "seatNear(card, word.getBoundingClientRect());" in script
     # The phrase card already did this; one placer now, so the two cannot drift.
     assert script.count("function placeNear(") == 1
-    assert "placeNear(chip, rect)" in script
+    assert "seatNear(chip, rect)" in script
+    assert script.count("placeNear(element, rect);") == 1, "and only seatNear calls it"
 
     css = _reader_css()
     rules = css.split(".gloss-card {", 1)[1].split("}", 1)[0]
@@ -1972,7 +1975,7 @@ def test_dragging_a_phrase_shows_the_chip() -> None:
     body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     # Both branches: a drag over one word, and a drag over several.
     assert body.count("placeChip(picked.rect);") == 2
-    assert "function placeChip(rect) {\n    placeNear(chip, rect);" in script
+    assert 'function placeChip(rect) {\n    occupy("chip");\n    seatNear(chip, rect);' in script
     assert "element.hidden = false;" in script[script.index("function placeNear(") :]
 
 
@@ -2761,7 +2764,7 @@ def test_the_card_says_which_keys_it_answers_to() -> None:
     assert "g look up" not in script
 
     css = _reader_css()
-    rules = css.split(".gloss-card .legend {", 1)[1].split("}", 1)[0]
+    rules = css.split("\n.gloss-card .legend {", 1)[1].split("}", 1)[0]
     # §5 gives keys the monospace face, at the label size.
     assert "ui-monospace" in rules
     assert "font-size: 0.6875rem" in rules
@@ -2862,9 +2865,11 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     # The phrase chip is a layer too. It sits over the word card, and Escape never
     # reached it at all: the first alpha reader was left with a card she could not close.
     assert escape.index("hideChip();") < escape.index("hideCard();")
+    # The menu behind ⋯ is the outermost layer of all, on a phone.
+    assert escape.index("showMore(false);") < escape.index("showKeys(false);")
     # And each layer stops there: closing the keys used to fall straight through and drop
     # you out of the queue in the same press.
-    assert escape.count("return;") == 5
+    assert escape.count("return;") == 6
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
@@ -3260,34 +3265,42 @@ def test_the_pager_and_the_offer_belong_to_the_last_page() -> None:
 
 
 def test_the_foot_of_a_narrow_window_is_one_band() -> None:
-    """Everything fixed at the foot stacks upward — sheet, arrows, player's row — and the
-    page is laid out above the highest. The tab takes the start corner so it shares a
-    corner with nothing, and every lift over the sheet comes from the sheet's measured
-    height rather than its ceiling, which is what parked the player in mid-page."""
+    """Under 60rem everything that stands over the text is an occupant of one band at
+    the foot, one at a time; the player is a strip standing on the occupant, the arrows
+    stand on the strip, and the page is laid out above the highest. The stylesheet is
+    told the measured heights — `--occupant`, `--strip`, `--foot` — rather than working
+    from the sheet's ceiling, which is what once parked the player in mid-page."""
     from targum.render.builder import ASSETS
 
     css = _reader_css()
     tab = css.split("\n.list-tab {", 1)[1].split("}", 1)[0]
     assert "inset-inline-start: 1rem" in tab
     assert "inset-inline-end" not in tab, "the end corner is the player's and the arrows'"
-    assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row"
-    narrow = css.split("@media (max-width: 60rem) {\n  .list {", 1)[1].split("\n}\n", 1)[0]
-    assert "42svh + 0.9rem" not in narrow, "lifted by the ceiling, not the sheet"
-    assert "body.has-list.list-open .player {" in narrow
-    assert "inset-block-end: calc(var(--sheet, 42svh) + 0.9rem);" in narrow
-    lift = "inset-block-end: calc(var(--sheet, 42svh) + "
-    assert "body.paged.has-list.list-open .turn { " + lift + "0.9rem); }" in narrow
-    assert "body.paged.has-list.list-open .player { " + lift + "4.15rem); }" in narrow
-    assert (
-        "body.has-list.list-open { padding-block-end: calc(var(--sheet, 42svh) + 2rem); }" in narrow
-    )
+    assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row, wide"
+    phone = css[css.index("/* --- the phone: one band at the foot") :]
+    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {"
+    occupants = phone.split(shared, 1)[1]
+    occupants = occupants.split("\n  }\n", 1)[0]
+    assert "position: fixed;" in occupants and "inset-block: auto 0;" in occupants
+    assert "max-block-size: 45svh;" in occupants, "the band's ceiling"
+    assert "inset-block-end: var(--occupant, 0px);" in phone, "the strip stands on the occupant"
+    assert "var(--occupant, 0px) + var(--strip, 0px)" in phone, "the arrows stand on the strip"
+    assert "body { padding-block-end: var(--foot, 0px); }" in phone, "the page above the lot"
+    assert "42svh + " not in css, "nothing is lifted by a ceiling"
+    assert "--sheet" not in css
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert 'document.documentElement.style.setProperty("--sheet", seat);' in script
+    for told in ("--occupant", "--strip", "--tab", "--foot"):
+        assert f'"{told}"' in script, told
     room = script[script.index("  function room() {") :]
     room = room[: room.index("\n  }\n")]
-    assert "seatSheet();" in room, "measured before the things it lifts are"
-    assert "[turn, scenePlayer, listTab, roomy.matches ? null : listBox]" in room
+    assert "seatFoot();" in room, "measured before the things it lifts are"
+    assert "concat(roomy.matches ? [] : occupants())" in room
+    # One occupant at a time, and the sheet given back after a card.
+    assert "function occupy(which)" in script and "function vacate(which)" in script
+    assert 'if (open) occupy("list");' in script
+    assert 'occupy("card");' in script and 'vacate("card");' in script
+    assert 'if (open) occupy("keys");' in script and 'if (open) occupy("more");' in script
 
 
 def test_nothing_about_a_page_is_fixed_height_or_clipped() -> None:
