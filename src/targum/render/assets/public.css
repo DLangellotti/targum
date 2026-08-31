@@ -594,6 +594,60 @@ body.public {
   /* The reader draws its own bar to the edge; without this the corners show through. */
   overflow: hidden;
 }
+/* The one row above the reader: the way into the whole screen, and the way back. Quiet
+   — raised paper, muted, a line of text — because the reader under it is the thing. */
+.public .embed .handle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  inline-size: 100%;
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  border-block-end: 1px solid var(--rule);
+  border-radius: 0;
+  background: var(--paper-raised);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.public .embed .handle:hover { color: var(--ink); }
+.public .embed .handle::after { content: " ⤢"; }
+
+/* Given the screen: the frame is the window, the page under it neither scrolls nor
+   shows, and the row above reads the other way. `body.locked` is the classic phone
+   scroll lock — fixed, with the scroll it had held in `top`, so nothing moves under a
+   thumb that has nothing to move. */
+.public .embed.locked,
+.public .weekly .embed.locked {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  /* The whole window, not the 64rem the slot is capped at — said at the slot's own
+     specificity, or the cap wins. */
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+}
+.public .embed.locked .handle {
+  justify-content: flex-start;
+}
+.public .embed.locked .handle::before { content: "← "; }
+.public .embed.locked .handle::after { content: none; }
+.public .embed.locked iframe {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  height: auto;
+}
+body.public.locked {
+  position: fixed;
+  inline-size: 100%;
+  overflow: hidden;
+}
 .public .embed iframe {
   display: block;
   width: 100%;

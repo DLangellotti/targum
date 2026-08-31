@@ -35,6 +35,100 @@
     }
   }
 
+  /* The frame takes the screen.
+
+     A reader inside a page that scrolls is the worst of both: the page takes the
+     scroll the reader wanted, and the reader is cramped inside a slot. So the moment
+     somebody starts reading in it — a tap or a click inside the frame, which the page
+     can hear because the frame is the same origin — the frame is given the whole
+     window, and the page under it is held still. On a phone, scrolling the frame to
+     the top of the window is starting to read too.
+
+     Given back from the row above the reader, or on Escape — unless the reader has a
+     card or a sheet up, which is what Escape closes first. And once somebody has let
+     themselves out, scrolling does not pull them back in; only touching the reader
+     again does. */
+  var embed = document.getElementById("embed");
+  var handle = document.getElementById("embed-handle");
+  var framed = embed && embed.querySelector("iframe");
+  if (embed && handle && framed) {
+    var locked = false;
+    var left = false;
+    var held = 0;
+    var narrow = window.matchMedia("(max-width: 60rem)");
+
+    function lock() {
+      if (locked) return;
+      locked = true;
+      left = false;
+      held = window.scrollY;
+      document.body.style.top = -held + "px";
+      document.body.classList.add("locked");
+      embed.classList.add("locked");
+      handle.textContent = "Back to the page";
+      handle.setAttribute("aria-expanded", "true");
+    }
+
+    function unlock() {
+      if (!locked) return;
+      locked = false;
+      left = true;
+      embed.classList.remove("locked");
+      document.body.classList.remove("locked");
+      document.body.style.top = "";
+      window.scrollTo(0, held);
+      handle.textContent = "Full screen";
+      handle.setAttribute("aria-expanded", "false");
+    }
+
+    /* Whether the reader has something of its own up that Escape should close first. */
+    function readerIsBusy() {
+      try {
+        var doc = framed.contentDocument;
+        return !!(doc && doc.querySelector(
+          ".gloss-card:not([hidden]), #list:not([hidden]), .bar-more.open, #keys:not([hidden])"
+        ));
+      } catch (error) {
+        return false;
+      }
+    }
+
+    handle.addEventListener("click", function () {
+      if (locked) unlock();
+      else lock();
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && locked) unlock();
+    });
+
+    function listenInside() {
+      var doc;
+      try {
+        doc = framed.contentDocument;
+      } catch (error) {
+        return;
+      }
+      if (!doc || doc.__targumListening) return;
+      doc.__targumListening = true;
+      doc.addEventListener("pointerdown", function () { lock(); }, true);
+      doc.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && locked && !readerIsBusy()) unlock();
+      });
+    }
+    framed.addEventListener("load", listenInside);
+    listenInside();
+
+    window.addEventListener(
+      "scroll",
+      function () {
+        if (locked || left || !narrow.matches) return;
+        var top = embed.getBoundingClientRect().top;
+        if (top <= 12 && top > -embed.offsetHeight / 2) lock();
+      },
+      { passive: true }
+    );
+  }
+
   /* The level on the page and the level in the frame, kept the same. The reader's own
      bar switches level by navigating the frame, and a page that only knew the level it
      was served at would then be marking the wrong one — which is the reason it had no
@@ -97,6 +191,11 @@
   var watcher = new window.IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
       if (!entry.isIntersecting || remembered()) return;
+      /* Not while the reader has the screen: holding the page still puts the sources
+         under the frame, where the observer counts them as in view — and a card over
+         somebody who has just started reading is the nag this was written not to be.
+         The observer stays on; they will come past the reader on their way out. */
+      if (document.body.classList.contains("locked")) return;
       watcher.disconnect();
       dialog.showModal();
     });

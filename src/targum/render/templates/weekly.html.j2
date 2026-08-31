@@ -74,7 +74,13 @@
       the same built file a signed-in reader gets, with its own level switcher, its word
       cards and its vocabulary count. Same origin both ways, and `frame-ancestors 'self'`
       keeps every other site out. -#}
-  <div class="embed">
+  {#- And given the screen. A reader inside a page that scrolls is the worst of both: the
+      page takes the scroll the reader wanted, and the reader is cramped. So the frame
+      takes the whole window the moment somebody starts reading in it — a tap or a click
+      inside, or on a phone scrolling it to the top — and gives it back from the one row
+      above it, or on Escape. `weekly.js`. -#}
+  <div class="embed" id="embed">
+    <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
     <iframe
       src="/weekly/read/{{ folder }}/reader/index.html"
       title="{{ issue.title }} — {{ spec.label }}"
