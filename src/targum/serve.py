@@ -2098,8 +2098,8 @@ class Handler(BaseHTTPRequestHandler):
         stamp = email.utils.formatdate(told.st_mtime, usegmt=True)
         # A validator, because a part is tens of megabytes and content-stable: the
         # browser that kept it asks again with If-Modified-Since, and 304 is the
-        # whole answer. If-Range is deliberately not honoured — ignoring it only
-        # costs a re-request in the rare case a part is ever re-cut.
+        # whole answer. If-Range is honoured a few lines down, where a validator that
+        # no longer matches turns a range back into a whole-file answer.
         held = self.headers.get("If-Modified-Since", "")
         if held == stamp and "Range" not in self.headers:
             self.send_response(304)

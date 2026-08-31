@@ -1791,6 +1791,43 @@ def test_a_kept_part_is_revalidated_not_refetched(served: tuple[int, str, Path])
     assert body == b""
 
 
+def test_a_stale_if_range_gets_the_whole_file_not_a_splice(
+    served: tuple[int, str, Path],
+) -> None:
+    """If-Range carries the validator the browser is holding. When it no longer matches,
+    the range is against bytes that are gone, and a 206 would splice a re-cut part into
+    an old one. Per the RFC the range is ignored and the current file answers whole."""
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    response, body = _ask(
+        port,
+        f"{where}?k={key}",
+        Range="bytes=100-",
+        **{"If-Range": "Thu, 01 Jan 1970 00:00:00 GMT"},
+    )
+    assert response.status == 200, "a stale validator must never answer 206"
+    assert response.getheader("Content-Range") is None
+    assert body == reel
+
+
+def test_a_current_if_range_still_honours_the_seek(served: tuple[int, str, Path]) -> None:
+    """The other half of the branch: a validator that matches means the bytes the
+    browser holds are current, so the seek it asked for is answered as a seek."""
+    port, key, out = served
+    reel = bytes(range(256))
+    where = _video_part(out, reel)
+
+    first, _body = _ask(port, f"{where}?k={key}")
+    stamp = first.getheader("Last-Modified")
+    assert stamp
+    response, body = _ask(port, f"{where}?k={key}", Range="bytes=100-", **{"If-Range": stamp})
+    assert response.status == 206
+    assert response.getheader("Content-Range") == f"bytes 100-255/{len(reel)}"
+    assert body == reel[100:]
+
+
 def test_a_video_outside_the_reader_roots_stays_unreachable(
     served: tuple[int, str, Path],
 ) -> None:
