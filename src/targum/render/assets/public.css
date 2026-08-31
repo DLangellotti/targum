@@ -451,6 +451,17 @@ body.public {
   padding: 0;
   list-style: none;
 }
+/* Twelve rows are a wall on a wide window; two columns halve it. `inside-avoid`, so a
+   headline and its way in never split across the fold. */
+@media (min-width: 60rem) {
+  .public .weekly .sources ul {
+    columns: 2;
+    column-gap: 2.5rem;
+  }
+  .public .weekly .sources li {
+    break-inside: avoid;
+  }
+}
 .public .sources li,
 .public .archive li {
   margin-block-end: 0.7rem;
