@@ -58,7 +58,7 @@
     <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
        data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
       <b>{{ other_spec.name }}</b>
-      <span class="figure">for {{ other_spec.figure }} words</span>
+      <span class="figure"><span class="for">for </span>{{ other_spec.figure }} words</span>
       <span class="what">{{ explained[other] }}</span>
     </a>
     {%- endfor %}

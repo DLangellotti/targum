@@ -716,12 +716,15 @@ body.public {
     gap: 0.5rem;
     margin-block-end: 0.8rem;
   }
+  /* Panels, not pills: two short lines inside a 999px radius made three tall ovals.
+     Three small panels in a row read as one control with three positions. */
   .public .ladder a,
   .public .ladder a.here {
     flex: 1 1 0;
-    padding: 0.45rem 0.6rem;
+    min-inline-size: 0;
+    padding: 0.5rem 0.4rem;
     border: 1px solid var(--rule);
-    border-radius: 999px;
+    border-radius: 8px;
     text-align: center;
   }
   .public .ladder a.here {
@@ -730,11 +733,16 @@ body.public {
   .public .ladder b {
     display: block;
     font-size: 0.8125rem;
+    white-space: nowrap;
   }
   .public .ladder .figure {
     margin: 0;
     font-size: 0.6875rem;
     color: var(--ink-soft);
+    white-space: nowrap;
+  }
+  .public .ladder .figure .for {
+    display: none;
   }
   .public .ladder .what {
     display: none;
