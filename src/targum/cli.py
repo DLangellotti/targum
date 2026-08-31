@@ -1592,6 +1592,7 @@ def sources() -> None:
     """List everything targum can read."""
     console.print("  [bold]Files[/bold]      .epub, .txt, .md, .srt, .vtt")
     console.print("  [bold]Audio[/bold]      .mp3, .m4a, .m4b, .aac, .ogg, .opus, .flac, .wav")
+    console.print("  [bold]Video[/bold]      .mp4, .m4v, .mov, .webm, .mkv, and a YouTube address")
     console.print("  [bold]Links[/bold]      any article, essay, wiki page or podcast episode")
     console.print("  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>")
     console.print("[dim]Not PDF. Save one as text or markdown first.[/dim]")
