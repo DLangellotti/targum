@@ -2008,8 +2008,11 @@
       tell("--tab");
       tell("--tab-lift");
       var top = window.innerHeight;
-      [turn, scenePlayer, listTab].concat(occupants()).forEach(function (thing) {
-        if (standing(thing)) top = Math.min(top, thing.getBoundingClientRect().top);
+      [turn, scenePlayer, listTab].forEach(function (thing) {
+        if (standing(thing)) top = Math.min(top, settledTop(thing, false));
+      });
+      occupants().forEach(function (thing) {
+        if (standing(thing)) top = Math.min(top, settledTop(thing, true));
       });
       var foot = window.innerHeight - top;
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
@@ -2029,6 +2032,35 @@
   // before they were.
   function occupants() {
     return [listBox, card, chip, keysCard, more];
+  }
+
+  // Where a thing at the foot will stand once it has stopped moving. The strip, the
+  // tab and the arrows ride to their places over 200ms, and an occupant rises from the
+  // foot; measured mid-flight, the band came out too small as a menu opened — four
+  // verses laid out, then run under the arrows as they arrived — and too big as it
+  // closed, two verses and a screen of paper. An occupant is anchored to the foot, so
+  // its settled top is the foot less its height; a riding thing's is read off its own
+  // transition, whose last keyframe is where it is going. Where nothing is moving, this
+  // is the box.
+  function settledTop(thing, anchored) {
+    var box = thing.getBoundingClientRect();
+    if (anchored) return window.innerHeight - box.height;
+    if (!thing.getAnimations) return box.top;
+    var runs = thing.getAnimations();
+    for (var i = 0; i < runs.length; i++) {
+      var run = runs[i];
+      // The logical property, or its physical name: a browser reports a transition on
+      // `inset-block-end` as one on `bottom`, keyframes included.
+      var on = run.transitionProperty;
+      if ((on !== "inset-block-end" && on !== "bottom") || !run.effect || !run.effect.getKeyframes) {
+        continue;
+      }
+      var frames = run.effect.getKeyframes();
+      var last = frames.length ? frames[frames.length - 1] : null;
+      var to = last ? parseFloat(last.insetBlockEnd || last.bottom) : NaN;
+      if (!isNaN(to)) return window.innerHeight - to - box.height;
+    }
+    return box.top;
   }
 
   // How much of the window the band takes, as the stylesheet was last told.
@@ -3855,11 +3887,18 @@
     // On a wide window the occupants are not in the band: the list is a column from
     // the bar to the foot, and measuring that would leave the page its 160px floor and
     // nothing more; a card sits beside its word.
-    [turn, scenePlayer, listTab].concat(roomy.matches ? [] : occupants()).forEach(function (thing) {
+    [turn, scenePlayer, listTab].forEach(function (thing) {
       if (!thing || thing.hidden) return;
       var box = thing.getBoundingClientRect();
-      if (box.height) foot = Math.max(foot, window.innerHeight - box.top + 12);
+      if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, false) + 12);
     });
+    if (!roomy.matches) {
+      occupants().forEach(function (thing) {
+        if (!thing || thing.hidden) return;
+        var box = thing.getBoundingClientRect();
+        if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
+      });
+    }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
 

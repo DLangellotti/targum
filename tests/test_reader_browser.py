@@ -2840,3 +2840,53 @@ def test_a_turned_page_moves_the_way_it_turned(browser, built: Path, still, name
     seen = page.evaluate("() => getComputedStyle(document.getElementById('reader')).animationName")
     context.close()
     assert seen == name
+
+
+def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """With motion on, the strip and the arrows ride to their places over 200ms and an
+    occupant rises from the foot. The page must be laid out for where they will stand:
+    measured mid-flight, a menu opening gave the page four verses that ran under the
+    arrows, and closing it gave two and a screen of paper."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(
+        tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF, words=True
+    )
+    context = browser.new_context(viewport=PHONE, reduced_motion="no-preference")
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.wait_for_selector("#player")
+
+    def pages_and_ceiling() -> dict:
+        return page.evaluate(
+            """() => {
+              const box = (el) => el && !el.hidden && el.getClientRects().length
+                ? el.getBoundingClientRect() : null;
+              const foot = [document.getElementById('player'), document.querySelector('.turn'),
+                document.getElementById('more')].map(box).filter(Boolean);
+              const ceiling = Math.min(...foot.map((b) => b.top));
+              const lines = [...document.querySelectorAll('.pair:not([hidden])')]
+                .map((p) => p.getBoundingClientRect().bottom);
+              return { pages: document.getElementById('page-of').textContent,
+                       under: lines.filter((b) => b > ceiling + 1).length };
+            }"""
+        )
+
+    page.click(".bar .more")
+    page.wait_for_timeout(20)
+    opened_at_once = pages_and_ceiling()["pages"]
+    page.wait_for_timeout(450)
+    settled = pages_and_ceiling()
+    assert settled["pages"] == opened_at_once, "laid out once, for where the band will be"
+    assert settled["under"] == 0, "no line under the menu or what stands on it"
+
+    page.click(".bar .more")
+    page.wait_for_timeout(20)
+    closed_at_once = pages_and_ceiling()["pages"]
+    page.wait_for_timeout(450)
+    settled = pages_and_ceiling()
+    assert settled["pages"] == closed_at_once
+    assert settled["under"] == 0
+    context.close()

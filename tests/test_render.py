@@ -3301,7 +3301,11 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     room = script[script.index("  function room() {") :]
     room = room[: room.index("\n  }\n")]
     assert "seatFoot();" in room, "measured before the things it lifts are"
-    assert "concat(roomy.matches ? [] : occupants())" in room
+    # The occupants count on a narrow window only, and everything at the foot is
+    # measured where it will stand once it has stopped moving, not mid-flight.
+    assert "if (!roomy.matches) {" in room and "occupants().forEach" in room
+    assert room.count("settledTop(thing, false)") == 1
+    assert room.count("settledTop(thing, true)") == 1
     # One occupant at a time, and the sheet given back after a card.
     assert "function occupy(which)" in script and "function vacate(which)" in script
     assert 'if (open) occupy("list");' in script
