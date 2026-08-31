@@ -12,7 +12,7 @@ from html import unescape
 
 import pytest
 
-from targum.catalogue import CATALOGUE, Tag, beit_midrash
+from targum.catalogue import CATALOGUE, Kind, Tag, beit_midrash
 from targum.render.builder import shelf_page, text_page
 
 ADDRESS = "https://targum.page"
@@ -202,3 +202,16 @@ def test_a_cover_prompt_says_what_the_brand_never_draws() -> None:
         assert banned in said
     # And it is about this text, not a generic cover.
     assert CATALOGUE[0].title in prompt and CATALOGUE[0].blurb in prompt
+
+
+@pytest.mark.parametrize("kind", list(Kind))
+def test_every_kind_of_text_has_a_cover_prompt(kind: Kind) -> None:
+    """`cover_prompt` names each kind in words, from a table — and a kind added to the
+    enum without a row in that table raised `KeyError` from the `/cover` route, so the
+    library's Draw button answered with an empty body for every scene."""
+    from dataclasses import replace
+
+    from targum.catalogue import cover_prompt
+
+    prompt = cover_prompt(replace(CATALOGUE[0], kind=kind))
+    assert CATALOGUE[0].title in prompt

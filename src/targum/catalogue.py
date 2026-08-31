@@ -281,6 +281,9 @@ def cover_prompt(entry: Entry) -> str:
         Kind.document: "a founding document",
         Kind.article: "an article",
         Kind.play: "a play",
+        # Every value of `Kind`, or the library page's Draw button dies on the first text
+        # of the kind that was left out — which is what happened to the scenes.
+        Kind.dialogue: "a short scene of everyday conversation",
     }[entry.kind]
     return (
         f"A cover image for {kind}: {entry.title} — {entry.author}. {entry.blurb} "

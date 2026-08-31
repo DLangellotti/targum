@@ -2881,9 +2881,28 @@ def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "  function onward(from, forward) {\n    return step(from, forward);\n  }" in script, (
+    onward = script[script.index("  function onward(from, forward) {") :]
+    onward = onward[: onward.index("\n  }\n")]
+    assert onward.startswith(
+        "  function onward(from, forward) {\n    var entry = step(from, forward);"
+    )
+    assert "step(null, forward)" not in onward, (
         "onward must not fall back to the first waiting word any more"
     )
+    # On pages, forward stops at the foot of the page and turns one page from there —
+    # loudly, the way PageDown does — rather than turning straight to the next word owed
+    # and leaving the lines under this one unread.
+    assert "var foot = footOf(current);" in onward
+    assert "if (!turnBy(1)) return entry;" in onward
+    # The first press on a page already clear goes to its foot, not some pages on.
+    assert "return onward(edge, forward) || step(null, forward);" in script
+    # And off the foot of the last page, the next chapter — the one place the walk
+    # leaves the file, and by the same door PageDown and the page control use.
+    walk = script[script.index("  function walk(forward) {") :]
+    walk = walk[: walk.index("\n  }\n")]
+    assert "current === pages.length - 1 && nextChapter()" in walk
+    assert script.count("nextChapter()") == 4, "defined once; PageDown, the control, the walk"
+    assert script.count("location.href = ") == 1, "one door out of the chapter"
     # Both the arrows and a decision go through it.
     assert "var entry = place ? onward(place, forward) : enterFrom(forward);" in script
     # `false`: a card is spent by the level it was answered with, so what the arrows

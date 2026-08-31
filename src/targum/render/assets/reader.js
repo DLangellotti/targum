@@ -2024,6 +2024,11 @@
       // All five keys move on, not only `k` and `i`. A level means "still learning", so
       // the word stays in the queue; asking for the first one past where you were
       // carries you over it without a case of its own.
+      //
+      // On pages `onward` stops at the foot of the page before turning it, and a level
+      // said on the foot turns it. The level was announced by `setStatus` a moment ago
+      // and "Page 2 of 9" now takes the live region over it — accepted: the turn is the
+      // larger news, and the word was known to be known.
       if (from) {
         // Nothing further. Close up, and let the header say the chapter is clear.
         if (!goTo(onward(from, true), true, false)) {
@@ -3512,6 +3517,16 @@
     return true;
   }
 
+  // On to the next chapter's file, where there is one: what PageDown, the forward arrow
+  // of the page control and the walk all do off the last page. False on the last
+  // chapter, where the foot of the text carries Done instead.
+  function nextChapter() {
+    var link = pager && pager.querySelector("[data-next]");
+    if (!link) return false;
+    location.href = link.getAttribute("href");
+    return true;
+  }
+
   /* --- straight to a section -------------------------------------------------
    *
    * The weekly is one long targum rather than six chapters, which is right for reading
@@ -3731,10 +3746,7 @@
       }
       if (button.hasAttribute("data-turn")) {
         var went = turnBy(Number(button.getAttribute("data-turn")));
-        if (!went && Number(button.getAttribute("data-turn")) > 0) {
-          var next = pager && pager.querySelector("[data-next]");
-          if (next) location.href = next.getAttribute("href");
-        }
+        if (!went && Number(button.getAttribute("data-turn")) > 0) nextChapter();
         return;
       }
       var mode = button.getAttribute("data-mode");
@@ -3890,16 +3902,44 @@
     var list = queueFor(forward);
     if (!list.length) return null;
     if (!from) return forward ? list[0] : list[list.length - 1];
-    var here = segmentIndex(from.segment);
     for (var n = 0; n < list.length; n++) {
       var entry = list[forward ? n : list.length - 1 - n];
-      var there = segmentIndex(entry.segment);
-      if (there === -1) continue;
-      var after = there > here || (there === here && entry.start > from.start);
-      var before = there < here || (there === here && entry.start < from.start);
-      if (forward ? after : before) return entry;
+      if (segmentIndex(entry.segment) === -1) continue;
+      if (forward ? later(entry, from) : later(from, entry)) return entry;
     }
     return null;
+  }
+
+  // Whether `a` comes after `b` in the reading: a later sentence, or the same one
+  // further along.
+  function later(a, b) {
+    var x = segmentIndex(a.segment);
+    var y = segmentIndex(b.segment);
+    return x > y || (x === y && a.start > b.start);
+  }
+
+  // The last word on a page, whatever was said about it. Decided by the same test of
+  // what counts as a word as `buildAll`, so the foot the forward arrow stops at and the
+  // word the back arrow returns to are the same one. Null for a page with no words.
+  function footOf(n) {
+    var range = pages[n];
+    if (!range) return null;
+    for (var i = range[1]; i >= range[0]; i--) {
+      var id = pairs[i].getAttribute("data-id");
+      var tokens = wordData[id] || [];
+      for (var t = tokens.length - 1; t >= 0; t--) {
+        if (!lemmas[tokens[t][4]]) continue;
+        return { segment: id, lemma: tokens[t][4], start: tokens[t][0] };
+      }
+    }
+    return null;
+  }
+
+  // Which page a queued word is on; -1 for a word the page drew no pair for.
+  function pageAt(entry) {
+    var pair = entry ? pairBySegment[entry.segment] : null;
+    var index = pair ? pairs.indexOf(pair) : -1;
+    return index < 0 ? -1 : pageFor(index, pages);
   }
 
   // The next word, and nothing past the last one. It used to round to the beginning when
@@ -3911,8 +3951,28 @@
   // The words earlier are still reachable — the other arrow walks back through the text
   // as written, and a tap reaches any word at all — so what is lost is a shortcut, and
   // what is gained is an end that behaves like one.
+  //
+  // On pages, forward is a page at a time. The next word owed can be on a later page,
+  // and turning straight to it turned the page under the lines beneath the word the
+  // reader was on — the last word they had not finished with is seldom the last word on
+  // the page — so the end of every page went unread and had to be paged back to. And a
+  // page with nothing left to mark had no way through it from the keyboard at all. So
+  // the foot of the page comes first: the arrow stops on its last word, whatever was
+  // said about it, and from there turns one page — loudly, like PageDown, because a turn
+  // is news — and stands on the first word owed on the new page, or its foot when it has
+  // none. A page already clear costs one key, the same as a word.
+  //
+  // Back is untouched: it walks the text as written and lands on the previous page's
+  // foot by itself. Off the last page, nothing further, as before.
   function onward(from, forward) {
-    return step(from, forward);
+    var entry = step(from, forward);
+    if (!forward || !paged() || !pages.length) return entry;
+    if (entry && pageAt(entry) === current) return entry;
+    var foot = footOf(current);
+    if (foot && (!from || later(foot, from))) return foot;
+    if (!turnBy(1)) return entry;
+    if (entry && pageAt(entry) === current) return entry;
+    return footOf(current);
   }
 
   // Entering the queue from where you are reading, not from the top of the chapter. On a
@@ -3926,7 +3986,9 @@
     // Outside this sentence on the side you came from, so its own words are all still
     // ahead of you: going forward that is before its first offset, going back its last.
     var edge = { segment: pair.getAttribute("data-id"), start: forward ? -1 : Infinity };
-    return step(edge, forward) || step(null, forward);
+    // Through `onward`, so the first press on a page already clear goes to its foot and
+    // not to a word some pages on.
+    return onward(edge, forward) || step(null, forward);
   }
 
   // The sentence in front of the reader: the first one not yet scrolled past. Measured
@@ -4080,6 +4142,7 @@
   function walk(forward) {
     if (!card) return false;
     var entry = place ? onward(place, forward) : enterFrom(forward);
+    var had = !!place;
     // Nothing that way. A card already open stays open: closing it out from under
     // somebody who pressed an arrow at the end of the chapter answers the wrong question.
     //
@@ -4088,11 +4151,19 @@
     // refuses to do with a key — the button is focused and Enter presses it because that
     // is what Enter does to a focused button. The focus ring is also the answer to "it
     // stopped, now what".
+    //
+    // On pages, nothing further from the foot of the last page means the next chapter,
+    // as it does for PageDown — the foot rule has already stood the reader on the last
+    // word of the last page, so nothing is skipped. Done and the next chapter never
+    // meet: Done is only on the last part, and a part with a next has no Done.
     if (!entry) {
       if (forward && place && finishedMark && !finishedAt() && finishedMark.focus) {
         finishedMark.focus();
+      } else if (forward && place && paged() && current === pages.length - 1 && nextChapter()) {
+        return true;
       }
-      return !!place;
+      offPage();
+      return had;
     }
     // Stepping through words the page is not painting is a mode you can be lost in. `m`
     // puts it back.
@@ -4101,9 +4172,21 @@
       applyMarking();
       save();
     }
+    if (goTo(entry, forward, asking())) return true;
     // Already true where the card is open: a walk that reached the end of what it can
     // reach leaves you on the word you were on rather than on nothing.
-    return goTo(entry, forward, asking()) || !!place;
+    offPage();
+    return had;
+  }
+
+  // `onward` may have turned the page and then found nothing to stand on — a page with
+  // no words, or a foot whose span was not drawn. Left as it was, the ring would be on
+  // a word the page is no longer showing, and the next level key would mark it out of
+  // sight. Not `goTo`'s retry: that walks the queue past the page rule.
+  function offPage() {
+    if (!paged() || !standing) return;
+    var pair = standing.closest ? standing.closest(".pair") : null;
+    if (!pair || pair.hidden) leaveQueue();
   }
 
   /* --- keyboard ------------------------------------------------------------ */
@@ -4169,10 +4252,7 @@
       if (!paged()) return;
       event.preventDefault();
       var back = key === "PageUp";
-      if (!turnBy(back ? -1 : 1) && !back) {
-        var onward = pager && pager.querySelector("[data-next]");
-        if (onward) location.href = onward.getAttribute("href");
-      }
+      if (!turnBy(back ? -1 : 1) && !back) nextChapter();
       return;
     }
 

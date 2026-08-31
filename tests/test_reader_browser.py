@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -87,14 +88,27 @@ def coin(n: int) -> str:
     return "".join(ALEPHBET[(n // 22**power) % 22] for power in range(5))
 
 
-def chapter(out: Path, taamim: bool = False) -> Path:
+def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
     """A built reader with everything the bar can change: words, vowels, translation.
 
     With `taamim`, the pointed text also carries accents, which is what gives the switch
-    its third position — the form a Masoretic edition publishes.
+    its third position — the form a Masoretic edition publishes. With two `parts`, a
+    heading halfway opens a second chapter file, so the first has somewhere to go on to.
     """
     segments, pointed, tokens, minted = [], {}, {}, 0
     for n in range(VERSES):
+        if parts > 1 and n == VERSES // 2:
+            heading = Segment(
+                id=f"{n:04d}.head-aaaaaa",
+                block_id=f"h{n:04d}",
+                block_index=n,
+                index=n,
+                kind=BlockKind.heading,
+                level=1,
+                text="Part two",
+            )
+            segments.append(heading)
+            pointed[heading.id] = heading.text
         # Alternating lengths, because a chapter of identical pairs would move by the
         # same amount everywhere and hide an anchor that is off by a whole sentence.
         words = [coin(minted + i) for i in range(14 if n % 3 else 42)]
@@ -1161,6 +1175,200 @@ def test_the_arrows_turn_the_page_to_the_word_they_reach(paged) -> None:
         raise AssertionError("six hundred words in and the page never turned")
     standing = paged.evaluate("() => document.querySelector('.w.queued')?.closest('.pair')?.hidden")
     assert standing is False, "the word the arrows are on is on the page on show"
+
+
+#: The word the arrows are on, as the chapter data names it: which sentence, which
+#: offset, and whether the page is showing it.
+STANDING = """
+() => {
+  const w = document.querySelector('.w.queued');
+  if (!w) return null;
+  const pair = w.closest('.pair');
+  return {
+    segment: pair.dataset.id,
+    lemma: Number(w.getAttribute('data-lemma')),
+    start: Number(w.getAttribute('data-bare').split(',')[0]),
+    hidden: pair.hidden,
+    focused: document.activeElement === w,
+  };
+}
+"""
+
+#: The chapter as the page was built with it: the sentences in order, and the tokens of
+#: each, so a test can say which word is the last on a page without reading the page.
+CHAPTER = """
+() => {
+  const data = JSON.parse(document.getElementById('targum-data').textContent);
+  return {
+    ids: [...document.querySelectorAll('.pair')].map((p) => p.dataset.id),
+    words: data.words,
+  };
+}
+"""
+
+
+def foot_of(chapter: dict[str, Any], first: int, last: int) -> dict[str, Any]:
+    """The last word of the pairs `first`..`last`, as `STANDING` would report it."""
+    for n in range(last, first - 1, -1):
+        segment = chapter["ids"][n]
+        tokens = chapter["words"].get(segment) or []
+        if tokens:
+            return {"segment": segment, "lemma": tokens[-1][4], "start": tokens[-1][0]}
+    raise AssertionError("no words on the page")
+
+
+def first_of(chapter: dict[str, Any], n: int) -> dict[str, Any]:
+    segment = chapter["ids"][n]
+    token = chapter["words"][segment][0]
+    return {"segment": segment, "lemma": token[4], "start": token[0]}
+
+
+def same_word(standing: dict[str, Any] | None, word: dict[str, Any]) -> bool:
+    return standing is not None and all(standing[key] == word[key] for key in word)
+
+
+def forward_key(page) -> str:
+    return "ArrowLeft" if page.evaluate("() => document.dir === 'rtl'") else "ArrowRight"
+
+
+def settled(page) -> None:
+    """The real face has arrived and the pages are laid out in its metrics — a chapter
+    paginated in the fallback's is re-paged the moment the font lands."""
+    page.evaluate("() => document.fonts.ready")
+    page.wait_for_timeout(50)
+
+
+def test_forward_stops_at_the_foot_of_the_page_before_turning_it(paged) -> None:
+    """A page with nothing left to mark used to have no way through it from the
+    keyboard: forward found the next word owed some pages on and went there, or found
+    nothing and did nothing. Now the arrow stops on the page's last word, and from there
+    turns one page — announced, and scrolled to the top like PageDown."""
+    settled(paged)
+    paged.evaluate("() => window.TargumReader.markRest()")
+    one = paged.evaluate(PAGE)
+    chapter = paged.evaluate(CHAPTER)
+    forward = forward_key(paged)
+
+    paged.keyboard.press(forward)
+    assert paged.evaluate(PAGE)["of"] == one["of"], "the first press stays on the page"
+    standing = paged.evaluate(STANDING)
+    assert same_word(standing, foot_of(chapter, one["first"], one["last"])), standing
+    assert standing["focused"] and not standing["hidden"]
+
+    paged.keyboard.press(forward)
+    two = paged.evaluate(PAGE)
+    assert two["of"].startswith("2 of ")
+    assert two["first"] == one["last"] + 1
+    assert paged.evaluate("() => window.scrollY") == 0, "a turned page starts at the top"
+    standing = paged.evaluate(STANDING)
+    assert same_word(standing, foot_of(chapter, two["first"], two["last"])), standing
+    assert not standing["hidden"]
+    assert paged.evaluate("() => document.getElementById('spoken').textContent").startswith(
+        "Page 2 of "
+    )
+
+    paged.keyboard.press("PageUp")
+    assert paged.evaluate(PAGE)["of"].startswith("1 of ")
+
+
+def cleared_but_two(paged) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Every word known except the first on page one and the first on page two, both
+    left at a level. Levels before the page is read: setting one can open the list and
+    re-page the chapter."""
+    settled(paged)
+    chapter = paged.evaluate(CHAPTER)
+    one = paged.evaluate(PAGE)
+    first = first_of(chapter, 0)
+    second = first_of(chapter, one["last"] + 1)
+    paged.evaluate(
+        "([a, b]) => { window.TargumReader.level(a, 2); window.TargumReader.level(b, 2); }",
+        [first["lemma"], second["lemma"]],
+    )
+    paged.evaluate("() => window.TargumReader.markRest()")
+    one = paged.evaluate(PAGE)
+    assert one["first"] == 0 and one["last"] + 1 < one["total"]
+    second = first_of(chapter, one["last"] + 1)
+    return chapter, one, first, second
+
+
+def test_the_lines_under_the_last_queued_word_are_read_before_the_page_turns(paged) -> None:
+    """The last word you had not finished with is seldom the last word on the page.
+    Forward from it used to turn straight to the next word owed, on the next page, and
+    the lines under it went unread and had to be paged back to."""
+    chapter, one, first, second = cleared_but_two(paged)
+    forward = forward_key(paged)
+
+    paged.keyboard.press(forward)
+    assert same_word(paged.evaluate(STANDING), first)
+
+    paged.keyboard.press(forward)
+    assert paged.evaluate(PAGE)["of"] == one["of"], "the page did not turn"
+    standing = paged.evaluate(STANDING)
+    assert same_word(standing, foot_of(chapter, one["first"], one["last"])), standing
+
+    paged.keyboard.press(forward)
+    assert paged.evaluate(PAGE)["of"].startswith("2 of ")
+    assert same_word(paged.evaluate(STANDING), second), "the next word owed, on its page"
+
+
+def test_a_level_on_the_last_queued_word_does_not_turn_the_page(paged) -> None:
+    """`k` moves on the same way the arrow does, and stops at the same foot."""
+    chapter, one, first, second = cleared_but_two(paged)
+    paged.keyboard.press(forward_key(paged))
+    assert same_word(paged.evaluate(STANDING), first)
+
+    paged.keyboard.press("k")
+    assert paged.evaluate(PAGE)["of"] == one["of"], "the page did not turn"
+    standing = paged.evaluate(STANDING)
+    assert same_word(standing, foot_of(chapter, one["first"], one["last"])), standing
+
+    paged.keyboard.press("k")
+    assert paged.evaluate(PAGE)["of"].startswith("2 of ")
+    assert same_word(paged.evaluate(STANDING), second)
+
+
+def test_off_the_foot_of_the_last_page_forward_is_the_next_chapter(
+    browser, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """The one place the walk leaves the file, and by the same door PageDown uses. Only
+    from the foot of the last page: the foot rule has stood the reader on the last word
+    of the chapter before this can happen, so nothing is skipped on the way."""
+    # `render` hands back the contents page first; the first part is the file after it.
+    first = chapter(tmp_path_factory.mktemp("parts") / "reader", parts=2).parent / "sec-0001.html"
+    assert first.exists(), "a text in parts is one file a part"
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(first.as_uri())
+    page.wait_for_selector(".pair")
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    settled(page)
+    following = page.get_attribute(".pager a[data-next]", "href")
+    assert following, "the first part has a second to go on to"
+    page.evaluate("() => window.TargumReader.markRest()")
+    forward = forward_key(page)
+
+    # Foot, turn, foot, turn — to the last page.
+    for _ in range(40):
+        seen = page.evaluate(PAGE)
+        if seen["last"] == seen["total"] - 1:
+            break
+        page.keyboard.press(forward)
+    else:
+        raise AssertionError("forty presses and the last page never came")
+    assert page.evaluate("() => document.body.classList.contains('last-page')")
+
+    # The last page's foot, then the door.
+    foot = foot_of(page.evaluate(CHAPTER), seen["first"], seen["last"])
+    for _ in range(3):
+        if same_word(page.evaluate(STANDING), foot):
+            break
+        page.keyboard.press(forward)
+    assert same_word(page.evaluate(STANDING), foot), "the arrow stops on the last word first"
+    assert page.url.endswith(first.name), "still on the first part until the foot is left"
+    with page.expect_navigation():
+        page.keyboard.press(forward)
+    assert page.url.endswith(following)
+    context.close()
 
 
 def test_leaving_and_coming_back_lands_on_the_same_page(paged, built: Path) -> None:
