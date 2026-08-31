@@ -840,7 +840,11 @@ def test_the_framed_reader_takes_the_screen_and_gives_it_back(
             browser = driver.chromium.launch()
         except Exception as why:  # pragma: no cover - the browser itself is not installed
             pytest.skip(f"no Chromium ({why})")
-        page = browser.new_page(viewport=size, has_touch=phone, is_mobile=phone)
+        # Stillness asked for: the frame flies between the slot and the window on the
+        # way in and out, and a box measured in flight is neither.
+        page = browser.new_page(
+            viewport=size, has_touch=phone, is_mobile=phone, reduced_motion="reduce"
+        )
         page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
         page.wait_for_selector("#embed-handle")
         assert not page.evaluate(LOCKED)["locked"], "at rest, a slot on the page"

@@ -57,28 +57,64 @@
     var held = 0;
     var narrow = window.matchMedia("(max-width: 60rem)");
 
+    /* From the slot to the window and back as one movement, not a cut. The frame is
+       laid out where it is going first; then a transform puts it back where it was and
+       is let go of on the mode pill's curve, so the box is seen to grow from the slot
+       (and to shrink back into it). The reader inside lays itself out for the new size
+       at the start, under the transform — a small shift at the slot's size, then the
+       rise. Nothing, where stillness was asked for. */
+    var still = window.matchMedia("(prefers-reduced-motion: reduce)");
+    var flying = 0;
+
+    function fly(from) {
+      if (still.matches) return;
+      var to = embed.getBoundingClientRect();
+      if (!to.width || !to.height) return;
+      var sx = from.width / to.width;
+      var sy = from.height / to.height;
+      var dx = from.left - to.left;
+      var dy = from.top - to.top;
+      embed.style.transformOrigin = "0 0";
+      embed.style.transition = "none";
+      embed.style.transform = "translate(" + dx + "px, " + dy + "px) scale(" + sx + ", " + sy + ")";
+      void embed.offsetWidth;
+      embed.style.transition = "transform 260ms cubic-bezier(0.32, 0.72, 0, 1)";
+      embed.style.transform = "";
+      embed.classList.add("flying");
+      clearTimeout(flying);
+      flying = setTimeout(function () {
+        embed.style.transition = "";
+        embed.style.transformOrigin = "";
+        embed.classList.remove("flying");
+      }, 300);
+    }
+
     function lock() {
       if (locked) return;
       locked = true;
       left = false;
+      var from = embed.getBoundingClientRect();
       held = window.scrollY;
       document.body.style.top = -held + "px";
       document.body.classList.add("locked");
       embed.classList.add("locked");
       handle.textContent = "Back to the page";
       handle.setAttribute("aria-expanded", "true");
+      fly(from);
     }
 
     function unlock() {
       if (!locked) return;
       locked = false;
       left = true;
+      var from = embed.getBoundingClientRect();
       embed.classList.remove("locked");
       document.body.classList.remove("locked");
       document.body.style.top = "";
       window.scrollTo(0, held);
       handle.textContent = "Full screen";
       handle.setAttribute("aria-expanded", "false");
+      fly(from);
     }
 
     /* Whether the reader has something of its own up that Escape should close first. */
