@@ -2675,3 +2675,34 @@ def test_an_occupant_is_pulled_down_and_away(phone_scene_scrolling, opener, sele
     assert not page.evaluate(gone), "a short pull is not a dismissal"
     page.evaluate(PULL, [selector, 120])
     page.wait_for_function(gone)
+
+
+@pytest.mark.parametrize(
+    ("still", "rise"), [(True, "none"), (False, "rise")], ids=["asked for stillness", "not"]
+)
+def test_the_band_s_motion_is_optional(browser, tmp_path, monkeypatch, still, rise) -> None:
+    """An occupant rises from the foot and the strip rides up with it — unless the reader
+    has asked for stillness, in which case neither moves at all. The stylesheet's
+    stillness rules have to match the motion rules on specificity, or they lose."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(
+        tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF, words=True
+    )
+    context = browser.new_context(
+        viewport=PHONE, reduced_motion="reduce" if still else "no-preference"
+    )
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector("#list-tab")
+    page.click("#list-tab")
+    seen = page.evaluate(
+        """() => ({
+          sheet: getComputedStyle(document.getElementById('list')).animationName,
+          strip: getComputedStyle(document.getElementById('player')).transitionProperty,
+          tab: getComputedStyle(document.getElementById('list-tab')).transitionProperty,
+        })"""
+    )
+    context.close()
+    assert seen["sheet"] == rise
+    expected = "none" if still else "inset-block-end"
+    assert seen["strip"] == expected and seen["tab"] == expected, seen

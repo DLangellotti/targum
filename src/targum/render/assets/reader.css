@@ -2363,7 +2363,15 @@ body.has-player .next-up { margin-block-end: 9rem; }
   }
 }
 
+/* Stillness, asked for. The selectors match the ones above exactly, because a plainer
+   one loses to them on specificity and the motion stays on — which is how a first cut
+   of this block left the rise running under `reduce`, and every phone test measured a
+   sheet mid-flight. */
 @media (prefers-reduced-motion: reduce) {
+  .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
+  .keys-card:not([hidden]), .bar-more.open,
   .list, .gloss-card, .pick-card, .keys-card, .bar-more { animation: none; transition: none; }
-  .player, .list-tab, .turn { transition: none; }
+  body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
+    transition: none;
+  }
 }
