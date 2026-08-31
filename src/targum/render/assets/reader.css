@@ -399,6 +399,14 @@ a.bar-brand:hover { color: var(--accent); }
   body:not(.has-keyboard) .gloss-card .legend { display: none; }
 }
 
+/* No blue flash. Chrome on Android paints its own highlight over anything tapped, in
+   a blue this palette does not have (§4) — on a word it flashed over the one thing the
+   reader was looking at, forty times a page. The reader's own pressed states say what
+   was pressed. And `manipulation`: two quick presses of A+ are two presses, never a
+   zoom. */
+html { -webkit-tap-highlight-color: transparent; }
+button, select, a, .w, .list-tab { touch-action: manipulation; }
+
 button, select {
   font: inherit;
   color: var(--ink-soft);
