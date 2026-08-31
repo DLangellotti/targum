@@ -93,12 +93,14 @@
     ["hard", "Harder — more than 1 in 4"],
   ];
 
-  // The same number as a sentence: 17% is "about 1 word in 6 is uncommon". Not "new to
-  // you": the share is a fact about the text — how much of it is rare Hebrew — and a
+  // The same number as a sentence: 17% is "about 1 word in 6 is hard". "Hard" because
+  // it is the reader's own word — the band the count starts at is the one every tapped
+  // word calls "hard", and the highlight menu offers "hard and up". Not "new to you":
+  // the share is a fact about the text — how much of its vocabulary is rare — and a
   // reader who knows no words looks up all twenty-two of a text that says 0%.
   function inWords(share) {
     if (!share) return "";
-    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " is uncommon";
+    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " is hard";
   }
 
   /* One line under the controls that says what the active one means — for the reader
@@ -119,7 +121,7 @@
     },
     spoken: "With audio — a recording, line by line.",
     sort: {
-      difficulty: "New words — the share of a text that is uncommon Hebrew.",
+      difficulty: "New words — the share of a text's words that are hard.",
     },
     unmeasured: "— means not measured yet.",
   };

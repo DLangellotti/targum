@@ -179,9 +179,11 @@ class Entry:
     kind: Kind = Kind.prose
     register: Register = Register.none
 
-    #: How hard the words are, on the reader's own six-band scale, measured rather than
-    #: judged: the band at which half the running text is covered, counted off the same
-    #: annotation the reader marks words with. 0 where nothing has been measured yet.
+    #: How hard the words are, measured rather than judged: the share of running words
+    #: (names and numerals left out) whose dictionary form is band 4 or rarer on the
+    #: reader's own six-band scale — "hard and up", where a learner starts looking things
+    #: up — counted off the same annotation the reader marks words with, and against
+    #: modern frequency whatever the register. 0 where nothing has been measured yet.
     #: `scripts/measure_difficulty.py` prints these; they are written down here so a
     #: library page costs no lemmatiser to draw.
     difficulty: int = 0

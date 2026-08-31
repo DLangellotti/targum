@@ -324,7 +324,7 @@ def vocabulary(*lemmas: str) -> dict[str, str]:
 def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Path) -> None:
     """The one sentence on the page written for a reader who cannot yet read a title.
     It used to live in tooltips, which is nowhere on a phone."""
-    assert draw(tmp_path)["note"] == "New words — the share of a text that is uncommon Hebrew."
+    assert draw(tmp_path)["note"] == "New words — the share of a text's words that are hard."
     assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
         "Scenes — numbered conversations with audio. Start at 1."
     )
@@ -364,11 +364,12 @@ def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None
 
 
 def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
-    """The share is a fact about the text — how much of it is uncommon Hebrew. A reader
-    who knows no words looks up all twenty-two of a text that says 0%, so "will be new
-    to you" was a promise the number could not keep."""
+    """The share is a fact about the text — how much of its vocabulary is hard, in the
+    word the reader page puts on a tapped word. A reader who knows no words looks up all
+    twenty-two of a text that says 0%, so "will be new to you" was a promise the number
+    could not keep."""
     labels = draw(tmp_path)["gauges"]
-    assert any("is uncommon" in label for label in labels)
+    assert any("is hard" in label for label in labels)
     assert not any("new to you" in label for label in labels)
 
 
