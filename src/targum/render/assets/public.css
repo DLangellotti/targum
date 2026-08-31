@@ -554,6 +554,16 @@ body.public {
     font-size: 0.9375rem;
   }
 }
+/* The dateline under This week: the weekly, introduced as what it is — the reader,
+   demonstrated on the news, free, every Monday. Ink, not muted: it is the one line
+   that says why an issue is on the page. */
+.public .dateline {
+  max-width: 38rem;
+  margin: 0 0 1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
 /* The line a section leads with, under its label. */
 .public .section-title {
   margin: 0 0 1.25rem;

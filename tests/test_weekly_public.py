@@ -277,6 +277,10 @@ def test_the_page_embeds_the_reader_rather_than_linking_to_it(
     assert "<iframe" in page
     assert f"/weekly/read/weekly-{WEEK}-bet-he/reader/index.html" in page
     assert "Read this week's news in Hebrew. Every word explained." in page
+    # The hero says what targum is; the dateline under This week says why an issue is
+    # sitting on the page.
+    assert "targum is a reader for Hebrew" in page
+    assert "publishes a free issue of the week's news" in page
     assert 'class="go" href="#embed">Read this week\'s issue</a>' in page
     for level in ("aleph", "bet", "gimel"):
         assert f'href="/weekly/{WEEK}/{level}" data-level="{level}"' in page, level
