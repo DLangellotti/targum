@@ -4153,6 +4153,49 @@
 
   watchFoot();
 
+  /* --- the reader alone on the glass ----------------------------------------
+     The browser's own full screen, offered only where the browser has one: Safari on a
+     phone has none for a page, and a button that does nothing is worse than no button.
+     The browser handles the way out — Escape, the system's gesture — and says so
+     itself; this only keeps the button honest about which state it is in. */
+  var fullscreenGroup = document.getElementById("fullscreen-group");
+  var fullscreenButton = document.querySelector("[data-fullscreen]");
+  var root = document.documentElement;
+  var fullscreenable =
+    !!(root.requestFullscreen || root.webkitRequestFullscreen) &&
+    document.fullscreenEnabled !== false;
+  if (fullscreenGroup && fullscreenable) fullscreenGroup.hidden = false;
+
+  function inFullscreen() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+
+  function toggleFullscreen() {
+    if (!fullscreenable) return;
+    if (inFullscreen()) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      var ask = root.requestFullscreen || root.webkitRequestFullscreen;
+      var asked = ask.call(root);
+      if (asked && asked.catch) asked.catch(function () {});
+    }
+  }
+
+  function fullscreenChanged() {
+    var on = inFullscreen();
+    if (fullscreenButton) {
+      fullscreenButton.classList.toggle("on", on);
+      fullscreenButton.setAttribute("aria-pressed", on ? "true" : "false");
+      fullscreenButton.setAttribute("aria-label", on ? "Leave full screen" : "Full screen");
+    }
+    say(on ? "Full screen." : "Out of full screen.");
+    // The window is another size: the pages are laid out for it.
+    relayout();
+  }
+  document.addEventListener("fullscreenchange", fullscreenChanged);
+  document.addEventListener("webkitfullscreenchange", fullscreenChanged);
+  if (fullscreenButton) fullscreenButton.addEventListener("click", toggleFullscreen);
+
   // Pulled down, and away. On a phone an occupant of the band is closed the way every
   // sheet on a phone is closed: a finger on it, drawn down, and let go. The occupant
   // follows the finger — that is what the gesture looks like, not an animation, so it
@@ -4883,6 +4926,9 @@
         applyPaged();
         save();
         say(prefs.paged ? "Pages." : "One long scroll.");
+        return;
+      case "f":
+        toggleFullscreen();
         return;
       case "s":
         if (listBox) showList(!!listBox.hidden);

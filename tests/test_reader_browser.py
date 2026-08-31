@@ -2743,3 +2743,21 @@ def test_a_parallel_choice_is_read_as_interlinear_on_a_phone(browser, built: Pat
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_function("() => document.body.classList.contains('mode-inter')")
     context.close()
+
+
+def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path) -> None:
+    """The browser's own full screen, from the bar or `f`, and out again the same way;
+    the button says which state it is in. Offered at all only where the browser has one."""
+    context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
+    page = context.new_page()
+    page.goto(built.as_uri())
+    # The pairs are in the HTML before the script has run; the group being shown is the
+    # script saying it is ready, and that the browser has a full screen to offer.
+    page.wait_for_function("() => !document.getElementById('fullscreen-group').hidden")
+    page.keyboard.press("f")
+    page.wait_for_function("() => document.fullscreenElement === document.documentElement")
+    assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "true"
+    page.click("[data-fullscreen]")
+    page.wait_for_function("() => !document.fullscreenElement")
+    assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "false"
+    context.close()

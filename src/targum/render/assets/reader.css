@@ -2171,6 +2171,9 @@ body.has-player .next-up { margin-block-end: 9rem; }
   main { padding-block-start: 1.25rem; padding-block-end: 4rem; }
 }
 
+/* Alone on the glass: the page's own paper behind it, not the browser's black. */
+html:fullscreen { background: var(--paper); }
+
 /* --- the phone: one band at the foot, one thing in it -------------------------
 
    Under 60rem there is no width for a column beside the text and no height for a pile

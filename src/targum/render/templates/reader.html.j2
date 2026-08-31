@@ -155,6 +155,16 @@
       <button type="button" data-type="larger" aria-label="Larger type">A+</button>
       <button type="button" data-type="looser" aria-label="Line spacing" title="Line spacing">↕</button>
     </div>
+    {#- The browser's own full screen, where it has one: the reader alone on the glass.
+        `reader.js` hides the row where there is none (Safari on a phone), so the bar
+        never offers what the browser cannot do. -#}
+    <div class="group" data-what="Full screen" id="fullscreen-group" hidden>
+      <button type="button" data-fullscreen aria-pressed="false" title="Full screen (f)" aria-label="Full screen">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>
+        </svg>
+      </button>
+    </div>
     <div class="group" data-what="Keys">
       <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
     </div>
@@ -407,6 +417,7 @@
     <dt>s</dt><dd>your saved words</dd>
     <dt>m</dt><dd>mark words as you read</dd>
     <dt>b</dt><dd>pages, or one long scroll</dd>
+    <dt>f</dt><dd>full screen, and out of it</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
     <dt>&lt; &gt;</dt><dd>slower, faster</dd>{% endif %}
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
