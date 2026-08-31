@@ -12,19 +12,24 @@
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="public">
-<div class="corner">
-  <a class="enter" href="/account/signin">Sign in</a>
-  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
-</div>
-
 <main class="sheet weekly">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
+  {#- One row: the name at one corner, the door and the light switch at the other, on the
+      sheet's own grid. The corner used to be pinned to the window's edge, which on a wide
+      screen is nowhere near the page, and on a phone sat on a row of its own above the
+      name. -#}
+  <div class="masthead">
+    <a class="brand" href="/" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
+    <div class="corner">
+      <a class="enter" href="/account/signin">Sign in</a>
+      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+    </div>
+  </div>
 
   {#- A landing page for one thing: learning to read the news. The pitch is in English
       because the person it is for cannot yet read the Hebrew — that is the whole

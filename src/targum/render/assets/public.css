@@ -614,6 +614,42 @@ body.public {
 }
 .public .weekly {
   max-width: min(64rem, 100%);
+  /* The corner is in the masthead here, not pinned above the sheet, so the sheet needs
+     no room kept for it. */
+  padding-block-start: 1.25rem;
+}
+
+/* The masthead: the name and the corner on one row, on the sheet's grid. Sign in is
+   quiet on this page — a bordered pill, not the accent — because §9 gives the accent
+   to one action in a view and here that is the door at the foot, "Keep what you
+   learn". The corner pill in the accent beside it was two. */
+.public .masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-end: 2.5rem;
+}
+.public .masthead .brand {
+  margin-block-end: 0;
+}
+.public .masthead .corner {
+  position: static;
+}
+.public .weekly .corner .enter {
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+}
+.public .weekly .corner .enter:hover {
+  border-color: var(--ink-soft);
+  color: var(--ink);
+  box-shadow: none;
+}
+@media (max-width: 40rem) {
+  .public .masthead {
+    margin-block-end: 1.6rem;
+  }
 }
 
 /* The three levels, above the reader, each a way in. A visitor has to choose one
