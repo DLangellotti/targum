@@ -1120,18 +1120,23 @@ html:has(main.weekly) {
   opacity: 0.55;
 }
 
-/* The level chips as the reader's bar draws them. */
+/* The levels as a little menu, stacked: three chips in a row wrap raggedly inside a
+   column at any honest size, and a deliberate column never does. The one showing is
+   filled, as the reader's bar fills it. */
 .public .how-levels .levels {
-  gap: 0;
+  display: grid;
+  gap: 2px;
   padding: 2px;
   border: 1px solid var(--rule);
   border-radius: 6px;
+  inline-size: fit-content;
+  min-inline-size: 11rem;
 }
 .public .how-levels .level {
-  padding: 0.24rem 0.45rem;
+  padding: 0.28rem 0.6rem;
   border-radius: 4px;
   color: var(--ink-soft);
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   white-space: nowrap;
 }
 .public .how-levels .level.here {
