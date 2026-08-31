@@ -3916,6 +3916,9 @@
     var n = current + delta;
     if (n < 0 || n >= pages.length) return false;
     showPage(n);
+    // Every line on the page is a new one. The same settling a mode switch gets, for
+    // the same reason: one movement rather than a jump.
+    settle();
     return true;
   }
 
