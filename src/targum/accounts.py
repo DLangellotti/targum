@@ -500,6 +500,11 @@ class Store:
     whichever thread is free and SQLite connections are not safe to share across
     threads, so the connection is thread-local rather than guarded by a lock: a lock
     would serialise reads that have no reason to wait for each other.
+
+    A thread that is about to end has to call `close()` itself. A thread-local does not
+    release what it holds when its thread does; the cyclic collector gets to it later,
+    and on a big heap later is far enough away that a request-per-thread server runs
+    out of file descriptors first. The request handler does this in `finish()`.
     """
 
     def __init__(self, path: Path) -> None:

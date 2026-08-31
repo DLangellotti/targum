@@ -40,6 +40,9 @@ if [ ! -f "$CATALOGUE" ]; then
   exit 1
 fi
 scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
+# The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
+# after that: a limit raised here stayed raised here.
+scp -q deploy/targum.service "$HOST:/tmp/targum.service"
 
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # Installed as the service account so the tool and its virtualenv are owned by the
@@ -64,6 +67,9 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   install -d -o root -g targum -m 0750 /etc/targum
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json
+  install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
+  rm -f /tmp/targum.service
+  systemctl daemon-reload
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so
   # the ones already on the shelves keep the old ones until they are written again. This

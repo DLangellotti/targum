@@ -42,6 +42,12 @@ RestartSec=10
 # Give up after five failures in five minutes rather than restarting into the same
 # broken environment forever. `systemctl reset-failed targum` clears it.
 
+# The default is 1024, and each SQLite connection costs two: the file and its WAL.
+# Every request thread closes its own now, but a ceiling this low turned one reader's
+# afternoon on the shelves into an hour of 502s, and the fix for the next leak should
+# be a line in the journal rather than a box that cannot open a template.
+LimitNOFILE=65536
+
 # Stanza and LaBSE are large, and a build is a long-running request. Let it finish.
 TimeoutStopSec=90
 KillSignal=SIGINT

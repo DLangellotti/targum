@@ -1642,6 +1642,28 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return  # the console belongs to the build output
 
+    def finish(self) -> None:
+        """Answer, then let go of this thread's database connection.
+
+        `ThreadingHTTPServer` gives every request a thread of its own, and the store
+        opens one connection per thread. Nothing closes it when the thread ends: a
+        thread-local's contents are reclaimed by the cyclic collector, not on exit, and
+        on a long-running process with a large heap the old generation is visited
+        rarely enough that hundreds of dead threads' connections sit open together.
+        Each holds two descriptors, the database and its WAL, and at 1024 the process
+        can no longer open a template — which is how targum.page answered 502 for an
+        hour on 2026-08-31 after one reader loaded a shelf of thumbnails.
+
+        `finally`, so a request that ended in a broken pipe still lets go; `getattr`,
+        because a handler made by hand in a test may carry no store at all.
+        """
+        try:
+            super().finish()
+        finally:
+            store = getattr(self, "store", None)
+            if store is not None:
+                store.close()
+
     # -- plumbing -----------------------------------------------------------
 
     # -- who is asking ------------------------------------------------------

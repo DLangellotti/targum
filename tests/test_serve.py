@@ -7,9 +7,11 @@ much as the answer.
 
 from __future__ import annotations
 
+import gc
 import gzip
 import io
 import json
+import os
 import threading
 from collections.abc import Iterator
 from http.client import HTTPConnection
@@ -77,6 +79,38 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
     finally:
         server.shutdown()
         server.server_close()
+
+
+def open_files() -> int:
+    """How many descriptors this process holds. `/dev/fd` is the process's own table on
+    macOS and, on Linux, `/proc/self/fd` by another name."""
+    return len(os.listdir("/dev/fd"))
+
+
+def test_a_request_thread_lets_go_of_its_database_connection(served: tuple[int, str, Path]) -> None:
+    """Every request runs on its own thread and opens its own connection; the thread
+    ending does not close it, so each answered request must.
+
+    The collector is switched off for the burst: on a laptop it runs often enough to
+    tidy up behind the leak and the test would pass by luck, which is exactly how the
+    leak reached the box — where the heap is large, the old generation is rarely
+    visited, and 500 requests were 1000 descriptors and a 502 on every page after.
+    """
+    port, token, _ = served
+    for _ in range(3):
+        assert get(port, f"/glossary/book-he?k={token}")[0] == 200  # warm: templates, caches
+    gc.disable()
+    try:
+        before = open_files()
+        for _ in range(40):
+            status, _ = get(port, f"/glossary/book-he?k={token}")
+            assert status == 200
+        after = open_files()
+    finally:
+        gc.enable()
+    # Two descriptors per leaked connection — the file and its WAL — so 40 requests
+    # left behind would be eighty. A handful of slack for the sockets in flight.
+    assert after - before < 10, f"{after - before} descriptors gained over 40 requests"
 
 
 def get(port: int, path: str) -> tuple[int, Any]:
