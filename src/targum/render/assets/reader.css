@@ -2206,6 +2206,9 @@ body.has-player .next-up { margin-block-end: 9rem; }
     font-size: 1.0625rem;
     line-height: 1;
   }
+  /* Pressed while its menu is out, the way the mode pill shows which mode: the menu
+     is at the far end of the screen from the button that opened it. */
+  .bar .more[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
 
   /* --- the occupants: one place, one at a time --- */
   .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
