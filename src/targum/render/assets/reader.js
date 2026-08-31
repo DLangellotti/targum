@@ -3669,7 +3669,28 @@
     }
   }
 
+  // Under 46rem the columns are one, so parallel and interlinear are the same page and
+  // only one of them is offered: a parallel choice brought here — from a wide window,
+  // or by narrowing this one — is read as interlinear.
+  var oneColumn = window.matchMedia("(max-width: 46rem)");
+
+  function foldParallel() {
+    if (prefs.mode !== "parallel" || !oneColumn.matches) return false;
+    prefs.mode = "inter";
+    return true;
+  }
+
+  if (oneColumn.addEventListener) {
+    oneColumn.addEventListener("change", function () {
+      if (foldParallel()) {
+        applyMode();
+        save();
+      }
+    });
+  }
+
   function applyMode() {
+    foldParallel();
     var held = hold();
     body.className = body.className.replace(/\bmode-\w+/g, "").trim();
     body.classList.add("mode-" + prefs.mode);

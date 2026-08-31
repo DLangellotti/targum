@@ -67,19 +67,8 @@
         lay out in the bar as they always have — and under 60rem it is the menu the ⋯
         opens, in the band at the foot with the sheet and the card. Each group names
         itself in `data-what`, which is the row's label there and nothing here. -#}
-    <div class="bar-more" id="more">
-      <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
-    {% if translations|length > 1 %}
-    <label class="group">
-      <span class="label">Translation</span>
-      <select id="translation">
-        {% for t in translations %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-      </select>
-    </label>
-    {% endif %}
-    {#- One button, not two: it is a thing that is on or off, and two buttons for that
-        made a scale out of a switch. The drawing is a letter with its points beneath —
-        §7 wants a line diagram of what the thing does, and this is literally it. -#}
+    {#- Beside the modes rather than behind ⋯: on a phone the vowel points are the one
+        thing a reader reaches for mid-sentence. -#}
     {% if has_nikkud %}
     <div class="group" data-what="Vowel points">
       <button type="button" data-nikkud-toggle aria-pressed="false"
@@ -94,6 +83,19 @@
       </button>
     </div>
     {% endif %}
+    <div class="bar-more" id="more">
+      <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
+    {% if translations|length > 1 %}
+    <label class="group">
+      <span class="label">Translation</span>
+      <select id="translation">
+        {% for t in translations %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    {#- One button, not two: it is a thing that is on or off, and two buttons for that
+        made a scale out of a switch. The drawing is a letter with its points beneath —
+        §7 wants a line diagram of what the thing does, and this is literally it. -#}
     {#- Play the scene, and follow it. Only on a text that has audio, which today means a
         dialogue and nothing else. The drawing is what it does: a play mark, and the lines
         of text it is going to walk down. -#}

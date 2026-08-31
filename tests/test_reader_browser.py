@@ -2471,6 +2471,8 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
             height: bar.height,
             more: shown('.bar .more').length,
             modes: shown('.bar .modes button').length,
+            parallel: shown('.bar .modes [data-mode="parallel"]').length,
+            nikkud: shown('.bar [data-nikkud-toggle]').length,
             others: shown('.bar .bar-more button, .bar .bar-more select').length,
             width: document.documentElement.scrollWidth,
           };
@@ -2481,7 +2483,9 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     assert measured["titleBeside"] and measured["controlsBeside"], "one row"
     assert measured["titleBetween"], "the title sits between the mark and the modes"
     assert measured["height"] <= 56, f"a bar {measured['height']}px tall is not one row"
-    assert measured["more"] == 1 and measured["modes"] == 3
+    # Two modes, not three: one column makes parallel and interlinear the same page.
+    assert measured["more"] == 1 and measured["modes"] == 2 and measured["parallel"] == 0
+    assert measured["nikkud"] == 1, "the vowel points are in the row, not behind the ⋯"
     assert measured["others"] == 0, "everything else is behind the ⋯"
     assert measured["width"] <= 390
 
@@ -2706,3 +2710,36 @@ def test_the_band_s_motion_is_optional(browser, tmp_path, monkeypatch, still, ri
     assert seen["sheet"] == rise
     expected = "none" if still else "inset-block-end"
     assert seen["strip"] == expected and seen["tab"] == expected, seen
+
+
+def test_a_parallel_choice_is_read_as_interlinear_on_a_phone(browser, built: Path) -> None:
+    """Under 46rem the columns are one, so a parallel choice brought from a wide window
+    opens as interlinear, the pill on interlinear — and narrowing a wide window that is
+    reading in parallel does the same."""
+    context = browser.new_context(viewport={"width": 390, "height": 844}, reduced_motion="reduce")
+    context.add_init_script(
+        'localStorage.setItem("targum:prefs", JSON.stringify({ mode: "parallel", defaults: 4 }));'
+    )
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector(".pair")
+    state = page.evaluate(
+        """() => ({
+          mode: [...document.body.classList].find((c) => c.startsWith('mode-')),
+          on: document.querySelector('.modes [data-mode].on').getAttribute('data-mode'),
+        })"""
+    )
+    assert state == {"mode": "mode-inter", "on": "inter"}
+    context.close()
+
+    context = browser.new_context(viewport=WINDOW, reduced_motion="reduce")
+    context.add_init_script(
+        'localStorage.setItem("targum:prefs", JSON.stringify({ mode: "parallel", defaults: 4 }));'
+    )
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector(".pair")
+    assert page.evaluate("() => document.body.classList.contains('mode-parallel')")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.wait_for_function("() => document.body.classList.contains('mode-inter')")
+    context.close()
