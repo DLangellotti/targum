@@ -38,7 +38,9 @@ body.public {
 .public .sheet {
   max-width: var(--measure);
   margin: 0 auto;
-  padding-block-start: 4rem;
+  /* The corner is in the masthead on every one of these pages, not pinned above the
+     sheet, so the sheet keeps no room for it. */
+  padding-block-start: 1.25rem;
 }
 
 .public .brand {
@@ -648,6 +650,16 @@ body.public.locked {
   inline-size: 100%;
   overflow: hidden;
 }
+/* In flight between the slot and the window, above everything either way, and with
+   the slot's corners kept until it lands. */
+.public .embed.flying {
+  position: fixed;
+  z-index: 40;
+  will-change: transform;
+}
+.public .embed.flying:not(.locked) {
+  inset: auto;
+}
 .public .embed iframe {
   display: block;
   width: 100%;
@@ -673,15 +685,13 @@ body.public.locked {
 }
 .public .weekly {
   max-width: min(64rem, 100%);
-  /* The corner is in the masthead here, not pinned above the sheet, so the sheet needs
-     no room kept for it. */
-  padding-block-start: 1.25rem;
 }
 
-/* The masthead: the name and the corner on one row, on the sheet's grid. Sign in is
-   quiet on this page — a bordered pill, not the accent — because §9 gives the accent
-   to one action in a view and here that is the door at the foot, "Keep what you
-   learn". The corner pill in the accent beside it was two. */
+/* The masthead: the name and the corner on one row, on the sheet's grid, on every
+   public page. Sign in keeps the accent on the pages where it is the one action (the
+   shelf, a text, the policies) and is quiet on the weekly — a bordered pill — because
+   §9 gives the accent to one action in a view and there it is the door at the foot,
+   "Keep what you learn". */
 .public .masthead {
   display: flex;
   align-items: center;

@@ -14,18 +14,22 @@
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="public">
-<div class="corner">
-  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
-</div>
-
 <main class="sheet">
-  <a class="brand" href="/weekly" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
+  {#- One row on the sheet's own grid: the name at one corner, the door and the light
+      switch at the other. The corner used to be pinned to the window's edge, which on a
+      wide screen is nowhere near the page. -#}
+  <div class="masthead">
+    <a class="brand" href="/weekly" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
+    <div class="corner">
+      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+    </div>
+  </div>
 
   <h1>the weekly</h1>
   <p class="lede">{{ message }}</p>

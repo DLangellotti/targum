@@ -1963,6 +1963,20 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .parts a {
   color: var(--ink-soft);
   text-decoration: none;
+  white-space: nowrap;
+}
+/* One line that scrolls sideways where five names do not fit — a phone, or the weekly's
+   front-page frame, which is narrower than a phone. Wrapped, the strip took two rows
+   from a screen that has none to spare. A name cut at the edge is the invitation. */
+@media (max-width: 40rem) {
+  .parts {
+    flex-wrap: nowrap;
+    gap: 1rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .parts::-webkit-scrollbar { display: none; }
 }
 .parts a:hover {
   color: var(--ink);
