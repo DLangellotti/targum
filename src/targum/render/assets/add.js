@@ -108,7 +108,7 @@
     chosen = file;
     sourceInput.value = "";
     showChosen();
-    if (window.TargumAddAudio) window.TargumAddAudio.toggle(/\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav)$/i.test(file.name));
+    if (window.TargumAddAudio) window.TargumAddAudio.toggle(/\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav|mp4|m4v|mov|webm|mkv)$/i.test(file.name));
   }
 
   function forget() {
@@ -224,7 +224,7 @@
 
   /* --- a recording, and the transcript it may have come with ----------------- */
 
-  var AUDIO = /\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav)$/i;
+  var AUDIO = /\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav|mp4|m4v|mov|webm|mkv)$/i;
 
   function isAudio(file) {
     return !!(file && AUDIO.test(file.name));

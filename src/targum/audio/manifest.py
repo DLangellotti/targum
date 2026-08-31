@@ -26,6 +26,9 @@ class ManifestPart(BaseModel):
     end: float
     #: The cut file, relative to the targum's folder, or "" while untranscribed.
     audio: str = ""
+    #: The part's video cut, same convention, or "" for a soundtrack-only source. The
+    #: same padded start and end as the audio cut, so one set of spans times both.
+    video: str = ""
     transcribed: bool = False
     provider: str = ""
     refiner: str = ""

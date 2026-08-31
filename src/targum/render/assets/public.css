@@ -565,6 +565,101 @@ body.public {
     font-size: 0.9375rem;
   }
 }
+
+/* From this week's reporting in: the cited outlets' own wordmarks, their own colours —
+   §12's departure, recorded there. The colours live in the SVGs, not here, so the
+   palette below stays what the interface itself paints. Each mark sits on a chip of
+   fixed paper: invisible on the light page, and in the dark theme the small square of
+   paper a black wordmark needs to stay legible. */
+.public .press {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 1.5rem 0 0;
+}
+/* The label takes a line of its own: the marks below it stay one deliberate row
+   however many outlets a week cites, instead of wrapping wherever the count lands. */
+.public .press .from {
+  flex-basis: 100%;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.public .press img {
+  display: block;
+  height: 1.375rem;
+  width: auto;
+  padding: 0.2rem 0.35rem;
+  border-radius: 4px;
+  background: #fbf9f5;
+}
+
+/* The week's papers (§12): photographs of real Israeli front pages in a small stack
+   beside the pitch. Imagery, not surface: square corners (a newspaper has no radius),
+   printed as it was printed in both themes (a depicted newspaper does not turn dark),
+   §9's gloss as the light on it, and the lift it would cast. Decoration only — it is
+   aria-hidden and carries no controls — and it exists only where the window is wide
+   enough that it crowds nothing. */
+.public .stack {
+  display: none;
+}
+@media (min-width: 64rem) {
+  .public .hero.with-stack {
+    display: grid;
+    grid-template-columns: 1fr 23rem;
+    column-gap: 3rem;
+    align-items: start;
+  }
+  .public .hero.with-stack > :not(.stack) {
+    grid-column: 1;
+  }
+  .public .stack {
+    display: block;
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    position: relative;
+    min-height: 24rem;
+  }
+}
+.public .stack .paper {
+  position: absolute;
+  width: 12.5rem;
+  background: #fbf9f5;
+  border: 1px solid var(--rule);
+  box-shadow: var(--lift);
+}
+.public .stack .paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(var(--gloss), transparent);
+}
+.public .stack .paper:nth-child(1) {
+  inset-block-start: 0;
+  inset-inline-end: 2.4rem;
+  transform: rotate(-5deg);
+}
+.public .stack .paper:nth-child(2) {
+  inset-block-start: 3.2rem;
+  inset-inline-end: 0;
+  transform: rotate(3.5deg);
+  z-index: 2;
+}
+.public .stack .paper:nth-child(3) {
+  inset-block-start: 6.6rem;
+  inset-inline-end: 4rem;
+  transform: rotate(-1.5deg);
+  z-index: 3;
+}
+.public .stack .paper img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 /* The dateline under This week: the weekly, introduced as what it is — the reader,
    demonstrated on the news, free, every Monday. Ink, not muted: it is the one line
    that says why an issue is on the page. */

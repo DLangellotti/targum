@@ -32,13 +32,13 @@
       the page asks for is small, and asking for it in single file made it look long. -#}
   <div class="add-grid">
     <section class="step">
-      <h2>The text</h2>
+      <h2>Your content</h2>
 
       <div class="drop" id="drop" tabindex="0">
         <p class="drop-label">Drop a book, an article, or a recording</p>
-        <p class="drop-note">EPUB, plain text, markdown, or audio</p>
+        <p class="drop-note">EPUB, plain text, markdown, audio, or video</p>
         <input type="file" id="file"
-               accept=".txt,.md,.markdown,.epub,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav" hidden>
+               accept=".txt,.md,.markdown,.epub,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
         <button type="button" id="choose">Choose file</button>
         <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
       </div>
@@ -56,14 +56,14 @@
         title from its first line.</p>
       {#- The refusals, named before they are met: a reader who tries a PDF or a Spotify
           link learns the limit from a sentence here rather than from a failed attempt. -#}
-      <p class="hint">Not PDF, video, protected audiobooks (.aax), or Spotify. Nothing
-        behind a login.</p>
+      <p class="hint">Not PDF, protected audiobooks (.aax), or Spotify. Nothing behind a
+        login. YouTube links run on the command line for now — upload the file itself.</p>
 
       {#- Only when the file is a recording. A transcript with its own timings makes the
           import free of transcription; without one, targum writes down what is said,
           part by part, as each part is asked for. -#}
       <section class="step" id="audio-extra" hidden>
-        <h2>The transcript</h2>
+        <h2>Transcript</h2>
         <div class="segmented" id="spoken-how" role="group" aria-label="Where the transcript comes from">
           <button type="button" class="segment" data-spoken="make" aria-pressed="true">Transcribe</button>
           <button type="button" class="segment" data-spoken="mine" aria-pressed="false">I have one</button>
@@ -86,7 +86,7 @@
           aligner lines it up sentence by sentence, the same way the catalogue's published
           translations are lined up. -#}
       <section class="step">
-        <h2>The translation</h2>
+        <h2>Translation</h2>
         <div class="segmented" id="how" role="group" aria-label="Where the translation comes from">
           <button type="button" class="segment" data-how="make" aria-pressed="true">Make one</button>
           <button type="button" class="segment" data-how="mine" aria-pressed="false">I have one</button>

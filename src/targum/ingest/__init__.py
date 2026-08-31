@@ -10,6 +10,7 @@ from ..audio import is_audio, is_drm
 from ..errors import TargumError, UnsupportedSource
 from ..ids import content_hash
 from ..models import Document
+from ..video import is_video
 from . import fetch
 from .audio import AudioIngester
 from .base import Ingester, detect_language, normalize, parse_frontmatter, to_markdown
@@ -90,7 +91,9 @@ def _load(source: str) -> Document:
         raise UnsupportedSource("This file is protected, so targum cannot read it.")
     if not path.exists():
         raise TargumError(f"No such file: {source}")
-    if is_audio(source):
+    if is_audio(source) or is_video(source):
+        # A video is the audio import with pictures kept: the same ingester reads the
+        # same transcripts, and the pictures never enter the document at all.
         return AudioIngester().load(source)
 
     ingester = _BY_SUFFIX.get(suffix)

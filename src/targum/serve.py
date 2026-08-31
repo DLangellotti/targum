@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import email.utils
 import errno
 import gzip
 import json
@@ -22,6 +23,7 @@ import re
 import secrets
 import shutil
 import threading
+import time
 import traceback
 import webbrowser
 from collections.abc import Callable
@@ -50,6 +52,7 @@ from .render.builder import (
     weekly_note,
     weekly_page,
 )
+from .video import MAX_VIDEO_BYTES
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
 from .weekly.models import Level as WeeklyLevel
@@ -62,9 +65,13 @@ MAX_UPLOAD = 32 * 1024 * 1024
 #: Caddy's 48 MB body ceiling with room to spare — and are assembled on disk.
 CHUNK_BYTES = 8 * 1024 * 1024
 MAX_AUDIO_BYTES = 1024 * 1024 * 1024
-#: Per account, measured from the disk. Enough for a few audiobooks; a bound, because
-#: audio is the first thing a reader can put here whose size is theirs to choose.
-AUDIO_QUOTA_BYTES = 2 * 1024 * 1024 * 1024
+#: A video is allowed more than a recording — an hour of 480p is most of a gigabyte
+#: before anything is cut from it. The ceiling itself is `video.MAX_VIDEO_BYTES`,
+#: imported above: two copies of a ceiling drift, and a door that refuses what
+#: another door accepted is a bug somebody has to find twice.
+#: Per account, measured from the disk, audio and video in one figure: `used()` makes
+#: one measurement, and two quotas over one measurement cannot be enforced honestly.
+MEDIA_QUOTA_BYTES = 8 * 1024 * 1024 * 1024
 #: An upload nobody finished is swept after a day.
 UPLOAD_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -145,7 +152,12 @@ POLICY = (
     # the identical bug the font line above exists for, missed the identical way: every
     # check of the player was made by opening the file, where no policy applies. The one
     # served page is the only place either of them can be seen to fail.
-    "media-src data:; "
+    #
+    # `'self'` is for the one thing too heavy to ride inside the page: a video part is a
+    # sidecar file beside the reader, named by a relative address, and without `'self'`
+    # the served page refuses the very file sitting next to it — the third writing of
+    # the same bug, headed off this time (design.md §12).
+    "media-src 'self' data:; "
     "connect-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
@@ -914,14 +926,16 @@ class Library:
     def used(self, home: Path) -> int:
         """What this home's recordings hold, in bytes, asked of the disk.
 
-        Uploads in flight and audio already imported both count — they are the two
-        places a recording can be.
+        Uploads in flight, media already imported, and the video sidecars a build
+        copies beside each reader — the three places a recording's bytes can be. The
+        sidecar is a second full copy of every part, and a quota that does not see
+        it undercounts a video import by roughly half.
         """
         cached = self._used.get(home)
         if cached is not None and now() - cached[0] < 60_000:
             return cached[1]
         total = 0
-        for area in (home / "uploads", *home.glob("*/audio")):
+        for area in (home / "uploads", *home.glob("*/audio"), *home.glob("*/reader/video")):
             if not area.is_dir():
                 continue
             for path in area.rglob("*"):
@@ -1264,7 +1278,20 @@ class Library:
 
             if urlparse(job.source).scheme in ("http", "https"):
                 from .audio import episode as episode_module
+                from .video import youtube as youtube_module
 
+                if (urlparse(job.source).hostname or "").lower() in youtube_module.HOSTS:
+                    # Deferred, deliberately: YouTube throttles datacenter addresses
+                    # and yt-dlp needs updating on YouTube's schedule — a hosted door
+                    # would be a pager. The command line is where it works. Refused by
+                    # name, or the fallback below reads the watch page's show notes as
+                    # the text.
+                    job.error = (
+                        "YouTube imports run on the command line for now. "
+                        "Upload the video file itself here instead."
+                    )
+                    job.stage = "failed"
+                    return
                 if episode_module.sounds_like_audio(job.source):
                     # A recording on the other end of a link is not downloaded inside
                     # the request — that is a gigabyte on a click that only asked for a
@@ -2043,6 +2070,110 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Security-Policy", policy)
         self.end_headers()
         self.wfile.write(body)
+
+    # The sidecar video parts beside a reader. A closed table rather than `mimetypes`:
+    # these are the only files a build writes that a page addresses by name, and a table
+    # that cannot grow by accident is a door that cannot open by accident.
+    MEDIA_KINDS = {".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm"}
+
+    # How long a slow client may sit on one 64 KiB chunk before the thread is taken
+    # back, and how long the whole response may run. A part is tens of megabytes and
+    # ThreadingHTTPServer spends a whole thread per request, so a stalled connection
+    # has to cost minutes, not forever — per chunk and in total.
+    MEDIA_CHUNK = 64 * 1024
+    MEDIA_TIMEOUT_S = 60.0
+    MEDIA_RESPONSE_S = 600.0
+
+    def _send_file(self, target: Path, kind: str) -> None:
+        """A slice of a file on disk, the way a browser asks for video.
+
+        Ranges, because seeking is Range requests — and because Safari opens every
+        video with a `bytes=0-1` probe and refuses to play unless it comes back as a
+        real 206 with `Accept-Ranges`. Streamed from an open handle rather than read
+        whole: a part runs to tens of megabytes, and `read_bytes()` is that much
+        resident memory per concurrent viewer. Never gzipped — the codec already did.
+        """
+        told = target.stat()
+        size = told.st_size
+        stamp = email.utils.formatdate(told.st_mtime, usegmt=True)
+        # A validator, because a part is tens of megabytes and content-stable: the
+        # browser that kept it asks again with If-Modified-Since, and 304 is the
+        # whole answer. If-Range is deliberately not honoured — ignoring it only
+        # costs a re-request in the rare case a part is ever re-cut.
+        held = self.headers.get("If-Modified-Since", "")
+        if held == stamp and "Range" not in self.headers:
+            self.send_response(304)
+            self.send_header("Last-Modified", stamp)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        status, start, end = 200, 0, size - 1
+        asked = self.headers.get("Range", "")
+        # If-Range with a stale validator means the range is against bytes the
+        # browser no longer has the rest of: per the RFC the range is ignored and
+        # the whole current file answers, or a re-cut part splices into an old one.
+        conditional = self.headers.get("If-Range", "")
+        if conditional and conditional != stamp:
+            asked = ""
+        found = re.fullmatch(r"bytes=(\d*)-(\d*)", asked.strip()) if asked else None
+        if found and (found.group(1) or found.group(2)):
+            if found.group(1):
+                start = int(found.group(1))
+                if found.group(2):
+                    end = min(int(found.group(2)), size - 1)
+            else:
+                # A suffix range: the last N bytes, which is how a player reads the
+                # index a plain mp4 keeps at the tail.
+                start = max(0, size - int(found.group(2)))
+            if start >= size or end < start:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            status = 206
+        self.send_response(status)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Accept-Ranges", "bytes")
+        if status == 206:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        # Private rather than no-store: the same reasoning as the covers — refetching
+        # tens of megabytes on every visit is the whole reader's weight many times
+        # over, and `private` keeps it in the one browser it already travelled to.
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("Last-Modified", stamp)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        was_timeout = self.connection.gettimeout()
+        self.connection.settimeout(self.MEDIA_TIMEOUT_S)
+        # The socket timeout bounds one write; this bounds the response. A client
+        # draining a chunk a minute would otherwise hold a thread for hours — and a
+        # ThreadingHTTPServer's threads are the whole machine. A playing browser
+        # never hits this: it asks in ranges and comes back for more.
+        deadline = time.monotonic() + self.MEDIA_RESPONSE_S
+        left = end - start + 1
+        try:
+            with target.open("rb") as handle:
+                handle.seek(start)
+                while left > 0 and time.monotonic() < deadline:
+                    piece = handle.read(min(self.MEDIA_CHUNK, left))
+                    if not piece:
+                        break
+                    self.wfile.write(piece)
+                    left -= len(piece)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, OSError):
+            # A viewer who stopped watching, or stalled past the timeout. Not an error
+            # worth a traceback: the response is theirs to abandon.
+            pass
+        finally:
+            # The connection may be kept alive for ordinary requests, whose patience
+            # is not the media loop's to shorten.
+            with contextlib.suppress(OSError):
+                self.connection.settimeout(was_timeout)
+        if left > 0:
+            self.close_connection = True
 
     def _json(self, payload: Any, status: int = 200) -> None:
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
@@ -3298,6 +3429,7 @@ class Handler(BaseHTTPRequestHandler):
     def _upload_begin(self, payload: dict[str, Any]) -> None:
         """Refuse everything refusable before a byte arrives."""
         from .audio import AUDIO_SUFFIXES, DRM_SUFFIXES
+        from .video import VIDEO_SUFFIXES
 
         name = Path(str(payload.get("name") or "")).name
         suffix = Path(name).suffix.lower()
@@ -3307,15 +3439,18 @@ class Handler(BaseHTTPRequestHandler):
             size = 0
         if suffix in DRM_SUFFIXES:
             return self._json({"error": "This file is protected, so targum cannot read it."}, 400)
-        if suffix not in AUDIO_SUFFIXES:
-            return self._json({"error": "That is not an audio file targum can read."}, 400)
-        if size <= 0 or size > MAX_AUDIO_BYTES:
-            limit = MAX_AUDIO_BYTES // (1024 * 1024 * 1024)
-            return self._json({"error": f"That recording is over {limit} GB."}, 413)
+        if suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
+            return self._json({"error": "That is not an audio or video file targum can read."}, 400)
+        moving = suffix in VIDEO_SUFFIXES
+        ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
+        if size <= 0 or size > ceiling:
+            limit = ceiling // (1024 * 1024 * 1024)
+            what = "video" if moving else "recording"
+            return self._json({"error": f"That {what} is over {limit} GB."}, 413)
         home = self._home()
         self.library.sweep_uploads(home)
-        if self.library.used(home) + size > AUDIO_QUOTA_BYTES:
-            gigs = AUDIO_QUOTA_BYTES // (1024 * 1024 * 1024)
+        if self.library.used(home) + size > MEDIA_QUOTA_BYTES:
+            gigs = MEDIA_QUOTA_BYTES // (1024 * 1024 * 1024)
             return self._json(
                 {"error": f"That would put your recordings over {gigs} GB. Delete one first."},
                 413,
@@ -3389,11 +3524,20 @@ class Handler(BaseHTTPRequestHandler):
         if twin is not None:
             shutil.rmtree(folder, ignore_errors=True)
             return self._json(twin)
+        from .video import VIDEO_SUFFIXES
+
+        moving = target.suffix.lower() in VIDEO_SUFFIXES
         try:
-            found = probe_module.examine(target)
+            found = probe_module.examine(target, allow_video=moving)
         except TargumError as error:
             shutil.rmtree(folder, ignore_errors=True)
             return self._json({"error": error.message}, 400)
+        if not found.has_video and target.stat().st_size > MAX_AUDIO_BYTES:
+            # The ceiling was chosen at the door by the suffix's word; the probe has
+            # now heard the file. Sound alone in a video container is a recording,
+            # and a recording's ceiling is 1 GB whatever the container claims.
+            shutil.rmtree(folder, ignore_errors=True)
+            return self._json({"error": "That recording is over 1 GB."}, 413)
         drafted = parts_module.plan(found)
         self._json(
             {"upload": upload, "seconds": round(found.duration, 1), "parts": len(drafted.parts)}
@@ -3507,6 +3651,9 @@ class Handler(BaseHTTPRequestHandler):
         for root in roots:
             target = (root / unquote(relative)).resolve()
             if target.is_file() and root in target.parents:
+                moving = self.MEDIA_KINDS.get(target.suffix.lower())
+                if moving:
+                    return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
                 return self._send(200, target.read_bytes(), kind)
         return self._send(404, b"not found", "text/plain")

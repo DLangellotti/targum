@@ -251,8 +251,47 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Five places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
+Seven places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
 code back to a rule that was already retired.
+
+### A reader that carries moving pictures — 2026-08-31
+
+An imported video keeps its pictures, and three rules bend to carry them:
+
+- **The reader folder gains a `video/` sidecar.** The one-file reader stays one file for
+  text and sound; a part of video is ten times the whole page, so it is the single thing
+  too heavy to inline. It stands beside the file with a relative address — a folder that
+  travels to a disk keeps its picture, and the page still fetches nothing from any
+  network. `test_render.py`'s no-network rules hold unchanged.
+- **The video panel is off by default and toggled.** §1's "a reader is a reader, not a
+  player" stands: the transport is still the player strip, the picture is optional, and a
+  reader who never presses the button reads exactly the page they had. On a narrow
+  window the panel is an occupant of the band like the sheet and the cards, one at a
+  time.
+- **The serve policy's `media-src` gains `'self'`** — for exactly these sidecars, and
+  nothing else. The embedded recordings stay `data:`; no address leaves the origin.
+
+### The weekly landing carries the press — 2026-08-31
+
+The weekly landing page needed to read as news at a glance, and nothing in the identity
+says news. Two things now do, and both bend rules written for targum's own paint:
+
+- **Third-party press marks appear in their own colours.** The hero carries "From this
+  week's reporting in" followed by the wordmarks of the outlets the issue actually cites
+  — and ynet's is red, walla's is orange. §4 and §10 ban those hues for *targum's*
+  identity and interface, and still do; an outlet's mark in an outlet's colour is that
+  outlet speaking, not us. The marks are nominative attribution, sized to the text
+  around them, only ever for outlets cited in the issue on the page. They live in
+  `assets/press/` with their licences recorded beside them.
+- **The hero's newspaper stack is imagery, and imagery may sit up.** Beside the pitch,
+  a small stack of photographed Israeli front pages carries the §9 gloss recipe and the
+  `--lift` shadow although it is not a floating overlay. §8's "shadows exist only on
+  floating overlays" governs surfaces the interface rests things on; the stack is an
+  illustration of an object that casts one. It is `aria-hidden`, square-cornered (a
+  newspaper has no radius), printed as it was printed in both themes, and never
+  carries controls. The photographs are not free files — a front page is a copyrighted
+  work — and shipping them was David's decision, made knowingly on 2026-08-31;
+  `assets/press/README.md` records which files and what to do if an outlet objects.
 
 ### Calls to action are ink, not accent — 2026-08-31
 

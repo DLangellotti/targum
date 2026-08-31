@@ -14,6 +14,7 @@ import mimetypes
 import os
 import re
 import shutil
+from collections import Counter
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from functools import cache
@@ -313,6 +314,10 @@ class Spoken(NamedTuple):
     #: the card's own ear. Only the imported path has these today; everywhere else the
     #: card simply offers no sound, the way the phrase chip asks only where the page can.
     words: dict[str, list[list[float]]] = {}
+    #: The part's video cut on disk, or "". Never a data URI: the one file too heavy to
+    #: inline rides beside the reader instead — `render()` copies it and writes the
+    #: relative address the page carries.
+    video: str = ""
 
 
 SILENT = Spoken({}, {}, "")
@@ -391,6 +396,60 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
     )
 
 
+def _read_along(document: Document, segments: list[Segment]) -> Spoken:
+    """A recording of prose, following along line by line.
+
+    Prose has no refs, so the section finds its part by the blocks it holds, and the
+    spans are derived here at every build from the word timings the attach wrote down —
+    the words and their clocks do not move, and everything keyed to them can. A section
+    that straddles two files keeps the file it starts in; its last lines go without a
+    control rather than pointing at sound the page is not carrying.
+    """
+    from ..audio.spans import spans_for, word_spans_for
+    from ..recording import index as recording_index
+    from ..transcribe.models import Word
+
+    recording = recording_index.load(document.source)
+    if recording is None:
+        return SILENT
+    part = recording.part_reading([segment.block_index for segment in segments])
+    if part is None or not part.words:
+        return SILENT
+    home = recording_index.folder(document.source)
+    try:
+        rows = json.loads((home / part.words).read_text(encoding="utf-8"))
+        words = [
+            Word(text=str(text), start=float(start), end=float(end), confidence=float(score))
+            for text, start, end, score in rows
+        ]
+    except (OSError, json.JSONDecodeError, ValueError, TypeError):
+        # A words file that cannot be read is a section without sound, the same answer
+        # as a missing file or a wrong slug — rows of the wrong shape included, or one
+        # bad file aborts the build of a text that reads fine in silence.
+        return SILENT
+    mine = [
+        segment
+        for segment in segments
+        if len(part.blocks) == 2 and part.blocks[0] <= segment.block_index <= part.blocks[1]
+    ]
+    spans = spans_for(mine, words)
+    if not spans:
+        return SILENT
+    audio = _inlined(home / part.audio)
+    if not audio:
+        return SILENT
+    return Spoken(
+        {},
+        spans,
+        audio,
+        recording.credit,
+        recording.licence,
+        recording.licence_url,
+        "the reading",
+        word_spans_for(mine, words),
+    )
+
+
 def _read_through(document: Document) -> Spoken:
     """A recording of prose, played straight through.
 
@@ -447,7 +506,18 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
         for segment in segments
         if segment.id in part.words
     }
-    return Spoken(speakers, spans, audio, "", "", "", "the recording", word_clocks)
+    reel = folder / part.video if part.video else None
+    return Spoken(
+        speakers,
+        spans,
+        audio,
+        "",
+        "",
+        "",
+        "the recording",
+        word_clocks,
+        str(reel) if reel is not None and reel.is_file() else "",
+    )
 
 
 def speech(document: Document, segments: list[Segment], folder: Path | None = None) -> Spoken:
@@ -474,7 +544,7 @@ def speech(document: Document, segments: list[Segment], folder: Path | None = No
         return _read_aloud(document, segments)
     if document.source.startswith("weekly:"):
         return _read_through(document)
-    return SILENT
+    return _read_along(document, segments)
 
 
 def _this_week() -> dict[str, Any] | None:
@@ -893,6 +963,34 @@ def text_page(entry: Entry, address: str = "") -> str:
     )
 
 
+# The outlets the weekly can show a wordmark for, keyed exactly as `weekly/sources.py`
+# attributes stories. §12: third-party marks in their own colours, shown only for
+# outlets the issue on the page actually cites. The wordmark SVGs in `assets/press/`
+# are verifiably free (PD-textlogo); `assets/press/pages/` — the hero's front-page
+# photographs — is different, and its README says how.
+PRESS_MARKS = {
+    "ynet": "press/ynet.svg",
+    "walla": "press/walla.svg",
+    "haaretz": "press/haaretz.svg",
+    "globes": "press/globes.svg",
+    "israel hayom": "press/hayom.svg",
+    "maariv": "press/maariv.svg",
+    "kan": "press/kan11.svg",
+}
+
+
+def _press(issue: WeeklyIssue) -> list[tuple[str, str]]:
+    """The press line: every cited outlet that has a mark, busiest first.
+
+    Derived from what the issue actually cites, so nothing on the hero claims a source
+    the foot does not.
+    """
+    counts = Counter(
+        outlet for story in issue.sources for outlet in story.outlets if outlet in PRESS_MARKS
+    )
+    return [(outlet, PRESS_MARKS[outlet]) for outlet, _ in counts.most_common()]
+
+
 def weekly_page(
     issue: WeeklyIssue,
     level: WeeklyLevel,
@@ -914,6 +1012,7 @@ def weekly_page(
 
     spec = LEVELS[level]
     blurb = issue.blurb
+    press = _press(issue)
     return (
         _environment()
         .get_template("weekly.html.j2")
@@ -929,6 +1028,7 @@ def weekly_page(
             explained=WEEKLY_LEVELS,
             notice=NOTICE,
             shelf_name=SHELF[0],
+            press=press,
             archive=[other for other in (archive or []) if other.id != issue.id],
         )
     )
@@ -1408,6 +1508,29 @@ def render(
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
         spoken = speech(document, segments, folder)
+        # The one file too heavy to ride inside the page. Copied beside the reader and
+        # named by a relative address, so a folder that travels to a disk keeps its
+        # picture and the page still fetches nothing from any network (design.md §12).
+        spoken_video = ""
+        if spoken.video:
+            reel = Path(spoken.video)
+            sidecar = out_dir / "video" / reel.name
+            # Size and mtime both: a re-transcoded part of identical size is still a
+            # different file, and copy2 carries the mtime over so the pair agree.
+            fresh = sidecar.is_file() and (
+                sidecar.stat().st_size == reel.stat().st_size
+                and sidecar.stat().st_mtime >= reel.stat().st_mtime
+            )
+            if not fresh:
+                # Copied beside and renamed over, never written in place: a hosted
+                # rebuild runs while somebody may be streaming this very file, and a
+                # rename leaves their open handle on the old bytes — the same move
+                # write_atomic makes for the same reason.
+                sidecar.parent.mkdir(parents=True, exist_ok=True)
+                passing = sidecar.with_name(sidecar.name + ".part")
+                shutil.copy2(reel, passing)
+                os.replace(passing, sidecar)
+            spoken_video = f"video/{reel.name}"
         # Whether this section is an imported recording's part still waiting for its
         # transcript. The page says which work is owed, and the button asks for it.
         audio_waiting = any(segment.ref.endswith(":waiting") for segment in segments)
@@ -1438,6 +1561,7 @@ def render(
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
+            spoken_video=spoken_video,
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_licence=spoken.licence,
@@ -1500,6 +1624,8 @@ def render(
                         {
                             "speech": {
                                 "audio": spoken.audio,
+                                # The sidecar's relative address, never its bytes.
+                                **({"video": spoken_video} if spoken_video else {}),
                                 "spans": spoken.spans,
                                 # Each written word's clock, char offsets mapped into
                                 # the bare text like every token row, so the card can
