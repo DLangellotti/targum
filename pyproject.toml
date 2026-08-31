@@ -3,7 +3,8 @@ name = "targum"
 version = "0.2.0.0"
 description = "Turn a text and its translations into a self-contained HTML bilingual reader"
 readme = "README.md"
-license = { text = "AGPL-3.0-or-later" }
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{ name = "David Langellotti" }]
 keywords = ["translation", "language-learning", "bilingual", "reader", "hebrew", "russian"]
@@ -32,6 +33,9 @@ dependencies = [
 align = ["sentence-transformers>=3.0"]
 # Forced alignment of a supplied transcript against its recording. Torch rides in with
 # it; on the box Stanza already brought torch, so the marginal weight is the model.
+# CC BY-NC 4.0, and the model it fetches is in Meta's MMS lineage and NonCommercial too.
+# That is why forced alignment is an extra and never a default: an install of plain
+# `targum` carries no NonCommercial term. See LICENSING.md.
 # From GitHub by name on purpose: the PyPI package called ctc-forced-aligner is a
 # different project with a different API, and resolving it silently is how the aligner
 # came to be "installed" on a machine it had never once run on. Pinned to a commit:

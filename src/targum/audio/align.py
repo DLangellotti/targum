@@ -1,10 +1,15 @@
 """Forced alignment: a transcript the reader supplied, timed against their recording.
 
-Local and free — `ctc-forced-aligner` on the MMS alignment model, which covers Hebrew
+Local and unpaid — `ctc-forced-aligner` on the MMS alignment model, which covers Hebrew
 through romanisation — because paying a transcriber by the minute to align a text you
 already have inherits the transcriber's errors at every mismatch. Optional, like the
 embedding aligner: without the extra installed the recording plays straight through,
 which is the `_read_through` shape and not a failure.
+
+Unpaid is not unencumbered. The aligner is CC BY-NC 4.0 and the model it fetches is in
+Meta's MMS lineage, also NonCommercial, which is why this is an extra and never a
+default. `LICENSING.md` names it. The algorithm is free; only the acoustic model is
+encumbered, so swapping that model leaves this file's shape intact.
 """
 
 from __future__ import annotations
