@@ -183,6 +183,11 @@
     );
   }
 
+  /* The sources, folded on a phone. Open in the markup, so that without this file
+     they are simply there; closed here where twelve rows are a long tail. */
+  var sources = document.getElementById("sources");
+  if (sources && window.matchMedia("(max-width: 60rem)").matches) sources.open = false;
+
   /* The level on the page and the level in the frame, kept the same. The reader's own
      bar switches level by navigating the frame, and a page that only knew the level it
      was served at would then be marking the wrong one — which is the reason it had no

@@ -37,10 +37,14 @@
       it. -#}
   <h1 class="pitch">Learn to read the news in Hebrew</h1>
   <p class="lede">
-    Every Monday, the week from Israel and the world in Modern Hebrew, written three
-    times over. Tap any word for what it means and how common it is. Pick a level, and
-    change it whenever a sentence is too hard, or too easy.
+    Every Monday, the week's news in Hebrew, written three times over. Tap any word for
+    what it means.
   </p>
+
+  {#- The page's spine: one small label over each block, in the one register the page
+      already has for it (Mondays, Sources). On a phone they read as a table of
+      contents while scrolling. -#}
+  <h2 class="label">This week</h2>
 
   {#- The three levels, each a way in. A reader has to choose one before they can
       start, and "Easy / Simplified / Real Hebrew" alone leaves them guessing which is
@@ -53,7 +57,7 @@
       bar became one row on a phone and the switch went behind ⋯. The page can know: the
       frame is the same origin, and `weekly.js` reads where it has gone on every load and
       keeps this and the address in step. -#}
-  <nav class="ladder" aria-label="Level">
+  <nav class="ladder" aria-label="Level — change it whenever a sentence is too hard, or too easy">
     {%- for other, other_spec in levels.items() %}
     <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
        data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
@@ -89,17 +93,62 @@
 
   <p class="made">{{ notice }}</p>
 
-  <p class="door">
-    <a class="go" href="/account/signin">Keep what you learn</a>
-    <span class="free">Signed in, every word you mark follows you into whatever you read next.</span>
-  </p>
+  {#- How it works: three things the reader does, each shown with the reader's own
+      piece rather than a drawing of it — the card a tap opens, a line as marking
+      leaves it, the level chips. After the reader, because it explains what was just
+      touched; before the door, because the door asks you to keep what this describes.
+      The figures are illustrations: their controls are not controls, and a screen
+      reader gets the sentence, not the picture. -#}
+  <section class="how">
+    <h2 class="label">How it works</h2>
+    <ol>
+      <li>
+        <b>Tap a word.</b>
+        <span>A card says what it means, how common it is, and asks how well you know it.</span>
+        <figure class="how-card" aria-hidden="true">
+          <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
+          <span class="said">said <bdi dir="ltr">heχalˈav</bdi></span>
+          <span class="form">dictionary form <bdi lang="he" dir="rtl">חלב</bdi> <i class="pos">moderate</i></span>
+          <span class="meaning">milk</span>
+          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span><span class="level small">ignore</span></span>
+        </figure>
+      </li>
+      <li>
+        <b>Mark as you read.</b>
+        <span>Words you know go quiet on the page; what is left is what you have to learn.</span>
+        <figure class="how-line marking" aria-hidden="true">
+          <p class="src" lang="he" dir="rtl"><span class="w" data-status="9">סליחה</span>, <span class="w" data-status="9">איפה</span> <span class="w">החלב</span>? <span class="w" data-status="1">במקרר</span>, <span class="w" data-status="9">בסוף</span> <span class="w">המעבר</span> <span class="w" data-status="9">הזה</span>.</p>
+          <p class="tr" lang="en" dir="ltr">Excuse me, where is the milk? In the fridge, at the end of this aisle.</p>
+        </figure>
+      </li>
+      <li>
+        <b>Switch level.</b>
+        <span>The same week three times over: when a sentence is too hard, the easier one is a press away.</span>
+        <figure class="how-levels" aria-hidden="true">
+          <span class="levels">
+            {%- for other, other_spec in levels.items() %}
+            <span class="level{% if other == level %} here{% endif %}">{{ other_spec.name }}</span>
+            {%- endfor %}
+          </span>
+        </figure>
+      </li>
+    </ol>
+  </section>
+
+  <section class="keep">
+    <h2 class="label">Keep what you learn</h2>
+    <p class="door">
+      <a class="go" href="/account/signin">Keep what you learn</a>
+      <span class="free">Signed in, every word you mark follows you into whatever you read next.</span>
+    </p>
+  </section>
 
   {#- A form, not a script. Somebody arrives here from a search result and may have
       JavaScript off, blocked, or still loading; and the same markup is reused inside
       the dialog below, so if that opens and its script then fails the ask still
       works. -#}
   <section class="subscribe">
-    <h2>Mondays</h2>
+    <h2 class="label">Mondays</h2>
     <form method="post" action="/weekly/subscribe">
       <label for="weekly-email">A new issue every Monday. Nothing else.</label>
       <span class="row">
@@ -122,8 +171,11 @@
       their shelf, exactly as pasting the link into Add would. Signed out it meets the
       door first, which is the point: somebody who wants to read a whole article is
       further along than somebody who wants to read a digest. -#}
-  <section class="sources">
-    <h2>Sources</h2>
+  {#- Folded on a phone, open on a wide window (`weekly.js` closes it under 60rem):
+      twelve rows are a long tail under the ask, and a citation behind one tap is still
+      a citation. -#}
+  <details class="sources" id="sources" open>
+    <summary><h2 class="label">Sources <span class="count">({{ issue.sources | length }})</span></h2></summary>
     <ul>
       {%- for story in issue.sources %}
       <li>
@@ -147,7 +199,7 @@
       </li>
       {%- endfor %}
     </ul>
-  </section>
+  </details>
   {%- endif %}
 
   {%- if archive %}

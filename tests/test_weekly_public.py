@@ -876,3 +876,25 @@ def test_the_framed_reader_takes_the_screen_and_gives_it_back(
         page.keyboard.press("Escape")
         assert not page.evaluate(LOCKED)["locked"], "Escape gives the page back"
         browser.close()
+
+
+def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Path]) -> None:
+    """One label over each block, and three steps — tap, mark, switch — each shown with
+    the reader's own piece, still, and none of it a control."""
+    page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
+    labels = re.findall(r'<h2 class="label">([^<]+)', page)
+    assert [label.strip() for label in labels][:4] == [
+        "This week",
+        "How it works",
+        "Keep what you learn",
+        "Mondays",
+    ]
+    how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
+    assert how.count("<li>") == 3
+    assert "<b>Tap a word.</b>" in how and "<b>Mark as you read.</b>" in how
+    assert "<b>Switch level.</b>" in how
+    assert 'class="how-card" aria-hidden="true"' in how
+    assert "<button" not in how, "an illustration has no controls"
+    assert '<span class="level here">Simplified</span>' in how, "the chips show this level"
+    assert '<details class="sources" id="sources" open>' in page
+    assert re.search(r"Sources <span class=\"count\">\(\d+\)</span>", page)

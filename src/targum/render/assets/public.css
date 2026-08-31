@@ -868,3 +868,187 @@ body.public.locked {
     padding-block: 0.45rem;
   }
 }
+
+/* --- the weekly's spine, and how it works -----------------------------------------
+
+   One small label over each block, in the register the page already had for two of
+   them. `h2.label` is the shelf's h2 (uppercase, tracked, muted) by another name, so
+   that a block's heading and a summary's can share it. */
+.public .weekly .label {
+  margin: 0 0 0.9rem;
+}
+.public .weekly .how,
+.public .weekly .keep {
+  margin-block-end: 2.5rem;
+}
+.public .how ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem 1.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+/* Numbered, because it is a sequence: tap, mark, switch. The number is a label, not a
+   badge — no circle, no fill. */
+.public .how li {
+  counter-increment: step;
+  padding-block-start: 0.7rem;
+  border-block-start: 1px solid var(--rule);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.public .how li b {
+  display: block;
+  font-weight: 600;
+}
+.public .how li b::before {
+  content: counter(step) "  ";
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.public .how li > span {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+/* The pieces themselves, still. Paper and a hairline — §9 keeps one raised layer to a
+   view and this page spends it on the row above the reader — and none of it is a
+   control, whatever it looks like. */
+.public .how figure {
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  pointer-events: none;
+  user-select: none;
+}
+.public .how-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.public .how-card .lemma {
+  align-self: flex-start;
+  font-family: var(--reading);
+  font-weight: 600;
+  font-size: 1.1em;
+  color: var(--ink);
+}
+.public .how-card .said,
+.public .how-card .form {
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public .how-card .form bdi {
+  font-family: var(--reading);
+  color: var(--ink);
+}
+.public .how-card .pos {
+  margin-inline-start: 0.2rem;
+}
+.public .how-card .meaning {
+  color: var(--ink);
+}
+.public .how-card .levels,
+.public .how-levels .levels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  margin-block-start: 0.2rem;
+}
+.public .how-card .level {
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: 0.8125em;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+.public .how-card .level.small {
+  font-size: 0.75em;
+}
+/* Finishing a word is an achievement, and §4 gives achievement to leaf. */
+.public .how-card .level.known.on {
+  color: var(--paper);
+  background: var(--leaf);
+  border-color: var(--leaf);
+}
+/* A line as marking leaves it: a word you have not met wears the accent wash, one you
+   are getting to know the leaf's, and a known word is plain — the reader's own rules,
+   restated here because there they hang off `body.marking`. */
+.public .how-line .src {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: var(--size);
+  line-height: var(--leading-rtl);
+  color: var(--ink);
+}
+.public .how-line .tr {
+  margin: 0.3rem 0 0;
+  font-family: var(--reading);
+  font-size: var(--size);
+  line-height: var(--leading);
+  color: var(--ink-soft);
+}
+.public .how-line .w {
+  border-radius: 4px;
+  padding-inline: 0.05em;
+}
+.public .how-line .w:not([data-status]) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.public .how-line .w[data-status="1"] {
+  background: color-mix(in srgb, var(--leaf) 18%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 55%, transparent);
+}
+/* The level chips as the reader's bar draws them. */
+.public .how-levels .levels {
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.public .how-levels .level {
+  padding: 0.28rem 0.6rem;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.public .how-levels .level.here {
+  background: var(--ink-soft);
+  color: var(--paper);
+}
+
+/* The sources, foldable. The summary is the label with a count; the marker is the
+   browser's, turned into a quiet arrow. */
+.public details.sources summary {
+  cursor: pointer;
+  list-style: none;
+}
+.public details.sources summary::-webkit-details-marker {
+  display: none;
+}
+.public details.sources summary .label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.public details.sources summary .count {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.public details.sources summary .label::after {
+  content: "\2193";
+  color: var(--ink-soft);
+}
+.public details.sources[open] summary .label::after {
+  content: "\2191";
+}
