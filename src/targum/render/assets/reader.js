@@ -4159,6 +4159,7 @@
         if (at && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName || "")) return;
         if (scrolledInside(at, element)) return;
         startY = event.touches[0].clientY;
+        element.classList.add("pulling");
       },
       { passive: true }
     );
@@ -4176,8 +4177,24 @@
       var far = pulled > PULLED;
       startY = null;
       pulled = 0;
-      element.style.transform = "";
-      if (far) close();
+      element.classList.remove("pulling");
+      if (!far) {
+        element.style.transform = "";
+        return;
+      }
+      // On down, off the foot of the window, and then gone — unless the reader asked
+      // for stillness, in which case gone.
+      var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (still) {
+        element.style.transform = "";
+        close();
+        return;
+      }
+      element.style.transform = "translateY(100%)";
+      setTimeout(function () {
+        element.style.transform = "";
+        close();
+      }, 200);
     }
     element.addEventListener("touchend", letGoOf);
     element.addEventListener("touchcancel", letGoOf);

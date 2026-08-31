@@ -2342,6 +2342,15 @@ body.has-player .next-up { margin-block-end: 9rem; }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
     transition: inset-block-end 200ms cubic-bezier(0.32, 0.72, 0, 1);
   }
+  /* Let go of, an occupant settles back or goes on down along the line the finger
+     drew — the same curve. Under the finger it has no transition at all: it is the
+     finger's, and a transition there would be a lag. */
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
+    transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling, .bar-more.pulling {
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
