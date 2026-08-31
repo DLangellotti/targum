@@ -589,11 +589,23 @@ body.public {
   line-height: 1.25;
 }
 
+/* The reader, at the size it will be read at. It was a bordered slot inside the
+   measure, and then — locked — the whole window: two readers, a thin one and a big
+   one, and the jump between them was the thing you noticed. So it is one size from the
+   start: the window's width, edge to edge, a screen tall, hairlines above and below
+   rather than a box. Locking it pins it where it stands and stops the page under it;
+   nothing about the reader changes. On a wide screen it is a stage between the pitch
+   and the sources. */
 .public .embed {
+  /* Where the window's edges are, measured by weekly.js rather than worked out from
+     `vw` and percentages — `100vw` counts a scrollbar the page cannot draw on, and a
+     percentage margin resolves against a box with padding of its own. Without the
+     script it is the sheet's full width, which is a fine second-best. */
+  inline-size: var(--stage-width, 100%);
+  margin-inline-start: var(--stage-left, 0px);
   margin-block-end: 1.5rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  /* The reader draws its own bar to the edge; without this the corners show through. */
+  border-block: 1px solid var(--rule);
+  background: var(--paper);
   overflow: hidden;
 }
 /* The one row above the reader: the way into the whole screen, and the way back. Quiet
@@ -620,19 +632,14 @@ body.public {
    shows, and the row above reads the other way. `body.locked` is the classic phone
    scroll lock — fixed, with the scroll it had held in `top`, so nothing moves under a
    thumb that has nothing to move. */
-.public .embed.locked,
-.public .weekly .embed.locked {
+.public .embed.locked {
   position: fixed;
   inset: 0;
   z-index: 40;
-  /* The whole window, not the 64rem the slot is capped at — said at the slot's own
-     specificity, or the cap wins. */
-  max-width: none;
   display: flex;
   flex-direction: column;
   margin: 0;
   border: 0;
-  border-radius: 0;
   background: var(--paper);
 }
 .public .embed.locked .handle {
@@ -663,17 +670,15 @@ body.public.locked {
 .public .embed iframe {
   display: block;
   width: 100%;
-  /* The reader paginates to whatever height it is given, so the height is the whole of
-     whether page mode needs a scrollbar. A fixed cap left a short window on a tall
-     screen and an overflowing one on a laptop; this takes the window and subtracts the
-     chrome around it, with a floor so a phone still gets a readable page. */
-  height: max(30rem, calc(100svh - 5rem));
+  /* A screen, less the row above it: the reader paginates to whatever height it is
+     given, and this is the height it has when it is pinned, so pinning changes
+     nothing. A floor, so a very short window still gets a readable page. */
+  height: max(28rem, calc(100svh - 2.5rem));
   border: 0;
 }
 
 /* Wider than a reading column: the frame holds two columns of its own, and a 34rem
    measure would put a whole reader in a slot meant for one of them. */
-.public .weekly .embed,
 .public .weekly .pitch {
   max-width: min(64rem, 100%);
 }

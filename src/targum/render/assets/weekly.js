@@ -51,6 +51,23 @@
   var embed = document.getElementById("embed");
   var handle = document.getElementById("embed-handle");
   var framed = embed && embed.querySelector("iframe");
+
+  /* The stage reaches the window's edges: measured, because `100vw` counts a scrollbar
+     the page cannot draw on and a percentage margin resolves against a box with padding
+     of its own. The variables are cleared, the slot's own edge is read, and the frame
+     is moved out to the window's — again on resize, and never while it is pinned. */
+  function placeStage() {
+    if (!embed || embed.classList.contains("locked")) return;
+    var root = document.documentElement.style;
+    root.removeProperty("--stage-left");
+    root.removeProperty("--stage-width");
+    var left = embed.getBoundingClientRect().left;
+    root.setProperty("--stage-left", -left + "px");
+    root.setProperty("--stage-width", document.documentElement.clientWidth + "px");
+  }
+  placeStage();
+  window.addEventListener("resize", placeStage);
+
   if (embed && handle && framed) {
     var locked = false;
     var left = false;
@@ -114,6 +131,7 @@
       window.scrollTo(0, held);
       handle.textContent = "Full screen";
       handle.setAttribute("aria-expanded", "false");
+      placeStage();
       fly(from);
     }
 
