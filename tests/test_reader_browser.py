@@ -2169,7 +2169,7 @@ def test_a_phrase_you_select_offers_itself_to_be_kept(page) -> None:
 
 def test_keeping_a_phrase_writes_it_down(page) -> None:
     drag_across_words(page)
-    page.click("#pick-chip button")
+    page.click("#pick-chip .drop-pick")
     page.wait_for_timeout(300)
     kept = page.evaluate(
         """() => {
@@ -2187,3 +2187,228 @@ def test_a_tap_still_opens_the_word_it_landed_on(page) -> None:
     page.click(".pair:not([hidden]) .src .w")
     page.wait_for_timeout(200)
     assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
+
+
+# -- a phrase asked for ---------------------------------------------------------------
+
+#: What a served page is told a phrase means.
+PIECE = "a new military committee"
+
+#: What the phrase chip says: the reading and the caption under it, or null when it is
+#: not up.
+CHIP = """
+() => {
+  const chip = document.getElementById('pick-chip');
+  if (!chip || chip.hidden) return null;
+  const text = sel => { const el = chip.querySelector(sel); return el ? el.textContent : ""; };
+  return { reading: text('.reading'), note: text('.source-note') };
+}
+"""
+
+#: Every kept phrase's meaning, as the reader's own store has it.
+KEPT_MEANINGS = """
+() => {
+  const key = Object.keys(localStorage).find(k => k.indexOf('targum:picked:') === 0);
+  const held = JSON.parse(localStorage.getItem(key) || '{}');
+  return Object.keys(held).map(id => held[id]).flat().map(p => p.meaning);
+}
+"""
+
+
+def served(browser, built: Path, on_phrase):
+    """A reader served the way `targum serve` serves it — a key on the URL, so the page
+    can ask — with `/phrase` answered by the test. The model is never called."""
+    html = built.read_text(encoding="utf-8")
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/phrase" in request.url:
+            on_phrase(route, request)
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair:not([hidden]) .src .w")
+    return context, page
+
+
+def answered(meaning: str, quoted: bool):
+    def on_phrase(route, request):
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"meaning": meaning, "quoted": quoted}),
+        )
+
+    return on_phrase
+
+
+#: Every piece of the parallel text the page is marking as the answer to a selection.
+ECHOED = "() => [...document.querySelectorAll('.pair .tr .echo')].map(m => m.textContent)"
+
+
+def test_a_phrase_reads_from_the_parallel_text(browser, built: Path) -> None:
+    """A few words selected used to show their glosses strung together — "and a council ·
+    military · new" — which is honest and no use. Served, the page asks what the run is
+    against the sentence's translation, the card quotes the parallel text, and the quoted
+    words are marked in the translation itself for as long as the card is up."""
+    calls = []
+
+    def on_phrase(route, request):
+        sent = request.post_data_json
+        calls.append(sent)
+        # The server, in miniature: the answer is a piece of the translation it was sent.
+        piece = " ".join(sent["translation"].split()[:2])
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"meaning": piece, "quoted": True}),
+        )
+
+    context, page = served(browser, built, on_phrase)
+    drag_across_words(page)
+    page.wait_for_function(
+        "() => (document.querySelector('#pick-chip .source-note') || {}).textContent"
+        " === 'in the parallel text'"
+    )
+    sent = calls[0]
+    piece = " ".join(sent["translation"].split()[:2])
+    assert page.evaluate(CHIP) == {"reading": piece, "note": "in the parallel text"}
+    assert sent["phrase"] and sent["phrase"] in sent["sentence"], "the run, in its sentence"
+    assert (sent["source"], sent["target"]) == ("he", "en")
+    assert page.evaluate(ECHOED) == [piece], "the quoted words are marked in the translation"
+
+    # The card goes, and the mark goes with it.
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(100)
+    assert page.evaluate(CHIP) is None
+    assert page.evaluate(ECHOED) == [], "the mark outlived the card"
+    assert page.evaluate("() => document.querySelector('.pair .tr').childNodes.length") >= 1
+
+    # The same words again: answered from what the page already holds, no second call —
+    # and marked again.
+    drag_across_words(page)
+    assert page.evaluate(CHIP) == {"reading": piece, "note": "in the parallel text"}
+    assert page.evaluate(ECHOED) == [piece]
+    assert len(calls) == 1, f"the phrase was asked for {len(calls)} times"
+    context.close()
+
+
+def test_a_phrase_the_translation_does_not_quote_is_rendered(browser, built: Path) -> None:
+    """Word order or idiom can leave a run with no piece of the translation to quote. The
+    card then says what the run means here, and its caption does not claim a quotation."""
+    context, page = served(browser, built, answered("as they put it", False))
+    drag_across_words(page)
+    page.wait_for_function(
+        "() => (document.querySelector('#pick-chip .source-note') || {}).textContent"
+        " === 'as it is used here'"
+    )
+    assert page.evaluate(CHIP) == {"reading": "as they put it", "note": "as it is used here"}
+    assert page.evaluate(ECHOED) == [], "nothing in the translation is these words"
+    context.close()
+
+
+def test_a_phrase_off_the_disk_stays_word_by_word(page) -> None:
+    """Opened off the disk the page cannot ask, so it offers what it has the old way and
+    says so — and fetches nothing, which `test_render.py` pins."""
+    drag_across_words(page)
+    chip = page.evaluate(CHIP)
+    assert chip is not None, "the chip did not open"
+    assert chip["note"] in ("word by word — the sentence is in parallel", ""), chip
+    assert "looking" not in chip["note"], "a page that cannot ask said it was asking"
+
+
+def test_a_phrase_kept_before_the_answer_gets_it(browser, built: Path) -> None:
+    """Keep is a click away and the answer is a round trip away, so a reader can keep a
+    phrase while its meaning is still the glosses. The answer reaches the kept phrase
+    when it lands, and the card — still open on that selection — says so too."""
+    waiting = []
+
+    def on_phrase(route, request):
+        waiting.append(route)  # Held, and answered below.
+
+    context, page = served(browser, built, on_phrase)
+    drag_across_words(page)
+    for _ in range(30):
+        if waiting:
+            break
+        page.wait_for_timeout(100)
+    assert waiting, "the page never asked"
+    chip = page.evaluate(CHIP)
+    assert chip and chip["note"].endswith("looking…"), chip
+
+    page.click("#pick-chip .drop-pick")  # Keep, whatever else the chip offers.
+    page.wait_for_timeout(200)
+    before = page.evaluate(KEPT_MEANINGS)
+    assert len(before) == 1 and before[0] != PIECE, before
+
+    waiting[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"meaning": PIECE, "quoted": True}),
+    )
+    for _ in range(30):
+        if page.evaluate(KEPT_MEANINGS) == [PIECE]:
+            break
+        page.wait_for_timeout(100)
+    assert page.evaluate(KEPT_MEANINGS) == [PIECE], "the kept phrase never got its meaning"
+    assert page.evaluate(CHIP) == {"reading": PIECE, "note": "in the parallel text"}
+    context.close()
+
+
+# -- copying a word out -------------------------------------------------------------
+#
+# The clipboard is stubbed: a headless page is never the focused document, and
+# `writeText` refuses one that is not. What is asserted is everything around it — that
+# the text handed over is the one on the card, that the card survives the press, and
+# that the press is said, once in place and once aloud.
+
+FAKE_CLIPBOARD = """() => {
+  window.__copied = null;
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: (text) => { window.__copied = text; return Promise.resolve(); } },
+  });
+}"""
+
+
+def test_the_word_on_the_card_copies_itself(page) -> None:
+    page.evaluate(FAKE_CLIPBOARD)
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    shown = page.evaluate("() => document.querySelector('#gloss-card .lemma').textContent")
+    page.click("#gloss-card .copy")
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => window.__copied") == shown, "the word as it is on the card"
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden"), (
+        "the press stayed on the card"
+    )
+    assert (
+        page.evaluate("() => document.querySelector('#gloss-card .copy').textContent") == "Copied"
+    )
+    assert page.evaluate("() => document.getElementById('spoken').textContent") == "Copied."
+    page.wait_for_timeout(1700)
+    assert not page.evaluate(
+        "() => document.querySelector('#gloss-card .copy').classList.contains('copied')"
+    ), "and after a beat it is a control again"
+
+
+def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
+    page.evaluate(FAKE_CLIPBOARD)
+    drag_across_words(page)
+    phrase = page.evaluate("() => document.querySelector('#pick-chip .phrase bdi').textContent")
+    page.click("#pick-chip .phrase .copy")
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => window.__copied") == phrase
+    page.keyboard.press("Escape")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    page.keyboard.press("1")
+    page.wait_for_timeout(300)
+    label = page.evaluate(
+        "() => (document.querySelector('#list-items .copy') || {getAttribute: () => null})"
+        ".getAttribute('aria-label')"
+    )
+    assert label and label.startswith("Copy "), "the row beside the text carries one"

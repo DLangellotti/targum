@@ -55,7 +55,6 @@ install({
     beta: () => false,
     betaNote: () => "",
   },
-  TargumVocab: { migrate: () => {}, editor: () => element("div") },
   selectors: { ".fold": folds },
 });
 
@@ -91,6 +90,13 @@ global.document.createElementNS = (namespace, tag) => element(tag);
    filter starts where the markup starts it: still learning, not everything. */
 byId.search = Object.assign(element("input"), { value: payload.search || "" });
 byId["status-filter"] = Object.assign(element("select"), { value: payload.filter || "learning" });
+
+/* The real vocabulary module, because the rows it draws carry its copy control; the
+   move it runs on load and the editor it draws into a row are still not what this is
+   for, and are stubbed back out. */
+require(path.join(assets, "vocab.js"));
+global.window.TargumVocab.migrate = () => {};
+global.window.TargumVocab.editor = () => element("div");
 
 require(path.join(assets, "charts.js"));
 // After charts.js and before the page, so the page binds these rather than the real ones.
@@ -193,6 +199,17 @@ setTimeout(() => {
         phrases: at("export-phrases").hidden,
       },
       words: words(),
+      // The copy control every row carries, by what it says it copies.
+      copies: {
+        words: at("word-rows")
+          .children.filter((row) => !String(row.className).includes("editor-row"))
+          .map((row) => (row.children[0].querySelector(".copy") || { attrs: {} }).attrs["aria-label"]),
+        phrases: at("phrase-list").children.flatMap((group) =>
+          group.children[1].children.map(
+            (item) => (item.querySelector(".copy") || { attrs: {} }).attrs["aria-label"],
+          ),
+        ),
+      },
       wordsTitle: at("words-title").textContent,
       wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,
       shelfNote: at("shelf-note").textContent,

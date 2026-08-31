@@ -779,6 +779,64 @@
       });
   }
 
+  // What a run of words means, asked with the sentence and its translation in hand so
+  // the answer can be the piece of the parallel text that is that run. Held for the life
+  // of the page under the selection's offsets; the server's cache is what remembers
+  // across a reload. `null` while an answer is in the air, `false` when none came.
+  var phraseAnswers = {};
+
+  function phraseKey(picked, into) {
+    return picked.segmentId + ":" + picked.start + ":" + picked.end + ":" + into;
+  }
+
+  function phraseHeld(picked) {
+    var held = phraseAnswers[phraseKey(picked, targetLanguage || "en")];
+    return held && held.meaning ? held : null;
+  }
+
+  // Whether an answer could still come: the page can ask, there is a translation to ask
+  // against, and nothing has been asked yet or one is on its way.
+  function phrasePending(picked) {
+    if (!canAsk() || typeof fetch !== "function") return false;
+    if (!translationFor(picked.segmentId)) return false;
+    var held = phraseAnswers[phraseKey(picked, targetLanguage || "en")];
+    return held === undefined || held === null;
+  }
+
+  function askPhrase(picked, onDone) {
+    if (!canAsk() || typeof fetch !== "function") return;
+    // The language asked about, held for the flight, for the reason `lookUp` holds it.
+    var into = targetLanguage || "en";
+    var key = phraseKey(picked, into);
+    if (phraseAnswers[key] !== undefined) return;
+    phraseAnswers[key] = null;
+    fetch(keyed("/phrase"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        phrase: picked.text,
+        sentence: segmentText(picked.segmentId),
+        translation: translationFor(picked.segmentId),
+        source: language,
+        target: into,
+      }),
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (answer) {
+        phraseAnswers[key] =
+          answer && answer.meaning
+            ? { meaning: String(answer.meaning), quoted: !!answer.quoted }
+            : false;
+        onDone(phraseAnswers[key], into);
+      })
+      .catch(function () {
+        phraseAnswers[key] = false;
+        onDone(false, into);
+      });
+  }
+
   function statusOf(lemma) {
     var item = vocab[lemma];
     return item ? item.status : undefined;
@@ -1685,6 +1743,8 @@
       dictionary.textContent = entry.lemma;
       term.appendChild(dictionary);
     }
+    // Inside the term's cell, so the row keeps its four columns.
+    term.appendChild(window.TargumVocab.copyButton(entry.term, { say: say }));
     item.appendChild(term);
 
     // A phrase is in its own list now, so it no longer has to announce that it is one.
@@ -2182,35 +2242,44 @@
     // The word you tapped, then its dictionary form, labelled. Leading with the
     // dictionary form alone meant tapping הציפור answered ציפור with no explanation of
     // why the answer was a different word.
+    // Each line the card says carries its own copy: the word as it is here, its dictionary
+    // form, its meaning. Three controls rather than one, because "copy the word" meant
+    // three different strings to three readers, and the line beside the control says which.
+    var headline = document.createElement("span");
+    headline.className = "copy-line";
     var head = document.createElement("bdi");
     head.className = "lemma";
     head.setAttribute("lang", language);
     head.textContent = shown;
-    card.appendChild(head);
+    headline.appendChild(head);
+    headline.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
+    card.appendChild(headline);
 
     // Directly under the word, because it is about the word rather than about its
     // dictionary form, and because the stress is the half of it a learner cannot get
     // from the spelling and will not find in any dictionary entry either.
     var said = readingOf(word);
     if (said) {
-      var say = document.createElement("span");
-      say.className = "said";
-      say.appendChild(document.createTextNode("said "));
+      // Not `say`: that is the reader's announcer, and the copy controls below need it.
+      var saying = document.createElement("span");
+      saying.className = "said";
+      saying.appendChild(document.createTextNode("said "));
       var heard = document.createElement("bdi");
       heard.setAttribute("dir", "ltr");
       heard.textContent = said;
-      say.appendChild(heard);
-      card.appendChild(say);
+      saying.appendChild(heard);
+      card.appendChild(saying);
     }
 
     if (lemma !== surface.toLowerCase() && lemma !== surface) {
       var form = document.createElement("span");
-      form.className = "form";
+      form.className = "form copy-line";
       form.appendChild(document.createTextNode("dictionary form "));
       var bdi = document.createElement("bdi");
       bdi.setAttribute("lang", language);
       bdi.textContent = lemma;
       form.appendChild(bdi);
+      form.appendChild(window.TargumVocab.copyButton(lemma, { say: say }));
       card.appendChild(form);
     }
 
@@ -2265,8 +2334,14 @@
     var meaning = inTarget(document.createElement("span"));
     meaning.className = "meaning";
     var own = noteOf(lemma);
-    meaning.textContent = own || glosses[index] || "";
+    var sense = own || glosses[index] || "";
+    meaning.textContent = sense;
     if (own) meaning.classList.add("mine");
+    // Only where there is a meaning to copy: the placeholder below is not one.
+    if (sense) {
+      meaning.classList.add("copy-line");
+      meaning.appendChild(window.TargumVocab.copyButton(sense, { say: say }));
+    }
     card.appendChild(meaning);
 
     // Nothing has been looked up for this word, so nothing is claimed about it. The
@@ -2340,6 +2415,56 @@
   /* --- keeping a phrase ---------------------------------------------------- */
 
   var chip = document.getElementById("pick-chip");
+  // The selection the chip is open on, so an answer that arrives late knows whether it
+  // still has a card to restate.
+  var picking = null;
+
+  // The piece of the translation the chip is quoting, marked in the translation cell
+  // itself while the chip is up, so "in the parallel text" points at something. One at
+  // a time, and taken out again the moment the chip goes. §4: iris is the phrase hue,
+  // and a highlight is a flat wash.
+  var echo = null;
+
+  function unecho() {
+    if (echo && echo.parentNode) {
+      var parent = echo.parentNode;
+      parent.replaceChild(document.createTextNode(echo.textContent), echo);
+      parent.normalize();
+    }
+    echo = null;
+  }
+
+  function echoIn(segmentId, piece) {
+    unecho();
+    var cell = document.querySelector('.pair[data-id="' + segmentId + '"] .tr');
+    var words = piece.trim().split(/\s+/);
+    if (!cell || !words[0]) return;
+    // The words, with whatever whitespace the cell has between them: the answer had one
+    // space where the cell may have a line break. Case is forgiven; the words are not.
+    var pattern = new RegExp(
+      words
+        .map(function (word) {
+          return word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        })
+        .join("\\s+"),
+      "i"
+    );
+    // Text nodes rather than the cell's text: the template wraps opposite-direction runs
+    // in <bdi>, and a mark has to be put around characters, not across elements.
+    var walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    var node;
+    while ((node = walker.nextNode())) {
+      var found = pattern.exec(node.nodeValue);
+      if (!found) continue;
+      var rest = node.splitText(found.index);
+      rest.splitText(found[0].length);
+      echo = document.createElement("mark");
+      echo.className = "echo";
+      rest.parentNode.replaceChild(echo, rest);
+      echo.appendChild(rest);
+      return;
+    }
+  }
 
   // Where a DOM position falls in the segment's own text. The reader rebuilds these
   // cells constantly, so offsets are the only stable way to record a selection.
@@ -2460,10 +2585,10 @@
   }
 
   // What a run of words means, composed from the glosses the reader already carries.
-  // Only used for part of a sentence: alignment pairs whole sentences, so there is no
-  // way to say which part of the translation answers to which part of the source, and
-  // slicing it proportionally would be confidently wrong. Word by word is what can
-  // honestly be offered, and it is labelled as that.
+  // Alignment pairs whole sentences, so nothing on the page says which part of the
+  // translation answers to which part of the source, and slicing it proportionally would
+  // be confidently wrong. A served page asks (`askPhrase`) and shows this while it waits;
+  // a page opened off the disk has only this, and it is labelled as that.
   function wordByWord(picked) {
     var parts = [];
     (wordData[picked.segmentId] || []).forEach(function (token) {
@@ -2483,12 +2608,15 @@
     text.setAttribute("lang", language);
     text.textContent = parts.title;
     phrase.appendChild(text);
+    // The phrase and its reading each copy on their own, as the card's lines do.
+    phrase.appendChild(window.TargumVocab.copyButton(parts.title, { say: say }));
     chip.appendChild(phrase);
 
     if (parts.reading) {
       var reading = inTarget(document.createElement("span"));
       reading.className = "reading";
       reading.textContent = parts.reading;
+      reading.appendChild(window.TargumVocab.copyButton(parts.reading, { say: say }));
       chip.appendChild(reading);
     }
     if (parts.note) {
@@ -2586,6 +2714,8 @@
   function hideChip() {
     if (chip) chip.hidden = true;
     pickLevel = null;
+    picking = null;
+    unecho();
   }
 
   document.addEventListener("mouseup", function (event) {
@@ -2603,6 +2733,8 @@
   // the keyboard has to draw the card again to show which one is now set — the editor
   // reads its pressed state once, when it is made.
   function showPick(picked) {
+    // Whatever the last card was quoting is not what this one is about.
+    unecho();
     var touching = touchedTokens(picked);
     // One and zero are different answers. A drag that touches no word at all is
     // whitespace or punctuation, and it used to fall through to the phrase card — so
@@ -2642,9 +2774,17 @@
       if (item.start < picked.end && item.end > picked.start) existing = index;
     });
 
-    // The whole sentence has a translation already; a part of one does not.
+    // The whole sentence has a translation already. A part of one is asked for, once,
+    // where the page can ask; until the answer comes — or where it cannot — the words'
+    // own glosses stand in, and the caption says which of the three this is.
     var whole = coversSegment(picked);
-    var reading = whole ? translationFor(picked.segmentId) : wordByWord(picked);
+    var held = whole ? null : phraseHeld(picked);
+    var asking = !whole && !held && phrasePending(picked);
+    var reading = whole
+      ? translationFor(picked.segmentId)
+      : held
+        ? held.meaning
+        : wordByWord(picked);
     var editing = phraseEditor(picked, existing, reading);
     // The scale is for a phrase you have kept. Before that there is one button, Keep:
     // the scale used to keep the phrase the moment any part of it was touched, and an
@@ -2654,9 +2794,17 @@
       reading: reading,
       note: whole
         ? "the whole sentence"
-        : reading
-          ? "word by word — the sentence is in parallel"
-          : "",
+        : held
+          ? held.quoted
+            ? "in the parallel text"
+            : "as it is used here"
+          : asking
+            ? reading
+              ? "word by word — looking…"
+              : "looking…"
+            : reading
+              ? "word by word — the sentence is in parallel"
+              : "",
       editor: existing > -1 ? editing.element : null,
       action: existing > -1 ? "Remove" : "Keep",
       onclick: function () {
@@ -2687,6 +2835,31 @@
       },
     });
     placeChip(picked.rect);
+    picking = picked;
+    if (held && held.quoted) echoIn(picked.segmentId, held.meaning);
+    if (asking) {
+      askPhrase(picked, function (answer, into) {
+        // A phrase kept while the answer was in the air was kept with the glosses as its
+        // meaning. It takes the real one; the reader's own note is never touched.
+        if (answer) {
+          var changed = false;
+          (picks[picked.segmentId] || []).forEach(function (item) {
+            if (item.start < picked.end && item.end > picked.start) {
+              item.meaning = answer.meaning;
+              keepMeaning(phraseTerm(item), answer.meaning, into);
+              changed = true;
+            }
+          });
+          if (changed) {
+            remember();
+            redraw();
+          }
+        }
+        // And the card, if it is still the card for this selection, says so — or, when
+        // nothing came, stops saying it is looking.
+        if (picking === picked) showPick(picked);
+      });
+    }
     pickLevel = function (status) {
       editing.apply(status);
       showPick(picked);

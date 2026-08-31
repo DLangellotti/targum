@@ -211,6 +211,9 @@
       var bdi = el("bdi", "term", word.term);
       bdi.setAttribute("lang", code);
       term.appendChild(bdi);
+      // In the word's own cell rather than a column of its own: a copy is about the
+      // word, and the table already has six columns to hold on a phone.
+      term.appendChild(window.TargumVocab.copyButton(word.term, {}));
       tr.appendChild(term);
 
       var lemma = el("td");
@@ -341,6 +344,7 @@
         var bdi = el("bdi", "term", phrase.term);
         bdi.setAttribute("lang", code);
         item.appendChild(bdi);
+        item.appendChild(window.TargumVocab.copyButton(phrase.term, {}));
         var reading = phrase.note || phrase.meaning;
         var line = null;
         if (reading) {

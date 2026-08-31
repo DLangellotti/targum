@@ -336,6 +336,17 @@ def test_phrases_are_grouped_by_the_text_they_came_from() -> None:
     assert drawn["phrasesTitle"] == "Your Phrases (1)"
 
 
+def test_every_row_offers_to_copy_its_word() -> None:
+    """One control beside the word, named for it — the same one the reader's card and
+    its list carry, so a word is copied the same way wherever it is met."""
+    stored = vocabulary(word("ספר", "book", status=2), word("דרך", "road", status=2))
+    stored["targum:docs"] = json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}})
+    stored["targum:picked:h1"] = json.dumps({"s1": [{"text": "לב טוב", "meaning": "a good heart"}]})
+    drawn = draw([reader("a", "א")], stored)
+    assert sorted(drawn["copies"]["words"]) == ["Copy דרך", "Copy ספר"]
+    assert drawn["copies"]["phrases"] == ["Copy לב טוב"]
+
+
 def test_nothing_offers_an_export_to_a_browser_with_no_account() -> None:
     """An export comes from the account. Signed out there is nothing to hand back but a
     subset of one browser, with no sign that anything is missing."""

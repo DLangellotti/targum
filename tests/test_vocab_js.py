@@ -223,3 +223,55 @@ def test_the_scale_says_what_the_pressed_step_means() -> None:
     assert run(status=9, legend=True)["legend"] == "known · known"
     assert run(legend=True)["legend"] == "1 just met it · 2 getting there · 3 nearly know it"
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
+
+
+# -- copying a word out -----------------------------------------------------------
+
+
+def copied(text: str = "הָעִיר", **how: Any) -> dict[str, Any]:
+    """Press the copy control once, in the kind of browser `how` describes."""
+    return run(copy=text, **how)
+
+
+def test_the_control_names_the_word_it_copies() -> None:
+    """Icon-only, so the label is the whole of what a screen reader gets."""
+    done = copied(clipboard="ok")
+    assert done["before"] == {"label": "Copy הָעִיר", "title": "Copy", "text": ""}
+
+
+def test_pressing_it_copies_the_text_and_says_so_where_it_was_pressed() -> None:
+    """The control says "Copied" in its own place, the way Save says Saved: a press that
+    changes nothing visible is a press the reader repeats."""
+    done = copied(clipboard="ok")
+    assert done["written"] == ["הָעִיר"]
+    assert done["after"] == {"text": "Copied", "copied": True, "announced": "Copied."}
+
+
+def test_it_goes_back_to_being_a_control_after_a_beat() -> None:
+    done = copied(clipboard="ok")
+    assert done["reverted"] == {"text": "", "copied": False}
+
+
+def test_a_clipboard_that_refuses_falls_back_to_the_old_command() -> None:
+    """`writeText` rejects when the document is not focused, which is every headless
+    browser and some real ones. The old command still works there."""
+    done = copied(clipboard="refuses", command=True)
+    assert done["written"] == ["הָעִיר"], "the clipboard was asked first"
+    assert done["after"]["text"] == "Copied"
+
+
+def test_with_no_way_to_copy_it_says_so_rather_than_throwing() -> None:
+    """No clipboard API and no command: a page that fetches nothing runs in odd places.
+    What it must not do is break the card it sits on."""
+    done = copied()
+    assert done["written"] == []
+    assert done["after"] == {"text": "Not copied", "copied": True, "announced": "Not copied."}
+
+
+def test_the_press_stays_on_the_card() -> None:
+    """The reader's document handler closes the card on any click that reaches it."""
+    assert copied(clipboard="ok")["stopped"] == 1
+
+
+def test_a_caller_can_say_what_the_label_should_be() -> None:
+    assert copied(clipboard="ok", label="Copy the phrase")["before"]["label"] == "Copy the phrase"

@@ -652,6 +652,60 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False
 
 
+def test_a_phrase_already_answered_is_free_to_ask_for(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selecting a few words asks what they mean against the sentence's translation.
+    An answer already held comes back without a key; one that is not is refused
+    politely when nothing can be bought; and the endpoint is for phrases in the
+    sentence in front of the reader, not a translator with an open door."""
+    from targum.annotate.gloss import gloss_provider_name
+    from targum.annotate.phrase import PHRASE_MODEL, phrase_key
+    from targum.cache import Cache
+
+    port, session = hosted
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
+    sentence = 'השבוע: השב"כ מאשר איום על בנו של ראש הממשלה, ובאיסטנבול נפתחת ועדה צבאית חדשה.'
+    translation = (
+        "This week: the Shin Bet confirms a threat against the prime minister's son, "
+        "and in Istanbul a new military committee opens."
+    )
+    cache = Cache()
+    cache.put(
+        "phrase",
+        phrase_key(
+            cache,
+            "ועדה צבאית חדשה",
+            sentence,
+            translation,
+            "he",
+            "en",
+            gloss_provider_name(PHRASE_MODEL),
+        ),
+        {"meaning": "a new military committee", "quoted": True},
+    )
+    base: dict[str, object] = {
+        "phrase": "ועדה צבאית חדשה",
+        "sentence": sentence,
+        "translation": translation,
+        "source": "he",
+        "target": "en",
+    }
+
+    def ask(**changes: object) -> tuple[int, dict[str, object]]:
+        return _signed_post(port, "/phrase", {**base, **changes}, session)
+
+    assert ask() == (200, {"meaning": "a new military committee", "quoted": True, "cached": True})
+    status, answer = ask(phrase="ראש הממשלה")
+    assert status == 402 and answer["error"], "not held and nothing can be bought"
+    assert ask(phrase="שלום")[0] == 400, "not in the sentence"
+    assert ask(phrase="א", sentence="א" * 601)[0] == 400, "a paragraph, not a sentence"
+    assert ask(translation="")[0] == 400
+    assert ask(source="")[0] == 400
+
+
 def test_no_page_stops_for_want_of_a_key() -> None:
     """Hosted there is no key: the session cookie is what identifies the reader. Three
     scripts asked for the key and returned when it was missing — the next-chapter

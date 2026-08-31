@@ -2352,6 +2352,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._build(payload)
         if route == "/gloss":
             return self._gloss_word(payload)
+        if route == "/phrase":
+            return self._gloss_phrase(payload)
         if route == "/chapter":
             return self._chapter(payload)
         if route == "/cover":
@@ -2820,6 +2822,52 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             return self._json({"error": "Could not look that word up just now."}, 502)
         return self._json({"lemma": lemma, "meaning": meaning})
+
+    def _gloss_phrase(self, payload: dict[str, Any]) -> None:
+        """A few words of a sentence, because a reader selected them.
+
+        The sentence's translation is already on the page; what is asked is which piece
+        of it these words are, so the answer can be the parallel text and not a second
+        translation of it. Cached on the sentence, the translation and the run: the same
+        selection in the same text is free for everyone after the first.
+        """
+        phrase = str(payload.get("phrase", "")).strip()
+        sentence = str(payload.get("sentence", "")).strip()
+        translation = str(payload.get("translation", "")).strip()
+        source = str(payload.get("source", "")).strip()
+        target = str(payload.get("target", "en")).strip() or "en"
+
+        from .annotate.phrase import (
+            PHRASE_MODEL,
+            AnthropicPhrases,
+            cached_phrase,
+            phrase_one,
+            within_limits,
+        )
+
+        # A phrase-in-context service, not a translator: the run has to be in the
+        # sentence, and both texts have to be the size of a sentence.
+        if not source or not within_limits(phrase, sentence, translation):
+            return self._json({"error": "bad request"}, 400)
+
+        # The model glosses are bought on, for the reason `_gloss_word` gives: the
+        # provider's name is in the key, and a different one here would pay twice.
+        provider = AnthropicPhrases(PHRASE_MODEL)
+        held = cached_phrase(phrase, sentence, translation, source, target, provider.name)
+        if held is not None:
+            # Answered from the cache and never bought, so it needs no key to ask.
+            return self._json({"meaning": held[0], "quoted": held[1], "cached": True})
+        usable, _ = provider.available()
+        if not usable:
+            return self._json({"error": NO_KEY}, 402)
+        try:
+            meaning, quoted = phrase_one(phrase, sentence, translation, source, target, provider)
+        except TargumError as error:
+            return self._json({"error": error.message}, 502)
+        except Exception:
+            traceback.print_exc()
+            return self._json({"error": "Could not look that phrase up just now."}, 502)
+        return self._json({"meaning": meaning, "quoted": quoted})
 
     #: What a text or a translation may arrive as. An epub is a book; the rest is text.
     READABLE = frozenset({".txt", ".md", ".markdown", ".epub"})

@@ -705,6 +705,30 @@ def test_the_reader_styles_every_floating_card() -> None:
         assert "position:" in rules, block
 
 
+def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
+    """One control, built once in vocab.js and placed beside every word: the three lines
+    of the card, the phrase and its reading, a row on the list beside the text, and a row
+    on the words and phrases pages. Its rules live in the one stylesheet every page
+    carries, and in the reader it speaks through the reader's own live region."""
+    from targum.render.builder import ASSETS
+
+    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert ".copy {" in css and ".gloss-card .copy-line {" in css
+    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert reader.count("window.TargumVocab.copyButton(") == 6, (
+        "the word, its dictionary form, its meaning, the phrase, its reading, a row"
+    )
+    assert reader.count("copyButton(") == reader.count(", { say: say })"), (
+        "in the reader, every copy announces through #spoken"
+    )
+    lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
+    assert lists.count("window.TargumVocab.copyButton(") == 2, "a word row and a phrase row"
+    vocab = (ASSETS / "vocab.js").read_text(encoding="utf-8")
+    assert 'setAttribute("role", "status")' in vocab and 'aria-live", "polite"' in vocab, (
+        "and elsewhere through a region of its own"
+    )
+
+
 def test_pressing_a_card_does_not_cancel_the_selection_behind_it() -> None:
     """Mousedown on the card collapses the selection, the mouseup handler then hides
     the card, and the click never reaches the button under the cursor. Which reads as
@@ -1968,7 +1992,9 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
     # Each branch redraws it, and so does Keep: the card comes back with the scale on.
-    assert body.count("showPick(picked);") == 3, "each redraws it"
+    # And a phrase's meaning arriving from the server redraws it once more, so the card
+    # that said "looking…" is the one that says what came.
+    assert body.count("showPick(picked);") == 4, "each redraws it"
     # And it stops being live the moment the card goes. There is one way to put the chip
     # away and it takes the keys down with it, because the two being separate lines meant
     # remembering them together at four call sites — and a level pressed at a phrase
@@ -1977,6 +2003,63 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     one_way = r"function hideChip\(\) \{\n[^}]*chip\.hidden = true;\n[^}]*pickLevel = null;"
     assert re.search(one_way, script), "hiding the chip does not take the keys down with it"
     assert script.count("hideChip()") >= 4, "somewhere hides the chip without going through it"
+
+
+def test_a_phrase_asks_only_where_the_page_can() -> None:
+    """A few words selected ask the server what they mean against the sentence's
+    translation, so the card can quote the parallel text instead of stringing glosses
+    together. Same origin, and only behind `canAsk()`: a page opened off the disk fetches
+    nothing, and `test_loads_nothing_from_the_network` stays true of it."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    ask = script[script.index("function askPhrase(picked") : script.index("function statusOf(")]
+    assert ask.index("canAsk()") < ask.index('fetch(keyed("/phrase")'), "asked before it can"
+    assert "translation: translationFor(picked.segmentId)" in ask, "the parallel text goes too"
+    pending = script[
+        script.index("function phrasePending(picked)") : script.index("function askPhrase(")
+    ]
+    assert "canAsk()" in pending and "translationFor(picked.segmentId)" in pending
+    # The three things the caption can say about a part of a sentence, and the one it
+    # says while the answer is on its way.
+    chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    for caption in (
+        "in the parallel text",
+        "as it is used here",
+        "word by word — looking…",
+        "word by word — the sentence is in parallel",
+    ):
+        assert caption in chip, caption
+    # An answer that lands after Keep reaches the kept phrase, and the card is restated
+    # only if it is still open on that selection.
+    assert "keepMeaning(phraseTerm(item), answer.meaning, into);" in chip
+    assert "if (picking === picked) showPick(picked);" in chip
+    assert "picking = null;" in script[script.index("function hideChip()") :]
+
+
+def test_a_quoted_phrase_is_marked_in_the_parallel_text() -> None:
+    """The caption "in the parallel text" points at something: while the card quotes a
+    piece of the translation, that piece is marked in the translation cell, in the
+    phrase hue as a flat wash (§4), and unmarked the moment the card goes or another
+    one opens."""
+    from targum.render.builder import ASSETS
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    sheet = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    rule = sheet[sheet.index(".tr .echo {") : sheet.index("}", sheet.index(".tr .echo {"))]
+    assert re.search(r"var\(--iris\) (1[2-9]|2[0-2])%", rule), "the wash is iris, 12–22%"
+    assert "transition" not in rule and "gradient" not in rule, "flat"
+    chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    assert "if (held && held.quoted) echoIn(picked.segmentId, held.meaning);" in chip
+    assert chip.index("unecho();") < chip.index("var touching"), "the last mark goes first"
+    hide = script[
+        script.index("function hideChip()") : script.index('document.addEventListener("mouseup"')
+    ]
+    assert "unecho();" in hide, "hiding the chip leaves the mark behind"
+    # Around characters, not across elements: the cell wraps opposite-direction runs.
+    echo = script[script.index("function echoIn(") : script.index("function pickCard(")]
+    assert "createTreeWalker(cell, NodeFilter.SHOW_TEXT)" in echo
+    assert 'document.createElement("mark")' in echo
 
 
 def test_the_page_marks_what_you_are_looking_at_first() -> None:

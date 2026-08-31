@@ -38,6 +38,54 @@ if (payload.migrate) {
   process.exit(0);
 }
 
+/* The copy control, when a test asks for one.
+ *
+ * Node has no clipboard, so the test says what kind of browser this is: one whose
+ * clipboard takes the text, one whose clipboard refuses it, or one with no clipboard at
+ * all — and, separately, whether the old command works. What comes back is what the
+ * control said and did, at once and again after the beat it says "Copied" for.
+ */
+if (payload.copy !== undefined) {
+  const written = [];
+  if (payload.clipboard === "ok" || payload.clipboard === "refuses") {
+    global.navigator = {
+      clipboard: {
+        writeText: (text) => {
+          written.push(text);
+          return payload.clipboard === "ok" ? Promise.resolve() : Promise.reject(new Error("no"));
+        },
+      },
+    };
+  }
+  if (payload.command) document.execCommand = () => true;
+  const said = () =>
+    document.body.children.find((child) => child.attrs.role === "status") || { textContent: "" };
+  const button = window.TargumVocab.copyButton(payload.copy, { label: payload.label });
+  let stopped = 0;
+  const before = { label: button.attrs["aria-label"], title: button.title, text: button.textContent };
+  button.fire("click", { stopPropagation: () => (stopped += 1) });
+  // Two turns of the queue: the clipboard's promise, then the one that says so.
+  setTimeout(() => {
+    const after = {
+      text: button.textContent,
+      copied: button.classList.contains("copied"),
+      announced: said().textContent,
+    };
+    setTimeout(() => {
+      process.stdout.write(
+        JSON.stringify({
+          before,
+          after,
+          reverted: { text: button.textContent, copied: button.classList.contains("copied") },
+          written,
+          stopped,
+        })
+      );
+      process.exit(0);
+    }, window.TargumVocab.COPIED_FOR + 100);
+  }, 20);
+}
+
 const kept = [];
 const levels = [];
 let saved = 0;
@@ -78,8 +126,9 @@ if (payload.level !== undefined) {
   if (button) button.fire("click", nothing);
 }
 
-process.stdout.write(
-  JSON.stringify({
+if (payload.copy === undefined)
+  process.stdout.write(
+    JSON.stringify({
     hasField: Boolean(field),
     placeholder: field ? field.placeholder : null,
     hasSave: Boolean(save),

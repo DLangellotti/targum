@@ -340,6 +340,124 @@
     return box;
   }
 
+  /* --- copying a word out ------------------------------------------------------ */
+
+  // How long the control says "Copied" before it goes back to being a control. Long
+  // enough to be read, short enough that a second copy is offered without a wait.
+  var COPIED_FOR = 1500;
+
+  // §7: a stroke at text weight, drawn as a string the way theme.js draws its icons.
+  // Two squares, the one behind offset — the shape every clipboard has taught.
+  var COPY_ICON =
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/>' +
+    '<path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>' +
+    "</svg>";
+
+  // The one live region a page without the reader's has. Made on first use rather than
+  // in every template, and hidden the way the reader's own is: `.spoken` in reader.css,
+  // which every page carries.
+  var region = null;
+
+  function announce(words) {
+    if (!region) {
+      region = document.createElement("p");
+      region.className = "spoken";
+      region.setAttribute("role", "status");
+      region.setAttribute("aria-live", "polite");
+      document.body.appendChild(region);
+    }
+    // Cleared first, as the reader's `say` does: the same words twice are still news.
+    region.textContent = "";
+    region.textContent = words;
+  }
+
+  // The old way, for a browser with no clipboard API or one that refused. Every call
+  // is guarded because the stub document the tests run under has none of them.
+  function copyByCommand(text) {
+    try {
+      var box = document.createElement("textarea");
+      box.value = text;
+      box.setAttribute("readonly", "");
+      box.setAttribute("aria-hidden", "true");
+      box.style.position = "fixed";
+      box.style.opacity = "0";
+      document.body.appendChild(box);
+      if (typeof box.select === "function") box.select();
+      var done =
+        typeof document.execCommand === "function" && document.execCommand("copy") === true;
+      if (typeof box.remove === "function") box.remove();
+      return Promise.resolve(done);
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+  }
+
+  // Text onto the clipboard. Resolves to whether it got there; never rejects and
+  // never throws, because a copy that fails is a thing to say, not a page to break.
+  function copy(text) {
+    try {
+      var clipboard = typeof navigator !== "undefined" ? navigator.clipboard : null;
+      if (clipboard && typeof clipboard.writeText === "function") {
+        // Called inside the gesture, not after a wait: Safari on iOS grants the
+        // clipboard to the tap and to nothing that comes after it.
+        return clipboard.writeText(text).then(
+          function () {
+            return true;
+          },
+          function () {
+            return copyByCommand(text);
+          }
+        );
+      }
+      return copyByCommand(text);
+    } catch (e) {
+      return Promise.resolve(false);
+    }
+  }
+
+  // One control, beside the thing it copies: the word on the card, its dictionary form,
+  // its meaning, a phrase, a row on any list. Icon-only, so the label carries the word.
+  // Pressed, it says "Copied" in its own place for a beat and goes back to being an
+  // icon — the way the note's Save says Saved — and the live region says so too, for a
+  // reader who is listening. `options.say` is the page's own region where it has one.
+  function copyButton(text, options) {
+    options = options || {};
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "copy";
+    button.title = "Copy";
+    button.setAttribute("aria-label", options.label || "Copy " + text);
+    button.innerHTML = COPY_ICON;
+    var timer = null;
+
+    function said(word) {
+      button.textContent = word;
+      button.classList.add("copied");
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        button.textContent = "";
+        button.innerHTML = COPY_ICON;
+        button.classList.remove("copied");
+      }, COPIED_FOR);
+    }
+
+    button.addEventListener("click", function (event) {
+      // The document's click handler in the reader puts the card away; this press is
+      // about the card, not past it.
+      event.stopPropagation();
+      copy(text).then(function (ok) {
+        said(ok ? "Copied" : "Not copied");
+        (options.say || announce)(ok ? "Copied." : "Not copied.");
+      });
+    });
+    // Enter on the button is the button's; the reader's Enter opens and closes cards.
+    button.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+    });
+    return button;
+  }
+
   // Both moves, in the order they have to happen: the words find their language first,
   // and their meanings find their pair second. Every page that shows a word runs this,
   // so whichever one the reader opens first is the one that does it.
@@ -352,6 +470,9 @@
     migrate: migrateAll,
     read: read,
     editor: editor,
+    copy: copy,
+    copyButton: copyButton,
+    COPIED_FOR: COPIED_FOR,
     STEPS: STEPS,
     LEARNING: LEARNING,
     KNOWN: KNOWN,
