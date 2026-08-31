@@ -31,15 +31,21 @@
     </div>
   </div>
 
-  {#- A landing page for one thing: learning to read the news. The pitch is in English
+  {#- A landing page for one thing: reading the news in Hebrew. The pitch is in English
       because the person it is for cannot yet read the Hebrew — that is the whole
-      premise — and everything below it is the product itself rather than a picture of
-      it. -#}
-  <h1 class="pitch">Learn to read the news in Hebrew</h1>
-  <p class="lede">
-    Every Monday, the week three times over. Tap any word — targum remembers what you
-    know, and the page gets quieter.
-  </p>
+      premise — and the first thing under it is the product itself rather than a
+      picture of it. The headline is the one place §5's landing display size is used. -#}
+  <section class="hero">
+    <h1 class="pitch">Read this week's news in Hebrew. Every word explained.</h1>
+    <p class="lede">
+      targum writes the week three times over — Easy, Simplified, Real Hebrew — and puts
+      the meaning of any word one tap away. Free, every Monday.
+    </p>
+    <p class="cta">
+      <a class="go" href="#embed">Read this week's issue</a>
+      <a class="quiet" href="/account/signin">Sign in</a>
+    </p>
+  </section>
 
   {#- The page's spine: one small label over each block, in the one register the page
       already has for it (Mondays, Sources). On a phone they read as a table of
@@ -98,19 +104,31 @@
       The figures are illustrations: their controls are not controls, and a screen
       reader gets the sentence, not the picture. -#}
   <section class="how">
-    <h2 class="label">How it works</h2>
+    <h2 class="label">Why targum</h2>
+    <p class="section-title">Built for reading, not for drills.</p>
     <ol>
       <li>
-        <b>Words you know go quiet.</b>
-        <span>Tap a word for what it means and how common it is; say how well you know it, and it stops asking.</span>
+        <b>Every word, one tap.</b>
+        <span>A card says what it means, how common it is and how it is said; tell it how well you know the word, and it remembers.</span>
+        <figure class="how-card" aria-hidden="true">
+          <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
+          <span class="said">said <bdi dir="ltr">heχalˈav</bdi></span>
+          <span class="form">dictionary form <bdi lang="he" dir="rtl">חלב</bdi> <i class="pos">moderate</i></span>
+          <span class="meaning">milk</span>
+          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span><span class="level small">ignore</span></span>
+        </figure>
+      </li>
+      <li>
+        <b>The page learns what you know.</b>
+        <span>Words you know go plain; what is left is what you have to learn. Signed in, that follows you into everything you read next.</span>
         <figure class="how-line marking" aria-hidden="true">
           <p class="src" lang="he" dir="rtl"><span class="w" data-status="9">סליחה</span>, <span class="w" data-status="9">איפה</span> <span class="w">החלב</span>? <span class="w" data-status="1">במקרר</span>, <span class="w" data-status="9">בסוף</span> <span class="w">המעבר</span> <span class="w" data-status="9">הזה</span>.</p>
           <p class="tr" lang="en" dir="ltr">Excuse me, where is the milk? In the fridge, at the end of this aisle.</p>
         </figure>
       </li>
       <li>
-        <b>The same week, three times over.</b>
-        <span>Easy, Simplified, Real Hebrew. When a sentence is too hard, the easier one is a press away.</span>
+        <b>Three versions of the same week.</b>
+        <span>Easy, Simplified, Real Hebrew. Too hard? The easier one is a press away, at the same paragraph.</span>
         <figure class="how-levels" aria-hidden="true">
           <span class="levels">
             {%- for other, other_spec in levels.items() %}
@@ -120,16 +138,18 @@
         </figure>
       </li>
       <li>
-        <b>What you mark follows you.</b>
-        <span>Signed in, every word you mark is remembered — into next week's issue, and everything after it.</span>
-        <figure class="how-card" aria-hidden="true">
-          <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
-          <span class="said">said <bdi dir="ltr">heχalˈav</bdi></span>
-          <span class="form">dictionary form <bdi lang="he" dir="rtl">חלב</bdi> <i class="pos">moderate</i></span>
-          <span class="meaning">milk</span>
-          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span><span class="level small">ignore</span></span>
+        <b>A reader, properly.</b>
+        <span>Vowel points on or off, a recording line by line, pages that turn the Hebrew way, full screen when you want it.</span>
+        <figure class="how-bar" aria-hidden="true">
+          <span class="icons">
+            <span class="icon"><svg viewBox="0 0 16 16"><path d="M4 3.5h8M8 3.5v6"/><path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/></svg></span>
+            <span class="icon"><svg viewBox="0 0 16 16"><path d="M2.5 3 6.5 5.5 2.5 8Z"/><path d="M9 5.5h4.5M2.5 11h11M2.5 13.5h7" class="faint"/></svg></span>
+            <span class="icon"><svg viewBox="0 0 16 16"><rect x="2" y="3" width="5" height="10" rx="1"/><rect x="9" y="3" width="5" height="10" rx="1"/></svg></span>
+            <span class="icon"><svg viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/></svg></span>
+          </span>
         </figure>
       </li>
+    </ol>
   </section>
 
   {#- How the issue was made, and where it came from: the honesty a stranger deciding
@@ -187,10 +207,11 @@
       button — striking because it is the only one. Full width, like the reader. -#}
   <section class="keep">
     <h2 class="label">Keep what you learn</h2>
-    <p class="pitch-line">Every word you mark, remembered — in next week's issue and in everything you read after it.</p>
+    <p class="section-title">Every word you mark, remembered.</p>
+    <p class="pitch-line">In next week's issue, and in everything you read after it.</p>
     <p class="door">
-      <a class="go" href="/account/signin">Keep what you learn</a>
-      <span class="free">Sign in with an email address. No password.</span>
+      <a class="go" href="/account/signin">Sign in</a>
+      <span class="free">An email address. No password.</span>
     </p>
   </section>
 

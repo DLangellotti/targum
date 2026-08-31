@@ -276,7 +276,8 @@ def test_the_page_embeds_the_reader_rather_than_linking_to_it(
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
     assert "<iframe" in page
     assert f"/weekly/read/weekly-{WEEK}-bet-he/reader/index.html" in page
-    assert "Learn to read the news in Hebrew" in page
+    assert "Read this week's news in Hebrew. Every word explained." in page
+    assert 'class="go" href="#embed">Read this week\'s issue</a>' in page
     for level in ("aleph", "bet", "gimel"):
         assert f'href="/weekly/{WEEK}/{level}" data-level="{level}"' in page, level
     assert 'data-level="bet"\n       data-what=' in page or 'data-level="bet"' in page
@@ -478,6 +479,7 @@ def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Pat
     assert "/weekly/subscribe" not in page
     assert "<dialog" not in page and 'name="email"' not in page
     assert page.count('class="go" href="/account/signin"') == 1
+    assert page.count('href="/account/signin"') == 3, "the corner, the hero, and the door"
 
 
 def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
@@ -870,15 +872,19 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
     labels = re.findall(r'<h2 class="label">([^<]+)', page)
     assert [label.strip() for label in labels][:4] == [
         "This week",
-        "How it works",
+        "Why targum",
         "Made honestly",
         "Keep what you learn",
     ]
     how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
-    assert how.count("<li>") == 3
-    assert "<b>Words you know go quiet.</b>" in how
-    assert "<b>The same week, three times over.</b>" in how
-    assert "<b>What you mark follows you.</b>" in how
+    assert how.count("<li>") == 4 and "</ol>" in how
+    for claim in (
+        "Every word, one tap.",
+        "The page learns what you know.",
+        "Three versions of the same week.",
+        "A reader, properly.",
+    ):
+        assert f"<b>{claim}</b>" in how, claim
     assert 'class="how-card" aria-hidden="true"' in how
     assert "<button" not in how, "an illustration has no controls"
     assert '<span class="level here">Simplified</span>' in how, "the chips show this level"

@@ -43,18 +43,25 @@ body.public {
   padding-block-start: 1.25rem;
 }
 
+/* The lockup, as the app draws it (`chrome.css`): the reading face at 600, the mark
+   tied to the name's size. It was a smaller lockup of its own here, which on the one
+   page a stranger meets first was the wrong first thing to be smaller. */
 .public .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.3em;
   margin-block-end: 2.5rem;
   color: var(--ink);
-  font-size: 1.0625rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   text-decoration: none;
 }
 .public .brand-mark {
-  width: 1.1rem;
-  height: 1.4rem;
+  height: 0.857em;
+  width: 0.667em;
+  flex: none;
 }
 
 .public .where {
@@ -485,12 +492,82 @@ body.public {
    leaving — so the first thing under the headline is the real reader, with its own
    level switcher and its own word cards, running. */
 
+/* The hero: a headline at §5's landing display size — the one place it is used — a
+   line under it, and the two ways in: the issue itself, and the door. Product first,
+   so the primary action reads the issue, on this page, and the accent is its. */
+.public .hero {
+  margin: 0.5rem 0 2.5rem;
+}
 .public .pitch {
-  margin: 0 0 0.9rem;
+  margin: 0 0 1rem;
+  max-width: 22ch;
   font-family: var(--reading);
-  font-size: 1.75rem;
+  font-size: 2.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.public .hero .lede {
+  margin-block-end: 1.5rem;
+}
+.public .cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+.public .cta .go,
+.public .cta .quiet {
+  padding: 0.7rem 1.4rem;
+  border-radius: 999px;
+  font-size: 1.0625rem;
+  text-decoration: none;
+}
+.public .cta .go {
+  background: linear-gradient(var(--gloss), transparent) var(--accent);
+  color: var(--paper);
+}
+.public .cta .go:hover {
+  box-shadow: var(--lift);
+}
+.public .cta .quiet {
+  border: 1px solid var(--rule);
+  color: var(--ink);
+}
+.public .cta .quiet:hover {
+  border-color: var(--ink-soft);
+}
+@media (max-width: 40rem) {
+  .public .pitch {
+    font-size: 2.25rem;
+  }
+  /* Both ways in on one row of a phone. */
+  .public .cta .go,
+  .public .cta .quiet {
+    padding: 0.6rem 1.1rem;
+    font-size: 0.9375rem;
+  }
+}
+/* The line a section leads with, under its label. */
+.public .section-title {
+  margin: 0 0 1.25rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
   font-weight: 600;
   line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+/* "Read this week's issue" scrolls to the reader; smoothly where motion is welcome. */
+html:has(main.weekly) {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has(main.weekly) {
+    scroll-behavior: auto;
+  }
 }
 
 /* The reader, at the size it will be read at. It was a bordered slot inside the
@@ -830,6 +907,9 @@ html:has(main.weekly) {
 .public .keep .label {
   color: var(--keep-soft);
 }
+.public .keep .section-title {
+  margin-block-end: 0.5rem;
+}
 .public .keep .pitch-line {
   max-width: 34rem;
   margin: 0 0 1.4rem;
@@ -851,7 +931,8 @@ html:has(main.weekly) {
 }
 .public .how ol {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  /* Four across on a wide window, two on a tablet, one on a phone. */
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 1.5rem 1.2rem;
   margin: 0;
   padding: 0;
@@ -975,6 +1056,36 @@ html:has(main.weekly) {
   background: color-mix(in srgb, var(--leaf) 18%, transparent);
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--leaf) 55%, transparent);
 }
+/* The bar's own drawings, as the bar draws them: line icons on quiet squares. */
+.public .how-bar .icons {
+  display: flex;
+  gap: 0.5rem;
+}
+.public .how-bar .icon {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  color: var(--ink-soft);
+}
+.public .how-bar .icon svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.public .how-bar .icon .dots {
+  stroke-width: 2;
+}
+.public .how-bar .icon .faint {
+  opacity: 0.55;
+}
+
 /* The level chips as the reader's bar draws them. */
 .public .how-levels .levels {
   gap: 0;

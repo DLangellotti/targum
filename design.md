@@ -137,6 +137,9 @@ is the page.
   numerals).
 - **Scale:** display 1.75rem/600 · headings 1.5em/600 · reading 1.0625rem (17px) · gloss
   0.9375rem · UI 0.8125rem · labels 0.6875rem uppercase at 0.06em.
+- **Landing display:** 2.75rem/600, 2.25rem under 40rem — the one headline of a public
+  landing page, and nowhere inside the product. Line-height 1.1, `text-wrap: balance`.
+  Added 2026-08-31; see §12.
 - **Measure:** one reading column is 34rem; the source–translation gutter is 2.5rem.
 
 **Bilingual parity:** Hebrew and Latin share every screen at the same font-size — **never
@@ -243,8 +246,17 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Three places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
+Four places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
 code back to a rule that was already retired.
+
+### A landing page has a headline the reader never needs — 2026-08-31
+
+§5's scale topped out at display 1.75rem, which is right for a page somebody reads and wrong
+for the one page that has to be read from across a room. `/weekly` is a stranger's first
+introduction to targum, and its headline was the size of a chapter title. The scale gains a
+**landing display** step — 2.75rem, 2.25rem on a phone — for the single headline of a public
+landing page. It does not appear inside the product, and `test_brand.py` allows it only
+because this paragraph exists.
 
 ### The knowledge ramp climbs to leaf, not gold — 2026-08-28
 

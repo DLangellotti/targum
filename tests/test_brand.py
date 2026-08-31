@@ -91,7 +91,19 @@ IDENTITY = ("brand-mark", "brand", "lockup", "wordmark")
 RADII = {"4px", "5px", "6px", "8px", "999px", "50%", "0"}
 
 # §5. The type scale. `em` sizes are relative to a component already on the scale.
-SIZES = {"1.75rem", "1.5rem", "1.5em", "1.0625rem", "0.9375rem", "0.8125rem", "0.6875rem"}
+# §5, plus the landing display step §12 records (2026-08-31): a public landing page's one
+# headline, 2.75rem on a wide window and 2.25rem on a phone, and nowhere inside the product.
+SIZES = {
+    "2.75rem",
+    "2.25rem",
+    "1.75rem",
+    "1.5rem",
+    "1.5em",
+    "1.0625rem",
+    "0.9375rem",
+    "0.8125rem",
+    "0.6875rem",
+}
 
 
 def hexes(text: str) -> set[str]:
