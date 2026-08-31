@@ -608,9 +608,14 @@ body.public {
 /* Wider than a reading column: the frame holds two columns of its own, and a 34rem
    measure would put a whole reader in a slot meant for one of them. */
 .public .weekly .embed,
-.public .weekly .pitch,
-.public .weekly .lede {
+.public .weekly .pitch {
   max-width: min(64rem, 100%);
+}
+/* Prose stays prose: at the frame's width the lede ran to 107 characters a line, and
+   §5's measure is 34rem. A little wider than that here, because it sits over a wide
+   frame and has three sentences to say. */
+.public .weekly .lede {
+  max-width: 38rem;
 }
 .public .weekly {
   max-width: min(64rem, 100%);
