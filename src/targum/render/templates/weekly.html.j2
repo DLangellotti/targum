@@ -143,21 +143,6 @@
     </p>
   </section>
 
-  {#- A form, not a script. Somebody arrives here from a search result and may have
-      JavaScript off, blocked, or still loading; and the same markup is reused inside
-      the dialog below, so if that opens and its script then fails the ask still
-      works. -#}
-  <section class="subscribe">
-    <h2 class="label">Mondays</h2>
-    <form method="post" action="/weekly/subscribe">
-      <label for="weekly-email">A new issue every Monday. Nothing else.</label>
-      <span class="row">
-        <input id="weekly-email" name="email" type="email" required
-               autocomplete="email" placeholder="you@example.com">
-        <button class="go" type="submit">Send it</button>
-      </span>
-    </form>
-  </section>
 
   {%- if issue.sources %}
   {#- Where the week came from, and a way into any of it.
@@ -213,23 +198,6 @@
   </section>
   {%- endif %}
 </main>
-
-{#- The end of the issue, once. §8 allows a shadow on a floating overlay and this is
-    the only one on the page; §6 keeps it to a sentence. Shown a single time ever and
-    never again, which is what keeps it a card rather than a nag. -#}
-<dialog id="finished" aria-labelledby="finished-title">
-  <h2 id="finished-title">that was the week</h2>
-  <p>targum keeps the words you have read, and puts the English beside every sentence.</p>
-  <form method="post" action="/weekly/subscribe">
-    <label for="finished-email">A new issue every Monday.</label>
-    <span class="row">
-      <input id="finished-email" name="email" type="email" required
-             autocomplete="email" placeholder="you@example.com">
-      <button class="go" type="submit">Send it</button>
-    </span>
-  </form>
-  <p class="quiet"><a href="/account/signin">Sign in</a> · <button type="button" data-close>Not now</button></p>
-</dialog>
 
 <script>{{ asset('weekly.js') }}</script>
 

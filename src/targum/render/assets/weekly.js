@@ -1,39 +1,14 @@
-/* The end of an issue, said once.
+/* The weekly's landing page, alive.
 
-   Everything the page needs works without this file: the subscribe form is a real form
-   that posts, and the dialog's markup is the same form again. This adds one thing — the
-   dialog opens when somebody actually reaches the foot of the issue, rather than after
-   a timer or on arrival, because the ask is worth making only once the reading has
-   happened.
+   Everything the page needs works without this file: the reader is framed, the levels
+   are links, the sources are a list. This adds four things — the stage reaching the
+   window's edges, full screen on request, the sources folded on a phone, and the
+   page's own level switcher kept in step with the frame.
 
-   Shown once ever, and remembered in this browser. A card is a card the first time; the
-   second time it is a nag, and the guidelines are explicit that the reader is a reader.
-*/
+   There used to be an ask for a Monday reminder here, and a card at the foot of the
+   issue asking again. Both went: the one door on this page is into the app. */
 (function () {
   "use strict";
-
-  var SEEN = "targum:weekly:asked";
-  var dialog = document.getElementById("finished");
-  if (!dialog || typeof dialog.showModal !== "function") return;
-
-  function remembered() {
-    // A private window, cleared site data, or a browser refusing storage all throw or
-    // answer empty. Any of those means "show it", which is the same as a first visit.
-    try {
-      return window.localStorage.getItem(SEEN) === "1";
-    } catch (error) {
-      return false;
-    }
-  }
-
-  function remember() {
-    try {
-      window.localStorage.setItem(SEEN, "1");
-    } catch (error) {
-      /* Storage refused. The dialog will offer itself once more another day, which is
-         a smaller wrong than never closing. */
-    }
-  }
 
   /* Full screen, asked for and never imposed.
 
@@ -194,43 +169,4 @@
     });
   }
 
-  if (remembered()) return;
-
-  var close = dialog.querySelector("[data-close]");
-  if (close) {
-    close.addEventListener("click", function () {
-      dialog.close();
-    });
-  }
-  dialog.addEventListener("close", remember);
-
-  /* When somebody has come past the reading.
-   *
-   * This watched `.part` — the last section of the issue, back when the page rendered
-   * the prose itself. The reader is framed now and there are no `.part` elements on
-   * this page at all, so the observer had nothing to watch and the dialog never opened
-   * once. It was dead from the moment the reader was embedded.
-   *
-   * The end of the issue is inside the frame now and this page cannot see it without
-   * talking across the boundary, which is machinery for a smaller thing than it costs.
-   * Coming past the reader to the sources is the honest proxy: somebody who has
-   * scrolled below the product has read some of it, or decided not to. Either way they
-   * are the person worth asking.
-   */
-  var below = document.querySelector(".sources") || document.querySelector(".subscribe");
-  if (!below || typeof window.IntersectionObserver !== "function") return;
-
-  var watcher = new window.IntersectionObserver(function (entries) {
-    entries.forEach(function (entry) {
-      if (!entry.isIntersecting || remembered()) return;
-      /* Not while the reader has the screen: holding the page still puts the sources
-         under the frame, where the observer counts them as in view — and a card over
-         somebody who has just started reading is the nag this was written not to be.
-         The observer stays on; they will come past the reader on their way out. */
-      if (document.body.classList.contains("locked")) return;
-      watcher.disconnect();
-      dialog.showModal();
-    });
-  }, { rootMargin: "0px 0px -25% 0px" });
-  watcher.observe(below);
 })();

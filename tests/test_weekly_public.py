@@ -471,21 +471,13 @@ def test_signed_out_cannot_use_the_signed_in_door(open_shelves: tuple[int, Path]
 # -- the ask -----------------------------------------------------------------------
 
 
-def test_the_page_can_be_subscribed_to_without_javascript(
-    open_shelves: tuple[int, Path],
-) -> None:
-    """Somebody arrives from a search result and may have JavaScript off, blocked, or
-    still loading. The form is a real form either way."""
+def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Path]) -> None:
+    """There used to be a Monday-reminder form here and a card at the foot of the issue
+    asking again. Both went: the one thing this page asks is to come in."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert '<form method="post" action="/weekly/subscribe">' in page
-    assert 'name="email"' in page
-
-
-def test_the_dialog_carries_the_same_form(open_shelves: tuple[int, Path]) -> None:
-    """So that if it opens and its script then fails, the ask still works."""
-    page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert page.count('action="/weekly/subscribe"') == 2
-    assert "<dialog" in page
+    assert "/weekly/subscribe" not in page
+    assert "<dialog" not in page and 'name="email"' not in page
+    assert page.count('class="go" href="/account/signin"') == 1
 
 
 def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
@@ -880,7 +872,7 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
         "This week",
         "How it works",
         "Keep what you learn",
-        "Mondays",
+        "Sources",
     ]
     how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
     assert how.count("<li>") == 3
