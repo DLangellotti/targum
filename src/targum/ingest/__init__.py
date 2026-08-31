@@ -43,9 +43,16 @@ _BY_SUFFIX: dict[str, Ingester] = {
 
 def sources() -> list[str]:
     from ..audio import AUDIO_SUFFIXES
+    from ..video import VIDEO_SUFFIXES
 
     return sorted(
-        {*_BY_SUFFIX, *AUDIO_SUFFIXES, "http(s)://", *(f"{name}:" for name in fetch.FETCHERS)}
+        {
+            *_BY_SUFFIX,
+            *AUDIO_SUFFIXES,
+            *VIDEO_SUFFIXES,
+            "http(s)://",
+            *(f"{name}:" for name in fetch.FETCHERS),
+        }
     )
 
 
