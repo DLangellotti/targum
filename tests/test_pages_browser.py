@@ -243,3 +243,63 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
     assert measured["chipText"] == "Start here"
     assert measured["chipBelow"] is True, "the chip sits on its own line under the title"
     assert measured["width"] <= 390, "and the page does not scroll sideways"
+
+
+@pytest.mark.parametrize("width", [320, 390, 430, 540])
+def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
+    """Under 46rem the header is two lines: the name at one corner and the account and
+    the light switch at the other, then the places under them, flush with the name.
+
+    The places used to sit indented under the name with Upload cut off at the edge: the
+    rule that reset their auto margin stood above the rule that set it, at the same
+    specificity, and lost. A cascade bug is invisible in the file and obvious on a
+    phone, which is why this is measured rather than read."""
+    page_file = tmp_path / "learn.html"
+    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(300)
+    measured = open_page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const brand = box('.brand'), nav = box('.site-nav'), upload = box('.upload');
+          const toggle = box('[data-theme-toggle]'), account = box('.account');
+          return {
+            navFlush: Math.abs(nav.left - brand.left) <= 1,
+            navBelow: nav.top >= brand.bottom - 1,
+            toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
+            accountBeside: account.top < brand.bottom && account.bottom > brand.top,
+            toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
+            uploadInside: upload.right <= document.documentElement.clientWidth,
+            width: document.documentElement.scrollWidth,
+          };
+        }"""
+    )
+    context.close()
+
+    assert measured["navFlush"], "the places start where the name starts"
+    assert measured["navBelow"], "and sit on the line under it"
+    assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
+    assert measured["toggleAtEdge"], "at the far edge"
+    assert measured["uploadInside"], "Upload is whole"
+    assert measured["width"] <= width, "and the page does not scroll sideways"
+
+
+def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
+    """At 768px everything fits, and the two-line arrangement must not apply."""
+    page_file = tmp_path / "learn.html"
+    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 768, "height": 1024})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(300)
+    one_line = open_page.evaluate(
+        """() => {
+          const brand = document.querySelector('.brand').getBoundingClientRect();
+          const nav = document.querySelector('.site-nav').getBoundingClientRect();
+          return nav.top < brand.bottom && nav.bottom > brand.top;
+        }"""
+    )
+    context.close()
+    assert one_line

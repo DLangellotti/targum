@@ -212,6 +212,21 @@ body {
 [dir="rtl"] .bar > .controls { order: 1; margin-inline-start: 0; margin-inline-end: auto; }
 [dir="rtl"] .bar > .bar-title { order: 2; direction: rtl; }
 
+/* Under 46rem there is no one line for all of it. Left to wrap on its own, the mark
+   took the first line alone, the controls the next two, and the title — the one thing
+   in the bar that says what is being read — the last, a full bar's height below the
+   corner. The mark and the title share the first line, where they sit on a wide screen
+   too: beside each other on an English page, at the two edges on a Hebrew one. The
+   controls take the whole width beneath and wrap among themselves. */
+@media (max-width: 46rem) {
+  .bar > .controls,
+  [dir="rtl"] .bar > .controls { order: 3; flex: 1 0 100%; margin-inline: 0; }
+  /* The title runs rtl, so its inline end is its left: this is the auto margin that
+     pushes it to the far edge of a bar laid out ltr. -start would be its right margin
+     and would move nothing. */
+  [dir="rtl"] .bar > .bar-title { margin-inline-end: auto; }
+}
+
 /* Full ink, not the controls' soft grey: the mark is the one thing here that is not a
    control, and the two columns need their difference in weight to read as the mark. */
 /* The mark, and the way back. Full ink, not the controls' soft grey: it is the one

@@ -2417,3 +2417,49 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
         ".getAttribute('aria-label')"
     )
     assert label and label.startswith("Copy "), "the row beside the text carries one"
+
+
+@pytest.mark.parametrize("direction", ["rtl", "ltr"])
+def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
+    browser, built: Path, tmp_path: Path, direction: str
+) -> None:
+    """Under 46rem the bar cannot hold everything on one line. Left to wrap on its own it
+    put the mark on the first line by itself, the controls on the next two, and the title
+    on the last — a full bar's height below the corner. The mark and the title share the
+    first line, the title at the far edge on a Hebrew page and beside the mark on an
+    English one, and the controls take the whole width beneath.
+
+    The Hebrew title's far edge is its own trap: the title runs rtl, so its logical
+    start is its right, and an auto start margin on it moves nothing."""
+    html = built.read_text(encoding="utf-8")
+    if direction == "ltr":
+        html = html.replace('<html lang="he" dir="rtl">', '<html lang="en" dir="ltr">')
+    page_file = tmp_path / f"{direction}.html"
+    page_file.write_text(html, encoding="utf-8")
+    context = opened(browser, viewport={"width": 390, "height": 844})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(300)
+    measured = open_page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const bar = box('.bar'), mark = box('.bar-brand:not([hidden])');
+          const title = box('.bar-title'), controls = box('.controls');
+          return {
+            titleBeside: title.top < mark.bottom && title.bottom > mark.top,
+            controlsBelow: controls.top >= mark.bottom - 1,
+            titleAtEdge: title.right >= bar.right - 24,
+            titleNextToMark: title.left - mark.right < 24,
+            width: document.documentElement.scrollWidth,
+          };
+        }"""
+    )
+    context.close()
+
+    assert measured["titleBeside"], "the title is on the first line with the mark"
+    assert measured["controlsBelow"], "the controls are under them"
+    if direction == "rtl":
+        assert measured["titleAtEdge"], "a Hebrew title sits at the far edge"
+    else:
+        assert measured["titleNextToMark"], "an English title sits beside the mark"
+    assert measured["width"] <= 390

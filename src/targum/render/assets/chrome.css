@@ -74,16 +74,6 @@
   .site-head .beta-note { padding-inline: 1rem; }
 }
 
-/* Under about 27rem the five things in the bar — name, three places, upload, account,
-   light switch — no longer fit on one line, and the row is what pushed the whole page
-   into a sideways scroll. It wraps instead: the name keeps the first line, everything
-   else takes the second. */
-@media (max-width: 27rem) {
-  .site-head-row { flex-wrap: wrap; row-gap: 0.6rem; }
-  .brand { flex: 1 0 100%; }
-  .site-nav { margin-inline-start: 0; }
-}
-
 .site-nav {
   display: flex;
   flex-wrap: wrap;
@@ -112,6 +102,25 @@
 }
 .upload:hover { color: var(--ink); border-color: var(--ink-soft); }
 .upload.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
+
+/* Under 46rem the five things in the bar — name, three places, upload, account, light
+   switch — do not fit on one line. Left to wrap on their own, the name took the first
+   line alone with dead paper beside it, and the places sat indented under it with
+   Upload cut off at the edge: their auto margin, which is what pushes them to the far
+   side of a wide bar, was still being applied — the rule that reset it stood above
+   this one in the file and lost. So, drawn: the name at one corner and the account
+   and the light switch at the other, as every phone header has them; under that the
+   places, with Upload beside them where it fits and under them where it does not.
+   The break between the two lines is a zero-height item the whole width of the row,
+   which is the only way flex has of saying "new line here". After the rules it
+   overrides, on purpose. */
+@media (max-width: 46rem) {
+  .site-head-row { flex-wrap: wrap; row-gap: 0; }
+  .site-head-row::before { content: ""; order: 1; flex: 1 0 100%; height: 0; }
+  .site-head-row .account { margin-inline-start: auto; }
+  .site-head-row .site-nav,
+  .site-head-row .upload { order: 2; margin-inline-start: 0; margin-block-start: 0.6rem; }
+}
 
 /* --- the account, in the corner of every page -----------------------------
    Small on purpose. Signing in is worth offering once and then getting out of the
