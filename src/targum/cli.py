@@ -1594,7 +1594,7 @@ MISSING = (
 
 def _gatherer() -> Any:
     try:
-        from .weekly import facts as facts_module
+        import targum.weekly.facts as facts_module
     except ImportError as exc:  # pragma: no cover - depends on the checkout
         raise TargumError(*MISSING) from exc
     return facts_module
@@ -1932,7 +1932,7 @@ def weekly_announce(
 def weekly_sources() -> None:
     """List the feeds an issue is gathered from, and what may be done with each."""
     try:
-        from .weekly import sources as sources_module
+        import targum.weekly.sources as sources_module
     except ImportError as exc:  # pragma: no cover - depends on the checkout
         raise TargumError(*MISSING) from exc
 
