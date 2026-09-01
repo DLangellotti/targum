@@ -132,7 +132,9 @@ def test_sharealike_stays_refused(monkeypatch: pytest.MonkeyPatch) -> None:
 
     ShareAlike permits commercial use, so the CC-BY-NC reasoning does not reach it — but a
     build makes derivatives and ShareAlike would carry onto them. Refusing it costs the
-    Wikisource Talmud Bavli. Change this test only when that trade is made deliberately.
+    Ibn Tibbon Kuzari and the Wikisource Mishneh Torah, not the Talmud: that is Aramaic,
+    and `he` on a Sefaria version means Hebrew script rather than Hebrew. Change this test
+    only when the ShareAlike trade is made deliberately.
     """
     body = json.loads((FIXTURES / "ruth.he.json").read_text(encoding="utf-8"))
     body["versions"][0]["license"] = "CC-BY-SA"

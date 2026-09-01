@@ -57,8 +57,15 @@ DEFAULT_LANGUAGE = "he"
 #
 # CC-BY-SA is deliberately still absent, and it is a real decision rather than an
 # oversight: ShareAlike permits commercial use, so the CC-BY-NC reasoning does not reach
-# it, but a build makes derivatives and ShareAlike would carry onto them. It costs the
-# Wikisource Talmud Bavli, which is the only Hebrew Talmud here under any free licence.
+# it, but a build makes derivatives and ShareAlike would carry onto them. What it costs is
+# the Ibn Tibbon Kuzari, the Wikisource Mishneh Torah and Shulchan Aruch, `Miqra according
+# to the Masorah`, and a vocalized Orchot Tzadikim.
+#
+# It does not cost the Talmud, whatever the version list suggests. `language: "he"` on a
+# Sefaria version means Hebrew *script*, not Hebrew: the Bavli is tagged `he` and is
+# Aramaic. The index carries no language field at all — `era` and `categories` are the
+# only signal, and `era` is `A` for Amoraim there against `T` for the Mishnah. Anything
+# that starts trusting that `he` should read this line first.
 USABLE = frozenset({"Public Domain", "PD", "CC0", "CC-BY"})
 
 # Exact titles, checked against the licence the API reports for each. Hebrew is one
