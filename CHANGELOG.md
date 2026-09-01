@@ -21,6 +21,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   attached to a text, force-aligned once, and cut into one part per section with
   word-level timings; the reader gets per-line playback and word clocks.
 - The weekly landing page names the outlets its reporting cites, in their own marks.
+- `/parasha`, the week's Torah portion, with the reading itself on the page. The corpus
+  is fixed rather than generated: the fifty-four portions are cut once from the Tanakh
+  already on the shelf — translation, word cards and vowels carried across with the
+  segment ids, so a build costs nothing and fetches no text — and a calendar decides
+  which one this Shabbat is. Doubled weeks, festival Shabbatot, and the weeks Israel and
+  the diaspora read different portions are all handled, off Hebcal's leyning data.
+- The seven aliyot are the reader's seven sections, so a portion opens on ראשון and the
+  pager walks the reading the way it is called up. Every portion also has an address of
+  its own and a place on the shelf, so a link to one keeps working after the week it was
+  this week's.
+- Scripture ships a third form of its text: the vowels with the chanting marks taken
+  off, on its own two-position control (`a`, or the ⋯ menu). The te'amim are the point
+  for somebody preparing to leyn and noise on top of the vowels for somebody still
+  learning to read, and both are the same page. Every text without cantillation is
+  untouched — two cells, one switch. See design.md §12.
+- Chanted readings from PocketTorah (CC BY-SA, Ashkenazi trope), force-aligned so every
+  verse knows its own second of the recording. A doubled week has no recording of its
+  own, so its two halves are joined and re-cut where *that* week's aliyot actually fall.
 - `--video/--no-video` on `targum build`, and a yt-dlp preflight check.
 - `LICENSING.md`, naming the whole dependency supply chain and the two pieces of it
   that are licensed NonCommercial: the forced aligner behind the `speech-align` extra,
@@ -34,6 +52,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   there, irrevocably, and the page says so.
 
 ### Changed
+- design.md §10 now bans ritual objects **in the identity** only. A page about the week's
+  Torah portion is a content surface, and refusing it a picture of the thing it is about
+  was the rule doing a job it was never written for. §12 records the new rule and its
+  conditions, and the parasha hero is a photograph of a scroll beside the words.
 - The serve policy's `media-src` gains `'self'` for the video sidecars
   (design.md §12, "a reader that carries moving pictures").
 - Hosted pastes of YouTube links are refused by name with a pointer at the CLI.
