@@ -906,6 +906,26 @@ def test_the_pointed_cell_differs_from_the_bare_one_only_by_its_marks(tmp_path: 
     assert strip_nikkud(cells[1])[0] == cells[0]
 
 
+def test_a_biblical_reader_says_its_dictionary_forms_are_less_reliable(tmp_path: Path) -> None:
+    """The analyser is trained on modern unpointed Hebrew, so on the Tanakh it guesses at
+    waw-consecutive, pausal and archaic forms. Said once in the keys panel rather than
+    left for a reader to infer from a card that is quietly wrong (targum-internal #87).
+
+    Only on scripture: on a modern text the caveat is not true enough to be worth the
+    doubt it would plant.
+    """
+    segment = hebrew(0, TROPE_TEXT)
+    voc = vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
+    scripture = render_with_vocalization(tmp_path / "a", [segment], voc, source="sefaria:Esther")
+    news = render_with_vocalization(tmp_path / "b", [hebrew(0, BARE_TEXT)], None)
+
+    assert "Dictionary forms on biblical Hebrew are less reliable" in scripture
+    assert "Dictionary forms on biblical Hebrew" not in news, "a modern text is not warned"
+    # Never in money, never in jargon: the sentence names what a reader would see go
+    # wrong, not the tool that gets it wrong.
+    assert "Stanza" not in scripture, "the reader is told the effect, not the dependency"
+
+
 def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) -> None:
     """A font a page merely names is a font some readers do not have.
 
