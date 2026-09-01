@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- `targum licences` — what the corpus is under, and what may leave it. Each source already
+  recorded a licence; what that licence *allows* is now computed rather than remembered,
+  in `licensing.py`, and reported by standing: free, owed, closed, unknown. A source with
+  nothing written down is unknown and never free, because an unchecked licence is not an
+  absent one. Two verdicts the module exists to get right: ShareAlike is sellable and not
+  keepable, and NonCommercial is the term that actually closes a door.
 - `deploy/ship-daily.sh`, which carries the window to the box. Nightly, unlike the
   parasha's: the window rolls, and a stale box says "today" over the wrong day.
 - `TARGUM_INDEX_DAILY`, a switch of its own for the learning cycles. They are not

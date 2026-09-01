@@ -95,3 +95,34 @@ The bar for a recording is that no-derivatives terms are refused outright — se
 transcribing and aligning are adaptations, and no access policy cures an ND term.
 ShareAlike is accepted, which means the segments cut from such a recording carry
 ShareAlike onward.
+
+### What is recorded, and how to ask
+
+Each source keeps the licence as its source writes it, verbatim, together with the URL
+where that claim was read — kept verbatim precisely so it can be re-checked against the
+page rather than against somebody's summary of it.
+
+What the licence *allows* is not stored beside it. It is computed, in `licensing.py`,
+so there is one answer rather than a field that has to be kept true:
+
+| standing | meaning |
+| --- | --- |
+| **free** | public domain or CC0. Nothing is owed; credited anyway. |
+| **owed** | usable commercially, and something travels with it — a credit, or ShareAlike. |
+| **closed** | NonCommercial, or anything NoDerivatives touches. Not usable in a paid offering. |
+| **unknown** | nothing recorded, or terms nobody here recognises. **Not** treated as free. |
+
+Two of these are easy to get backwards and both are load-bearing. **ShareAlike does not
+block a business**: CC BY-SA permits commercial use and requires derivatives to go out
+under the same terms, so a corpus built on it can be sold and cannot be kept secret.
+**NonCommercial is the term that closes a door**, because it bites on the commercial
+character of the offering rather than on which individual reader paid.
+
+Ask the corpus rather than remember it:
+
+```
+targum licences
+```
+
+It lists every source by standing, says how many may leave, and names the ones with
+nothing recorded so they can be checked.
