@@ -54,6 +54,7 @@ from .render.builder import (
     weekly_note,
     weekly_page,
 )
+from .segment.stanza_segmenter import telling
 from .video import MAX_VIDEO_BYTES
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
@@ -1635,7 +1636,16 @@ class Library:
 
             # One chapter. A book is bought as it is read; a text with no chapters is
             # translated whole, which the pipeline decides for itself.
-            result = builder.run(on_progress=progress, on_ready=ready, chapters=FIRST_CHAPTERS)
+            #
+            # Inside `telling`, so that a first build on a fresh box says what it is
+            # waiting for. Stanza downloads a few hundred megabytes the first time a
+            # language is used, and until this the page held whatever line it had last
+            # printed for the whole of it — a line that has not moved in four minutes
+            # reads as a hang, and the reader closes a tab on a build that was working.
+            # Wrapped here rather than inside `run`, because `run` calls `plan`, and the
+            # segmenter downloads its tokenizer there.
+            with telling(builder.notify):
+                result = builder.run(on_progress=progress, on_ready=ready, chapters=FIRST_CHAPTERS)
             # The reservation becomes the receipt. Until this, the ledger held an
             # estimate and the budget was an approximation of itself.
             job.spent = result.spent.cost()
