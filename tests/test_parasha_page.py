@@ -38,7 +38,14 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Index:
         shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
     library = tmp_path / "library"
     a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
-    return corpus_build.build(years=[2026], schedules=[cal.Schedule.diaspora], library=library)
+    return corpus_build.build(
+        years=[2026],
+        # Named, because only 2026 is cached here and the corpus span is nineteen
+        # years by default — unnamed, this test would go to Hebcal for eighteen more.
+        corpus_years=[2026],
+        schedules=[cal.Schedule.diaspora],
+        library=library,
+    )
 
 
 @pytest.fixture
@@ -112,6 +119,7 @@ def test_the_build_is_free_and_idempotent(built: Index, tmp_path: Path) -> None:
         tmp_path / "parasha" / "read" / "nitzavim-vayeilech" / "reader" / "sec-0001.html"
     ).read_text(encoding="utf-8")
     again = corpus_build.build(
+        corpus_years=[2026],
         years=[2026],
         schedules=[cal.Schedule.diaspora],
         library=tmp_path / "library",
@@ -154,6 +162,7 @@ def test_a_book_that_is_not_on_the_shelf_takes_its_readings_and_leaves_the_rest(
         shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
     said: list[str] = []
     index = corpus_build.build(
+        corpus_years=[2026],
         years=[2026],
         schedules=[cal.Schedule.diaspora],
         library=tmp_path / "nothing-here",

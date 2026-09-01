@@ -14,6 +14,7 @@ from targum.ingest.fetch.wikisource import (
     drop_leading_notices,
     drop_link_lists,
     drop_trailing_navigation,
+    drop_unpointed_copies,
     split_identifier,
 )
 from targum.models import BlockKind
@@ -127,6 +128,85 @@ def test_trailing_wiki_navigation_is_dropped() -> None:
         ]
     )
     assert [text for _, _, text in kept] == ["אל הציפור", "שלום רב שובך"]
+
+
+def test_a_bare_second_copy_of_a_pointed_work_is_dropped() -> None:
+    """The Bialik page carried the poem twice, under the wiki's own two headings, and the
+    learner paid to translate, vowel and gloss both. The vowels are a toggle; a second
+    copy of the same words is not a second text (targum-internal #90, UX review B4)."""
+    kept = drop_unpointed_copies(
+        [
+            _para(BlockKind.heading, "אל הציפור"),
+            _para(BlockKind.heading, "עם ניקוד"),
+            _para(BlockKind.paragraph, "שָׁלוֹם רָב שׁוּבֵךְ, צִפֹּרָה נֶחְמֶדֶת"),
+            _para(BlockKind.heading, "ללא ניקוד"),
+            _para(BlockKind.paragraph, "שלום רב שובך ציפור נחמדת"),
+        ]
+    )
+
+    assert [text for _, _, text in kept] == [
+        "אל הציפור",
+        "עם ניקוד",
+        "שָׁלוֹם רָב שׁוּבֵךְ, צִפֹּרָה נֶחְמֶדֶת",
+    ], "the labelled copy goes, heading and all"
+
+
+def test_the_wiki_saying_its_copy_is_partial_does_not_save_it() -> None:
+    """The real heading reads "ללא ניקוד (חלקי)". A partial duplicate is still a
+    duplicate, and it is the case that actually shipped, so the match is on the opening
+    words rather than the whole heading."""
+    kept = drop_unpointed_copies(
+        [
+            _para(BlockKind.paragraph, "שָׁלוֹם רָב שׁוּבֵךְ"),
+            _para(BlockKind.heading, "ללא ניקוד (חלקי)"),
+            _para(BlockKind.paragraph, "שלום רב שובך"),
+        ]
+    )
+    assert [text for _, _, text in kept] == ["שָׁלוֹם רָב שׁוּבֵךְ"]
+
+
+def test_the_drop_stops_at_the_next_heading() -> None:
+    """Only that section. Whatever the page puts after it is the page's own text."""
+    kept = drop_unpointed_copies(
+        [
+            _para(BlockKind.paragraph, "שָׁלוֹם רָב שׁוּבֵךְ"),
+            _para(BlockKind.heading, "ללא ניקוד"),
+            _para(BlockKind.paragraph, "שלום רב שובך"),
+            _para(BlockKind.heading, "הערה על הנוסח"),
+            _para(BlockKind.paragraph, "הנוסח לפי דפוס ורשה"),
+        ]
+    )
+    assert [text for _, _, text in kept] == [
+        "שָׁלוֹם רָב שׁוּבֵךְ",
+        "הערה על הנוסח",
+        "הנוסח לפי דפוס ורשה",
+    ]
+
+
+def test_a_page_with_no_vowels_anywhere_is_left_alone() -> None:
+    """A bare work is not a copy of anything. With nothing pointed on the page to prefer,
+    a section headed "ללא ניקוד" is the page's own shape and stays."""
+    same = [
+        _para(BlockKind.heading, "ללא ניקוד"),
+        _para(BlockKind.paragraph, "שלום רב שובך"),
+    ]
+    assert drop_unpointed_copies(same) == same
+
+
+def test_the_copies_are_not_matched_by_their_letters() -> None:
+    """Pointed Hebrew is written defectively and bare Hebrew is written full, so the same
+    line is צִפֹּרָה and ציפור — different strings by convention. Nothing here may depend on
+    them matching, which is why the heading is what decides."""
+    kept = drop_unpointed_copies(
+        [
+            _para(BlockKind.paragraph, "מֵאַרְצוֹת הַחֹם"),
+            _para(BlockKind.heading, "ללא ניקוד"),
+            _para(BlockKind.paragraph, "מארצות החום"),
+        ]
+    )
+    assert [text for _, _, text in kept] == ["מֵאַרְצוֹת הַחֹם"], (
+        "dropped on the heading, though the letters differ"
+    )
 
 
 def test_several_navigation_sections_go_together() -> None:
