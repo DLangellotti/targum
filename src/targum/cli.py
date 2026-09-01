@@ -1660,6 +1660,97 @@ def sources() -> None:
 
 
 @app.command()
+def licences() -> None:
+    """What the corpus is under, and what may leave it.
+
+    The question this answers is "what can be sold, and what has to be shared alike" —
+    asked of the licence each source recorded rather than of anybody's memory of where
+    it came from. A source with nothing written down is listed as unknown and not as
+    free: an unchecked licence is not an absent one.
+    """
+    import json
+
+    from .licensing import Standing, verdict
+    from .recording import index as recording_index
+
+    rows: list[tuple[str, str, str]] = []
+
+    home = recording_index.root()
+    if home.is_dir():
+        for one in sorted(home.glob("*/recording.json")):
+            try:
+                held = json.loads(one.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            rows.append(("recording", one.parent.name, str(held.get("licence") or "")))
+
+    try:
+        from .catalogue import everything
+
+        for entry in everything():
+            rows.append(("text", entry.id, str(getattr(entry, "licence", "") or "")))
+    except Exception:  # noqa: BLE001 - a private catalogue is absent on a public checkout
+        pass
+
+    if not rows:
+        console.print("[dim]Nothing on the shelf yet.[/dim]")
+        return
+
+    counts: dict[Standing, int] = {}
+    for _kind, _name, licence in rows:
+        standing = verdict(licence).standing
+        counts[standing] = counts.get(standing, 0) + 1
+
+    table = Table(box=None, pad_edge=False)
+    table.add_column("standing")
+    table.add_column("sources", justify="right")
+    table.add_column("")
+    colours = {
+        Standing.free: "green",
+        Standing.owed: "green",
+        Standing.closed: "yellow",
+        Standing.unknown: "yellow",
+    }
+    meaning = {
+        Standing.free: "nothing owed",
+        Standing.owed: "may leave, something travels with it",
+        Standing.closed: "may not leave in a commercial offering",
+        Standing.unknown: "nobody has checked",
+    }
+    for standing in Standing:
+        if standing in counts:
+            colour = colours[standing]
+            table.add_row(
+                f"[{colour}]{standing.value}[/{colour}]",
+                str(counts[standing]),
+                f"[dim]{meaning[standing]}[/dim]",
+            )
+    console.print(table)
+
+    leaving = sum(n for standing, n in counts.items() if verdict_allows(standing))
+    console.print(f"\n[bold]{leaving}[/bold] of {len(rows)} sources may leave targum.")
+
+    unchecked = [
+        (kind, name)
+        for kind, name, licence in rows
+        if verdict(licence).standing is Standing.unknown
+    ]
+    if unchecked:
+        console.print(f"\n[yellow]{len(unchecked)} with nothing recorded[/yellow]")
+        for kind, name in unchecked[:12]:
+            console.print(f"  [dim]{kind}[/dim]  {name}")
+        if len(unchecked) > 12:
+            console.print(f"  [dim]… and {len(unchecked) - 12} more[/dim]")
+
+
+def verdict_allows(standing: object) -> bool:
+    """Whether a standing is one derived data may leave under."""
+    from .licensing import Standing
+
+    return standing in {Standing.free, Standing.owed}
+
+
+@app.command()
 def providers() -> None:
     """List translation providers and whether they can be used right now."""
     table = Table(box=None, pad_edge=False)

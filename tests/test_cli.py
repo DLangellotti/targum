@@ -654,3 +654,42 @@ def test_seed_shares_one_lemmatizer_per_register(
     assert len({id(lemmatizer) for lemmatizer in handed}) == len(registers), (
         "one per register, not one per text"
     )
+
+
+def test_licences_reports_the_corpus_by_what_may_leave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ "What can leave?" is answered by running something rather than by remembering
+    where each source came from (targum-internal #115).
+
+    A recording under ShareAlike may leave and owes a credit; one with nothing written
+    down is unknown and is counted apart from the free ones, because an unchecked licence
+    is not an absent one.
+    """
+    import json
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path))
+    # The catalogue is the private half and is absent on a public checkout; where it is
+    # present it would drown three fixtures in four hundred real entries. Asked of the
+    # recordings alone, which is the half this test owns.
+    monkeypatch.setattr("targum.catalogue.everything", lambda: [])
+    for name, licence in (("shared-alike", "CC BY-SA 3.0"), ("older", "public domain")):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "recording.json").write_text(
+            json.dumps({"source": name, "credit": "A Reader", "licence": licence, "parts": []}),
+            encoding="utf-8",
+        )
+    nothing = tmp_path / "unchecked"
+    nothing.mkdir()
+    (nothing / "recording.json").write_text(
+        json.dumps({"source": "unchecked", "credit": "A Reader", "licence": "", "parts": []}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["licences"])
+
+    assert result.exit_code == 0, result.output
+    assert "free" in result.output and "owed" in result.output
+    assert "unknown" in result.output
+    assert "unchecked" in result.output, "it names what to go and check"
