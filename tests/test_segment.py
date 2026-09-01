@@ -63,3 +63,53 @@ def test_hebrew_abbreviations_do_not_split(needs_hebrew_model: None) -> None:
     segmented = segment_document(document, StanzaSegmenter())
     assert len(segmented.segments) == 2
     assert "תרנ״ז" in segmented.segments[0].text
+
+
+def test_a_model_download_says_what_it_is_waiting_for(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A first build on a fresh box stops for minutes while Stanza fetches a few hundred
+    megabytes, and until this the page held whatever line it printed before — "Finding
+    each word's dictionary form…" — for the whole of it. A line that has not moved in
+    four minutes reads as a hang (targum-internal #91, UX review C1).
+    """
+    import stanza
+
+    from targum.segment import stanza_segmenter
+
+    monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
+    said: list[str] = []
+
+    with stanza_segmenter.telling(said.append):
+        stanza_segmenter.download("he")
+
+    assert said == ["Fetching the Hebrew language model. This happens once."], (
+        "it names the language, and that the wait happens once"
+    )
+
+
+def test_a_model_download_is_silent_when_nobody_is_listening(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CLI shows Stanza's own progress and needs no line from us, so the announcement
+    is something a caller opts into rather than something every path pays for."""
+    import stanza
+
+    from targum.segment import stanza_segmenter
+
+    monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
+    stanza_segmenter.download("he")  # no telling(), no error, nothing said
+
+
+def test_the_listener_does_not_outlive_its_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One reader's progress line has no business arriving in another reader's build."""
+    import stanza
+
+    from targum.segment import stanza_segmenter
+
+    monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
+    said: list[str] = []
+
+    with stanza_segmenter.telling(said.append):
+        stanza_segmenter.download("he")
+    stanza_segmenter.download("he")
+
+    assert len(said) == 1, "the second download was outside the block and said nothing"

@@ -487,6 +487,30 @@ def test_the_export_holds_every_language_and_no_filter(hosted: tuple[int, str]) 
         assert expected in data, expected
 
 
+def test_the_export_holds_every_kind_the_account_syncs(hosted: tuple[int, str]) -> None:
+    """Asked of `KINDS`, not of a list written here.
+
+    The acceptance criterion on targum-internal #17 is that adding a new thing the
+    account keeps must not need adding to the export separately. `Store.everything`
+    already loops `KINDS`, so it is true — but the test above checked a hand-written
+    tuple that omitted `days` and `meanings`, which meant either could have been dropped
+    from the export and nothing would have failed. Progress is days; losing them
+    silently is the exact shape that issue is about.
+
+    Derived here, so a kind added tomorrow is covered tomorrow.
+    """
+    from targum.accounts import KINDS
+
+    port, session = hosted
+    status, body = ask(port, "/account/export", "targum.page", session)
+    assert status == 200
+    data = json.loads(body)
+
+    missing = [name for name in KINDS if name not in data]
+    assert not missing, f"the export drops what the account syncs: {missing}"
+    assert "days" in data, "reading days are progress, and progress is the point of this"
+
+
 def test_the_export_arrives_as_a_file(hosted: tuple[int, str]) -> None:
     """A wall of JSON in a browser tab is not a thing anybody can keep."""
     port, session = hosted

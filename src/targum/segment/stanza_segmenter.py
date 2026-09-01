@@ -11,7 +11,9 @@ import contextlib
 import io
 import logging
 import shutil
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from ..errors import ModelMissing, TargumError
@@ -63,6 +65,31 @@ def has_processors(
     )
 
 
+#: Who to tell that a model is being fetched, for as long as somebody is listening.
+#:
+#: A first build on a fresh box stops for minutes here, and until this the page said
+#: whatever it had said before — "Finding each word's dictionary form…" — while a few
+#: hundred megabytes came down a wire. A line that has not changed in four minutes reads
+#: as a hang, and the reader's next move is to close the tab on a build that was working.
+#:
+#: A context variable rather than an argument, because the three callers are a segmenter,
+#: a lemmatizer and the CLI, and threading a callback through all of them to reach one
+#: `stanza.download` would touch four constructors to say one sentence. Per-context
+#: rather than a module global because a hosted box builds in threads, and one reader's
+#: progress line has no business arriving in another reader's build.
+_TELLING: ContextVar[Callable[[str], None] | None] = ContextVar("_TELLING", default=None)
+
+
+@contextmanager
+def telling(say: Callable[[str], None]) -> Iterator[None]:
+    """Announce model downloads to `say` for the duration."""
+    token = _TELLING.set(say)
+    try:
+        yield
+    finally:
+        _TELLING.reset(token)
+
+
 def download(
     language: str, processors: str = "tokenize", packages: Mapping[str, str] | None = None
 ) -> None:
@@ -73,7 +100,18 @@ def download(
     """
     import stanza
 
+    # Local, because `translate.prompts` reaches back into this package and a top-level
+    # import would close the circle.
+    from ..translate.prompts import language_name
+
     code = stanza_code(language)
+    say = _TELLING.get()
+    if say is not None:
+        # Said before the wait, not after it, and it names the one thing that makes the
+        # wait bearable: that it happens once. Callers reach here only when the model is
+        # genuinely absent — `has_processors` and `is_downloaded` gate every call site —
+        # so this never appears on a build that is not actually waiting for a download.
+        say(f"Fetching the {language_name(code)} language model. This happens once.")
     ensure(model_dir())
     try:
         stanza.download(

@@ -130,6 +130,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the current PEP 639 spelling; the table form it used is deprecated.
 
 ### Fixed
+- A first build on a fresh box says what it is waiting for. Stanza fetches a few hundred
+  megabytes the first time a language is used, and the page held whatever line it had
+  printed before — "Finding each word's dictionary form…" — for the whole of it. A line
+  that has not moved in four minutes reads as a hang, and the reader closes a tab on a
+  build that was working. It now says which language model is being fetched, and that it
+  happens once.
 - A parasha asked for by name no longer titles itself "this week's parasha". Fifty-three
   of the fifty-four were saying it, in the tag a search engine weighs most, on a page
   whose argument is that every portion name is its own query. The headline had already
