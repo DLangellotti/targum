@@ -130,6 +130,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the current PEP 639 spelling; the table form it used is deprecated.
 
 ### Fixed
+- Four of the fifty-four portions had no address. Matot, Masei, Nitzavim and Vayeilech
+  were missing from the shelf, so `/parasha/nitzavim` was a 404 in the week Nitzavim is
+  read. The corpus was enumerated from the same two-year window the pointer uses, and a
+  pair doubled on both schedules across both years is never read on its own, so it was
+  never cut. The corpus now walks nineteen years — the Metonic cycle, after which the
+  calendar repeats — while the pointer still walks two. Fifty for years; fifty-four now.
 - A failed video transcode no longer leaves a truncated file that later builds
   trust; a re-cut part is copied beside the reader atomically.
 - Recording folder slugs hash only genuinely non-ASCII sources, so ASCII sources
