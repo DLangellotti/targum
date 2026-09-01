@@ -108,6 +108,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   there, irrevocably, and the page says so.
 
 ### Changed
+- Your Progress shades each day of the twelve-week strip by how much vocabulary was
+  marked on it, on the same five-step ramp the about page's calendar uses. It was a
+  two-state strip — read or not — which said you turned up and nothing else. Scaled to
+  the busiest day on screen rather than to all time, so a first week of enthusiasm does
+  not flatten every week after it; a day read with nothing marked keeps the faintest
+  green rather than going grey.
+- A biblical reader says, once in the keys panel, that its dictionary forms are the less
+  reliable ones: the analyser is trained on modern unpointed Hebrew, so waw-consecutive,
+  pausal and archaic forms are sometimes read wrongly on a card. It names the effect and
+  not the library, and a modern text is not warned, because there it is not true enough
+  to be worth the doubt.
 - design.md §10 now bans ritual objects **in the identity** only. A page about the week's
   Torah portion is a content surface, and refusing it a picture of the thing it is about
   was the rule doing a job it was never written for. §12 records the new rule and its
