@@ -3019,3 +3019,69 @@ def test_a_silent_page_offers_no_ear(page) -> None:
     page.wait_for_timeout(200)
     assert page.evaluate("() => !document.querySelector('#gloss-card .hear')")
     assert page.evaluate("() => !window.TargumSpeech")
+
+
+# Getting a card down again.
+#
+# On a phone the word card is a sheet across the foot of the window, over the sentence it
+# was opened from. It has always closed on a swipe down, and nothing on it said so.
+
+
+def test_a_card_on_a_phone_has_something_to_take_hold_of(browser, built: Path) -> None:
+    """The bar at the head of the sheet: the sign it can be pulled down, and a target
+    that closes it when tapped instead."""
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector(".pair")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
+
+    grab = page.locator("#gloss-card .grab")
+    assert grab.is_visible(), "a sheet on a phone says how it is dismissed"
+    assert grab.get_attribute("aria-label") == "Close", "the bar carries no text of its own"
+    # The whole head of the card, so a thumb at the foot of a phone need not aim.
+    box = grab.bounding_box()
+    card = page.locator("#gloss-card").bounding_box()
+    assert box["width"] == card["width"], box
+    assert box["height"] >= 20, "a target, not a hairline"
+
+    grab.click()
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => document.getElementById('gloss-card').hidden"), "tapped it closes"
+    context.close()
+
+
+def test_the_card_is_a_panel_with_no_handle_where_there_is_room(page) -> None:
+    """Beside the word there is nothing to take hold of: Escape and a click elsewhere are
+    the way out, and a bar across the top would be furniture."""
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
+    assert not page.locator("#gloss-card .grab").is_visible()
+
+
+def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
+    """The same level said with a key has always closed the card — it answers the question
+    the card was opened to ask. Tapped, it left the card sitting over the sentence, which
+    on a phone is the sentence you were reading.
+    """
+    context = opened(browser, viewport=PHONE)
+    page = context.new_page()
+    page.goto(built.as_uri())
+    page.wait_for_selector(".pair")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
+
+    page.click("#gloss-card .vocab-editor .level")
+    # It holds the level it has just taken for a beat, then goes: LINGER + FADE in
+    # reader.js. Reduced motion is on here, so the fade itself is not what is waited for.
+    page.wait_for_function("() => document.getElementById('gloss-card').hidden", timeout=4000)
+    # And the level was kept, which is the point of pressing it: the card comes back with
+    # that step set rather than the question it was opened with.
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .vocab-editor .level.on").count() == 1
+    context.close()

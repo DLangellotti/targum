@@ -772,6 +772,11 @@ body.marking .w.here,
 }
 .gloss-card[hidden] { display: none; }
 
+/* Where a card is a panel beside the word, there is nothing to take hold of: Escape and
+   a click elsewhere are the way out, and a bar across the top would be furniture. The
+   sheet at the foot of a phone is the case that needs one — see the breakpoint. */
+.grab { display: none; }
+
 /* A card that has been answered and is leaving. Saying a level closes the card it was
    said in, but not in the frame the key was pressed in — it holds the level it took for
    a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
@@ -2359,6 +2364,41 @@ html:fullscreen { background: var(--paper); }
     backdrop-filter: blur(6px);
   }
   .gloss-card { width: auto; }
+
+  /* The handle on a sheet: what says it can be pulled down, and what closes it when it
+     is tapped instead. Full width so the target is the whole head of the card rather
+     than the bar drawn in it — a thumb reaching the foot of a phone should not have to
+     aim — while the bar itself stays the small centred mark the gesture is named by.
+     Sticky, so it is still there after the card has been scrolled inside. */
+  .grab {
+    display: block;
+    position: sticky;
+    inset-block-start: 0;
+    align-self: stretch;
+    /* Negative inline margins take it back out to the card's own edges, and the top
+       margin swallows the sheet's block-start padding so the bar sits where the card
+       begins. */
+    margin: -0.75rem -1rem 0.15rem;
+    padding: 0.65rem 0;
+    border: 0;
+    background: var(--paper-raised);
+    /* A bar, not a button: no edge of its own, because the edge it would draw is the
+       top of the sheet it sits in. */
+    cursor: pointer;
+    z-index: 1;
+  }
+  .grab::before {
+    content: "";
+    display: block;
+    inline-size: 2.25rem;
+    block-size: 4px;
+    margin-inline: auto;
+    border-radius: 999px;
+    background: var(--rule);
+  }
+  .grab:active::before { background: var(--ink-soft); }
+  /* The list and the keys card say their own name and carry their own ×; the video
+     panel has a close of its own. Only the two word cards are built without one. */
 
   /* Closed, the menu is nothing. Open, it is the occupant: each group is a row, named
      by what it says of itself, its control at the end. On raised paper a button needs

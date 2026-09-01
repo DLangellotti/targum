@@ -2151,6 +2151,29 @@
     letGo();
   }
 
+  // Somewhere to take hold of, at the head of a card that is a sheet.
+  //
+  // The sheets have always closed on a swipe down — see `dismissible` — but nothing on
+  // one said so. On a phone the card opens over the sentence it was asked about, and the
+  // ways out were a gesture nobody had been told about and a tap on the text behind it,
+  // which is the text the card is covering. So the bar is both the sign that it can be
+  // pulled down and a target that closes it when tapped: whichever the reader tries,
+  // that is the one that works.
+  //
+  // Narrow screens only — `.grab` is display:none above the breakpoint, where the card
+  // is a small panel beside the word rather than a sheet across the foot of the window,
+  // and where Escape and a click elsewhere are already the way out. Rebuilt with the
+  // card because `showCard` empties it every time.
+  function grabHandle(close) {
+    var grab = document.createElement("button");
+    grab.type = "button";
+    grab.className = "grab";
+    // The bar carries no text, so it says what it is here rather than in the page.
+    grab.setAttribute("aria-label", "Close");
+    grab.addEventListener("click", close);
+    return grab;
+  }
+
   // The card lets go of the word it was about. Its own function because a card that has
   // been answered lets go at once and leaves a moment later, so the two are no longer
   // one thing.
@@ -2497,6 +2520,13 @@
         // Rebuilt rather than patched, so every button in the row agrees about which
         // one is now set.
         if (lookedUp) showCard(lookedUp);
+        // And then spent, exactly as the same level said with a key is. A level answers
+        // the question the card was opened to ask, whichever way it was said — but only
+        // the keyboard path knew that, so a level tapped on a phone left the card
+        // sitting over the sentence it came from, to be dismissed by a gesture nobody
+        // had been told about. Rebuilt first and spent second, so what the reader
+        // watches leave is the card with the level they just said on it.
+        spendCard();
       },
       onNote: function (text) {
         if (text === noteOf(lemma)) return;
@@ -2560,6 +2590,7 @@
     lookedUp = word;
     word.classList.add("looked-up");
     card.textContent = "";
+    card.appendChild(grabHandle(hideCard));
 
     // Two different things. The card shows the word as it sits on the page, points and
     // all, because that is what was tapped; the list stores the bare form, so the same
@@ -3001,6 +3032,8 @@
 
   function pickCard(parts) {
     chip.textContent = "";
+    // The phrase card is the same sheet in the same place, and was as hard to put away.
+    chip.appendChild(grabHandle(hideChip));
     var phrase = document.createElement("span");
     phrase.className = "phrase";
     var text = document.createElement("bdi");
