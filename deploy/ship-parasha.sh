@@ -53,11 +53,13 @@ ssh "$HOST" "mkdir -p '$REMOTE/read' '$REMOTE/calendar'"
 # so no reader is ever served half a file; what a staging directory buys on top of that
 # is cross-file consistency, and the one ordering that actually matters here is handled
 # below by sending index.json last.
+#
+# `--stats` rather than `--info=stats1`: macOS ships openrsync claiming rsync 2.6.9, which
+# predates --info by a decade and exits 1 on it. This runs from a laptop, so 2.6.9 is the
+# floor, and every flag here has to exist in it.
 echo "== copying =="
-rsync -a --delete --info=stats1 \
-  "$LOCAL/read/" "$HOST:$REMOTE/read/"
-rsync -a --info=stats1 \
-  "$LOCAL/calendar/" "$HOST:$REMOTE/calendar/"
+rsync -a --delete --stats "$LOCAL/read/" "$HOST:$REMOTE/read/" | tail -4
+rsync -a --stats "$LOCAL/calendar/" "$HOST:$REMOTE/calendar/" | tail -3
 
 # The index last, always: it is what makes a portion exist as far as the server is
 # concerned, and it also carries the pointer at this week's reading. Written to a
