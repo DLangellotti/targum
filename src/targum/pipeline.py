@@ -102,6 +102,32 @@ class Result:
         return self.pages[0]
 
 
+def named_in(source: Document, segmented: SegmentedDocument) -> dict[str, str]:
+    """Segments whose English is known, and must not be bought or guessed at.
+
+    One case so far: the weekly's byline. It is the product's own name written in
+    Hebrew — חובר בידי צוות תרגום — and תרגום is also the ordinary word for a
+    translation, so a translator did the reasonable thing and rendered it "Compiled by
+    the translation team". A name is not a thing to translate, and the English for this
+    one was decided when it was written.
+
+    Module-level rather than a method of Build, because a build is not the only thing
+    that renders a page from these artifacts. The correction is applied in memory and the
+    translation on disk keeps the model's wording, so `targum rebuild` reading that file
+    put "the translation team" back on the page — which it did, on the box, for as long as
+    the weekly was rebuilt at all. Anything that renders a weekly has to apply this.
+    """
+    if not source.source.startswith("weekly:"):
+        return {}
+    from .weekly.entries import BYLINE, BYLINE_HE
+
+    return {
+        segment.id: BYLINE
+        for segment in segmented.segments
+        if segment.kind is BlockKind.byline and segment.text.strip() == BYLINE_HE.strip()
+    }
+
+
 class Build:
     def __init__(
         self,
@@ -689,24 +715,10 @@ class Build:
     def named(self, source: Document, segmented: SegmentedDocument) -> dict[str, str]:
         """Segments whose English is known, and must not be bought or guessed at.
 
-        One case so far: the weekly's byline. It is the product's own name written in
-        Hebrew — חובר בידי צוות תרגום — and תרגום is also the ordinary word for a
-        translation, so a translator did the reasonable thing and rendered it "Compiled by
-        the translation team". A name is not a thing to translate, and the English for
-        this one was decided when it was written.
-
-        Applied to whichever translation the build ends up with, cached or fresh, so a
-        rebuild cannot quietly put the wrong one back.
+        See `named_in`, which is where this lives so that `targum rebuild` can apply the
+        same corrections without standing a whole Build up to ask.
         """
-        if not source.source.startswith("weekly:"):
-            return {}
-        from .weekly.entries import BYLINE, BYLINE_HE
-
-        return {
-            segment.id: BYLINE
-            for segment in segmented.segments
-            if segment.kind is BlockKind.byline and segment.text.strip() == BYLINE_HE.strip()
-        }
+        return named_in(source, segmented)
 
     def authored(self, source: Document, segmented: SegmentedDocument) -> Translation | None:
         """A dialogue's English, which arrives with it and is never bought.

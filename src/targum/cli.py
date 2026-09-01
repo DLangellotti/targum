@@ -892,12 +892,46 @@ def repair(
     )
 
 
+def weekly_wiring(folder: Path) -> list[dict[str, str]] | None:
+    """The sibling levels of a weekly edition, or None if this is not one.
+
+    `targum weekly build` writes an issue's three levels wired to each other, so a reader
+    who finds one too hard says so in one press. A rebuild has to put that back or the
+    link row comes out empty — and the shape is derived from the index rather than from
+    the folder name, so an issue with a level missing wires the two it has.
+    """
+    if folder.parent.name != "weekly":
+        return None
+    from .weekly import index as weekly_index
+    from .weekly.models import LEVELS, Level
+    from .weekly.models import folder as folder_for
+
+    for issue in weekly_index.load().issues:
+        mine = next((one for one in issue.editions if one.folder == folder.name), None)
+        if mine is None:
+            continue
+        have = {edition.level for edition in issue.editions}
+        return [
+            {
+                "name": LEVELS[other].name,
+                "figure": f"{LEVELS[other].figure} words",
+                "folder": folder_for(issue.id, other),
+                "current": "1" if other is mine.level else "",
+            }
+            for other in Level
+            if other in have
+        ]
+    return None
+
+
 def rebuild_one(
     folder: Path,
     *,
     reads: list[str] | None,
     covers: Path,
     annotate: Callable[[Path, Document], Annotator] | None = None,
+    siblings: list[dict[str, str]] | None = None,
+    whole: bool = False,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
@@ -933,6 +967,15 @@ def rebuild_one(
     if not translations:
         # Ingested and priced, then never paid for. There is nothing to read.
         return None, "never translated"
+    # The corrections a build applies in memory and never writes down. Without this a
+    # rebuilt weekly puts "Compiled by the translation team" back under the masthead,
+    # because that is what the model made of the Hebrew and what the artifact still says.
+    from .pipeline import named_in
+
+    if known := named_in(document, segmented):
+        for rendering in translations:
+            if rendering.target_language == "en":
+                rendering.segments.update(known)
     annotation = read_artifact(Annotation, folder / "annotation.json")
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
@@ -965,6 +1008,11 @@ def rebuild_one(
         # a change to that only reaches one when the file is written again — which is
         # what this is, and why the profile page ends by running it.
         reads=reads,
+        # A weekly edition is one long targum wired to its sibling levels, and the
+        # generic rewrite without these two turned an issue back into a contents page
+        # and six chapter files with no player.
+        siblings=siblings,
+        whole=whole,
         # Written over rather than emptied first. This runs on a box with readers
         # open on it: the same segments produce the same section files under the
         # same names, so overwriting leaves nothing stale behind, and nobody has the
@@ -1076,16 +1124,23 @@ def rebuild(
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
-        # The weekly is not rebuilt here. Its editions are one long targum each, built
-        # with `whole=True` and wired to their sibling levels by `targum weekly build`;
-        # the generic rewrite turned an issue back into a contents page and six chapter
-        # files with no player, on the laptop and then on the box. An issue is built
-        # where it is written and carried to the box as it is — see ship-weekly.sh.
-        if folder.parent.name == "weekly":
+        # A weekly edition is one long targum wired to its sibling levels, and rewriting
+        # one without saying so turned an issue back into a contents page and six chapter
+        # files with no player — which is why this used to skip the weekly outright. The
+        # cost of skipping was that no reader improvement ever reached an issue already on
+        # the box: the deploy rewrote every other home and left the weekly at whatever it
+        # was shipped as, so the gloss card was live everywhere but there. So the shape is
+        # restored from the index instead. An edition the index does not know is still
+        # skipped rather than flattened.
+        siblings = weekly_wiring(folder)
+        if folder.parent.name == "weekly" and siblings is None:
+            skipped.append((folder.name, "not in the weekly index"))
             continue
         title, outcome = rebuild_one(
             folder,
             reads=reading_of(folder.parent.name),
+            siblings=siblings,
+            whole=siblings is not None,
             covers=root / "thumbs",
             annotate=annotate,
         )
