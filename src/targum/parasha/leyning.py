@@ -40,7 +40,6 @@ from ..cache import Cache
 from ..errors import TargumError
 from ..models import BlockKind
 from ..recording import index as recording_index
-from ..recording.attach import concatenated, cut, duration_of
 from ..recording.models import Part, Recording
 from ..vocalize import strip_taamim
 from .calendar import Reading
@@ -312,7 +311,21 @@ def _cut_from_the_pair(
     The seam between two aliyot is put at the midpoint of the silence between the last
     word of one and the first word of the next, which is `recording.attach`'s rule and
     for its reason: cutting on a word boundary clips the breath either side of it.
+
+    `recording.attach` is in the half of the tree that is gitignored, so the import is
+    here rather than at the top of the file: a public checkout must still be able to
+    import this module — the tests do, and so does `targum parasha leyning` before it
+    knows whether the week is doubled. Only this one path needs the waveform tools, and
+    only a maintainer ever walks it.
     """
+    try:
+        from ..recording.attach import concatenated, cut, duration_of
+    except ImportError as exc:  # pragma: no cover - the public tree has no attach.py
+        raise TargumError(
+            "cutting a doubled week needs targum.recording.attach, which is not in this "
+            "checkout. Single portions are unaffected."
+        ) from exc
+
     files = [fetch(name, keep) for name in names]
     verses = [
         (segment.ref, segment.text)

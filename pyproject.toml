@@ -113,10 +113,11 @@ module = [
 ]
 ignore_missing_imports = true
 
-# The half of the weekly that makes an issue is gitignored (see .gitignore), so a public
-# checkout — CI's — has no such modules. Every import of them is already guarded with
-# ImportError; this keeps the type check from failing where the files are absent. Listed
-# by name rather than as `targum.weekly.*`, so a typo in the open half still fails.
+# The half that makes content is gitignored (see .gitignore), so a public checkout —
+# CI's — has no such modules: the weekly's writer, and the waveform tools that cut a
+# recording into parts. Every import of them is already guarded with ImportError; this
+# keeps the type check from failing where the files are absent. Listed by name rather
+# than as `targum.weekly.*`, so a typo in the open half still fails.
 [[tool.mypy.overrides]]
 module = [
   "targum.weekly.facts",
@@ -124,6 +125,7 @@ module = [
   "targum.weekly.prompts",
   "targum.weekly.write",
   "targum.weekly.voice",
+  "targum.recording.attach",
 ]
 ignore_missing_imports = true
 
