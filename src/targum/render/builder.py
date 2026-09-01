@@ -1189,7 +1189,19 @@ def parasha_page(
         _environment()
         .get_template("parasha.html.j2")
         .render(
-            title=f"{portion.name} — this week's parasha — targum",
+            # The same correction the headline already carries, in the tag that matters
+            # more for it: on a portion asked for by name this is not this week's, and
+            # fifty-four titles claiming to be is fifty-four pages a search engine cannot
+            # tell apart — on a page whose entire argument is that every parasha name is
+            # a query. The chapter range is what a reader searching the name wants to see
+            # confirmed, and it is different for all fifty-four.
+            title=(
+                f"{portion.name} — this week's parasha — targum"
+                if shabbat is not None
+                else f"{portion.name} — {portion.summary} — targum"
+                if portion.summary
+                else f"{portion.name} — the weekly Torah portion — targum"
+            ),
             # The opening words go in the description because they are how somebody
             # who knows the portion recognises it — a search result that leads with
             # אתם נצבים says which reading this is faster than the chapter numbers do.
