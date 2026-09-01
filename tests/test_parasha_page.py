@@ -78,6 +78,16 @@ def get(port: int, path: str) -> tuple[int, str]:
     return answer.status, body
 
 
+def robots_tag(port: int, path: str) -> str | None:
+    """What a crawler is told about this page, which is not the same as what it is given."""
+    conn = HTTPConnection("127.0.0.1", port)
+    conn.request("GET", path)
+    answer = conn.getresponse()
+    answer.read()
+    conn.close()
+    return answer.getheader("X-Robots-Tag")
+
+
 def raw(port: int, path: str) -> int:
     """A request whose path is sent exactly as written, so a dot-dot survives to the
     server instead of being tidied away by the client."""
@@ -284,9 +294,12 @@ def test_a_catalogue_id_naming_a_portion_nobody_built_is_not_redirected(serving:
     assert get(serving, "/library/parasha-no-such-portion")[0] == 404
 
 
-def test_the_sitemap_names_the_portions_by_their_own_addresses(serving: int) -> None:
+def test_the_sitemap_names_the_portions_by_their_own_addresses(
+    serving: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Their catalogue ids redirect here, so listing both would be asking a crawler to
     pick between two addresses for one text."""
+    monkeypatch.setenv("TARGUM_INDEX_PARASHA", "1")
     status, body = get(serving, "/sitemap.xml")
     assert status == 200
     assert "/parasha</loc>" in body
@@ -294,7 +307,38 @@ def test_the_sitemap_names_the_portions_by_their_own_addresses(serving: int) -> 
     assert "/library/parasha-" not in body, "the id that redirects is left out"
 
 
+def test_the_sitemap_is_silent_about_the_parasha_until_it_is_invited(serving: int) -> None:
+    """Off by default. A sitemap naming pages whose every response says noindex would be
+    the site contradicting itself."""
+    status, body = get(serving, "/sitemap.xml")
+    assert status == 200
+    assert "/parasha</loc>" not in body
+    assert "/parasha/nitzavim-vayeilech</loc>" not in body
+    assert "/library</loc>" in body, "the rest of the sitemap is unaffected"
+
+
+def test_every_parasha_page_says_noindex_until_the_deployment_says_otherwise(
+    serving: int,
+) -> None:
+    """A portion's page is the same page every year, so whatever ranks for its name ranks
+    for a long time. The shelf, one portion, and a file of a built reader all say it."""
+    assert robots_tag(serving, "/parasha") == "noindex"
+    assert robots_tag(serving, "/parasha/nitzavim-vayeilech") == "noindex"
+    assert robots_tag(serving, "/parasha/read/nitzavim-vayeilech/index.html") == "noindex"
+
+
+def test_the_noindex_lifts_when_the_deployment_invites_crawlers(
+    serving: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_INDEX_PARASHA", "1")
+    assert robots_tag(serving, "/parasha") is None
+    assert robots_tag(serving, "/parasha/nitzavim-vayeilech") is None
+
+
 def test_robots_lets_a_crawler_into_the_parasha(serving: int) -> None:
+    """Deliberately still allowed while the pages say noindex: a crawler barred in
+    robots.txt never fetches the page, so it never reads the noindex, and an address it
+    learned elsewhere can be indexed bare. The header is the instruction."""
     status, body = get(serving, "/robots.txt")
     assert status == 200
     assert "Allow: /parasha" in body

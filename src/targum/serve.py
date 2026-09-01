@@ -314,6 +314,22 @@ def weekly_is_indexed() -> bool:
     return os.environ.get("TARGUM_INDEX_WEEKLY", "").strip().lower() in {"1", "true", "yes"}
 
 
+def parasha_is_indexed() -> bool:
+    """Whether search engines are invited to the parasha. Off unless the deployment says.
+
+    Same switch as the weekly and for the same reason, but the stakes are the other way
+    round. The weekly's issues age; a portion's page is the same page every year, so
+    whatever ranks for "parashat Bereshit" ranks for a long time. Better to let the
+    reading, the audio and the shelf settle first than to have the first crawl decide.
+
+    While this is off every parasha response says `X-Robots-Tag: noindex` and the sitemap
+    does not mention the portions. Not robots.txt, for the reason `weekly_is_indexed`
+    gives: a crawler barred there never fetches the page, so it never sees the noindex,
+    and an address it learned elsewhere can still be indexed bare.
+    """
+    return os.environ.get("TARGUM_INDEX_PARASHA", "").strip().lower() in {"1", "true", "yes"}
+
+
 # What somebody who has not been invited is told. Honest about the state of things and
 # says nothing about who is on the list.
 NOT_OPEN = "targum is not open yet."
@@ -2250,6 +2266,8 @@ class Handler(BaseHTTPRequestHandler):
         the fifty-four are all built, all the time, and a link to any of them keeps
         working after the week it was this week's.
         """
+        if not parasha_is_indexed():
+            self._robots_tag = "noindex"
         from .parasha import build as corpus
         from .parasha.calendar import Schedule
 
@@ -2327,6 +2345,8 @@ class Handler(BaseHTTPRequestHandler):
         from .parasha import build as corpus
         from .parasha.calendar import root as corpus_root
 
+        if not parasha_is_indexed():
+            self._robots_tag = "noindex"
         if folder not in corpus.readable():
             return self._send(404, b"not found", "text/plain")
         base = (corpus_root() / "read" / folder / "reader").resolve()
@@ -2583,11 +2603,12 @@ class Handler(BaseHTTPRequestHandler):
         ]
         # The corpus by its own addresses, for the same reason. Every portion, not just
         # this week's: they are all built, all the time, and each is what somebody
-        # searching that portion's name is looking for.
+        # searching that portion's name is looking for. Only once the deployment invites
+        # search engines to it, on the same terms as the weekly below.
         from .parasha import build as corpus
 
         built = corpus.load()
-        readable_portions = corpus.readable(built)
+        readable_portions = corpus.readable(built) if parasha_is_indexed() else set()
         if readable_portions:
             paths.append("/parasha")
             paths += [
