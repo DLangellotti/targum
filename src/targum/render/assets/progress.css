@@ -177,8 +177,23 @@
   border-radius: 4px;
   background: var(--rule);
 }
+/* Five shades, the same ramp the about page's calendar uses and the same one the
+   knowledge ramp climbs (design.md §12: to leaf, not to gold). `read` on its own keeps
+   the old middle green so a page rendered by an older script does not go grey. */
 .progress .strip li.read {
   background: color-mix(in srgb, var(--leaf) 55%, var(--paper-raised));
+}
+.progress .strip li.level-1 {
+  background: color-mix(in srgb, var(--leaf) 32%, var(--paper-raised));
+}
+.progress .strip li.level-2 {
+  background: color-mix(in srgb, var(--leaf) 55%, var(--paper-raised));
+}
+.progress .strip li.level-3 {
+  background: color-mix(in srgb, var(--leaf) 78%, var(--paper-raised));
+}
+.progress .strip li.level-4 {
+  background: var(--leaf);
 }
 
 .progress .legend-days {
