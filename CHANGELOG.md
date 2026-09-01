@@ -130,6 +130,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the current PEP 639 spelling; the table form it used is deprecated.
 
 ### Fixed
+- A parasha asked for by name no longer titles itself "this week's parasha". Fifty-three
+  of the fifty-four were saying it, in the tag a search engine weighs most, on a page
+  whose argument is that every portion name is its own query. The headline had already
+  been corrected; the title had not, and the test guarding the headline could not fail on
+  it — the title is lower case where the headline is capitalised, and the apostrophe is
+  written `&#39;`. A named portion now carries its chapter range instead, which differs
+  for all fifty-four.
 - The Wikisource fetcher drops a section the page labels as the vowel-less copy of a work
   it also carries pointed. The Bialik page was ingested as ten blocks — the poem, then a
   partial bare copy of it — and both were segmented, priced, translated, pointed and

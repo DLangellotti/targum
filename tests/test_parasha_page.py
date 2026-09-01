@@ -10,6 +10,7 @@ from __future__ import annotations
 import shutil
 import threading
 from collections.abc import Iterator
+from html import unescape
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -466,7 +467,32 @@ def test_a_named_portion_gets_its_own_headline(serving: int) -> None:
     named = get(serving, "/parasha/nitzavim-vayeilech")[1]
     assert "This week's parasha, every word explained." in week
     assert "Nitzavim-Vayeilech, every word explained." in named
-    assert "This week's parasha" not in named
+    # Unescaped and casefolded, and both are needed. This assertion passed for weeks
+    # while every named portion's <title> still said "this week's parasha" — the title is
+    # lower case where the headline is capitalised, and Jinja writes its apostrophe as
+    # &#39;, so a raw case-sensitive search for the phrase could not find it either way.
+    assert "this week's parasha" not in unescape(named).casefold()
+
+
+def test_a_named_portion_does_not_title_itself_this_weeks(serving: int) -> None:
+    """The same correction as the headline, in the tag that carries more of the weight.
+
+    A search engine reads the title first, and fifty-four of them claiming to be this
+    week's parasha is fifty-four pages it cannot tell apart — on a page whose whole
+    argument is that every parasha name is a query. The chapter range is what somebody
+    searching the name wants confirmed, and it differs for all fifty-four.
+    """
+    week = get(serving, "/parasha")[1]
+    named = get(serving, "/parasha/nitzavim-vayeilech")[1]
+
+    def title(body: str) -> str:
+        # Unescaped, because Jinja writes the apostrophe as &#39; and a test that compares
+        # the raw markup is testing the escaper rather than the words.
+        return unescape(body[body.index("<title>") + 7 : body.index("</title>")])
+
+    assert title(week) == "Nitzavim-Vayeilech — this week's parasha — targum"
+    assert "this week" not in title(named).casefold(), "a portion browsed to is not a week"
+    assert "Nitzavim-Vayeilech" in title(named), "and it still says which portion it is"
 
 
 def test_the_eyebrow_does_not_repeat_the_label_under_it(serving: int) -> None:
