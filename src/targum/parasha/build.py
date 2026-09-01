@@ -19,6 +19,7 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Reading, Schedule, always, root
@@ -29,6 +30,29 @@ from .models import Index, Portion, Week
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
 #: for a while still knows what this Shabbat is, and few enough that a build is quick.
 YEARS_AHEAD = 2
+
+#: How many years to enumerate the *corpus* from, which is a different question and was
+#: answered with the same number once, wrongly.
+#:
+#: Nineteen, because the Hebrew calendar repeats on the Metonic cycle: any nineteen
+#: consecutive years hold every arrangement of leap year and festival, so each of the 54
+#: portions is read on its own somewhere inside the span and is therefore cut. Two years
+#: was enough to *point at* a Shabbat and not enough to *find* every portion — a pair
+#: doubled on both schedules in both years is never emitted as a distinct reading, so it
+#: is never cut and has no address. That is how Matot, Masei, Nitzavim and Vayeilech came
+#: to be missing from a corpus that called itself fixed and finite, while the other five
+#: doubled pairs had both halves: those five happen to split inside two years and these
+#: two do not.
+#:
+#: No smaller number is safe, and the measurement is the argument: walking 2026 onward,
+#: four years recovers Nitzavim and Vayeilech, and only ten recovers Matot and Masei. A
+#: number chosen to cover what was observed would be right until the year it was not.
+#: The cycle's own length is the one that cannot be wrong.
+#:
+#: It is not slow after the first run. Hebcal years are cached beside the corpus, so a
+#: weekly cron reads thirty-eight files off the disk and fetches nothing; only a cold
+#: cache pays, and it pays once.
+CORPUS_YEARS = 19
 
 
 def index_path() -> Path:
@@ -107,28 +131,56 @@ def distinct(
 def build(
     *,
     years: Iterable[int] | None = None,
+    corpus_years: Iterable[int] | None = None,
     schedules: Iterable[Schedule] = (Schedule.diaspora, Schedule.israel),
     library: Path | None = None,
     notify: Callable[[str], None] | None = None,
 ) -> Index:
-    """Build every reading in the window and write the index.
+    """Build every reading in the corpus and point the calendar at it.
+
+    Two windows, not one. `corpus_years` is what gets built and is wide, because a
+    portion has to be read on its own somewhere in the span to be cut at all. `years` is
+    what gets pointed at and is narrow, because a pointer only has to reach as far as a
+    box might go without Hebcal. Sharing one window meant the shelf lost whichever
+    portions this year happened to double.
 
     Idempotent by construction: the same reading cut from the same books produces the
     same reader, so running it twice is running it once and writing the files again.
     """
     schedules = list(schedules)
     if years is None:
-        this = date.today().year
-        years = range(this, this + YEARS_AHEAD)
+        years = range(date.today().year, date.today().year + YEARS_AHEAD)
     years = list(years)
+    # The corpus widens by default, because the only caller that matters in production —
+    # `targum parasha build` — always names its pointer years, and a default that only
+    # widened when they were absent would have been correct in tests and inert on the
+    # box. A caller that cannot reach nineteen years of calendar says so by naming
+    # `corpus_years`; every test here does, which is also what keeps the suite off the
+    # network.
+    if corpus_years is None:
+        first = min(years) if years else date.today().year
+        corpus_years = range(first, first + CORPUS_YEARS)
+    corpus_years = list(corpus_years)
 
     def say(message: str) -> None:
         if notify is not None:
             notify(message)
 
     index = Index(built_at=datetime.now(UTC).isoformat(timespec="seconds"))
+    # The pointer's own years first, because those must be there or the page has nothing
+    # to point at, and a failure in them is a real failure.
     readings = distinct(years, schedules)
-    say(f"{len(readings)} readings across {len(years)} years")
+    # Then the rest of the corpus span, a year at a time and best effort. A far year that
+    # Hebcal will not answer for costs the four portions it might have carried; it must
+    # not cost the build. Before the span widened this could not arise, so failing hard
+    # here would be a new way for a working cron to start breaking.
+    for one in [y for y in corpus_years if y not in set(years)]:
+        try:
+            for slug, reading in distinct([one], schedules).items():
+                readings.setdefault(slug, reading)
+        except TargumError as gone:
+            say(f"  {one} is not reachable — the corpus is what the other years hold ({gone})")
+    say(f"{len(readings)} readings across {len(corpus_years)} years")
 
     missing: set[str] = set()
     for slug in sorted(readings):

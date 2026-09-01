@@ -294,6 +294,111 @@ def test_vzot_haberachah_is_carried_because_no_shabbat_ever_reads_it() -> None:
     assert one.aliyot[-1].end == "34:12"
 
 
+def test_a_two_year_walk_cannot_see_every_portion(corpus: Path) -> None:
+    """The bug behind the corpus window, stated as a fact about the calendar.
+
+    Matot, Masei, Nitzavim and Vayeilech are doubled on both schedules for years at a
+    stretch. A walk that only sees those years never meets them on their own, so they
+    are never cut and have no address — which is how four of the fifty-four went missing
+    from a corpus that called itself fixed and finite.
+    """
+    from targum.parasha.build import distinct
+
+    near = distinct([2026], [cal.Schedule.diaspora], allow_fetch=False)
+
+    assert "nitzavim-vayeilech" in near, "2026 reads the pair"
+    for half in ("nitzavim", "vayeilech", "matot", "masei"):
+        assert half not in near, f"{half} is not read on its own in 2026"
+
+
+def test_a_wide_enough_walk_meets_every_half_on_its_own(corpus: Path) -> None:
+    """And the fix, on real Hebcal answers: 2029 splits Nitzavim from Vayeilech and 2035
+    splits Matot from Masei, so a span that reaches them cuts all four. `CORPUS_YEARS` is
+    nineteen — the Metonic cycle — because no smaller number is safe: walking 2026 onward,
+    four years recovers the first pair and only ten recovers the second.
+
+    Those two years live in `split-years/` rather than beside 2026, because the fixtures
+    beside 2026 are copied wholesale into every corpus a test builds — dropping two more
+    years in there silently changed what unrelated tests were reading, which is how this
+    comment came to be written."""
+    from targum.parasha.build import CORPUS_YEARS, distinct
+
+    for one in (FIXTURES / "split-years").glob("*.json"):
+        shutil.copy(one, corpus / "calendar" / one.name)
+    wide = distinct([2026, 2029, 2035], [cal.Schedule.diaspora], allow_fetch=False)
+
+    for half in ("nitzavim", "vayeilech", "matot", "masei"):
+        assert half in wide, f"{half} is read on its own somewhere in the span"
+    assert "nitzavim-vayeilech" in wide, "and the doubled reading is still its own entry"
+    assert CORPUS_YEARS >= 10, "ten is the measured floor; nineteen is the honest one"
+
+
+def test_the_corpus_is_walked_wider_than_the_pointer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two windows, and the whole point is that they are not the same one.
+
+    The pointer only has to reach as far as a box might go without Hebcal. The corpus has
+    to reach far enough to meet every portion on its own. Sharing one window is what cost
+    the shelf four portions.
+    """
+    from targum.parasha import build as build_module
+
+    # `build()` writes its index to `root()`, which is the real corpus directory unless
+    # this is set. Without it a test that builds an empty index overwrites the corpus on
+    # disk — which is exactly what the first draft of this test did.
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+
+    asked: dict[str, list[int]] = {}
+
+    def fake_distinct(years, schedules, **kw):  # type: ignore[no-untyped-def]
+        asked.setdefault("corpus", []).extend(years)
+        return {}
+
+    def fake_readings_for(one, schedule, **kw):  # type: ignore[no-untyped-def]
+        asked.setdefault("pointer", []).append(one)
+        return []
+
+    monkeypatch.setattr(build_module, "distinct", fake_distinct)
+    monkeypatch.setattr(build_module, "readings_for", fake_readings_for)
+
+    build_module.build(schedules=[cal.Schedule.diaspora])
+
+    this = date.today().year
+    assert sorted(set(asked["corpus"])) == list(range(this, this + build_module.CORPUS_YEARS))
+    assert sorted(set(asked["pointer"])) == list(range(this, this + build_module.YEARS_AHEAD))
+    assert len(set(asked["corpus"])) > len(set(asked["pointer"])), "the corpus is the wider one"
+
+
+def test_naming_the_corpus_span_narrows_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The wide sweep is the default because production always names its pointer years —
+    a default that only widened when they were absent would have been right in the tests
+    and inert on the box, which is what the first draft of this was.
+
+    So the escape hatch is the other way round: a caller with one year in its cache names
+    `corpus_years` and gets exactly that. Every parasha test does, which is what keeps the
+    suite off the network.
+    """
+    from targum.parasha import build as build_module
+
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    asked: list[int] = []
+
+    def fake_distinct(years, schedules, **kw):  # type: ignore[no-untyped-def]
+        asked.extend(years)
+        return {}
+
+    monkeypatch.setattr(build_module, "distinct", fake_distinct)
+    monkeypatch.setattr(build_module, "readings_for", lambda *a, **k: [])
+
+    build_module.build(years=[2026], corpus_years=[2026], schedules=[cal.Schedule.diaspora])
+    assert asked == [2026], "one year named is one year walked"
+
+    asked.clear()
+    build_module.build(years=[2026], schedules=[cal.Schedule.diaspora])
+    assert len(set(asked)) == build_module.CORPUS_YEARS, "unnamed, it widens to the cycle"
+
+
 def test_slugs_are_urls() -> None:
     assert cal.slug("Nitzavim-Vayeilech") == "nitzavim-vayeilech"
     assert cal.slug("Sh'lach") == "shlach"
