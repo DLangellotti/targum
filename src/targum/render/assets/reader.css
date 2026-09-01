@@ -541,6 +541,15 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 body.nikkud .pair.points .src.plain { display: none; }
 body.nikkud .pair.points .src.pointed { display: revert; }
 
+/* A third cell, on scripture only: the vowels with the chanting marks taken out. It
+   lives inside the pointed position rather than beside it — with the vowels off there
+   is nothing to take the accents from — and only on a pair that actually carries one,
+   for the same reason `.points` scopes the rule above. Both selectors carry one class
+   more than the pair they override, which is what puts them on top. */
+.src.unaccented { display: none; }
+body.nikkud:not(.taamim) .pair.accented .src.pointed { display: none; }
+body.nikkud:not(.taamim) .pair.accented .src.unaccented { display: revert; }
+
 /* Where the vowels were guessed at rather than read off the source. Marked only while
    they are on show, and only on the source cell, since that is what they are about.
    Quieter than .coarse above and deliberately a different glyph: that one means the
