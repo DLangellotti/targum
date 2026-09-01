@@ -21,8 +21,8 @@ rebase rather than a new pull request.
 ## What signing also grants
 
 The DCO on its own says a contribution arrives under the project's licence and no
-other. targum needs slightly more than that, and it is fairer to say so on this page
-than to discover it later.
+other. targum needs slightly more than that, and it is fairer to say so here than to
+let you discover it later.
 
 By signing off on a contribution you also grant David Langellotti a perpetual,
 worldwide, non-exclusive, royalty-free, irrevocable licence to use, reproduce, modify,
@@ -44,7 +44,7 @@ irrevocably, including the one you contributed to.
 If that trade is not one you want to make, please open an issue instead of a pull
 request. A described bug is a real contribution and it costs you nothing.
 
-> This page is written by a working developer, not a lawyer, and it has not been
+> This is written by a working developer, not a lawyer, and it has not been
 > reviewed by one. If your employer's policy turns on the exact wording, ask them
 > before you sign off.
 
