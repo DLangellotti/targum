@@ -17,6 +17,7 @@ import shutil
 from collections import Counter
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -43,7 +44,7 @@ from ..models import (
     is_biblical,
 )
 from ..translate.prompts import language_name
-from ..vocalize import has_taamim, map_span, strip_nikkud
+from ..vocalize import has_taamim, map_span, strip_nikkud, strip_taamim
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -1034,6 +1035,61 @@ def weekly_page(
     )
 
 
+def parasha_page(
+    portion: Any,
+    *,
+    schedule: Any,
+    other: Any = None,
+    diaspora: Any = None,
+    israel: Any = None,
+    listed: list[Any] | None = None,
+    taamim: bool = True,
+    shabbat: date | None = None,
+    hdate: str = "",
+    address: str = "",
+) -> str:
+    """This week's portion, with its own reader inside it.
+
+    Everything it needs comes off the corpus index, the same way `weekly_page` reads the
+    weekly's: the calendar ran at build time and what is left at serve time is a lookup.
+    """
+    said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    return (
+        _environment()
+        .get_template("parasha.html.j2")
+        .render(
+            title=f"{portion.name} — this week's parasha — targum",
+            # The opening words go in the description because they are how somebody
+            # who knows the portion recognises it — a search result that leads with
+            # אתם נצבים says which reading this is faster than the chapter numbers do.
+            description=(
+                f"{portion.name} — {portion.opening} — {portion.summary}. The Hebrew with "
+                "its chanting marks or without, a translation beside every verse, and "
+                "every word explained."
+            ).replace(" —  — ", " — "),
+            canonical=f"{address}/parasha/{portion.slug}" if address else "",
+            portion=portion,
+            schedule=schedule,
+            other=other,
+            diaspora=diaspora,
+            israel=israel,
+            # Whether this is the page that means "this Shabbat". A named portion has no
+            # week to compare schedules over.
+            this_week=shabbat is not None,
+            # The Hebrew date belongs to the Shabbat, not the portion — a portion falls
+            # on a different one every year — so it arrives from the week's own record.
+            hdate=hdate,
+            listed=listed or [],
+            taamim=taamim,
+            shabbat_said=said,
+            translation_said=(
+                "the Metsudah linear translation, published under CC BY and matched to "
+                "the Hebrew verse by verse on this machine"
+            ),
+        )
+    )
+
+
 def weekly_note(
     message: str,
     *,
@@ -1291,16 +1347,39 @@ def render(
     # the browser so each goes through isolate() and neither has to be reassembled in
     # JavaScript.
     #
-    # One switch, two positions: bare, or the whole text. A middle step that showed the
-    # vowels without the accents existed for a day and went — a third form on a Tanakh
-    # was a state to be lost in, and the only thing it ever taught a reader was that
-    # the arrows had stopped working.
+    # One switch, two positions: bare, or the whole text.
+    #
+    # A middle step that showed the vowels without the accents existed for a day and
+    # went — a third form on a Tanakh was a state to be lost in, and the only thing it
+    # ever taught a reader was that the arrows had stopped working. It is back, on
+    # 2026-09-01, and neither of those is true of what came back. It is not a middle
+    # step: the vowel switch still has its two positions and the accents are their own
+    # control, which is off in the ⋯ menu where a setting made once belongs. And the
+    # arrows work because the reason they broke was fixed elsewhere in the meantime —
+    # `markMap` in reader.js derives a cell's offsets from that cell's own characters,
+    # so a form nobody had thought of when it was written maps like any other.
+    #
+    # What it is for: somebody preparing to leyn reads the te'amim, and somebody reading
+    # the parasha for the Hebrew finds them noise on top of the vowels they are still
+    # learning. Both are the same page. See `/parasha` and §12 of design.md.
     bare: dict[str, str] = {}
     to_bare: dict[str, list[int]] = {}
     for segment in segmented.segments:
         bare[segment.id], to_bare[segment.id] = strip_nikkud(segment.text)
     pointed = dict(vocalization.segments) if vocalization is not None else {}
     machine = set(vocalization.machine) if vocalization is not None else set()
+
+    # The pointed text with the chanting marks taken out, for the segments that have
+    # any. Built here beside the other two so it goes through the same isolate() and the
+    # browser never has to reassemble a sentence; absent everywhere else, which is what
+    # keeps every modern text exactly two cells and one switch.
+    unaccented: dict[str, str] = {}
+    for segment_id, text in pointed.items():
+        if not has_taamim(text):
+            continue
+        without = strip_taamim(text)
+        if without != text:
+            unaccented[segment_id] = without
 
     # Which face this page carries follows the text, not the shelf. The modern face is
     # chosen for reading a newspaper and has no accents in it, so a text that carries one
@@ -1356,6 +1435,7 @@ def render(
         "target_direction": target_direction,
         "page_direction": source_direction,
         "has_nikkud": bool(pointed),
+        "has_taamim": bool(unaccented),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
         # A verse is not a paragraph. Tanakh pairs one pasuk to a row, and rows spaced
@@ -1555,6 +1635,7 @@ def render(
             segments=segments,
             bare=bare,
             pointed=pointed,
+            unaccented=unaccented,
             machine=machine,
             speakers=spoken.speakers,
             spoken=spoken.spans,

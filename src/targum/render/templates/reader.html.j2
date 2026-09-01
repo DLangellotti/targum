@@ -125,6 +125,21 @@
       </button>
     </div>
     {% endif %}
+    {#- The chanting marks, on scripture that carries them. Behind ⋯ rather than beside
+        the modes: the vowels are reached for mid-sentence and these are set once, by
+        somebody who knows what they are. The drawing is a letter under the tipcha that
+        is the commonest of them. -#}
+    {% if has_taamim %}
+    <div class="group" data-what="Chanting marks">
+      <button type="button" data-taamim-toggle aria-pressed="true"
+              title="The chanting marks, as the Masorah wrote them (a)" aria-label="Chanting marks">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M4 12.5h8"/>
+          <path d="M8 3.2 6.4 6h3.2Z" class="dots"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
     {#- Pages, or one long scroll. The drawing is two leaves. -#}
     <div class="group" data-what="Pages, or one long scroll">
       <button type="button" data-paged aria-pressed="false"
@@ -302,18 +317,24 @@
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
-  <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+  <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     <h{{ level }} class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% if segment.id in pointed %}
     <h{{ level }} class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% endif %}
+    {% if segment.id in unaccented %}
+    <h{{ level }} class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</h{{ level }}>
+    {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'byline' %}
-  <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+  <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
+    {% endif %}
+    {% if segment.id in unaccented %}
+    <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
@@ -322,21 +343,27 @@
       the speaker is never pointed, never counted as vocabulary and never read aloud. The
       play control appears only where that line has a span of the scene's audio: a turn
       with no sound shows none, rather than a button that does nothing. -#}
-  <div class="pair said{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" data-speaker="{{ speakers.get(segment.id, '') }}" tabindex="-1">
+  <div class="pair said{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" data-speaker="{{ speakers.get(segment.id, '') }}" tabindex="-1">
     <span class="who" aria-hidden="true">{{ speakers.get(segment.id, '') }}</span>
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
+    {% if segment.id in unaccented %}
+    <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
+    {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
-  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
     <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
+    {% endif %}
+    {% if segment.id in unaccented %}
+    <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
@@ -458,6 +485,7 @@
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
+    {% if has_taamim %}<dt>a</dt><dd>the chanting marks, with the vowels on</dd>{% endif %}
     <dt>p</dt><dd>parallel</dd>
     <dt>l</dt><dd>interlinear — the translation under each line</dd>
     <dt>o</dt><dd>source only</dd>
