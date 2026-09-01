@@ -188,11 +188,17 @@
     return element;
   }
 
-  // Each sentence ships twice, bare and pointed — and pointed means everything the
-  // edition wrote, accents included — so both go through the server's bidi isolation
-  // and neither has to be rebuilt here. Only one is ever on show.
-  var FORMS = ["plain", "pointed"];
-  var cells = { plain: {}, pointed: {} };
+  // Each sentence ships bare and pointed — pointed meaning everything the edition wrote,
+  // accents included — so both go through the server's bidi isolation and neither has to
+  // be rebuilt here. Only one is ever on show.
+  //
+  // Scripture ships a third: the vowels without the chanting marks. It is not a middle
+  // step in the vowel switch, which is what it was the first time and why it went; it is
+  // its own two-position control, because the te'amim are what somebody preparing to
+  // leyn came for and clutter for everybody else. Every other text has two cells and
+  // never sees it. See `shownCell`.
+  var FORMS = ["plain", "pointed", "unaccented"];
+  var cells = { plain: {}, pointed: {}, unaccented: {} };
   // The pair a segment is drawn in. The word queue works in segment ids, because the
   // words themselves are data rather than page, and this is the one place it has to come
   // back to the page — to draw a pair's spans and to scroll to it.
@@ -210,12 +216,16 @@
     });
   }
   var hasNikkud = anyCell("pointed");
+  var hasTaamim = anyCell("unaccented");
 
   // Which form a segment is actually showing. A pair the vocalizer never reached has no
   // pointed cell, and it keeps showing the bare one while the rest of the page is
-  // pointed.
+  // pointed. The accents come off inside the pointed position rather than beside it: a
+  // reader who has turned the vowels off has nothing to take the accents from.
   function shownCell(segmentId) {
-    return (prefs.nikkud && cells.pointed[segmentId]) || cells.plain[segmentId];
+    if (!prefs.nikkud) return cells.plain[segmentId];
+    if (!prefs.taamim && cells.unaccented[segmentId]) return cells.unaccented[segmentId];
+    return cells.pointed[segmentId] || cells.plain[segmentId];
   }
 
   // A word's span, looked for in the cell that is showing and nowhere else. A pair holds
@@ -260,6 +270,10 @@
     // setting. A pointed poem opens pointed; a news article whose points were all
     // guessed opens bare. Only what you choose yourself is remembered here.
     nikkudBy: {},
+    // The chanting marks, on scripture that carries them. On by default and everywhere:
+    // they are in the text the edition wrote, and taking them out is the departure. Not
+    // per document, unlike the vowels — whether you read te'amim is a fact about you.
+    taamim: true,
     // Pages, or one long scroll. Pages: the first alpha reader asked twice — "I get
     // tired from reading and want logical places to stop" — and a page is a place to
     // stop. A preference, because a paragraph taller than a phone's window fits on
@@ -301,6 +315,9 @@
   // per-document choice is lost.
   prefs.nikkud = !!prefs.nikkud;
   for (var doc in prefs.nikkudBy) prefs.nikkudBy[doc] = !!prefs.nikkudBy[doc];
+  // Absent in every browser that read a text before scripture had the switch, and the
+  // accents are what the edition wrote, so absent means on.
+  prefs.taamim = prefs.taamim === undefined ? true : !!prefs.taamim;
 
   if ((prefs.defaults || 0) < DEFAULTS) {
     // Generations 1 to 3 reset everybody; 4 is the phone's alone.
@@ -3970,6 +3987,59 @@
     save();
   }
 
+  // The chanting marks. Same shape as the vowels above, one position lower: it moves
+  // between two pointed cells and does nothing at all with the vowels off.
+  var TAAMIM_SAID = ["Vowels only.", "Chanting marks."];
+
+  function toggleTaamim() {
+    if (!hasTaamim) return;
+    setTaamim(!prefs.taamim);
+  }
+
+  function setTaamim(on) {
+    if (!hasTaamim) return;
+    prefs.taamim = !!on;
+    applyTaamim();
+    say(TAAMIM_SAID[prefs.taamim ? 1 : 0]);
+    save();
+  }
+
+  // `settled` false is the first call of the load, where the vowels are about to draw
+  // the page anyway: this one only has to leave the state and the buttons right, and a
+  // second full redraw before anybody has seen the first is a lap of the whole text.
+  function applyTaamim(settled) {
+    body.classList.toggle("taamim", !!prefs.taamim);
+    Array.prototype.forEach.call(
+      document.querySelectorAll("[data-taamim-toggle]"),
+      function (button) {
+        button.classList.toggle("on", !!prefs.taamim);
+        button.setAttribute("aria-pressed", prefs.taamim ? "true" : "false");
+      }
+    );
+    if (settled === false) return;
+    var held = hold();
+    hideCard();
+    // Two cells again, and the accented one is the taller: the same reason the vowels
+    // hold the reader's place across the swap.
+    keep(held);
+    redraw();
+    putBack(held);
+    relay();
+    relayout();
+  }
+
+  // For a page that frames this one. The parasha landing page carries the control a
+  // reader arriving from outside sees, and it is the same origin, so it calls in here
+  // rather than reaching into the markup and clicking a button that may not be drawn.
+  window.targumReader = window.targumReader || {};
+  window.targumReader.setTaamim = setTaamim;
+  window.targumReader.hasTaamim = function () {
+    return hasTaamim;
+  };
+  window.targumReader.taamim = function () {
+    return !!prefs.taamim;
+  };
+
   function applyNikkud() {
     var held = hold();
     if (prefs.nikkudBy && documentId) prefs.nikkudBy[documentId] = !!prefs.nikkud;
@@ -4656,6 +4726,10 @@
         toggleVowels();
         return;
       }
+      if (button.hasAttribute("data-taamim-toggle")) {
+        toggleTaamim();
+        return;
+      }
       var action = button.getAttribute("data-type");
       if (action) {
         var held = hold();
@@ -5240,6 +5314,9 @@
       case "n":
         toggleVowels();
         return;
+      case "a":
+        toggleTaamim();
+        return;
       case "?":
         showKeys(keysCard ? keysCard.hidden : false);
         return;
@@ -5448,6 +5525,7 @@
     var chosen = prefs.nikkudBy ? prefs.nikkudBy[documentId] : undefined;
     prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
   }
+  applyTaamim(false);
   applyNikkud();
   applyPaged();
   // The Hebrew face rides inside the page, but the browser still resolves it a beat

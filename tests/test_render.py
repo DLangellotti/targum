@@ -19,7 +19,7 @@ from targum.models import (
     direction_for,
 )
 from targum.render import MAX_SEGMENTS_PER_SECTION, isolate, render, split_sections
-from targum.vocalize import MARKS, strip_nikkud, strip_taamim
+from targum.vocalize import MARKS, has_taamim, strip_nikkud, strip_taamim
 
 
 @pytest.mark.parametrize(
@@ -1016,22 +1016,56 @@ def test_the_embedded_faces_can_draw_every_mark(tmp_path: Path) -> None:
 
 
 def test_an_accented_text_keeps_its_accents_in_the_pointed_cell(tmp_path: Path) -> None:
-    """Two cells, and the pointed one is the whole text — vowels and accents together.
+    """The pointed cell is the whole text — vowels and accents together.
 
-    One switch, two positions: bare, or everything the edition wrote. A middle step that
-    showed the vowels without the accents existed for a day and went.
+    This is the regression that matters and has never changed: whatever else the page
+    offers, the cell the vowel switch reveals must be everything the edition wrote. A
+    build that quietly dropped the accents from it would be publishing a different text.
+
+    What did change, on 2026-09-01: scripture now ships a third cell as well, the vowels
+    without the chanting marks, for `/parasha`. It is not the middle step of the vowel
+    switch that existed for a day and went — that was one control with three positions,
+    and the accents are their own two-position control now. See the note in
+    `render/builder.py` and §12 of design.md.
     """
     segment = hebrew(0, TROPE_TEXT)
     html = render_with_vocalization(
         tmp_path, [segment], vocalization_for([segment], {segment.id: TROPE_TEXT}, [])
     )
-    cells = re.findall(r'class="src (?:plain|pointed|trope)"[^>]*>(.*?)<', html)
-    assert len(cells) == 2
-    bare, pointed = cells
+    cells = re.findall(r'class="src (?:plain|pointed|unaccented)"[^>]*>(.*?)<', html)
+    assert len(cells) == 3
+    bare, pointed, unaccented = cells
     assert strip_nikkud(pointed)[0] == bare
     assert pointed == TROPE_TEXT, "the accents came off the pointed cell"
+    # The third cell is the pointed one with the accents taken off and nothing else
+    # touched: same letters, same vowels, no te'amim.
+    assert unaccented == strip_taamim(TROPE_TEXT)
+    assert strip_nikkud(unaccented)[0] == bare
+    assert not has_taamim(unaccented)
+    # The name the first attempt used is not the name this one uses, so a stale asset
+    # cannot half-work.
     assert 'class="src trope"' not in html
-    assert " taamim" not in html
+
+
+def test_a_text_with_no_accents_ships_two_cells_and_one_switch(tmp_path: Path) -> None:
+    """Every modern text is untouched by the third form.
+
+    A newspaper has vowels and no cantillation, so there is nothing for the second
+    control to do and it must not be drawn — which is what keeps "one switch, two
+    positions" true everywhere except scripture.
+    """
+    pointed_text = "שָׁלוֹם עֲלֵיכֶם"
+    assert not has_taamim(pointed_text)
+    segment = hebrew(0, pointed_text)
+    html = render_with_vocalization(
+        tmp_path, [segment], vocalization_for([segment], {segment.id: pointed_text}, [])
+    )
+    cells = re.findall(r'class="src (?:plain|pointed|unaccented)"[^>]*>(.*?)<', html)
+    assert len(cells) == 2, "no third cell where there are no accents to take off"
+    assert 'data-form="unaccented"' not in html
+    # The button, not the script that looks for it: reader.js is inlined into every page
+    # and names the attribute whether or not the control is drawn.
+    assert '<button type="button" data-taamim-toggle' not in html
 
 
 def test_a_quoted_verse_keeps_its_accents_and_gets_the_face_for_them(tmp_path: Path) -> None:
