@@ -2101,10 +2101,6 @@ def main() -> None:
         sys.exit(130)
 
 
-if __name__ == "__main__":
-    main()
-
-
 @parasha_app.command("build")
 def parasha_build(
     years: Annotated[
@@ -2280,3 +2276,13 @@ def parasha_leyning(
         f"{silent} have none (doubled weeks and festivals). "
         "Run `targum parasha build` to put it in the readers."
     )
+
+
+# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
+# then calls main(), so anything defined below the guard is not registered yet when the
+# app is invoked — the parasha commands were added after it and `python -m targum.cli
+# parasha` printed an empty command group while `targum parasha` worked. Keeping the
+# guard at the end means a command appended in the ordinary way is registered whichever
+# entry point is used.
+if __name__ == "__main__":
+    main()
