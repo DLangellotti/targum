@@ -113,6 +113,34 @@ def test_a_noncommercial_edition_is_refused(monkeypatch: pytest.MonkeyPatch) -> 
         sefaria.SefariaFetcher().load("en:Ruth")
 
 
+def test_pd_is_public_domain_by_another_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sefaria spells public domain two ways and means the same by both.
+
+    Surveyed across twelve works, 85 editions said "Public Domain" and 5 said "PD" — and
+    those five carry the only modern-Hebrew Tanakh on the shelf and the Kaufmann Mishnah.
+    A set that knows one spelling refuses a free text over a typo, so both are in it.
+    """
+    body = json.loads((FIXTURES / "ruth.he.json").read_text(encoding="utf-8"))
+    body["versions"][0]["license"] = "PD"
+    monkeypatch.setattr(sefaria, "get", lambda url: json.dumps(body))
+    document = sefaria.SefariaFetcher().load("Ruth")
+    assert document.blocks, "a PD edition is public domain and must be served"
+
+
+def test_sharealike_stays_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A decision, not an oversight.
+
+    ShareAlike permits commercial use, so the CC-BY-NC reasoning does not reach it — but a
+    build makes derivatives and ShareAlike would carry onto them. Refusing it costs the
+    Wikisource Talmud Bavli. Change this test only when that trade is made deliberately.
+    """
+    body = json.loads((FIXTURES / "ruth.he.json").read_text(encoding="utf-8"))
+    body["versions"][0]["license"] = "CC-BY-SA"
+    monkeypatch.setattr(sefaria, "get", lambda url: json.dumps(body))
+    with pytest.raises(TargumError, match="may not serve"):
+        sefaria.SefariaFetcher().load("Ruth")
+
+
 def test_a_missing_edition_says_what_is_on_offer(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sefaria,

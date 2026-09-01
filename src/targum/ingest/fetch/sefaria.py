@@ -49,7 +49,17 @@ DEFAULT_LANGUAGE = "he"
 
 # What may be served commercially, with attribution where the licence asks for it.
 # CC-BY-NC is deliberately absent: it forbids exactly what this product is.
-USABLE = frozenset({"Public Domain", "CC0", "CC-BY"})
+#
+# `PD` is here because Sefaria spells public domain two ways and means the same thing by
+# both. Surveyed across twelve works, 85 editions said "Public Domain" and 5 said "PD" —
+# and those five include the only modern-Hebrew Tanakh on the shelf (Miqra Mevoar) and
+# the Kaufmann Mishnah. A set that knows one spelling refuses free texts on a typo.
+#
+# CC-BY-SA is deliberately still absent, and it is a real decision rather than an
+# oversight: ShareAlike permits commercial use, so the CC-BY-NC reasoning does not reach
+# it, but a build makes derivatives and ShareAlike would carry onto them. It costs the
+# Wikisource Talmud Bavli, which is the only Hebrew Talmud here under any free licence.
+USABLE = frozenset({"Public Domain", "PD", "CC0", "CC-BY"})
 
 # Exact titles, checked against the licence the API reports for each. Hebrew is one
 # edition throughout; English is whichever Orthodox translation covers the book, because
