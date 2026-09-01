@@ -111,6 +111,13 @@ JPS = "The Holy Scriptures: A New Translation (JPS 1917)"
 # each of them the moment an Orthodox English under a usable licence exists, and take the
 # JPS line out when you do — the recording and the Hebrew do not change, so it is a
 # one-line swap and a rebuild.
+#
+# The nine that finished the Tanakh joined them on 2026-09-01, on the same reasoning and
+# for a second one: Nach Yomi reads a chapter of Nevi'im or Ketuvim every day and walks
+# all thirty-four books, so a daily page built on twenty-five of them would have stopped
+# at the first book that was not there. Jeremiah and Ezekiel are the two largest absences
+# on this shelf by a wide margin; Chronicles is the one nobody misses until a cycle
+# reaches it.
 ENGLISH: dict[str, str] = {
     "Genesis": "Metsudah Chumash, Metsudah Publications, 2009",
     "Exodus": "Metsudah Chumash, Metsudah Publications, 2009",
@@ -145,6 +152,16 @@ ENGLISH: dict[str, str] = {
     "Haggai": JPS,
     "Zechariah": JPS,
     "Malachi": JPS,
+    # The nine that complete it.
+    "Jeremiah": JPS,
+    "Ezekiel": JPS,
+    "Hosea": JPS,
+    "Joel": JPS,
+    "Amos": JPS,
+    "Micah": JPS,
+    "Nehemiah": JPS,
+    "I Chronicles": JPS,
+    "II Chronicles": JPS,
 }
 
 

@@ -18,10 +18,9 @@ from targum.serve import BUDGET_HOURS, Job, Library
 
 
 def library(tmp_path: Path, budget: float = 10.0) -> tuple[Library, Store]:
-    # max_cost is the per-text ceiling and the two per-account rails are a reader's
-    # allowance; neither is what these tests are about. All three are off so the
-    # whole-box budget is the only thing that can refuse a build — which matters for the
-    # window tests especially, where a job aged out of the day is still inside the month.
+    # max_cost is the per-text ceiling and the per-account rail is a rate limit;
+    # neither is what these tests are about. Both are off so the whole-box budget is
+    # the only thing that can refuse a build.
     store = Store(tmp_path / "targum.db")
     return Library(
         tmp_path / "out",
@@ -29,7 +28,6 @@ def library(tmp_path: Path, budget: float = 10.0) -> tuple[Library, Store]:
         budget=budget,
         store=store,
         account_budget=None,
-        month_budget=None,
     ), store
 
 
@@ -68,7 +66,7 @@ def test_the_budget_still_refuses_after_a_restart(tmp_path: Path) -> None:
     )
     blocked = second.claim(job(second, 4.0, id="j2"))
     assert blocked, "the second build should not fit in what is left"
-    assert "your fill" in blocked or "its limit" in blocked
+    assert "at once" in blocked or "its limit" in blocked
 
 
 def test_a_failed_build_gives_its_money_back(tmp_path: Path) -> None:
@@ -187,19 +185,22 @@ def test_a_failed_write_leaves_the_previous_version(tmp_path: Path) -> None:
     assert list(tmp_path.glob(".*.tmp")) == []
 
 
-# -- the monthly cap and who it applies to --------------------------------------
+# -- the rails and who they apply to --------------------------------------------
 
 
-def capped(tmp_path: Path, month: float = 10.0) -> tuple[Library, Store]:
-    """A library with the rails a hosted box actually runs with."""
+def capped(tmp_path: Path, day: float = 10.0) -> tuple[Library, Store]:
+    """A library with the rails a hosted box actually runs with.
+
+    A daily rate limit and a box ceiling, and no monthly cap on a reader at all — text
+    uploads are unlimited, so the only thing a subscriber is held to is audio hours.
+    """
     store = Store(tmp_path / "targum.db")
     return Library(
         tmp_path / "out",
         max_cost=100.0,
         budget=1000.0,
         store=store,
-        account_budget=None,
-        month_budget=month,
+        account_budget=day,
     ), store
 
 
@@ -210,33 +211,6 @@ def person(store: Store, email: str, *, admin: bool = False) -> int:
     store.start_sign_in(email)
     row = store.db.execute("SELECT id FROM person WHERE email = ?", (email,)).fetchone()
     return int(row["id"])
-
-
-def test_a_reader_is_held_to_the_month_not_only_the_day(tmp_path: Path) -> None:
-    """The daily rail is a rate limit — it stops one afternoon running away. Thirty days
-    of it is thirty times the number anybody agreed to, which is why this exists."""
-    lib, store = capped(tmp_path)
-    who = person(store, "reader@example.invalid")
-
-    assert lib.claim(job(lib, 6.0, id="a", owner=who)) == ""
-    assert lib.claim(job(lib, 3.0, id="b", owner=who)) == ""
-    refused = lib.claim(job(lib, 3.0, id="c", owner=who))
-
-    assert refused, "nine spent and three more is over ten"
-    assert "this month" in refused
-    assert "library is always free" in refused, "the free way in is named, not just the refusal"
-
-
-def test_the_refusal_names_a_date_rather_than_a_duration(tmp_path: Path) -> None:
-    """A month away is not a number to do arithmetic on. "Back on 1 September" is
-    something somebody can plan around; "in 30 days" is a shrug."""
-    lib, store = capped(tmp_path, month=1.0)
-    who = person(store, "reader@example.invalid")
-    lib.claim(job(lib, 1.0, id="a", owner=who))
-
-    refused = lib.claim(job(lib, 1.0, id="b", owner=who))
-    assert "Back on" in refused
-    assert "hours" not in refused
 
 
 def test_an_admin_is_not_held_to_the_rails(tmp_path: Path) -> None:
@@ -260,8 +234,7 @@ def test_the_box_ceiling_is_not_waived_for_an_admin(tmp_path: Path) -> None:
         max_cost=100.0,
         budget=5.0,
         store=store,
-        account_budget=None,
-        month_budget=10.0,
+        account_budget=10.0,
     )
     boss = person(store, "boss@example.invalid", admin=True)
 
@@ -277,21 +250,6 @@ def test_one_readers_spending_does_not_count_against_another(tmp_path: Path) -> 
 
     assert lib.claim(job(lib, 9.0, id="a", owner=one)) == ""
     assert lib.claim(job(lib, 9.0, id="b", owner=two)) == "", "two people, two allowances"
-
-
-def test_buying_a_chapter_is_refused_once_the_month_is_spent(tmp_path: Path) -> None:
-    """Chapters cannot go through `claim` — pricing one means running Stanza inside the
-    request a reader is waiting on — so they were going through nothing at all, and the
-    reader prefetches the next chapter at 60% of this one. A cap that does not apply to
-    the way a book is actually bought is not a cap."""
-    lib, store = capped(tmp_path)
-    who = person(store, "reader@example.invalid")
-
-    chapter = job(lib, 0.0, id="ch", owner=who)
-    assert lib.already_over(chapter) == "", "with nothing spent, nothing is in the way"
-
-    lib.claim(job(lib, 10.0, id="a", owner=who))
-    assert "this month" in lib.already_over(chapter)
 
 
 def test_an_admin_buying_a_chapter_is_never_in_the_way(tmp_path: Path) -> None:

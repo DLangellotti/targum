@@ -127,7 +127,13 @@ def load_book(name: str, root: Path | None = None) -> Book:
     hebrew = BOOKS.get(name)
     if hebrew is None:
         raise MissingBook(name, root)
-    folder = root / f"{hebrew}-he"
+    return book_in(name, root / f"{hebrew}-he")
+
+
+def book_in(name: str, folder: Path) -> Book:
+    """One built text, read off the disk. Shared with `daily/cut.py`, which finds its
+    folder a different way — off the catalogue rather than off a table of five books —
+    and wants everything after that to be the same."""
     document = read_artifact(Document, folder / "document.json")
     segmented = read_artifact(SegmentedDocument, folder / "segments.json")
     if document is None or segmented is None:
@@ -155,7 +161,9 @@ def load_book(name: str, root: Path | None = None) -> Book:
 class Portion:
     """One reading, ready to render."""
 
-    reading: Reading
+    #: The Shabbat reading this came out of, where it is one. A day of a learning cycle
+    #: is cut the same way and has no portion behind it.
+    reading: Reading | None
     document: Document
     segmented: SegmentedDocument
     translations: list[Translation]
@@ -288,16 +296,48 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
             )
 
     first_book = books[reading.aliyot[0].book] if reading.aliyot else next(iter(books.values()))
-    # `sefaria:` is what `is_biblical` reads, and it decides the face the page carries and
-    # that a verse is a row rather than a paragraph. A portion is scripture; it says so.
-    source = f"sefaria:{reading.summary or reading.name}"
+    return assemble(
+        blocks,
+        segments,
+        books,
+        first_book,
+        # `sefaria:` is what `is_biblical` reads, and it decides the face the page carries
+        # and that a verse is a row rather than a paragraph. A portion is scripture; it
+        # says so.
+        source=f"sefaria:{reading.summary or reading.name}",
+        title=reading.hebrew or reading.name,
+        name=reading.name,
+        ingester="parasha/1",
+        reading=reading,
+    )
+
+
+def assemble(
+    blocks: list[Block],
+    segments: list[Segment],
+    books: dict[str, Book],
+    first_book: Book,
+    *,
+    source: str,
+    title: str,
+    name: str,
+    ingester: str,
+    reading: Reading | None = None,
+) -> Portion:
+    """A cut run of segments, with the four artifacts that hang off it carried across.
+
+    Shared with `daily/cut.py`. What differs between a portion and a day is which
+    segments are taken and what the result is called; everything after that — the
+    document, the translations narrowed to what was kept, the annotation, the vowels and
+    the glossaries — is the same work, and was the same work written twice until this.
+    """
     document = Document(
         source=source,
-        title=reading.hebrew or reading.name,
+        title=title,
         author=first_book.document.author,
         language=first_book.document.language,
         blocks=blocks,
-        ingester="parasha/1",
+        ingester=ingester,
     )
     document.content_hash = document.recompute_hash()
     segmented = SegmentedDocument(
@@ -308,22 +348,19 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
     )
 
     kept = {segment.id for segment in segments}
-    translations = _translations(reading, books, kept, document.content_hash)
-    annotation = _annotation(books, kept, document.content_hash)
-    vocalization = _vocalization(books, kept, document.content_hash)
     return Portion(
         reading=reading,
         document=document,
         segmented=segmented,
-        translations=translations,
-        annotation=annotation,
-        vocalization=vocalization,
+        translations=_translations(name, books, kept, document.content_hash),
+        annotation=_annotation(books, kept, document.content_hash),
+        vocalization=_vocalization(books, kept, document.content_hash),
         glossaries=_glossaries(books),
     )
 
 
 def _translations(
-    reading: Reading, books: dict[str, Book], kept: set[str], document_hash: str
+    name: str, books: dict[str, Book], kept: set[str], document_hash: str
 ) -> list[Translation]:
     """One translation per language, carrying only the segments this portion holds."""
     by_language: dict[str, Translation] = {}
@@ -333,7 +370,7 @@ def _translations(
             if merged is None:
                 merged = one.model_copy(
                     update={
-                        "name": reading.name,
+                        "name": name,
                         "document_hash": document_hash,
                         "segments": {},
                         "coarse": [],

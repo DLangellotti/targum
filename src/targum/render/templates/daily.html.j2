@@ -1,0 +1,112 @@
+{#- One day of a learning cycle, with the reading itself inside it.
+
+    The parasha's anatomy without its hero. A portion is a week and can carry a
+    photograph; a day is a day, and somebody who has come for today's two mishnayot has
+    come to read them, not to be sold the idea. So the page opens on the date and the
+    reference and then gets out of the way.
+
+    Nothing here is generated day to day. A calendar says which range, a cut takes it out
+    of a text already on the shelf, and the page points at a reader built by a cron. -#}
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{{ hebrew_face(true) }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="public">
+<main class="sheet weekly parasha daily">
+  <div class="masthead">
+    <a class="brand" href="/" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
+    <div class="corner">
+      <a class="enter" href="/account/signin">Sign in</a>
+      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+    </div>
+  </div>
+
+  <section class="band">
+    <div class="said">
+      <span class="eyebrow">{% if is_today %}Today{% else %}{{ day.hdate }}{% endif %}</span>
+      <h1 class="pitch">{{ cycle.name }}, every word explained.</h1>
+      <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
+      <p class="lede">{{ cycle.blurb }}</p>
+    </div>
+  </section>
+
+  {#- What is read today, said twice: the way the cycle writes it and the way a Hebrew
+      reader would. The Hebrew date under it, because that is the date this is keyed to
+      and a page that only says "1 September" is a page about a Gregorian day. -#}
+  <p class="dateline">
+    <b lang="he" dir="rtl"><bdi>{{ day.hebrew or day.title }}</bdi></b>
+    <span class="said-in-english">{{ day.title }}</span>
+    <span class="when">{{ day.hdate }}</span>
+  </p>
+
+  <div class="embed" id="embed">
+    <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
+    <iframe
+      src="/{{ cycle.slug }}/read/{{ day.slug }}/reader/index.html"
+      title="{{ day.title }}"
+      loading="lazy"></iframe>
+  </div>
+
+  {#- The days either side, so somebody who missed yesterday can still read it and
+      somebody looking ahead can. Only the ones actually built: the window rolls, and a
+      link to a day that has fallen out of it is a link to a 404. -#}
+  {% if nearby %}
+  <nav class="nearby" aria-label="Other days">
+    {%- for other in nearby %}
+    <a class="day{% if other.day == day.day %} here{% endif %}"
+       {% if other.day == day.day %}aria-current="page"{% endif %}
+       href="/{{ cycle.slug }}/{{ other.slug }}">
+      <span class="date">{{ other.hdate }}</span>
+      <bdi lang="he" dir="rtl">{{ other.hebrew or other.title }}</bdi>
+    </a>
+    {%- endfor %}
+  </nav>
+  {% endif %}
+
+  {#- The other cycles. Not a nav bar: four links, each saying what it reads today, which
+      is the thing somebody deciding between them wants to know. -#}
+  {% if others %}
+  <section class="how">
+    <h2 class="label">Also today</h2>
+    <ol class="cycles">
+      {%- for one, said in others %}
+      <li>
+        <b><a href="/{{ one.slug }}">{{ one.name }}</a></b>
+        <span>{{ one.rhythm }} — today, <bdi lang="he" dir="rtl">{{ said }}</bdi></span>
+      </li>
+      {%- endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  <section class="honest">
+    <h2 class="label">Made honestly</h2>
+    <p class="made">
+      The Hebrew is the published edition, cut to today's reading and not edited. The
+      English beside it is {{ translation_said }}. The cycle and its calendar come from
+      Hebcal. {% if absent %}What is not here: {{ absent }}{% endif %}
+    </p>
+  </section>
+
+  <section class="keep">
+    <a class="go" href="/account/signin">Read it with your own words</a>
+    <p class="small">Free while it is in alpha.</p>
+  </section>
+
+</main>
+
+<script>{{ asset('parasha.js') }}</script>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

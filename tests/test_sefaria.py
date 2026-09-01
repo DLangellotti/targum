@@ -164,17 +164,28 @@ def test_a_shape_this_does_not_read_is_refused(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_a_book_with_no_chosen_english_is_refused() -> None:
-    """Every book on the shelf names the edition its English comes from, and a book
-    that names none is refused rather than quietly missing from a list.
+    """Every text on the shelf names the edition its English comes from, and one that
+    names none is refused rather than quietly missing from a list.
 
-    Jeremiah rather than Jonah: Jonah was the example while its only Orthodox English
-    was CC-BY-NC, and it is on the shelf now on JPS 1917. What the refusal is for has
-    not changed — a book nobody has chosen an edition for is not one to serve — but it
-    is worth saying that the licence is no longer what decides it. JPS is public domain
-    and covers everything; the choosing is editorial.
+    The example has moved twice, which is the point of writing it down. It was Jonah
+    while Jonah's only Orthodox English was CC-BY-NC; it became Jeremiah when Jonah went
+    on the shelf in JPS 1917; and Jeremiah went on the same way on 2026-09-01, with the
+    eight other books that finished the Tanakh. So there is no book of the Tanakh left to
+    use, and the example is a text outside it — which is what the refusal is really for
+    now. The licence stopped deciding this a while ago: JPS is public domain and covers
+    every book. The choosing is editorial.
     """
     with pytest.raises(TargumError, match="no English edition"):
-        sefaria.version_for("en", "Jeremiah")
+        sefaria.version_for("en", "Zohar")
+
+
+def test_every_book_of_the_tanakh_now_names_one() -> None:
+    """Thirty-nine, which is all of them as Sefaria divides them. Nach Yomi reads a
+    chapter of the Prophets and the Writings every day and walks all thirty-four of
+    those, so a gap anywhere in them is a daily page that stops."""
+    assert len(sefaria.ENGLISH) == 39
+    for book in ("Jeremiah", "Ezekiel", "Hosea", "Micah", "Nehemiah", "II Chronicles"):
+        assert sefaria.version_for("en", book)
 
 
 # -- works that are not Tanakh ------------------------------------------------

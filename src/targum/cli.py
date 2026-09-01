@@ -44,11 +44,13 @@ app = typer.Typer(
 models_app = typer.Typer(no_args_is_help=True, help="Manage language models.")
 weekly_app = typer.Typer(no_args_is_help=True, help="The weekly digest.")
 parasha_app = typer.Typer(no_args_is_help=True, help="The weekly Torah portion.")
+daily_app = typer.Typer(no_args_is_help=True, help="The daily learning cycles.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
 app.add_typer(parasha_app, name="parasha")
+app.add_typer(daily_app, name="daily")
 
 console = Console()
 err = Console(stderr=True)
@@ -362,7 +364,7 @@ def usage(
     from datetime import datetime
 
     from .accounts import Store, now
-    from .serve import ACCOUNT_BUDGET, BUDGET_HOURS, MONTH_BUDGET, SESSION_BUDGET, default_store
+    from .serve import ACCOUNT_BUDGET, BUDGET_HOURS, SESSION_BUDGET, UPLOAD_HOURS, default_store
 
     keeping = Store(store or default_store())
 
@@ -400,7 +402,9 @@ def usage(
         when = (
             datetime.fromtimestamp(last / 1000, UTC).strftime("%-d %b") if last else "[dim]—[/dim]"
         )
-        over = float(row["claimed"]) >= MONTH_BUDGET and who not in admins and not days
+        # Flagged against the daily rate limit, which since the monthly cap was removed
+        # is the only per-reader money rail there is.
+        over = float(row["claimed"]) >= ACCOUNT_BUDGET and who not in admins and not days
         holding = f"${float(row['claimed']):.2f}"
         table.add_row(
             label,
@@ -415,10 +419,10 @@ def usage(
     held = sum(float(row["claimed"]) for row in rows)
     console.print(f"\n[bold]${spent:.2f}[/bold] spent · ${held:.2f} held [dim]— {window}[/dim]")
     console.print(
-        f"[dim]Rails: ${MONTH_BUDGET:.2f} per account per month, "
-        f"${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h, "
-        f"${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "
-        f"Admins are exempt from the first two.[/dim]"
+        f"[dim]Rails: ${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h (a rate "
+        f"limit), ${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "
+        f"Admins are exempt from the first. Text uploads are unlimited; what a "
+        f"subscriber is held to is {UPLOAD_HOURS} hours of audio a month.[/dim]"
     )
 
 
@@ -2195,6 +2199,42 @@ def parasha_build(
     here = corpus.current(index=index)
     if here is not None:
         console.print(f"[dim]This Shabbat: {here.name} — {here.summary}[/dim]")
+
+
+@daily_app.command("build")
+def daily_build(
+    ahead: Annotated[int, typer.Option("--ahead", help="How many days forward to build.")] = 14,
+    behind: Annotated[int, typer.Option("--behind", help="How many past days to keep.")] = 7,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Build the rolling window of daily learning, and roll it forward.
+
+    Costs nothing and fetches no text: the books and the tractates are already on the
+    shelf with their translations published and their words annotated, and a day is a
+    range inside one of them. The only thing that goes out to the network is the learning
+    calendar, once a year, into a cache beside the corpus.
+
+    Safe to run every night from a cron. A day cut from the same texts produces the same
+    reader, so a rerun rewrites what is still in the window and takes away what has
+    fallen out of it — which is why this is a window and not a corpus: six years of
+    Mishna Yomi is two thousand days, and nobody wants two thousand folders of ninety
+    words each.
+    """
+    from .daily import build as corpus
+
+    library = (out or Path.cwd() / "targum-out") / "library"
+    index = corpus.build(
+        ahead=max(1, ahead),
+        behind=max(0, behind),
+        library=library,
+        notify=lambda line: console.print(f"[dim]{line}[/dim]"),
+    )
+    for cycle, days in sorted(index["cycles"].items()):
+        console.print(f"  {cycle}: {len(days)} days")
+    console.print(f"[dim]{index['first']} to {index['last']}[/dim]")
 
 
 @parasha_app.command("entries")

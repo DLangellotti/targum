@@ -6,6 +6,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- `deploy/ship-daily.sh`, which carries the window to the box. Nightly, unlike the
+  parasha's: the window rolls, and a stale box says "today" over the wrong day.
+- Daily learning, at four addresses: `/mishna-yomi`, `/nach-yomi`, `/tanakh-yomi` and
+  `/tehillim`. Each shows what its cycle reads today, with the reading itself on the page
+  — cut out of the texts already on the shelf, so the translation, the word cards and the
+  vowels come with it and a day costs nothing. `targum daily build` rolls the window
+  forward and is safe to run nightly from a cron.
+- The cycles are data, not four modules: Hebcal answers for all thirteen in one call, and
+  what differs between them is only how a reference names a place on the shelf. The nine
+  it publishes that targum cannot serve are named on the page rather than left out —
+  Daf Yomi and the Yerushalmi are a licence wall, not an oversight.
+- The Tanakh is complete. Jeremiah, Ezekiel, Hosea, Joel, Amos, Micah, Nehemiah and both
+  books of Chronicles, on the accented Hebrew beside JPS 1917, both public domain. Thirty
+  books became thirty-nine, and Nach Yomi can walk all of them.
 - Every text page says what it is about in JSON-LD, and calls itself a book rather than
   a website. Four hundred pages about four hundred books looked to a machine like four
   hundred pages. `author` is deliberately absent where the byline names a division rather

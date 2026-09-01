@@ -22,6 +22,14 @@ systemd runs it before every start.
 
 Secrets live in `/etc/targum/targum.env` and nowhere else.
 
+Daily learning. `ship-daily.sh` carries the rolling window of `/mishna-yomi` and its
+three siblings. Unlike `ship-parasha.sh` it wants running **nightly**, and that is the
+whole difference between them: the parasha's corpus is the same fifty-four readings every
+year and shipping it moves a pointer, while a learning cycle is two thousand days of which
+fourteen are built. A box a month stale serves a page headed "today" over the wrong
+reading. Build first (`targum daily build`), then ship; both are free and neither fetches
+a text.
+
 Video notes. A video reader's folder carries `video/part-NNN.mp4` sidecars — 50–100 MB
 per part — so a shipped folder is gigabytes where an audio one was tens of megabytes;
 budget the box's disk and the rsync accordingly (`ship-audio.sh` copies whole folders).

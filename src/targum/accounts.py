@@ -161,6 +161,10 @@ MIGRATIONS: tuple[str, ...] = (
     # last part; pressing again takes it back, so a text is finished once however often
     # the button is pressed. Synced and exported with the rest of what they did.
     "ALTER TABLE doc ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
+    # Seconds of recording a build consumed from the monthly allowance. Set only for an
+    # uploaded audio or video file, which is the one thing metered by time; text uploads
+    # and everything in the library are zero. See `serve.UPLOAD_SECONDS`.
+    "ALTER TABLE job ADD COLUMN length REAL NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -334,6 +338,7 @@ CREATE TABLE IF NOT EXISTS job (
   blocked  TEXT    NOT NULL DEFAULT '',
   claimed  REAL    NOT NULL DEFAULT 0,
   spent    REAL    NOT NULL DEFAULT 0,
+  length   REAL    NOT NULL DEFAULT 0,
   made     INTEGER NOT NULL DEFAULT 0
 );
 
@@ -1401,7 +1406,8 @@ class Store:
         owner: int | None = None,
         per_account: float | None = None,
         month_from: int | None = None,
-        per_month: float | None = None,
+        length: float = 0.0,
+        per_month_length: float | None = None,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -1420,6 +1426,17 @@ class Store:
         Any of them may be `None`, which is how an admin passes: the rails exist to stop
         a reader running up somebody else's bill, and the person paying it is not that
         reader. The box ceiling is not waived for anybody — it is the runaway guard.
+
+        A fourth ceiling, and the only one a reader is ever told about: the monthly
+        allowance for uploaded recordings, in seconds. The three above are denominated
+        in money, which is the right unit for protecting a card and the wrong one for
+        making a promise — "eight hours a month" is a sentence somebody can plan around,
+        where "$10 of model spend" is not something they should ever have to think
+        about. Money still guards the box; hours are what the plan actually allows.
+
+        Only recordings are counted. Transcription is bought by the minute and is the
+        one cost that rises with the clock, so the clock is what meters it; a text
+        upload is bounded by the money rails alone.
         """
         with self.write() as db:
             if per_account is not None:
@@ -1430,14 +1447,18 @@ class Store:
                 ).fetchone()
                 if float(mine["spent"]) + amount > per_account:
                     return "account"
-            if per_month is not None and month_from is not None:
-                monthly = db.execute(
-                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
-                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+            # Summed on `length` rather than on `claimed`, because the two measure
+            # different things: a recording whose transcript was already cached costs
+            # nothing and is still an hour of listening. The reader was promised hours,
+            # so hours are counted whether or not the build happened to be free.
+            if per_month_length is not None and month_from is not None and length > 0:
+                used = db.execute(
+                    "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+                    "WHERE length > 0 AND made >= ? AND owner IS ?",
                     (month_from, owner),
                 ).fetchone()
-                if float(monthly["spent"]) + amount > per_month:
-                    return "month"
+                if float(used["used"]) + length > per_month_length:
+                    return "hours"
             row = db.execute(
                 "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
                 "WHERE claimed > 0 AND made >= ?",
@@ -1445,7 +1466,9 @@ class Store:
             ).fetchone()
             if float(row["spent"]) + amount > ceiling:
                 return "everyone"
-            db.execute("UPDATE job SET claimed = ? WHERE id = ?", (amount, job_id))
+            db.execute(
+                "UPDATE job SET claimed = ?, length = ? WHERE id = ?", (amount, length, job_id)
+            )
             return ""
 
     def settle(self, job_id: str, spent: float) -> None:
@@ -1460,9 +1483,14 @@ class Store:
             db.execute("UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id))
 
     def unclaim(self, job_id: str) -> None:
-        """Give back what a failed build never spent."""
+        """Give back what a failed build never spent — the money and the hours both.
+
+        The hours go back for a reason the money does not share: a refused or broken
+        build transcribed nothing, so the reader heard none of what it would have cost
+        them. Charging for it would be charging for an hour that does not exist.
+        """
         with self.write() as db:
-            db.execute("UPDATE job SET claimed = 0 WHERE id = ?", (job_id,))
+            db.execute("UPDATE job SET claimed = 0, length = 0 WHERE id = ?", (job_id,))
 
     def interrupt_running(self) -> list[str]:
         """Mark builds that were mid-flight when the process died.

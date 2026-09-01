@@ -263,8 +263,25 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Eleven places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+Twelve places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
+
+### A daily page has no hero — 2026-09-01
+
+`/parasha` opens on a band the width of the window: a photograph, a headline, the portion
+named in Hebrew. The daily learning pages — `/mishna-yomi` and its three siblings — do
+not, and the difference is on purpose rather than for want of a picture.
+
+A portion is a week. Somebody arriving at it on Tuesday is deciding whether to follow the
+reading at all, and the hero is the page making its case. A day is a day: somebody at
+`/mishna-yomi` keeps the cycle already, or has been sent there by it, and what they came
+for is two mishnayot they will read in four minutes. A pitch in front of that is a toll.
+
+So the daily page keeps the band — the name, the Hebrew, one sentence of what the cycle
+is — and drops the photograph and the second hero under it, and puts the dateline and the
+reader where the hero was. Everything below is the parasha's, unchanged: the same embed,
+the same honest note, the same door at the bottom. If a cycle ever gets a page that has
+to sell itself, it can have a hero; today's reading is not that page.
 
 ### The library folds — 2026-09-01
 

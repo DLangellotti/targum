@@ -1106,6 +1106,64 @@ def weekly_page(
     )
 
 
+def daily_page(
+    cycle: Any,
+    day: Any,
+    *,
+    nearby: list[Any] | None = None,
+    others: list[tuple[Any, str]] | None = None,
+    absent: str = "",
+    is_today: bool = True,
+    address: str = "",
+) -> str:
+    """One day of a learning cycle, with its own reader inside it.
+
+    The parasha's page without the hero: a portion is a week and can carry a photograph,
+    a day is a day, and somebody who came for today's two mishnayot came to read them.
+    Everything it needs was decided at build time; what is left at serve time is a lookup.
+    """
+    return (
+        _environment()
+        .get_template("daily.html.j2")
+        .render(
+            title=f"{day.title} — {cycle.name} — targum",
+            # The reference goes in the description because it is how somebody who keeps
+            # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
+            # sentence about it.
+            description=(
+                f"{cycle.name} for {day.hdate}: {day.title}. {cycle.blurb} "
+                "The Hebrew pointed, a translation beside every line, and every word "
+                "explained."
+            ),
+            canonical=f"{address}/{cycle.slug}" if address and is_today else "",
+            og_type="article",
+            cycle=cycle,
+            day=day,
+            nearby=nearby or [],
+            others=others or [],
+            absent=absent,
+            is_today=is_today,
+            translation_said=_translation_said(day),
+        )
+    )
+
+
+def _translation_said(day: Any) -> str:
+    """Who made the English on a daily page, in a sentence.
+
+    Off the catalogue rather than written down here, so a page never credits an edition
+    the shelf has since swapped.
+    """
+    from ..daily.cut import entry_for
+
+    entry = entry_for(day.span.book) if getattr(day, "span", None) else None
+    if entry is None or not entry.translations:
+        return "a published translation"
+    rendering = entry.translations[0]
+    who = rendering.publisher or rendering.name
+    return f"{rendering.name}" + (f", published by {who}" if rendering.publisher else "")
+
+
 def parasha_page(
     portion: Any,
     *,
