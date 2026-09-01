@@ -7,7 +7,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from datetime import UTC
+from datetime import UTC, date
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 from urllib.parse import urlparse
@@ -43,10 +43,12 @@ app = typer.Typer(
 )
 models_app = typer.Typer(no_args_is_help=True, help="Manage language models.")
 weekly_app = typer.Typer(no_args_is_help=True, help="The weekly digest.")
+parasha_app = typer.Typer(no_args_is_help=True, help="The weekly Torah portion.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
+app.add_typer(parasha_app, name="parasha")
 
 console = Console()
 err = Console(stderr=True)
@@ -2101,3 +2103,180 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+@parasha_app.command("build")
+def parasha_build(
+    years: Annotated[
+        int, typer.Option("--years", help="How many years of calendar to point at.")
+    ] = 2,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Build the whole cycle, and point the calendar at it.
+
+    Costs nothing and fetches no text: the five books are already on the shelf with their
+    translation bought and their words annotated, and a portion is a range of verses
+    inside them. The only thing that goes out to the network is the reading calendar,
+    once a year, into a cache beside the corpus.
+
+    Safe to run every week from a cron. The corpus does not change — the same fifty-four
+    come round for ever — so a rerun rewrites the same readers and moves the pointer on.
+    """
+    from datetime import date as _date
+
+    from .parasha import build as corpus
+
+    library = (out or Path.cwd() / "targum-out") / "library"
+    this = _date.today().year
+    index = corpus.build(
+        years=range(this, this + max(1, years)),
+        library=library,
+        notify=lambda line: console.print(f"[dim]{line}[/dim]"),
+    )
+    listed = index.listed()
+    console.print(
+        f"[green]{len(index.portions)} readings built[/green], "
+        f"{len(listed)} on the shelf, {len(index.weeks)} Shabbatot pointed."
+    )
+    here = corpus.current(index=index)
+    if here is not None:
+        console.print(f"[dim]This Shabbat: {here.name} — {here.summary}[/dim]")
+
+
+@parasha_app.command("entries")
+def parasha_entries(
+    write: Annotated[
+        bool, typer.Option("--write", help="Merge them into the catalogue in place.")
+    ] = False,
+) -> None:
+    """The corpus as catalogue entries, so the library lists the portions.
+
+    Printed by default and merged only when asked, because the catalogue is the one file
+    that is a reader's own rather than this repository's — it lives outside the checkout
+    (see `catalogue_path`), and a build command that quietly rewrote it would be editing
+    somebody's shelf behind their back.
+    """
+    import json as _json
+
+    from .catalogue import catalogue_path
+    from .parasha import build as corpus
+
+    made = corpus.entries()
+    if not made:
+        raise TargumError(
+            "Nothing to add: the corpus is empty.",
+            "Run `targum parasha build` first.",
+        )
+    if not write:
+        console.print_json(_json.dumps(made, ensure_ascii=False))
+        console.print(
+            f"[dim]{len(made)} entries. `--write` merges them into {catalogue_path()}.[/dim]"
+        )
+        return
+    path = catalogue_path()
+    if path is None or not path.is_file():
+        raise TargumError(
+            "No catalogue to merge into.",
+            "Set TARGUM_CATALOGUE, or put one at ~/.targum/catalogue.json.",
+        )
+    existing = _json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(existing, dict):
+        raise TargumError(
+            "That catalogue is not the shape targum reads.",
+            "It should be an object with an `entries` list in it.",
+        )
+    rows = existing.get("entries") or []
+    by_id = {row.get("id"): index for index, row in enumerate(rows)}
+    added = 0
+    for entry in made:
+        at = by_id.get(entry["id"])
+        if at is None:
+            rows.append(entry)
+            added += 1
+        else:
+            # Merged rather than replaced: a reader may have given the row a blurb or a
+            # difficulty of their own, and a rebuild should not take it back off them.
+            rows[at] = {**rows[at], **entry}
+    existing["entries"] = rows
+    write_atomic(path, _json.dumps(existing, ensure_ascii=False, indent=2) + "\n")
+    console.print(f"[green]{added} added[/green], {len(made) - added} updated, in {path}.")
+
+
+@parasha_app.command("leyning")
+def parasha_leyning(
+    only: Annotated[
+        str | None,
+        typer.Option("--only", help="One portion, by slug. Default: all of them."),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    again: Annotated[
+        bool, typer.Option("--again", help="Re-align portions that already have audio.")
+    ] = False,
+) -> None:
+    """Give the portions their chanted reading, from PocketTorah.
+
+    CC BY-SA 3.0, Avery-Binder trope, already one file per aliyah — which is one file per
+    section of a built portion, so nothing is cut. The slow part is the forced alignment
+    that puts each verse at its own second of the recording: about a minute an aliyah, so
+    the whole Torah is a few hours. It is cached and resumable, and `--only` does one.
+
+    Run `targum parasha build` afterwards, or before: a reader picks the recording up at
+    render time, so the portions have to be rebuilt once their audio is attached.
+    """
+    from .parasha import build as corpus
+    from .parasha import calendar as calendar_module
+    from .parasha import cut as cut_module
+    from .parasha import leyning as leyning_module
+
+    library = (out or Path.cwd() / "targum-out") / "library"
+    index = corpus.load()
+    if not index.portions:
+        raise TargumError(
+            "There is no corpus to give a reading to.",
+            "Run `targum parasha build` first.",
+        )
+    have = leyning_module.listing()
+    # The same set the corpus was built from, asked for the same way rather than by a
+    # second copy of the loop. Nothing is fetched: a corpus that is not on disk is a
+    # corpus this command has nothing to attach audio to.
+    this = date.today().year
+    readings = corpus.distinct(
+        range(this, this + corpus.YEARS_AHEAD),
+        (calendar_module.Schedule.diaspora, calendar_module.Schedule.israel),
+        allow_fetch=False,
+    )
+
+    wanted = [only] if only else sorted(readings)
+    done = silent = 0
+    for name in wanted:
+        found = readings.get(name)
+        if found is None:
+            console.print(f"[yellow]{name} is not a reading this corpus knows.[/yellow]")
+            continue
+        reading = found
+        # Both ways in, because a doubled week has no file per aliyah and is attached by
+        # re-dividing its two halves instead. Asking only the first question here is how
+        # the doubled path came to be unreachable from the one command that calls it.
+        if not leyning_module.files_for(reading, have) and not leyning_module.halves_of(
+            reading, have
+        ):
+            silent += 1
+            continue
+        portion = cut_module.cut(reading, cut_module.books_for(reading, library))
+        if not again and leyning_module.attached(portion.document.source):
+            continue
+        leyning_module.attach(
+            reading, portion, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+        )
+        done += 1
+    console.print(
+        f"[green]{done} portions given their reading[/green]; "
+        f"{silent} have none (doubled weeks and festivals). "
+        "Run `targum parasha build` to put it in the readers."
+    )
