@@ -147,10 +147,20 @@ scale Hebrew down**. Parity comes from leading: **1.75 Latin, 1.95 Hebrew**.
 
 ## 6 · Voice
 
-- Literary, precise, unpatronising — a designer-engineer explaining a decision, never
-  marketing.
-- Second person for the reader's actions ("Tap a word…"); plain honesty about limits
-  ("roughly 90% right on modern Hebrew, less on classical. Guessed sentences are marked.").
+Two registers, and which one applies depends on who is reading.
+
+- **Inside the product:** literary, precise, unpatronising — a designer-engineer explaining
+  a decision. Somebody who has already chosen targum is not sold to again.
+- **On public pages — landing, pricing, the weekly's front — the copy sells.** A stranger
+  owes targum nothing and will leave in seconds, so lead with what they get, name it in
+  their words rather than ours, and ask for the sign-up plainly. Feature names that only
+  make sense inside the team ("the shelf", "scenes", "the weekly") are the failure mode
+  here, not enthusiasm.
+- **Persuasion yes, inflation no.** No superlatives, no manufactured urgency, no claim the
+  product cannot keep. The strongest line is usually the specific one: "an English
+  translation beside every line" beats "the best way to read Hebrew."
+- Second person for the reader's actions ("Tap a word…").
+- An error says in words what went wrong; colour alone never carries it — see §4.
 - **The name is always lowercase: targum**, even at sentence start.
 - No emoji, no exclamation marks, **no invented currency** — engagement counts real things
   ("12 days reading", "500 words known"), never XP, points or levels. Milestones brag the
@@ -253,8 +263,43 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Nine places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
-code back to a rule that was already retired.
+Eleven places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+the code back to a rule that was already retired.
+
+### The library folds — 2026-09-01
+
+§9 says one raised layer per view, and the library page's own rule is one row per text in
+one list you can sort and sift. Both still hold. What changed is that one row per text
+stopped being readable: the Mishneh Torah is thirteen rows of `הלכות …`, Berdichevsky is
+thirty-nine stories, the hundred scenes are a hundred, and the Mishnah would be
+sixty-three tractates. Three hundred and fifty-two rows is not a shelf somebody browses.
+
+So several texts may now be one row that opens where it stands. It is not a second layer
+and must not become one: the collection sits on the same seven-column grid as every other
+row, its members line up with everything above them, and what marks them is a hairline
+down their leading edge — §9's "if a card needs a card, use a hairline". The disclosure
+takes the place of the cover rather than claiming a column of its own, because a column of
+its own would push the whole list out of true.
+
+The list stays one list, and the controls still act on all of it: a collection is built
+out of the rows that survived the filters, so opening one never shows a text the reader
+filtered away, and a search opens what it found rather than reporting one shut row.
+
+### Which Hebrew is five answers, not two — 2026-09-01
+
+The register filter offered Biblical and Modern for as long as the shelf was scripture and
+journalism. It was lying to more than half of it. A hundred and fifty-nine entries filed
+`modern` were written between 1853 and 1930 — Mapu, Mendele, Ahad Ha'am, Ben-Yehuda's own
+journalism, Brenner, Gnessin, Berdichevsky — in a literary Hebrew built deliberately out of
+the biblical and rabbinic layers, before anybody spoke the language. The measurement agrees
+with the reader: Gnessin comes out at 26–31% hard words against 11–19 for the news filed
+beside him.
+
+Five now, and they read oldest to newest: Biblical, Rabbinic, Medieval, Revival, Modern.
+Never sorted alphabetically — the field is a ramp a learner climbs, and Modern above
+Rabbinic because M precedes R would throw that away. §5's switch was documented for "two
+or three answers"; it wraps rather than scrolls, because a filter whose options you cannot
+see is not a filter.
 
 ### A ritual object may stand on a content page — 2026-09-01
 
@@ -446,5 +491,5 @@ reader is served.**
 
 §6 asks for complete sentences with "reasons given", which is what produced 131 words on a
 sign-in page. David cut that by half and the terser reading wins. Reasons are still given
-where a reader would otherwise be confused about a limit — that part of §6 stands — but not
-as a default shape for every message.
+where a reader would otherwise be confused about a limit, but not as a default shape for
+every message.

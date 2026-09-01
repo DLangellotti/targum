@@ -297,13 +297,18 @@ def _document(*texts: str) -> SegmentedDocument:
     )
 
 
-class TestScriptureIsNeverGuessedAt:
-    """The one shelf a diacritizer may not touch, whatever shape the text arrives in.
+class TestAPinnedEditionIsNeverGuessedAt:
+    """The shelf a diacritizer may not touch, whatever shape the text arrives in.
 
     Until this existed the refusal was an accident: a Tanakh happens to arrive pointed,
     so `wants_pointing` never loaded a model. That held only while the edition did. If
     one ever degraded, Nakdimon would have invented vowels in Genesis and the page would
     have shown them behind a dotted rule, which a reader has no way to doubt.
+
+    Scripture was how the rule was first stated and it was too narrow. Torat Emet's
+    Mishneh Torah sets its scriptural citations and its chapter numerals unpointed
+    throughout — three quarters of the halakhot carry one — and a rule keyed to scripture
+    let a model at exactly those.
     """
 
     def test_a_biblical_source_never_reaches_the_engine(self) -> None:
@@ -333,6 +338,13 @@ class TestScriptureIsNeverGuessedAt:
         engine = FakeEngine()
         vocalize_document(_document(BARE), engine, source="sefaria:en:Genesis 1-11")
         assert engine.asked == []
+
+    def test_a_published_edition_that_is_not_scripture_is_refused_too(self) -> None:
+        """The Mishneh Torah and the weekday siddur arrive pointed by their publishers."""
+        for source in ("sefaria:Mishneh Torah, Repentance", "siddur:Weekday, Minchah"):
+            engine = FakeEngine()
+            vocalize_document(_document(BARE), engine, source=source)
+            assert engine.asked == [], source
 
     def test_everything_else_is_still_pointed(self) -> None:
         """The refusal is narrow. A news article is exactly as it was."""

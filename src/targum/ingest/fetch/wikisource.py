@@ -10,6 +10,7 @@ typed, with spaces allowed, since a page title is not a URL.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from ...errors import TargumError
@@ -72,6 +73,22 @@ _NAVIGATION = frozenset(
 )
 
 
+# What the wiki says about where it got the text, in the boxed notice it puts above it.
+# The same idea as `_NAVIGATION` and matched the same narrow way — a short list, and only
+# at the end of the page it is at. Three of the Kuzari's five ma'amarim open with
+# "טקסט זה הועתק מפרויקט בן-יהודה", which is true, is a credit the licence does not ask
+# for here, and is not the book: left in, it is translated, pointed, glossed and read.
+_NOTICES = re.compile(r"^טקסט זה (?:הועתק|נלקח|מבוסס)\b")
+
+
+def drop_leading_notices(paragraphs: list[Paragraph]) -> list[Paragraph]:
+    """Cut the wiki's sourcing note off the front of a page."""
+    out = list(paragraphs)
+    while out and out[0][0] is not BlockKind.heading and _NOTICES.match(out[0][2].strip()):
+        out = out[1:]
+    return out
+
+
 def _heading_key(text: str) -> str:
     return text.strip().strip(":：.،,").casefold()
 
@@ -106,6 +123,47 @@ def split_identifier(identifier: str) -> tuple[str, str]:
     return DEFAULT_LANGUAGE, identifier.replace("_", " ").strip()
 
 
+# A paragraph is a link list — the wiki's own furniture — when nearly all of it is inside
+# links and there are several of them. Wikisource puts one at the top of every volume of a
+# multi-part work: the Kuzari's first ma'amar opens with three rows of edition links and
+# then the hundred and seventeen numerals of its own contents, which
+# `drop_trailing_navigation` never sees, because they are at the front and under no
+# heading at all.
+#
+# Measured over letters rather than characters, which is what makes the threshold hold
+# still. A navigation row is links separated by bullets and middots, and counting those
+# separators against the links puts a row of a hundred and seventeen chapter numerals at
+# 0.63 — indistinguishable from prose by the number, and nothing like it to read. Ignoring
+# everything that is not a letter or a digit, the Kuzari's four rows measure 0.77 to 1.00
+# and the one real sentence on the page that carries three links measures 0.61.
+_LINK_SHARE = 0.75
+_LINK_COUNT = 3
+
+
+def _letters(text: str) -> int:
+    return sum(1 for character in text if character.isalpha() or character.isdigit())
+
+
+def drop_link_lists(html: str) -> str:
+    """Take the wiki's navigation rows out before the text is read.
+
+    Before rather than after, because link density is a fact about the markup and
+    `paragraphs_from_html` hands back plain strings with that fact already thrown away.
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup.find_all(["p", "div", "center"]):
+        links = tag.find_all("a")
+        if len(links) < _LINK_COUNT:
+            continue
+        whole = _letters(tag.get_text())
+        linked = sum(_letters(link.get_text()) for link in links)
+        if whole and linked / whole >= _LINK_SHARE:
+            tag.decompose()
+    return str(soup)
+
+
 def _plain(html: str | None) -> str:
     if not html:
         return ""
@@ -115,7 +173,10 @@ def _plain(html: str | None) -> str:
 
 
 class WikisourceFetcher:
-    name = "wikisource/1"
+    # 2: the wiki's own link rows and its sourcing note are dropped from the top of a
+    # page as well as its navigation from the bottom. Free to bump; nothing downstream
+    # is bought again.
+    name = "wikisource/2"
 
     def load(self, identifier: str) -> Document:
         language, title = split_identifier(identifier)
@@ -144,9 +205,9 @@ class WikisourceFetcher:
         parsed = payload.get("parse", {})
         paragraphs: list[Paragraph] = [
             (kind, level, normalize(text))
-            for kind, level, text in paragraphs_from_html(parsed.get("text", ""))
+            for kind, level, text in paragraphs_from_html(drop_link_lists(parsed.get("text", "")))
         ]
-        paragraphs = drop_trailing_navigation(paragraphs)
+        paragraphs = drop_leading_notices(drop_trailing_navigation(paragraphs))
         if not paragraphs:
             raise TargumError(f"Wikisource page '{title}' has no readable text.")
 

@@ -4,7 +4,11 @@
     tags matter here and nowhere else in the product. One file because the alternative is
     four copies that drift, which is the lesson `_nav.html.j2` already records.
 
-    Expects: `title`, `description`, and optionally `canonical`. -#}
+    Expects: `title`, `description`, and optionally `canonical`, `og_type` and
+    `structured` — the last a mapping rendered as JSON-LD. A text page is a page about
+    one book and says so in both: `og:type` was `website` on all four hundred of them,
+    which is the value for the site's front door and not for a work, and there was no
+    machine-readable statement of what the page is about at all. -#}
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }}</title>
@@ -12,11 +16,16 @@
 {%- if canonical %}
 <link rel="canonical" href="{{ canonical }}">
 {%- endif %}
-<meta property="og:type" content="website">
+<meta property="og:type" content="{{ og_type | default('website') }}">
 <meta property="og:title" content="{{ title }}">
 <meta property="og:description" content="{{ description }}">
 {%- if canonical %}
 <meta property="og:url" content="{{ canonical }}">
 {%- endif %}
 <meta name="twitter:card" content="summary">
+{%- if structured %}
+{#- What the page is about, said to a machine. Nothing here is a claim the page does not
+    already make in its own text: the same title, the same byline, the same translator. -#}
+<script type="application/ld+json">{{ structured | tojson }}</script>
+{%- endif %}
 {% include '_icons.html.j2' %}

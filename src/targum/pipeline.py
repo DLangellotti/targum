@@ -33,6 +33,7 @@ from .models import (
     glossaries_in,
     glossary_path,
     is_biblical,
+    keeps_its_own_pointing,
     read_artifact,
 )
 from .segment import Segmenter, StanzaSegmenter, segment_document
@@ -826,7 +827,7 @@ class Build:
                 return existing
 
         engine = self._vocalizer
-        if is_biblical(self.source):
+        if keeps_its_own_pointing(self.source):
             # Not merely unused: never loaded. A diacritizer has nothing to offer a text
             # it must not touch, and the ONNX model costs a second and a few hundred
             # megabytes to open for the privilege of being ignored.

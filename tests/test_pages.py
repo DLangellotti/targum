@@ -626,7 +626,7 @@ def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
     assert 'class="chips" id="register-chips"' not in library
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '"register", redraw, "segment"' in source, "drawn as segments, not chips"
+    assert '"register",\n        redraw,\n        "segment",' in source, "segments, not chips"
 
 
 # -- bringing your own text ------------------------------------------------------

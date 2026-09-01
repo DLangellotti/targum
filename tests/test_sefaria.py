@@ -17,7 +17,7 @@ import pytest
 from targum.align import parallel
 from targum.errors import TargumError
 from targum.ingest.fetch import sefaria
-from targum.models import BlockKind
+from targum.models import BlockKind, is_biblical
 from targum.segment import segment_document
 from targum.vocalize.base import is_fully_pointed, wants_pointing
 
@@ -175,6 +175,136 @@ def test_a_book_with_no_chosen_english_is_refused() -> None:
     """
     with pytest.raises(TargumError, match="no English edition"):
         sefaria.version_for("en", "Jeremiah")
+
+
+# -- works that are not Tanakh ------------------------------------------------
+
+
+def test_a_work_beyond_the_tanakh_pins_both_its_sides() -> None:
+    """The Tanakh has one Hebrew edition and this does not.
+
+    `HEBREW` is a constant because one edition covers all twenty-four books. Nothing
+    outside the Tanakh is like that — the Mishneh Torah's Hebrew is Torat Emet 363 for
+    most sections and 370 for two of them — so both sides are pinned per text.
+    """
+    assert sefaria.version_for("he", "Mishneh Torah, Repentance") == "Torat Emet 363"
+    assert sefaria.version_for("he", "Mishneh Torah, Reading the Shema") == "Torat Emet 370"
+    assert "Glazer" in sefaria.version_for("en", "Mishneh Torah, Repentance")
+
+
+def test_a_reference_with_a_part_number_still_finds_its_edition() -> None:
+    """`Kuzari 1` is the first ma'amar; the edition is the Kuzari's."""
+    assert sefaria.version_for("en", "Kuzari 1") == sefaria.version_for("en", "Kuzari 5")
+
+
+def test_the_hebrew_kuzari_is_not_taken_from_sefaria() -> None:
+    """The one side of the shelf that ShareAlike actually costs.
+
+    Sefaria's Ibn Tibbon is Project Ben-Yehuda's and CC-BY-SA, and the Even Shmuel is a
+    1973 translation Sefaria will not name a licence for. The vocalized Zifroni text of
+    the same Ibn Tibbon is on Hebrew Wikisource, so the refusal points there rather than
+    reading as "targum does not have the Kuzari".
+    """
+    with pytest.raises(TargumError, match="no hebrew edition") as caught:
+        sefaria.version_for("he", "Kuzari 1")
+    assert "wikisource" in (caught.value.hint or "").lower()
+
+
+def test_every_pinned_english_edition_is_named() -> None:
+    """A half-filled row would fail at fetch time with a confusing message."""
+    for name, pair in sefaria.BEYOND_TANAKH.items():
+        assert pair.english, f"{name} names no English edition"
+
+
+def test_nothing_beyond_the_tanakh_is_treated_as_scripture() -> None:
+    """`sefaria:` stopped meaning the Tanakh, and four places in the code read it.
+
+    Scripture's words are banded against a table counted from the Tanakh itself. Banding
+    the Mishneh Torah against it would hand a reader an unrated word wherever a rabbinic
+    one appears, which on that shelf is where it matters most. This is what binds
+    `models.BEYOND_SCRIPTURE` to `BEYOND_TANAKH`: add a work to one and forget the other,
+    and this fails rather than quietly calling it scripture.
+    """
+    for name in sefaria.BEYOND_TANAKH:
+        assert not is_biblical(f"sefaria:{name}"), name
+        assert not is_biblical(f"sefaria:en:{name}"), name
+
+
+def test_the_tanakh_is_still_scripture() -> None:
+    """However it is addressed — a book, a range, a side."""
+    for source in (
+        "sefaria:Ruth",
+        "sefaria:en:Ruth",
+        "sefaria:Genesis 1-11",
+        # What `parasha/cut.py` writes: Hebcal's own range line, which carries a colon.
+        "sefaria:Deuteronomy 29:9-31:30",
+    ):
+        assert is_biblical(source), source
+
+
+def test_the_mishnah_is_pinned_once_rather_than_sixty_three_times() -> None:
+    """One pair of editions covers the whole work, so a row per tractate would be
+    sixty-three chances to mistype a version title that is the same on all of them."""
+    for ref in ("Mishnah Berakhot", "Mishnah Kelim", "Mishnah Bikkurim 1-3"):
+        assert sefaria.version_for("he", ref) == "Torat Emet 357"
+        assert sefaria.version_for("en", ref) == "Mishnah Yomit by Dr. Joshua Kulp"
+
+
+def test_the_one_tractate_that_is_not_called_mishnah_something() -> None:
+    """Sefaria files Avot under its own name, and it is the most read of the sixty-three:
+    a prefix rule that missed it would miss the one that matters."""
+    assert sefaria.is_mishnah("Pirkei Avot")
+    assert sefaria.version_for("he", "Pirkei Avot") == "Torat Emet 357"
+
+
+@pytest.mark.parametrize(
+    "book",
+    [
+        # A word apart, and two works six hundred years apart.
+        "Mishneh Torah, Repentance",
+        # A commentary on a tractate is not the tractate.
+        "Bartenura on Mishnah Berakhot",
+        "Genesis",
+    ],
+)
+def test_what_the_mishnah_rule_does_not_reach(book: str) -> None:
+    assert not sefaria.is_mishnah(book)
+
+
+def test_a_hebrew_chapter_range_is_not_part_of_the_book_s_name() -> None:
+    """`heRef` for a ranged reference comes back as `משנה ביכורים א׳-ג׳`, and a heading
+    built on that reads "משנה ביכורים א׳-ג׳ א׳"."""
+    assert sefaria.book_of("משנה ביכורים א׳-ג׳") == "משנה ביכורים"
+    assert sefaria.book_of("בראשית א׳-י״א") == "בראשית"
+
+
+def test_a_book_whose_name_ends_in_a_letter_keeps_it() -> None:
+    """`שמואל א` is the name of a book of the Tanakh and its last word is not a chapter
+    number. Only a range — which has a hyphen in it — is ever taken off."""
+    assert sefaria.book_of("שמואל א") == "שמואל א"
+    assert sefaria.book_of("מלכים ב") == "מלכים ב"
+    assert sefaria.book_of("רות") == "רות"
+
+
+def test_a_footnote_is_dropped_rather_than_glued_into_the_sentence() -> None:
+    """Metsudah's siddur prints its commentary inline, and it is three times the prayer.
+
+    Stripping tags and keeping what is between them — which is what every other edition
+    on this shelf wants — puts a paragraph of Avudraham in the middle of the blessing.
+    """
+    raw = (
+        'Blessed<sup class="footnote-marker">1</sup>'
+        '<i class="footnote">The word is similar to <i>merciful</i>.—<i>Avudraham</i></i>'
+        " are You, Adonoy"
+    )
+    assert sefaria.plain(raw) == "Blessed are You, Adonoy"
+
+
+def test_an_edition_with_no_apparatus_is_left_exactly_as_it_was() -> None:
+    """The Tanakh carries no footnotes, and must not start round-tripping through a
+    parser that could normalise something."""
+    assert sefaria.plain("In the <b>beginning</b>") == "In the beginning"
+    assert sefaria.plain("א[ב]ג") == "א[ב]ג"
 
 
 # -- the verse stays one unit -------------------------------------------------

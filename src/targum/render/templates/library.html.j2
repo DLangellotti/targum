@@ -40,11 +40,11 @@
       <input
         id="find" class="find" type="search" autocomplete="off" spellcheck="false"
         placeholder="Search a title, Hebrew or English" aria-label="Search the library">
-      {#- Biblical and modern Hebrew are not two genres, they are close to two languages,
-          and which one somebody is learning is the first question this page asks. A
-          switch with its own label rather than a third row of pills: as pills it sat
-          beside the kind filter with a second chip also saying "All", and the two read
-          as one row of ten. -#}
+      {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
+          are not four genres, they are close to four languages, and which one somebody is
+          learning is the first question this page asks. A switch with its own label rather
+          than a third row of pills: as pills it sat beside the kind filter with a second
+          chip also saying "All", and the two read as one row of ten. -#}
       <div class="switch-set">
         <span class="switch-label">Hebrew</span>
         <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
@@ -75,6 +75,7 @@
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
+window.TARGUM_COLLECTIONS = {{ collections|tojson }};
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>

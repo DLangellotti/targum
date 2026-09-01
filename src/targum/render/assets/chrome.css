@@ -217,10 +217,16 @@
 .account-panel [hidden] { display: none; }
 
 /* --- a segmented switch ----------------------------------------------------
-   Two or three answers to one question, in one track, so it reads as a switch between
-   things rather than as more pills among the filters. Discover asks which Hebrew with
-   it; the upload page asks where a translation comes from. Here rather than in either,
-   because a copy of it in the second file is the copy that stops matching. */
+   A few answers to one question, in one track, so it reads as a switch between things
+   rather than as more pills among the filters. Discover asks which Hebrew with it; the
+   upload page asks where a translation comes from. Here rather than in either, because a
+   copy of it in the second file is the copy that stops matching.
+
+   It wraps. It carried two answers for as long as Hebrew was biblical or modern, and
+   carries five now — Biblical, Rabbinic, Medieval, Revival, Modern, plus All — which is
+   about fifty pixels more than a phone has. Wrapped it is two lines inside one outline,
+   which still reads as one control; scrolled it would be a filter whose options you
+   cannot see. */
 .switch-set { display: flex; align-items: center; gap: 0.35rem; }
 .switch-label {
   color: var(--ink-soft);
@@ -230,6 +236,8 @@
 }
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
   padding: 2px;
   border: 1px solid var(--overlay-rule, var(--rule));
   border-radius: 999px;

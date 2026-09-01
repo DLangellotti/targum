@@ -1,13 +1,31 @@
-"""Tanakh, from Sefaria, by book.
+"""Sefaria, by reference.
 
     targum build sefaria:Jonah
     targum build "sefaria:Genesis 1-11"
     targum build sefaria:en:Ruth
+    targum build "sefaria:Mishneh Torah, Repentance"
+    targum build "sefaria:en:Kuzari 1"
 
 Hebrew unless a language is named. One request per book: the API returns a whole book as
 chapters of verses, and the largest of them is a fraction of what `url.get` will carry,
 so looping over 150 chapters would be a hundred and fifty times the traffic for the same
 answer.
+
+**Anything shaped like chapters and verses reads through here.** A section of the Mishneh
+Torah is chapters of halakhot and the Kuzari is parts of numbered speeches, which is the
+same shape a book of the Tanakh arrives in and the same reason both sides pair for
+nothing: the halakhah a translator numbered 3:4 is the halakhah the Hebrew numbers 3:4.
+What is Tanakh-specific is not the reading, it is which edition to ask for, and that is
+`ENGLISH` and `BEYOND_TANAKH` — see the note above each.
+
+**`fill_in_missing_segments` is a licence hole, and must never be used.** It is the
+API's own answer to a patchy translation: ask for a version and get the gaps filled in
+from whatever else Sefaria holds. What comes back is still labelled with the version you
+asked for and its licence, and the filled text is not that version at all. Asked for the
+CC0 Community Translation of `Mishneh Torah, Damages to Property`, it returns 216 of 216
+halakhot, says CC0, and hands over Touger's Moznaim translation, which is CC-BY-NC. The
+licence check in `_payload` cannot see this, because the response lies to it. So the gaps
+stay: an untranslated halakhah is an em dash in the reader, and that is the honest answer.
 
 **Why this exists at all.** Hebrew Wikisource's Tanakh "books" are pages listing their
 chapters rather than pages holding them, and the editions laid out as parallel tables
@@ -34,6 +52,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote
 
@@ -128,8 +147,166 @@ ENGLISH: dict[str, str] = {
     "Malachi": JPS,
 }
 
+
+@dataclass(frozen=True)
+class Pair:
+    """The two editions one text is read in. An empty side means there is not one."""
+
+    hebrew: str
+    english: str
+
+
+# Everything that is not Tanakh, keyed by the reference's own name. Pinned the same way
+# and for the same reasons as `ENGLISH`, and arrived at the same way: fetch both sides,
+# count the words, and only then write it down.
+#
+# **Two extra checks, because outside the Tanakh a version list flatters itself.**
+#
+# The first is shape. `align/parallel.py` pairs chapter by chapter and refuses a
+# translation with more units in a chapter than the source, because pairing through a
+# disagreement is a durable, silent mistranslation. Outside the Tanakh that refusal bites
+# constantly: an editor who splits one long halakhah in two has made an edition that
+# cannot be paired, however good it is. Hyamson's Repentance is complete and excellent and
+# runs one paragraph long in chapter 10, so Glazer is here instead. The rule for adding a
+# section is therefore: the English that fits, then the English that covers most.
+#
+# The second is emptiness. `Sefaria Community Translation` is a crowd translation and its
+# Mishneh Torah is mostly chapter-shaped holes — `Damages to Property` has two translated
+# halakhot in two hundred and sixteen, and the API reports it as a version of the section
+# like any other. Coverage has to be measured, never assumed from the version list. Only
+# `Rest on the Tenth of Tishrei` is complete enough to be here.
+#
+# What that leaves is thirteen of the Mishneh Torah's eighty-eight sections — the whole of
+# Sefer HaMadda, two of Sefer Ahavah, six of Sefer Zemanim, and three others. The other
+# seventy-five have no usable Hebrew, no English that fits, or an English that is a stub.
+# `scripts/survey_sefaria.py` is what measured this; run it again before adding a section.
+#: The Mishnah: one pair of editions for the whole of it, which is why it is a rule rather
+#: than sixty-three rows. Torat Emet 357 is public domain and pointed throughout (0.76 to
+#: 0.85 marks per letter, measured across all sixty-three), and Joshua Kulp's is CC-BY,
+#: complete, and segmented one unit to one mishnah. Every tractate pairs: identical chapter
+#: counts, no English chapter longer than its Hebrew, and not one untranslated mishnah in
+#: four thousand one hundred and eighty-seven.
+#:
+#: Pinning by prefix pins the same thing a row would — the edition — and the licence is
+#: still asserted per fetch in `_payload`. What it does not do is offer sixty-three chances
+#: to mistype a version title that is the same on all of them.
+#:
+#: The two editions this passes over are worth knowing about. `Mishnah, ed. Romm, Vilna
+#: 1913` is public domain and the standard printing, and carries no vowels at all. Dan
+#: Be'eri's edition of the Kaufmann manuscript is public domain, pointed, and the better
+#: text — and it re-divides the mishnayot, sets them stichometrically, and prints their
+#: numerals inside the text, so it cannot pair with an English numbered to the printed
+#: division. Bikkurim is the exception that proves it: see the note in the catalogue.
+MISHNAH = Pair("Torat Emet 357", "Mishnah Yomit by Dr. Joshua Kulp")
+
+
+def is_mishnah(book: str) -> bool:
+    """Whether a reference names a tractate of the Mishnah.
+
+    `Mishnah Berakhot`, and `Pirkei Avot`, which Sefaria files under its own name rather
+    than as `Mishnah Avot` — the one tractate whose index title does not say what it is.
+    A commentary reads `Bartenura on Mishnah Berakhot` and is not one of these; the
+    Mishneh Torah is `Mishneh`, not `Mishnah`, and is a different word.
+    """
+    return book.startswith("Mishnah ") or book == "Pirkei Avot"
+
+
+BEYOND_TANAKH: dict[str, Pair] = {
+    # The Kuzari's English is Hirschfeld's, and there is no Hebrew here on purpose:
+    # Sefaria's Ibn Tibbon is Ben-Yehuda's and CC-BY-SA. The vocalized Zifroni text of the
+    # same translation is on Hebrew Wikisource, so the Hebrew side is
+    # `wikisource:he:ספר הכוזרי מאמר ראשון (אבן תיבון)` and the two are aligned by
+    # embeddings rather than by number.
+    "Kuzari": Pair("", "Kitab al Khazari, translated by Hartwig Hirschfeld, 1905"),
+    # Sefer Madda
+    "Mishneh Torah, Foundations of the Torah": Pair(
+        "Torat Emet 363",
+        "Mishnah Torah, Yod ha-hazakah, trans. by Simon Glazer, 1927",
+    ),
+    "Mishneh Torah, Human Dispositions": Pair(
+        "Torat Emet 363",
+        "Mishnah Torah, Yod ha-hazakah, trans. by Simon Glazer, 1927",
+    ),
+    "Mishneh Torah, Torah Study": Pair(
+        "Torat Emet 363",
+        "Mishnah Torah, Yod ha-hazakah, trans. by Simon Glazer, 1927",
+    ),
+    "Mishneh Torah, Foreign Worship and Customs of the Nations": Pair(
+        "Torat Emet 363",
+        "The Mishneh Torah by Maimonides. trans. by Moses Hyamson, 1937-1949",
+    ),
+    "Mishneh Torah, Repentance": Pair(
+        "Torat Emet 363",
+        "Mishnah Torah, Yod ha-hazakah, trans. by Simon Glazer, 1927",
+    ),
+    # Sefer Ahavah. The other five sections have no Hebrew edition Sefaria will name a
+    # licence for — `Torat Emet 370` is the same digitizer as 363 and is tagged `unknown`
+    # on them, which is almost certainly a metadata gap and is still not something to
+    # guess at.
+    "Mishneh Torah, Reading the Shema": Pair(
+        "Torat Emet 370",
+        "The Mishneh Torah by Maimonides. trans. by Moses Hyamson, 1937-1949",
+    ),
+    "Mishneh Torah, Prayer and the Priestly Blessing": Pair(
+        "Torat Emet 370",
+        "The Mishneh Torah by Maimonides. trans. by Moses Hyamson, 1937-1949",
+    ),
+    # Sefer Zemanim
+    "Mishneh Torah, Sabbath": Pair(
+        "Torat Emet 363",
+        "Sefaria Edition. Translated by R. Francis Nataf, 2019",
+    ),
+    "Mishneh Torah, Rest on the Tenth of Tishrei": Pair(
+        "Torat Emet 363",
+        "Sefaria Community Translation",
+    ),
+    "Mishneh Torah, Shofar, Sukkah and Lulav": Pair(
+        "Torat Emet 363",
+        "Sefaria Edition. Translated by R. Francis Nataf, 2019",
+    ),
+    "Mishneh Torah, Fasts": Pair(
+        "Torat Emet 363",
+        "Sefaria Edition. Translated by R. Francis Nataf, 2019",
+    ),
+    # Sefer Zeraim, Sefer Shoftim
+    "Mishneh Torah, Gifts to the Poor": Pair(
+        "Torat Emet 363",
+        "Gifts for the Poor, Trans. by Joseph B. Meszler, Williamsburg, Virginia, 2003",
+    ),
+    "Mishneh Torah, Kings and Wars": Pair(
+        "Torat Emet 363",
+        "Laws of Kings and Wars. trans. Reuven Brauner, 2012",
+    ),
+}
+
+
 _TAG = {"he": "hebrew", "en": "english"}
 _MARKUP = re.compile(r"<[^>]+>")
+# Whether a verse carries an apparatus rather than only formatting. Cheap enough to ask
+# of every verse, and it keeps the Tanakh — which carries neither — on the regex path.
+_APPARATUS = re.compile(r'class="(?:footnote|footnote-marker)"')
+
+
+def plain(text: str) -> str:
+    """The words, with the publisher's notes taken out.
+
+    Metsudah's siddur prints its commentary as footnotes, and the API hands them over
+    inline: `<sup class="footnote-marker">1</sup><i class="footnote">…</i>` sits inside
+    the sentence it annotates. Stripping tags and keeping what is between them — which is
+    what every other edition on this shelf needs — glues a paragraph of Avudraham into the
+    middle of the blessing, and it is three times the words of the prayer. So a verse that
+    says it has an apparatus is parsed rather than scrubbed, and the notes are dropped
+    whole. They are worth reading; they are not what the Hebrew beside them says.
+    """
+    if not _APPARATUS.search(text):
+        return _MARKUP.sub("", text)
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(text, "html.parser")
+    for tag in soup.select("sup.footnote-marker, i.footnote, .footnote"):
+        tag.decompose()
+    return soup.get_text()
+
 
 # Hebrew numerals for chapter headings. A Latin digit inside a Hebrew heading is the
 # bidi mess `isolate()` exists to paper over, and there is no reason to create it here.
@@ -187,16 +364,50 @@ def split_ref(identifier: str) -> tuple[str, str]:
     return DEFAULT_LANGUAGE, rest.replace("_", " ").strip()
 
 
+#: A range of chapters written in Hebrew numerals — `א׳-ג׳` — which is how `heRef` comes
+#: back for a ranged reference. Only a range: `שמואל א` is the name of a book of the Tanakh
+#: and its last word is not a chapter number, so nothing without a hyphen is touched.
+_HEBREW_RANGE = re.compile(
+    r"\s+[\u05D0-\u05EA]{1,3}[\u05F3\u05F4\"']?[\u05D0-\u05EA]{0,2}"
+    r"\s*[-\u2013]\s*"
+    r"[\u05D0-\u05EA]{1,3}[\u05F3\u05F4\"']?[\u05D0-\u05EA]{0,2}\s*$"
+)
+
+
 def book_of(ref: str) -> str:
-    """`Genesis 1-11` -> `Genesis`. What decides which translation covers it."""
-    return re.sub(r"\s+\d+(?:[:.]\d+)?(?:-\d+(?:[:.]\d+)?)?\s*$", "", ref).strip()
+    """`Genesis 1-11` -> `Genesis`. What decides which translation covers it.
+
+    And what a chapter heading is written under, which is why the Hebrew form is here
+    too: `heRef` for a ranged reference comes back as `משנה ביכורים א׳-ג׳`, and a heading
+    built on that reads "משנה ביכורים א׳-ג׳ א׳".
+    """
+    without = re.sub(r"\s+\d+(?:[:.]\d+)?(?:-\d+(?:[:.]\d+)?)?\s*$", "", ref).strip()
+    return _HEBREW_RANGE.sub("", without).strip()
 
 
 def version_for(language: str, ref: str) -> str:
-    """The pinned edition for this side of this book."""
+    """The pinned edition for this side of this text.
+
+    The Tanakh answers from `HEBREW` and `ENGLISH`; everything else from
+    `BEYOND_TANAKH`, which pins both sides because outside the Tanakh there is no one
+    Hebrew edition covering the shelf.
+    """
+    book = book_of(ref)
+    if is_mishnah(book):
+        return MISHNAH.hebrew if language == "he" else MISHNAH.english
+    beyond = BEYOND_TANAKH.get(book)
+    if beyond is not None:
+        chosen = beyond.hebrew if language == "he" else beyond.english
+        if not chosen:
+            raise TargumError(
+                f"targum has no {_TAG.get(language, language)} edition of {book}.",
+                "Every edition Sefaria holds is licensed in a way this shelf may not "
+                "serve. Where the text itself is old enough to be free, Wikisource "
+                "often has it: try wikisource:he: and the page title.",
+            )
+        return chosen
     if language == "he":
         return HEBREW
-    book = book_of(ref)
     if book not in ENGLISH:
         raise TargumError(
             f"targum has no English edition for {book}.",
@@ -285,7 +496,7 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
         for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
-            clean = normalize(_MARKUP.sub("", verse or "")).strip()
+            clean = normalize(plain(verse or "")).strip()
             refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
             paragraphs.append((BlockKind.verse, None, clean or "—"))
 
@@ -309,9 +520,10 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
 class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
     # somebody hand-edited the document on disk. 2: the accented Hebrew edition. 3: every
-    # verse carries its ref. Free to bump — the hash a document is keyed by is its text,
-    # and the text has not changed, so nothing downstream is bought again.
-    name = "sefaria/3"
+    # verse carries its ref. 4: works beyond the Tanakh, and footnotes dropped rather than
+    # inlined. Free to bump — the hash a document is keyed by is its text, and the text has
+    # not changed, so nothing downstream is bought again.
+    name = "sefaria/4"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)

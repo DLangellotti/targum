@@ -6,6 +6,44 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- Every text page says what it is about in JSON-LD, and calls itself a book rather than
+  a website. Four hundred pages about four hundred books looked to a machine like four
+  hundred pages. `author` is deliberately absent where the byline names a division rather
+  than a person — `Ketuvim · Ruth` is not somebody — and what a text belongs to is said
+  off the collections instead.
+- Opening lines for two hundred and thirty texts, up from a hundred and four. Eighty-four
+  of them had gone up with no Hebrew on their public page at all.
+- The Mishnah, whole: all sixty-three tractates, 524 chapters, 4,187 mishnayot, in Torat
+  Emet's pointed public-domain text beside Joshua Kulp's CC-BY English. Every tractate
+  pairs by number at full confidence and not one mishnah is untranslated. Read as six
+  sedarim on the shelf. Nothing was bought from a model.
+- Collections: several texts the library meets as one row, opening where they stand.
+  Three hundred and fifty-two rows is not a shelf anybody browses — the Mishneh Torah was
+  thirteen rows of `הלכות …` and Berdichevsky thirty-nine stories. Nineteen of them now
+  cover three hundred and thirty-three texts, and the list is thirty-six rows. It stays
+  one list: a collection is built out of what survived the filters, sorts on its own
+  totals beside the texts, and a search opens what it found. See design.md §12.
+- Five registers instead of two, oldest to newest: Biblical, Rabbinic, Medieval, Revival,
+  Modern. A hundred and fifty-nine entries filed "Modern" were written between 1853 and
+  1930, and a reader who filtered for the Hebrew they could read was being handed Gnessin.
+- Twenty-one texts of the Beit Midrash shelf, all read beside a translation somebody
+  published and none of them costing a model anything: thirteen sections of the Mishneh
+  Torah, the five ma'amarim of the Kuzari in Ibn Tibbon's Hebrew, and the weekday siddur
+  in all three of its services. They are the first entries to carry the `judaica` tag,
+  which until now was a vocabulary with nothing in it.
+- Sefaria ingest reads anything shaped like chapters and verses, not only the Tanakh. A
+  section of the Mishneh Torah is chapters of halakhot and pairs with its translation the
+  same way a book of the Tanakh does — by number, at full confidence, for nothing.
+- `siddur:` — a fetcher for the Sefaria indexes that are trees rather than books. The API
+  refuses any reference above a leaf, so a service is walked and assembled from its
+  hundred-odd leaves, and both languages are fetched for every one of them so that a leaf
+  only one side has is dropped from both.
+- Wikisource ingest drops the wiki's link rows from the top of a page as well as the
+  bottom. A volume of a multi-part work opens with an edition picker and a contents row,
+  and `drop_trailing_navigation` never saw them: they sit under no heading at all.
+- A publisher's footnotes are dropped rather than glued into the sentence they annotate.
+  Metsudah's siddur prints its commentary inline, and it is three times the words of the
+  prayer.
 - Video import: `targum build <youtube-url>` fetches a YouTube video with yt-dlp
   (CLI only, single videos, capped at 480p and 4 GB) and runs it through the same
   transcription and translation pipeline as audio. Direct links to video files and

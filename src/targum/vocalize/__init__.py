@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 from ..errors import SkeletonChanged, TargumError
-from ..models import BlockKind, SegmentedDocument, Vocalization, is_biblical
+from ..models import BlockKind, SegmentedDocument, Vocalization, keeps_its_own_pointing
 from .base import (
     LETTERS,
     MARKS,
@@ -82,13 +82,13 @@ def vocalize_document(
     trusted for those words. Where a source is pointed throughout, no model is consulted
     at all — which is what lets a Tanakh build work with no engine installed.
     """
-    # Scripture is never guessed at. Where a Masoretic edition leaves a word bare it is
-    # bare on purpose — a ketiv, or an editor reading it as something else — and a
+    # A published pointed edition is never guessed at. Where one leaves a word bare it is
+    # bare on purpose — a ketiv, a scriptural citation, a chapter numeral — and a
     # diacritizer filling it in prints an invention in the one place a reader has no way
     # to doubt it. The refusal sits here rather than at the call site because `targum
     # repair` builds an engine of its own, and a rule that can be walked around is not a
     # rule. Not "mostly pointed, so nothing to add": never, whatever shape it arrives in.
-    if is_biblical(source):
+    if keeps_its_own_pointing(source):
         engine = None
     # Headings and bylines are labels, not prose. Nobody wants vowel points on a chapter
     # number, and asking for them is how a Tanakh — pointed throughout, and the one case

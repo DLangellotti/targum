@@ -49,3 +49,71 @@ def test_a_scene_knows_its_number_and_nothing_else_has_one() -> None:
     assert scene_number("scene-100-the-same-spot") == 100
     assert scene_number("ruth") == 0
     assert scene_number("") == 0
+
+
+# -- collections --------------------------------------------------------------
+
+
+def test_a_collection_only_ever_claims_texts_that_are_there() -> None:
+    """The catalogue is data and a member can be removed without the collection knowing.
+    What it must never do is open onto a row that is not on the shelf."""
+    from targum.catalogue import collections, everything
+
+    have = {entry.id for entry in everything()}
+    for group in collections():
+        assert set(group.members) <= have, group.id
+
+
+def test_a_text_belongs_to_one_collection_at_most() -> None:
+    """Two rows for one text is the flood this exists to stop, not a way of causing it."""
+    from targum.catalogue import collections
+
+    seen: dict[str, str] = {}
+    for group in collections():
+        for member in group.members:
+            assert member not in seen, f"{member} is in {seen.get(member)} and {group.id}"
+            seen[member] = group.id
+
+
+def test_a_collection_of_one_is_not_a_collection() -> None:
+    """Folding a single text hides it behind a click and says "1 text" where its own
+    name would do."""
+    from targum.catalogue import collections
+
+    assert all(len(group.members) > 1 for group in collections())
+
+
+def test_a_text_can_say_which_collection_it_is_in() -> None:
+    from targum.catalogue import collection_of, collections
+
+    group = collections()[0]
+    assert collection_of(group.members[0]) == group
+
+
+# -- the register ---------------------------------------------------------------
+
+
+def test_the_registers_are_a_ramp_from_oldest_to_newest() -> None:
+    """The library shows them in this order and never sorts them: the field is a ramp a
+    learner climbs, and Modern above Rabbinic because M precedes R would throw that away.
+    """
+    from targum.catalogue import Register
+
+    assert [register.value for register in Register] == [
+        "biblical",
+        "rabbinic",
+        "medieval",
+        "revival",
+        "modern",
+        "",
+    ]
+
+
+def test_no_hebrew_text_is_left_without_a_register() -> None:
+    """Empty means "not Hebrew, the axis does not apply", and a Hebrew text that says it
+    is a Hebrew text nobody has placed."""
+    from targum.catalogue import Register, everything
+
+    for entry in everything():
+        if entry.language.startswith("he"):
+            assert entry.register is not Register.none, entry.id

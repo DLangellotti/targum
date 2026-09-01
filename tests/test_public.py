@@ -215,3 +215,73 @@ def test_every_kind_of_text_has_a_cover_prompt(kind: Kind) -> None:
 
     prompt = cover_prompt(replace(CATALOGUE[0], kind=kind))
     assert CATALOGUE[0].title in prompt
+
+
+# -- what a text page says to a machine ---------------------------------------
+
+
+def test_a_text_page_says_what_it_is_about() -> None:
+    """These are the only pages a search engine sees, and four hundred pages about four
+    hundred books looked like four hundred pages."""
+    import json
+    import re
+
+    from targum.catalogue import by_id, everything
+    from targum.render.builder import text_page
+
+    entry = next(iter(everything()))
+    page = text_page(entry, "https://targum.page")
+    assert 'og:type" content="book"' in page
+    found = re.search(r'<script type="application/ld\+json">(.*?)</script>', page, re.S)
+    assert found, "no structured data"
+    about = json.loads(found.group(1))
+    assert about["@type"] == "Book"
+    assert about["name"] == entry.title
+    assert about["inLanguage"] == entry.language
+    assert by_id(entry.id) is not None
+
+
+def test_a_byline_that_names_a_place_is_never_written_down_as_a_person() -> None:
+    """`author` holds a person for the moderns and something else entirely for the rest —
+    `Ketuvim · Ruth`, `משנה · סדר זרעים`. Filling schema.org's Person slot with one of
+    those is telling a machine something untrue in order to fill a slot."""
+    from targum.catalogue import Entry
+    from targum.render.builder import text_schema
+
+    place = Entry(
+        id="x",
+        title="ת",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="s",
+        blurb="b",
+        words=100,
+    )
+    assert "author" not in text_schema(place)
+
+    person = Entry(
+        id="y",
+        title="ת",
+        author="יוסף חיים ברנר, 1920",
+        language="he",
+        source="s",
+        blurb="b",
+        words=100,
+    )
+    assert text_schema(person)["author"]["name"] == "יוסף חיים ברנר, 1920"
+
+
+def test_a_text_says_which_work_it_belongs_to() -> None:
+    """Off the collections, which are real structure rather than a guess at one."""
+    from targum.catalogue import collections
+    from targum.render.builder import text_schema
+
+    groups = collections()
+    if not groups:
+        return
+    group = groups[0]
+    from targum.catalogue import by_id
+
+    entry = by_id(group.members[0])
+    assert entry is not None
+    assert text_schema(entry)["isPartOf"]["name"] == group.title

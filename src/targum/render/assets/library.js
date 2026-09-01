@@ -36,6 +36,7 @@
 
   var names = window.TARGUM_LANGUAGES || {};
   var catalogue = window.TARGUM_CATALOGUE || [];
+  var collections = window.TARGUM_COLLECTIONS || [];
   var lang = window.TargumLang;
 
   /* What a text is, called what a reader would call it — which is not always what the
@@ -63,10 +64,24 @@
     ["play", "Plays"],
   ];
 
+  /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
+     never sorted: the five of them are a ramp a learner climbs, and putting Modern above
+     Rabbinic because M precedes R would throw that away. */
   var REGISTERS = [
     ["biblical", "Biblical"],
+    ["rabbinic", "Rabbinic"],
+    ["medieval", "Medieval"],
+    ["revival", "Revival"],
     ["modern", "Modern"],
   ];
+
+  /* Where each of them sits in that ramp, for sorting the column. Sorting on the label
+     would run Biblical, Medieval, Modern, Rabbinic, Revival — five words in an order
+     that means nothing about Hebrew. */
+  var REGISTER_ORDER = {};
+  REGISTERS.forEach(function (pair, index) {
+    REGISTER_ORDER[pair[0]] = index;
+  });
 
   //: Only one direction is worth offering. "Without audio" is not a thing anybody looks
   //: for — the question is always whether there is something to listen to.
@@ -117,6 +132,9 @@
     },
     register: {
       biblical: "Biblical — the Hebrew of the Bible.",
+      rabbinic: "Rabbinic — the Hebrew of the Mishnah, the codes and the prayer book.",
+      medieval: "Medieval — philosophy, in the Hebrew built to carry Arabic argument.",
+      revival: "Revival — literary Hebrew from 1850 to 1930, before the language settled.",
       modern: "Modern — Hebrew as it is written today.",
     },
     spoken: "With audio — a recording, line by line.",
@@ -296,6 +314,131 @@
     return out;
   }
 
+  /* --- collections ------------------------------------------------------------
+   *
+   * One row per text was the right shape for forty texts. It stops being it somewhere
+   * around a hundred: the Mishneh Torah is thirteen rows of `הלכות …`, Berdichevsky is
+   * thirty-nine stories, and a reader asking what to read cannot see past either. So a
+   * collection collapses to one row and opens where it stands — the list stays one list,
+   * which is the whole reason this page is a list.
+   *
+   * Nothing is grouped that the filters have not left standing: a collection is built
+   * out of the rows that survived, so opening one never shows a text the reader has
+   * filtered away, and one that has nothing left is not drawn at all.
+   */
+
+  /* Which collection each text is in, by id. Built once. */
+  var GROUP_OF = {};
+  collections.forEach(function (group) {
+    (group.members || []).forEach(function (id) {
+      GROUP_OF[id] = group;
+    });
+  });
+
+  /* Where a text sits inside its own collection, so an ordered one keeps its order. */
+  var PLACE_IN = {};
+  collections.forEach(function (group) {
+    (group.members || []).forEach(function (id, index) {
+      PLACE_IN[id] = index;
+    });
+  });
+
+  /* The middle value, which is the honest single number for a set of texts: a mean is
+     dragged by the one hard thing in it, and Berdichevsky's thirty-nine range from 13 to
+     20. Zero where nothing in the collection has been measured — the row then says "—"
+     exactly as an unmeasured text does. */
+  function middle(numbers) {
+    var real = numbers.filter(function (n) {
+      return n > 0;
+    });
+    if (!real.length) return 0;
+    real.sort(function (a, b) {
+      return a - b;
+    });
+    return real[Math.floor(real.length / 2)];
+  }
+
+  /* What every row of a set agrees on, or "" where they do not. The Torah is all
+     Biblical and says so; a collection of an author's essays and novels has no one kind
+     and leaves the column empty rather than picking one of them. */
+  function shared(rows, field) {
+    var first = rows.length ? rows[0][field] : "";
+    for (var i = 1; i < rows.length; i++) if (rows[i][field] !== first) return "";
+    return first;
+  }
+
+  /* One collection, as a row. Its columns are its members' columns added up, which is
+     what makes it sortable and filterable beside them rather than pinned somewhere. */
+  function fold(group, rows) {
+    return {
+      id: "group:" + group.id,
+      group: group,
+      rows: rows,
+      entry: null,
+      title: group.title,
+      english: group.english,
+      author: "",
+      language: rows[0].language,
+      kind: shared(rows, "kind"),
+      register: shared(rows, "register"),
+      difficulty: middle(
+        rows.map(function (row) {
+          return row.difficulty || 0;
+        })
+      ),
+      minutes: rows.reduce(function (total, row) {
+        return total + (row.minutes || 0);
+      }, 0),
+      spoken: rows.some(function (row) {
+        return row.spoken;
+      }),
+      built: null,
+      opened: 0,
+    };
+  }
+
+  /* The surviving rows, with each collection's members folded into one. In the
+     collections' own order, so a shelf does not jump about as the sort changes — the
+     fold is a fact about the catalogue and the sort is a question about the list. */
+  function folded(showing) {
+    var mine = {};
+    var loose = [];
+    showing.forEach(function (row) {
+      var group = GROUP_OF[row.id];
+      if (!group) {
+        loose.push(row);
+        return;
+      }
+      (mine[group.id] = mine[group.id] || []).push(row);
+    });
+    var out = loose;
+    collections.forEach(function (group) {
+      var kept = mine[group.id];
+      if (!kept) return;
+      // One survivor is not a collection: folding it would hide a single text behind a
+      // click and say "1 text" where the text's own name would do.
+      if (kept.length < 2) {
+        out = out.concat(kept);
+        return;
+      }
+      out.push(fold(group, kept));
+    });
+    return out;
+  }
+
+  /* Which collections are open. Remembered, because a reader who opened the Mishneh
+     Torah to look through it has not finished looking. Not `opened`, which the reader's
+     own open-counts already are, and which shadows this inside the callback all of it
+     runs in. */
+  var unfolded = stored("targum:opened-groups");
+
+  function isOpen(group) {
+    // A search opens everything it found. A reader who types "teshuvah" and is shown
+    // one closed row saying "Mishneh Torah" has been told the search failed.
+    if (view.find) return true;
+    return !!unfolded[group.id];
+  }
+
   /* --- drawing one ----------------------------------------------------------- */
 
   function gauge(row) {
@@ -323,8 +466,9 @@
     return "";
   }
 
-  function draw(row) {
-    var item = el("li");
+  function draw(row, member) {
+    if (row.group) return drawGroup(row);
+    var item = el("li", member ? "member" : null);
     item.setAttribute("data-row", row.id);
 
     var open = el(row.built ? "a" : "button", "row-open");
@@ -424,6 +568,61 @@
     return item;
   }
 
+  /* A collection, as one row on the same grid as every other. Same columns in the same
+     places, because a row that lines up with the ones under it is read as one of them —
+     and a disclosure where the cover would be, because a collection has no cover and a
+     triangle in a column of its own would push every other row out of true. */
+  function drawGroup(row) {
+    var group = row.group;
+    var item = el("li", "group" + (isOpen(group) ? " open" : ""));
+    item.setAttribute("data-row", row.id);
+
+    var open = el("button", "row-open row-group");
+    open.type = "button";
+    open.setAttribute("aria-expanded", isOpen(group) ? "true" : "false");
+    open.setAttribute("data-group", group.id);
+
+    var caret = el("span", "row-fold");
+    caret.setAttribute("aria-hidden", "true");
+    open.appendChild(caret);
+
+    var what = el("span", "what");
+    var title = el("span", "row-title");
+    title.setAttribute("lang", row.language);
+    title.appendChild(el("bdi", null, row.title));
+    // Where the beginner's path is, when the shelf holding it is shut. The chip is on
+    // the scene itself once this is open; closed, a hundred scenes behind one row would
+    // otherwise take the only line on the page that says where to start.
+    if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
+      var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
+      chip.setAttribute("role", "status");
+      title.appendChild(chip);
+    }
+    what.appendChild(title);
+    // The English and the count on one line, the way a text carries its English and its
+    // byline: what this is, then how much of it there is.
+    var under = el("span", "row-english", row.english || "");
+    under.setAttribute("lang", "en");
+    under.setAttribute("dir", "ltr");
+    under.appendChild(
+      el("span", "row-by-after", (row.english ? " · " : "") + row.rows.length + " texts")
+    );
+    what.appendChild(under);
+    if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
+    open.appendChild(what);
+
+    open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
+    open.appendChild(el("span", "col label drop", named(REGISTERS, row.register)));
+    open.appendChild(el("span", "col count", said(row.minutes)));
+    var hard = gauge(row);
+    hard.className = "gauge drop";
+    open.appendChild(hard);
+    open.appendChild(el("span", "row-state"));
+
+    item.appendChild(open);
+    return item;
+  }
+
   /* --- sorting and sifting ---------------------------------------------------- */
 
   var SORTS = {
@@ -435,8 +634,10 @@
     kind: function (row) {
       return named(KINDS, row.kind);
     },
+    // By age, not by label. See REGISTER_ORDER.
     register: function (row) {
-      return named(REGISTERS, row.register);
+      var place = REGISTER_ORDER[row.register];
+      return typeof place === "number" ? place : REGISTERS.length;
     },
     minutes: function (row) {
       return row.minutes || 0;
@@ -506,12 +707,33 @@
       // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
       // titles and the bylines are both in Hebrew, and the only Latin a text carries is
       // the sentence describing it and its own id.
-      var hay = [row.title, row.english, row.author, row.entry ? row.entry.blurb : "", row.id]
+      // The collection a text is in, too: a reader typing "mishneh torah" is looking for
+      // its thirteen sections, and not one of them has those words anywhere in it.
+      var holds = GROUP_OF[row.id];
+      var hay = [
+        row.title,
+        row.english,
+        row.author,
+        row.entry ? row.entry.blurb : "",
+        row.id,
+        holds ? holds.title + " " + holds.english : "",
+      ]
         .join(" ")
         .toLowerCase();
       if (hay.indexOf(state.find.toLowerCase()) < 0) return false;
     }
     return true;
+  }
+
+  /* The rows inside one open collection. An ordered collection — a work read front to
+     back — keeps its own order whatever column the page is sorted on, for the reason the
+     scenes already do: Deuteronomy above Genesis because it measures easier is not a
+     Torah. An author's shelf has no such order, and takes the reader's. */
+  function within(group, rows) {
+    if (!group.ordered) return sorted(rows);
+    return rows.slice().sort(function (a, b) {
+      return (PLACE_IN[a.id] || 0) - (PLACE_IN[b.id] || 0);
+    });
   }
 
   function sorted(list) {
@@ -798,7 +1020,17 @@
 
     function redraw() {
       remember("targum:library", view);
-      chips(document.getElementById("register-chips"), REGISTERS, "register", redraw, "segment");
+      // Only the registers actually in front of this reader, the same way the kinds are.
+      // Two values could always both be offered; five cannot — a shelf of Hebrew
+      // journalism would otherwise carry four chips that find nothing.
+      chips(
+        document.getElementById("register-chips"),
+        REGISTERS,
+        "register",
+        redraw,
+        "segment",
+        present(everything, "register", chosen)
+      );
       // Only the kinds that are actually in front of this reader. A row of seven chips
       // where three of them find nothing — and one of them is "Documents" — is seven
       // things to read and four dead ends.
@@ -816,14 +1048,23 @@
       tabs(document.getElementById("where"), WHERE, "where", redraw);
       heading(redraw);
 
-      var showing = sorted(
-        everything.filter(function (row) {
-          return matches(row, chosen);
-        })
-      );
+      var surviving = everything.filter(function (row) {
+        return matches(row, chosen);
+      });
+      var top = folded(surviving);
+      /* A list that is one collection is that collection. Picking the Scenes chip and
+         being shown a single row saying "Scenes · 100 texts" is the filter answering a
+         question with the question. */
+      if (top.length === 1 && top[0].group) top = top[0].rows;
+      var showing = sorted(top);
       host.textContent = "";
       showing.forEach(function (row) {
         host.appendChild(draw(row));
+        if (row.group && isOpen(row.group)) {
+          within(row.group, row.rows).forEach(function (member) {
+            host.appendChild(draw(member, true));
+          });
+        }
       });
       placeNote(noteFor(showing));
       pointAt();
@@ -842,10 +1083,12 @@
             : "Nothing here yet.";
       }
       var total = here.length;
+      // Texts, not rows. A folded list is thirty-six rows over three hundred and
+      // fifty-two texts, and counting the rows would say "36 of 352" — two different
+      // things, in one sentence, both of them true.
+      var found = surviving.length;
       tally.textContent =
-        showing.length === total
-          ? total + (total === 1 ? " text" : " texts")
-          : showing.length + " of " + total;
+        found === total ? total + (total === 1 ? " text" : " texts") : found + " of " + total;
       clear.hidden = !(view.find || view.kind || view.register || view.length || view.level);
     }
 
@@ -858,6 +1101,17 @@
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
       if (!wanted) return;
+      /* Inside a collection that is shut. Opening it is a smaller thing to do to the
+         reader's page than lifting every filter they set, so it is tried first — and
+         only once, for the reason `lifted` exists. */
+      var holding = GROUP_OF[wanted];
+      if (holding && !unfolded[holding.id] && !lifted) {
+        lifted = true;
+        unfolded[holding.id] = true;
+        remember("targum:opened-groups", unfolded);
+        redraw();
+        return;
+      }
       var row = host.querySelector('[data-row="' + wanted.replace(/"/g, "") + '"]');
       if (row) {
         row.classList.add("pointed");
@@ -905,6 +1159,14 @@
     host.addEventListener("click", function (event) {
       var drawing = event.target.closest ? event.target.closest("[data-draw]") : null;
       if (drawing) return drawCovers(drawing, drawing.getAttribute("data-draw"));
+      var folding = event.target.closest ? event.target.closest("[data-group]") : null;
+      if (folding) {
+        var which = folding.getAttribute("data-group");
+        unfolded[which] = !unfolded[which];
+        remember("targum:opened-groups", unfolded);
+        redraw();
+        return;
+      }
       var button = event.target.closest ? event.target.closest("[data-build]") : null;
       if (!button) return;
       for (var i = 0; i < everything.length; i++) {
