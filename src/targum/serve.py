@@ -46,6 +46,7 @@ from .render.builder import (
     holding_page,
     legal_is_public,
     legal_page,
+    parasha_page,
     shelf_page,
     signin_page,
     text_page,
@@ -240,6 +241,29 @@ def weekly_url(entry_id: str) -> str | None:
     return f"/weekly/{week}/{level.value}"
 
 
+def parasha_url(entry_id: str) -> str | None:
+    """The address a portion would rather be found at, or None if this is not one.
+
+    The same move `weekly_url` makes, for the same reason: a portion is a catalogue
+    entry so the library lists it, and it has a page of its own that says which Shabbat
+    reads it and offers the chanting marks either way. Two URLs for one text is a
+    duplicate a search engine has to choose between, and this is which one wins.
+
+    Only for a portion that is actually built. An entry naming one that is not is an
+    entry pointing at a 404, and sending a reader there is worse than not listing it.
+    """
+    if not entry_id.startswith("parasha-"):
+        return None
+    from .parasha import build as corpus
+
+    slug = entry_id.removeprefix("parasha-")
+    index = corpus.load()
+    portion = index.portions.get(slug)
+    if portion is None or portion.folder not in corpus.readable(index):
+        return None
+    return f"/parasha/{slug}"
+
+
 #: The three the weekly's own door answers, all of them plain forms so they work with
 #: no JavaScript at all — which matters because two of them are followed out of an email
 #: client, where JavaScript is not a thing that exists.
@@ -256,6 +280,9 @@ WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"
 #: and nothing else, so a path carrying a slash or a dot-dot never reaches the
 #: filesystem check at all.
 WEEKLY_READER = re.compile(r"^/weekly/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
+#: The same shape for the corpus. A portion's folder is its slug, which is lowercase
+#: letters and the hyphen that joins a doubled week.
+PARASHA_READER = re.compile(r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
 
 #: How often one address may ask to be subscribed. The `asked` table and its rail are
 #: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
@@ -2212,6 +2239,103 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- routes -------------------------------------------------------------
 
+    def _serve_parasha(self, route: str) -> None:
+        """The weekly portion, at three addresses.
+
+            /parasha                 whatever is read this Shabbat
+            /parasha/<name>          one portion, any week of the year
+            /parasha/read/<name>/…   one file of a built reader
+
+        The middle one is what makes the corpus a shelf rather than a page that changes:
+        the fifty-four are all built, all the time, and a link to any of them keeps
+        working after the week it was this week's.
+        """
+        from .parasha import build as corpus
+        from .parasha.calendar import Schedule
+
+        reading = PARASHA_READER.match(route)
+        if reading is not None:
+            return self._serve_parasha_reader(reading.group(1), reading.group(2))
+
+        index = corpus.load()
+        if not index.portions:
+            return self._send(404, b"not found", "text/plain")
+
+        wanted = route.removeprefix("/parasha").strip("/")
+        query = parse_qs(urlparse(self.path).query)
+        schedule = (
+            Schedule.israel
+            if query.get("schedule", ["diaspora"])[0] == "israel"
+            else Schedule.diaspora
+        )
+        # Two literals and a comparison on one line pair their quotes in a way
+        # `test_brand.prose` reads as copy, and it then finds an exclamation mark in the
+        # operator. The value gets a name instead; the extractor is a blunt instrument on
+        # purpose and this is cheaper than sharpening it.
+        asked_taamim = query.get("taamim", ["on"])[0]
+        taamim = asked_taamim != "off"
+
+        readable = corpus.readable(index)
+        other_schedule = Schedule.israel if schedule is Schedule.diaspora else Schedule.diaspora
+        here = corpus.current(schedule, index=index)
+        elsewhere = corpus.current(other_schedule, index=index)
+        # A box that built only one schedule — or a week the other one has no pointer
+        # for — should still answer with the reading it does have rather than 404 the
+        # page over a query string. The chip then shows what is actually on screen.
+        if here is None and elsewhere is not None:
+            schedule, other_schedule = other_schedule, schedule
+            here, elsewhere = elsewhere, here
+        if wanted:
+            portion = index.portions.get(wanted)
+            if portion is None or portion.folder not in readable:
+                return self._send(404, b"not found", "text/plain")
+            # A portion asked for by name is not a week, so it has neither a date nor a
+            # Hebrew one: it is read on a different one every year.
+            shabbat = None
+            hdate = ""
+        else:
+            portion = here
+            if portion is None or portion.folder not in readable:
+                return self._send(404, b"not found", "text/plain")
+            from .parasha.calendar import pointing_at
+
+            shabbat = pointing_at()
+            week = index.week(shabbat.isoformat(), schedule)
+            hdate = week.hdate if week is not None else ""
+
+        page = parasha_page(
+            portion,
+            schedule=schedule,
+            other=elsewhere,
+            diaspora=here if schedule is Schedule.diaspora else elsewhere,
+            israel=elsewhere if schedule is Schedule.diaspora else here,
+            listed=[one for one in index.listed() if one.folder in readable],
+            taamim=taamim,
+            shabbat=shabbat,
+            hdate=hdate,
+            address=self.address,
+        )
+        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+
+    def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
+        """One file out of a built portion, and nothing else.
+
+        The same two gates the weekly's reader has: the folder must be one the index
+        knows and has a built reader for, and the file must resolve inside it — which is
+        what makes a name carrying a dot-dot a 404 rather than a way out of the corpus.
+        """
+        from .parasha import build as corpus
+        from .parasha.calendar import root as corpus_root
+
+        if folder not in corpus.readable():
+            return self._send(404, b"not found", "text/plain")
+        base = (corpus_root() / "read" / folder / "reader").resolve()
+        target = (base / (name or "index.html")).resolve()
+        if not target.is_file() or base not in target.parents:
+            return self._send(404, b"not found", "text/plain")
+        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+        return self._send(200, target.read_bytes(), kind, frames="out")
+
     def _serve_weekly(self, route: str) -> None:
         """The weekly, at three addresses.
 
@@ -2423,6 +2547,7 @@ class Handler(BaseHTTPRequestHandler):
             "Allow: /about",
             "Allow: /library",
             "Allow: /weekly",
+            "Allow: /parasha",
             *(f"Allow: {route}" for route in LEGAL_ROUTES if legal_is_public()),
             "Disallow: /account/",
             "Disallow: /reader/",
@@ -2449,7 +2574,27 @@ class Handler(BaseHTTPRequestHandler):
         paths = ["/", "/about", "/library"]
         if legal_is_public():
             paths += list(LEGAL_ROUTES)
-        paths += [f"/library/{entry.id}" for entry in catalogue_module.CATALOGUE]
+        # A portion's catalogue id redirects to its own page, so the id is left out here
+        # and the page named below instead: listing both is asking a crawler to pick.
+        paths += [
+            f"/library/{entry.id}"
+            for entry in catalogue_module.CATALOGUE
+            if not entry.id.startswith("parasha-")
+        ]
+        # The corpus by its own addresses, for the same reason. Every portion, not just
+        # this week's: they are all built, all the time, and each is what somebody
+        # searching that portion's name is looking for.
+        from .parasha import build as corpus
+
+        built = corpus.load()
+        readable_portions = corpus.readable(built)
+        if readable_portions:
+            paths.append("/parasha")
+            paths += [
+                f"/parasha/{portion.slug}"
+                for portion in built.listed()
+                if portion.folder in readable_portions
+            ]
         # The weekly by its own addresses rather than its catalogue ids, which redirect.
         from .weekly import index as weekly
 
@@ -2546,6 +2691,8 @@ class Handler(BaseHTTPRequestHandler):
         # is opened, because a shop window onto an empty shop is not worth having.
         if shelves_are_public() and (route == "/weekly" or route.startswith("/weekly/")):
             return self._serve_weekly(route)
+        if shelves_are_public() and (route == "/parasha" or route.startswith("/parasha/")):
+            return self._serve_parasha(route)
 
         naming = PUBLIC_TEXT.match(route) if shelves_are_public() else None
         if naming is not None:
@@ -2557,6 +2704,11 @@ class Handler(BaseHTTPRequestHandler):
             weekly_at = weekly_url(naming.group(1))
             if weekly_at is not None:
                 return self._moved(weekly_at)
+            # A portion is a catalogue entry so the library lists it, and its own page is
+            # where it says which Shabbat reads it.
+            portion_at = parasha_url(naming.group(1))
+            if portion_at is not None:
+                return self._moved(portion_at)
             entry = catalogue_module.by_id(naming.group(1))
             if entry is None:
                 return self._send(404, b"not found", "text/plain")

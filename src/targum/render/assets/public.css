@@ -660,6 +660,153 @@ body.public {
   width: 100%;
   height: auto;
 }
+/* The parasha's hero: a band the width of the window, split down the middle — ink and
+   the words on one side, a photograph of a scroll on the other.
+
+   The seam is upright on purpose. A headline over a photograph of writing is a fight,
+   and the usual way to win it is to dim the photograph until it stops being one; this
+   way nothing is ever set over the picture, so the type keeps its contrast and the
+   picture keeps its strength. §12 records why a scroll is allowed here at all.
+
+   Full-bleed by margin rather than by leaving the sheet: the band is inside `main` so
+   the document still reads in order, and `100vw` with a negative margin puts it back
+   across the window. */
+.public .band {
+  /* The band is the dark surface in both themes, and these are constants rather than
+     tokens on purpose. In light it is §9's one inverted block. In dark it is the page's
+     own ground, so the panel disappears and the picture is left floating — which is
+     better than the alternative and is the reason not to reach for `--ink-max` here:
+     that pair flips with the theme, and flipping turns this into a pale panel sitting on
+     a dark page. Every value below is in §4's table; only the flipping is given up. */
+  --band-ground: #171614;
+  --band-ink: #e6e1d8;
+  --band-bright: #fffdf9;
+  --band-accent: #c8a778;
+  width: 100vw;
+  margin: 0 calc(50% - 50vw) 2.5rem;
+  background: var(--band-ground);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 21rem;
+}
+.public .band .said {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* The words line up with the sheet's own measure, so the headline sits where every
+     other first line on the page sits rather than wherever half the window falls. */
+  /* Logical, like everything else here: §8 asks for properties that mirror with the
+     page rather than a left and a right. */
+  padding-block: 2.25rem;
+  padding-inline: max(1.5rem, calc(50vw - 26rem)) 3rem;
+  color: var(--band-ink);
+}
+.public .band .eyebrow {
+  margin-block-end: 0.7rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  /* The accent's pale cut: on ink it is the one that carries, in either theme (§4). */
+  color: var(--band-accent);
+}
+.public .band .pitch {
+  margin: 0 0 0.6rem;
+  max-width: 18ch;
+  font-family: var(--reading);
+  font-size: 2.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  color: var(--band-bright);
+}
+.public .band .named {
+  font-family: var(--reading-hebrew);
+  font-size: 1.5rem;
+  line-height: var(--leading-rtl);
+  color: var(--band-ink);
+}
+.public .band .pic {
+  position: relative;
+  overflow: hidden;
+}
+.public .band .pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 55% 50%;
+}
+
+/* On a phone the seam turns with the layout: the picture takes the top and the words sit
+   under it, because two columns at 390px is two columns of nothing. */
+@media (max-width: 60rem) {
+  .public .band {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .public .band .pic {
+    order: -1;
+    height: 11rem;
+  }
+  .public .band .said {
+    padding-block: 1.5rem 1.75rem;
+    padding-inline: 1.5rem;
+  }
+  .public .band .pitch {
+    font-size: 2.25rem;
+    max-width: none;
+  }
+}
+
+/* The portion's name inside an English sentence. The reading face rather than the UI
+   one, and at the size of the line it sits in: §5 asks that Hebrew is never scaled
+   below the Latin beside it, and a pointed name set at the sentence's own size is what
+   that means here. */
+.public .dateline .named,
+.public .cta .go bdi {
+  font-family: var(--reading-hebrew);
+  font-weight: 600;
+}
+
+/* Which schedule, and whether they differ this week. A line rather than a switcher
+   whenever both read the same portion, which is most of the year: two chips offering
+   the same name is a control that teaches nothing. */
+.public .schedules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.8125rem;
+}
+.public .schedules .apart {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+.public .schedules .schedule {
+  /* The same tap area as the level chips it sits under: this control is read on a
+     phone, and 24px was a target you had to aim at. */
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.public .schedules .schedule.here {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* Every portion, at the foot. The weekly's source rows, with the Hebrew name doing the
+   work the headline does there. */
+.public .portions .story {
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+}
+
 /* The dateline under This week: the weekly, introduced as what it is — the reader,
    demonstrated on the news, free, every Monday. Ink, not muted: it is the one line
    that says why an issue is on the page. */
