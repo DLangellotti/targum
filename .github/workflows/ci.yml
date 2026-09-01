@@ -19,6 +19,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      # ffmpeg is a system dependency, not an extra, so nothing in `uv sync` can bring it.
+      # Every other optional piece here either skips its tests when absent or is a Python
+      # package; this one does neither — the pipeline raises "ffmpeg is not installed" and
+      # the audio and video tests fail rather than skipping. CI never had it, and nothing
+      # needed it until the audio import landed with a hard check, so master went red on
+      # the commit that added the tests rather than on anything about this file.
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       # `phonetics` is here so the readings are exercised rather than skipped. It caps
       # Python below 3.13, so adding 3.13 to the matrix above means dropping this extra
       # from that leg — the failure is a resolution error, which is loud but obscure.
