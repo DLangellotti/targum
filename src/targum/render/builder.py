@@ -312,8 +312,18 @@ class Spoken(NamedTuple):
     #: and nothing else does.
     label: str = "the scene"
     #: Per segment, each written word's clock — [charStart, charEnd, start, end] — for
-    #: the card's own ear. Only the imported path has these today; everywhere else the
-    #: card simply offers no sound, the way the phrase chip asks only where the page can.
+    #: the card's own ear. Everywhere else the card simply offers no sound, the way the
+    #: phrase chip asks only where the page can.
+    #:
+    #: Only `_imported` and `_read_along` fill this, and not because the other branches
+    #: forgot: a word clock exists only where something timed the audio word by word.
+    #: ASR returns word timings for an upload, and `recording.attach` runs the forced
+    #: aligner over a LibriVox reading. Scripture was attached verse by verse and no
+    #: word-level pass was ever run over it, a dialogue's turns come back from the voice
+    #: with turn boundaries and nothing finer, and the weekly is read straight through.
+    #: So `_read_aloud`, `_scene` and `_read_through` have nothing to put here, and
+    #: passing them an empty dict would be the same silence spelled longer. Giving the
+    #: library's readers a card that speaks is a data pass, not an argument.
     words: dict[str, list[list[float]]] = {}
     #: The part's video cut on disk, or "". Never a data URI: the one file too heavy to
     #: inline rides beside the reader instead — `render()` copies it and writes the
@@ -939,6 +949,65 @@ def shelf_page(address: str = "") -> str:
     )
 
 
+def text_schema(entry: Entry, address: str = "") -> dict[str, Any]:
+    """What a text page is about, in the vocabulary a search engine reads.
+
+    Every one of these pages carries a title, a byline, a translator and two lines of the
+    text itself, and until now said none of it in a form a machine could read — so four
+    hundred pages about four hundred books looked like four hundred pages.
+
+    **Nothing goes in here that the catalogue actually knows.** `author` is the trap: the
+    field holds a person for the moderns and something else entirely for the rest —
+    `Ketuvim · Ruth`, `משנה · סדר זרעים` — and writing those down as a Person would be
+    telling a machine something untrue in order to fill a slot. A byline carrying `·` is
+    a place, not a person, and is left out. What a text belongs to is said instead by
+    `isPartOf`, off the collections, which is real structure rather than a guess at one.
+
+    `inLanguage` is the source's, because that is what the work is in; the translation is
+    named as a separate `workTranslation` rather than folded in, since who made it is the
+    thing a reader of scripture decides on.
+    """
+    from ..catalogue import collection_of
+
+    about: dict[str, Any] = {
+        "@context": "https://schema.org",
+        "@type": "Book",
+        "name": entry.title,
+        "inLanguage": entry.language,
+    }
+    if entry.english:
+        about["alternateName"] = entry.english
+    if entry.blurb:
+        about["description"] = entry.blurb
+    if entry.author and "·" not in entry.author:
+        about["author"] = {"@type": "Person", "name": entry.author}
+    if address:
+        about["url"] = f"{address}/library/{entry.id}"
+    holding = collection_of(entry.id)
+    if holding is not None:
+        about["isPartOf"] = {
+            "@type": "Book",
+            "name": holding.title,
+            **({"alternateName": holding.english} if holding.english else {}),
+        }
+    if entry.translations:
+        about["workTranslation"] = [
+            {
+                "@type": "Book",
+                "name": rendering.name,
+                "inLanguage": "en",
+                **(
+                    {"publisher": {"@type": "Organization", "name": rendering.publisher}}
+                    if rendering.publisher
+                    else {}
+                ),
+                **({"license": rendering.licence} if rendering.licence else {}),
+            }
+            for rendering in entry.translations
+        ]
+    return about
+
+
 def text_page(entry: Entry, address: str = "") -> str:
     """One text, for somebody who has not signed in.
 
@@ -955,6 +1024,8 @@ def text_page(entry: Entry, address: str = "") -> str:
             title=f"{entry.title} — {name} — targum",
             description=entry.blurb,
             canonical=f"{address}/library/{entry.id}" if address else "",
+            og_type="book",
+            structured=text_schema(entry, address),
             entry=entry,
             shelf_name=name,
             direction=direction_for(entry.language),
@@ -1033,6 +1104,66 @@ def weekly_page(
             archive=[other for other in (archive or []) if other.id != issue.id],
         )
     )
+
+
+def daily_page(
+    cycle: Any,
+    day: Any,
+    *,
+    nearby: list[Any] | None = None,
+    others: list[tuple[Any, str]] | None = None,
+    absent: list[tuple[str, str]] | None = None,
+    opens: str = "index.html",
+    is_today: bool = True,
+    address: str = "",
+) -> str:
+    """One day of a learning cycle, with its own reader inside it.
+
+    The parasha's page without the hero: a portion is a week and can carry a photograph,
+    a day is a day, and somebody who came for today's two mishnayot came to read them.
+    Everything it needs was decided at build time; what is left at serve time is a lookup.
+    """
+    return (
+        _environment()
+        .get_template("daily.html.j2")
+        .render(
+            title=f"{day.title} — {cycle.name} — targum",
+            # The reference goes in the description because it is how somebody who keeps
+            # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
+            # sentence about it.
+            description=(
+                f"{cycle.name} for {day.hdate}: {day.title}. {cycle.blurb} "
+                "The Hebrew pointed, a translation beside every line, and every word "
+                "explained."
+            ),
+            canonical=f"{address}/{cycle.slug}" if address and is_today else "",
+            og_type="article",
+            cycle=cycle,
+            day=day,
+            nearby=nearby or [],
+            others=others or [],
+            absent=absent or [],
+            opens=opens,
+            is_today=is_today,
+            translation_said=_translation_said(day),
+        )
+    )
+
+
+def _translation_said(day: Any) -> str:
+    """Who made the English on a daily page, in a sentence.
+
+    Off the catalogue rather than written down here, so a page never credits an edition
+    the shelf has since swapped.
+    """
+    from ..daily.cut import entry_for
+
+    entry = entry_for(day.span.book) if getattr(day, "span", None) else None
+    if entry is None or not entry.translations:
+        return "a published translation"
+    rendering = entry.translations[0]
+    who = rendering.publisher or rendering.name
+    return f"{rendering.name}" + (f", published by {who}" if rendering.publisher else "")
 
 
 def parasha_page(
@@ -1146,7 +1277,7 @@ def library_page(token: str) -> str:
     ship with targum, and a page that has to ask the server for them would be a page
     that can be empty.
     """
-    from ..catalogue import everything
+    from ..catalogue import collections, everything
     from ..translate.prompts import OFFERED
 
     return (
@@ -1155,6 +1286,10 @@ def library_page(token: str) -> str:
         .render(
             token=token,
             catalogue=[entry.state() for entry in everything()],
+            # Which texts the page meets as one thing. Baked in beside the catalogue and
+            # for the same reason — and only the members actually on the shelf, so a
+            # collection can never open onto a row that is not there.
+            collections=[group.state() for group in collections()],
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )

@@ -27,7 +27,7 @@ import json
 import os
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from functools import cache
 from pathlib import Path
@@ -50,8 +50,9 @@ class Tag(StrEnum):
     #: The twenty-four books.
     tanakh = "tanakh"
     #: Jewish and religious, but not Tanakh — liturgy, Mishnah, rabbinic commentary.
-    #: Nothing in the catalogue carries it yet; it is here so `tanakh` is a vocabulary
-    #: rather than a synonym for the whole idea.
+    #: It was a vocabulary with nothing in it for a long time, on purpose, so that
+    #: `tanakh` could not quietly become a synonym for the whole idea. The Mishneh Torah,
+    #: the Kuzari and the weekday siddur are what filled it.
     judaica = "judaica"
     #: Reported writing, written to be read the week it happened. The register a learner
     #: meets in a newspaper and nowhere else on this shelf.
@@ -104,9 +105,36 @@ class Register(StrEnum):
     Someone fluent in the news is not fluent in Samuel, and the reverse is commoner
     still. The distinction matters more here than in most languages, so it is a field
     rather than something to be inferred from a tag downstream.
+
+    **Five values, oldest to newest, because two of them were a lie about half the
+    shelf.** `biblical` and `modern` were the whole vocabulary for as long as the
+    catalogue held scripture and journalism. It stopped being true twice. The Mishneh
+    Torah and the siddur are not the Hebrew of the Tanakh. And a hundred and fifty-three
+    of the entries filed `modern` were written between 1853 and 1930 — Mapu, Mendele,
+    Ahad Ha'am, Ben-Yehuda's own journalism, Brenner, Gnessin, Berdichevsky — in a
+    literary Hebrew built deliberately out of the biblical and rabbinic layers, before
+    the spoken language settled. The measurement agrees with the reader: Gnessin comes
+    out at 26-31% hard words and Mapu at 25, against 11-19 for the news filed beside
+    them. A reader who filters for the Hebrew they can read was being handed Gnessin.
+
+    The order below is the order the library shows them in, and it is chronological
+    rather than alphabetical: the field is a ramp a learner climbs, and sorting `Modern`
+    above `Rabbinic` because M precedes R would throw that away.
     """
 
+    #: The Tanakh.
     biblical = "biblical"
+    #: Mishnah, Talmud, midrash, the codes, the liturgy. The Hebrew of the study house.
+    rabbinic = "rabbinic"
+    #: Andalusia and Provence: philosophy, and the Tibbonide Hebrew built to carry Arabic
+    #: argument. Its own value rather than a corner of `rabbinic` because it is a
+    #: translator's language — a calque syntax nobody ever spoke — and a reader who can
+    #: follow a page of Mishnah is not thereby able to read the Kuzari.
+    medieval = "medieval"
+    #: 1850 to 1930, the Haskalah and the revival. Written Hebrew before there were
+    #: native speakers of it, and the largest shelf in the catalogue.
+    revival = "revival"
+    #: Hebrew as it is written today.
     modern = "modern"
     #: Anything not in Hebrew, where the axis does not apply.
     none = ""
@@ -155,6 +183,51 @@ class Rendering:
     note: str = ""
     publisher: str = ""
     licence: str = ""
+
+
+@dataclass(frozen=True)
+class Collection:
+    """Several texts a reader meets as one thing.
+
+    The library is one row per text, which was the right shape for forty texts and stops
+    being it somewhere around a hundred: the Mishneh Torah is thirteen rows of `הלכות …`,
+    Berdichevsky is thirty-nine stories, and the Mishnah would be sixty-three tractates.
+    A reader asking what to read cannot see past any of them. So a collection collapses to
+    one row carrying what the whole of it is, and opens where it stands.
+
+    It is deliberately one concept for two things a reader does not distinguish: a work
+    with parts (the Torah, the Mishneh Torah, the Kuzari) and everything one author wrote
+    (Brenner, Berdichevsky). Both answer the same question — *these forty rows are one
+    thing* — and a second concept would be a second thing to file every new text under.
+
+    Membership lives here rather than on the entry, in one ordered list, because the order
+    is half the point: `ordered` says whether it is a real one.
+    """
+
+    id: str
+    #: The Hebrew name, which is what the row shows.
+    title: str
+    #: Under it, in ink, the way every other row carries its English.
+    english: str
+    blurb: str = ""
+    #: Entry ids. The order is the reading order where there is one.
+    members: tuple[str, ...] = ()
+    #: Whether that order means something. True for a work read front to back — the five
+    #: books, the sixty-three tractates — and the list inside keeps it whatever column the
+    #: page is sorted on, the way the scenes already do. False for an author's shelf,
+    #: where the order is only the order somebody typed them in and the reader's sort is
+    #: the better one.
+    ordered: bool = False
+
+    def state(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "english": self.english,
+            "blurb": self.blurb,
+            "members": list(self.members),
+            "ordered": self.ordered,
+        }
 
 
 @dataclass(frozen=True)
@@ -410,6 +483,17 @@ def _entry(raw: dict[str, Any]) -> Entry:
     )
 
 
+def _collection(raw: dict[str, Any]) -> Collection:
+    return Collection(
+        id=str(raw["id"]),
+        title=str(raw["title"]),
+        english=str(raw.get("english", "")),
+        blurb=str(raw.get("blurb", "")),
+        members=tuple(str(member) for member in raw.get("members", [])),
+        ordered=bool(raw.get("ordered", False)),
+    )
+
+
 @cache
 def _read() -> dict[str, Any]:
     path = catalogue_path()
@@ -428,9 +512,21 @@ def load() -> list[Entry]:
     return [_entry(raw) for raw in _read().get("entries", [])]
 
 
+def load_collections() -> list[Collection]:
+    """Every collection in the catalogue file, in its order.
+
+    A collection naming an entry that is not there is not an error: the catalogue is data
+    and a member can be removed without the collection having to know. What it must never
+    do is claim the entry is on the shelf — `members_of` answers from the shelf itself.
+    """
+    return [_collection(raw) for raw in _read().get("collections", [])]
+
+
 BOUGHT_WITH = str(_read().get("bought_with") or BOUGHT_WITH)
 
 CATALOGUE: list[Entry] = load()
+
+COLLECTIONS: list[Collection] = load_collections()
 
 
 def beit_midrash() -> list[Entry]:
@@ -457,6 +553,29 @@ def everything() -> list[Entry]:
     from .weekly import entries as weekly_entries
 
     return [*CATALOGUE, *weekly_entries.entries()]
+
+
+def collections() -> list[Collection]:
+    """The collections, with only the members that are actually on the shelf.
+
+    Asked of the shelf rather than trusted, and empty ones are dropped: a collection whose
+    texts are all gone is a row that opens onto nothing.
+    """
+    have = {entry.id for entry in everything()}
+    kept: list[Collection] = []
+    for collection in COLLECTIONS:
+        members = tuple(member for member in collection.members if member in have)
+        if len(members) > 1:
+            kept.append(replace(collection, members=members))
+    return kept
+
+
+def collection_of(entry_id: str) -> Collection | None:
+    """Which collection a text belongs to, or None. A text is in at most one."""
+    for collection in collections():
+        if entry_id in collection.members:
+            return collection
+    return None
 
 
 def by_id(entry_id: str) -> Entry | None:

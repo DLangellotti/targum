@@ -28,7 +28,7 @@ import traceback
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from functools import cache, lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +43,7 @@ from .pipeline import Build, Result
 from .render.builder import (
     LEGAL,
     about_page,
+    daily_page,
     holding_page,
     legal_is_public,
     legal_page,
@@ -169,11 +170,14 @@ POLICY = (
     "frame-ancestors 'none'"
 )
 
-# What one reader may spend in the window, against what the whole machine may. The
-# per-account figure is a safety rail for the alpha and not a plan limit: Milestone C
-# settles what a tier actually allows, in texts and pages rather than dollars, once the
-# real numbers from `usage` have been watched for a while.
-ACCOUNT_BUDGET = 3.00
+# What one reader may spend in a day. **A rate limit and nothing else** — it exists to
+# stop a loop or a scraper, never to ration reading, and the message it produces says so.
+# Sized so that no honest reader meets it: at $0.125 per thousand words this is around
+# eighty thousand words a day, a novel between breakfast and bed. A reader who wants two
+# novels in one day waits until tomorrow; a script that wants two hundred does not get
+# them. Raised from $3.00 when text uploads became unlimited, since $3.00 refused a
+# single long book and made "unlimited" a word the server did not honour.
+ACCOUNT_BUDGET = 10.00
 
 # What one reader is allowed in a calendar month. The daily rail above is a rate limit —
 # it stops one afternoon running away — and for a while it was standing in for a plan
@@ -184,7 +188,30 @@ ACCOUNT_BUDGET = 3.00
 # name — "back on the 1st" is a date somebody can plan around, where "back in a few days"
 # is a shrug. It costs a month boundary where readers get their allowance back at once,
 # which for an alpha of a handful of people is not a thundering herd.
-MONTH_BUDGET = 10.00
+# There was a monthly money cap on a reader here, and its removal is the feature: text
+# uploads are unlimited, so the only thing a subscriber is held to is the audio allowance
+# below. What remains in money is a rate limit and a runaway guard, both of which stop a
+# loop rather than ration reading. Nothing may reintroduce a per-reader monthly ceiling
+# without making the pricing page a lie — `test_usage.py` holds that.
+
+# What a subscription allows in a month, and the only limit a reader is ever told about:
+# eight hours of audio. Both directions count against it — a recording transcribed on the
+# way in, speech synthesised on the way out — because those are the two things this
+# product buys by the clock, and a reader who has spent an hour does not care which
+# direction it went. Text uploads are not metered here at all; they are bounded by the
+# money rails above, which the reader never sees.
+#
+# In seconds, because every duration in the codebase is: `probe.duration`, the audio
+# manifest, the recording spans. Hours are the unit on the pricing page and nowhere else.
+#
+# Eight rather than ten, and the reason is the sentence rather than the cost: eight hours
+# is roughly two hours a week, which is a shape a reader can picture against their own
+# week, where ten hours a month is a quantity they have to convert first. Seven would
+# have been cheaper still and maps onto no phrase at all. The page says "8 hours a
+# month" and never "two hours a week" — a calendar month is 4.35 weeks, so eight hours
+# is 1.84 of them, and printing the rounder sentence would over-promise by 9%.
+UPLOAD_HOURS = 8
+UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
 
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
@@ -280,9 +307,48 @@ WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"
 #: and nothing else, so a path carrying a slash or a dot-dot never reaches the
 #: filesystem check at all.
 WEEKLY_READER = re.compile(r"^/weekly/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
+
+
 #: The same shape for the corpus. A portion's folder is its slug, which is lowercase
 #: letters and the hyphen that joins a doubled week.
+def daily_is_indexed() -> bool:
+    """Whether search engines are invited to the daily learning pages.
+
+    Its own switch rather than the parasha's, which is what they rode on for the
+    afternoon they were built. Sharing one would mean that inviting crawlers to fifty-four
+    portions — a corpus that is finished, and the same fifty-four every year — also
+    invited them to four pages that change every night and were a day old. The two are
+    ready at different times and now say so separately.
+
+    Off unless the deployment says. While it is off every daily response carries
+    `X-Robots-Tag: noindex` and the sitemap does not mention the cycles. Not robots.txt,
+    for the reason `weekly_is_indexed` gives: a crawler barred there never fetches the
+    page, so it never sees the noindex, and an address it learned elsewhere can still be
+    indexed bare. The header is the instruction; the open door is what lets it be read.
+    """
+    return os.environ.get("TARGUM_INDEX_DAILY", "").strip().lower() in {"1", "true", "yes"}
+
+
+def daily_cycles() -> tuple[Any, ...]:
+    """The learning cycles this shelf carries. A function rather than an import at the
+    top, because `serve` is imported to answer one request and `daily` pulls the
+    catalogue in behind it."""
+    from .daily.cycles import CYCLES
+
+    return CYCLES
+
+
 PARASHA_READER = re.compile(r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
+
+#: A learning cycle at its own address: `/mishna-yomi`, `/mishna-yomi/2026-09-01`, and
+#: one file of a built reader under `/mishna-yomi/read/<date>/reader/…`. The slugs are the
+#: four this shelf carries and nothing else matches, so a cycle Hebcal publishes and
+#: targum does not is a 404 rather than an empty page.
+DAILY_ROUTE = re.compile(r"^/(mishna-yomi|nach-yomi|tanakh-yomi|tehillim)(/.*)?$")
+#: How many days either side of the one on screen the chip row offers.
+NEARBY_DAYS = 3
+
+DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.html)?$")
 
 #: How often one address may ask to be subscribed. The `asked` table and its rail are
 #: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
@@ -340,7 +406,12 @@ NOT_OPEN = "targum is not open yet."
 THUMBS = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "image/jpeg"))
 
 MAX_COST = 2.00
-SESSION_BUDGET = 10.00
+# The runaway guard for the whole box in a day, and the one rail waived for nobody —
+# not even an admin, because a loop at three in the morning does not care whose account
+# it is on. It has to sit well clear of `ACCOUNT_BUDGET`: at parity, one reader having a
+# long day would close the box for everybody else, which is a worse failure than the one
+# it prevents. Four readers at their daily rate.
+SESSION_BUDGET = 40.00
 
 # The budget used to last as long as the process, which meant restarting handed it back
 # in full. It is a rolling day instead: it survives a restart, and it does not brick the
@@ -563,7 +634,7 @@ class Library:
         budget: float = SESSION_BUDGET,
         store: Store | None = None,
         account_budget: float | None = ACCOUNT_BUDGET,
-        month_budget: float | None = MONTH_BUDGET,
+        upload_seconds: float | None = UPLOAD_SECONDS,
         mailer: Mailer | None = None,
         address: str = "",
     ) -> None:
@@ -589,7 +660,7 @@ class Library:
         self.max_cost = max_cost
         self.budget = budget
         self.account_budget = account_budget
-        self.month_budget = month_budget
+        self.upload_seconds = upload_seconds
         self.store = store
         self.adopt()
         self.empty_trash()
@@ -903,9 +974,6 @@ class Library:
         day = self._since()
         if self.store.committed(day) >= self.budget:
             return self._out_of("everyone")
-        if self.month_budget is not None:
-            if self.store.committed(self._month_from(), job.owner) >= self.month_budget:
-                return self._out_of("month")
         if self.account_budget is not None:
             if self.store.committed(day, job.owner) >= self.account_budget:
                 return self._out_of("account")
@@ -918,15 +986,24 @@ class Library:
         indistinguishable from the product being broken.
         """
         when = f"in {BUDGET_HOURS} hours"
-        if whose == "month":
-            # A date rather than a duration: this one is a month away, and "in 30 days"
-            # is a number somebody has to do arithmetic on to plan around.
+        if whose == "hours":
+            # The one refusal a reader was warned about on the pricing page, so it says
+            # the same number that page did rather than translating into money — and it
+            # reads that number off this library's own allowance rather than the module
+            # constant, because a server configured to a different one must not quote a
+            # limit it does not enforce. The two agreed while both said ten; they stopped
+            # agreeing the moment the constant moved, which is the whole bug.
+            allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return (
-                f"You have read your fill for this month. Back on {self._month_ends()}. "
-                "The library is always free."
+                f"That is your {allowed / 3600:g} hours of audio for this month. "
+                f"More on {self._month_ends()}. Text uploads carry on, and the "
+                "library is always free."
             )
         if whose == "account":
-            return f"You have read your fill for now. Back {when}. The library is always free."
+            # Never "you have read your fill". Nothing here is a limit on reading — text
+            # is unlimited and the library is free — so a refusal must not imply that a
+            # reader has used something up. This one is a rate limit and says so.
+            return f"Building a lot at once. Try again {when}. The library is always free."
         return f"targum is at its limit. Try again {when}, or read from the library."
 
     def why_blocked(self, estimate: float) -> str:
@@ -1461,7 +1538,10 @@ class Library:
                 owner=job.owner,
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
-                per_month=None if admin else self.month_budget,
+                # Only a recording spends the hours. A text upload is any length and
+                # costs no clock time, so it is not charged against them.
+                length=job.seconds if job.audio else 0.0,
+                per_month_length=None if admin else self.upload_seconds,
             )
             if not refused:
                 return ""
@@ -2335,6 +2415,109 @@ class Handler(BaseHTTPRequestHandler):
         )
         return self._send(200, page.encode("utf-8"), HTML, frames="in")
 
+    def _serve_daily(self, slug: str, rest: str) -> None:
+        """One learning cycle, at three addresses.
+
+            /mishna-yomi                  what is read today
+            /mishna-yomi/<date>           one day, while it is in the window
+            /mishna-yomi/read/<date>/…    one file of a built reader
+
+        The middle one is not the parasha's equivalent and cannot be: the corpus there is
+        fifty-four readings that are all built all the time, and a cycle is two thousand
+        days of which fourteen are. So a day outside the window is a 404 — the text is
+        still on the shelf under its own name, which is where somebody looking for last
+        spring's mishnayot is actually going.
+        """
+        from .daily import build as corpus
+        from .daily.calendar import Day, for_day, today
+        from .daily.cycles import ABSENT, BY_SLUG, CYCLES
+
+        if not daily_is_indexed():
+            self._robots_tag = "noindex"
+        cycle = BY_SLUG.get(slug)
+        if cycle is None:
+            return self._send(404, b"not found", "text/plain")
+
+        reading = DAILY_READER.match(rest)
+        if reading is not None:
+            return self._serve_daily_reader(slug, reading.group(1), reading.group(2))
+
+        wanted = rest.strip("/")
+        when = today()
+        if wanted:
+            try:
+                when = date.fromisoformat(wanted)
+            except ValueError:
+                return self._send(404, b"not found", "text/plain")
+        if not corpus.readable(slug, when):
+            return self._send(404, b"not found", "text/plain")
+
+        day = for_day(cycle, when, allow_fetch=False)
+        if day is None:
+            return self._send(404, b"not found", "text/plain")
+
+        # The days either side, and only a few of them. The window holds three weeks and
+        # all twenty-one as chips ran off the edge of the page with today among the ones
+        # that had gone — the row scrolls, so what was cut was the one chip somebody
+        # needs. Three each way fits a desktop whole and puts today in the middle of a
+        # phone's scroll.
+        built = corpus.days_of(slug)
+        around: list[Day] = []
+        for iso in sorted(built):
+            try:
+                other = date.fromisoformat(iso)
+            except ValueError:
+                continue
+            one = for_day(cycle, other, allow_fetch=False)
+            if one is not None and corpus.readable(slug, other):
+                around.append(one)
+        here = next((i for i, one in enumerate(around) if one.day == when), 0)
+        nearby = around[max(0, here - NEARBY_DAYS) : here + NEARBY_DAYS + 1]
+
+        others: list[tuple[object, str]] = []
+        for one_cycle in CYCLES:
+            if one_cycle.slug == slug:
+                continue
+            elsewhere = for_day(one_cycle, today(), allow_fetch=False)
+            if elsewhere is not None and corpus.readable(one_cycle.slug, today()):
+                others.append((one_cycle, elsewhere.hebrew or elsewhere.title))
+
+        page = daily_page(
+            cycle,
+            day,
+            nearby=nearby,
+            others=others,
+            absent=list(ABSENT.items()),
+            opens=corpus.opens_at(slug, when),
+            is_today=when == today(),
+            address=self.address,
+        )
+        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+
+    def _serve_daily_reader(self, slug: str, when: str, name: str | None) -> None:
+        """One file out of a built day, and nothing else.
+
+        The same two gates the portion's reader has: the day must be one this box built,
+        and the file must resolve inside its folder — which is what makes a name carrying
+        a dot-dot a 404 rather than a way out of the corpus.
+        """
+        from .daily import build as corpus
+
+        if not daily_is_indexed():
+            self._robots_tag = "noindex"
+        try:
+            day = date.fromisoformat(when)
+        except ValueError:
+            return self._send(404, b"not found", "text/plain")
+        if not corpus.readable(slug, day):
+            return self._send(404, b"not found", "text/plain")
+        base = (corpus.folder_for(slug, day) / "reader").resolve()
+        target = (base / (name or "index.html")).resolve()
+        if not target.is_file() or base not in target.parents:
+            return self._send(404, b"not found", "text/plain")
+        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+        return self._send(200, target.read_bytes(), kind, frames="out")
+
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
 
@@ -2568,6 +2751,9 @@ class Handler(BaseHTTPRequestHandler):
             "Allow: /library",
             "Allow: /weekly",
             "Allow: /parasha",
+            # The learning cycles, each at its own address. On the same terms as the
+            # parasha — invited only where the deployment invites the shelves at all.
+            *(f"Allow: /{cycle.slug}" for cycle in daily_cycles()),
             *(f"Allow: {route}" for route in LEGAL_ROUTES if legal_is_public()),
             "Disallow: /account/",
             "Disallow: /reader/",
@@ -2616,6 +2802,20 @@ class Handler(BaseHTTPRequestHandler):
                 for portion in built.listed()
                 if portion.folder in readable_portions
             ]
+        # A learning cycle by the one address that is always right: `/mishna-yomi` is
+        # today, forever, and is the page worth indexing. The dated ones are not in here
+        # on purpose — they fall out of the window in a fortnight, and a sitemap naming a
+        # page that will 404 next week is a sitemap that teaches a crawler to distrust it.
+        from .daily import build as daily_corpus
+        from .daily.calendar import today as daily_today
+
+        if daily_is_indexed():
+            paths += [
+                f"/{cycle.slug}"
+                for cycle in daily_cycles()
+                if daily_corpus.readable(cycle.slug, daily_today())
+            ]
+
         # The weekly by its own addresses rather than its catalogue ids, which redirect.
         from .weekly import index as weekly
 
@@ -2714,6 +2914,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_weekly(route)
         if shelves_are_public() and (route == "/parasha" or route.startswith("/parasha/")):
             return self._serve_parasha(route)
+        daily_cycle = DAILY_ROUTE.match(route) if shelves_are_public() else None
+        if daily_cycle is not None:
+            return self._serve_daily(daily_cycle.group(1), daily_cycle.group(2) or "")
 
         naming = PUBLIC_TEXT.match(route) if shelves_are_public() else None
         if naming is not None:

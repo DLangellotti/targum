@@ -171,6 +171,44 @@
 .rows .row-open:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .rows .row-open:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
+/* --- a collection ------------------------------------------------------------
+   Several texts the reader meets as one row, opening where they stand. The row sits on
+   the same grid as every other, so its columns line up with theirs — a disclosure in a
+   column of its own would push the whole list out of true. The triangle therefore takes
+   the place of the cover, which a collection does not have.
+
+   §9: one raised layer per view. An open collection is not a card inside the card the
+   list already is — what marks its members is a hairline down their leading edge and the
+   row above them, which costs no width and keeps every column where it was. */
+.row-fold {
+  inline-size: 2.25rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+/* Shut, it points the way the page reads; open, it points down whichever way that is. */
+.row-fold::before { content: "\25b8"; }
+[dir="rtl"] .row-fold::before { content: "\25c2"; }
+.rows > li.group.open .row-fold::before,
+[dir="rtl"] .rows > li.group.open .row-fold::before { content: "\25be"; }
+.row-group[aria-expanded="true"] .row-fold { color: var(--ink); }
+.rows > li.group .row-title { font-weight: 600; }
+
+/* The members. Inset by a hairline rather than by padding: a row indented far enough to
+   read as nested is a row whose seven columns no longer agree with anybody else's. */
+.rows > li.member { position: relative; }
+.rows > li.member::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 2px;
+  background: var(--rule);
+}
+/* A collection and the first of its members are one thing; the rule between them says
+   they are two. */
+.rows > li.group.open + li.member { border-block-start: none; }
+
 /* A drawn cover where there is one, and the text's own first letter where there is
    not — a Hebrew letterform as pure form, which §10 allows and which beats a grey box
    with nothing in it. */

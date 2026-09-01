@@ -72,6 +72,28 @@
     return d.getTime();
   }
 
+  /* How many words were marked on each local day, keyed by that day's midnight. The
+     growth line walks it as a running total and the day strip colours one square per
+     key; both want the same buckets and a second copy would drift the day boundary.
+     Undated legacy records are dropped rather than piled onto the first day of 2024. */
+  function buckets(words) {
+    var out = {};
+    kept(words || []).forEach(function (word) {
+      if (!(word.at > EARLIEST)) return;
+      var day = dayOf(word.at);
+      out[day] = (out[day] || 0) + 1;
+    });
+    return out;
+  }
+
+  /* Which of five shades a day gets, the same arithmetic the about page's calendar
+     runs in Python (`builder.level`). Zero stays zero rather than rounding up: a day
+     nothing happened on is grey, and the faintest green has to mean something. */
+  function shade(count, busiest) {
+    if (!count || !busiest) return 0;
+    return Math.min(4, 1 + Math.floor((3 * (count - 1)) / Math.max(1, busiest - 1)));
+  }
+
   // Tooltips are positioned against the chart box, so every chart gets one of its own.
   function tipFor(host) {
     var tip = el("div", "tip");
@@ -105,11 +127,7 @@
       return;
     }
 
-    var perDay = {};
-    dated.forEach(function (word) {
-      var day = dayOf(word.at);
-      perDay[day] = (perDay[day] || 0) + 1;
-    });
+    var perDay = buckets(dated);
     var days = Object.keys(perDay)
       .map(Number)
       .sort(function (a, b) {
@@ -621,6 +639,8 @@
     plural: plural,
     shortDate: shortDate,
     dayOf: dayOf,
+    buckets: buckets,
+    shade: shade,
     tipFor: tipFor,
     growth: drawGrowth,
     totals: totals,

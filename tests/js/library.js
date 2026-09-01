@@ -24,12 +24,15 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const byId = install({
   TARGUM_KEY: "k",
   TARGUM_CATALOGUE: payload.catalogue,
+  TARGUM_COLLECTIONS: payload.collections || [],
   TARGUM_LANGUAGES: { he: "Hebrew", ru: "Russian" },
   // A first visit is a browser with no view remembered at all; every other run hands
   // the page the view a reader chose. `stored` lets a test put anything else in the
-  // browser's store — the vocabulary the page counts, for one.
+  // browser's store — the vocabulary the page counts, for one, and which collections
+  // this reader has opened.
   stored: Object.assign(
     payload.firstVisit ? {} : { "targum:library": JSON.stringify(payload.view || {}) },
+    payload.opened ? { "targum:opened-groups": JSON.stringify(payload.opened) } : {},
     payload.stored || {}
   ),
   // The language switcher is not what is under test, and the real one wants a document
@@ -72,9 +75,23 @@ setTimeout(() => {
       title: (open.children[1].children[0].children.find((c) => c.tagName === "bdi") || open.children[1].children[0]).textContent,
       fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
       english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
+      // What follows the English on the same line: a byline on a text, "· 6 texts" on a
+      // collection. Its own child, so the stub's textContent does not carry it.
+      after: (() => {
+        const line = open.children[1].children.find((c) => c.className === "row-english");
+        const tail = line && line.children.find((c) => c.className === "row-by-after");
+        return tail ? tail.textContent : "";
+      })(),
       scene: (open.children[1].children[0].children.find((c) => c.className === "row-scene") || {}).textContent || "",
       chip: (open.children[1].children[0].children.find((c) => c.className === "row-next") || {}).textContent || "",
       state: open.children[open.children.length - 1].textContent,
+      // A collection, and whether it is open; and whether this row is one of its
+      // members. Empty on an ordinary row, which is most of them.
+      group: open.getAttribute("data-group") || "",
+      expanded: open.getAttribute("aria-expanded") || "",
+      // Off the className, not the classList: the stub's list keeps its own set and a
+      // class given at construction never reaches it.
+      member: String(row.className || "").split(" ").indexOf("member") >= 0,
       cells: open.children.slice(2).map((cell) => cell.textContent.trim()),
       draws: row.children.length > 1 ? row.children[1].textContent : "",
       opens: open.tagName,

@@ -10,7 +10,12 @@ from targum import ingest
 from targum.errors import TargumError, UnsupportedSource
 from targum.ingest import fetch
 from targum.ingest.fetch.gutenberg import GutenbergFetcher, strip_boilerplate
-from targum.ingest.fetch.wikisource import drop_trailing_navigation, split_identifier
+from targum.ingest.fetch.wikisource import (
+    drop_leading_notices,
+    drop_link_lists,
+    drop_trailing_navigation,
+    split_identifier,
+)
 from targum.models import BlockKind
 
 
@@ -153,6 +158,63 @@ def test_a_page_that_is_only_a_navigation_heading_is_left_alone() -> None:
     """Emptying the document would turn a thin page into "no readable text"."""
     paragraphs = [_para(BlockKind.heading, "See also"), _para(BlockKind.paragraph, "x")]
     assert drop_trailing_navigation(paragraphs) == paragraphs
+
+
+def test_the_wikis_note_about_where_it_got_the_text_is_not_the_text() -> None:
+    """Three of the Kuzari's five ma'amarim open with one, and it would be translated,
+    pointed, glossed and read like anything else on the page."""
+    paragraphs = [
+        _para(BlockKind.paragraph, "טקסט זה הועתק מפרויקט בן-יהודה (הקישור המקורי)."),
+        _para(BlockKind.paragraph, "אָמַר הֶחָבֵר: מִנְהַג הָעוֹבֵד."),
+    ]
+    assert drop_leading_notices(paragraphs) == paragraphs[1:]
+
+
+def test_a_note_further_down_the_page_is_left_where_it_is() -> None:
+    """Only from the front, and only while the front is one — the same narrow rule
+    `drop_trailing_navigation` follows at the other end."""
+    paragraphs = [
+        _para(BlockKind.paragraph, "אָמַר הֶחָבֵר."),
+        _para(BlockKind.paragraph, "טקסט זה הועתק מפרויקט בן-יהודה."),
+    ]
+    assert drop_leading_notices(paragraphs) == paragraphs
+
+
+def test_a_row_of_links_at_the_top_of_a_page_is_not_the_text() -> None:
+    """What `drop_trailing_navigation` cannot reach.
+
+    Wikisource puts an edition picker and a contents row above every volume of a
+    multi-part work — the Kuzari opens with three rows of edition links and then the
+    hundred and seventeen numerals of its own chapters — and they sit at the front of the
+    page under no heading at all.
+    """
+    html = (
+        '<p><a href="/a">מאמר ראשון</a> • <a href="/b">מאמר שני</a> • '
+        '<a href="/c">מאמר שלישי</a></p>'
+        "<p>אָמַר הַמְחַבֵּר: שָׁאוֹל שָׁאֲלוּ אוֹתִי.</p>"
+    )
+    left = drop_link_lists(html)
+    assert "מאמר ראשון" not in left
+    assert "שָׁאוֹל" in left
+
+
+def test_a_sentence_that_happens_to_carry_links_is_left_alone() -> None:
+    """Measured over letters, which is what makes the threshold hold still.
+
+    Counting the bullets and middots a navigation row is separated by against its links
+    puts a row of a hundred and seventeen chapter numerals at 0.63 — indistinguishable by
+    the number from a sentence, and nothing like one to read.
+    """
+    html = (
+        "<p>בפרויקט <a href=/a>בן</a> יהודה ישנו גם כן טקסט מקורי של "
+        "<a href=/b>ספר</a> <a href=/c>הכוזרי</a> ואפשר לקרוא בו.</p>"
+    )
+    assert "בפרויקט" in drop_link_lists(html)
+
+
+def test_a_paragraph_with_one_or_two_links_is_never_furniture() -> None:
+    html = '<p><a href="/a">כן</a> <a href="/b">לא</a></p>'
+    assert "כן" in drop_link_lists(html)
 
 
 # --- live ---------------------------------------------------------------------

@@ -135,7 +135,18 @@ process.stdout.write(
     },
     days: {
       cells: strip ? strip.children.length : 0,
-      read: strip ? strip.children.filter((c) => String(c.className) === "read").length : 0,
+      /* `read` is now one class among several on a square — the shade rides beside it —
+         so this asks whether the square is read rather than what its whole class is. */
+      read: strip
+        ? strip.children.filter((c) => String(c.className).split(" ").includes("read")).length
+        : 0,
+      // The shade of each read square, busiest day first, so a test can see the ramp.
+      shades: strip
+        ? strip.children
+            .map((c) => String(c.className).match(/level-(\d)/))
+            .filter(Boolean)
+            .map((m) => Number(m[1]))
+        : [],
       label: strip ? strip.getAttribute("aria-label") : "",
       said: (at("days").children[1] || { textContent: "" }).textContent,
     },

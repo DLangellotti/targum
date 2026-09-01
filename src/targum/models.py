@@ -35,8 +35,57 @@ def direction_for(language: str) -> str:
 # rules the rest of the library does not: verses are never re-split, never machine-pointed,
 # and paired by their numbering rather than matched. Asked in four places, so it is written
 # once — four hand-copied prefix tests is how the fifth comes to disagree with the others.
+#
+# The prefix alone used to be the whole of it, and was right for as long as the Tanakh was
+# all `sefaria:` fetched. The Mishneh Torah and the Kuzari ended that, and the difference
+# is not cosmetic: scripture's words are banded against a table counted from the Tanakh
+# itself, which knows nothing of a rabbinic vocabulary and would hand a reader of the
+# Rambam an unrated word wherever it mattered most.
+#
+#: What Sefaria holds that is not scripture, by the name its references begin with. Named
+#: here rather than read from `ingest.fetch.sefaria`, which imports this module — and
+#: bound to it by a test, so a work added there and forgotten here fails the suite rather
+#: than being quietly called scripture.
+#: `Pirkei Avot` is the one tractate Sefaria does not file as `Mishnah …`, and it is
+#: the most read of the sixty-three, so leaving it out would be leaving out the one
+#: that matters. `Mishneh Torah` and `Mishnah` differ by a letter and are two works.
+BEYOND_SCRIPTURE = ("Mishneh Torah", "Mishnah", "Pirkei Avot", "Kuzari")
+
+
 def is_biblical(source: object) -> bool:
-    return str(source or "").startswith("sefaria:")
+    """Whether this text is scripture.
+
+    Which decides four things: that no diacritizer is ever asked about it, that its words
+    are banded against the Tanakh rather than against modern Hebrew, that a verse is drawn
+    as a numbered row, and that the audio it looks for is a recitation.
+    """
+    text = str(source or "")
+    if not text.startswith("sefaria:"):
+        return False
+    ref = text.split(":", 1)[1]
+    head, sep, tail = ref.partition(":")
+    if sep and len(head) <= 3 and head.isalpha():
+        ref = tail  # a language was named: `sefaria:en:Ruth`
+    return not ref.strip().startswith(BEYOND_SCRIPTURE)
+
+
+#: Where a text arrives already pointed, by whoever published it. `sefaria:` covers the
+#: Tanakh and the Mishneh Torah; `siddur:` the weekday services.
+PINNED_EDITIONS = ("sefaria:", "siddur:")
+
+
+def keeps_its_own_pointing(source: object) -> bool:
+    """Whether a diacritizer must never be asked about this text.
+
+    Scripture was the whole of this rule and was the wrong way to state it. What the rule
+    is actually about is a published, pointed edition: where such an edition leaves a word
+    bare it is bare on purpose, and a model filling it in prints an invention in the one
+    place a reader has no way to doubt it. In the Masoretic text that is a ketiv. In Torat
+    Emet's Mishneh Torah it is the scriptural citations — `ישעיה נט כ` — and the chapter
+    numerals, which are set unpointed throughout and are three quarters of the halakhot on
+    their own. Keyed to scripture, this let a diacritizer at exactly those.
+    """
+    return str(source or "").startswith(PINNED_EDITIONS)
 
 
 class BlockKind(StrEnum):

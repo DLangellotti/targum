@@ -497,6 +497,17 @@
   {% if speech_credit %}
   <p class="keys-credit">Read by {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
   {% endif %}
+  {#- Said once, here, rather than left for a reader to work out from a wrong card.
+      The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is
+      guessing at forms the training data barely contains: waw-consecutive, pausal
+      forms, archaic suffixes. On a modern text this does not need saying, so it is
+      not said. targum-internal #87, which asked for the about page — that page is a
+      construction notice now, and the sentence belongs where the words are anyway. -#}
+  {% if biblical %}
+  <p class="keys-credit">Dictionary forms on biblical Hebrew are less reliable than on
+    modern: the analyser is trained on modern unpointed text, so waw-consecutive, pausal
+    and archaic forms are sometimes read wrongly on a card.</p>
+  {% endif %}
 </div>
 <script type="application/json" id="targum-data">{{ data }}</script>
 <script>{{ asset('vocab.js') }}</script>

@@ -217,7 +217,7 @@
       "tags": [],
       "translations": [],
       "kind": "novel",
-      "register": "modern",
+      "register": "revival",
       "difficulty": 21,
       "model": "claude-opus-5"
     },
@@ -233,7 +233,7 @@
       "tags": [],
       "translations": [],
       "kind": "novel",
-      "register": "modern",
+      "register": "revival",
       "difficulty": 27,
       "model": "claude-opus-5"
     },
@@ -249,7 +249,7 @@
       "tags": [],
       "translations": [],
       "kind": "essay",
-      "register": "modern",
+      "register": "revival",
       "difficulty": 25,
       "model": "claude-opus-5"
     },
@@ -441,5 +441,59 @@
         "target": "And this is the second line of the example."
       }
     ]
-  }
+  },
+  "collections": [
+    {
+      "id": "tanakh",
+      "title": "תנ״ך",
+      "english": "The Hebrew Bible",
+      "ordered": true,
+      "blurb": "The books, in the order they are read.",
+      "members": [
+        "genesis",
+        "ruth",
+        "esther",
+        "kohelet",
+        "job",
+        "psalms"
+      ]
+    },
+    {
+      "id": "by-herzl",
+      "title": "הרצל",
+      "english": "Herzl",
+      "ordered": false,
+      "blurb": "Herzl in Hebrew.",
+      "members": [
+        "altneuland",
+        "judenstaat"
+      ]
+    },
+    {
+      "id": "by-test-author",
+      "title": "סופר",
+      "english": "A Test Author",
+      "ordered": false,
+      "blurb": "",
+      "members": [
+        "story-a",
+        "story-b",
+        "story-c",
+        "story-d"
+      ]
+    },
+    {
+      "id": "scenes",
+      "title": "סצנות",
+      "english": "Scenes",
+      "ordered": true,
+      "blurb": "In the order to meet them.",
+      "members": [
+        "scene-01-nice-to-meet-you",
+        "scene-02-in-a-cafe",
+        "scene-03-which-way",
+        "scene-18-two-coffees"
+      ]
+    }
+  ]
 }

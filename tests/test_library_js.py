@@ -55,10 +55,18 @@ def shelf(entry_id: str, name: str, **extra: Any) -> dict[str, Any]:
 
 
 def draw(tmp_path: Path, **payload: Any) -> dict[str, Any]:
-    from targum.catalogue import CATALOGUE
+    from targum.catalogue import CATALOGUE, collections
 
     payload.setdefault("catalogue", [entry.state() for entry in CATALOGUE])
+    # The real collections, for the same reason the catalogue is real: a fixture of them
+    # would be a second copy of the thing under test.
+    payload.setdefault("collections", [group.state() for group in collections()])
     payload.setdefault("readers", [])
+    # Most of these tests are about what a row shows, not about which rows are folded
+    # away. `unfolded` opens every collection, so each text is a row again and the
+    # assertion is the one it always was.
+    if payload.pop("unfolded", False):
+        payload["opened"] = {group["id"]: True for group in payload["collections"]}
     where = tmp_path / "payload.json"
     where.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     done = subprocess.run(
@@ -68,21 +76,112 @@ def draw(tmp_path: Path, **payload: Any) -> dict[str, Any]:
     return json.loads(done.stdout)
 
 
-def test_every_hebrew_text_gets_a_row(tmp_path: Path) -> None:
+def test_every_hebrew_text_is_counted_whether_or_not_it_has_a_row(tmp_path: Path) -> None:
+    """The tally counts texts; the list draws rows, and a collection is one row over many.
+
+    It used to be able to assert both with one number. Once the shelf folded, "36 of 352"
+    would have been counting two different things in one sentence and both of them true.
+    """
     from targum.catalogue import CATALOGUE
 
     drawn = draw(tmp_path)
 
     hebrew = [entry for entry in CATALOGUE if entry.language.startswith("he")]
-    assert len(drawn["rows"]) == len(hebrew)
     assert drawn["tally"] == f"{len(hebrew)} texts"
+    assert len(drawn["rows"]) < len(hebrew), "the shelf is folded"
     assert drawn["columns"][:2] == ["Text", "Kind"]
+
+
+# -- collections --------------------------------------------------------------
+
+
+def test_a_collection_is_one_row_until_it_is_opened(tmp_path: Path) -> None:
+    """The reason any of this exists: thirteen rows of `הלכות …` is not a shelf a reader
+    can see past, and the Mishnah would be sixty-three of them."""
+    shut = draw(tmp_path)
+    folded = next(row for row in shut["rows"] if row["group"] == "tanakh")
+    assert folded["title"] == "תנ״ך"
+    assert folded["after"] == " · 6 texts"
+    assert folded["expanded"] == "false"
+    assert not any(row["title"] == "רות" for row in shut["rows"])
+
+    open_ = draw(tmp_path, opened={"tanakh": True})
+    assert next(row for row in open_["rows"] if row["group"] == "tanakh")["expanded"] == "true"
+    inside = [row for row in open_["rows"] if row["member"]]
+    assert {"רות", "אסתר"} <= {row["title"] for row in inside}
+
+
+def test_an_ordered_collection_keeps_its_own_order(tmp_path: Path) -> None:
+    """A work read front to back does not rearrange itself under a column sort:
+    Deuteronomy above Genesis because it measures easier is not a Torah."""
+    for direction in (1, -1):
+        drawn = draw(
+            tmp_path,
+            view={"sort": "minutes", "dir": direction},
+            opened={"tanakh": True},
+        )
+        inside = [row["title"] for row in drawn["rows"] if row["member"]]
+        assert inside == ["בראשית", "רות", "אסתר", "קהלת", "איוב", "תהילים"]
+
+
+def test_an_author_shelf_takes_the_readers_sort(tmp_path: Path) -> None:
+    """The order a shelf of stories is in is the order somebody typed them in, and the
+    reader's own question is the better one."""
+    down = draw(tmp_path, view={"sort": "minutes", "dir": -1}, opened={"by-herzl": True})
+    up = draw(tmp_path, view={"sort": "minutes", "dir": 1}, opened={"by-herzl": True})
+    longest = [row["title"] for row in down["rows"] if row["member"]]
+    shortest = [row["title"] for row in up["rows"] if row["member"]]
+    assert longest == list(reversed(shortest))
+    assert longest[0] == "תל־אביב", "sixty thousand words against twenty-five"
+
+
+def test_a_list_that_is_one_collection_is_that_collection(tmp_path: Path) -> None:
+    """Picking the Scenes chip and being shown a single row saying "Scenes · 100 texts"
+    is the filter answering a question with the question."""
+    drawn = draw(tmp_path, view={"kind": "dialogue"})
+    assert not any(row["group"] for row in drawn["rows"])
+    assert len(drawn["rows"]) == 4
+
+
+def test_a_search_opens_what_it_found(tmp_path: Path) -> None:
+    """A reader who types a title and is shown one shut row has been told it failed."""
+    drawn = draw(tmp_path, view={"find": "אסתר"})
+    assert [row["title"] for row in drawn["rows"]] == ["אסתר"]
+
+
+def test_a_search_reaches_a_text_through_the_work_it_is_part_of(tmp_path: Path) -> None:
+    """ "The Hebrew Bible" appears in none of its books."""
+    titles = {row["title"] for row in draw(tmp_path, view={"find": "hebrew bible"})["rows"]}
+    assert "רות" in titles
+
+
+def test_being_sent_to_a_text_opens_the_collection_holding_it(tmp_path: Path) -> None:
+    """Opening one shelf is a smaller thing to do to a reader's page than lifting every
+    filter they set, so it is tried first."""
+    drawn = draw(tmp_path, hash="#ruth")
+    assert drawn["pointed"] == ["רות"]
+
+
+def test_a_collection_carries_what_its_texts_agree_on(tmp_path: Path) -> None:
+    drawn = draw(tmp_path)
+    tanakh = next(row for row in drawn["rows"] if row["group"] == "tanakh")
+    assert tanakh["cells"][0] == "", "narrative and poetry agree about nothing"
+    assert tanakh["cells"][1] == "Biblical"
+    herzl = next(row for row in drawn["rows"] if row["group"] == "by-herzl")
+    assert herzl["cells"][1] == "Revival"
+
+
+def test_a_collection_is_as_long_as_its_texts_together(tmp_path: Path) -> None:
+    """A row that says how much there is, so a reader can tell a shelf from a text."""
+    drawn = draw(tmp_path)
+    herzl = next(row for row in drawn["rows"] if row["group"] == "by-herzl")
+    assert herzl["cells"][2].endswith("hr"), "eighty-five thousand words is not minutes"
 
 
 def test_a_row_carries_what_the_filters_sort_on(tmp_path: Path) -> None:
     """Whatever a row shows has to be the same vocabulary the catalogue is written in,
     or the filters and the rows are describing different things."""
-    row = next(r for r in draw(tmp_path)["rows"] if r["title"] == "תהילים")
+    row = next(r for r in draw(tmp_path, unfolded=True)["rows"] if r["title"] == "תהילים")
 
     assert row["cells"][0] == "Poetry"
     assert row["cells"][1] == "Biblical"
@@ -123,14 +222,22 @@ def test_nothing_matching_says_so(tmp_path: Path) -> None:
 def test_shortest_first_is_shortest_first(tmp_path: Path) -> None:
     from targum.catalogue import CATALOGUE
 
-    drawn = draw(tmp_path, view={"sort": "minutes", "dir": 1})
+    drawn = draw(tmp_path, view={"sort": "minutes", "dir": 1}, unfolded=True)
     titles = [row["title"] for row in drawn["rows"]]
 
     minutes = {entry.title: entry.minutes for entry in CATALOGUE}
-    assert minutes[titles[0]] <= minutes[titles[1]] <= minutes[titles[-1]]
-    assert minutes[titles[0]] == min(
-        entry.minutes for entry in CATALOGUE if entry.language.startswith("he")
+    # Texts only, and only the ones the sort acts on: a collection is a row too, its
+    # length is its members' added up, and inside it they keep their own order.
+    titles = [row["title"] for row in drawn["rows"] if not row["group"] and not row["member"]]
+    lengths = [minutes[title] for title in titles]
+    assert lengths == sorted(lengths), "shortest first"
+    # The shortest text in the catalogue is a twenty-word scene, and the scenes are one
+    # row now. What leads the list is the shortest *row*, which may be a whole shelf.
+    shortest = min(
+        (entry for entry in CATALOGUE if entry.language.startswith("he")),
+        key=lambda entry: entry.minutes,
     )
+    assert shortest.title not in titles, "it is inside a collection"
 
 
 def test_the_catalogue_and_your_own_texts_are_two_lists(tmp_path: Path) -> None:
@@ -139,17 +246,17 @@ def test_the_catalogue_and_your_own_texts_are_two_lists(tmp_path: Path) -> None:
     here — so they are two tabs, and neither list has to say which it is on every row."""
     both = [shelf("psalms", "תהילים-he"), shelf("", "my-article-he")]
 
-    catalogue = {row["title"] for row in draw(tmp_path, readers=both)["rows"]}
+    catalogue = {row["title"] for row in draw(tmp_path, readers=both, unfolded=True)["rows"]}
     assert "תהילים" in catalogue
     assert "my-article-he" not in catalogue, "an upload is not in the catalogue"
 
-    mine = draw(tmp_path, readers=both, view={"where": "mine"})["rows"]
+    mine = draw(tmp_path, readers=both, view={"where": "mine"}, unfolded=True)["rows"]
     assert {row["title"] for row in mine} == {"my-article-he"}
 
 
 def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) -> None:
     """A link goes straight to the reader; a button is pressed, and pressing it spends."""
-    drawn = draw(tmp_path, readers=[shelf("psalms", "תהילים-he")])
+    drawn = draw(tmp_path, readers=[shelf("psalms", "תהילים-he")], unfolded=True)
     rows = {row["title"]: row for row in drawn["rows"]}
 
     assert rows["תהילים"]["opens"] == "a"
@@ -172,22 +279,24 @@ def test_drawing_a_cover_is_offered_only_where_it_could_work(tmp_path: Path) -> 
     offers nothing."""
     on_shelf = [shelf("psalms", "תהילים-he")]
 
-    assert draw(tmp_path, readers=on_shelf, covers=True)["rows"]
+    assert draw(tmp_path, readers=on_shelf, covers=True, unfolded=True)["rows"]
     offered = {
-        row["title"]: row["draws"] for row in draw(tmp_path, readers=on_shelf, covers=True)["rows"]
+        row["title"]: row["draws"]
+        for row in draw(tmp_path, readers=on_shelf, covers=True, unfolded=True)["rows"]
     }
     assert offered["תהילים"] == "Draw cover"
     assert offered["איוב"] == "", "not on the shelf, so there is nothing to draw for"
 
     without = {
-        row["title"]: row["draws"] for row in draw(tmp_path, readers=on_shelf, covers=False)["rows"]
+        row["title"]: row["draws"]
+        for row in draw(tmp_path, readers=on_shelf, covers=False, unfolded=True)["rows"]
     }
     assert without["תהילים"] == "", "no key on the server, so nothing is offered"
 
     drawn_already = [shelf("psalms", "תהילים-he", drawn=True)]
     already = {
         row["title"]: row["draws"]
-        for row in draw(tmp_path, readers=drawn_already, covers=True)["rows"]
+        for row in draw(tmp_path, readers=drawn_already, covers=True, unfolded=True)["rows"]
     }
     assert already["תהילים"] == "", "it already has one"
 
@@ -199,15 +308,17 @@ def test_the_list_opens_on_what_a_learner_can_read_now(tmp_path: Path) -> None:
     first and the easiest one is at the top."""
     from targum.catalogue import CATALOGUE
 
-    rows = draw(tmp_path)["rows"]
-    shares = [int(row["cells"][3].rstrip("%")) for row in rows]
+    rows = draw(tmp_path, unfolded=True)["rows"]
+    # The rows the sort actually acts on. A collection's members follow their own order
+    # inside it, so the list as drawn interleaves two orders — see `within()`.
+    shares = [int(row["cells"][3].rstrip("%")) for row in rows if not row["member"]]
     assert shares == sorted(shares), "easiest first"
 
     # Zero is a measurement on a catalogue text — a twenty-word scene with no uncommon
-    # word in it — so the easiest texts in the library read "0%" and come first, rather
-    # than reading "—" and being anybody's guess.
-    least = min(entry.difficulty for entry in CATALOGUE if entry.language.startswith("he"))
-    assert shares[0] == least == 0
+    # word in it — so the easiest texts in the library read "0%" rather than reading "—"
+    # and being anybody's guess. They no longer lead the list: they are scenes, the scenes
+    # are one row, and a collection's share is the middle of its own texts.
+    assert min(entry.difficulty for entry in CATALOGUE if entry.language.startswith("he")) == 0
     assert all(row["cells"][3] == "0%" for row in rows if row["title"] in {"בבית קפה", "שני קפה"})
 
 
@@ -238,7 +349,7 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
 def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     """ "Prose" is the catalogue's word for the narrative books of the Tanakh. Beside
     "Novels" and "Stories", which are also prose, it says nothing to anybody."""
-    rows = draw(tmp_path)["rows"]
+    rows = draw(tmp_path, unfolded=True)["rows"]
     genesis = next(row for row in rows if row["title"] == "בראשית")
     assert genesis["cells"][0] == "Bible narrative", "not bare Narrative beside Novels and Stories"
     assert "News" in {row["cells"][0] for row in rows}
@@ -303,7 +414,7 @@ def test_a_text_on_the_shelf_says_how_much_of_it_is_yours(tmp_path: Path) -> Non
     """Plain words for a text you have no history against; your own share once you do.
     "Beginners cannot understand library listings" — a percentage of an abstract
     measurement is not something a beginner can act on."""
-    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.82)])
+    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.82)], unfolded=True)
     by_title = {row["title"]: row for row in drawn["rows"]}
     assert by_title["אסתר"]["fit"] == "you know 82% of its words"
     others = [row["fit"] for title, row in by_title.items() if title != "אסתר"]
@@ -311,7 +422,7 @@ def test_a_text_on_the_shelf_says_how_much_of_it_is_yours(tmp_path: Path) -> Non
 
     # "You know 0% of its words" is true and unkind; the line starts once there is
     # something to say, exactly as Learn's does.
-    nothing = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.0)])
+    nothing = draw(tmp_path, readers=[shelf("esther", "אסתר", known=0.0)], unfolded=True)
     assert {row["title"]: row for row in nothing["rows"]}["אסתר"]["fit"] == ""
 
 
@@ -433,7 +544,7 @@ def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> Non
 def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> None:
     """Under the Hebrew, in ink, with the byline after it. For the reader who cannot yet
     read the line above, this is the title. An upload has none and shows none."""
-    drawn = draw(tmp_path, readers=[shelf("", "my-upload-he")])
+    drawn = draw(tmp_path, readers=[shelf("", "my-upload-he")], unfolded=True)
     by_title = {row["title"]: row for row in drawn["rows"]}
     assert by_title["רות"]["english"] == "Ruth · Ketuvim · Ruth" or by_title["רות"][
         "english"
@@ -500,7 +611,7 @@ def test_the_next_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
 
 def test_a_finished_text_says_so_in_its_state_column(tmp_path: Path) -> None:
     done = {"targum:docs": json.dumps({"h": {"done": 9}})}
-    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר")], stored=done)
+    drawn = draw(tmp_path, readers=[shelf("esther", "אסתר")], stored=done, unfolded=True)
     rows = {row["title"]: row for row in drawn["rows"]}
     assert rows["אסתר"]["state"] == "finished"
     assert rows["רות"]["state"] == ""

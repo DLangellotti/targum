@@ -15,7 +15,7 @@ import json
 import shutil
 import subprocess
 import tempfile
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -429,3 +429,53 @@ def test_a_text_said_finished_is_counted_once() -> None:
         }
     )
     assert drawn["counts"]["targum finished"] == 1
+
+
+def _on(day: date, n: int, tag: str) -> dict[str, Any]:
+    """`n` words marked on `day`, at noon so no timezone can push them into another."""
+    at = int(datetime.combine(day, time(12, 0)).timestamp() * 1000)
+    return {
+        f"{tag}-{i}": {"status": KNOWN, "surface": f"{tag}-{i}", "at": at + i} for i in range(n)
+    }
+
+
+def test_a_day_is_shaded_by_how_many_words_were_marked_on_it() -> None:
+    """The strip was two-state: read or not. Now the colour says how much, on the same
+    five-shade ramp the about page's calendar uses, so a heavy day and a day somebody
+    opened a text and marked nothing do not look identical (targum-internal #19)."""
+    today = date.today()
+    words: dict[str, Any] = {}
+    words |= _on(today, 12, "heavy")
+    words |= _on(today - timedelta(days=1), 6, "middling")
+    words |= _on(today - timedelta(days=2), 1, "light")
+
+    drawn = draw(
+        {
+            "targum:vocab:he": words,
+            "targum:days": {(today - timedelta(days=n)).isoformat(): 1 for n in range(4)},
+        }
+    )
+
+    shades = drawn["days"]["shades"]
+    assert len(shades) == 4, "four read days, four shaded squares"
+    # Chronological, so the last four are: the empty day, then light, middling, heavy.
+    quiet, light, middling, heavy = shades
+    assert quiet == 1, "a day read with nothing marked is the faintest green, never grey"
+    assert light == 1, "one word out of twelve is the bottom of the ramp"
+    assert heavy == 4, "the busiest day in the window is the top of it"
+    assert light < middling < heavy, "and the ramp climbs in between"
+
+
+def test_the_shading_is_scaled_to_the_window_not_to_all_time() -> None:
+    """A first-week binge outside the twelve weeks must not flatten everything inside
+    them. The busiest day is the busiest visible day."""
+    today = date.today()
+    words: dict[str, Any] = {}
+    words |= _on(today - timedelta(days=200), 400, "ancient")
+    words |= _on(today, 2, "now")
+
+    drawn = draw({"targum:vocab:he": words, "targum:days": {today.isoformat(): 1}})
+
+    assert drawn["days"]["shades"] == [4], (
+        "two words is the busiest day on screen, so it is the top shade"
+    )

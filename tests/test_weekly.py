@@ -497,6 +497,38 @@ def test_the_bylines_english_is_not_bought(tmp_path: Path) -> None:
     named = build.named(document, segmented)
     assert named == {"0000.000-aaaaaa": BYLINE}, "the byline, and nothing else in the issue"
 
+    # And the same answer without a Build to ask, because a build is not the only thing
+    # that renders these artifacts. The correction is applied in memory and never written
+    # down, so `targum rebuild` reading the translation off disk put "the translation
+    # team" back under the masthead — which it did, on the box, once rebuild stopped
+    # skipping the weekly. Anything that renders an issue has to apply this.
+    from targum.pipeline import named_in
+
+    assert named_in(document, segmented) == named
+
+
+def test_a_rebuilt_issue_is_shaped_like_a_built_one() -> None:
+    """The weekly used to be skipped by `targum rebuild` outright, because the generic
+    rewrite turned an issue into a contents page and six chapter files with no player.
+    The cost was that no reader improvement ever reached an issue already on the box: a
+    deploy rewrote every other home and left the weekly at whatever it was shipped as.
+
+    So rebuild restores the shape instead of avoiding it, and the two things it has to
+    know are `whole` and the sibling wiring — asked of the index, so an issue with a
+    level missing wires the two it has rather than inventing a third.
+    """
+    import inspect
+
+    from targum.cli import rebuild_one, weekly_wiring
+
+    parameters = inspect.signature(rebuild_one).parameters
+    assert "whole" in parameters, "a weekly edition is one long targum, not chapters"
+    assert "siblings" in parameters, "and it is wired to its sibling levels"
+
+    # Asked of the folder's place, not its name: anything outside a weekly home is not
+    # an issue and must not be handed a sibling row.
+    assert weekly_wiring(Path("targum-out") / "p1" / "בראשית-he") is None
+
 
 def test_nothing_else_has_its_english_decided_for_it(tmp_path: Path) -> None:
     from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument

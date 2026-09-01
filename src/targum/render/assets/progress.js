@@ -499,12 +499,19 @@
     );
   }
 
-  function drawDays(host, days) {
+  /* The strip is twelve weeks of squares, one a day, and the colour says how much
+     vocabulary was marked that day — the about page's calendar arithmetic, run on the
+     browser's own words rather than on commits (`charts.shade`, `builder.level`).
+     Before this it was a two-state strip: read or not. A day you opened a text and
+     marked nothing still counts as read and gets the faintest green, because the
+     square is about showing up and the shade is about how much. */
+  function drawDays(host, days, words) {
     host.textContent = "";
     var had = {};
     days.forEach(function (day) {
       had[day] = true;
     });
+    var marked = charts.buckets(words);
 
     var strip = el("ul", "strip");
     var cursor = new Date();
@@ -513,12 +520,32 @@
     // year the clocks move, a fixed-size step lands an hour off and never matches a
     // local midnight again — the same bug the growth line already had once.
     cursor.setDate(cursor.getDate() - (WEEKS * 7 - 1));
+    /* The busiest day inside the window, not of all time: a strip scaled to a
+       first-week binge would read as twelve flat weeks forever after. */
+    var window_ = [];
+    var scan = new Date(cursor.getTime());
+    for (var w = 0; w < WEEKS * 7; w++) {
+      window_.push(marked[charts.dayOf(scan.getTime())] || 0);
+      scan.setDate(scan.getDate() + 1);
+    }
+    var busiest = window_.reduce(function (most, n) {
+      return n > most ? n : most;
+    }, 0);
+
     var counted = 0;
     for (var i = 0; i < WEEKS * 7; i++) {
       var name = dayName(cursor);
-      var box = el("li", had[name] ? "read" : "");
-      box.setAttribute("title", name);
-      if (had[name]) counted += 1;
+      var count = window_[i];
+      // A day with words but no opening still counts as read: marking a word is
+      // reading, and a green square with no `read` behind it would be a day the
+      // legend cannot explain.
+      var read = had[name] || count > 0;
+      var box = el("li", read ? "read level-" + Math.max(1, charts.shade(count, busiest)) : "");
+      box.setAttribute(
+        "title",
+        count ? name + " — " + plural(count, "word") : name
+      );
+      if (read) counted += 1;
       strip.appendChild(box);
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -554,7 +581,7 @@
       code
     );
     drawMarks(document.getElementById("milestones"), data[code].words);
-    drawDays(document.getElementById("days"), readingDays);
+    drawDays(document.getElementById("days"), readingDays, data[code].words);
     drawProgress(
       document.getElementById("progress"),
       document.getElementById("progress-note"),

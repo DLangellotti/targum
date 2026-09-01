@@ -800,6 +800,94 @@ body.public {
   font-weight: 600;
 }
 
+/* The band is the parasha's, unchanged: two equal columns, words then picture, so no
+   word is ever set over the writing in the photograph. It was one column here for the
+   afternoon this page had no picture, and half of it was empty black — which is what a
+   grid built for two things does when it is given one. See design.md §12. */
+
+/* What a cycle's page cannot show, and why. Read by somebody who came looking for Daf
+   Yomi, so the reason is the point and the name is only how they find it. */
+.public .daily .absent {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+}
+.public .daily .absent dt {
+  margin-block-start: 0.6rem;
+  font-weight: 600;
+}
+.public .daily .absent dd {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+}
+
+/* --- a day of a learning cycle -------------------------------------------------
+   The dateline: what is read today, said in Hebrew and then in the cycle's own English,
+   with the Hebrew date under both. Three things on one line ran together into one
+   string, and the Hebrew and the Latin fought over which way it read; they are a row of
+   separate boxes now, and each carries its own direction. */
+.public .daily .dateline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.9rem;
+  margin: 0 0 1rem;
+}
+.public .daily .dateline b {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+.public .daily .dateline .said-in-english,
+.public .daily .dateline .when {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* The days either side. Twenty-one of them, so they are a scrolling row of chips and not
+   a paragraph of links — which is what they were, and it was the worst thing on the page:
+   a wall of blue underline where the reading should be. Chips, on the schedule switcher's
+   pattern above, because they answer the same kind of question. */
+.public .daily .nearby {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0 0 2rem;
+  padding-block-end: 0.4rem;
+  overflow-x: auto;
+  /* A row that scrolls should look as though it does: the last chip is cut rather than
+     ending flush, which is the only honest edge for a list longer than the window. */
+  scrollbar-width: thin;
+}
+.public .daily .nearby .day {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.public .daily .nearby .day .date {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.public .daily .nearby .day.here {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+.public .daily .nearby .day:hover { border-color: var(--ink-soft); }
+
+/* The other cycles. The `how` list's shape, with the link doing the work its bold does. */
+.public .daily .cycles a {
+  color: var(--ink);
+  text-decoration: none;
+  border-block-end: 1px solid var(--accent);
+}
+.public .daily .cycles a:hover { border-block-end-color: var(--ink); }
+
 /* Every portion, at the foot. The weekly's source rows, with the Hebrew name doing the
    work the headline does there. */
 .public .portions .story {

@@ -44,11 +44,13 @@ app = typer.Typer(
 models_app = typer.Typer(no_args_is_help=True, help="Manage language models.")
 weekly_app = typer.Typer(no_args_is_help=True, help="The weekly digest.")
 parasha_app = typer.Typer(no_args_is_help=True, help="The weekly Torah portion.")
+daily_app = typer.Typer(no_args_is_help=True, help="The daily learning cycles.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
 app.add_typer(parasha_app, name="parasha")
+app.add_typer(daily_app, name="daily")
 
 console = Console()
 err = Console(stderr=True)
@@ -362,7 +364,7 @@ def usage(
     from datetime import datetime
 
     from .accounts import Store, now
-    from .serve import ACCOUNT_BUDGET, BUDGET_HOURS, MONTH_BUDGET, SESSION_BUDGET, default_store
+    from .serve import ACCOUNT_BUDGET, BUDGET_HOURS, SESSION_BUDGET, UPLOAD_HOURS, default_store
 
     keeping = Store(store or default_store())
 
@@ -400,7 +402,9 @@ def usage(
         when = (
             datetime.fromtimestamp(last / 1000, UTC).strftime("%-d %b") if last else "[dim]—[/dim]"
         )
-        over = float(row["claimed"]) >= MONTH_BUDGET and who not in admins and not days
+        # Flagged against the daily rate limit, which since the monthly cap was removed
+        # is the only per-reader money rail there is.
+        over = float(row["claimed"]) >= ACCOUNT_BUDGET and who not in admins and not days
         holding = f"${float(row['claimed']):.2f}"
         table.add_row(
             label,
@@ -415,10 +419,10 @@ def usage(
     held = sum(float(row["claimed"]) for row in rows)
     console.print(f"\n[bold]${spent:.2f}[/bold] spent · ${held:.2f} held [dim]— {window}[/dim]")
     console.print(
-        f"[dim]Rails: ${MONTH_BUDGET:.2f} per account per month, "
-        f"${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h, "
-        f"${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "
-        f"Admins are exempt from the first two.[/dim]"
+        f"[dim]Rails: ${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h (a rate "
+        f"limit), ${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "
+        f"Admins are exempt from the first. Text uploads are unlimited; what a "
+        f"subscriber is held to is {UPLOAD_HOURS} hours of audio a month.[/dim]"
     )
 
 
@@ -892,12 +896,46 @@ def repair(
     )
 
 
+def weekly_wiring(folder: Path) -> list[dict[str, str]] | None:
+    """The sibling levels of a weekly edition, or None if this is not one.
+
+    `targum weekly build` writes an issue's three levels wired to each other, so a reader
+    who finds one too hard says so in one press. A rebuild has to put that back or the
+    link row comes out empty — and the shape is derived from the index rather than from
+    the folder name, so an issue with a level missing wires the two it has.
+    """
+    if folder.parent.name != "weekly":
+        return None
+    from .weekly import index as weekly_index
+    from .weekly.models import LEVELS, Level
+    from .weekly.models import folder as folder_for
+
+    for issue in weekly_index.load().issues:
+        mine = next((one for one in issue.editions if one.folder == folder.name), None)
+        if mine is None:
+            continue
+        have = {edition.level for edition in issue.editions}
+        return [
+            {
+                "name": LEVELS[other].name,
+                "figure": f"{LEVELS[other].figure} words",
+                "folder": folder_for(issue.id, other),
+                "current": "1" if other is mine.level else "",
+            }
+            for other in Level
+            if other in have
+        ]
+    return None
+
+
 def rebuild_one(
     folder: Path,
     *,
     reads: list[str] | None,
     covers: Path,
     annotate: Callable[[Path, Document], Annotator] | None = None,
+    siblings: list[dict[str, str]] | None = None,
+    whole: bool = False,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
@@ -933,6 +971,15 @@ def rebuild_one(
     if not translations:
         # Ingested and priced, then never paid for. There is nothing to read.
         return None, "never translated"
+    # The corrections a build applies in memory and never writes down. Without this a
+    # rebuilt weekly puts "Compiled by the translation team" back under the masthead,
+    # because that is what the model made of the Hebrew and what the artifact still says.
+    from .pipeline import named_in
+
+    if known := named_in(document, segmented):
+        for rendering in translations:
+            if rendering.target_language == "en":
+                rendering.segments.update(known)
     annotation = read_artifact(Annotation, folder / "annotation.json")
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
@@ -965,6 +1012,11 @@ def rebuild_one(
         # a change to that only reaches one when the file is written again — which is
         # what this is, and why the profile page ends by running it.
         reads=reads,
+        # A weekly edition is one long targum wired to its sibling levels, and the
+        # generic rewrite without these two turned an issue back into a contents page
+        # and six chapter files with no player.
+        siblings=siblings,
+        whole=whole,
         # Written over rather than emptied first. This runs on a box with readers
         # open on it: the same segments produce the same section files under the
         # same names, so overwriting leaves nothing stale behind, and nobody has the
@@ -1076,16 +1128,23 @@ def rebuild(
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
-        # The weekly is not rebuilt here. Its editions are one long targum each, built
-        # with `whole=True` and wired to their sibling levels by `targum weekly build`;
-        # the generic rewrite turned an issue back into a contents page and six chapter
-        # files with no player, on the laptop and then on the box. An issue is built
-        # where it is written and carried to the box as it is — see ship-weekly.sh.
-        if folder.parent.name == "weekly":
+        # A weekly edition is one long targum wired to its sibling levels, and rewriting
+        # one without saying so turned an issue back into a contents page and six chapter
+        # files with no player — which is why this used to skip the weekly outright. The
+        # cost of skipping was that no reader improvement ever reached an issue already on
+        # the box: the deploy rewrote every other home and left the weekly at whatever it
+        # was shipped as, so the gloss card was live everywhere but there. So the shape is
+        # restored from the index instead. An edition the index does not know is still
+        # skipped rather than flattened.
+        siblings = weekly_wiring(folder)
+        if folder.parent.name == "weekly" and siblings is None:
+            skipped.append((folder.name, "not in the weekly index"))
             continue
         title, outcome = rebuild_one(
             folder,
             reads=reading_of(folder.parent.name),
+            siblings=siblings,
+            whole=siblings is not None,
             covers=root / "thumbs",
             annotate=annotate,
         )
@@ -2101,10 +2160,6 @@ def main() -> None:
         sys.exit(130)
 
 
-if __name__ == "__main__":
-    main()
-
-
 @parasha_app.command("build")
 def parasha_build(
     years: Annotated[
@@ -2144,6 +2199,42 @@ def parasha_build(
     here = corpus.current(index=index)
     if here is not None:
         console.print(f"[dim]This Shabbat: {here.name} — {here.summary}[/dim]")
+
+
+@daily_app.command("build")
+def daily_build(
+    ahead: Annotated[int, typer.Option("--ahead", help="How many days forward to build.")] = 14,
+    behind: Annotated[int, typer.Option("--behind", help="How many past days to keep.")] = 7,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Build the rolling window of daily learning, and roll it forward.
+
+    Costs nothing and fetches no text: the books and the tractates are already on the
+    shelf with their translations published and their words annotated, and a day is a
+    range inside one of them. The only thing that goes out to the network is the learning
+    calendar, once a year, into a cache beside the corpus.
+
+    Safe to run every night from a cron. A day cut from the same texts produces the same
+    reader, so a rerun rewrites what is still in the window and takes away what has
+    fallen out of it — which is why this is a window and not a corpus: six years of
+    Mishna Yomi is two thousand days, and nobody wants two thousand folders of ninety
+    words each.
+    """
+    from .daily import build as corpus
+
+    library = (out or Path.cwd() / "targum-out") / "library"
+    index = corpus.build(
+        ahead=max(1, ahead),
+        behind=max(0, behind),
+        library=library,
+        notify=lambda line: console.print(f"[dim]{line}[/dim]"),
+    )
+    for cycle, days in sorted(index["cycles"].items()):
+        console.print(f"  {cycle}: {len(days)} days")
+    console.print(f"[dim]{index['first']} to {index['last']}[/dim]")
 
 
 @parasha_app.command("entries")
@@ -2280,3 +2371,13 @@ def parasha_leyning(
         f"{silent} have none (doubled weeks and festivals). "
         "Run `targum parasha build` to put it in the readers."
     )
+
+
+# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
+# then calls main(), so anything defined below the guard is not registered yet when the
+# app is invoked — the parasha commands were added after it and `python -m targum.cli
+# parasha` printed an empty command group while `targum parasha` worked. Keeping the
+# guard at the end means a command appended in the ordinary way is registered whichever
+# entry point is used.
+if __name__ == "__main__":
+    main()

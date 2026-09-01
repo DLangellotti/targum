@@ -9,6 +9,7 @@ from ...models import Document
 from .dialogue import DialogueFetcher
 from .gutenberg import GutenbergFetcher
 from .sefaria import SefariaFetcher
+from .siddur import SiddurFetcher
 from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
@@ -27,6 +28,7 @@ FETCHERS: dict[str, Fetcher] = {
     "dialogue": DialogueFetcher(),
     "gutenberg": GutenbergFetcher(),
     "sefaria": SefariaFetcher(),
+    "siddur": SiddurFetcher(),
     "wikisource": WikisourceFetcher(),
     "weekly": WeeklyFetcher(),
 }

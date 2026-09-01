@@ -14,9 +14,23 @@ cd "$ROOT"
 
 echo "== checks, before anything leaves this machine =="
 # Deploying a tree that fails its own tests is how a bad afternoon starts.
-uv run ruff check . >/dev/null
-uv run mypy >/dev/null
-uv run pytest -q >/dev/null
+#
+# Quiet while they pass and loud when they do not. They used to be quiet either way, and
+# a failure printed the word "checks" and nothing else — which says a check failed but
+# not which one, so finding out meant running all three again by hand. The output is held
+# and printed only if the command fails.
+check() {
+  local said
+  if ! said="$("$@" 2>&1)"; then
+    echo "   $* failed:" >&2
+    echo "$said" | tail -40 >&2
+    exit 1
+  fi
+}
+check uv run ruff check .
+check uv run ruff format --check .
+check uv run mypy
+check uv run pytest -q
 echo "   clean"
 
 echo "== build =="
