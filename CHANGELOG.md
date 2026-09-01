@@ -130,6 +130,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the current PEP 639 spelling; the table form it used is deprecated.
 
 ### Fixed
+- The Wikisource fetcher drops a section the page labels as the vowel-less copy of a work
+  it also carries pointed. The Bialik page was ingested as ten blocks — the poem, then a
+  partial bare copy of it — and both were segmented, priced, translated, pointed and
+  glossed, so the poem was paid for twice. It is four blocks now. Matched on the wiki's
+  own heading rather than on the letters, because pointed Hebrew is written defectively
+  and bare Hebrew is written full: the same line is צִפֹּרָה and ציפור, so the two copies
+  never were the same string.
 - Four of the fifty-four portions had no address. Matot, Masei, Nitzavim and Vayeilech
   were missing from the shelf, so `/parasha/nitzavim` was a 404 in the week Nitzavim is
   read. The corpus was enumerated from the same two-year window the pointer uses, and a

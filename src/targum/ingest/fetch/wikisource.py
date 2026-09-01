@@ -15,6 +15,7 @@ from typing import Any
 
 from ...errors import TargumError
 from ...models import BlockKind, Document
+from ...vocalize.base import strip_nikkud
 from ..base import Paragraph, blocks_from_paragraphs, build_document, normalize
 from ..htmltext import paragraphs_from_html
 from ..url import get
@@ -109,6 +110,68 @@ def drop_trailing_navigation(paragraphs: list[Paragraph]) -> list[Paragraph]:
         if last is None or last == 0 or _heading_key(out[last][2]) not in _NAVIGATION:
             return out
         out = out[:last]
+
+
+# A section the page itself labels as the vowel-less copy of what is above it. Wikisource
+# routinely carries a poem twice under two headings — "עם ניקוד" and "ללא ניקוד" — and
+# both were ingested, so both were segmented, priced, translated, pointed and glossed.
+# The Bialik page came back as four "sections", the third being a partial bare copy of the
+# second, and the learner paid for the poem twice. The vowels are a toggle in the reader;
+# a second copy of the words is not a second text.
+#
+# **The heading is the only reliable signal, and this was not obvious.** Matching the two
+# copies by their letters cannot work: pointed Hebrew is written defectively and bare
+# Hebrew is written full, so the same line is צִפֹּרָה / ציפור and הַחֹם / החום — different
+# strings by convention rather than by accident. On the real page not one of the five bare
+# paragraphs was a character-for-character strip of the pointed poem, and they were not
+# even cut the same way: the pointed copy is one block of 2,512 characters and the bare one
+# is five of about ninety. Nothing short of fuzzy matching would pair them, and fuzzy
+# matching over a text this product is about to charge somebody to translate is not a
+# trade worth making. The page says what it is; believe it.
+_BARE_COPIES = (
+    "ללא ניקוד",
+    "ללא נקוד",
+    "בלי ניקוד",
+    "בלי נקוד",
+    "לא מנוקד",
+    "unpointed",
+    "without vowels",
+    "without nikkud",
+    "without niqqud",
+)
+
+
+def _pointed(text: str) -> bool:
+    """Whether this text carries vowel points, asked the way the vocalizer asks it.
+
+    Stripping is the definition, so there is no second list of which marks count.
+    """
+    return strip_nikkud(text)[0] != text
+
+
+def drop_unpointed_copies(paragraphs: list[Paragraph]) -> list[Paragraph]:
+    """Cut a section the page labels as the bare copy of a work it also carries pointed.
+
+    Only when there is something pointed to prefer: a page that is bare throughout is a
+    bare work, not a copy of anything, and its headings are its own. The heading is
+    matched by its opening words, because the real one reads "ללא ניקוד (חלקי)" — the wiki
+    saying its copy is partial, which is exactly the case that must still go.
+    """
+    if not any(kind is not BlockKind.heading and _pointed(text) for kind, _, text in paragraphs):
+        return list(paragraphs)
+
+    out: list[Paragraph] = []
+    dropping = False
+    for kind, level, text in paragraphs:
+        if kind is BlockKind.heading:
+            key = _heading_key(text)
+            dropping = any(key.startswith(one) for one in _BARE_COPIES)
+            if dropping:
+                continue
+        elif dropping:
+            continue
+        out.append((kind, level, text))
+    return out
 
 
 # Wikisource subdomains are language codes already, with a few historic exceptions.
@@ -207,7 +270,9 @@ class WikisourceFetcher:
             (kind, level, normalize(text))
             for kind, level, text in paragraphs_from_html(drop_link_lists(parsed.get("text", "")))
         ]
-        paragraphs = drop_leading_notices(drop_trailing_navigation(paragraphs))
+        paragraphs = drop_unpointed_copies(
+            drop_leading_notices(drop_trailing_navigation(paragraphs))
+        )
         if not paragraphs:
             raise TargumError(f"Wikisource page '{title}' has no readable text.")
 
