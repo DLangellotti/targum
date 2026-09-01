@@ -37,6 +37,11 @@ class Cycle:
     blurb: str
     #: How much of it there is, said plainly, for the page's dateline.
     rhythm: str
+    #: The hero's picture, in `assets/manuscripts/`, and who to credit for it. A
+    #: manuscript of the text this cycle reads — see that folder's README for why it is a
+    #: page of the book rather than a portrait of whoever stands behind it.
+    picture: str
+    credit: str
 
 
 #: The four this shelf can serve, in the order the page offers them.
@@ -49,6 +54,11 @@ CYCLES: tuple[Cycle, ...] = (
         hebrew="משנה יומית",
         blurb="Two mishnayot a day, through all sixty-three tractates in about six years.",
         rhythm="two mishnayot a day",
+        picture="mishnah.jpg",
+        credit=(
+            "a page of MS Kaufmann A50, the oldest complete Mishnah, from the "
+            "Hungarian Academy of Sciences"
+        ),
     ),
     Cycle(
         slug="nach-yomi",
@@ -58,6 +68,8 @@ CYCLES: tuple[Cycle, ...] = (
         hebrew="נ״ך יומי",
         blurb=("A chapter a day of the Prophets and the Writings, the whole of them in two years."),
         rhythm="a chapter a day",
+        picture="aleppo.jpg",
+        credit="the Aleppo Codex, written by Shlomo ben Buya'a about the year 930",
     ),
     Cycle(
         slug="tanakh-yomi",
@@ -66,10 +78,12 @@ CYCLES: tuple[Cycle, ...] = (
         name="Tanakh Yomi",
         hebrew="תנ״ך יומי",
         blurb=(
-            "The Prophets and the Writings on weekdays, by the sedarim the "
-            "Masoretes divided them into."
+            "The Prophets and the Writings on weekdays, by the sedarim the Masoretes "
+            "divided them into."
         ),
         rhythm="one seder a weekday",
+        picture="leningrad.jpg",
+        credit="the Leningrad Codex, written by Shmuel ben Ya'akov in 1008",
     ),
     Cycle(
         slug="tehillim",
@@ -81,6 +95,10 @@ CYCLES: tuple[Cycle, ...] = (
             "The whole book of Psalms every month, a few chapters a day, by the day of the month."
         ),
         rhythm="a few psalms a day",
+        picture="psalms.jpg",
+        credit=(
+            "the Great Psalms Scroll from Qumran, photographed by the Israel Antiquities Authority"
+        ),
     ),
 )
 

@@ -22,6 +22,11 @@ systemd runs it before every start.
 
 Secrets live in `/etc/targum/targum.env` and nowhere else.
 
+Daily learning is not indexed until `TARGUM_INDEX_DAILY=1` is set on the box, and that
+is a separate switch from `TARGUM_INDEX_PARASHA`. Sharing one would mean that inviting
+crawlers to fifty-four portions — a corpus that is finished, and the same fifty-four every
+year — also invited them to four pages that change every night.
+
 Daily learning. `ship-daily.sh` carries the rolling window of `/mishna-yomi` and its
 three siblings. Unlike `ship-parasha.sh` it wants running **nightly**, and that is the
 whole difference between them: the parasha's corpus is the same fifty-four readings every

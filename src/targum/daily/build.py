@@ -162,6 +162,23 @@ def readable(cycle: str, day: date) -> bool:
     return (folder_for(cycle, day) / "reader" / "index.html").is_file()
 
 
+def opens_at(cycle: str, day: date) -> str:
+    """Which file of a built day the page should show first.
+
+    The first section where the day has more than one — seven psalms make seven sections
+    and `index.html` is then a list of seven links with a button, which is a poor thing to
+    hand somebody who came to read. But a day of Mishna Yomi is one chapter and the
+    renderer writes it no `sec-0001.html` at all, so pointing there unconditionally is a
+    404 on three cycles out of four. Asked of the disk, which is the only thing that
+    knows.
+    """
+    return (
+        "sec-0001.html"
+        if (folder_for(cycle, day) / "reader" / "sec-0001.html").is_file()
+        else "index.html"
+    )
+
+
 def current(cycle: str) -> tuple[date, dict[str, object]] | None:
     """Today's entry for one cycle, from what was built."""
     when = today()

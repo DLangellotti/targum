@@ -8,6 +8,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Added
 - `deploy/ship-daily.sh`, which carries the window to the box. Nightly, unlike the
   parasha's: the window rolls, and a stale box says "today" over the wrong day.
+- `TARGUM_INDEX_DAILY`, a switch of its own for the learning cycles. They are not
+  offered to search engines until it is set, and setting `TARGUM_INDEX_PARASHA` does not
+  reach them: a corpus of fifty-four fixed readings and four pages that change nightly
+  become ready to be found at different times.
 - Daily learning, at four addresses: `/mishna-yomi`, `/nach-yomi`, `/tanakh-yomi` and
   `/tehillim`. Each shows what its cycle reads today, with the reading itself on the page
   — cut out of the texts already on the shelf, so the translation, the word cards and the

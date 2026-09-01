@@ -311,6 +311,24 @@ WEEKLY_READER = re.compile(r"^/weekly/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0
 
 #: The same shape for the corpus. A portion's folder is its slug, which is lowercase
 #: letters and the hyphen that joins a doubled week.
+def daily_is_indexed() -> bool:
+    """Whether search engines are invited to the daily learning pages.
+
+    Its own switch rather than the parasha's, which is what they rode on for the
+    afternoon they were built. Sharing one would mean that inviting crawlers to fifty-four
+    portions — a corpus that is finished, and the same fifty-four every year — also
+    invited them to four pages that change every night and were a day old. The two are
+    ready at different times and now say so separately.
+
+    Off unless the deployment says. While it is off every daily response carries
+    `X-Robots-Tag: noindex` and the sitemap does not mention the cycles. Not robots.txt,
+    for the reason `weekly_is_indexed` gives: a crawler barred there never fetches the
+    page, so it never sees the noindex, and an address it learned elsewhere can still be
+    indexed bare. The header is the instruction; the open door is what lets it be read.
+    """
+    return os.environ.get("TARGUM_INDEX_DAILY", "").strip().lower() in {"1", "true", "yes"}
+
+
 def daily_cycles() -> tuple[Any, ...]:
     """The learning cycles this shelf carries. A function rather than an import at the
     top, because `serve` is imported to answer one request and `daily` pulls the
@@ -327,6 +345,9 @@ PARASHA_READER = re.compile(r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]
 #: four this shelf carries and nothing else matches, so a cycle Hebcal publishes and
 #: targum does not is a 404 rather than an empty page.
 DAILY_ROUTE = re.compile(r"^/(mishna-yomi|nach-yomi|tanakh-yomi|tehillim)(/.*)?$")
+#: How many days either side of the one on screen the chip row offers.
+NEARBY_DAYS = 3
+
 DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.html)?$")
 
 #: How often one address may ask to be subscribed. The `asked` table and its rail are
@@ -2411,7 +2432,7 @@ class Handler(BaseHTTPRequestHandler):
         from .daily.calendar import Day, for_day, today
         from .daily.cycles import ABSENT, BY_SLUG, CYCLES
 
-        if not parasha_is_indexed():
+        if not daily_is_indexed():
             self._robots_tag = "noindex"
         cycle = BY_SLUG.get(slug)
         if cycle is None:
@@ -2435,8 +2456,13 @@ class Handler(BaseHTTPRequestHandler):
         if day is None:
             return self._send(404, b"not found", "text/plain")
 
+        # The days either side, and only a few of them. The window holds three weeks and
+        # all twenty-one as chips ran off the edge of the page with today among the ones
+        # that had gone — the row scrolls, so what was cut was the one chip somebody
+        # needs. Three each way fits a desktop whole and puts today in the middle of a
+        # phone's scroll.
         built = corpus.days_of(slug)
-        nearby: list[Day] = []
+        around: list[Day] = []
         for iso in sorted(built):
             try:
                 other = date.fromisoformat(iso)
@@ -2444,7 +2470,9 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             one = for_day(cycle, other, allow_fetch=False)
             if one is not None and corpus.readable(slug, other):
-                nearby.append(one)
+                around.append(one)
+        here = next((i for i, one in enumerate(around) if one.day == when), 0)
+        nearby = around[max(0, here - NEARBY_DAYS) : here + NEARBY_DAYS + 1]
 
         others: list[tuple[object, str]] = []
         for one_cycle in CYCLES:
@@ -2459,7 +2487,8 @@ class Handler(BaseHTTPRequestHandler):
             day,
             nearby=nearby,
             others=others,
-            absent="; ".join(f"{name} — {why}" for name, why in ABSENT.items()),
+            absent=list(ABSENT.items()),
+            opens=corpus.opens_at(slug, when),
             is_today=when == today(),
             address=self.address,
         )
@@ -2474,7 +2503,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         from .daily import build as corpus
 
-        if not parasha_is_indexed():
+        if not daily_is_indexed():
             self._robots_tag = "noindex"
         try:
             day = date.fromisoformat(when)
@@ -2780,7 +2809,7 @@ class Handler(BaseHTTPRequestHandler):
         from .daily import build as daily_corpus
         from .daily.calendar import today as daily_today
 
-        if parasha_is_indexed():
+        if daily_is_indexed():
             paths += [
                 f"/{cycle.slug}"
                 for cycle in daily_cycles()

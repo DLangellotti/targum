@@ -266,22 +266,31 @@ In *this* repository: tokens are the `:root` block of
 Twelve places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
 
-### A daily page has no hero — 2026-09-01
+### A daily page carries an artefact, not an invented face — 2026-09-01
 
-`/parasha` opens on a band the width of the window: a photograph, a headline, the portion
-named in Hebrew. The daily learning pages — `/mishna-yomi` and its three siblings — do
-not, and the difference is on purpose rather than for want of a picture.
+The daily learning pages take the parasha's band: a seam down the middle, words on the
+ink half, a picture on the other. What is in the picture is the decision.
 
-A portion is a week. Somebody arriving at it on Tuesday is deciding whether to follow the
-reading at all, and the hero is the page making its case. A day is a day: somebody at
-`/mishna-yomi` keeps the cycle already, or has been sent there by it, and what they came
-for is two mishnayot they will read in four minutes. A pitch in front of that is a toll.
+Each cycle shows **something that exists** — the Kaufmann Mishnah, the Aleppo Codex, the
+Leningrad Codex, and for Tehillim the sixth-century synagogue floor at Gaza with David and
+his lyre on it. What is refused is not a face; it is an invented one.
 
-So the daily page keeps the band — the name, the Hebrew, one sentence of what the cycle
-is — and drops the photograph and the second hero under it, and puts the dateline and the
-reader where the hero was. Everything below is the parasha's, unchanged: the same embed,
-the same honest note, the same door at the bottom. If a cycle ever gets a page that has
-to sell itself, it can have a hero; today's reading is not that page.
+The line runs between them like this. There is no likeness of Judah the Prince, and every
+"portrait" of a sage of the Mishnah is a nineteenth-century artist's guess — printing one
+as the hero of a page about his book is a fabrication presented as a fact, and the one
+photograph of anything connected to him is CC BY-SA besides, which this shelf refuses
+everywhere else and cannot start accepting for a decoration. The Gaza mosaic is the other
+thing entirely: a floor a Jewish community laid in 508 and labelled דויד in tesserae, as
+much an artefact of how the Psalms were read as a codex is. A picture may be of a thing
+and must not be a claim about one. `COVER_RULES` says "no faces" about images a model is
+asked to invent, which is the same rule from the other end.
+
+The band was one column here for an afternoon, while the page had no picture, and half of
+it was empty black with the headline wrapping inside a column measured for something
+standing beside it — which is what a grid built for two things does when it is given one.
+Recorded because the fix was to add the picture, not to change the grid.
+
+`assets/manuscripts/README.md` carries the provenance and the licence of each.
 
 ### The library folds — 2026-09-01
 

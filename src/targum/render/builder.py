@@ -1112,7 +1112,8 @@ def daily_page(
     *,
     nearby: list[Any] | None = None,
     others: list[tuple[Any, str]] | None = None,
-    absent: str = "",
+    absent: list[tuple[str, str]] | None = None,
+    opens: str = "index.html",
     is_today: bool = True,
     address: str = "",
 ) -> str:
@@ -1141,7 +1142,8 @@ def daily_page(
             day=day,
             nearby=nearby or [],
             others=others or [],
-            absent=absent,
+            absent=absent or [],
+            opens=opens,
             is_today=is_today,
             translation_said=_translation_said(day),
         )

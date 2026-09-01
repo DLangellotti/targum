@@ -149,3 +149,40 @@ def test_a_range_with_verses_stops_where_it_says() -> None:
     assert within((28, 3), 28, 2, 28, 3)
     assert not within((28, 1), 28, 2, 28, 3)
     assert not within((28, 4), 28, 2, 28, 3)
+
+
+# -- who is invited ------------------------------------------------------------
+
+
+def test_the_cycles_are_not_indexed_unless_the_deployment_says(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Off by default, like the weekly and the parasha before them."""
+    from targum.serve import daily_is_indexed
+
+    monkeypatch.delenv("TARGUM_INDEX_DAILY", raising=False)
+    assert not daily_is_indexed()
+    for said in ("1", "true", "yes"):
+        monkeypatch.setenv("TARGUM_INDEX_DAILY", said)
+        assert daily_is_indexed()
+    monkeypatch.setenv("TARGUM_INDEX_DAILY", "no")
+    assert not daily_is_indexed()
+
+
+def test_the_parasha_switch_does_not_invite_the_cycles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one that matters. They rode on the parasha's switch for the afternoon they
+    were built, which meant inviting crawlers to a corpus that is finished and the same
+    every year would also have invited them to four pages that change every night."""
+    from targum.serve import daily_is_indexed, parasha_is_indexed
+
+    monkeypatch.setenv("TARGUM_INDEX_PARASHA", "1")
+    monkeypatch.delenv("TARGUM_INDEX_DAILY", raising=False)
+    assert parasha_is_indexed()
+    assert not daily_is_indexed()
+
+    monkeypatch.delenv("TARGUM_INDEX_PARASHA", raising=False)
+    monkeypatch.setenv("TARGUM_INDEX_DAILY", "1")
+    assert daily_is_indexed()
+    assert not parasha_is_indexed()

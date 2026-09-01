@@ -31,12 +31,27 @@
     </div>
   </div>
 
+  {#- The hero. The parasha's band: a seam down the middle, words on the ink half and a
+      picture on the other, so no word is ever set over the writing in the photograph.
+
+      The picture is a manuscript of the text the cycle reads — the Kaufmann Mishnah, the
+      Aleppo Codex, the Leningrad Codex, the Psalms scroll from Qumran — and not a
+      portrait of whoever is behind it. See `assets/manuscripts/README.md`: there is no
+      likeness of Judah the Prince to use, the one photograph of anything connected to him
+      is ShareAlike, and every "portrait" of a sage of the Mishnah is a nineteenth-century
+      invention. A page of the book is a picture of the book. -#}
   <section class="band">
     <div class="said">
       <span class="eyebrow">{% if is_today %}Today{% else %}{{ day.hdate }}{% endif %}</span>
       <h1 class="pitch">{{ cycle.name }}, every word explained.</h1>
       <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
       <p class="lede">{{ cycle.blurb }}</p>
+    </div>
+    {#- Decoration: it says nothing the words have not said, so it is hidden from a
+        screen reader rather than described to one. What it is and who wrote it is said
+        in words further down, where a reader can read it. -#}
+    <div class="pic" aria-hidden="true">
+      <img src="{{ data_uri('manuscripts/' ~ cycle.picture) }}" alt="">
     </div>
   </section>
 
@@ -51,8 +66,12 @@
 
   <div class="embed" id="embed">
     <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
+    {#- The first section where there is more than one, and the whole thing where there
+        is not — see `build.opens_at`. A day of Tehillim is seven psalms and its
+        `index.html` is a list of seven links; a day of Mishna Yomi is one chapter and has
+        no `sec-0001.html` to point at. -#}
     <iframe
-      src="/{{ cycle.slug }}/read/{{ day.slug }}/reader/index.html"
+      src="/{{ cycle.slug }}/read/{{ day.slug }}/reader/{{ opens }}"
       title="{{ day.title }}"
       loading="lazy"></iframe>
   </div>
@@ -94,13 +113,33 @@
     <p class="made">
       The Hebrew is the published edition, cut to today's reading and not edited. The
       English beside it is {{ translation_said }}. The cycle and its calendar come from
-      Hebcal. {% if absent %}What is not here: {{ absent }}{% endif %}
+      Hebcal. The picture is {{ cycle.credit }}.
     </p>
+    {#- What Hebcal publishes and this shelf cannot read. A list, because it was a
+        sentence with semicolons in it and the full stops inside each reason ran into
+        them. Somebody looking for Daf Yomi is owed the reason, not a paragraph. -#}
+    {% if absent %}
+    <dl class="absent">
+      {%- for name, why in absent %}
+      <dt>{{ name }}</dt>
+      <dd>{{ why }}</dd>
+      {%- endfor %}
+    </dl>
+    {% endif %}
   </section>
 
+  {#- The door. The parasha's, exactly: `.go` is only paper-on-ink inside `.door`, and
+      outside it the block inverts and the link does not — which is a blue underline on
+      near-black, and §9's "a beige button on a beige card is forbidden" said the other
+      way round. -#}
   <section class="keep">
-    <a class="go" href="/account/signin">Read it with your own words</a>
-    <p class="small">Free while it is in alpha.</p>
+    <h2 class="label">Keep what you learn</h2>
+    <p class="section-title">Every word you mark, remembered.</p>
+    <p class="pitch-line">In tomorrow's reading, and in everything you read after it.</p>
+    <p class="door">
+      <a class="go" href="/account/signin">Sign in</a>
+      <span class="free">An email address. No password.</span>
+    </p>
   </section>
 
 </main>
