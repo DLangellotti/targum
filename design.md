@@ -229,8 +229,10 @@ acts.
   permitted sheen.)
 - Mascots, squircle app-mark clichés, flag imagery — texts, not countries.
 - Burgundy `#800020` (Koren's), orange (the language-app default), blue (everyone's).
-- Ritual objects of any tradition. A Hebrew letterform may be used as pure form, never as an
-  identity signal.
+- Ritual objects **in the identity** — the mark, the lockup, the wordmark, the app icon,
+  anything that stands for targum itself. A Hebrew letterform may be used as pure form
+  there, never as an identity signal. Content surfaces are a different question and the
+  answer changed on 2026-09-01: see §12.
 - Scaling Hebrew below Latin; mirroring a letterform; the accent as body text or a large
   field.
 
@@ -251,8 +253,64 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Seven places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
+Nine places. Each was a deliberate decision with a date, kept here so nobody "corrects" the
 code back to a rule that was already retired.
+
+### A ritual object may stand on a content page — 2026-09-01
+
+§10 banned ritual objects outright. That was written for the identity, where it still
+holds without exception: nothing that stands for targum itself carries a scroll, a
+menorah, a crown or a pointer, because the product is a reader for texts and not a badge
+for one tradition, and a mark that says otherwise says it on every shelf including the
+ones with no Hebrew on them.
+
+A page about the week's Torah portion is not the identity. It is a content surface, about
+one text, for somebody who came looking for that text — and refusing it a picture of the
+thing it is about was the rule doing a job it was never written for. So on a content
+surface a ritual object is allowed, under the conditions the rest of this document already
+implies: it is imagery and never chrome, it never enters the mark or the lockup, it is
+`aria-hidden` decoration rather than a control, it obeys §9's hue budget, and it never
+arrives with the heritage-gold, metallic, bevelled finish §10's first line still bans —
+that look is the wrong century whatever it is a picture of.
+
+David's call, recorded here rather than argued in a code comment, and the reason the
+paragraph above it now says "in the identity".
+
+### Scripture has a third form of its text — 2026-09-01
+
+A reader shows a sentence two ways: bare, or everything the edition wrote. Scripture now
+shows a third — the vowels with the chanting marks taken off — and `/parasha` is why. The
+te'amim are the whole point for somebody preparing to leyn and noise on top of the vowels
+for somebody still learning to read, and those are the same page.
+
+This is the second time it has been built. The first was a middle step in the vowel switch,
+0 to 2, and it went inside a day: three positions on one control is a state to get lost in,
+and the word arrows broke on the new form. Neither carries over. It is a **separate
+two-position control** — the vowel switch still has its two — and it sits in the ⋯ menu,
+where a setting made once by somebody who knows what it is belongs. The arrows work because
+the reason they broke was fixed elsewhere in the meantime: `markMap` in `reader.js` derives
+a cell's offsets from that cell's own characters, so a form nobody had thought of when it
+was written maps like every other. Measured on Ruth: nineteen word spans in both forms,
+each carrying its own marks inside its own span.
+
+Every text without cantillation is untouched — two cells, one switch, no second button —
+and `test_render.py` holds both halves of that.
+
+**And the page's picture is a scroll.** `/parasha` opens on a band the width of the
+window, split down the middle: the words on ink, a photograph of a Torah scroll's columns
+beside them. The seam is upright rather than a scrim over the picture, because a headline
+set over a photograph *of writing* is a fight whose only win is dimming the photograph
+until it stops being one — turning the seam means no word is ever over the picture, so the
+type keeps its contrast and the picture keeps its strength. On a phone the seam turns with
+the layout and the picture takes the top.
+
+Three things about it are worth writing down. It is §9's one inverted block, spent here.
+Its colours are **constants, not tokens** — `#171614`, `#e6e1d8`, `#fffdf9`, `#c8a778`,
+every one of them out of §4's table — because the max-contrast pair flips with the theme,
+and flipping turns the band into a pale panel sitting on a dark page; held still, the band
+is the dark surface in both themes, and in dark mode it merges with the ground so the
+photograph is left floating. And the photograph is a stand-in: `assets/scroll/README.md`
+says whose it is, that it is CC0, and that a commissioned one is what should ship.
 
 ### A reader that carries moving pictures — 2026-08-31
 
