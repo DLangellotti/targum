@@ -1260,15 +1260,40 @@ class Store:
         credentials, not data — writing them into a file somebody downloads, mails to
         themselves and leaves in a downloads folder would be handing out live keys to
         their own account. What is here is everything they wrote or caused.
+
+        Everything the account keeps goes through `KINDS`, and this loops `KINDS` rather
+        than naming tables, so a kind added tomorrow is exported tomorrow without anyone
+        remembering to add it here. The days somebody read on are one of them: the
+        progress page is a view of these same records, drawn in the browser, and holds
+        nothing of its own — so what is here is what that page is made of, and a count
+        it shows tomorrow that is not derivable from this is a bug there, not here. The
+        nightly copy (`backup.py`) is the other half of the same promise and needs no
+        list at all: it takes the database whole.
         """
         account = self.db.execute(
-            "SELECT email, made FROM person WHERE id = ?", (person.id,)
+            "SELECT email, name, picture, made FROM person WHERE id = ?", (person.id,)
         ).fetchone()
         out: dict[str, Any] = {
             "account": {
                 "email": account["email"],
                 "joined": account["made"],
+                # What they asked to be called and what they chose to show. Theirs in
+                # the plainest sense: they typed it.
+                "name": account["name"],
+                "picture": account["picture"],
             },
+            # What they said about their languages — which they are learning, which they
+            # read — as the rows they wrote, not the defaulted sets `learning()` and
+            # `reads()` compute. The export is what somebody said, not what targum
+            # assumed on their behalf when they had said nothing.
+            "languages": [
+                dict(row)
+                for row in self.db.execute(
+                    "SELECT kind, language, at FROM chosen WHERE person = ?"
+                    " ORDER BY kind, language",
+                    (person.id,),
+                )
+            ],
             "exported": now(),
         }
         for name, kind in KINDS.items():
