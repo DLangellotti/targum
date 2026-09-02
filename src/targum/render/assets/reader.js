@@ -1,3 +1,12 @@
+/* Started once the durable store has put back what this browser kept — see
+   durable.js. On `file://` the copy `localStorage` holds can be one version behind,
+   and everything below reads it: the place, the vocabulary, the preferences, the
+   theme. The whole file waits rather than the first block of it, because the player
+   and the rest are their own closures and read the same store.
+
+   One local read, and it gives up after half a second — a store that will not answer
+   costs a beat, not a reader. */
+var targumReader = function () {
 /* targum reader.
    Everything here is progressive: the page reads with this file absent. It restores
    preferences, switches modes and translations, moves the selection with the keyboard,
@@ -329,7 +338,7 @@
 
   function save() {
     try {
-      localStorage.setItem(STORE, JSON.stringify(prefs));
+      targumKeep(STORE, JSON.stringify(prefs));
     } catch (e) {}
   }
 
@@ -389,7 +398,7 @@
   try {
     var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
     opened[documentId] = Date.now();
-    localStorage.setItem("targum:opened", JSON.stringify(opened));
+    targumKeep("targum:opened", JSON.stringify(opened));
 
     var now = new Date();
     var today =
@@ -401,7 +410,7 @@
     var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
     if (!days[today]) {
       days[today] = 1;
-      localStorage.setItem("targum:days", JSON.stringify(days));
+      targumKeep("targum:days", JSON.stringify(days));
       // Signed in, this reaches the account a moment later; signed out it is a no-op.
       if (window.TargumSync) window.TargumSync.touched();
     }
@@ -493,7 +502,7 @@
     if (!now.meaning && !now.note) delete store.records[term];
     else store.records[term] = now;
     try {
-      localStorage.setItem(store.name, JSON.stringify(store.records));
+      targumKeep(store.name, JSON.stringify(store.records));
     } catch (e) {}
     if (window.TargumSync) window.TargumSync.touched();
   }
@@ -533,8 +542,8 @@
 
   function remember() {
     try {
-      localStorage.setItem(VOCAB, JSON.stringify(vocab));
-      localStorage.setItem(PICKED, JSON.stringify(picks));
+      targumKeep(VOCAB, JSON.stringify(vocab));
+      targumKeep(PICKED, JSON.stringify(picks));
       updateDocs();
     } catch (e) {}
     // Signed in, this goes up to the account a moment later; signed out it does
@@ -563,7 +572,7 @@
       done: was.done || 0,
     };
     try {
-      localStorage.setItem(DOCS, JSON.stringify(all));
+      targumKeep(DOCS, JSON.stringify(all));
     } catch (e) {}
   }
 
@@ -593,7 +602,7 @@
     record.updated = Date.now();
     all[documentId] = record;
     try {
-      localStorage.setItem(DOCS, JSON.stringify(all));
+      targumKeep(DOCS, JSON.stringify(all));
     } catch (e) {}
     if (window.TargumSync) window.TargumSync.touched();
     renderFinished();
@@ -1152,7 +1161,7 @@
       (document.documentElement.getAttribute("dir") || "ltr") === "rtl" ? "←" : "→";
     first.textContent = "k known · 1 2 3 · " + forward + " next word · ? every key";
     try {
-      localStorage.setItem(FIRST, String(Date.now()));
+      targumKeep(FIRST, String(Date.now()));
     } catch (e) {}
   }
 
@@ -3786,7 +3795,7 @@
         .forEach(function (stale) {
           delete all[stale];
         });
-      localStorage.setItem(PLACE, JSON.stringify(all));
+      targumKeep(PLACE, JSON.stringify(all));
     } catch (e) {}
   }
 
@@ -5840,7 +5849,7 @@
   try {
     var opened = JSON.parse(localStorage.getItem("targum:chapter") || "{}");
     opened[pager.getAttribute("data-document")] = Number(pager.getAttribute("data-chapter"));
-    localStorage.setItem("targum:chapter", JSON.stringify(opened));
+    targumKeep("targum:chapter", JSON.stringify(opened));
   } catch (e) {}
 })();
 
@@ -6067,7 +6076,7 @@
     }
     if (chosen) {
       try {
-        localStorage.setItem(RATE_STORE, String(rate));
+        targumKeep(RATE_STORE, String(rate));
       } catch (e) {}
       var reader = window.TargumReader;
       if (reader && reader.say) reader.say(rate + "×");
@@ -6315,7 +6324,7 @@
       shut.addEventListener("click", function () {
         halt();
         player.hidden = true;
-        try { localStorage.setItem(STORE, "1"); } catch (e) {}
+        try { targumKeep(STORE, "1"); } catch (e) {}
         standing(false);
         remeasure();
       });
@@ -6326,7 +6335,7 @@
       scenes[0].addEventListener("click", function () {
         if (!player.hidden) return;
         player.hidden = false;
-        try { localStorage.removeItem(STORE); } catch (e) {}
+        try { targumForget(STORE); } catch (e) {}
         standing(true);
         remeasure();
       });
@@ -6358,8 +6367,8 @@
       if (!out && reader && reader.vacate) reader.vacate("video");
       if (chosen) {
         try {
-          if (out) localStorage.setItem(VIDEO_STORE, "1");
-          else localStorage.removeItem(VIDEO_STORE);
+          if (out) targumKeep(VIDEO_STORE, "1");
+          else targumForget(VIDEO_STORE);
         } catch (e) {}
       }
       revideo();
@@ -6409,3 +6418,8 @@
     if (document.hidden) halt();
   });
 })();
+
+};
+
+if (window.TargumStore) window.TargumStore.ready(targumReader);
+else targumReader();

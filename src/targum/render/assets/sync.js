@@ -76,13 +76,13 @@
 
   function write(name, value) {
     try {
-      localStorage.setItem(name, JSON.stringify(value));
+      targumKeep(name, JSON.stringify(value));
     } catch (e) {}
   }
 
   function drop(name) {
     try {
-      localStorage.removeItem(name);
+      targumForget(name);
     } catch (e) {}
   }
 

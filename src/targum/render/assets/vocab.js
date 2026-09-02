@@ -20,7 +20,7 @@
 
   function write(name, value) {
     try {
-      localStorage.setItem(name, JSON.stringify(value));
+      targumKeep(name, JSON.stringify(value));
     } catch (e) {}
   }
 
@@ -187,7 +187,7 @@
       });
       if (touched) write(pair, store);
       try {
-        localStorage.removeItem(name);
+        targumForget(name);
       } catch (e) {}
     });
 
