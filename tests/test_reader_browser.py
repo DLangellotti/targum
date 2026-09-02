@@ -1701,9 +1701,12 @@ def test_closing_the_player_closes_it_for_good(scene) -> None:
     # The state, not the element: the player is in the markup before the script at the
     # foot of the page has read what was remembered and put it away, and a slow runner
     # can be asked in between.
-    scene.wait_for_function(
-        "() => document.getElementById('player')?.hidden === true", timeout=5000
-    )
+    #
+    # Patient by default rather than for five seconds. The condition is right; the cap
+    # was a bet on how fast the runner is, and it lost one — the same mistake as a fixed
+    # wait, wearing a timeout. A condition that is correct should be waited for as long
+    # as the suite waits for anything, and a real failure still fails, just later.
+    scene.wait_for_function("() => document.getElementById('player')?.hidden === true")
     assert scene.evaluate(PLAYING)["hidden"] is True, "it stays shut on the next visit"
 
 
