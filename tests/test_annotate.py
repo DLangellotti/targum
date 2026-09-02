@@ -958,3 +958,86 @@ def test_a_gloss_bought_before_the_fields_existed_still_stands(tmp_path) -> None
     held = cached_gloss("בית", "he", "en", "fake", cache=cache)
     assert held is not None
     assert (held.gloss, held.citation, held.plural) == ("house", "", "")
+
+
+# --- what taking DICTA at face value would have cost ---------------------------------
+#
+# The swap is a licence fix (targum-internal#116). These pin the places where it would
+# have quietly lost something: a binyan nothing tags, a lemma the model declines to give,
+# and a lemma it gives as a piece of one.
+
+
+def test_a_binyan_is_derived_only_where_the_spelling_cannot_mean_anything_else() -> None:
+    """DICTA tags no binyan, so it is read off the lemma — or not read at all.
+
+    The declining half is the point. Every shape left out here was tried against Stanza on
+    the shelf and lied: ה plus four read הסתיר as התפעל rooted at סיר, and הת plus a mater
+    yod did the same to התחיל. Seventeen of eighty-four overlapping roots came out wrong,
+    which is the failure `hebrew.py` opens by refusing.
+    """
+    from targum.annotate.dicta import _binyan_of
+
+    assert _binyan_of("הלך") == "פעל"
+    assert _binyan_of("התלבש") == "התפעל"
+    # Hifil wearing hitpael's opening, told apart by the mater yod in fourth place.
+    assert _binyan_of("התחיל") is None
+    assert _binyan_of("הסתיר") is None
+    # פיעל, פועל and a quadriliteral are spelled alike unpointed, so none of them.
+    assert _binyan_of("דיבר") is None
+    assert _binyan_of("נקבה") is None
+
+
+def test_a_word_dicta_declines_keeps_its_surface_and_never_reaches_stanza() -> None:
+    """`[BLANK]` is DICTA's own answer for a word it has no lemma for — 3.7% of tokens on
+    the shelf, concentrated in 1900s orthography. The surface stands in. Falling back to
+    Stanza there would put the NonCommercial model back exactly where the permissive one
+    is weakest, which is the whole thing this swap is for."""
+    from targum.annotate.dicta import BLANK, _lemma
+
+    assert _lemma(BLANK, "טופפות", "טופפות") == "טופפות"
+    assert _lemma("", "נוצצו", "נוצצו") == "נוצצו"
+    assert _lemma("ספר", "הספר", "ספר") == "ספר"
+
+
+def test_a_wordpiece_is_not_a_lemma() -> None:
+    """DICTA's lemma head sometimes returns a raw BERT wordpiece on a rare word — מלבלב
+    came back as `##לבים`, קלשון as `##שון`. 257 lemmas on this shelf were affected, and
+    each would have carded under that name (targum-internal#141)."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("##לבים", "מלבלב", "מלבלב") == "מלבלב"
+    assert _lemma("##שון", "קלשון", "קלשון") == "קלשון"
+    assert _lemma("לבלב", "מלבלב", "מלבלב") == "לבלב", "a real lemma still passes"
+
+
+def test_the_corrections_are_closed_classes_and_the_pronouns_are_not_among_them() -> None:
+    """A copula that lemmatizes to an imperative is wrong by any reading, and the copula,
+    the numbers and the pronouns are all closed — no new Hebrew one is coming, so the
+    table cannot rot the way an open-class one would.
+
+    The pronouns are deliberately left alone: they are the largest block of disagreement
+    with Stanza and DICTA is the one that is right, keeping אני, לי and בו apart where
+    Stanza's treebank collapsed all of them onto הוא.
+
+    A round ten cannot be corrected by lemma at all — עשרה is the right answer far more
+    often than it is the wrong one — so it is keyed on the word, under its prefixes.
+    """
+    from targum.annotate.dicta import OVERRIDES, _lemma
+
+    assert _lemma("היי", "היה", "היה") == "היה"
+    assert "הוא" not in OVERRIDES.values(), "the pronouns are DICTA's to keep apart"
+    assert _lemma("עשרה", "בעשרים", "עשרים") == "עשרים"
+    assert _lemma("עשרה", "עשרה", "עשרה") == "עשרה", "the unit itself is untouched"
+    # A name is never mended: בני is a lemma to fix and Benny is a person.
+    assert _lemma("בני", "בני", "בני", "PROPN") == "בני"
+    assert _lemma("בני", "בני", "בני", "NOUN") == "בן"
+
+
+def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
+    """Same shape `hebrew.pieces_of` gives for Stanza — the clitics carry their gloss and
+    the content word stands bare — from a segmentation that hands the prefixes back as one
+    chunk rather than one word each."""
+    from targum.annotate.dicta import _pieces_of
+
+    assert _pieces_of(["וב", "ספר"], "ספר", False) == "ו and + ב in + ספר"
+    assert _pieces_of(["ספר"], "ספר", False) is None

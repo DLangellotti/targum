@@ -45,6 +45,12 @@ FEATURES = "roots+everyword+names+grammar"
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
 
+# And what it says when it half has one. On a rare word the lemma head sometimes returns
+# a raw BERT wordpiece — מלבלב came back as ##לבים, קלשון as ##שון — which is not a word
+# in any language and would card under that name. 257 lemmas on this shelf were affected
+# (targum-internal#141). Treated exactly like a decline, because that is what it is.
+PIECE = "##"
+
 # Not a word at all, exactly as `lemma.py` draws the line.
 SKIP_POS = frozenset({"PUNCT", "SYM"})
 
@@ -68,6 +74,32 @@ OVERRIDES = {
     "יודע": "ידע",
     "בל": "בלי",
     "ניחם": "מנחם",
+    # בני is the construct of בן and belongs on בן's card. Guarded by part of speech
+    # rather than by spelling, because בני is also a person's name.
+    "בני": "בן",
+}
+
+
+# The other half of the same problem, and it cannot be done by lemma. DICTA reads a round
+# ten as its unit — עשרים as עשרה, שלושים as שלושה — and reads שני as שנה. Correcting those
+# through `OVERRIDES` is impossible: עשרה, שלושה and שנה are the right answer far more
+# often than they are the wrong one, so a lemma→lemma table would break the good cases to
+# fix the bad. Keyed on the word instead, which is safe because a number is not ambiguous
+# with anything, and closed because the tens are all of them there are.
+#
+# Measured on the shelf against real marks (targum-internal#141): `שני → שנה` was the
+# single costliest move in the library, and `עשרים → עשרה` the third.
+SURFACES = {
+    "עשרים": "עשרים",
+    "שלושים": "שלושים",
+    "ארבעים": "ארבעים",
+    "חמישים": "חמישים",
+    "שישים": "שישים",
+    "שבעים": "שבעים",
+    "שמונים": "שמונים",
+    "תשעים": "תשעים",
+    "מאתיים": "מאתיים",
+    "שני": "שני",
 }
 
 
@@ -201,7 +233,9 @@ def _tokens(said: dict[str, Any]) -> list[Token]:
             continue
         surface = word.get("token") or ""
         seg = list(word.get("seg") or [])
-        lemma = _lemma(word.get("lex") or "", surface)
+        # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
+        # name is never corrected, because בני is a lemma to mend and Benny is a person.
+        lemma = _lemma(word.get("lex") or "", surface, seg[-1] if seg else surface, pos)
         feats = _stanza_feats(morph.get("feats"))
         binyan = binyan_of(feats) or (_binyan_of(lemma) if pos == "VERB" else None)
         offsets = word.get("offsets") or {}
@@ -223,9 +257,13 @@ def _tokens(said: dict[str, Any]) -> list[Token]:
     return out
 
 
-def _lemma(lex: str, surface: str) -> str:
+def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
     """The dictionary form, corrected where DICTA is reliably wrong or silent."""
     lemma = (lex or "").strip()
-    if not lemma or lemma == BLANK:
+    if not lemma or lemma == BLANK or PIECE in lemma:
         return surface.lower()
+    if pos == "PROPN":
+        return lemma.lower()
+    if base in SURFACES:
+        return SURFACES[base].lower()
     return OVERRIDES.get(lemma, lemma).lower()
