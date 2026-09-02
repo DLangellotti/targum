@@ -1971,10 +1971,20 @@ def render(
             )
             for section in sections
         }
+        # And the first and last address each file holds, so a verse link can pick the
+        # file that has the verse and not merely the chapter: a portion's files are
+        # aliyot, and a chapter runs across them (targum-internal#142). Segment order
+        # within a section is verse order, so first and last are positional.
+        held = {
+            section.number: [verses[sid] for sid in section.segment_ids if sid in verses]
+            for section in sections
+        }
+        spans = {n: (a[0], a[-1]) if a else ("", "") for n, a in held.items()}
         index = env.get_template("index.html.j2").render(
             **shared,
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
+            spans=spans,
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written

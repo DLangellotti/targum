@@ -3369,3 +3369,100 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
     assert page.evaluate(VERSE, "3:7")["number"] == "7"
     context.close()
+
+
+def portion(out: Path) -> Path:
+    """A built portion: chapter 2 cut across two aliyot, each under its own heading, the
+    way `targum parasha build` cuts one — so the chapter is two files, and the chapter
+    number alone cannot say which file holds verse 55."""
+    segments: list[Segment] = []
+    for title, chapter, numbers in (
+        ("ראשון", 2, range(1, 31)),
+        ("שני", 2, range(31, 61)),
+        ("שלישי", 3, range(1, 31)),
+    ):
+        n = len(segments)
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n:04d}",
+                block_index=n,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=title,
+            )
+        )
+        for number in numbers:
+            n = len(segments)
+            words = [coin(n * 16 + i) for i in range(14)]
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.000-aaaaaa",
+                    block_id=f"b{n:04d}",
+                    block_index=n,
+                    index=0,
+                    kind=BlockKind.verse,
+                    text=" ".join(words),
+                    ref=f"Ruth {chapter}:{number}",
+                )
+            )
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.fixture(scope="module")
+def aliyot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return portion(tmp_path_factory.mktemp("portion") / "reader")
+
+
+def test_a_verse_link_into_a_portion_lands_on_the_aliyah_that_holds_it(
+    browser, aliyot: Path
+) -> None:
+    """Chapter 2 runs across the first two files. `index.html#2:55` used to open the
+    first, which holds 2:1 to 2:30 and could do nothing with the verse; it now opens the
+    second, on the verse, with the row shown as the one the link meant
+    (targum-internal#142)."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + "#2:55")
+    page.wait_for_url(lambda url: url.endswith("sec-0002.html#2:55"))
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    assert seen["number"] == "55" and seen["target"]
+    context.close()
+
+
+@pytest.mark.parametrize(
+    ("hash", "lands"),
+    [
+        # A chapter alone: the first file that holds it.
+        ("#2", "sec-0001.html"),
+        # A verse no file holds: the chapter's first file, verse still in the address,
+        # rather than nowhere.
+        ("#2:99", "sec-0001.html#2:99"),
+    ],
+)
+def test_a_link_no_range_answers_falls_back_to_the_chapter(
+    browser, aliyot: Path, hash: str, lands: str
+) -> None:
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + hash)
+    page.wait_for_url(lambda url: url.endswith(lands))
+    page.wait_for_selector(".pair")
+    context.close()
