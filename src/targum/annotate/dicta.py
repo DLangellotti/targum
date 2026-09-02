@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..errors import TargumError
 from ..models import Segment, Token
 from ..paths import model_dir
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
@@ -198,8 +199,14 @@ class DictaLemmatizer:
             import os
 
             os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
-            import torch
-            from transformers import AutoModel, AutoTokenizer
+            try:
+                import torch
+                from transformers import AutoModel, AutoTokenizer
+            except ImportError as missing:  # pragma: no cover — a broken install only
+                raise TargumError(
+                    "The Hebrew annotator needs transformers, which is not installed.",
+                    "pip install 'transformers>=4.40'",
+                ) from missing
 
             self._tokenizer = AutoTokenizer.from_pretrained(MODEL)
             model = AutoModel.from_pretrained(MODEL, trust_remote_code=True)
