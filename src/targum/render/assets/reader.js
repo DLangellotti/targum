@@ -740,6 +740,14 @@ var targumReader = function () {
   var asked = {};
   // Words whose meaning the card has already asked the cache for, found or not.
   var peeked = {};
+  // Words whose meaning a sentence has chosen — the server's, or asked for from here
+  // this session. A meaning the build shipped was bought for the whole text at once,
+  // with no sentence per word, and עם came back "people" on a page where it was "with".
+  // The first card that opens on such a word asks once more, with the sentence it is
+  // in, and the answer stands for every reader after. Once a session per word: an
+  // answer that is already grounded is a cache hit on the server, and asking again
+  // buys nothing either way.
+  var grounded = {};
   // What came back for a word that had no meaning: "none" when it was looked up and
   // there was nothing to find, or the reason it could not be looked up. Kept so the
   // card can say which, instead of quietly offering the same button again.
@@ -773,6 +781,7 @@ var targumReader = function () {
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
+          if (answer.grounded) grounded[lemma] = true;
           onDone(true);
         } else {
           onDone(false);
@@ -783,11 +792,27 @@ var targumReader = function () {
       });
   }
 
+  // A meaning already on the card, asked about once more with the sentence it is in.
+  // Nothing is claimed while the answer is in the air — the old meaning stays up — and
+  // the card is redrawn only where the answer moved it.
+  function ground(index, word, onChanged) {
+    var lemma = lemmas[index];
+    if (!lemma || grounded[lemma] || !canAsk()) return;
+    grounded[lemma] = true;
+    var before = glosses[index];
+    lookUp(index, sentenceOf(word), function () {
+      if (glosses[index] !== before) onChanged();
+    });
+  }
+
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !canAsk()) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
+    // A lookup that carries its sentence is a grounding: whatever comes back, the
+    // server has now had the sentence, and the card need not send it again.
+    if (sentence) grounded[lemma] = true;
     // The language asked about, held for the length of the flight. A reader can change
     // translations while an answer is in the air, and an English meaning filed against
     // Russian is exactly the thing none of this is allowed to do.
@@ -2675,6 +2700,11 @@ var targumReader = function () {
           card.appendChild(trouble);
         }
       }
+    } else if (!own) {
+      // A meaning is up. If no sentence chose it, this one does — see `grounded`.
+      ground(index, word, function () {
+        if (lookedUp === word) showCard(word);
+      });
     }
 
     // How it is said — the IPA bare, its stress mark being the half of the reading a
