@@ -1837,6 +1837,117 @@ def test_only_a_verse_text_is_spaced_like_verses() -> None:
     assert '"verse_by_verse": biblical,' in builder
 
 
+# -- a verse answers to its address ----------------------------------------------
+
+
+def verse(index: int, chapter: int, number: int) -> Segment:
+    return Segment(
+        id=f"{index:04d}.000-cccccc",
+        block_id=f"b{index:04d}",
+        block_index=index,
+        index=0,
+        kind=BlockKind.verse,
+        text=f"וַיְהִי בִּימֵי {index}",
+        ref=f"Ruth {chapter}:{number}",
+    )
+
+
+def tanakh(out: Path, first_chapter: int = 1, verses: int = 3) -> Path:
+    """Two chapters of Ruth the way `sefaria/3` ingests them: a heading, then verses
+    with their refs. From `first_chapter`, because a range does not start at one."""
+    segments: list[Segment] = []
+    for chapter in (first_chapter, first_chapter + 1):
+        segments.append(heading(len(segments), 2, f"רות {chapter}"))
+        for number in range(1, verses + 1):
+            segments.append(verse(len(segments), chapter, number))
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.mark.parametrize(
+    ("ref", "address"),
+    [
+        ("Ruth 2:1", "2:1"),
+        ("I Samuel 10:2", "10:2"),
+        ("Song of Songs 1:1", "1:1"),
+        ("Mishnah Berakhot 1:3", "1:3"),
+        ("Psalms 119:176", "119:176"),
+        # Not addresses: an imported recording's part still waiting for its transcript,
+        # a chapter with no verse, and the nothing a prose block carries.
+        ("Ruth 1:waiting", ""),
+        ("Ruth 2", ""),
+        ("", ""),
+    ],
+)
+def test_a_verse_address_is_the_end_of_its_ref(ref: str, address: str) -> None:
+    from targum.render.builder import verse_address
+
+    assert verse_address(ref) == address
+
+
+def test_a_verse_answers_to_its_address(tmp_path: Path) -> None:
+    """Chapter:verse is how every learner of a Biblical text locates a line, so the row
+    is `#2:1`, says which verse it is in the margin, and can hand its address on
+    (targum-internal#28)."""
+    folder = tanakh(tmp_path / "reader")
+    second = (folder / "sec-0002.html").read_text(encoding="utf-8")
+    row = re.search(r'<div class="pair verse[^"]*"[^>]*\bid="2:1"[^>]*>', second)
+    assert row, "the row is the address"
+    assert 'data-ref="Ruth 2:1"' in row.group(0)
+    assert re.search(
+        r'<a class="verse-number" href="#2:1" aria-label="Ruth 2:1" title="Ruth 2:1">1</a>',
+        second,
+    ), "the number stands in the margin and is a link to the verse"
+    # The chapter's heading is the chapter's address, not a verse's.
+    head = re.search(r'<div class="pair head[^"]*"[^>]*>', second)
+    assert head and " id=" not in head.group(0)
+
+
+def test_prose_has_no_address(rendered: Path) -> None:
+    html = rendered.read_text(encoding="utf-8")
+    assert 'class="verse-number"' not in html
+    assert not re.search(r'<div class="pair[^"]*"[^>]* id="', html)
+
+
+def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> None:
+    """A range ingested from chapter 12 puts chapter 12 in the first file. The contents
+    page carries the chapter numbers so `index.html#12:1` can go on to the right one."""
+    folder = tanakh(tmp_path / "reader", first_chapter=12)
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="12">' in index
+    assert '<li data-chapter="2" data-chapters="13">' in index
+
+
+def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
+    """The scrolling reader lands on an id by itself. The pages do not — a verse on
+    another page is not rendered — and the contents page has to pick the file."""
+    from targum.render.builder import ASSETS
+
+    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'window.addEventListener("hashchange", arrive);' in reader
+    boot = reader[reader.index("  resume();\n") :]
+    assert "arrive();" in boot[: boot.index("took(")], "after the layout, like resume"
+    assert "if (paged()) turnTo(pair);" in reader[reader.index("function jumpToPair") :]
+
+    contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
+    assert "[data-chapters~=" in contents
+    assert "location.replace(row.href + hash);" in contents
+
+
 # -- reading, or marking ---------------------------------------------------------
 
 

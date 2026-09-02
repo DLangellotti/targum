@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- A verse answers to its address. Every verse of a Tanakh targum carries its number in
+  the margin, the way a printed edition sets it, and its row is `#2:1` — chapter and
+  verse, which is how every learner of a Biblical text locates a line — so a link to
+  Ruth 2:1 opens on Ruth 2:1, in the scrolling reader and in pages alike. The number is a
+  link to its own verse, so the address bar carries it and a reader can hand it on; the
+  contents page sends `index.html#2:1` on to whichever file holds chapter 2, which is not
+  always the second. Sefaria's `Ruth.2.1` is read as the same address (targum-internal#28).
 - The Hebrew Bible is read rather than predicted. Scripture on the shelf takes its prefix
   divisions, dictionary forms and morphology from the Open Scriptures Hebrew Bible — hand
   tagging, CC BY 4.0, over a public domain text — instead of from a model guessing at a

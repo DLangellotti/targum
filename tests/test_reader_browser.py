@@ -3223,3 +3223,149 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
     context.close()
 
     assert survived == "kept", f"a write made from disk did not survive; the store holds {held}"
+
+
+# --- a link to a verse ---------------------------------------------------------------
+#
+# A verse's row is `#2:1`, so a link to Ruth 2:1 opens on Ruth 2:1 (targum-internal#28).
+# The scrolling reader gets that from the browser; the pages have to turn to it, and the
+# contents page has to send it on to the file that holds the chapter.
+
+
+def tanakh(out: Path) -> Path:
+    """A built book: two chapters of sixty verses under their headings, each verse with
+    its ref, the way `sefaria/3` ingests one. From chapter 2, because a range does not
+    start at one and the file that holds a chapter is not the chapter's number."""
+    segments: list[Segment] = []
+    for chapter in (2, 3):
+        n = len(segments)
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n:04d}",
+                block_index=n,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=f"רות {chapter}",
+            )
+        )
+        for number in range(1, 61):
+            n = len(segments)
+            words = [coin(n * 16 + i) for i in range(14)]
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.000-aaaaaa",
+                    block_id=f"b{n:04d}",
+                    block_index=n,
+                    index=0,
+                    kind=BlockKind.verse,
+                    text=" ".join(words),
+                    ref=f"Ruth {chapter}:{number}",
+                )
+            )
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.fixture(scope="module")
+def book(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return tanakh(tmp_path_factory.mktemp("tanakh") / "reader")
+
+
+#: Where the verse a link named ended up, measured against the bar the way `WHERE` does.
+VERSE = """
+(id) => {
+  const pair = document.getElementById(id);
+  if (!pair || pair.hidden) return null;
+  const box = pair.getBoundingClientRect();
+  const bar = document.querySelector('.bar');
+  const number = pair.querySelector('.verse-number');
+  return {
+    target: pair.matches(':target'),
+    top: box.top,
+    bottom: box.bottom,
+    ceiling: bar ? bar.getBoundingClientRect().bottom : 0,
+    window: window.innerHeight,
+    number: number ? number.textContent : '',
+  };
+}
+"""
+
+#: The verse is drawn and inside the window — the pages take a frame to turn.
+VERSE_SHOWN = """
+(id) => {
+  const pair = document.getElementById(id);
+  if (!pair || pair.hidden) return false;
+  const box = pair.getBoundingClientRect();
+  return box.top >= 0 && box.bottom <= window.innerHeight;
+}
+"""
+
+
+@pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
+def test_a_link_to_a_verse_turns_to_its_page(browser, book: Path, hash: str) -> None:
+    """Verse 55 is pages in. A plain id cannot reach it — the pair is not rendered — so
+    the reader turns to its page. Sefaria writes the same address `Ruth.2.55`, and a
+    link copied from there should land too."""
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + hash)
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    assert seen["number"] == "55", "the number in the margin is the verse's"
+    assert seen["ceiling"] <= seen["top"] and seen["bottom"] <= seen["window"]
+    context.close()
+
+
+@pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
+def test_a_link_to_a_verse_opens_the_scrolling_reader_on_it(browser, book: Path, hash: str) -> None:
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + hash)
+    page.wait_for_selector(".pair")
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    # At the top of the reading area rather than merely somewhere in the window: a link
+    # to a verse opens *on* it, and the bar is not allowed to cover it.
+    assert seen["top"] >= seen["ceiling"] - 1
+    assert seen["top"] < seen["window"] / 2
+    context.close()
+
+
+def test_a_link_a_verse_opened_on_says_which_line(browser, book: Path) -> None:
+    """The row a link opened on is `:target`, which the stylesheet draws as the band the
+    pointer draws — so a reader who followed a link to Ruth 2:1 is shown which line."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + "#2:3")
+    page.wait_for_function(VERSE_SHOWN, arg="2:3")
+    assert page.evaluate(VERSE, "2:3")["target"]
+    context.close()
+
+
+def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: Path) -> None:
+    """`index.html#3:7` goes to the file that holds chapter 3 — the second, here, though
+    the book opens at chapter 2 — with the verse still in the address."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "index.html") + "#3:7")
+    page.wait_for_url(lambda url: url.endswith("sec-0002.html#3:7"))
+    page.wait_for_function(VERSE_SHOWN, arg="3:7")
+    assert page.evaluate(VERSE, "3:7")["number"] == "7"
+    context.close()
