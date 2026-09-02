@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from targum.models import (
+    Annotation,
     BlockKind,
     Document,
     Segment,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -1417,8 +1419,7 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
 
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert data["lemmas"] == ["התלבש", "בית"]
-    assert data["roots"] == ["לבש", ""]
-    assert data["binyanim"] == ["התפעל", ""]
+    assert data["extensions"] == {"roots": ["לבש", ""], "binyanim": ["התפעל", ""]}
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert PEALIM in html
 
@@ -1840,6 +1841,117 @@ def test_only_a_verse_text_is_spaced_like_verses() -> None:
     )
     assert "biblical = is_biblical(document.source)" in builder
     assert '"verse_by_verse": biblical,' in builder
+
+
+# -- a verse answers to its address ----------------------------------------------
+
+
+def verse(index: int, chapter: int, number: int) -> Segment:
+    return Segment(
+        id=f"{index:04d}.000-cccccc",
+        block_id=f"b{index:04d}",
+        block_index=index,
+        index=0,
+        kind=BlockKind.verse,
+        text=f"וַיְהִי בִּימֵי {index}",
+        ref=f"Ruth {chapter}:{number}",
+    )
+
+
+def tanakh(out: Path, first_chapter: int = 1, verses: int = 3) -> Path:
+    """Two chapters of Ruth the way `sefaria/3` ingests them: a heading, then verses
+    with their refs. From `first_chapter`, because a range does not start at one."""
+    segments: list[Segment] = []
+    for chapter in (first_chapter, first_chapter + 1):
+        segments.append(heading(len(segments), 2, f"רות {chapter}"))
+        for number in range(1, verses + 1):
+            segments.append(verse(len(segments), chapter, number))
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.mark.parametrize(
+    ("ref", "address"),
+    [
+        ("Ruth 2:1", "2:1"),
+        ("I Samuel 10:2", "10:2"),
+        ("Song of Songs 1:1", "1:1"),
+        ("Mishnah Berakhot 1:3", "1:3"),
+        ("Psalms 119:176", "119:176"),
+        # Not addresses: an imported recording's part still waiting for its transcript,
+        # a chapter with no verse, and the nothing a prose block carries.
+        ("Ruth 1:waiting", ""),
+        ("Ruth 2", ""),
+        ("", ""),
+    ],
+)
+def test_a_verse_address_is_the_end_of_its_ref(ref: str, address: str) -> None:
+    from targum.render.builder import verse_address
+
+    assert verse_address(ref) == address
+
+
+def test_a_verse_answers_to_its_address(tmp_path: Path) -> None:
+    """Chapter:verse is how every learner of a Biblical text locates a line, so the row
+    is `#2:1`, says which verse it is in the margin, and can hand its address on
+    (targum-internal#28)."""
+    folder = tanakh(tmp_path / "reader")
+    second = (folder / "sec-0002.html").read_text(encoding="utf-8")
+    row = re.search(r'<div class="pair verse[^"]*"[^>]*\bid="2:1"[^>]*>', second)
+    assert row, "the row is the address"
+    assert 'data-ref="Ruth 2:1"' in row.group(0)
+    assert re.search(
+        r'<a class="verse-number" href="#2:1" aria-label="Ruth 2:1" title="Ruth 2:1">1</a>',
+        second,
+    ), "the number stands in the margin and is a link to the verse"
+    # The chapter's heading is the chapter's address, not a verse's.
+    head = re.search(r'<div class="pair head[^"]*"[^>]*>', second)
+    assert head and " id=" not in head.group(0)
+
+
+def test_prose_has_no_address(rendered: Path) -> None:
+    html = rendered.read_text(encoding="utf-8")
+    assert 'class="verse-number"' not in html
+    assert not re.search(r'<div class="pair[^"]*"[^>]* id="', html)
+
+
+def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> None:
+    """A range ingested from chapter 12 puts chapter 12 in the first file. The contents
+    page carries the chapter numbers so `index.html#12:1` can go on to the right one."""
+    folder = tanakh(tmp_path / "reader", first_chapter=12)
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="12">' in index
+    assert '<li data-chapter="2" data-chapters="13">' in index
+
+
+def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
+    """The scrolling reader lands on an id by itself. The pages do not — a verse on
+    another page is not rendered — and the contents page has to pick the file."""
+    from targum.render.builder import ASSETS
+
+    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert 'window.addEventListener("hashchange", arrive);' in reader
+    boot = reader[reader.index("  resume();\n") :]
+    assert "arrive();" in boot[: boot.index("took(")], "after the layout, like resume"
+    assert "if (paged()) turnTo(pair);" in reader[reader.index("function jumpToPair") :]
+
+    contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
+    assert "[data-chapters~=" in contents
+    assert "location.replace(row.href + hash);" in contents
 
 
 # -- reading, or marking ---------------------------------------------------------
@@ -3598,6 +3710,65 @@ def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> Non
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert "registers" not in data
     assert data["sourceRegister"] == "modern"
+
+
+def _one_page(tmp_path: Path, tokens: list[Token]) -> dict[str, object]:
+    """The payload of a one-paragraph Hebrew page annotated with exactly these tokens."""
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: tokens},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data: dict[str, object] = json.loads(
+        re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)
+    )
+    return data
+
+
+def test_the_payload_says_which_shape_it_is(tmp_path: Path) -> None:
+    """One field, so a payload can be told apart from an older one by a reader it did not
+    ship with. Not the cache's `SCHEMA_VERSION`: this one is free to move."""
+    from targum.render.builder import PAYLOAD_VERSION
+
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["schemaVersion"] == PAYLOAD_VERSION == 1
+
+
+def test_a_page_with_no_verb_ships_no_root_or_binyan_table(tmp_path: Path) -> None:
+    """Like the registers and the sounds: a row of empty strings nothing would read is
+    left out, rather than shipped in every reader whose language has no binyanim and
+    every one annotated before there was a root to give."""
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["lemmas"] == ["בית"]
+    assert "extensions" not in data
+
+
+def test_a_binyan_without_a_root_ships_the_one_table_it_has(tmp_path: Path) -> None:
+    """The two are decided apart. A verb whose binyan Stanza tagged and whose root could
+    not honestly be had is the common case for a weak verb, and the card still says the
+    binyan — so the binyanim table rides alone, and the roots table is not sent empty
+    beside it."""
+    data = _one_page(
+        tmp_path, [Token(start=0, end=3, surface="קם", lemma="קם", band=2, binyan="פעל")]
+    )
+    assert data["extensions"] == {"binyanim": ["פעל"]}
 
 
 # -- what to read next -------------------------------------------------------------

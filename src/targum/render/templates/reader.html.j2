@@ -357,7 +357,13 @@
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
-  <div class="pair{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
+  {#- A verse answers to its address. The row is `#2:1`, which is what a link to Ruth 2:1
+      says, and the number stands in the margin the way a printed edition sets it: a
+      learner locates a line by chapter and verse and nothing else. The number is a link
+      to itself, so the address bar carries the verse and a reader can hand it on. -#}
+  {% set at = verses.get(segment.id, '') %}
+  <div class="pair{% if at %} verse{% endif %}{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}"{% if at %} id="{{ at }}" data-ref="{{ segment.ref }}"{% endif %} data-id="{{ segment.id }}" tabindex="-1">
+    {% if at %}<a class="verse-number" href="#{{ at }}" aria-label="{{ segment.ref }}" title="{{ segment.ref }}">{{ at.split(':')[1] }}</a>{% endif %}
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
