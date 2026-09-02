@@ -700,13 +700,38 @@ def test_the_mark_goes_when_the_reader_does(page) -> None:
     assert page.evaluate(HERE) is None, "the mark stayed behind after a scroll"
 
 
+#: Everything that decides whether a place comes back, asked at once.
+#:
+#: The two tests below have failed in CI five times and never once here — not on an idle
+#: machine, not under load, not at 20x CPU throttling, and not across 12 consecutive runs
+#: of the whole file. Six explanations were ruled out by measurement (targum-internal#124)
+#: and the wait that `reopen` now does was not enough either.
+#:
+#: So the next failure has to arrive carrying its own evidence rather than as `assert
+#: None`. Each field separates a live hypothesis: `kept` empty means the place was never
+#: written on the way out or was deleted by `leavePlace`'s `scrollY <= 2` branch; `scrollY`
+#: above 2 or a `hash` means `resume` bailed on purpose; `words` false means reader.js had
+#: not run at all despite the wait.
+RESTORED = """
+() => ({
+  scrollY: Math.round(window.scrollY),
+  hash: location.hash,
+  words: document.querySelectorAll('.w').length,
+  here: !!document.querySelector('.here'),
+  kept: JSON.parse(localStorage.getItem('targum:place') || '{}'),
+})
+"""
+
+
 def test_leaving_and_coming_back_marks_the_place_too(page, built: Path) -> None:
     """Opening a text you left half-read is the case the mark was asked for."""
     before = page.evaluate(WHERE)
 
     reopen(page, built)
 
-    assert page.evaluate(HERE) == {"what": "sentence", "id": before["id"]}
+    assert page.evaluate(HERE) == {"what": "sentence", "id": before["id"]}, (
+        f"nothing was put back. left at {before}, came back to {page.evaluate(RESTORED)}"
+    )
 
 
 def test_leaving_and_coming_back_lands_on_the_same_sentence(page, built: Path) -> None:
@@ -716,7 +741,10 @@ def test_leaving_and_coming_back_lands_on_the_same_sentence(page, built: Path) -
     after = reopen(page, built).evaluate(AT, before["id"])
 
     assert after is not None, "the sentence is not on the page the reader came back to"
-    assert abs(after["top"] - before["top"]) <= SLACK, "it came back on a different line"
+    assert abs(after["top"] - before["top"]) <= SLACK, (
+        f"it came back on a different line. left at {before}, came back to "
+        f"{after} with {page.evaluate(RESTORED)}"
+    )
 
 
 def test_leaving_and_coming_back_lands_on_the_word_you_tapped(page, built: Path) -> None:
@@ -1701,9 +1729,12 @@ def test_closing_the_player_closes_it_for_good(scene) -> None:
     # The state, not the element: the player is in the markup before the script at the
     # foot of the page has read what was remembered and put it away, and a slow runner
     # can be asked in between.
-    scene.wait_for_function(
-        "() => document.getElementById('player')?.hidden === true", timeout=5000
-    )
+    #
+    # Patient by default rather than for five seconds. The condition is right; the cap
+    # was a bet on how fast the runner is, and it lost one — the same mistake as a fixed
+    # wait, wearing a timeout. A condition that is correct should be waited for as long
+    # as the suite waits for anything, and a real failure still fails, just later.
+    scene.wait_for_function("() => document.getElementById('player')?.hidden === true")
     assert scene.evaluate(PLAYING)["hidden"] is True, "it stays shut on the next visit"
 
 

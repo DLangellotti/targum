@@ -33,16 +33,17 @@ dependencies = [
 align = ["sentence-transformers>=3.0"]
 # Forced alignment of a supplied transcript against its recording. Torch rides in with
 # it; on the box Stanza already brought torch, so the marginal weight is the model.
-# CC BY-NC 4.0, and the model it fetches is in Meta's MMS lineage and NonCommercial too.
-# That is why forced alignment is an extra and never a default: an install of plain
-# `targum` carries no NonCommercial term. See LICENSING.md.
-# From GitHub by name on purpose: the PyPI package called ctc-forced-aligner is a
-# different project with a different API, and resolving it silently is how the aligner
-# came to be "installed" on a machine it had never once run on. Pinned to a commit:
-# an unpinned branch head is whoever controls that repository, at install time, on
-# the box.
+#
+# Permissive, which it was not. Until 2026-09-02 this installed `ctc-forced-aligner`
+# (CC BY-NC 4.0) on an MMS-lineage model that was NonCommercial as well, and it was one
+# of the two reasons an install of targum could carry a NonCommercial term at all. The
+# algorithm was never the encumbered part — CTC forced alignment is `torchaudio`, BSD-2 —
+# so only the acoustic model changed: `imvladikon/wav2vec2-large-xlsr-53-hebrew`,
+# Apache-2.0, from XLS-R (Apache-2.0) on Common Voice (CC0). Fetched at first use like
+# every other model rather than pinned here, because it is weights and not code.
 speech-align = [
-  "ctc-forced-aligner @ git+https://github.com/MahmoudAshraf97/ctc-forced-aligner@11855d1de76af2b490dd2e8e2db2661805ae90a0",
+  "torchaudio>=2.1",
+  "transformers>=4.40",
 ]
 covers = ["pillow>=10.0"]
 difficulty = ["wordfreq>=3.1"]
@@ -108,8 +109,9 @@ module = [
   "wordfreq.*",
   "nakdimon.*",
   "phonikud.*",
-  "ctc_forced_aligner.*",
   "torch.*",
+  "torchaudio.*",
+  "transformers.*",
 ]
 ignore_missing_imports = true
 
