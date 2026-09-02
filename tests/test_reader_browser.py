@@ -3194,10 +3194,41 @@ def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
     context.close()
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="targum-internal#137: a file:// store is not durable, and that is the bug",
-)
+#: Whether the place the reader wrote has reached the copy that survives — durable.js's
+#: shelf, asked directly rather than through the page. `localStorage` answering yes says
+#: only that `targumKeep` ran, and on `file://` that is exactly the answer that turns out
+#: not to be worth anything; the shelf answering yes says the write committed, which is
+#: the whole difference durable.js exists for. Waiting on it is what makes the reload
+#: below a test of coming back rather than a race with a flush.
+KEPT = """
+(id) => new Promise((done) => {
+  const ask = indexedDB.open('targum', 1);
+  ask.onerror = () => done(false);
+  ask.onsuccess = () => {
+    const db = ask.result;
+    let got;
+    try {
+      got = db.transaction('kept', 'readonly').objectStore('kept').get('targum:place');
+    } catch (e) {
+      db.close();
+      return done(false);
+    }
+    got.onerror = () => { db.close(); done(false); };
+    got.onsuccess = () => {
+      db.close();
+      let all;
+      try {
+        all = JSON.parse((got.result || {}).value || '{}');
+      } catch (e) {
+        return done(false);
+      }
+      done(Object.keys(all).some((k) => all[k].segment === id));
+    };
+  };
+})
+"""
+
+
 def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) -> None:
     """The canary for the shipped case, and the only test here that still uses `file://`.
 
@@ -3206,20 +3237,39 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
     browser that loses a write intermittently cannot hold a deploy gate; that did not
     make the loss go away, and something has to keep watching for it.
 
-    `xfail(strict=False)` on purpose: it passes most of the time and reports rather than
-    breaks when it does not, which is what a canary is for. When targum-internal#137 is
-    fixed this becomes a plain assertion and the marker comes off.
+    It watches through the reader's own path, which is the only version of this test
+    worth having. A canary that called `localStorage.setItem` itself would be watching
+    the one mechanism the fix deliberately did not repair: raw `localStorage` on
+    `file://` still loses writes, durable.js is the answer to that rather than a cure for
+    it, and a canary aimed there could never come good however well the reader worked.
+    So the place is put down the way a reader puts it down — a scroll, `keepPlace`
+    settling a second later, `targumKeep` mirroring to the shelf — and picked up the way
+    a reader picks it up, by `recover` handing it back before `resume` reads it.
     """
     context = opened(browser)
     page = context.new_page()
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    page.evaluate("() => localStorage.setItem('targum:canary', 'kept')")
+    # See the note at the top: the browser's own anchoring would answer for the page.
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.evaluate(SCROLL_TO_ANCHOR, ANCHOR)
+    page.wait_for_function(MARKED, arg=ANCHOR)
+    before = page.evaluate(WHERE)
+    page.wait_for_function(KEPT, arg=before["id"])
 
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    survived = page.evaluate("() => localStorage.getItem('targum:canary')")
-    held = page.evaluate("() => Object.keys(localStorage)")
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    after = page.evaluate(AT, before["id"])
+    held = page.evaluate(RESTORED)
     context.close()
 
-    assert survived == "kept", f"a write made from disk did not survive; the store holds {held}"
+    assert after is not None, (
+        f"the sentence is not on the page the reader came back to. left at {before}, "
+        f"came back to {held}"
+    )
+    assert abs(after["top"] - before["top"]) <= SLACK, (
+        f"a reader opened from disk came back on a different line. left at {before}, "
+        f"came back to {after} with {held}"
+    )
