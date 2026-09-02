@@ -136,8 +136,9 @@ var targumReader = function () {
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
-  // which one this text is written in. Codes, not sentences: the words are below, so
-  // rewriting them costs nothing and re-annotating a library is not part of it.
+  // which one this text is written in. Codes, not sentences: the words are in
+  // `registerLine`, so rewriting them costs nothing and re-annotating a library is not
+  // part of it.
   var registers = data.registers || [];
   var sourceRegister = data.sourceRegister || "";
   // Absent in every reader with no Hebrew in it, and in one built before there was
@@ -2306,6 +2307,19 @@ var targumReader = function () {
   // is the usual reason a learner mis-reads it. A verb is parsed, a noun declares its
   // gender and number, an adjective its agreement — and an adverb needs nothing, so
   // it gets nothing.
+  // Which Hebrew a word belongs to, said from where the reader is standing. The table
+  // holds a code only where the two registers disagree, so every line here is news: a
+  // word ordinary in scripture and gone from the street, or in use today and never in
+  // the Tanakh. The same word is ordinary in a Tanakh and an import in a newspaper,
+  // and the line says whichever the reader is looking at.
+  function registerLine(code, source) {
+    if (code === "biblical") {
+      return source === "biblical" ? "biblical · rare today" : "biblical · an import here";
+    }
+    if (code === "modern") return "modern · not in the Tanakh";
+    return "";
+  }
+
   function useLine(line) {
     var pos = feat(line, "UPOS");
     if (pos === "VERB" || pos === "AUX") {
@@ -2787,6 +2801,16 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // Which Hebrew the word belongs to, on the cards where that is worth a line at all:
+    // the table is empty wherever the two registers agreed.
+    var where = registerLine(registers[index] || "", sourceRegister);
+    if (where) {
+      var belongs = document.createElement("span");
+      belongs.className = "register";
+      belongs.textContent = where;
+      card.appendChild(belongs);
     }
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
@@ -5719,6 +5743,8 @@ var targumReader = function () {
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
     personWord: personWord,
+    // And the register line: which Hebrew a word belongs to, from where the reader is.
+    registerLine: registerLine,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,

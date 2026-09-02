@@ -933,8 +933,11 @@ body.marking .w.here,
 }
 .gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
 /* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
-   is one. Muted like the other metadata; the answer above it is the ink. */
-.gloss-card .use {
+   is one. Muted like the other metadata; the answer above it is the ink. The register
+   line is the same kind of fact and is set the same way: which Hebrew the word belongs
+   to, on the few cards where the two registers disagree. */
+.gloss-card .use,
+.gloss-card .register {
   display: block;
   color: var(--ink-soft);
   font-size: 0.8125rem;
