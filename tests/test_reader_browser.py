@@ -757,7 +757,10 @@ def test_leaving_and_coming_back_lands_on_the_word_you_tapped(page, built: Path)
 
     after = reopen(page, built).evaluate(FIND, [was["id"], was["text"]])
 
-    assert after is not None, "the word is not on the page the reader came back to"
+    assert after is not None, (
+        f"the word is not on the page the reader came back to. left on {was}, "
+        f"came back to {page.evaluate(RESTORED)}"
+    )
     assert abs(after["top"] - was["top"]) <= SLACK, "the word came back on a different line"
 
 
