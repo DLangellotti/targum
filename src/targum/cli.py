@@ -1078,20 +1078,20 @@ def rebuild(
             Annotator,
             PhonikudPronouncer,
             Pronouncer,
-            StanzaLemmatizer,
             biblical,
             lemma,
             pronounceable,
         )
+        from .annotate.base import Lemmatizer as LemmatizerProtocol
         from .models import Vocalization, read_artifact
 
         # One lemmatizer per register for the whole run: the models it loads are most of
         # the cost, and a Tanakh and a newspaper are read with different tokenizers.
-        lemmatizers: dict[bool, StanzaLemmatizer] = {}
+        lemmatizers: dict[bool, LemmatizerProtocol] = {}
         phonikud = PhonikudPronouncer()
         has_phonikud = phonikud.available()[0]
 
-        def lemmatizer_for(source: str) -> StanzaLemmatizer:
+        def lemmatizer_for(source: str) -> LemmatizerProtocol:
             scripture = is_biblical(source)
             if scripture not in lemmatizers:
                 lemmatizers[scripture] = lemma.for_source(source)
@@ -1240,7 +1240,7 @@ def seed(
     """
     from . import catalogue as catalogue_module
     from .annotate import lemma
-    from .annotate.lemma import StanzaLemmatizer
+    from .annotate.base import Lemmatizer as LemmatizerProtocol
     from .coverage import lemmas
     from .serve import HOSTED_MODEL
 
@@ -1250,7 +1250,7 @@ def seed(
     # One lemmatizer per register for the whole run, as `rebuild` keeps. A hundred
     # scenes each loading their own Stanza reached six and a half gigabytes on the box
     # and were killed twenty-four texts in; shared, the run holds two.
-    lemmatizers: dict[bool, StanzaLemmatizer] = {}
+    lemmatizers: dict[bool, LemmatizerProtocol] = {}
     for entry_id in seeds():
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
@@ -2166,8 +2166,26 @@ def models_list() -> None:
 def models_fetch(
     language: Annotated[str, typer.Argument(help="A language tag, such as he or ru.")],
 ) -> None:
-    """Download a language model ahead of time. Use 'embeddings' for the aligner."""
+    """Download a language model ahead of time. Use 'embeddings' for the aligner, or
+    'scripture' for the hand-tagged Hebrew Bible."""
     from .align import embedding
+
+    if language in {"scripture", "tanakh", "oshb"}:
+        from .annotate import oshb
+
+        if oshb.available():
+            console.print("[dim]The Hebrew Bible morphology is already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching the Hebrew Bible morphology from the "
+            f"{oshb.CREDIT}, {oshb.LICENCE}. Thirty-nine books and a lexicon…[/dim]"
+        )
+        try:
+            got = oshb.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(f"[green]Downloaded[/green] {got} books · {oshb.CREDIT} · {oshb.LICENCE}")
+        return
 
     if language in {"embeddings", "align", "aligner"}:
         if embedding.is_downloaded():

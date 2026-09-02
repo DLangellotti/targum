@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- The Hebrew Bible is read rather than predicted. Scripture on the shelf takes its prefix
+  divisions, dictionary forms and morphology from the Open Scriptures Hebrew Bible — hand
+  tagging, CC BY 4.0, over a public domain text — instead of from a model guessing at a
+  register it was not trained on. `targum models fetch scripture` brings it down; a verse
+  the tagging cannot line up falls back to the annotator, as does everything that is not
+  scripture. Measured over Ruth, 44% of dictionary forms change: `ויהי` was `ויה`, which is
+  not a word, and is `היה`; `בניו` was `ניו` and is `בן`; `אשתו` was `איש` and is `אשה`.
 - `targum licences` — what the corpus is under, and what may leave it. Each source already
   recorded a licence; what that licence *allows* is now computed rather than remembered,
   in `licensing.py`, and reported by standing: free, owed, closed, unknown. A source with
@@ -136,6 +143,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the current PEP 639 spelling; the table form it used is deprecated.
 
 ### Fixed
+- One spelling per word. A dictionary form is a vocabulary key, so two spellings of one
+  word were two entries, two counts and two things to mark known. Ten pairs fold now —
+  `כול` onto `כל`, `שמיים` onto `שמים`, `דויד` onto `דוד` — each one measured, checked
+  against written frequency and confirmed by a reader. The pairs a reader refused are
+  written down beside them, because `בת` and `בית` differ by one letter too, and so do
+  `אחות` and `אחת`.
 - A first build on a fresh box says what it is waiting for. Stanza fetches a few hundred
   megabytes the first time a language is used, and the page held whatever line it had
   printed before — "Finding each word's dictionary form…" — for the whole of it. A line

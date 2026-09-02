@@ -41,6 +41,11 @@ from ..errors import TargumError
 from ..paths import ensure, model_dir, write_atomic
 
 SOURCE = "https://raw.githubusercontent.com/openscriptures/morphhb/master/wlc/{book}.xml"
+#: Strong's numbers into Hebrew headwords. The morphology says *which* lexeme a word
+#: belongs to, as a number; this says what that lexeme is called. Same project, same
+#: licence, and the dictionary underneath is public domain.
+LEXICON = "https://raw.githubusercontent.com/openscriptures/HebrewLexicon/master/HebrewStrong.xml"
+LEXICON_FILE = "strongs.json"
 
 #: Named where the licence requires it, and here as well because a file that carries
 #: somebody's work should say whose it is at the top of the thing that reads it.
@@ -135,6 +140,23 @@ class Word(NamedTuple):
         """
         return len(self.pieces) - 1
 
+    @property
+    def lexeme(self) -> str:
+        """Which lexeme the content piece belongs to, or "" where none was recorded.
+
+        Clamped rather than indexed straight, because the three lists usually line up and
+        occasionally do not: a word read differently from how it is written carries its
+        pieces from the text and its lemma from the attribute, and the attribute is
+        sometimes one field where the text is two. Indexing past the end there would have
+        lost a whole verse to an exception.
+        """
+        return self.lexemes[min(self.content, len(self.lexemes) - 1)] if self.lexemes else ""
+
+    @property
+    def code(self) -> str:
+        """The morphology of the content piece, clamped for the reason `lexeme` is."""
+        return self.morph[min(self.content, len(self.morph) - 1)] if self.morph else ""
+
 
 def root() -> Path:
     """Where the tagged text lives. Beside the language models, and for the same reason:
@@ -143,7 +165,47 @@ def root() -> Path:
 
 
 def available() -> bool:
-    return root().is_dir() and any(root().glob("*.json"))
+    return (root() / LEXICON_FILE).is_file() and any(
+        (root() / f"{code}.json").is_file() for code in BOOKS.values()
+    )
+
+
+_HEADWORDS: dict[str, str] | None = None
+
+
+def headword(lexeme: str) -> str:
+    """The Hebrew word a Strong's number names, pointed, or "" where it names none.
+
+    The number arrives as the morphology writes it — `7225`, or `1254 a` where a lexeme
+    was split into senses after Strong numbered it. The letter is a distinction Strong's
+    own dictionary does not carry, so it is dropped to find the headword and kept on the
+    token, where it still tells `ספר` the book from `ספר` the scribe.
+    """
+    global _HEADWORDS
+    if _HEADWORDS is None:
+        path = root() / LEXICON_FILE
+        try:
+            _HEADWORDS = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            _HEADWORDS = {}
+    number = (lexeme or "").strip().split(" ")[0].lstrip("H")
+    if not number.isdigit():
+        return ""
+    return _HEADWORDS.get(number, "")
+
+
+def parse_lexicon(xml: str) -> dict[str, str]:
+    """Strong's numbers into headwords, from the lexicon file."""
+    out: dict[str, str] = {}
+    for entry in ET.fromstring(xml).iter():
+        if entry.tag.split("}")[-1] != "entry":
+            continue
+        name = (entry.get("id") or "").lstrip("H")
+        word = next((c for c in entry if c.tag.split("}")[-1] == "w"), None)
+        written = (word.text or "").strip() if word is not None else ""
+        if name.isdigit() and written:
+            out[name] = unicodedata.normalize("NFC", written)
+    return out
 
 
 def _path(code: str) -> Path:
@@ -241,6 +303,16 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
             raise TargumError(f"Could not fetch the morphology for {code}.", str(bad)) from bad
         write_atomic(_path(code), json.dumps(verses, ensure_ascii=False))
         got += 1
+
+    if not (root() / LEXICON_FILE).exists():
+        say("Fetching the lexicon…")
+        try:
+            answer = httpx.get(LEXICON, timeout=180.0, follow_redirects=True)
+            answer.raise_for_status()
+            headwords = parse_lexicon(answer.text)
+        except Exception as bad:  # noqa: BLE001 - network, XML and HTTP all land here
+            raise TargumError("Could not fetch the Hebrew lexicon.", str(bad)) from bad
+        write_atomic(root() / LEXICON_FILE, json.dumps(headwords, ensure_ascii=False))
     return got
 
 
@@ -264,7 +336,9 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
+    global _HEADWORDS
     _loaded.clear()
+    _HEADWORDS = None
 
 
 _REF = re.compile(r"^(?P<book>.+?)\s+(?P<chapter>\d+)[:.](?P<verse>\d+)\s*$")

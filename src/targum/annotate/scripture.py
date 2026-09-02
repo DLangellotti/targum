@@ -1,0 +1,293 @@
+"""Tokens for the Hebrew Bible, taken from the hand tagging rather than worked out.
+
+`ScriptureLemmatizer` is a `Lemmatizer` like any other, so nothing above it knows the
+difference: it answers `lemmas()` with tokens carrying offsets, a dictionary form, a part
+of speech and how the word is built. What is different is where the answers come from. For
+a verse of the Tanakh they are looked up in the Open Scriptures morphology; for everything
+else — and for any verse the lookup cannot line up — they come from the lemmatizer this
+one wraps.
+
+**Falling through is normal and has to stay cheap.** Most of what targum reads is not the
+Hebrew Bible, and the Mishnah on the shelf is Hebrew but not this Hebrew. A wrapper that
+made those paths worse to make one path better would be a bad trade, so the fallback is
+the whole of the previous behaviour, unchanged, reached by one dictionary miss.
+
+**Why the alignment can fail, and why that is fine.** Measured over 5,436 verses of
+Genesis, Isaiah, Psalms and Ruth, 99.34% line up token for token. The rest differ for
+reasons that are real rather than mysterious — a verse the editions divide differently, a
+word one of them spells with a maqaf and the other without — and on those the model
+answers, exactly as it does today. The point of the lookup is not that it is total; it is
+that where it applies it is not guessing.
+"""
+
+from __future__ import annotations
+
+import collections
+import re
+import unicodedata
+from collections.abc import Iterable
+
+from ..models import Segment, Token
+from . import oshb
+from .base import Lemmatizer
+from .canonical import canonical
+
+#: Sefaria writes a word the Masoretes read differently as `ketiv [qere]` — both forms,
+#: the read one bracketed. The morphology carries one word there, so a comparison that
+#: counted both would find every such verse one token too long. It accounted for 139 of
+#: the 143 misalignments in the first measurement, and reading it took the shelf from
+#: 97.4% aligned to 99.3%.
+_QERE = re.compile(r"\S+\s+\[([^\]]+)\]")
+
+#: Paragraph markers, which are typography rather than words.
+_SECTION = {"פ", "ס", "פפפ"}
+
+
+def _bare(text: str) -> str:
+    stripped = "".join(
+        ch for ch in unicodedata.normalize("NFC", text or "") if not unicodedata.combining(ch)
+    )
+    return re.sub(r"[^א-ת]", "", stripped)
+
+
+def _headword(text: str) -> str:
+    """A dictionary form with its spaces kept.
+
+    Most headwords are one word and this is `_bare` with extra steps. A few are not:
+    Strong's 1035 is `בֵּית לֶחֶם`, one lexeme written as two words, and the tagging gives
+    that headword to both halves of the place name. Stripping everything that is not a
+    letter turned it into `ביתלחם`, which is not how anybody writes Bethlehem and is what
+    a card would have shown.
+
+    One lexeme is one vocabulary entry, so the space stays and the entry is the place.
+    """
+    stripped = "".join(
+        ch for ch in unicodedata.normalize("NFC", text or "") if not unicodedata.combining(ch)
+    )
+    kept = re.sub(r"[^א-ת ]", "", stripped)
+    return re.sub(r"\s+", " ", kept).strip()
+
+
+#: What the morphology calls a part of speech, as the rest of targum names one. The codes
+#: are positional and only the first letter decides the class, which is why this reads one
+#: character rather than parsing the whole string.
+_PART = {
+    "A": "ADJ",
+    "C": "CCONJ",
+    "D": "ADV",
+    "N": "NOUN",
+    "P": "PRON",
+    "R": "ADP",
+    "S": "PRON",
+    "T": "PART",
+    "V": "VERB",
+}
+
+#: A proper noun is a noun whose second letter says so, and targum leaves names out of
+#: vocabulary counts — so getting this wrong would rate every name in a chronicle.
+_PROPER = "Np"
+
+_GENDER = {"m": "Masc", "f": "Fem", "b": "Masc,Fem", "c": "Masc,Fem"}
+_NUMBER = {"s": "Sing", "p": "Plur", "d": "Dual"}
+_PERSON = {"1": "1", "2": "2", "3": "3"}
+
+#: Where person, gender and number sit inside a code, per class. **Positional, and read
+#: positionally**, which is the whole of the difficulty: the letters mean different things
+#: in different places and several of them collide.
+#:
+#: `Vqp3ms` is a verb, qal stem, *perfect* aspect, 3rd masculine singular — and reading it
+#: as a bag of letters finds the `p` of "perfect" in the number table and calls the word
+#: plural. `Ncfsa` is a noun, *common*, feminine singular absolute, and the same mistake
+#: reads the `c` of "common" as a gender. Both were live in the first draft of this file.
+#:
+#: Index 0 is the class letter, so every offset below counts from there.
+_LAYOUT: dict[str, tuple[int | None, int | None, int | None]] = {
+    # class:      person, gender, number
+    "V": (3, 4, 5),  # verb: stem, aspect, then the three
+    "N": (None, 2, 3),  # noun: type, gender, number, state
+    "A": (None, 2, 3),  # adjective, same shape as a noun
+    "P": (2, 3, 4),  # pronoun: type, then the three
+    "S": (2, 3, 4),  # suffix, same shape as a pronoun
+}
+
+
+def part_of(code: str) -> str | None:
+    """The part of speech one morphology code names."""
+    if not code:
+        return None
+    if code.startswith(_PROPER):
+        return "PROPN"
+    return _PART.get(code[0])
+
+
+def _at(code: str, index: int | None, table: dict[str, str]) -> str | None:
+    if index is None or index >= len(code):
+        return None
+    return table.get(code[index])
+
+
+def features(code: str) -> str | None:
+    """Person, gender and number out of a morphology code, in the shape the card reads.
+
+    Deliberately partial. The code carries state, stem and aspect besides, and the card
+    has a line for the three facts a learner is usually missing rather than for
+    everything an editor recorded. What is not read here is not lost — it is still in the
+    morphology, and a later feature can ask for it.
+    """
+    if not code:
+        return None
+    layout = _LAYOUT.get(code[0])
+    if layout is None:
+        return None
+    person, gender, number = layout
+    kept = [
+        f"Person={_at(code, person, _PERSON)}" if _at(code, person, _PERSON) else "",
+        f"Gender={_at(code, gender, _GENDER)}" if _at(code, gender, _GENDER) else "",
+        f"Number={_at(code, number, _NUMBER)}" if _at(code, number, _NUMBER) else "",
+    ]
+    return "|".join(part for part in kept if part) or None
+
+
+def _trim(found: re.Match[str], text: str) -> tuple[int, int, str] | None:
+    """One run of text as the span of its letters, or None if it holds none."""
+    start, end = found.start(), found.end()
+    while start < end and not ("א" <= text[start] <= "ת"):
+        start += 1
+    while end > start and not ("א" <= text[end - 1] <= "ת"):
+        end -= 1
+    if start >= end:
+        return None
+    return start, end, _bare(text[start:end])
+
+
+def built_from(word: oshb.Word) -> str | None:
+    """How a split word is put together, said the way the card already says it.
+
+    One piece is not a composition and gets no line, which is the same rule the modern
+    path follows.
+    """
+    if len(word.pieces) < 2:
+        return None
+    return " + ".join(_bare(piece) for piece in word.pieces if _bare(piece))
+
+
+class ScriptureLemmatizer:
+    """The hand tagging where it reaches, and the wrapped lemmatizer everywhere else."""
+
+    def __init__(self, fallback: Lemmatizer) -> None:
+        self.fallback = fallback
+
+    @property
+    def name(self) -> str:
+        """Both names, because both produced the annotation.
+
+        A text is re-read when this string changes, and a text that was tagged from the
+        morphology is a different artefact from one the model guessed at — so the name
+        has to say which happened, and the fallback's name has to stay in it because on
+        most of the shelf the fallback is what ran.
+        """
+        return f"oshb/1+{self.fallback.name}"
+
+    def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+        looked_up: dict[str, list[Token]] = {}
+        left: list[Segment] = []
+        for segment in segments:
+            found = self._verse(segment) if language.split("-")[0].lower() == "he" else None
+            if found is None:
+                left.append(segment)
+            else:
+                looked_up[segment.id] = found
+        if left:
+            looked_up.update(self.fallback.lemmas(left, language))
+        return looked_up
+
+    def _verse(self, segment: Segment) -> list[Token] | None:
+        """One verse from the tagging, or None to let the model have it."""
+        tagged = oshb.words(segment.ref)
+        if not tagged:
+            return None
+
+        # The text as the annotator sees it: bare, because `Annotator` strips the points
+        # before it asks. Offsets below are into this string and are mapped back onto the
+        # pointed source afterwards by the caller, exactly as they are for the model.
+        text = _QERE.sub(lambda found: found.group(1), segment.text)
+        # Trimmed to the letters. A verse ends `הָאָרֶץ׃` and the sof pasuq is punctuation:
+        # left in, the token's span covers it and the reader highlights a word plus a
+        # colon when it is tapped.
+        spans = [
+            span for span in (_trim(found, text) for found in re.finditer(r"[^\s־]+", text)) if span
+        ]
+        spans = [span for span in spans if span[2] not in _SECTION]
+        wanted = [word for word in tagged if _bare(word.text) not in _SECTION]
+
+        if len(spans) != len(wanted) or any(
+            span[2] != _bare(word.text) for span, word in zip(spans, wanted, strict=True)
+        ):
+            # Different editions of the same verse. Not an error and not worth a line in
+            # the log: the model answers, which is what happens today for every verse.
+            return None
+
+        out: list[Token] = []
+        for (start, end, _), word in zip(spans, wanted, strict=True):
+            code = word.code
+            lexeme = word.lexeme
+            # The headword, not the surface. Where the lexicon has no entry — a handful
+            # of prefixes tagged as content — the bare word stands in, so a token always
+            # has a dictionary form to be filed under.
+            dictionary = oshb.headword(lexeme) or word.pieces[word.content]
+            out.append(
+                Token(
+                    start=start,
+                    end=end,
+                    surface=text[start:end],
+                    lemma=_headword(dictionary),
+                    band=0,
+                    split=len(word.pieces) > 1,
+                    pos=part_of(code),
+                    feats=features(code),
+                    built=built_from(word),
+                )
+            )
+        return out
+
+
+def name_candidates(
+    seen: Iterable[tuple[str, str, str]], least: int = 3
+) -> dict[tuple[str, str], int]:
+    """Spelling pairs worth a person's time, restricted to proper names.
+
+    Feed it `(morphology code, one lemma, the other)` for every word two annotators
+    disagreed about. What comes back is the pairs where the word is a **name** and the
+    two spellings differ by a single vav or yod.
+
+    **Why only names, and this was learned the expensive way.** A sweep of the whole
+    Tanakh for spelling variants produced 2,435 candidates; filtered to "seen three times,
+    both forms common, one letter apart" it still produced 193, of which perhaps six were
+    real. Among the rejects were `אחות` against `אחת` — sister and one — and `מצוה`
+    against `מצה`, commandment and matzah. Both survive every mechanical filter that can
+    be written, because both differ by exactly one letter and both forms are ordinary
+    Hebrew.
+
+    A name is the one category where that cannot happen. `אהרן` and `אהרון` are Aaron
+    either way; there is no second sense hiding behind the vav. So the morphology's own
+    proper-noun tag is the safety rail that frequency could not be.
+
+    Still a list for somebody to read, not a set of rows. It is narrower odds, not proof.
+    """
+    found: dict[tuple[str, str], int] = collections.Counter()
+    for code, first, second in seen:
+        if not code.startswith(_PROPER):
+            continue
+        one, two = canonical(first), canonical(second)
+        if one == two or not one or not two:
+            continue
+        if _one_matres(one, two):
+            found[tuple(sorted((one, two)))] += 1  # type: ignore[index]
+    return {pair: count for pair, count in found.items() if count >= least}
+
+
+def _one_matres(first: str, second: str) -> bool:
+    """Whether two spellings differ by exactly one optional vav or yod."""
+    bare_first = first.replace("י", "").replace("ו", "")
+    bare_second = second.replace("י", "").replace("ו", "")
+    return bare_first == bare_second and bare_first != "" and abs(len(first) - len(second)) == 1

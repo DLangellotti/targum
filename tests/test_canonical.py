@@ -6,7 +6,13 @@ The case that made this necessary is real: `dictabert-lex` returns `כל` four t
 
 from __future__ import annotations
 
-from targum.annotate.canonical import SAME_WORD, bare, candidates, canonical
+from targum.annotate.canonical import (
+    NOT_THE_SAME,
+    SAME_WORD,
+    bare,
+    candidates,
+    canonical,
+)
 
 
 def test_the_pointing_comes_off() -> None:
@@ -58,9 +64,45 @@ def test_nothing_in_it_is_nothing_out() -> None:
 def test_the_table_holds_only_what_was_measured() -> None:
     """A guard on the file's own rule. Every row is a pair somebody looked at; a row
     added because it seemed likely is how unrelated words get merged."""
-    assert SAME_WORD == {"כול": "כל"}, (
-        "add a row only with the evidence that produced it — see candidates()"
-    )
+    assert SAME_WORD == {
+        "כול": "כל",
+        "שמיים": "שמים",
+        "לוא": "לא",
+        "שלשים": "שלושים",
+        "מאד": "מאוד",
+        "כח": "כוח",
+        "אהרון": "אהרן",
+        "דויד": "דוד",
+        "מות": "מוות",
+        "שמנה": "שמונה",
+    }, "add a row only with the evidence that produced it — see candidates()"
+
+
+def test_a_name_with_two_spellings_is_one_person() -> None:
+    """The safest category, and the only one a Tanakh-wide sweep produced reliably: a
+    name cannot secretly be two words, so a vav cannot hide a second sense behind it."""
+    assert canonical("אהרון") == canonical("אהרן")
+    assert canonical("דויד") == canonical("דוד")
+
+
+def test_the_canonical_side_is_the_commoner_spelling_not_the_modern_one() -> None:
+    """Register would have been the tidier rule and the worse one. `שמים` outruns `שמיים`
+    in written Hebrew and `לא` outruns `לוא` by four orders of magnitude, while `מאוד` and
+    `כוח` go the other way. The rule is what a reader is likely to recognise."""
+    assert canonical("שמיים") == "שמים", "the shorter form is the commoner one here"
+    assert canonical("לוא") == "לא"
+    assert canonical("מאד") == "מאוד", "and here the longer one is"
+    assert canonical("כח") == "כוח"
+
+
+def test_a_pair_a_reader_refused_is_written_down() -> None:
+    """`גדול` and `גדל` differ by one vav exactly as `שמים` and `שמיים` do, and are the
+    adjective against the verb. The filter offers them; a person refused them; and a
+    refusal nobody records is one that gets re-litigated by whoever runs the sweep next.
+    """
+    assert ("גדול", "גדל") in NOT_THE_SAME
+    assert canonical("גדל") != canonical("גדול"), "refused means not folded"
+    assert canonical("בת") != canonical("בית"), "daughter is not house"
 
 
 def test_candidates_finds_what_an_annotator_could_not_spell_twice() -> None:

@@ -96,6 +96,19 @@ transcribing and aligning are adaptations, and no access policy cures an ND term
 ShareAlike is accepted, which means the segments cut from such a recording carry
 ShareAlike onward.
 
+### The Hebrew Bible is read, not analysed
+
+Scripture on the shelf is not annotated by a model. Its prefix divisions, lemmas and
+morphology come from the **Open Scriptures Hebrew Bible Project**, under **CC BY 4.0**,
+with the Westminster Leningrad Codex beneath them in the public domain, and the Strong's
+and Brown-Driver-Briggs lexicons likewise public domain under a CC BY 4.0 compilation.
+
+Credit is required by that licence and is given here, in `annotate/oshb.py`, and by
+`targum models fetch scripture` when the data arrives.
+
+It is fetched rather than vendored, into the model directory beside the language models,
+and converted once on arrival — so a reader build parses no XML and fetches nothing.
+
 ### What is recorded, and how to ask
 
 Each source keeps the licence as its source writes it, verbatim, together with the URL

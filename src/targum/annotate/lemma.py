@@ -18,6 +18,7 @@ from ..errors import TargumError
 from ..models import Segment, Token, is_biblical
 from ..paths import model_dir
 from ..segment.stanza_segmenter import download, has_processors, stanza_code
+from .base import Lemmatizer
 from .hebrew import binyan_of, kept_feats, pieces_of, root_of
 
 # Multi-word tokens are not asked for by name. Only some languages have an mwt model,
@@ -165,14 +166,26 @@ class StanzaLemmatizer:
         }
 
 
-def for_source(source: object, *, auto_download: bool = True) -> StanzaLemmatizer:
+def for_source(source: object, *, auto_download: bool = True) -> Lemmatizer:
     """The lemmatizer for a text, by where the text came from.
 
     The Tanakh is read with the tokenizer its band table was counted with; everything
     else with the one that reads modern Hebrew. Decided from the source rather than by
     guessing at the content, for the reason `biblical.for_source` gives.
+
+    And where the Hebrew Bible has been fetched, scripture is not read by a model at all:
+    it is looked up in the hand tagging, with this as the fallback for the verses the
+    lookup cannot line up and for everything that is not scripture. Wrapped only when the
+    tagging is actually on disk, so the name an annotation records is the name of what
+    ran — a box without the data says so rather than claiming a lookup it never made.
     """
-    return StanzaLemmatizer(auto_download=auto_download, scripture=is_biblical(source))
+    model = StanzaLemmatizer(auto_download=auto_download, scripture=is_biblical(source))
+    if not is_biblical(source):
+        return model
+    from . import oshb
+    from .scripture import ScriptureLemmatizer
+
+    return ScriptureLemmatizer(model) if oshb.available() else model
 
 
 def _tokens(document: Any) -> list[Token]:
