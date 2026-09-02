@@ -35,13 +35,88 @@ def run(**payload: Any) -> dict[str, Any]:
     return json.loads(done.stdout)
 
 
-def moved(stored: dict[str, Any], runs: int = 1) -> dict[str, Any]:
+def moved(
+    stored: dict[str, Any], runs: int = 1, moves: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Run the one-time move `runs` times over that store, and say what is left."""
     return run(
         migrate=True,
         runs=runs,
+        moves=moves,
         stored={name: json.dumps(value, ensure_ascii=False) for name, value in stored.items()},
     )["stored"]
+
+
+# --- a word that is now called something else -----------------------------------------
+#
+# The annotator changed and some lemmas moved with it (targum-internal#141). A mark is
+# filed by lemma, so without this the reader's word is left under a name nothing produces
+# any more: unhighlighted, uncounted, and indistinguishable from a word never met.
+
+MOVES = {
+    "id": "abc123",
+    "lemmas": {"לאורך": "ארך", "היום": "יום"},
+    "surfaces": {"בו": "הוא", "לי": "אני"},
+}
+
+
+def test_a_marked_word_follows_its_lemma_and_keeps_what_was_said_about_it() -> None:
+    after = moved(
+        {
+            "targum:vocab:he": {
+                "לאורך": {"status": 2, "surface": "לאורך", "band": 4, "at": 100},
+                "ספר": {"status": 9, "surface": "הספר", "band": 1, "at": 90},
+            },
+            "targum:meanings:he:en": {"לאורך": {"meaning": "along", "note": "mine", "at": 5}},
+        },
+        moves=MOVES,
+    )
+    words = after["targum:vocab:he"]
+    assert "לאורך" not in words, "the old name is gone"
+    assert words["ארך"]["status"] == 2, "and everything said about it came across"
+    assert (words["ארך"]["band"], words["ארך"]["at"]) == (4, 100)
+    assert words["ספר"]["status"] == 9, "a word that did not move is untouched"
+    # The meaning is filed by term, so renaming the word without it would strand what the
+    # reader wrote.
+    meanings = after["targum:meanings:he:en"]
+    assert meanings["ארך"]["meaning"] == "along"
+    assert meanings["ארך"]["note"] == "mine"
+    assert "לאורך" not in meanings
+
+
+def test_a_lemma_that_split_is_decided_by_the_surface_the_reader_marked() -> None:
+    """`הוא` went to `הוא`, `לו`, `את`, `לי` and `אני` at once, so the lemma alone cannot
+    say which card is theirs — but the store keeps the surface beside every mark."""
+    after = moved(
+        {"targum:vocab:he": {"הוא": {"status": 1, "surface": "לי", "band": 2, "at": 7}}},
+        moves=MOVES,
+    )
+    words = after["targum:vocab:he"]
+    assert "אני" in words and "הוא" not in words
+    assert words["אני"]["status"] == 1
+
+
+def test_running_it_again_changes_nothing_and_a_mark_is_never_deleted() -> None:
+    store = {
+        "targum:vocab:he": {
+            "היום": {"status": 3, "surface": "היום", "band": 2, "at": 50},
+            "יום": {"status": 9, "surface": "יום", "band": 1, "at": 10},
+        }
+    }
+    after = moved(store, runs=3, moves=MOVES)
+    words = after["targum:vocab:he"]
+    assert "היום" not in words
+    # Both names were kept, so the record touched more recently is the one that stands —
+    # the same rule meanings merge by. Either way the word is still in the list.
+    assert words["יום"]["status"] == 3
+    assert len(words) == 1
+
+
+def test_nothing_moves_without_moves_to_make() -> None:
+    """A rebuild that renamed nothing ships nothing, which is every rebuild after the
+    first. The page must behave then exactly as it did before any of this existed."""
+    store = {"targum:vocab:he": {"לאורך": {"status": 2, "surface": "לאורך", "band": 4, "at": 1}}}
+    assert moved(store)["targum:vocab:he"] == store["targum:vocab:he"]
 
 
 def test_a_meaning_moves_out_of_the_word_and_into_the_pair() -> None:

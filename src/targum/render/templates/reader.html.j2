@@ -510,6 +510,12 @@
       forms, archaic suffixes. On a modern text this does not need saying, so it is
       not said. targum-internal #87, which asked for the about page — that page is a
       construction notice now, and the sentence belongs where the words are anyway. -#}
+  {#- What read the words, named because its licence asks to be. CC BY 4.0 wants the
+      work named and the licence linked wherever the work is used, and a credit in a
+      file nobody opens is the same non-naming the reading credit above refuses. -#}
+  {% if words_credit %}
+  <p class="keys-credit">Dictionary forms by <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
   {% if biblical %}
   <p class="keys-credit">Dictionary forms on biblical Hebrew are less reliable than on
     modern: the analyser is trained on modern unpointed text, so waw-consecutive, pausal

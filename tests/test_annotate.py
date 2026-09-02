@@ -286,15 +286,23 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     from targum.annotate.scripture import ScriptureLemmatizer
 
     def model(built: object) -> StanzaLemmatizer:
-        """The Stanza underneath, whether or not the hand tagging is wrapped around it.
+        """The Stanza underneath, however many wrappers deep it is.
 
         `for_source` returns a `ScriptureLemmatizer` for scripture where the Open
         Scriptures morphology is on disk and the bare model where it is not — so a test
         that reached straight for `.scripture` passed or failed depending on what happened
-        to be in this machine's model directory. This is about which Stanza tokenizer each
-        register gets, which is true either way.
+        to be in this machine's model directory.
+
+        Since targum-internal#116 there is a second wrapper: Hebrew is DICTA's, and the
+        Stanza it holds is the delegate for every other language. The register still picks
+        that delegate's tokenizer, which is what this is about — but it no longer picks
+        anything for Hebrew, because Stanza is never handed a Hebrew word.
         """
-        return built.fallback if isinstance(built, ScriptureLemmatizer) else built  # type: ignore[return-value]
+        from targum.annotate.dicta import DictaLemmatizer
+
+        if isinstance(built, ScriptureLemmatizer):
+            built = built.fallback
+        return built.other if isinstance(built, DictaLemmatizer) else built  # type: ignore[return-value]
 
     tanakh = model(for_source("sefaria:Ruth"))
     dialogue = model(for_source("dialogue:08-that-is-my-spot"))
@@ -307,6 +315,14 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     assert dialogue.name != tanakh.name, "a modern text built before is read again"
     assert dialogue.name.startswith(tanakh.name), "and the old name is still in it"
     assert StanzaLemmatizer().name == dialogue.name, "the default is the modern reading"
+    # And the whole annotator's name, which is what actually decides a re-read, carries
+    # DICTA in front of either delegate — so every Hebrew text on the shelf is read again
+    # once, which is free, and none of them keeps a lemma Stanza's models produced.
+    from targum.annotate.dicta import MODEL
+
+    for built in (for_source("sefaria:Ruth"), for_source("dialogue:08-that-is-my-spot")):
+        outer = built.fallback if isinstance(built, ScriptureLemmatizer) else built
+        assert outer.name.startswith(f"dicta/{MODEL}/")
 
 
 def test_a_named_build_is_missing_until_that_file_is_on_disk(
@@ -329,22 +345,28 @@ def test_a_named_build_is_missing_until_that_file_is_on_disk(
 
 @pytest.mark.stanza
 def test_a_modern_verb_behind_a_clitic_is_not_a_rare_biblical_word(
-    needs_hebrew_model: None,
+    needs_dicta_model: None,
 ) -> None:
     """שֶׁרוֹצִים in a dialogue is ש + רוצים, "that they want". Read whole it became שרץ,
-    "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today"."""
-    from targum.annotate.lemma import PROCESSORS, for_source
-    from targum.segment import has_processors
+    "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today".
+
+    The clitic is why this test exists and DICTA splits it, which is what #110 asked of
+    the swap. The lemma it lands on is the present participle רוצה rather than Stanza's
+    רצה — a real difference, recorded here rather than asserted away: DICTA answers with
+    the participle for a family of common verbs, so those words card under it. What the
+    test still pins is the failure that mattered, which is a modern verb read as a rare
+    biblical one.
+    """
+    from targum.annotate.lemma import for_source
 
     lemmatizer = for_source("dialogue:08-that-is-my-spot")
-    if not has_processors("he", PROCESSORS, lemmatizer.packages("he")):
-        pytest.skip("Hebrew lemmatizer not downloaded")
-
     segmented = document(["קוראים לזה איך שרוצים."])
     annotation = Annotator(lemmatizer=lemmatizer).annotate(segmented)
     tokens = {token.surface: token for token in next(iter(annotation.tokens.values()))}
-    assert tokens["שרוצים"].lemma == "רצה"
+    assert tokens["שרוצים"].lemma == "רוצה"
+    assert tokens["שרוצים"].lemma != "שרץ", "the whole point: not read as one word"
     assert tokens["שרוצים"].split
+    assert tokens["שרוצים"].built == "ש that + רוצים"
     assert tokens["שרוצים"].word_register != "biblical"
     assert tokens["שרוצים"].band <= 2
 
@@ -936,3 +958,150 @@ def test_a_gloss_bought_before_the_fields_existed_still_stands(tmp_path) -> None
     held = cached_gloss("בית", "he", "en", "fake", cache=cache)
     assert held is not None
     assert (held.gloss, held.citation, held.plural) == ("house", "", "")
+
+
+# --- what taking DICTA at face value would have cost ---------------------------------
+#
+# The swap is a licence fix (targum-internal#116). These pin the places where it would
+# have quietly lost something: a binyan nothing tags, a lemma the model declines to give,
+# and a lemma it gives as a piece of one.
+
+
+def test_a_binyan_is_derived_only_where_the_spelling_cannot_mean_anything_else() -> None:
+    """DICTA tags no binyan, so it is read off the lemma — or not read at all.
+
+    The declining half is the point. Every shape left out here was tried against Stanza on
+    the shelf and lied: ה plus four read הסתיר as התפעל rooted at סיר, and הת plus a mater
+    yod did the same to התחיל. Seventeen of eighty-four overlapping roots came out wrong,
+    which is the failure `hebrew.py` opens by refusing.
+    """
+    from targum.annotate.dicta import _binyan_of
+
+    assert _binyan_of("הלך") == "פעל"
+    assert _binyan_of("התלבש") == "התפעל"
+    # Hifil wearing hitpael's opening, told apart by the mater yod in fourth place.
+    assert _binyan_of("התחיל") is None
+    assert _binyan_of("הסתיר") is None
+    # פיעל, פועל and a quadriliteral are spelled alike unpointed, so none of them.
+    assert _binyan_of("דיבר") is None
+    assert _binyan_of("נקבה") is None
+
+
+def test_a_word_dicta_declines_keeps_its_surface_and_never_reaches_stanza() -> None:
+    """`[BLANK]` is DICTA's own answer for a word it has no lemma for — 3.7% of tokens on
+    the shelf, concentrated in 1900s orthography. The surface stands in. Falling back to
+    Stanza there would put the NonCommercial model back exactly where the permissive one
+    is weakest, which is the whole thing this swap is for."""
+    from targum.annotate.dicta import BLANK, _lemma
+
+    assert _lemma(BLANK, "טופפות", "טופפות") == "טופפות"
+    assert _lemma("", "נוצצו", "נוצצו") == "נוצצו"
+    assert _lemma("ספר", "הספר", "ספר") == "ספר"
+
+
+def test_a_wordpiece_is_not_a_lemma() -> None:
+    """DICTA's lemma head sometimes returns a raw BERT wordpiece on a rare word — מלבלב
+    came back as `##לבים`, קלשון as `##שון`. 257 lemmas on this shelf were affected, and
+    each would have carded under that name (targum-internal#141)."""
+    from targum.annotate.dicta import _lemma
+
+    assert _lemma("##לבים", "מלבלב", "מלבלב") == "מלבלב"
+    assert _lemma("##שון", "קלשון", "קלשון") == "קלשון"
+    assert _lemma("לבלב", "מלבלב", "מלבלב") == "לבלב", "a real lemma still passes"
+
+
+def test_the_corrections_are_closed_classes_and_the_pronouns_are_not_among_them() -> None:
+    """A copula that lemmatizes to an imperative is wrong by any reading, and the copula,
+    the numbers and the pronouns are all closed — no new Hebrew one is coming, so the
+    table cannot rot the way an open-class one would.
+
+    The pronouns are deliberately left alone: they are the largest block of disagreement
+    with Stanza and DICTA is the one that is right, keeping אני, לי and בו apart where
+    Stanza's treebank collapsed all of them onto הוא.
+
+    A round ten cannot be corrected by lemma at all — עשרה is the right answer far more
+    often than it is the wrong one — so it is keyed on the word, under its prefixes.
+    """
+    from targum.annotate.dicta import OVERRIDES, _lemma
+
+    assert _lemma("היי", "היה", "היה") == "היה"
+    assert "הוא" not in OVERRIDES.values(), "the pronouns are DICTA's to keep apart"
+    assert _lemma("עשרה", "בעשרים", "עשרים") == "עשרים"
+    assert _lemma("עשרה", "עשרה", "עשרה") == "עשרה", "the unit itself is untouched"
+    # A name is never mended: בני is a lemma to fix and Benny is a person.
+    assert _lemma("בני", "בני", "בני", "PROPN") == "בני"
+    assert _lemma("בני", "בני", "בני", "NOUN") == "בן"
+
+
+def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
+    """Same shape `hebrew.pieces_of` gives for Stanza — the clitics carry their gloss and
+    the content word stands bare — from a segmentation that hands the prefixes back as one
+    chunk rather than one word each."""
+    from targum.annotate.dicta import _pieces_of
+
+    assert _pieces_of(["וב", "ספר"], "ספר", False) == "ו and + ב in + ספר"
+    assert _pieces_of(["ספר"], "ספר", False) is None
+
+
+# --- where a word went when the annotator changed ------------------------------------
+
+
+def annotated(annotator: str, words: list[tuple[int, str, str]]) -> Annotation:
+    """One segment of (offset, surface, lemma), as an annotation on disk would hold it."""
+    return Annotation(
+        document_hash="h",
+        language="he",
+        annotator=annotator,
+        method="frequency",
+        method_note="note",
+        tokens={
+            "s1": [
+                Token(start=at, end=at + len(surface), surface=surface, lemma=lemma, band=1)
+                for at, surface, lemma in words
+            ]
+        },
+    )
+
+
+def test_a_move_is_only_carried_when_it_is_still_the_same_word() -> None:
+    """15% of the moves in the first full run landed on a different word — הבליח → מבצבץ,
+    הכסיף → מכוסה. Carrying a mark across one of those is worse than losing it: an orphan
+    is a word the reader meets again, while a mis-migration sits in their list for good
+    under a meaning that was never theirs (targum-internal#141)."""
+    from targum.annotate.moves import between
+
+    was = annotated("stanza/1", [(0, "לאורך", "לאורך"), (10, "הבליח", "הבליח"), (20, "ספר", "ספר")])
+    now = annotated("dicta/1", [(0, "לאורך", "ארך"), (10, "הבליח", "מבצבץ"), (20, "ספר", "ספר")])
+    moved = between(was, now)
+
+    lemmas = moved["lemmas"]
+    assert isinstance(lemmas, dict)
+    assert lemmas["לאורך"] == "ארך", "a derivation of the same word is carried"
+    assert "הבליח" not in lemmas, "a different word is held back"
+    assert "ספר" not in lemmas, "and a word that did not move is not in the table at all"
+
+
+def test_a_lemma_that_split_is_answered_by_the_surface_instead() -> None:
+    """`הוא` went to `הוא`, `לו` and `אני` at once, so the lemma alone cannot place a
+    mark. The store keeps the surface beside every mark, which can."""
+    from targum.annotate.moves import between
+
+    was = annotated("stanza/1", [(0, "לי", "הוא"), (5, "בו", "הוא")])
+    now = annotated("dicta/1", [(0, "לי", "אני"), (5, "בו", "הוא")])
+    moved = between(was, now)
+
+    assert moved["lemmas"] == {}, "one old lemma, two destinations: it cannot be settled"
+    surfaces = moved["surfaces"]
+    assert isinstance(surfaces, dict)
+    assert surfaces["לי"] == "אני"
+
+
+def test_a_wordpiece_is_never_a_destination() -> None:
+    """DICTA returns a raw BERT wordpiece on rare words. The annotator refuses them now,
+    but a map built from an annotation written before that must not carry one either."""
+    from targum.annotate.moves import between, same_word
+
+    assert not same_word("מלבלב", "##לבים")
+    was = annotated("stanza/1", [(0, "מלבלב", "מלבלב")])
+    now = annotated("dicta/1", [(0, "מלבלב", "##לבים")])
+    assert between(was, now)["lemmas"] == {}
