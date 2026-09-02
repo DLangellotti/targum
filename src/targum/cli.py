@@ -981,11 +981,22 @@ def rebuild_one(
             if rendering.target_language == "en":
                 rendering.segments.update(known)
     annotation = read_artifact(Annotation, folder / "annotation.json")
+    # What this text's words used to be called, when the words are being worked out again
+    # by a different annotator. `rebuild --words` is how an annotator change reaches texts
+    # already on a box — it is what deploy.sh runs — so this is the path that carries a
+    # reader's marks across, and without it a deploy is exactly the event that orphans
+    # them (targum-internal#141).
+    moves: dict[str, object] | None = None
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if annotation.annotator != annotator.name:
             vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+            was = annotation
             annotation = annotator.annotate(segmented, vocalization)
+            if was.document_hash == annotation.document_hash:
+                from .annotate import moves as moves_module
+
+                moves = moves_module.between(was, annotation)
             annotation.write(folder / "annotation.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
@@ -1005,6 +1016,7 @@ def rebuild_one(
         translations,
         folder / "reader",
         annotation=annotation,
+        moves=moves,
         glossaries=glossaries,
         vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
         covers=covers,
