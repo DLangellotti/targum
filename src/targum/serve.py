@@ -1279,6 +1279,7 @@ class Library:
         """
         from . import catalogue as catalogue_module
         from . import spoken
+        from .audio import manifest as manifest_module
 
         entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
         if entry is not None:
@@ -1288,6 +1289,7 @@ class Library:
                 "difficulty": entry.difficulty,
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
+                "video": spoken.is_video(source),
                 "entry": entry.id,
                 "english": entry.english,
                 "drawn": any(
@@ -1313,6 +1315,9 @@ class Library:
             # The claim is made by whatever is actually there — for an import, the
             # manifest sitting beside the reader.
             "spoken": spoken.is_spoken(source) or (folder / "audio.json").is_file(),
+            # Kept its pictures, by the manifest's own word — the sidecar folder is a
+            # copy the build remakes, and the manifest is the claim.
+            "video": spoken.is_video(source) or manifest_module.keeps_video(folder),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.

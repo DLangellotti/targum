@@ -117,3 +117,14 @@ def test_no_hebrew_text_is_left_without_a_register() -> None:
     for entry in everything():
         if entry.language.startswith("he"):
             assert entry.register is not Register.none, entry.id
+
+
+def test_video_is_asked_of_the_disk_and_only_where_there_is_sound() -> None:
+    """The media fact lives beside `spoken`, derived the same way: nothing in the
+    catalogue says "video" by hand, and a text cannot be watched that cannot be heard."""
+    from targum.catalogue import CATALOGUE
+
+    for entry in CATALOGUE:
+        state = entry.state()
+        assert "video" in state
+        assert not state["video"] or state["spoken"], entry.id

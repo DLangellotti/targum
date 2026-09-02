@@ -904,3 +904,11 @@ def test_nothing_on_learn_says_ready() -> None:
     assets = Path(__file__).resolve().parent.parent / "src/targum/render/assets"
     source = (assets / "learn.js").read_text(encoding="utf-8")
     assert "ready to read" not in source and "both ready" not in source
+
+
+def test_a_door_onto_a_video_says_video_and_not_audio() -> None:
+    """The same one word the library's rows use: a lecture that kept its slides is
+    told apart from a podcast, and never says both."""
+    lecture = scene(1, "a-lecture", "הרצאה", english="A lecture", video=True)
+    drawn = draw([], shared=[lecture, scene(2, "in-a-cafe", "בבית קפה", english="In a café")])
+    assert drawn["carry"]["meta"] == "Scene 1 of 2 · 22 words · video"

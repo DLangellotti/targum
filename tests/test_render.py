@@ -162,7 +162,14 @@ def test_layout_uses_logical_properties_only(rendered: Path) -> None:
 PEALIM = "https://www.pealim.com/"
 #: The licence a recording is used under.
 LICENCE = "https://creativecommons.org/licenses/"
-OUTBOUND = (PEALIM, LICENCE)
+#: Where a video fetched from YouTube lives. targum holds a study copy and the video's
+#: home is not here, and the page says so with the one link that opens there — at the
+#: line being read. Decided on 2026-09-02, for the same reason the hosted fetch stays
+#: refused: the honest posture is that we did not take the video. One canonical shape,
+#: `youtube.WATCH`, whatever address the reader pasted, so this prefix is the whole
+#: allowance; and never for an uploaded file, which has no home to link to.
+YOUTUBE = "https://www.youtube.com/watch?v="
+OUTBOUND = (PEALIM, LICENCE, YOUTUBE)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -243,6 +250,84 @@ def test_a_recorded_reader_links_its_licence_and_nothing_else(
     assert "Rabbi Somebody" in html, "the reader is credited on the page"
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def imported(folder: Path, home: str) -> tuple[Document, SegmentedDocument, Translation]:
+    """A reader built from somebody's own recording: the manifest beside it, a part on
+    disk, and — where the recording was fetched from YouTube — the address it lives at."""
+    import wave
+
+    from targum.audio import manifest as manifest_module
+
+    (folder / "audio" / "parts").mkdir(parents=True)
+    with wave.open(str(folder / "audio" / "parts" / "part-001.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    segments = [paragraph(1), paragraph(2)]
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source=str(folder / "audio" / "source.mp4"),
+            home=home,
+            sha256="x",
+            duration=200.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    # The part begins a hundred seconds in; its cut begins a pad earlier.
+                    start=100.0,
+                    end=200.0,
+                    audio="audio/parts/part-001.wav",
+                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source=str(folder / "audio" / "source.mp4"),
+        title="A talk",
+        language="he",
+        blocks=[],
+        content_hash="h",
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "Said." for segment in segments},
+    )
+    return document, make_segmented(segments), translation
+
+
+def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
+    """The third outbound address, pinned the way the licence is: a video fetched from
+    YouTube links to where it lives, an uploaded file links nowhere, and neither page
+    carries any other address."""
+    document, segmented, translation = imported(tmp_path, "https://youtu.be/abc123")
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'data-home href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
+    assert 'target="_blank" rel="noreferrer noopener"' in html
+    # The time is the reader's line, decided at the click: the markup carries none.
+    assert not re.search(r'data-home href="[^"]*[?&]t=', html)
+    # And the part's place in the whole video, so the script can add the two.
+    assert '"offset": 99.65' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    document, segmented, translation = imported(plain, "")
+    page = render(document, segmented, [translation], plain / "reader", folder=plain)[0]
+    html = page.read_text(encoding="utf-8")
+    assert "data-home href=" not in html, "an uploaded file has no home to go to"
+    assert '"home": ' not in html and '"offset": ' not in html
+    assert YOUTUBE not in html
 
 
 def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:

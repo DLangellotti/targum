@@ -74,6 +74,9 @@ setTimeout(() => {
       // The title cell holds a scene label and a chip beside the Hebrew; the bdi is it.
       title: (open.children[1].children[0].children.find((c) => c.tagName === "bdi") || open.children[1].children[0]).textContent,
       fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
+      // The one word beside the title that says what can be played: "audio", "video",
+      // or nothing. One word, never two — a video row does not also say audio.
+      media: (open.children[1].children.find((c) => c.className === "row-audio" || c.className === "row-video") || {}).textContent || "",
       english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
       // What follows the English on the same line: a byline on a text, "· 6 texts" on a
       // collection. Its own child, so the stub's textContent does not carry it.

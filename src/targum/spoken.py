@@ -49,3 +49,31 @@ def sources() -> frozenset[str]:
 
 def is_spoken(source: str) -> bool:
     return source in sources()
+
+
+@cache
+def video_sources() -> frozenset[str]:
+    """Every source whose recording kept its pictures: a subset of `sources()`.
+
+    Nothing in the library carries one yet, and this still reads the disk rather than
+    answering no: the day a recording arrives with a video part beside its audio, the
+    shelf says so with no code changed, and until then no entry can claim a picture
+    this machine has not got.
+    """
+    from .recording import index as recording_index
+
+    found: set[str] = set()
+    try:
+        for folder in recording_index.root().iterdir():
+            if not (folder / recording_index.MANIFEST).is_file():
+                continue
+            recording = recording_index.load_folder(folder)
+            if recording is not None and any(part.video for part in recording.parts):
+                found.add(recording.source)
+    except Exception:  # noqa: BLE001 - a shelf that is not there is not an error
+        pass
+    return frozenset(found)
+
+
+def is_video(source: str) -> bool:
+    return source in video_sources()
