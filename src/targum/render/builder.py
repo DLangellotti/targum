@@ -1646,8 +1646,9 @@ def render(
         lemmas: list[str] = []
         lemma_at: dict[str, int] = {}
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
-        # ride in tables beside the lemmas rather than on every token. Absent for every
-        # word that is not a Hebrew verb, and for the verbs whose root could not be had.
+        # ride in tables beside the lemmas rather than on every token. Empty for every
+        # word that is not a Hebrew verb, and for the verbs whose root could not be had
+        # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
         binyanim: list[str] = []
         # And so does the register, for the same reason: which Hebrew a word belongs to
@@ -1801,8 +1802,12 @@ def render(
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
-                    "roots": roots,
-                    "binyanim": binyanim,
+                    # Left out, like the registers below, wherever no verb on the page
+                    # carried either: a language the question is not asked of, or an
+                    # annotation older than the answer. Two tests, not one, because a
+                    # binyan can be tagged where a three-letter root could not be had.
+                    **({"roots": roots} if any(roots) else {}),
+                    **({"binyanim": binyanim} if any(binyanim) else {}),
                     # Left out where the two registers agreed about every word on the
                     # page, and for every language the question is not asked of, rather
                     # than shipping a row of empty strings the reader would never read.
