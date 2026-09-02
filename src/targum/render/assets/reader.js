@@ -4394,7 +4394,10 @@ var targumReader = function () {
    * it is not rendered. So: turn to its page first, then bring it to the top.
    */
   function jumpTo(id) {
-    var pair = pairBySegment[id];
+    return jumpToPair(pairBySegment[id]);
+  }
+
+  function jumpToPair(pair) {
     if (!pair) return false;
     if (paged()) turnTo(pair);
     if (pair.scrollIntoView) pair.scrollIntoView({ block: "start", behavior: behaviour() });
@@ -4406,6 +4409,29 @@ var targumReader = function () {
     if (!link) return;
     if (jumpTo(link.getAttribute("data-to"))) event.preventDefault();
   });
+
+  /* --- straight to a verse ---------------------------------------------------
+   *
+   * A verse's row is `#2:1` — chapter and verse, which is how every learner of a
+   * Biblical text locates a line — so a link to Ruth 2:1 opens on Ruth 2:1
+   * (targum-internal#28). The scrolling reader needs nothing from here: the browser
+   * lands on an id by itself, `resume` stands aside when there is a hash, and the row's
+   * `scroll-margin` keeps it out from under the bar. The pages are the case above all
+   * over again — a verse on another page is not rendered, so its page is turned first.
+   * Sefaria writes the same address `Ruth.2.1`, so a dot between the numbers is read too.
+   */
+  function verseInHash() {
+    var found = /^#(\d+)[:.](\d+)$/.exec(location.hash);
+    var pair = found ? document.getElementById(found[1] + ":" + found[2]) : null;
+    return pair && pair.classList.contains("pair") ? pair : null;
+  }
+
+  function arrive() {
+    var pair = verseInHash();
+    if (pair) jumpToPair(pair);
+  }
+
+  window.addEventListener("hashchange", arrive);
 
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
@@ -4423,6 +4449,13 @@ var targumReader = function () {
     // was moved to page two a moment later. In page mode the page is the place, and only
     // a word the reader marked is a better answer than it.
     if (here && here.word && here.pair && !here.pair.hidden) held = here.pair;
+    // And the verse a link named, while it is still on the page. The link turned to
+    // its page in the fallback's metrics; the real face lands, the page is one line
+    // shorter, and holding the page's first line hands the reader the page *before*
+    // the verse they asked for. Once they have turned away from it, the page is the
+    // place again.
+    var linked = verseInHash();
+    if (linked && !linked.hidden) held = linked;
     paginate();
     showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
   }
@@ -5609,6 +5642,9 @@ var targumReader = function () {
   // any of them: a scroll to where they left off has to be measured against the page
   // they left, in the mode and at the size they left it in.
   resume();
+  // Or where a link said. After the layout, like `resume`, and for the same reason: a
+  // verse's page is only known once the pages have been cut.
+  arrive();
   took("back where the reader left off");
   showTab(prefs.listTab);
   waitForMeanings();

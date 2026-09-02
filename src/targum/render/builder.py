@@ -73,6 +73,23 @@ class Section:
         return f"sec-{self.number:04d}.html"
 
 
+#: The address on the end of a ref: the "2:1" of "Ruth 2:1", the "1:3" of "Mishnah
+#: Berakhot 1:3". Chapter and verse is how every learner of a Biblical text locates a
+#: line, so it is the one part of a ref a link is allowed to name.
+_VERSE_ADDRESS = re.compile(r"(?:^|\s)(\d+):(\d+)$")
+
+
+def verse_address(ref: str) -> str:
+    """The "2:1" of "Ruth 2:1", or nothing where a ref does not end in one.
+
+    Nothing rather than a guess: an imported recording's `:waiting` part, or a prose
+    block with no ref at all, is not a place a link can point to, and a number drawn
+    beside it would be a number that meant nothing.
+    """
+    found = _VERSE_ADDRESS.search(ref.strip())
+    return f"{found[1]}:{found[2]}" if found else ""
+
+
 def isolate(text: str, direction: str) -> Markup:
     """Wrap opposite-direction runs in <bdi>.
 
@@ -1544,6 +1561,15 @@ def render(
     mark_guessed = bool(machine) and len(machine) * 2 < len(pointed)
 
     biblical = is_biblical(document.source)
+    # Which verse each row is, by the address a learner would write. The number stands in
+    # the margin and the row answers to `#2:1`, so a link to Ruth 2:1 opens on Ruth 2:1
+    # (targum-internal#28). Only a verse carries one: prose has no address, and a heading
+    # is the chapter's, not a verse's.
+    verses = {
+        segment.id: verse_address(segment.ref)
+        for segment in segmented.segments
+        if segment.kind is BlockKind.verse and verse_address(segment.ref)
+    }
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
 
@@ -1780,6 +1806,7 @@ def render(
             audio_waiting=audio_waiting,
             words=bool(words),
             segments=segments,
+            verses=verses,
             bare=bare,
             pointed=pointed,
             unaccented=unaccented,
@@ -1887,8 +1914,21 @@ def render(
         written.append(_write(out_dir / name, html))
 
     if not single:
+        # Which chapters each file holds, so the contents page can send `#2:1` on to the
+        # file that has chapter 2 in it. Not the section number: a range ingested from
+        # chapter 12 puts chapter 12 in the first file, and only the refs know that.
+        chapters = {
+            section.number: " ".join(
+                dict.fromkeys(
+                    verses[sid].split(":")[0] for sid in section.segment_ids if sid in verses
+                )
+            )
+            for section in sections
+        }
         index = env.get_template("index.html.j2").render(
-            **shared, counts={s.number: len(s.segment_ids) for s in sections}
+            **shared,
+            counts={s.number: len(s.segment_ids) for s in sections},
+            chapters=chapters,
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written

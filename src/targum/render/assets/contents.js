@@ -63,6 +63,24 @@
   start.textContent = "Continue";
 })();
 
+/* --- a link to a verse ------------------------------------------------------
+ *
+ * `index.html#2:1` goes on to the file that holds chapter 2, hash and all, so a link to
+ * Ruth 2:1 can be written without knowing which file chapter 2 landed in — and it is
+ * not always the second: a range ingested from chapter 12 opens on chapter 12. Each row
+ * says which chapters its file holds; the address is the one the verse rows answer to
+ * (targum-internal#28). `replace`, so the contents page is not a step on the way back.
+ */
+(function () {
+  "use strict";
+  var found = /^#(\d+)(?:[:.](\d+))?$/.exec(location.hash);
+  if (!found) return;
+  var row = document.querySelector('.toc [data-chapters~="' + found[1] + '"] a');
+  if (!row) return;
+  var hash = found[2] ? "#" + found[1] + ":" + found[2] : "";
+  location.replace(row.href + hash);
+})();
+
 /* --- which chapters are ready -----------------------------------------------
  *
  * A book is bought a chapter at a time, so the contents page is where the state of
