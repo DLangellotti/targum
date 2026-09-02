@@ -7,6 +7,7 @@ actually knows every container this will meet.
 
 from __future__ import annotations
 
+import array
 import json
 import re
 import subprocess
@@ -61,6 +62,40 @@ def duration(path: Path) -> float:
         return float(raw)
     except (TypeError, ValueError) as error:
         raise TargumError(UNREADABLE) from error
+
+
+def samples(path: Path, rate: int = 16000) -> list[float]:
+    """The whole file as mono samples at `rate`, which is what an acoustic model eats.
+
+    Through ffmpeg like everything else here, and for the same reason: the aligner reads
+    mp3, m4a and opus because ffmpeg does, and a Python decoder would have to be taught
+    each one. Raw float32 on stdout rather than a temporary wav — a reading is an hour
+    long and writing it twice to align it once is an hour of disk for nothing.
+    """
+    try:
+        done = subprocess.run(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-v",
+                "error",
+                "-i",
+                str(path),
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                str(rate),
+                "-f",
+                "f32le",
+                "-",
+            ],
+            capture_output=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise TargumError(UNREADABLE) from error
+    return array.array("f", done.stdout).tolist()
 
 
 def cut(source: Path, into: Path, start: float, end: float) -> None:

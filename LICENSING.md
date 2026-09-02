@@ -13,9 +13,11 @@ here is better than letting you find out downstream.
 ## The short version
 
 - Install `targum` and use it for anything, commercial included.
-- Install `targum[speech-align]`, or run the Hebrew annotator, and you are using a model
-  licensed **NonCommercial**. That restriction comes from the model's authors, not from
-  targum, and the AGPL cannot lift it.
+- Run the Hebrew annotator and you are using a model licensed **NonCommercial**. That
+  restriction comes from the model's authors, not from targum, and the AGPL cannot lift
+  it. It is the last one left.
+- `targum[speech-align]` used to be the second. Since 2026-09-02 it is not: the forced
+  aligner runs on an Apache-2.0 acoustic model.
 
 ## Direct dependencies
 
@@ -37,7 +39,7 @@ here is better than letting you find out downstream.
 | Extra | Package | Licence | Notes |
 | --- | --- | --- | --- |
 | `align` | sentence-transformers | Apache-2.0 | |
-| **`speech-align`** | **ctc-forced-aligner** | **CC BY-NC 4.0** | **NonCommercial. See below.** |
+| `speech-align` | torchaudio, transformers | BSD-2, Apache-2.0 | the acoustic model is Apache-2.0 too |
 | `covers` | pillow | MIT-CMU | |
 | `difficulty` | wordfreq | Apache-2.0 | the code; its frequency data is mixed |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
@@ -46,20 +48,7 @@ here is better than letting you find out downstream.
 `torch` arrives transitively with stanza and sentence-transformers; its metadata reports
 Apache-2.0 for the package and bundles third-party components under their own terms.
 
-## The two NonCommercial pieces
-
-### `ctc-forced-aligner` — CC BY-NC 4.0
-
-The `speech-align` extra installs
-[ctc-forced-aligner](https://github.com/MahmoudAshraf97/ctc-forced-aligner), which
-publishes under CC BY-NC 4.0 and downloads `MahmoudAshraf/mms-300m-1130-forced-aligner`,
-a model in Meta's MMS lineage, also NonCommercial.
-
-This is the only thing in targum that produces word-level timings for a recording. It is
-opt-in, it is not vendored, and pip fetches it separately — so this repository does not
-redistribute it. But `src/targum/audio/align.py` imports it, and a reader who installs
-the extra to align a commercial audiobook is doing something the model's licence does not
-permit. That is worth knowing before you build on it.
+## The one NonCommercial piece
 
 ### Stanza's Hebrew models — CC BY-NC-SA 4.0, upstream
 
@@ -74,12 +63,38 @@ that model's output, is genuinely unsettled — and much of the industry proceed
 it does not. targum does not rely on that assumption being correct. It is recorded here
 so that anyone building on targum can make their own call rather than inherit mine.
 
-## What targum is doing about it
+### The forced aligner, which used to be here — resolved 2026-09-02
 
-Both are being replaced with permissively licensed Hebrew models rather than worked
-around. [DICTA](https://huggingface.co/dicta-il) publishes `dictabert-morph` and
-`dictabert-seg` under CC BY 4.0, which permits commercial use with attribution, and CTC
-forced alignment is a free algorithm whose only encumbered part is the acoustic model.
+The `speech-align` extra installed
+[ctc-forced-aligner](https://github.com/MahmoudAshraf97/ctc-forced-aligner), CC BY-NC 4.0,
+on `MahmoudAshraf/mms-300m-1130-forced-aligner`, a model in Meta's MMS lineage and
+NonCommercial as well. It was the only thing in targum that produced word-level timings
+for a recording, so every timing targum held had been made by a NonCommercial tool.
+
+It is gone. The algorithm was never the encumbered part: CTC forced alignment is
+`torchaudio.functional.forced_align`, which is BSD-2. Only the acoustic model carried the
+term, so only the acoustic model changed —
+[`imvladikon/wav2vec2-large-xlsr-53-hebrew`](https://huggingface.co/imvladikon/wav2vec2-large-xlsr-53-hebrew),
+Apache-2.0, fine-tuned from XLS-R (Apache-2.0) on Common Voice (CC0). Nothing in that
+chain restricts use.
+
+Measured against the spans the old aligner produced for the same reading, rather than
+asserted: over 408 words of a Ben-Yehuda recording the two agree to a median of **20 ms**,
+with 96% of word starts inside 100 ms — and the new one runs at 0.20 minutes per minute
+of audio against the old one's 0.65. It also aligns Hebrew *as Hebrew*: MMS reached the
+language by romanising it first, so every span was decided in a transliteration, where
+this model's vocabulary is the Hebrew alphabet with its final forms.
+
+Timings made before the swap carry the old aligner's name and are re-derived.
+
+## What targum is doing about the one that is left
+
+Stanza's Hebrew annotator is being replaced with a permissively licensed model rather
+than worked around. [DICTA](https://huggingface.co/dicta-il) publishes `dictabert-morph`
+and `dictabert-seg` under CC BY 4.0, which permits commercial use with attribution. The
+biblical half of that job is already done and does not need a model at all: the Tanakh is
+looked up in the Open Scriptures morphology, CC BY 4.0, hand-tagged.
+
 The tracking issues live on the private board; this file is updated when the swap lands.
 
 Until it does, this is the honest state of the supply chain.
