@@ -809,6 +809,26 @@ def test_the_library_holds_every_issue(open_shelves: tuple[int, Path]) -> None:
     assert len(rows) == 6, sorted(rows)
 
 
+#: Two animation frames with the page at the same offset.
+#:
+#: A scroll a test is about to measure is one the browser may still be making. Leaving
+#: full screen takes the class off the body a frame before the page has finished moving
+#: back to where it was, so a measurement taken in between reads a position nobody is at
+#: — and on a loaded machine that gap is wide enough to fail an assertion about a page
+#: that is behaving perfectly.
+#:
+#: This is the wait `wait_for_timeout` was guessing at, with the guess taken out: it
+#: returns as soon as the page is still, and it keeps waiting when 250ms was not enough.
+STILL = """
+() => new Promise((settled) => {
+  requestAnimationFrame(() => {
+    const first = window.scrollY;
+    requestAnimationFrame(() => settled(first === window.scrollY));
+  });
+})
+"""
+
+
 LOCKED = """
 () => ({
   locked: document.body.classList.contains('locked'),
@@ -844,9 +864,12 @@ def test_the_framed_reader_is_never_forced_on_anyone(
         page.goto(f"http://127.0.0.1:{port}/weekly/{WEEK}/bet")
         page.wait_for_selector("#embed-handle")
         page.evaluate("() => window.scrollTo(0, document.getElementById('embed').offsetTop)")
-        page.wait_for_timeout(250)
+        page.wait_for_function(STILL)
         page.frame_locator(".embed iframe").locator("body").dispatch_event("pointerdown")
-        page.wait_for_timeout(250)
+        # A press inside the frame is asserted to do nothing, and nothing takes a moment
+        # to not happen: the page is given a frame to seize itself in before being asked
+        # whether it did.
+        page.wait_for_function(STILL)
         state = page.evaluate(LOCKED)
         assert not state["locked"], "neither scrolling to it nor pressing inside it seizes the page"
         assert not page.evaluate("() => !!document.fullscreenElement")
@@ -856,12 +879,19 @@ def test_the_framed_reader_is_never_forced_on_anyone(
         page.wait_for_function(
             "() => document.fullscreenElement || document.body.classList.contains('locked')"
         )
-        page.wait_for_timeout(200)
-        assert page.evaluate(LOCKED)["handle"] == "Back to the page"
+        # `fullscreenElement` is set before the page's own `fullscreenchange` handler has
+        # written the row, so the label is read with a retry rather than once.
+        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Back to the page")
         page.click("#embed-handle")
         page.wait_for_function(
             "() => !document.fullscreenElement && !document.body.classList.contains('locked')"
         )
+        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Full screen")
+        # And not before the page has stopped moving. On the desktop path nothing in the
+        # page puts the scroll back — `unpin` is never reached, so leaving full screen is
+        # the browser restoring it, which it does after the event that flips the label.
+        # `scrollY` read in between is the failure that aborted a deploy.
+        page.wait_for_function(STILL)
         state = page.evaluate(LOCKED)
         assert state["handle"] == "Full screen"
         slot = page.evaluate("() => document.getElementById('embed').offsetTop")
