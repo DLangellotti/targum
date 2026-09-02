@@ -358,6 +358,13 @@ def reopen(page, built: Path):
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
     page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    # And then for the reader, which is a different thing. The pairs are in the served
+    # HTML, so `.pair` says only that the parser ran; the word spans are drawn by
+    # reader.js, so one of those says the script ran and `resume()` has had its scroll and
+    # put the mark back. Waiting on the first and then reading what the second is
+    # responsible for is the shape that flakes — the fullscreen test above is the same
+    # mistake, and it reproduces. See targum-internal#124.
+    page.wait_for_function("() => !!document.querySelector('.w')")
     return page
 
 
@@ -2763,10 +2770,17 @@ def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path)
     page.mouse.click(200, 400)
     page.keyboard.press("f")
     page.wait_for_function("() => document.fullscreenElement === document.documentElement")
-    assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "true"
+    # The browser sets `fullscreenElement`; the page's own `fullscreenchange` handler is
+    # what writes the button, and it runs a beat later. A read taken inside that beat gets
+    # the value the button had before — which is this file's share of the flake on
+    # targum-internal#124, reproduced 1 run in 15 on a loaded machine and never once on an
+    # idle one. `expect` retries the read instead of taking the first one; it still fails,
+    # loudly and with both values, if the button never catches up.
+    pressed = playwright_api.expect(page.locator("[data-fullscreen]"))
+    pressed.to_have_attribute("aria-pressed", "true")
     page.click("[data-fullscreen]")
     page.wait_for_function("() => !document.fullscreenElement")
-    assert page.get_attribute("[data-fullscreen]", "aria-pressed") == "false"
+    pressed.to_have_attribute("aria-pressed", "false")
     context.close()
 
 
