@@ -3799,10 +3799,32 @@ var targumReader = function () {
     } catch (e) {}
   }
 
-  // Two events, because neither one covers a reader on its own. `pagehide` is the one
-  // that fires when a page is navigated away from or its tab is closed; a phone put down
-  // mid-sentence may never see it, because a backgrounded tab can be discarded without
-  // being given another frame, and `visibilitychange` is the last word that tab hears.
+  // Three, and the third is the one that survives being carried.
+  //
+  // A place written on the way out is written at the one moment with no time left to
+  // keep it. The durable store commits, but a commit is not instant, and a navigation
+  // arriving in the same breath beats it — which is why the place was the key this
+  // browser lost most often, and why it stayed the leftover after everything else was
+  // safe (targum-internal#137). Measured through the reader's own write path: writes
+  // made with time to settle came down from 2.20% lost to 0.40%, and what was left was
+  // this pattern, write-then-leave, which is the place's alone.
+  //
+  // So it is also written while the reader is still reading, a second after they stop
+  // moving. A second is long enough that a scroll does not write on every frame of
+  // itself, and short enough that the place on disk is the place they are at. The two
+  // events below stay: they are what catches a reader who moved and left inside the
+  // second, and by then this has usually already saved them.
+  var settling = null;
+
+  function keepPlace() {
+    if (settling) window.clearTimeout(settling);
+    settling = window.setTimeout(function () {
+      settling = null;
+      leavePlace();
+    }, 1000);
+  }
+
+  window.addEventListener("scroll", keepPlace, { passive: true });
   window.addEventListener("pagehide", leavePlace);
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "hidden") leavePlace();
