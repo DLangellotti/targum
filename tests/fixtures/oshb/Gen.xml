@@ -1,0 +1,48 @@
+<osis xmlns="http://www.bibletechnologies.net/2003/OSIS/namespace"><osisText><verse osisID="Gen.1.1">
+          <w lemma="b/7225" n="1.0" morph="HR/Ncfsa" id="01xeN">בְּ/רֵאשִׁ֖ית</w>
+          <w lemma="1254 a" morph="HVqp3ms" id="01Nvk">בָּרָ֣א</w>
+          <w lemma="430" n="1" morph="HNcmpa" id="01TyA">אֱלֹהִ֑ים</w>
+          <w lemma="853" morph="HTo" id="01vuQ">אֵ֥ת</w>
+          <w lemma="d/8064" n="0.0" morph="HTd/Ncmpa" id="01TSc">הַ/שָּׁמַ֖יִם</w>
+          <w lemma="c/853" morph="HC/To" id="01k5P">וְ/אֵ֥ת</w>
+          <w lemma="d/776" n="0" morph="HTd/Ncbsa" id="01nPh">הָ/אָֽרֶץ</w><seg type="x-sof-pasuq">׃</seg>
+        </verse>
+        <verse osisID="Gen.1.2">
+          <w lemma="c/d/776" n="1.1.1" morph="HC/Td/Ncbsa" id="01LN3">וְ/הָ/אָ֗רֶץ</w>
+          <w lemma="1961" morph="HVqp3fs" id="01Qzf">הָיְתָ֥ה</w>
+          <w lemma="8414" n="1.1.0" morph="HNcmsa" id="01aPd">תֹ֨הוּ֙</w>
+          <w lemma="c/922" n="1.1" morph="HC/Ncmsa" id="01eYX">וָ/בֹ֔הוּ</w>
+          <w lemma="c/2822" n="1.0" morph="HC/Ncmsa" id="01C5U">וְ/חֹ֖שֶׁךְ</w>
+          <w lemma="5921 a" morph="HR" id="01qNN">עַל</w><seg type="x-maqqef">־</seg><w lemma="6440" morph="HNcbpc" id="01EVS">פְּנֵ֣י</w>
+          <w lemma="8415" n="1" morph="HNcbsa" id="01PB6">תְה֑וֹם</w>
+          <w lemma="c/7307" morph="HC/Ncbsc" id="0137c">וְ/ר֣וּחַ</w>
+          <w lemma="430" n="0.1" morph="HNcmpa" id="01x9c">אֱלֹהִ֔ים</w>
+          <w lemma="7363 b" n="0.0" morph="HVprfsa" id="01yNB">מְרַחֶ֖פֶת</w>
+          <w lemma="5921 a" morph="HR" id="0129t">עַל</w><seg type="x-maqqef">־</seg><w lemma="6440" morph="HNcbpc" id="01KZG">פְּנֵ֥י</w>
+          <w lemma="d/4325" n="0" morph="HTd/Ncmpa" id="01TZE">הַ/מָּֽיִם</w><seg type="x-sof-pasuq">׃</seg>
+        </verse>
+        <verse osisID="Gen.1.3">
+          <w lemma="c/559" morph="HC/Vqw3ms" id="01thY">וַ/יֹּ֥אמֶר</w>
+          <w lemma="430" n="1.0" morph="HNcmpa" id="01JM7">אֱלֹהִ֖ים</w>
+          <w lemma="1961" morph="HVqj3ms" id="01fpo">יְהִ֣י</w>
+          <w lemma="216" n="1" morph="HNcbsa" id="01W26">א֑וֹר</w>
+          <w lemma="c/1961" morph="HC/Vqw3ms" id="01yw4">וַֽ/יְהִי</w><seg type="x-maqqef">־</seg><w lemma="216" n="0" morph="HNcbsa" id="01jbg">אֽוֹר</w><seg type="x-sof-pasuq">׃</seg>
+        </verse>
+        <verse osisID="Gen.8.17">
+          <w lemma="3605" morph="HNcmsc" id="01PUa">כָּל</w><seg type="x-maqqef">־</seg><w lemma="d/2416 c" morph="HTd/Ncfsa" id="01r3q">הַ/חַיָּ֨ה</w>
+          <w lemma="834 a" morph="HTr" id="01i7e">אֲשֶֽׁר</w><seg type="x-maqqef">־</seg><w lemma="854" n="1.0.2.0" morph="HR/Sp2ms" id="01Mem">אִתְּ/ךָ֜</w>
+          <w lemma="m/3605" morph="HR/Ncmsc" id="01wNK">מִ/כָּל</w><seg type="x-maqqef">־</seg><w lemma="1320" n="1.0.2" morph="HNcmsa" id="01bwY">בָּשָׂ֗ר</w>
+          <w lemma="b/5775" morph="HRd/Ncmsa" id="015e6">בָּ/ע֧וֹף</w>
+          <w lemma="c/b/929" n="1.0.1" morph="HC/Rd/Ncfsa" id="01yr6">וּ/בַ/בְּהֵמָ֛ה</w>
+          <w lemma="c/b/3605" morph="HC/R/Ncmsc" id="01ckn">וּ/בְ/כָל</w><seg type="x-maqqef">־</seg><w lemma="d/7431" n="1.0.0" morph="HTd/Ncmsa" id="01vA4">הָ/רֶ֛מֶשׂ</w>
+          <w lemma="d/7430" morph="HTd/Vqrmsa" id="01KEn">הָ/רֹמֵ֥שׂ</w>
+          <w lemma="5921 a" morph="HR" id="01cPC">עַל</w><seg type="x-maqqef">־</seg><w lemma="d/776" n="1.0" morph="HTd/Ncbsa" id="01Eoc">הָ/אָ֖רֶץ</w>
+          <w type="x-ketiv" lemma="3318" morph="HVhv2ms" id="01Pdv">הוצא</w><note type="variant"><catchWord>הוצא</catchWord><rdg type="x-qere"><w lemma="3318" morph="HVhv2ms" id="01S7t">הַיְצֵ֣א</w></rdg></note>
+          <w lemma="854" n="1" morph="HR/Sp2fs" id="018F2">אִתָּ֑/ךְ</w>
+          <w lemma="c/8317" morph="HC/Vqq3cp" id="01T2K">וְ/שָֽׁרְצ֣וּ</w>
+          <w lemma="b/776" n="0.1" morph="HRd/Ncbsa" id="01ouG">בָ/אָ֔רֶץ</w>
+          <w lemma="c/6509" morph="HC/Vqq3cp" id="01xxG">וּ/פָר֥וּ</w>
+          <w lemma="c/7235 a" n="0.0" morph="HC/Vqq3cp" id="01vin">וְ/רָב֖וּ</w>
+          <w lemma="5921 a" morph="HR" id="01KSD">עַל</w><seg type="x-maqqef">־</seg><w lemma="d/776" n="0" morph="HTd/Ncbsa" id="01Eiv">הָ/אָֽרֶץ</w><seg type="x-sof-pasuq">׃</seg>
+        </verse>
+        </osisText></osis>
