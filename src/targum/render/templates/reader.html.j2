@@ -7,6 +7,7 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
 {{ hebrew_face(biblical) }}
+<script>{{ asset('durable.js') }}</script>
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">

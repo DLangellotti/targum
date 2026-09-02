@@ -7,6 +7,31 @@
  * system setting. The button chooses, and from then on your choice wins in both
  * directions — a light stamp beats an OS set to dark, and the other way round.
  */
+/* Where a write goes, for every page targum serves.
+ *
+ * `durable.js` defines these first and better, but it is only inlined into a reader —
+ * the one artefact that gets opened from disk, where `localStorage` does not reliably
+ * keep what it is given (targum-internal#137). Every other page is served over HTTP,
+ * where a write keeps and the plain call is the whole of it.
+ *
+ * This file is in the <head> of all eighteen templates, so defining the fallback here
+ * covers every page, and `||` means the reader's durable version is never displaced.
+ */
+window.targumKeep =
+  window.targumKeep ||
+  function (name, value) {
+    try {
+      localStorage.setItem(name, value);
+    } catch (error) {}
+  };
+window.targumForget =
+  window.targumForget ||
+  function (name) {
+    try {
+      localStorage.removeItem(name);
+    } catch (error) {}
+  };
+
 (function () {
   "use strict";
 
@@ -64,7 +89,7 @@
 
   function choose(value) {
     try {
-      localStorage.setItem(KEY, value);
+      targumKeep(KEY, value);
     } catch (e) {}
     stamp(value);
     paint();
