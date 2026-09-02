@@ -693,3 +693,88 @@ def test_licences_reports_the_corpus_by_what_may_leave(
     assert "free" in result.output and "owed" in result.output
     assert "unknown" in result.output
     assert "unchecked" in result.output, "it names what to go and check"
+
+
+def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Added when absent. On a rerun the members are the corpus's to say and the words
+    are whoever edited them (targum-internal #145)."""
+    import json
+
+    from targum.parasha.models import Index, Portion
+
+    def portion(slug: str, hebrew: str, number: int, summary: str) -> Portion:
+        return Portion(
+            slug=slug,
+            name=slug,
+            hebrew=hebrew,
+            numbers=[number],
+            summary=summary,
+            books=["Genesis"],
+        )
+
+    corpus = tmp_path / "parasha"
+    corpus.mkdir()
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    index = Index(
+        portions={
+            "noach": portion("noach", "נֹחַ", 2, "Genesis 6:9-11:32"),
+            "bereshit": portion("bereshit", "בְּרֵאשִׁית", 1, "Genesis 1:1-6:8"),
+        }
+    )
+    (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+    catalogue = tmp_path / "catalogue.json"
+    catalogue.write_text(
+        json.dumps(
+            {
+                "entries": [{"id": "genesis", "title": "בראשית"}],
+                "collections": [
+                    {
+                        "id": "torah",
+                        "title": "תורה",
+                        "english": "The Torah",
+                        "members": ["genesis"],
+                        "ordered": True,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(catalogue))
+
+    printed = runner.invoke(app, ["parasha", "entries"])
+    assert printed.exit_code == 0, printed.output
+    assert "torah-portions" in printed.output
+    assert "parasha-noach" in printed.output
+
+    result = runner.invoke(app, ["parasha", "entries", "--write"])
+    assert result.exit_code == 0, result.output
+    written = json.loads(catalogue.read_text(encoding="utf-8"))
+    assert [row["id"] for row in written["entries"]] == [
+        "genesis",
+        "parasha-bereshit",
+        "parasha-noach",
+    ]
+    assert [group["id"] for group in written["collections"]] == ["torah", "torah-portions"]
+    group = written["collections"][1]
+    assert group["members"] == ["parasha-bereshit", "parasha-noach"]
+    assert group["ordered"] is True
+    assert written["entries"][2]["author"] == "בראשית"
+
+    # A person edits the blurb and drops a member; the corpus grows by one.
+    group["blurb"] = "Mine."
+    group["members"] = ["parasha-noach"]
+    catalogue.write_text(json.dumps(written, ensure_ascii=False), encoding="utf-8")
+    index.portions["lech-lecha"] = portion("lech-lecha", "לֶךְ־לְךָ", 3, "Genesis 12:1-17:27")
+    (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+
+    again = runner.invoke(app, ["parasha", "entries", "--write"])
+    assert again.exit_code == 0, again.output
+    written = json.loads(catalogue.read_text(encoding="utf-8"))
+    assert len(written["collections"]) == 2, "merged into the one it has, not added again"
+    group = next(g for g in written["collections"] if g["id"] == "torah-portions")
+    assert group["members"] == ["parasha-bereshit", "parasha-noach", "parasha-lech-lecha"]
+    assert group["blurb"] == "Mine."

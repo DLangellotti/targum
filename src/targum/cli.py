@@ -2365,12 +2365,16 @@ def parasha_entries(
         bool, typer.Option("--write", help="Merge them into the catalogue in place.")
     ] = False,
 ) -> None:
-    """The corpus as catalogue entries, so the library lists the portions.
+    """The corpus as catalogue entries and their collection, so the library lists the portions.
 
     Printed by default and merged only when asked, because the catalogue is the one file
     that is a reader's own rather than this repository's — it lives outside the checkout
     (see `catalogue_path`), and a build command that quietly rewrote it would be editing
     somebody's shelf behind their back.
+
+    The merge owns what the corpus knows and leaves what a person wrote: an entry's row
+    is updated field by field, and the collection's member list is replaced outright
+    while a blurb somebody edited on it stays.
     """
     import json as _json
 
@@ -2378,15 +2382,19 @@ def parasha_entries(
     from .parasha import build as corpus
 
     made = corpus.entries()
-    if not made:
+    group = corpus.collection()
+    if not made or group is None:
         raise TargumError(
             "Nothing to add: the corpus is empty.",
             "Run `targum parasha build` first.",
         )
     if not write:
-        console.print_json(_json.dumps(made, ensure_ascii=False))
+        console.print_json(
+            _json.dumps({"entries": made, "collections": [group]}, ensure_ascii=False)
+        )
         console.print(
-            f"[dim]{len(made)} entries. `--write` merges them into {catalogue_path()}.[/dim]"
+            f"[dim]{len(made)} entries and one collection. "
+            f"`--write` merges them into {catalogue_path()}.[/dim]"
         )
         return
     path = catalogue_path()
@@ -2414,8 +2422,22 @@ def parasha_entries(
             # difficulty of their own, and a rebuild should not take it back off them.
             rows[at] = {**rows[at], **entry}
     existing["entries"] = rows
+    groups = existing.get("collections") or []
+    held = next((at for at, row in enumerate(groups) if row.get("id") == group["id"]), None)
+    if held is None:
+        groups.append(group)
+        placed = "added"
+    else:
+        # The other way round from an entry. Which portions are on the shelf and in
+        # what order is the corpus's to say; what the collection is called is not.
+        groups[held] = {**group, **groups[held], "members": group["members"], "ordered": True}
+        placed = "kept, its members rewritten"
+    existing["collections"] = groups
     write_atomic(path, _json.dumps(existing, ensure_ascii=False, indent=2) + "\n")
-    console.print(f"[green]{added} added[/green], {len(made) - added} updated, in {path}.")
+    console.print(
+        f"[green]{added} added[/green], {len(made) - added} updated, "
+        f"and the collection {placed}, in {path}."
+    )
 
 
 @parasha_app.command("leyning")

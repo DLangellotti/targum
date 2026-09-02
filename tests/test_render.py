@@ -1938,6 +1938,115 @@ def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> N
     assert '<li data-chapter="2" data-chapters="13">' in index
 
 
+def torah(out: Path, monkeypatch: pytest.MonkeyPatch, corpus: Path | None) -> str:
+    """Three chapters of Genesis — 5, 6 and 7 — and, where `corpus` is given, an index
+    there with בראשית ending at 6:8 and נח beginning at 6:9. Returns the contents page."""
+    from targum.parasha.models import Index, Portion
+
+    if corpus is not None:
+        corpus.mkdir(parents=True, exist_ok=True)
+        index = Index(
+            portions={
+                "bereshit": Portion(
+                    slug="bereshit",
+                    name="Bereshit",
+                    hebrew="בְּרֵאשִׁית",
+                    numbers=[1],
+                    summary="Genesis 1:1-6:8",
+                    books=["Genesis"],
+                    opening_ref="Genesis 1:1",
+                ),
+                "noach": Portion(
+                    slug="noach",
+                    name="Noach",
+                    hebrew="נֹחַ",
+                    numbers=[2],
+                    summary="Genesis 6:9-11:32",
+                    books=["Genesis"],
+                    opening_ref="Genesis 6:9",
+                ),
+            }
+        )
+        (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    else:
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(out / "nowhere"))
+
+    segments: list[Segment] = []
+    for chapter in (5, 6, 7):
+        segments.append(heading(len(segments), 2, f"בראשית {chapter}"))
+        for number in range(1, 11):
+            segments.append(verse(len(segments), chapter, number))
+    document = Document(
+        source="sefaria:Genesis", title="בראשית", language="he", blocks=[], content_hash="g"
+    )
+    segmented = SegmentedDocument(
+        document_hash="g", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="g",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out / "reader")
+    return (out / "reader" / "index.html").read_text(encoding="utf-8")
+
+
+def test_a_torah_books_contents_page_groups_its_chapters_by_portion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Genesis 6 is listed once, under בראשית, which is where it starts; נח's own name
+    goes to 6:9 in the file that holds chapter 6 (targum-internal #145)."""
+    html = torah(tmp_path, monkeypatch, tmp_path / "parasha")
+
+    assert re.findall(r'<li class="portion" data-portion="([^"]+)">', html) == [
+        "bereshit",
+        "noach",
+    ]
+    rows = re.findall(r'<li data-chapter="(\d+)" data-chapters="(\d+)"', html)
+    assert rows == [("1", "5"), ("2", "6"), ("3", "7")], "every chapter, once"
+    before, after = html.split('data-portion="noach"')
+    assert 'data-chapters="6"' in before, "chapter 6 sits under the portion it starts in"
+    assert 'data-chapters="7"' in after
+    assert '<a class="portion-name" href="sec-0002.html#6:9">נֹחַ</a>' in html
+    assert '<span class="portion-span">Genesis 6:9–11:32</span>' in html
+    assert '<a class="portion-page" href="/parasha/noach" hidden>' in html
+    # The inner lists carry the numbering on rather than starting again at one.
+    assert '<ol start="1">' in before
+    assert '<ol start="3">' in after
+    # A first verse this range does not hold has only its address to point at.
+    assert '<a class="portion-name" href="#1:1">' in before
+
+
+def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The layer is data: with nothing built there is nothing to draw, and a fresh
+    machine gets the page it got before the corpus existed."""
+    html = torah(tmp_path, monkeypatch, None)
+    # The body, not the page: the stylesheet is inlined into every reader and carries the
+    # rules for a layer this page does not draw.
+    body = html[html.index("<body") : html.index("</main>")]
+    assert 'class="portion"' not in body
+    assert "portion-" not in body
+    assert '<li data-chapter="1" data-chapters="5">' in html
+    assert '<li data-chapter="3" data-chapters="7">' in html
+
+
+def test_the_contents_script_keeps_the_key_in_front_of_a_verse_hash() -> None:
+    """`sec-0006.html?k=…#6:9`, not `sec-0006.html#6:9?k=…` — and a portion's own page
+    is a route, which needs no key and is offered only where there is a server."""
+    from targum.render.builder import ASSETS
+
+    contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
+    assert "href.slice(0, cut) + suffix + href.slice(cut)" in contents
+    assert 'href.charAt(0) === "/"' in contents
+    assert '".toc .portion-page"' in contents
+
+
 def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
     """The scrolling reader lands on an id by itself. The pages do not — a verse on
     another page is not rendered — and the contents page has to pick the file."""
