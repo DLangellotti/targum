@@ -21,6 +21,14 @@
    being right: the two are written together, and the one that loses a write is the one
    that has no commit. If that ever inverts, the cost is one reverted write — which is
    today's bug at 0% instead of 3.3%.
+
+   The reader does not wait forever for the way back in. If the shelf is slow the page
+   starts on what `localStorage` holds, which on `file://` is exactly the copy that may
+   have lost a write — and a page started that way must not then write over the better
+   copy it never saw with a fresher stamp, or a slow read becomes a permanent bad write.
+   A session started blind keeps its writes below the shelf's copy until it can be shown
+   the shelf was not ahead; the shelf wins on the next opening, which is the one loss
+   this file is allowed. (targum-internal#154)
 */
 
 (function () {
@@ -38,6 +46,18 @@
 
   var queue = [];
   var open = false;
+
+  /* How the page was started, and what it has and has not seen.
+
+     `blind` is set when patience ran out before recovery landed: the page is running on
+     `localStorage` alone. `landed` is set when recovery finishes, whichever came first.
+     `wrote` holds the names a blind page wrote before recovery landed, and `unseen`
+     the stamp of every shelf copy that recovery found ahead of what a blind page had
+     already read — a copy the page's state cannot have taken into account. */
+  var blind = false;
+  var landed = false;
+  var wrote = {};
+  var unseen = {};
 
   function shelf(mode, use, otherwise) {
     var ask;
@@ -141,9 +161,26 @@
               if (!record || typeof record !== "object") continue;
               try {
                 var mine = Number(localStorage.getItem(stamp(name)) || 0);
-                if (Number(record.at || 0) > mine) {
-                  localStorage.setItem(name, record.value);
-                  localStorage.setItem(stamp(name), String(record.at));
+                var theirs = Number(record.at || 0);
+                if (theirs > mine) {
+                  if (wrote[name]) {
+                    /* A blind page already wrote this name, on a copy the shelf was
+                       ahead of. The page is live on its own value, so it keeps it
+                       where it reads — stamped just below the shelf's, so the copy it
+                       never saw is the one that survives the next opening. */
+                    localStorage.setItem(stamp(name), String(theirs - 1));
+                  } else {
+                    localStorage.setItem(name, record.value);
+                    localStorage.setItem(stamp(name), String(theirs));
+                  }
+                  if (blind) unseen[name] = theirs;
+                } else if (theirs < mine || (wrote[name] && record.value !== localStorage.getItem(name))) {
+                  /* The shelf is behind: a mirror that never committed, or a blind write
+                     the shelf was not ahead of, which is now known to be a real write
+                     and gets the fresh stamp it was held back from. */
+                  var at = wrote[name] ? now() : mine;
+                  if (wrote[name]) localStorage.setItem(stamp(name), String(at));
+                  mirror(name, localStorage.getItem(name), at);
                 }
               } catch (error) {}
             }
@@ -151,15 +188,22 @@
               for (var k = 0; k < localStorage.length; k++) {
                 var key = localStorage.key(k);
                 if (!MINE.test(key) || STAMP.test(key) || held[key]) continue;
-                mirror(key, localStorage.getItem(key), Number(localStorage.getItem(stamp(key)) || 0));
+                var fresh = wrote[key] ? now() : Number(localStorage.getItem(stamp(key)) || 0);
+                if (wrote[key]) localStorage.setItem(stamp(key), String(fresh));
+                mirror(key, localStorage.getItem(key), fresh);
               }
             } catch (error) {}
+            wrote = {};
+            landed = true;
             done();
             then();
           };
         };
       },
-      then
+      function () {
+        landed = true;
+        then();
+      }
     );
   }
 
@@ -173,6 +217,29 @@
   window.TargumStore = {
     /* Write. Synchronously where the page reads from, durably beside it. */
     keep: function (name, value) {
+      if (blind && !landed) {
+        /* Written before the shelf has answered, by a page that did not wait for it.
+           The value goes where the page reads; the stamp stays what the page read,
+           so a shelf copy ahead of that still wins when recovery lands — here, or on
+           the next opening if this page is gone by then. The mirror waits for the
+           same answer. */
+        wrote[name] = true;
+        try {
+          localStorage.setItem(name, value);
+          if (!localStorage.getItem(stamp(name))) localStorage.setItem(stamp(name), "0");
+        } catch (error) {}
+        return;
+      }
+      if (unseen[name]) {
+        /* The page is running on a copy the shelf was ahead of, and this write comes
+           out of that state. Kept where the page reads, below the shelf's stamp and
+           off the shelf, so the copy the page never saw survives it. */
+        try {
+          localStorage.setItem(name, value);
+          localStorage.setItem(stamp(name), String(unseen[name] - 1));
+        } catch (error) {}
+        return;
+      }
       var at = now();
       try {
         localStorage.setItem(name, value);
@@ -186,6 +253,8 @@
         localStorage.removeItem(name);
         localStorage.removeItem(stamp(name));
       } catch (error) {}
+      delete wrote[name];
+      delete unseen[name];
       drop(name);
     },
 
@@ -199,6 +268,7 @@
   function begin() {
     if (open) return;
     open = true;
+    blind = !landed;
     for (var n = 0; n < queue.length; n++) {
       try {
         queue[n]();
