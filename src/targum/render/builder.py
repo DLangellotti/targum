@@ -108,6 +108,16 @@ def isolate(text: str, direction: str) -> Markup:
     return Markup("".join(parts))
 
 
+# The version of the shape `embed_json` writes into `targum-data`, so a payload can say
+# what it is to a reader that did not ship with it. Not `models.SCHEMA_VERSION`, which
+# keys the cache and re-buys every translation when it moves: this one costs a local
+# re-render and nothing else, because every targum carries its own copy of the reader.
+# Bump it when a key changes meaning or moves, not when one is added — a reader ignores
+# what it does not know. 1 is the first shape stamped at all; a payload without the key
+# is older than that.
+PAYLOAD_VERSION = 1
+
+
 def embed_json(payload: object) -> Markup:
     r"""JSON safe to sit inside a <script> element.
 
@@ -1672,8 +1682,9 @@ def render(
         lemmas: list[str] = []
         lemma_at: dict[str, int] = {}
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
-        # ride in tables beside the lemmas rather than on every token. Absent for every
-        # word that is not a Hebrew verb, and for the verbs whose root could not be had.
+        # ride in tables beside the lemmas rather than on every token. Empty for every
+        # word that is not a Hebrew verb, and for the verbs whose root could not be had
+        # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
         binyanim: list[str] = []
         # And so does the register, for the same reason: which Hebrew a word belongs to
@@ -1757,6 +1768,9 @@ def render(
             for at, lemma in enumerate(lemmas):
                 citations[at] = citations[at] or book.citations.get(lemma, "")
                 plurals[at] = plurals[at] or book.plurals.get(lemma, "")
+        extensions = {
+            name: table for name, table in (("roots", roots), ("binyanim", binyanim)) if any(table)
+        }
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
@@ -1825,11 +1839,20 @@ def render(
             primary_coarse=set(translations[0].coarse),
             data=embed_json(
                 {
+                    "schemaVersion": PAYLOAD_VERSION,
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
-                    "roots": roots,
-                    "binyanim": binyanim,
+                    # Facts a language knows about its dictionary forms and the format
+                    # does not: a Hebrew verb's root and binyan today; an Arabic root, a
+                    # Japanese reading and its pitch, tomorrow. Each is a table parallel
+                    # to the lemmas, named for the fact, and a reader draws the ones it
+                    # understands and passes over the rest. Kept out of the top level so
+                    # the top level stays the format — what every language carries — and
+                    # left out wherever no word on the page had any of them. Two tables,
+                    # not one, because a binyan can be tagged where a three-letter root
+                    # could not honestly be had.
+                    **({"extensions": extensions} if extensions else {}),
                     # Left out where the two registers agreed about every word on the
                     # page, and for every language the question is not asked of, rather
                     # than shipping a row of empty strings the reader would never read.
@@ -1861,9 +1884,11 @@ def render(
                     # For naming an export of the language's words, which the reader
                     # otherwise only knows by its tag.
                     "languageName": language_name(segmented.language),
-                    # Whether the vowels on this text are its own, and so whether it
-                    # should open with them showing.
-                    "sourcePointed": source_pointed,
+                    # Whether the source carries its own phonetic layer, and so opens
+                    # showing it. Nikkud and trope here — a Tanakh arrives pointed and
+                    # someone chose it for that, where a newspaper's points are guessed
+                    # — and furigana, harakat and pinyin are the same question.
+                    "sourceMarked": source_pointed,
                     # Which target's meanings are on their way, if any. Words are looked
                     # up one at a time now, so most readers have none coming and must not
                     # sit asking for one for ten minutes — and a reader that switches to

@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from targum.models import (
+    Annotation,
     BlockKind,
     Document,
     Segment,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -1412,8 +1414,7 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
 
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert data["lemmas"] == ["התלבש", "בית"]
-    assert data["roots"] == ["לבש", ""]
-    assert data["binyanim"] == ["התפעל", ""]
+    assert data["extensions"] == {"roots": ["לבש", ""], "binyanim": ["התפעל", ""]}
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert PEALIM in html
 
@@ -3704,6 +3705,65 @@ def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> Non
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert "registers" not in data
     assert data["sourceRegister"] == "modern"
+
+
+def _one_page(tmp_path: Path, tokens: list[Token]) -> dict[str, object]:
+    """The payload of a one-paragraph Hebrew page annotated with exactly these tokens."""
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: tokens},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data: dict[str, object] = json.loads(
+        re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)
+    )
+    return data
+
+
+def test_the_payload_says_which_shape_it_is(tmp_path: Path) -> None:
+    """One field, so a payload can be told apart from an older one by a reader it did not
+    ship with. Not the cache's `SCHEMA_VERSION`: this one is free to move."""
+    from targum.render.builder import PAYLOAD_VERSION
+
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["schemaVersion"] == PAYLOAD_VERSION == 1
+
+
+def test_a_page_with_no_verb_ships_no_root_or_binyan_table(tmp_path: Path) -> None:
+    """Like the registers and the sounds: a row of empty strings nothing would read is
+    left out, rather than shipped in every reader whose language has no binyanim and
+    every one annotated before there was a root to give."""
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["lemmas"] == ["בית"]
+    assert "extensions" not in data
+
+
+def test_a_binyan_without_a_root_ships_the_one_table_it_has(tmp_path: Path) -> None:
+    """The two are decided apart. A verb whose binyan Stanza tagged and whose root could
+    not honestly be had is the common case for a weak verb, and the card still says the
+    binyan — so the binyanim table rides alone, and the roots table is not sent empty
+    beside it."""
+    data = _one_page(
+        tmp_path, [Token(start=0, end=3, surface="קם", lemma="קם", band=2, binyan="פעל")]
+    )
+    assert data["extensions"] == {"binyanim": ["פעל"]}
 
 
 # -- what to read next -------------------------------------------------------------
