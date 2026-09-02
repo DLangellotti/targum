@@ -1417,6 +1417,7 @@ def render(
     siblings: list[dict[str, str]] | None = None,
     whole: bool = False,
     folder: Path | None = None,
+    moves: Mapping[str, object] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
@@ -1432,6 +1433,11 @@ def render(
     a language rather than a flag for the same reason: the reader polls for the target it
     is showing, and switching to one that was never bought must not start a wait for a
     file nobody is writing.
+
+    `moves` is what this text's words used to be called, when it has just been
+    re-annotated by a different annotator — see `annotate/moves.py`. A mark is filed by
+    lemma, so without it a reader's word quietly stops being theirs. Each text carries its
+    own; there is no table of the library.
 
     `reads` is which languages the person this reader belongs to reads. A translation into
     any other is left out of the page: a picker offering a language somebody cannot read
@@ -1806,6 +1812,13 @@ def render(
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
+                    # Only where a word actually moved. A rebuild that changed no name
+                    # ships nothing, which is every rebuild after the first.
+                    **(
+                        {"moves": moves}
+                        if moves and (moves.get("lemmas") or moves.get("surfaces"))
+                        else {}
+                    ),
                     "roots": roots,
                     "binyanim": binyanim,
                     # Left out where the two registers agreed about every word on the

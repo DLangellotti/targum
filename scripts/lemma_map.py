@@ -48,29 +48,6 @@ from pathlib import Path
 BATCH = 16
 
 
-FINALS = str.maketrans("ךםןףץ", "כמנפצ")
-
-
-def letters(word: str) -> str:
-    return "".join(c for c in word.translate(FINALS) if "א" <= c <= "ת")
-
-
-def shared(old: str, new: str) -> int:
-    """The longest run of letters both spell in order — a root surviving a derivation."""
-    a, b = letters(old), letters(new)
-    best = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
-    for i, x in enumerate(a, 1):
-        for j, y in enumerate(b, 1):
-            best[i][j] = best[i - 1][j - 1] + 1 if x == y else max(best[i - 1][j], best[i][j - 1])
-    return best[len(a)][len(b)]
-
-
-def same_word(old: str, new: str) -> bool:
-    """Whether the new lemma is plausibly the same word as the old one, spelled otherwise."""
-    need = max(2, min(len(letters(old)), len(letters(new))) - 1)
-    return shared(old, new) >= need
-
-
 def readers(root: Path) -> list[Path]:
     """Every reader under `root` that has been annotated and still has its text."""
     if (root / "annotation.json").is_file():
@@ -91,6 +68,11 @@ def main() -> int:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
     from targum.annotate import Annotator
     from targum.annotate.dicta import DictaLemmatizer
+
+    # One implementation of the screen, shared with what the build ships to a reader: a
+    # script that decided this differently from `annotate/moves.py` would be reporting on
+    # a migration nobody performs.
+    from targum.annotate.moves import same_word
     from targum.models import Segment, SegmentedDocument
 
     found = readers(args.shelf)
@@ -169,10 +151,10 @@ def main() -> int:
                 "surfaces": {
                     surface: how.most_common(1)[0][0]
                     for surface, how in surfaces.items()
-                    # Only where the lemma alone cannot answer: everything else would be
-                    # weight in a file a reader has to carry.
-                    if filed[surface] & set(split)
-                    and same_word(next(iter(filed[surface])), how.most_common(1)[0][0])
+                    # Only where the lemma alone cannot answer, and not screened by
+                    # spelling — see `annotate/moves.py` for why the surface is the
+                    # guarantee there rather than the spelling.
+                    if filed[surface] & set(split) and "##" not in how.most_common(1)[0][0]
                 },
                 "split": split,
                 # Emitted so they can be read, never applied: these are the moves that

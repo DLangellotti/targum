@@ -1041,3 +1041,67 @@ def test_the_card_line_is_built_from_dictas_own_segmentation() -> None:
 
     assert _pieces_of(["וב", "ספר"], "ספר", False) == "ו and + ב in + ספר"
     assert _pieces_of(["ספר"], "ספר", False) is None
+
+
+# --- where a word went when the annotator changed ------------------------------------
+
+
+def annotated(annotator: str, words: list[tuple[int, str, str]]) -> Annotation:
+    """One segment of (offset, surface, lemma), as an annotation on disk would hold it."""
+    return Annotation(
+        document_hash="h",
+        language="he",
+        annotator=annotator,
+        method="frequency",
+        method_note="note",
+        tokens={
+            "s1": [
+                Token(start=at, end=at + len(surface), surface=surface, lemma=lemma, band=1)
+                for at, surface, lemma in words
+            ]
+        },
+    )
+
+
+def test_a_move_is_only_carried_when_it_is_still_the_same_word() -> None:
+    """15% of the moves in the first full run landed on a different word — הבליח → מבצבץ,
+    הכסיף → מכוסה. Carrying a mark across one of those is worse than losing it: an orphan
+    is a word the reader meets again, while a mis-migration sits in their list for good
+    under a meaning that was never theirs (targum-internal#141)."""
+    from targum.annotate.moves import between
+
+    was = annotated("stanza/1", [(0, "לאורך", "לאורך"), (10, "הבליח", "הבליח"), (20, "ספר", "ספר")])
+    now = annotated("dicta/1", [(0, "לאורך", "ארך"), (10, "הבליח", "מבצבץ"), (20, "ספר", "ספר")])
+    moved = between(was, now)
+
+    lemmas = moved["lemmas"]
+    assert isinstance(lemmas, dict)
+    assert lemmas["לאורך"] == "ארך", "a derivation of the same word is carried"
+    assert "הבליח" not in lemmas, "a different word is held back"
+    assert "ספר" not in lemmas, "and a word that did not move is not in the table at all"
+
+
+def test_a_lemma_that_split_is_answered_by_the_surface_instead() -> None:
+    """`הוא` went to `הוא`, `לו` and `אני` at once, so the lemma alone cannot place a
+    mark. The store keeps the surface beside every mark, which can."""
+    from targum.annotate.moves import between
+
+    was = annotated("stanza/1", [(0, "לי", "הוא"), (5, "בו", "הוא")])
+    now = annotated("dicta/1", [(0, "לי", "אני"), (5, "בו", "הוא")])
+    moved = between(was, now)
+
+    assert moved["lemmas"] == {}, "one old lemma, two destinations: it cannot be settled"
+    surfaces = moved["surfaces"]
+    assert isinstance(surfaces, dict)
+    assert surfaces["לי"] == "אני"
+
+
+def test_a_wordpiece_is_never_a_destination() -> None:
+    """DICTA returns a raw BERT wordpiece on rare words. The annotator refuses them now,
+    but a map built from an annotation written before that must not carry one either."""
+    from targum.annotate.moves import between, same_word
+
+    assert not same_word("מלבלב", "##לבים")
+    was = annotated("stanza/1", [(0, "מלבלב", "מלבלב")])
+    now = annotated("dicta/1", [(0, "מלבלב", "##לבים")])
+    assert between(was, now)["lemmas"] == {}

@@ -431,8 +431,10 @@ var targumReader = function () {
     return Date.now() + sequence;
   }
 
-  // Shared with the words page, which has to be able to run it too.
-  if (window.TargumVocab) window.TargumVocab.migrate(language, documentId);
+  // Shared with the words page, which has to be able to run it too. `data.moves` is this
+  // text's own lemma renames, and only a text can carry them — the words page has no
+  // annotation behind it and so passes none.
+  if (window.TargumVocab) window.TargumVocab.migrate(language, documentId, data.moves);
 
   var vocab = read(VOCAB, "{}");
   var picks = read(PICKED, "{}");
