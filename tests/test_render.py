@@ -555,6 +555,50 @@ def test_words_and_phrases_are_two_lists_with_two_counts(tmp_path: Path) -> None
     assert '" — phrases.csv"' in script
 
 
+def test_the_list_offers_an_anki_deck_beside_the_spreadsheet(tmp_path: Path) -> None:
+    """The CSVs are for a spreadsheet. Most people learning Hebrew keep the words they
+    are drilling in Anki, and a deck wants what a column does not carry: the pointed
+    word, the sentence it was met in, a verb's root (targum-internal#39)."""
+    from targum.models import Annotation, Token
+    from targum.render.builder import ASSETS
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={
+            segments[0].id: [Token(start=0, end=9, surface="paragraph", lemma="paragraph", band=3)]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    assert 'data-export="anki"' in html
+    assert 'id="anki-button"' in html
+    assert ">Anki deck<" in html
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function exportAnki()" in script
+    assert "function ankiText(name, cards)" in script
+    # The same offer as the CSV's: nothing to hand over is not worth offering.
+    assert "ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0" in script
+    # The vowels without the chant: a Masoretic text is learned unaccented.
+    assert "cells.unaccented[segmentId] || cells.pointed[segmentId]" in script
+
+
 def test_the_progress_page_stands_on_its_own() -> None:
     """Everything kept, with what it adds up to. Built from the browser's own stores.
 

@@ -3369,3 +3369,98 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
     assert page.evaluate(VERSE, "3:7")["number"] == "7"
     context.close()
+
+
+# --- the Anki deck -------------------------------------------------------------------
+
+
+def downloaded(page, seed: str, kind: str = "words") -> list[str]:
+    """The deck the button hands over, as lines, with the list the button reads seeded
+    the way the reader would have written it."""
+    page.evaluate(seed)
+    page.reload()
+    page.wait_for_selector(".pair")
+    if kind == "phrases":
+        page.eval_on_selector('[data-list="phrases"]', "button => button.click()")
+    with page.expect_download() as handed:
+        page.eval_on_selector("#anki-button", "button => button.click()")
+    path = handed.value.path()
+    assert path is not None
+    return Path(path).read_text(encoding="utf-8").rstrip("\n").split("\n")
+
+
+def test_the_deck_carries_the_pointed_word_and_its_sentence(browser, two_languages) -> None:
+    """What the CSV cannot say and a flashcard needs: the word as it is pointed on the
+    page on the front, and on the back its meaning and the sentence it was met in, in
+    the form the page reads it in (targum-internal#39)."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(two_languages))
+    page.wait_for_selector(".pair")
+    first = coin(0)
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:vocab:he", JSON.stringify({{
+            "{first}": {{ surface: "{first}", status: 1, band: "moderate", at: 1 }}
+        }}))""",
+    )
+    assert lines[0] == "#separator:tab"
+    assert lines[3] == "#deck:targum::A chapter"
+    cards = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert len(cards) == 1, lines
+    front, back, tags = cards[0]
+    # The bilingual fixture carries no vowels, so the front is the word as the page has
+    # it; the back is its English and the whole sentence it is first met in.
+    assert front == first
+    assert back.startswith(f"the English of {first}<br>")
+    sentence = " ".join(coin(i) for i in range(3))
+    assert f'<span lang="he" dir="auto">{sentence}</span>' in back
+    assert tags == "targum targum::A-chapter"
+    context.close()
+
+
+def test_a_masoretic_word_is_learned_without_its_chant(browser, built_with_taamim) -> None:
+    """A text that ships its accents ships the vowels without them too, and that is the
+    form a word is learned in: the te'amim are for leyning."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built_with_taamim))
+    page.wait_for_selector(".pair")
+    first = coin(0)
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:vocab:he", JSON.stringify({{
+            "{first}": {{ surface: "{first}", status: 1, band: "moderate", at: 1 }}
+        }}))""",
+    )
+    (card,) = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert card[0] == QAMATS.join(first) + QAMATS, "the front is the pointed word"
+    assert ZAQEF not in card[0] and ZAQEF not in card[1], "the chant came with it"
+    assert QAMATS in card[1], "the sentence on the back is unpointed"
+    context.close()
+
+
+def test_a_kept_phrase_is_a_card_too(browser, built) -> None:
+    """A phrase is a piece of the sentence, pointed the way the page points it, with
+    the sentence under it and no root line: a phrase has no root."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    document_id = page.evaluate(
+        "() => JSON.parse(document.getElementById('targum-data').textContent).document"
+    )
+    first_pair = page.evaluate("() => document.querySelector('.pair').getAttribute('data-id')")
+    run = " ".join(coin(i) for i in range(2))
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:picked:{document_id}", JSON.stringify({{
+            "{first_pair}": [{{ start: 0, end: {len(run)}, text: "{run}", status: 1, at: 1 }}]
+        }}))""",
+        kind="phrases",
+    )
+    (card,) = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert card[0] == " ".join(QAMATS.join(coin(i)) + QAMATS for i in range(2))
+    assert "root" not in card[1]
+    assert '<span lang="he" dir="auto">' in card[1]
+    context.close()
