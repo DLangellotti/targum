@@ -129,8 +129,12 @@ var targumReader = function () {
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
-  var roots = data.roots || [];
-  var binyanim = data.binyanim || [];
+  // What this language knows about its dictionary forms beyond what every language
+  // carries: tables parallel to the lemmas, named for the fact. Only the Hebrew ones are
+  // drawn here; a table this reader does not know is left alone.
+  var extensions = data.extensions || {};
+  var roots = extensions.roots || [];
+  var binyanim = extensions.binyanim || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
   // which one this text is written in. Codes, not sentences: the words are below, so
   // rewriting them costs nothing and re-annotating a library is not part of it.
@@ -5580,14 +5584,15 @@ var targumReader = function () {
   applyMarking();
   showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
   // A remembered preference for vowels is worth nothing on a text that has none, and
-  // leaving it set would hide every sentence on the page. `sourcePointed` means "open in
-  // the form this text was published in" — which for a Tanakh is the whole of it, accents
-  // and all — and a per-document choice still wins over it.
+  // leaving it set would hide every sentence on the page. `sourceMarked` means "the
+  // source carries its own phonetic layer, so open in the form this text was published
+  // in" — which for a Tanakh is the whole of it, accents and all — and a per-document
+  // choice still wins over it.
   if (!hasNikkud) {
     prefs.nikkud = false;
   } else {
     var chosen = prefs.nikkudBy ? prefs.nikkudBy[documentId] : undefined;
-    prefs.nikkud = chosen === undefined ? !!data.sourcePointed : !!chosen;
+    prefs.nikkud = chosen === undefined ? !!data.sourceMarked : !!chosen;
   }
   applyTaamim(false);
   applyNikkud();

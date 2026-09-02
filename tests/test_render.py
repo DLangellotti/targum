@@ -1414,8 +1414,7 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
 
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert data["lemmas"] == ["התלבש", "בית"]
-    assert data["roots"] == ["לבש", ""]
-    assert data["binyanim"] == ["התפעל", ""]
+    assert data["extensions"] == {"roots": ["לבש", ""], "binyanim": ["התפעל", ""]}
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert PEALIM in html
 
@@ -3627,14 +3626,22 @@ def _one_page(tmp_path: Path, tokens: list[Token]) -> dict[str, object]:
     return data
 
 
+def test_the_payload_says_which_shape_it_is(tmp_path: Path) -> None:
+    """One field, so a payload can be told apart from an older one by a reader it did not
+    ship with. Not the cache's `SCHEMA_VERSION`: this one is free to move."""
+    from targum.render.builder import PAYLOAD_VERSION
+
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["schemaVersion"] == PAYLOAD_VERSION == 1
+
+
 def test_a_page_with_no_verb_ships_no_root_or_binyan_table(tmp_path: Path) -> None:
     """Like the registers and the sounds: a row of empty strings nothing would read is
     left out, rather than shipped in every reader whose language has no binyanim and
     every one annotated before there was a root to give."""
     data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
     assert data["lemmas"] == ["בית"]
-    assert "roots" not in data
-    assert "binyanim" not in data
+    assert "extensions" not in data
 
 
 def test_a_binyan_without_a_root_ships_the_one_table_it_has(tmp_path: Path) -> None:
@@ -3645,8 +3652,7 @@ def test_a_binyan_without_a_root_ships_the_one_table_it_has(tmp_path: Path) -> N
     data = _one_page(
         tmp_path, [Token(start=0, end=3, surface="קם", lemma="קם", band=2, binyan="פעל")]
     )
-    assert data["binyanim"] == ["פעל"]
-    assert "roots" not in data
+    assert data["extensions"] == {"binyanim": ["פעל"]}
 
 
 # -- what to read next -------------------------------------------------------------

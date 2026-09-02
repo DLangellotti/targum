@@ -547,7 +547,7 @@ PRESSED = "() => document.querySelector('[data-nikkud-toggle]').getAttribute('ar
 
 
 def test_a_masoretic_text_opens_the_way_it_was_published(accented) -> None:
-    """Accents and all. `sourcePointed` has always meant "open in the form this text was
+    """Accents and all. `sourceMarked` has always meant "open in the form this text was
     published in", and a Masoretic edition publishes the trope."""
     assert accented.evaluate(PRESSED) == "true"
     seen = accented.evaluate(
