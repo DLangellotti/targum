@@ -1734,7 +1734,31 @@ def test_closing_the_player_closes_it_for_good(scene) -> None:
     # was a bet on how fast the runner is, and it lost one — the same mistake as a fixed
     # wait, wearing a timeout. A condition that is correct should be waited for as long
     # as the suite waits for anything, and a real failure still fails, just later.
-    scene.wait_for_function("() => document.getElementById('player')?.hidden === true")
+    # PROBE (targum-internal#124): capture what the page actually holds, on both sides of
+    # the reload, before waiting. The store demonstrably works on the runner — the three
+    # probes above pass there — so if this still fails the key is wrong, the script did
+    # not reach the read, or the value is not what was written.
+    seen = scene.evaluate(
+        "() => ({ keys: Object.keys(localStorage),"
+        "         values: Object.fromEntries(Object.entries(localStorage)),"
+        "         data: (document.getElementById('targum-data')||{}).textContent?.slice(0, 120),"
+        "         path: location.pathname.slice(-60) })"
+    )
+    try:
+        scene.wait_for_function("() => document.getElementById('player')?.hidden === true")
+    except Exception as never:
+        after = scene.evaluate(
+            "() => ({ keys: Object.keys(localStorage),"
+            "         values: Object.fromEntries(Object.entries(localStorage)),"
+            "         player: !!document.getElementById('player'),"
+            "         hidden: document.getElementById('player')?.hidden,"
+            "         data: (document.getElementById('targum-data')||{})"
+            ".textContent?.slice(0, 120),"
+            "         path: location.pathname.slice(-60) })"
+        )
+        raise AssertionError(
+            f"never hid.\n  before reload: {seen}\n  after reload:  {after}"
+        ) from never
     assert scene.evaluate(PLAYING)["hidden"] is True, "it stays shut on the next visit"
 
 
