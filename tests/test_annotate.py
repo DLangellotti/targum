@@ -283,9 +283,21 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     band table was counted with the default. So the source decides, the way it does for
     the bands — and the scripture name is the old name, so no Tanakh is redone."""
     from targum.annotate.lemma import MODERN_TOKENIZERS, StanzaLemmatizer, for_source
+    from targum.annotate.scripture import ScriptureLemmatizer
 
-    tanakh = for_source("sefaria:Ruth")
-    dialogue = for_source("dialogue:08-that-is-my-spot")
+    def model(built: object) -> StanzaLemmatizer:
+        """The Stanza underneath, whether or not the hand tagging is wrapped around it.
+
+        `for_source` returns a `ScriptureLemmatizer` for scripture where the Open
+        Scriptures morphology is on disk and the bare model where it is not — so a test
+        that reached straight for `.scripture` passed or failed depending on what happened
+        to be in this machine's model directory. This is about which Stanza tokenizer each
+        register gets, which is true either way.
+        """
+        return built.fallback if isinstance(built, ScriptureLemmatizer) else built  # type: ignore[return-value]
+
+    tanakh = model(for_source("sefaria:Ruth"))
+    dialogue = model(for_source("dialogue:08-that-is-my-spot"))
     assert tanakh.scripture and not dialogue.scripture
     assert tanakh.packages("he") == {}
     assert dialogue.packages("he") == {"tokenize": MODERN_TOKENIZERS["he"]}

@@ -54,8 +54,38 @@ MAQAF = "־"
 #: of things that might happen. `כול` is here because Genesis 1 alone yielded it four
 #: times beside four of `כל`.
 SAME_WORD: dict[str, str] = {
-    "כול": "כל",
+    # Each row was seen in the corpus, checked against written frequency, and confirmed
+    # by somebody who reads Hebrew. The canonical side is the more common spelling, which
+    # is not the same as the modern one: `שמים` outruns `שמיים` in written Hebrew and
+    # `לא` outruns `לוא` by four orders of magnitude, while `מאוד` and `כוח` go the other
+    # way. Register would have been a tidier rule and a worse one.
+    "כול": "כל",  # 6.78 / 4.53
+    "שמיים": "שמים",  # 4.77 / 4.10
+    "לוא": "לא",  # 7.21 / 2.83
+    "שלשים": "שלושים",  # 4.51 / 3.59
+    "מאד": "מאוד",  # 5.97 / 5.39
+    "כח": "כוח",  # 5.38 / 4.83
+    # Proper names with two accepted spellings, from the Tanakh-wide sweep. The safest
+    # category there is: a name cannot secretly be two words, so a difference in shape
+    # here cannot hide a difference in sense the way `אחות` and `אחת` do.
+    "אהרון": "אהרן",  # 4.67 / 4.61 — close, and the shorter form wins on frequency
+    "דויד": "דוד",  # 5.47 / 4.17 — the Chronicles spelling folds onto the ordinary one
+    # And two ordinary words a reader confirmed.
+    "מות": "מוות",  # 4.90 / 4.59
+    "שמנה": "שמונה",  # 5.03 / 4.21
 }
+
+#: Pairs the mechanical filter offered and a reader refused. Kept because the next person
+#: to run `candidates()` will be offered them again, and a rejection nobody wrote down is
+#: a rejection that gets re-litigated.
+#:
+#: `גדול` and `גדל` differ by one vav, exactly as `שמים` and `שמיים` do, and are the
+#: adjective "great" against the verb "grew". `בת` and `בית` are daughter and house.
+#: `שוב` and `ישב` are return and sit. Every one of them would have been folded by a rule
+#: that trusted the shape.
+NOT_THE_SAME: frozenset[tuple[str, str]] = frozenset(
+    {("גדול", "גדל"), ("בת", "בית"), ("שוב", "ישב"), ("בוש", "יבש"), ("שום", "שם")}
+)
 
 
 def bare(lemma: str) -> str:
