@@ -103,8 +103,12 @@ class CtcAligner:
         os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
         os.environ.setdefault("TORCH_HOME", str(model_dir()))
         processor = Wav2Vec2Processor.from_pretrained(MODEL)
-        model = Wav2Vec2ForCTC.from_pretrained(MODEL)
-        model.eval()  # type: ignore[no-untyped-call]
+        # Annotated rather than inferred: with the extra installed the class is typed
+        # and `.eval()` reads as an untyped call, and without it there is no class to
+        # read at all. CI has no `transformers`, so an ignore that silences the first
+        # case is an unused ignore in the second — which is also an error.
+        model: Any = Wav2Vec2ForCTC.from_pretrained(MODEL)
+        model.eval()
 
         heard = processor(samples(audio, RATE), sampling_rate=RATE, return_tensors="pt")
         wave = heard.input_values[0]
