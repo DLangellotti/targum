@@ -286,15 +286,23 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     from targum.annotate.scripture import ScriptureLemmatizer
 
     def model(built: object) -> StanzaLemmatizer:
-        """The Stanza underneath, whether or not the hand tagging is wrapped around it.
+        """The Stanza underneath, however many wrappers deep it is.
 
         `for_source` returns a `ScriptureLemmatizer` for scripture where the Open
         Scriptures morphology is on disk and the bare model where it is not — so a test
         that reached straight for `.scripture` passed or failed depending on what happened
-        to be in this machine's model directory. This is about which Stanza tokenizer each
-        register gets, which is true either way.
+        to be in this machine's model directory.
+
+        Since targum-internal#116 there is a second wrapper: Hebrew is DICTA's, and the
+        Stanza it holds is the delegate for every other language. The register still picks
+        that delegate's tokenizer, which is what this is about — but it no longer picks
+        anything for Hebrew, because Stanza is never handed a Hebrew word.
         """
-        return built.fallback if isinstance(built, ScriptureLemmatizer) else built  # type: ignore[return-value]
+        from targum.annotate.dicta import DictaLemmatizer
+
+        if isinstance(built, ScriptureLemmatizer):
+            built = built.fallback
+        return built.other if isinstance(built, DictaLemmatizer) else built  # type: ignore[return-value]
 
     tanakh = model(for_source("sefaria:Ruth"))
     dialogue = model(for_source("dialogue:08-that-is-my-spot"))
@@ -307,6 +315,14 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     assert dialogue.name != tanakh.name, "a modern text built before is read again"
     assert dialogue.name.startswith(tanakh.name), "and the old name is still in it"
     assert StanzaLemmatizer().name == dialogue.name, "the default is the modern reading"
+    # And the whole annotator's name, which is what actually decides a re-read, carries
+    # DICTA in front of either delegate — so every Hebrew text on the shelf is read again
+    # once, which is free, and none of them keeps a lemma Stanza's models produced.
+    from targum.annotate.dicta import MODEL
+
+    for built in (for_source("sefaria:Ruth"), for_source("dialogue:08-that-is-my-spot")):
+        outer = built.fallback if isinstance(built, ScriptureLemmatizer) else built
+        assert outer.name.startswith(f"dicta/{MODEL}/")
 
 
 def test_a_named_build_is_missing_until_that_file_is_on_disk(
@@ -329,22 +345,28 @@ def test_a_named_build_is_missing_until_that_file_is_on_disk(
 
 @pytest.mark.stanza
 def test_a_modern_verb_behind_a_clitic_is_not_a_rare_biblical_word(
-    needs_hebrew_model: None,
+    needs_dicta_model: None,
 ) -> None:
     """שֶׁרוֹצִים in a dialogue is ש + רוצים, "that they want". Read whole it became שרץ,
-    "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today"."""
-    from targum.annotate.lemma import PROCESSORS, for_source
-    from targum.segment import has_processors
+    "to swarm": hard, rooted שר״ץ, and "from the Tanakh, rare today".
+
+    The clitic is why this test exists and DICTA splits it, which is what #110 asked of
+    the swap. The lemma it lands on is the present participle רוצה rather than Stanza's
+    רצה — a real difference, recorded here rather than asserted away: DICTA answers with
+    the participle for a family of common verbs, so those words card under it. What the
+    test still pins is the failure that mattered, which is a modern verb read as a rare
+    biblical one.
+    """
+    from targum.annotate.lemma import for_source
 
     lemmatizer = for_source("dialogue:08-that-is-my-spot")
-    if not has_processors("he", PROCESSORS, lemmatizer.packages("he")):
-        pytest.skip("Hebrew lemmatizer not downloaded")
-
     segmented = document(["קוראים לזה איך שרוצים."])
     annotation = Annotator(lemmatizer=lemmatizer).annotate(segmented)
     tokens = {token.surface: token for token in next(iter(annotation.tokens.values()))}
-    assert tokens["שרוצים"].lemma == "רצה"
+    assert tokens["שרוצים"].lemma == "רוצה"
+    assert tokens["שרוצים"].lemma != "שרץ", "the whole point: not read as one word"
     assert tokens["שרוצים"].split
+    assert tokens["שרוצים"].built == "ש that + רוצים"
     assert tokens["שרוצים"].word_register != "biblical"
     assert tokens["שרוצים"].band <= 2
 

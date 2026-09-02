@@ -162,7 +162,12 @@ def test_layout_uses_logical_properties_only(rendered: Path) -> None:
 PEALIM = "https://www.pealim.com/"
 #: The licence a recording is used under.
 LICENCE = "https://creativecommons.org/licenses/"
-OUTBOUND = (PEALIM, LICENCE)
+#: The model that read the words. CC BY 4.0 asks for the work to be named and linked
+#: wherever it is used, and the words are used in the reader — so discharging it in the
+#: page is the decision the recording's licence link already made. Added when Hebrew
+#: moved off Stanza's NonCommercial models (targum-internal#116).
+DICTA = "https://huggingface.co/dicta-il/"
+OUTBOUND = (PEALIM, LICENCE, DICTA)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -3696,3 +3701,44 @@ def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyP
         ("news-a", "s:news", 6, "modern"),
     )
     assert suggestion(monkeypatch, "dialogue:03-which-way", rows) == "news-a"
+
+
+def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """CC BY 4.0 asks for the work to be named where it is used, and the words are used
+    here (targum-internal#116). Keyed to the annotator that actually ran, so a reader
+    built before the swap does not claim a credit it did not earn — which is also what
+    keeps the credit honest once both kinds of reader are on the shelf at once."""
+    from targum.models import Annotation, Token
+
+    document = Document(
+        source="memory", title="Declaration", language="he", blocks=[], content_hash="abc123"
+    )
+
+    def page(annotator: str) -> str:
+        annotation = Annotation(
+            document_hash="h",
+            language="he",
+            annotator=annotator,
+            method="frequency",
+            method_note="note",
+            tokens={
+                segmented.segments[0].id: [
+                    Token(start=0, end=4, surface="ספר", lemma="ספר", band=1),
+                ]
+            },
+        )
+        out = tmp_path / annotator.split("/")[0]
+        return render(document, segmented, [translation], out, annotation=annotation)[0].read_text(
+            encoding="utf-8"
+        )
+
+    read_by_dicta = page("dicta/dicta-il/dictabert-joint/roots+everyword+names+grammar")
+    assert "Dictionary forms by" in read_by_dicta
+    assert "https://huggingface.co/dicta-il/dictabert-joint" in read_by_dicta
+    assert "https://creativecommons.org/licenses/by/4.0/" in read_by_dicta
+
+    read_by_stanza = page("stanza/1.10.1/tokenize,pos,lemma+roots")
+    assert "Dictionary forms by" not in read_by_stanza
+    assert "huggingface.co" not in read_by_stanza

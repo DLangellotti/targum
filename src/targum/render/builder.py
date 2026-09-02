@@ -1779,6 +1779,11 @@ def render(
             translated=translated,
             audio_waiting=audio_waiting,
             words=bool(words),
+            # CC BY asks to be named where the work is used, and the words are used in
+            # the reader, so the naming goes in the reader rather than in a file about
+            # the reader. Keyed off what actually ran: a text annotated before the swap
+            # carries Stanza's name and gets no DICTA credit it did not earn.
+            words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             segments=segments,
             bare=bare,
             pointed=pointed,

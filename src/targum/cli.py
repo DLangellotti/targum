@@ -2202,6 +2202,19 @@ def models_fetch(
     code = segment_module.stanza_code(language)
     from .annotate.lemma import PROCESSORS, StanzaLemmatizer
 
+    # Hebrew's words come from DICTA rather than from Stanza (targum-internal#116), and
+    # the point of fetching ahead is that a build reaches for nothing — so the weights
+    # come down here, where a box is asking for them, and not in the middle of a job.
+    # Stanza is still fetched for the same language, because it is what segments it.
+    if code == "he":
+        from .annotate.dicta import MODEL, DictaLemmatizer
+
+        try:
+            DictaLemmatizer().model()
+        except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
+            fail(TargumError(f"Could not download {MODEL}.", str(error)))
+        console.print(f"[green]Downloaded[/green] {MODEL}")
+
     # Both builds of the tokenizer, where the language has two: scripture is read with
     # one and everything else with the other, and a box that fetches ahead of a long job
     # should not find that out halfway through it.
