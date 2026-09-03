@@ -2,7 +2,9 @@
 
 targum's own code is **AGPL-3.0-or-later**. Copyright © 2026 David Langellotti. That is
 the whole of the licence on everything in this repository, and `LICENSE` is the text of
-it.
+it. The licence is on the code and not on the name: `NOTICE` says that "targum" is the
+project's name and that nothing here grants the right to call a derived product or
+service by it.
 
 This file exists because that sentence used not to be the whole story. targum runs on
 other people's models, and two of them were licensed for non-commercial use only. The
