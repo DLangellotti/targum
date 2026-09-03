@@ -352,7 +352,35 @@
     when there is one and nothing off a disk. -#}
 <div class="video" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}">
   <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
-  <button type="button" class="video-close" aria-label="Close the video">×</button>
+  {#- The line being said, over the picture, while the picture is the page. The text is
+      the page's own — copied out of the pair the clock is inside rather than carried a
+      second time — so a subtitle is never a translation the reader cannot also read in
+      place. Hebrew above English, and empty between lines rather than holding the last
+      one up over a silence. `aria-hidden`, because the pair it was copied from is still
+      in the page and a screen reader that met both would meet every line twice. -#}
+  <div class="video-titles" aria-hidden="true">
+    <p class="video-src" lang="{{ source_language }}" dir="{{ source_direction }}"></p>
+    {% if translated %}<p class="video-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
+  </div>
+  <div class="video-keys">
+    {#- Watching or reading. Not a third state of the toggle in the bar: that one is
+        whether there is a picture at all, and this is what the picture is doing. -#}
+    <button type="button" class="video-mode" aria-pressed="true" aria-label="Read alongside" title="Read alongside (v)">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M2.5 4h4M2.5 8h4M2.5 12h4M9.5 4h4M9.5 8h4M9.5 12h4"/>
+      </svg>
+    </button>
+    {#- Which corner it stands in while the reader reads. Four, cycled — a picture parked
+        over the sentence being read is the whole complaint the note made, and a corner
+        the layout keeps room for answers it for good where a drag answers it once. -#}
+    <button type="button" class="video-corner" aria-label="Move the picture" title="Move the picture">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
+        <rect x="8.5" y="8.5" width="5" height="5" rx="1" class="corner"/>
+      </svg>
+    </button>
+    <button type="button" class="video-close" aria-label="Close the video">×</button>
+  </div>
 </div>
 {% endif %}
 {#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of
@@ -544,6 +572,7 @@
     <dt>f</dt><dd>full screen, and out of it</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
     <dt>&lt; &gt;</dt><dd>slower, faster</dd>{% endif %}
+    {% if spoken_video %}<dt>v</dt><dd>watch it full screen, or read alongside it with the picture in a corner</dd>{% endif %}
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}

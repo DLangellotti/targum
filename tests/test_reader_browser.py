@@ -24,7 +24,10 @@ skip without node:
 
 from __future__ import annotations
 
+import http.server
+import io
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -321,6 +324,55 @@ SCROLLING = """
 _SERVED: dict[str, int] = {}
 
 
+class Ranged(http.server.SimpleHTTPRequestHandler):
+    """A static server that answers a Range with a 206, the way `targum serve` does.
+
+    Chrome will not seek a video it can only have whole: without `Accept-Ranges` and a
+    partial response it reports an empty `seekable` range and silently refuses every
+    write to `currentTime`. `SimpleHTTPRequestHandler` does neither, so the suite was
+    less capable than the product and every test that put the film at a second was
+    asserting against a seek that never happened. Files here are kilobytes, so the slice
+    is read into memory rather than streamed.
+    """
+
+    def end_headers(self) -> None:
+        if not self._ranging:
+            self.send_header("Accept-Ranges", "bytes")
+        super().end_headers()
+
+    _ranging = False
+
+    def send_head(self):  # type: ignore[no-untyped-def]
+        asked = self.headers.get("Range")
+        wanted = re.match(r"bytes=(\d*)-(\d*)$", asked.strip()) if asked else None
+        if not wanted:
+            return super().send_head()
+        whole = Path(self.translate_path(self.path))
+        try:
+            body = whole.read_bytes()
+        except OSError:
+            return super().send_head()
+        size = len(body)
+        first, last = wanted.group(1), wanted.group(2)
+        if first == "":
+            start, end = max(0, size - int(last or 0)), size - 1
+        else:
+            start = int(first)
+            end = min(int(last) if last else size - 1, size - 1)
+        if start > end or start >= size:
+            self.send_error(416)
+            return None
+        self._ranging = True
+        self.send_response(206)
+        self.send_header("Content-Type", self.guess_type(str(whole)))
+        self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Accept-Ranges", "bytes")
+        self.end_headers()
+        self._ranging = False
+        return io.BytesIO(body[start : end + 1])
+
+
 def address(reader: Path) -> str:
     """Where a built reader is opened from — over HTTP, not `file://`.
 
@@ -339,11 +391,10 @@ def address(reader: Path) -> str:
     """
     if "port" not in _SERVED:
         import functools
-        import http.server
         import socketserver
         import threading
 
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory="/")
+        handler = functools.partial(Ranged, directory="/")
         server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
         server.daemon_threads = True
         _SERVED["port"] = server.server_address[1]
@@ -4056,8 +4107,14 @@ def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_pat
 # -- a text that carries media opens as its media ---------------------------------------
 
 
-def video_reader(tmp_path: Path) -> Path:
-    """A one-part reader whose import kept its picture, built the way a real one is."""
+def video_reader(tmp_path: Path, spans=None, lines: int = 2) -> Path:
+    """A one-part reader whose import kept its picture, built the way a real one is.
+
+    `spans` puts the lines somewhere the fixture film actually reaches — it is one
+    second long, and the default spans are minutes in, which is right for the tests
+    about the panel and useless for the ones about the subtitle. `lines` makes the text
+    long enough to be cut into pages, for the test about the room the dock takes.
+    """
     import wave
 
     from targum.audio import manifest as manifest_module
@@ -4073,7 +4130,11 @@ def video_reader(tmp_path: Path) -> Path:
     # A real one, not four bytes of "film": the script hides the panel and swaps to the
     # inlined audio the moment the element errors, which is right when a sidecar did not
     # travel and useless when what is being tested is the panel. WebM because that is
-    # what the test browser decodes; 1KB, so it is committed rather than generated.
+    # what the test browser decodes; under 1KB, so it is committed rather than generated.
+    # Cut into small clusters on purpose: the first one of these decoded and reported a
+    # duration and was not seekable at all (`seekable` an empty range), so every test
+    # that puts the film at a second rather than playing it through was testing a
+    # currentTime the browser silently refused.
     (tmp_path / "video" / "parts").mkdir(parents=True)
     (tmp_path / "video" / "parts" / "part-001.webm").write_bytes(
         (Path(__file__).parent / "fixtures" / "tiny.webm").read_bytes()
@@ -4081,10 +4142,11 @@ def video_reader(tmp_path: Path) -> Path:
 
     segments = [
         Segment(
-            id=f"000{n}.000-aaaaaa", block_id=f"b000{n}", block_index=n, index=0, text=f"שורה {n}"
+            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=0, text=f"שורה {n}"
         )
-        for n in (1, 2)
+        for n in range(1, lines + 1)
     ]
+    placed = spans or [[2.0, 4.0], [5.0, 7.0]]
     manifest_module.write(
         tmp_path,
         manifest_module.AudioManifest(
@@ -4099,7 +4161,10 @@ def video_reader(tmp_path: Path) -> Path:
                     end=200.0,
                     audio="audio/parts/part-001.wav",
                     video="video/parts/part-001.webm",
-                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                    spans={
+                        segment.id: list(placed[n])
+                        for n, segment in enumerate(segments[: len(placed)])
+                    },
                 )
             ],
         ),
@@ -4162,5 +4227,197 @@ def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
         # And the toggle brings it back, which is what "the toggle stays" means.
         page.click("[data-video]")
         page.wait_for_selector("#video:not([hidden])")
+    finally:
+        context.close()
+
+
+# -- a video text opens as video, and the picture never floats ---------------------------
+#
+# design.md §12, 2026-09-03, and targum-internal#182. Two rules settled together:
+# a text carrying a sidecar opens full screen with its text as subtitles, and the
+# picture docks in a corner rather than being dragged around the page.
+
+
+#: Which mode the picture is in, where the transport is, and what the subtitle says.
+WATCHING = """
+() => {
+  const box = document.getElementById("video");
+  const player = document.getElementById("player");
+  const titles = document.querySelector(".video-titles");
+  const tr = document.querySelector(".video-tr");
+  return {
+    watching: box.classList.contains("watching"),
+    body: document.body.classList.contains("watching"),
+    transportInside: !!player && box.contains(player),
+    dock: [...box.classList].filter((name) => name.startsWith("dock-"))[0] || null,
+    saying: titles.classList.contains("saying"),
+    src: document.querySelector(".video-src").textContent.replace(/[⁦-⁩]/g, "").trim(),
+    tr: tr ? tr.textContent.replace(/[⁦-⁩]/g, "").trim() : "",
+  };
+}
+"""
+
+
+def test_a_text_with_a_picture_opens_watching(browser, tmp_path) -> None:
+    """The picture is not on beside the page; it is the page. The section above reversed
+    the default the same day and stopped one step short of it — the picture came on in
+    the band, at the size a panel is, which is not what a reader who has just been told
+    "this is a video" sees."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        seen = page.evaluate(WATCHING)
+        assert seen["watching"] and seen["body"], seen
+        # Item 4 of the note: one transport on screen, never two. It is the same strip,
+        # moved rather than copied, so the speed and the place are the ones it had.
+        assert seen["transportInside"], "the transport is over the picture"
+        assert page.locator("#player").count() == 1, "and there is only ever one of it"
+        # The reading page is left standing underneath rather than torn down, so leaving
+        # this mode puts the reader back on the sentence they were on.
+        assert page.locator(".pair").count() > 0
+        # Still nothing plays until pressed, which is the half of the old rule that lived.
+        assert page.evaluate(
+            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
+        )
+    finally:
+        context.close()
+
+
+def test_leaving_the_watch_puts_the_reader_on_the_page(browser, tmp_path) -> None:
+    """One press out, remembered per text, and the transport goes back to its corner."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        seen = page.evaluate(WATCHING)
+        assert not seen["watching"] and not seen["body"], seen
+        assert not seen["transportInside"], "the strip went back to its own corner"
+        assert seen["dock"], "and the picture stands in one"
+
+        page.reload()
+        page.wait_for_selector(".pair")
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.evaluate(WATCHING)["watching"] is False, "the choice outlived the page"
+
+        # And back in, which is what having two modes means.
+        page.click(".video-mode")
+        assert page.evaluate(WATCHING)["watching"] is True
+    finally:
+        context.close()
+
+
+def test_the_line_being_said_is_drawn_over_the_picture(browser, tmp_path) -> None:
+    """Hebrew above English, copied out of the pair the clock is inside — a subtitle is
+    never a translation the reader cannot also read in place. Gone between the lines:
+    one that holds the last line up over a silence says the voice is still saying it."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]])
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.wait_for_function("() => window.TargumPlayer.length() > 0")
+        page.evaluate("() => window.TargumPlayer.seek(0.2)")
+        seen = page.evaluate(WATCHING)
+        assert seen["saying"], seen
+        assert seen["src"] == "שורה 1", seen
+        assert seen["tr"] == "A line.", seen
+
+        page.evaluate("() => window.TargumPlayer.seek(0.6)")
+        assert page.evaluate(WATCHING)["src"] == "שורה 2", "it follows the clock"
+
+        # 0.47 is between the two spans, and between them the scrim goes entirely.
+        page.evaluate("() => window.TargumPlayer.seek(0.47)")
+        assert page.evaluate(WATCHING)["saying"] is False, "nothing is being said here"
+    finally:
+        context.close()
+
+
+def test_the_picture_docks_in_a_corner_the_reader_picks(browser, tmp_path) -> None:
+    """Four corners, cycled, and where a reader likes the picture is a fact about the
+    reader — kept per browser like the speed, not per text like the mode."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        first = page.evaluate(WATCHING)["dock"]
+        page.click(".video-corner")
+        second = page.evaluate(WATCHING)["dock"]
+        assert second and second != first, (first, second)
+        assert page.get_attribute(".video-corner", "data-corner") == second.replace("dock-", "")
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.evaluate(WATCHING)["dock"] == second, "the corner outlived the page"
+    finally:
+        context.close()
+
+
+def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
+    """The note asked for a draggable player and the reason was real: a picture parked
+    over the sentence being read. §12 answers it with a corner the layout keeps room
+    for, because a drag answers it once per session and a corner answers it for good."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(100)
+        before = page.locator("#video").bounding_box()
+
+        page.mouse.move(before["x"] + before["width"] / 2, before["y"] + 6)
+        page.mouse.down()
+        page.mouse.move(before["x"] - 220, before["y"] - 160, steps=8)
+        page.mouse.up()
+
+        after = page.locator("#video").bounding_box()
+        assert abs(after["x"] - before["x"]) < 1 and abs(after["y"] - before["y"]) < 1, (
+            before,
+            after,
+        )
+        assert page.get_attribute("#video", "draggable") is None
+    finally:
+        context.close()
+
+
+def test_v_moves_between_watching_and_reading(browser, tmp_path) -> None:
+    """One key, beside the p/l/o that set what the translation does. This one is about
+    what the picture is doing."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.keyboard.press("v")
+        assert page.evaluate(WATCHING)["watching"] is False
+        page.keyboard.press("v")
+        assert page.evaluate(WATCHING)["watching"] is True
+    finally:
+        context.close()
+
+
+def test_the_docked_picture_takes_its_room_out_of_the_layout(browser, tmp_path) -> None:
+    """§12's rule, and the whole answer to the note's drag: a control fixed over a page
+    of text takes its room out of the layout, never out of the reading. The pages are
+    cut above the corner the picture stands in rather than running under it."""
+    built = video_reader(tmp_path, lines=60)
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_function("() => document.body.classList.contains('paged')")
+        page.wait_for_timeout(250)
+
+        picture = page.locator("#video").bounding_box()
+        shown = page.evaluate(
+            "() => [...document.querySelectorAll('.pair:not([hidden])')]"
+            ".map((pair) => pair.getBoundingClientRect().bottom)"
+        )
+        assert shown, "the page is showing something"
+        assert max(shown) <= picture["y"] + SLACK, (
+            f"a line runs to {max(shown):.0f}, under a picture that starts at {picture['y']:.0f}"
+        )
     finally:
         context.close()

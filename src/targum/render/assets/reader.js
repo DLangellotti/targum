@@ -4535,6 +4535,21 @@ var targumReader = function () {
         var box = thing.getBoundingClientRect();
         if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
       });
+    } else if (videoPanel && !videoPanel.hidden && !videoPanel.classList.contains("watching")) {
+      /* The dock, on a wide window, where the panel is not in the band. The note asked
+         for a draggable picture and the reason was that the picture covers the sentence
+         being read; §12 answered that a control fixed over a page of text takes its room
+         out of the layout rather than out of the reading, so the corner it stands in is
+         a corner the pages are cut around. Watching is the whole window and budgets
+         nothing: there is no reading column under it to keep clear. */
+      var picture = videoPanel.getBoundingClientRect();
+      if (picture.height) {
+        var atTop =
+          videoPanel.classList.contains("dock-top-start") ||
+          videoPanel.classList.contains("dock-top-end");
+        if (atTop) top = Math.max(top, picture.bottom + 12);
+        else foot = Math.max(foot, window.innerHeight - picture.top + 12);
+      }
     }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
@@ -5723,6 +5738,14 @@ var targumReader = function () {
       case "a":
         toggleTaamim();
         return;
+      // Between watching and reading, on a text that carries a picture and nowhere
+      // else. Handed back where there is none, so the key falls through to whatever
+      // the page would otherwise do with it rather than doing nothing loudly.
+      case "v": {
+        var pictures = window.TargumVideo;
+        if (!pictures || !pictures.watch || !pictures.watch()) return;
+        break;
+      }
       case "?":
         showKeys(keysCard ? keysCard.hidden : false);
         return;
@@ -6508,6 +6531,53 @@ var targumReader = function () {
       // and "forty-six percent" is arithmetic about where you are.
       trackEl.setAttribute("aria-valuetext", clocked(now) + " of " + clocked(length));
     }
+    caption(saidAt(now));
+  }
+
+  /* Which line the voice is inside, or none: `at` below answers with the first line
+     where this answers with nothing, and the difference is the whole of a subtitle.
+     A caption that holds the last line up over a silence is telling the reader the
+     voice is still saying it. */
+  function saidAt(seconds) {
+    for (var i = 0; i < order.length; i++) {
+      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
+    }
+    return null;
+  }
+
+  /* The line, over the picture. Copied out of the pair it belongs to rather than
+     carried a second time in the page: a subtitle is never a translation the reader
+     cannot also read in place, and the form it is copied in is the form the reader
+     chose — pointed, plain or unaccented — because a caption in a form they turned off
+     is the page arguing with them. */
+  var titles = document.querySelector(".video-titles");
+  var titleSrc = titles && titles.querySelector(".video-src");
+  var titleTr = titles && titles.querySelector(".video-tr");
+  var saidNow = null;
+
+  function shownForm(pair) {
+    var forms = pair.querySelectorAll(".src");
+    for (var i = 0; i < forms.length; i++) {
+      // The pair itself may be a page away and hidden; its children's own display is
+      // not, which is what is being asked about here.
+      if (getComputedStyle(forms[i]).display !== "none") return forms[i];
+    }
+    return forms[0] || null;
+  }
+
+  function caption(id) {
+    if (!titles || id === saidNow) return;
+    saidNow = id;
+    var pair = id ? document.querySelector('.pair[data-id="' + id + '"]') : null;
+    if (!pair) {
+      titles.classList.remove("saying");
+      return;
+    }
+    var form = shownForm(pair);
+    var tr = pair.querySelector(".tr");
+    if (titleSrc) titleSrc.textContent = form ? form.textContent : "";
+    if (titleTr) titleTr.textContent = tr ? tr.textContent : "";
+    titles.classList.add("saying");
   }
 
   /* Moving the voice. A single line that was running stops being a single line — the
@@ -6835,6 +6905,9 @@ var targumReader = function () {
     // Every stop the reader can cause arrives here: the play button, the space bar, the
     // tab going to the background, the end of the text.
     element.addEventListener("pause", keepHeard);
+    // A text that has finished is not saying anything. Pausing keeps the line up —
+    // stopping to read it is why anyone pauses — but running off the end takes it down.
+    element.addEventListener("ended", function () { caption(null); });
   }
   wire(audio);
 
@@ -6982,6 +7055,81 @@ var targumReader = function () {
       if (reader && reader.relayout) reader.relayout();
     };
 
+    /* Watching or reading, and which corner the picture stands in while the reader
+       reads. Two stores, kept the two different ways for the two different reasons the
+       rate and the shut picture are: what the picture is doing is a fact about this
+       text, and where a reader likes it to stand is a fact about the reader, like the
+       type size. The mode store records the departure — a 1 means "read this one
+       alongside" — so the default can move again without reading old rows backwards. */
+    var READ_STORE = "targum:video-read:" + spokenOf;
+    var CORNER_STORE = "targum:video-corner";
+    var CORNERS = ["bottom-end", "bottom-start", "top-start", "top-end"];
+    var SAID_CORNER = {
+      "bottom-end": "Bottom, reading end.",
+      "bottom-start": "Bottom, reading start.",
+      "top-start": "Top, reading start.",
+      "top-end": "Top, reading end.",
+    };
+    var modeKey = videoBox.querySelector(".video-mode");
+    var cornerKey = videoBox.querySelector(".video-corner");
+    var watching = false;
+    /* Where the transport lives when it is not over the picture. Held rather than
+       looked up, because putting it back has to put it back exactly: the player is a
+       sibling of the pairs and the order it is in decides what Tab reaches after it. */
+    var playerHome = player ? player.parentNode : null;
+    var playerNext = player ? player.nextSibling : null;
+
+    var showWatch = function (on, chosen) {
+      if (videoDead || videoBox.hidden) on = false;
+      watching = !!on;
+      videoBox.classList.toggle("watching", watching);
+      document.body.classList.toggle("watching", watching);
+      if (modeKey) {
+        modeKey.setAttribute("aria-pressed", watching ? "true" : "false");
+        // What pressing it does, not what the page is doing: a button labelled with the
+        // state it is in is a button nobody can predict.
+        var next = watching ? "Read alongside" : "Watch full screen";
+        modeKey.setAttribute("aria-label", next);
+        modeKey.setAttribute("title", next + " (v)");
+      }
+      /* One transport, moved rather than copied. Item 4 of the note asked that the two
+         players never be on screen together, and the honest reading of that on a page
+         with one media element and one strip is that the strip belongs to whichever
+         surface is showing. Moved, so the speed, the place and the bar are the ones the
+         reader already had — a second set of controls would be a second state to keep
+         in step, which is the bug the note was describing. */
+      if (player && playerHome) {
+        if (watching) videoBox.appendChild(player);
+        else if (player.parentNode !== playerHome) playerHome.insertBefore(player, playerNext);
+      }
+      if (chosen) {
+        try {
+          if (watching) targumForget(READ_STORE);
+          else targumKeep(READ_STORE, "1");
+        } catch (e) {}
+        var reader = window.TargumReader;
+        if (reader && reader.say) reader.say(watching ? "Watching." : "Reading.");
+      }
+      // The subtitle is written by the clock, and the clock has not moved: ask for it
+      // again so a mode entered mid-sentence opens with the sentence on it.
+      saidNow = null;
+      caption(saidAt(audio.currentTime));
+      revideo();
+    };
+
+    var setCorner = function (name, chosen) {
+      CORNERS.forEach(function (each) {
+        videoBox.classList.toggle("dock-" + each, each === name);
+      });
+      if (cornerKey) cornerKey.setAttribute("data-corner", name);
+      if (chosen) {
+        try { targumKeep(CORNER_STORE, name); } catch (e) {}
+        var reader = window.TargumReader;
+        if (reader && reader.say) reader.say(SAID_CORNER[name] || "");
+      }
+      revideo();
+    };
+
     var showVideo = function (out, chosen) {
       if (videoDead) out = false;
       videoBox.hidden = !out;
@@ -6997,12 +7145,30 @@ var targumReader = function () {
           else targumKeep(VIDEO_STORE, "1");
         } catch (e) {}
       }
+      // A picture that is not on the page is not being watched. The stored mode is left
+      // alone: putting the picture away and bringing it back should bring back the mode
+      // it was in, not the default.
+      if (!out && watching) showWatch(false, false);
       revideo();
     };
 
-    /* How the band puts the picture away when something else takes its place. */
+    /* How the band puts the picture away when something else takes its place, and how
+       the `v` key reaches a mode that lives inside this closure. */
     window.TargumVideo = {
       hide: function () { showVideo(false, false); },
+      /* Between the two modes. On a page whose picture is put away this brings it back
+         and watches — pressing "watch" and being told the picture is closed would be
+         the page refusing a thing it just offered. */
+      watch: function () {
+        if (videoDead) return false;
+        if (videoBox.hidden) {
+          showVideo(true, true);
+          showWatch(true, true);
+          return true;
+        }
+        showWatch(!watching, true);
+        return true;
+      },
     };
 
     flips.forEach(function (button) {
@@ -7013,6 +7179,15 @@ var targumReader = function () {
     var shutVideo = videoBox.querySelector(".video-close");
     if (shutVideo) {
       shutVideo.addEventListener("click", function () { showVideo(false, true); });
+    }
+    if (modeKey) {
+      modeKey.addEventListener("click", function () { showWatch(!watching, true); });
+    }
+    if (cornerKey) {
+      cornerKey.addEventListener("click", function () {
+        var next = CORNERS[(CORNERS.indexOf(cornerKey.getAttribute("data-corner")) + 1) % CORNERS.length];
+        setCorner(next, true);
+      });
     }
 
     /* The sidecar did not travel — a reader folder copied without its video/, or a
@@ -7038,13 +7213,22 @@ var targumReader = function () {
       whenKnown(resume);
     });
 
-    /* On unless this reader put it away here before. Not `chosen`, so opening the page
-       never writes a preference the reader did not express. */
+    /* On unless this reader put it away here before, and watching unless they left it
+       for the page here before. Not `chosen` in either case, so opening a text never
+       writes a preference the reader did not express. The corner is a fact about the
+       reader and comes from wherever they last set it, on any text. */
     var putAway = false;
+    var alongside = false;
+    var where = CORNERS[0];
     try {
       putAway = localStorage.getItem(VIDEO_STORE) === "1";
+      alongside = localStorage.getItem(READ_STORE) === "1";
+      var stored = localStorage.getItem(CORNER_STORE);
+      if (CORNERS.indexOf(stored) >= 0) where = stored;
     } catch (e) {}
+    setCorner(where, false);
     showVideo(!putAway, false);
+    showWatch(!putAway && !alongside, false);
   }
 
   /* The video's home, opened at the line in front of the reader. The sidecar stays

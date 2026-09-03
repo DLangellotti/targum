@@ -2379,7 +2379,16 @@ body.has-player .next-up { margin-block-end: 9rem; }
   background: #171614;
 }
 
-.video-close {
+.video-keys {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.video-close,
+.video-mode,
+.video-corner {
   flex: none;
   display: grid;
   place-items: center;
@@ -2394,8 +2403,171 @@ body.has-player .next-up { margin-block-end: 9rem; }
   font-size: 1.0625rem;
   line-height: 1;
 }
-.video-close:hover { color: var(--ink); }
-.video-close:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.video-mode svg,
+.video-corner svg {
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The small square says which corner, so it is filled rather than drawn: the icon is a
+   picture of the answer, not a second outline to read. It is drawn in the bottom-end
+   corner and moved to the other three, so the button always shows where the picture
+   is standing rather than where pressing it would send it. */
+.video-corner svg .corner { fill: currentColor; stroke: none; }
+.video-corner[data-corner="bottom-start"] svg .corner { transform: translateX(-6px); }
+.video-corner[data-corner="top-start"] svg .corner { transform: translate(-6px, -6px); }
+.video-corner[data-corner="top-end"] svg .corner { transform: translateY(-6px); }
+.video-close:hover, .video-mode:hover, .video-corner:hover { color: var(--ink); }
+.video-close:focus-visible,
+.video-mode:focus-visible,
+.video-corner:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+
+/* --- watching --------------------------------------------------------------
+   A text carrying a video sidecar opens as video (§12, 2026-09-03): the picture fills
+   the window and the line being said is drawn over it. The reading page is left
+   standing underneath rather than torn down — leaving this mode has to put the reader
+   back on the sentence they were on, and a page that was never un-laid-out is a page
+   that never has to be found again. */
+.video.watching {
+  inset: 0;
+  inline-size: auto;
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #171614;
+  z-index: 40;
+  display: grid;
+}
+/* Everything in the one cell, so the picture, the titles, the keys and the transport
+   stack without any of them being taken out of the flow and placed by hand. */
+.video.watching > * { grid-area: 1 / 1; }
+.video.watching .video-el {
+  inline-size: 100%;
+  block-size: 100%;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+.video.watching .video-keys {
+  justify-self: end;
+  align-self: start;
+  flex-direction: row;
+  margin: 0.75rem;
+}
+/* Over a film, not over a page: the paper as a literal rather than as the token, which
+   flips to near-black on the dark theme and would put dark keys on a dark frame. The
+   same reason the letterbox above is written out. */
+.video.watching .video-close,
+.video.watching .video-mode { color: color-mix(in srgb, #fbf9f5 80%, transparent); }
+.video.watching .video-close:hover,
+.video.watching .video-mode:hover { color: #fbf9f5; }
+/* The corner is about where the picture stands while the reader reads, and in this
+   mode it stands nowhere: the window is where it is. */
+.video.watching .video-corner { display: none; }
+
+/* The line, over the picture. A scrim rather than a panel — the words have to be
+   readable over whatever the frame happens to be, and a box would be a second surface
+   sitting on the film. Hebrew above English, and gone between lines: a subtitle that
+   holds the last line up over a silence tells the reader the voice is still saying it. */
+.video-titles {
+  align-self: end;
+  justify-self: center;
+  inline-size: min(52rem, 92%);
+  margin-block-end: 6.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  text-align: center;
+  background: rgb(0 0 0 / 45%);
+  display: none;
+}
+.video.watching .video-titles.saying { display: block; }
+.video-src {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.45;
+  color: #fbf9f5;
+}
+.video-tr {
+  margin: 0.35rem 0 0;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  /* The second line of the pair here as everywhere else, and it says so by weight of
+     colour rather than by being smaller than the scale allows. */
+  color: color-mix(in srgb, #fbf9f5 78%, transparent);
+}
+
+/* Watching is the whole window, so the page underneath must not scroll behind it. */
+body.watching { overflow: hidden; }
+
+/* The transport, over the picture, while the picture is the page. Item 4 of the note:
+   one transport on screen and never two. It is the same strip and the same element,
+   moved rather than copied, so the speed, the place and the bar are the ones the
+   reader already had. */
+.video.watching .player {
+  position: static;
+  justify-self: center;
+  align-self: end;
+  margin-block-end: 1.25rem;
+}
+
+/* --- the dock --------------------------------------------------------------
+   Reading, with the picture in a corner the reader chose. Never dragged: a control
+   fixed over a page of text takes its room out of the layout (§12), and `room()` keeps
+   the reading clear of whichever corner this is. */
+.video.dock-bottom-end { inset-block: auto 4.75rem; inset-inline: auto 1.25rem; }
+.video.dock-bottom-start { inset-block: auto 4.75rem; inset-inline: 1.25rem auto; }
+.video.dock-top-end { inset-block: 4.5rem auto; inset-inline: auto 1.25rem; }
+.video.dock-top-start { inset-block: 4.5rem auto; inset-inline: 1.25rem auto; }
+
+/* Held up, rather than held sideways. `screen.orientation.lock()` works only inside
+   the Fullscreen API and not at all in Safari on iOS, so the note's "on mobile the
+   screen flips horizontal" cannot be had by asking the browser — and a page that tells
+   the reader to turn their phone before it will work is a page that has failed. Both
+   ways up instead: laid over the picture in landscape, under it in portrait, where a
+   16:9 frame leaves most of the window empty and the line can have some of it. */
+@media (orientation: portrait) {
+  .video.watching {
+    grid-template-rows: 1fr auto auto;
+    align-content: center;
+  }
+  .video.watching .video-el {
+    grid-row: 1;
+    align-self: center;
+    block-size: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .video.watching .video-keys { grid-row: 1; align-self: start; }
+  .video.watching .video-titles {
+    grid-row: 2;
+    margin-block-end: 1rem;
+    background: none;
+  }
+  .video.watching .player { grid-row: 3; }
+  .video.watching .video-src { color: var(--ink); }
+  .video.watching .video-tr { color: var(--ink-soft); }
+  /* The frame is a letterbox in the middle of the page rather than the page itself, so
+     the page around it is the paper it always was and the line reads as text on it. */
+  .video.watching { background: var(--paper); }
+  .video.watching .video-close,
+  .video.watching .video-mode { color: var(--ink-soft); }
+  .video.watching .video-close:hover,
+  .video.watching .video-mode:hover { color: var(--ink); }
+}
+
+@media (max-width: 46rem) {
+  .video-src { font-size: 1.0625rem; }
+  .video-tr { font-size: 0.9375rem; }
+}
+/* Landscape only: in portrait the line is under the picture and has a row of its own,
+   and this margin is the room the transport takes when the line is over it. */
+@media (max-width: 46rem) and (orientation: landscape) {
+  .video.watching .video-titles { margin-block-end: 5rem; }
+}
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
    than sitting under it — and the video panel above the player steps the same step,
