@@ -1174,7 +1174,16 @@ var targumReader = function () {
       // walk. Opening a panel over the translation while somebody is stepping the
       // chapter a word at a time takes away the thing they are grading against, at the
       // one moment they are not looking for it. `s` opens it when it is wanted.
-      if (isLearning(status) && !standing && listBox && listBox.hidden) showList(true);
+      //
+      // Nor under a card on a phone. The band holds one thing, and a sheet arriving
+      // there put the card away — the card being typed into, four hundred milliseconds
+      // after the first letter of a meaning, because writing a meaning is what keeps a
+      // word for the first time (targum-internal#155). The tab in the corner says where
+      // the word went; the sheet can wait until the card has been let go of.
+      var carded = card && !card.hidden && !roomy.matches;
+      if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {
+        showList(true);
+      }
     }
     remember();
     var now = statusOf(lemma);
@@ -2005,9 +2014,12 @@ var targumReader = function () {
 
      Two kinds of occupant. The sheet is a mode: the reader opened it and means it to
      stay. A card is transient: it is about one word and leaves when that word is
-     answered. So a card that takes the band from the sheet gives it back when it goes,
-     and the sheet's own preference is not touched by either move. Nothing else is
-     given back; a menu over a card is a reader who has moved on.
+     answered. So a card over the sheet leaves the sheet where it is — drawn over it,
+     the way it is drawn over the page, and gone a moment later — and the sheet's own
+     preference is not touched. Anything else that arrives folds the sheet to its tab
+     and gives it back when it goes; a menu over a card is a reader who has moved on.
+     `residents` and `overlays`, further down, are the two kinds as the layout sees
+     them: a resident takes room out of the page, an overlay takes none.
 
      On a wide window this arbitrates nothing — the list is a column, the card sits by
      its word, and there is room for all of them — but the bookkeeping runs anyway, so
@@ -2027,10 +2039,16 @@ var targumReader = function () {
     // is already somebody else's and does nothing.
     occupant = which;
     if (roomy.matches) return;
-    if (was === "list") {
+    // The sheet is folded for a resident and left where it is under an overlay: a card
+    // is drawn over the sheet, the way it is drawn over the page, and folding the sheet
+    // for it laid the pages out twice for one tap — once as the sheet went, once as it
+    // came back. Asked of the sheet rather than of `was`, because an overlay over the
+    // sheet leaves `was` naming the overlay while the sheet is still up.
+    if (listBox && !listBox.hidden && !overlay(which)) {
       sheetWas = true;
       showList(false, false);
-    } else if (was === "card") {
+    }
+    if (was === "card") {
       hideCard();
     } else if (was === "chip") {
       hideChip();
@@ -2050,7 +2068,8 @@ var targumReader = function () {
   // would open it for one frame and shut it again, laying the pages out twice.
   function vacate(which) {
     if (occupant !== which) return;
-    occupant = null;
+    // An overlay that leaves a sheet standing hands the band back to the sheet.
+    occupant = overlay(which) && listBox && !listBox.hidden ? "list" : null;
     if (which === "list") sheetWas = false;
     if (!sheetWas || roomy.matches) return;
     restoring = requestAnimationFrame(function () {
@@ -2061,7 +2080,7 @@ var targumReader = function () {
     });
   }
 
-  // Where the band stands, told to the stylesheet. `--occupant` is the occupant's
+  // Where the band stands, told to the stylesheet. `--occupant` is the resident's
   // measured height — measured, not its ceiling: a sheet of two words is nowhere near
   // the 42svh it may grow to, and lifting the player by the ceiling parked it in the
   // middle of the page with nothing under it. `--strip` is the player's height, `--tab`
@@ -2072,6 +2091,9 @@ var targumReader = function () {
   // because where the strip stands depends on the occupant and where the arrows stand
   // on both. Cleared on a wide window, where the stylesheet's own numbers apply.
   // Returns whether anything changed, so a caller knows the pages need measuring again.
+  //
+  // Overlays are not in any of these sums. A card takes nothing out of the page, so
+  // nothing is told about it and nothing is laid out again for it — see `overlays`.
   var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
 
   function seatFoot() {
@@ -2086,7 +2108,7 @@ var targumReader = function () {
     }
     if (!roomy.matches) {
       var occ = 0;
-      occupants().forEach(function (thing) {
+      residents().forEach(function (thing) {
         if (standing(thing)) occ = Math.max(occ, thing.getBoundingClientRect().height);
       });
       said["--occupant"] = occ ? Math.round(occ) + "px" : null;
@@ -2106,7 +2128,7 @@ var targumReader = function () {
       [turn, scenePlayer, listTab].forEach(function (thing) {
         if (standing(thing)) top = Math.min(top, settledTop(thing, false));
       });
-      occupants().forEach(function (thing) {
+      residents().forEach(function (thing) {
         if (standing(thing)) top = Math.min(top, settledTop(thing, true));
       });
       var foot = window.innerHeight - top;
@@ -2126,10 +2148,33 @@ var targumReader = function () {
   // most of these are found further down this file, and the list would be written
   // before they were. The video panel is the one resident found by id here: its own
   // wiring lives in the player's closure, which runs after this one.
+  //
+  // Two kinds, laid out two ways. A resident — the sheet, the keys, the menu, the video
+  // — takes its room out of the page: the pages are cut above it, the scrolling reader
+  // is padded by it, and the strip and the arrows ride up on it. An overlay — a word's
+  // card, a phrase's chip — is drawn over the page and takes nothing out of it.
+  //
+  // The card was a resident, and a tap on a word was a change of layout: the band grew
+  // by the card's height, the chapter was cut into different pages, and the words in
+  // front of the reader were not the words in front of them a moment ago; closing the
+  // card cut it back. The comment on `room()` had said a control fixed over a page of
+  // text must take its room out of the layout rather than out of the reading — and the
+  // reader said the opposite, on a phone (targum-internal#155): the screen must not
+  // move, and the words on it must not change until they turn the page. A card that
+  // covers the last lines of the page is a card they can pull down; a page that moves
+  // under their finger is not something they can do anything about.
   var videoPanel = document.getElementById("video");
 
-  function occupants() {
-    return [listBox, card, chip, keysCard, more, videoPanel];
+  function residents() {
+    return [listBox, keysCard, more, videoPanel];
+  }
+
+  function overlays() {
+    return [card, chip];
+  }
+
+  function overlay(which) {
+    return which === "card" || which === "chip";
   }
 
   // Where a thing at the foot will stand once it has stopped moving. The strip, the
@@ -2169,15 +2214,16 @@ var targumReader = function () {
   // The band changes height without anyone here touching it — a word is kept and the
   // sheet grows, a card's meaning wraps, the browser's own chrome comes and goes and
   // moves `svh` — and everything standing on it must follow, and the page be laid out
-  // again above it. One observer for every occupant, watched from the moment the file
+  // again above it. One observer for every resident, watched from the moment the file
   // has found them all. No loop: laying the pages out again hides pairs and pads the
-  // body, neither of which sizes a fixed occupant.
+  // body, neither of which sizes a fixed occupant. The overlays are not watched: a
+  // card's meaning wrapping changes nothing the page is laid out for.
   function watchFoot() {
     if (!window.ResizeObserver) return;
     var watcher = new ResizeObserver(function () {
       if (seatFoot()) relayout();
     });
-    occupants().forEach(function (thing) {
+    residents().forEach(function (thing) {
       if (thing) watcher.observe(thing);
     });
   }
@@ -2874,7 +2920,6 @@ var targumReader = function () {
 
     card.hidden = false;
     seatNear(card, word.getBoundingClientRect());
-    keepOnPage(word);
     lift(word);
   }
 
@@ -3057,32 +3102,57 @@ var targumReader = function () {
     element.style.top = "";
     element.style.maxHeight = "";
     element.hidden = false;
-    // Measured here and laid out here. The observer on the occupant would do both a
-    // frame later, but it sees no change by then — this measurement already took it —
-    // and the page would stay laid out for a band that is no longer there.
-    if (seatFoot()) relayout();
+    // Over the keyboard, if one is already up — a second word tapped mid-meaning.
+    followKeyboard();
   }
 
-  // The pair an occupant is about, kept on the page. Laying the pages out around a
-  // band that has just grown by a card's height moves the page's end up, and the pair
-  // the card is about can fall off it — a card about a word that is not on the screen.
-  function keepOnPage(element) {
-    if (!paged() || !pages.length || !element) return;
-    var pair = element.closest ? element.closest(".pair") : null;
-    var index = pair ? pairs.indexOf(pair) : -1;
-    if (index > -1 && pair.hidden) showPage(pageFor(index, pages), true);
+  // The card, above a keyboard the window was not resized for. iOS Safari, and Chrome
+  // on Android since 108, keep the window as it was when the keyboard comes up and
+  // shrink only the visual viewport — the part of the window actually in view. A card
+  // fixed to the foot of the window is then fixed to a foot the keyboard is covering,
+  // with the field being typed into behind the keys, and Safari's answer is to scroll
+  // the page until the field shows — which is the page moving under a reader who was
+  // told it would not. So the card is lifted by however much of the window is out of
+  // view below the visual viewport, and put back when the keyboard goes. Nothing else
+  // moves: the page is not laid out for the keyboard (see `refit`), and the strip and
+  // the arrows stay where they were, under it.
+  //
+  // Inline, so the stylesheet's `inset-block-end: 0` is what it goes back to. Only on a
+  // narrow window: on a wide one the card is placed beside its word by `placeNear`,
+  // and a bottom edge set here would fight the top edge set there.
+  var viewing = window.visualViewport || null;
+
+  function followKeyboard() {
+    if (!viewing) return;
+    var covered = roomy.matches
+      ? 0
+      : Math.max(0, Math.round(window.innerHeight - viewing.height - viewing.offsetTop));
+    overlays().forEach(function (thing) {
+      if (!thing) return;
+      thing.style.insetBlockEnd = covered && !thing.hidden ? covered + "px" : "";
+    });
+  }
+
+  if (viewing) {
+    viewing.addEventListener("resize", followKeyboard);
+    viewing.addEventListener("scroll", followKeyboard);
   }
 
   // The line a card is about, kept above the band the card is in. The scrolling reader
   // reserves nothing — text passes under the band by definition — so the one line that
   // must not is moved, the way the line being spoken is moved clear of the player.
   // Only when it has to be: scrolling a word that is already in front of the reader
-  // moves the text under their eyes for no reason. The paged reader lays itself out
-  // above the band instead, and has nothing to do here.
+  // moves the text under their eyes for no reason. The paged reader holds still: the
+  // words on a page stay where they are until the page is turned, and a card over the
+  // last lines of it is a card the reader can pull down (targum-internal#155).
+  //
+  // The card's own height is what the line is kept clear of here. `footHeight` says
+  // where the band is, and the card is not in the band any more (see `overlays`).
   function lift(element) {
     if (roomy.matches || paged() || !element) return;
     var box = element.getBoundingClientRect();
-    var floor = window.innerHeight - footHeight() - 12;
+    var under = card && !card.hidden ? card.getBoundingClientRect().height : 0;
+    var floor = window.innerHeight - Math.max(footHeight(), under) - 12;
     var ceiling = (bar ? bar.getBoundingClientRect().bottom : 0) + 12;
     if (box.bottom <= floor && box.top >= ceiling) return;
     var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -4138,7 +4208,27 @@ var targumReader = function () {
     });
   });
 
+  // The width the page was last fitted to. A resize that changes only the height while
+  // a field on the card has the focus is a phone's keyboard arriving or leaving, on a
+  // browser that resizes the window for it — not a window being reshaped. Laying the
+  // pages out for the sliver left above the keyboard cut the chapter into twice the
+  // pages and turned to one of them, under somebody halfway through typing a meaning
+  // (targum-internal#155). The page holds; the card follows the keyboard by itself.
+  var fitWidth = window.innerWidth;
+
+  function typing() {
+    var active = document.activeElement;
+    if (!active || !card || card.hidden || !card.contains(active)) return false;
+    return /^(input|textarea)$/i.test(active.tagName);
+  }
+
   function refit() {
+    var reshaped = window.innerWidth !== fitWidth;
+    fitWidth = window.innerWidth;
+    if (!reshaped && typing()) {
+      seatFoot();
+      return;
+    }
     seatFoot();
     relayout();
     if (living && seen && seen.pair.parentNode) {
@@ -4418,7 +4508,10 @@ var targumReader = function () {
   //
   // This is why the player can float without covering anything. A control fixed over a
   // page of text either takes its room out of the layout or takes it out of the reading,
-  // and the second is not a trade a reader agreed to.
+  // and the second is not a trade a reader agreed to — for the things that stay. A
+  // word's card is the exception, and the reader made it (targum-internal#155): a card
+  // lasts a moment and covers what it covers; a page cut again around it moved the
+  // words under their finger, which is worse. See `residents` and `overlays`.
   //
   // The sheet only where it is one. On a wide window the list is a column from the bar
   // to the foot, and measuring that would leave the page its 160px floor and nothing
@@ -4437,7 +4530,7 @@ var targumReader = function () {
       if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, false) + 12);
     });
     if (!roomy.matches) {
-      occupants().forEach(function (thing) {
+      residents().forEach(function (thing) {
         if (!thing || thing.hidden) return;
         var box = thing.getBoundingClientRect();
         if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);

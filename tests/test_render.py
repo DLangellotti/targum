@@ -3647,9 +3647,12 @@ def test_the_word_list_does_not_open_itself_over_a_walk(tmp_path: Path) -> None:
     from targum.render.builder import ASSETS
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    assert "if (isLearning(status) && !standing && listBox && listBox.hidden) showList(true);" in (
-        script
+    assert (
+        "if (isLearning(status) && !standing && !carded && listBox && listBox.hidden) {" in script
     )
+    # Nor under a card on a phone: the band holds one thing, and a sheet arriving there
+    # put away the card being typed into (targum-internal#155).
+    assert "var carded = card && !card.hidden && !roomy.matches;" in script
 
 
 def test_the_keyboard_card_is_in_the_page_before_the_script_that_finds_it(
@@ -4010,13 +4013,20 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "seatFoot();" in room, "measured before the things it lifts are"
     # The occupants count on a narrow window only, and everything at the foot is
     # measured where it will stand once it has stopped moving, not mid-flight.
-    assert "if (!roomy.matches) {" in room and "occupants().forEach" in room
+    # The residents, not the overlays: a word's card and a phrase's chip are drawn over
+    # the page and take nothing out of it — §12's 2026-09-03 entry, targum-internal#155.
+    assert "if (!roomy.matches) {" in room and "residents().forEach" in room
+    assert "occupants()" not in script, "the card is not measured with the residents"
+    assert "return [listBox, keysCard, more, videoPanel];" in script
+    assert "return [card, chip];" in script
     assert room.count("settledTop(thing, false)") == 1
     assert room.count("settledTop(thing, true)") == 1
-    # One occupant at a time, and the sheet given back after a card.
+    assert "\n  .gloss-card, .pick-card { z-index: 30; }\n" in phone, "over the strip and the tab"
+    # One occupant at a time, and the sheet left standing under a card.
     assert "function occupy(which)" in script and "function vacate(which)" in script
     assert 'if (open) occupy("list");' in script
     assert 'occupy("card");' in script and 'vacate("card");' in script
+    assert "if (listBox && !listBox.hidden && !overlay(which)) {" in script
     assert 'if (open) occupy("keys");' in script and 'if (open) occupy("more");' in script
 
 
