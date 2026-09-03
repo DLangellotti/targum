@@ -157,6 +157,29 @@ def test_the_morphology_is_read_positionally(code: str, expected: str | None) ->
     assert features(code) == expected
 
 
+@pytest.mark.skipif(not oshb.available(), reason="the Hebrew Bible tagging is not on disk")
+def test_every_headword_the_tagging_files_under_is_in_the_band_table() -> None:
+    """The invariant the table exists on. It is counted from the tagging through
+    `headword_of`, so nothing the lookup can file a word under is a word the table has
+    never heard of — which is what made half the Tanakh "not in the Tanakh" when the
+    table was Stanza's (targum-internal#156). Deuteronomy, because Nitzavim is where it
+    was noticed; every book, if the tagging is there, would pass the same way.
+    """
+    from targum.annotate.biblical import _table
+    from targum.annotate.scripture import headword_of, is_section
+
+    table, _ = _table()
+    missing: set[str] = set()
+    for _ref, words in oshb.verses(oshb.BOOKS["Deuteronomy"]):
+        for word in words:
+            if is_section(word):
+                continue
+            headword = headword_of(word)
+            if headword and headword not in table:
+                missing.add(headword)
+    assert not missing, sorted(missing)[:20]
+
+
 def test_a_name_is_a_proper_noun_so_it_is_left_out_of_the_counting() -> None:
     """targum does not rate a name for difficulty. Getting this wrong would call every
     name in a chronicle a word the reader has to learn."""

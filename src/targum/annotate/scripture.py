@@ -160,6 +160,28 @@ def _trim(found: re.Match[str], text: str) -> tuple[int, int, str] | None:
     return start, end, _bare(text[start:end])
 
 
+def is_section(word: oshb.Word) -> bool:
+    """A paragraph marker, which the tagging carries as a word and the page does not."""
+    return _bare(word.text) in _SECTION
+
+
+def headword_of(word: oshb.Word) -> str:
+    """The dictionary form a tagged word is filed under.
+
+    The headword, not the surface. Where the lexicon has no entry — a handful of prefixes
+    tagged as content — the bare word stands in, so a token always has a dictionary form
+    to be filed under.
+
+    One function rather than a line in `_verse`, because the band table is counted with
+    it too. The table used to be counted with Stanza, and the lookup here filed words
+    under headwords Stanza never produced — so half the headwords in the Tanakh missed
+    the table, and the pronouns on the first page of Nitzavim were "modern · not in the
+    Tanakh" (targum-internal#156). A count keyed to anything but this function is that
+    fault again.
+    """
+    return _headword(oshb.headword(word.lexeme) or word.pieces[word.content])
+
+
 def built_from(word: oshb.Word) -> str | None:
     """How a split word is put together, said the way the card already says it.
 
@@ -221,7 +243,7 @@ class ScriptureLemmatizer:
             span for span in (_trim(found, text) for found in re.finditer(r"[^\s־]+", text)) if span
         ]
         spans = [span for span in spans if span[2] not in _SECTION]
-        wanted = [word for word in tagged if _bare(word.text) not in _SECTION]
+        wanted = [word for word in tagged if not is_section(word)]
 
         if len(spans) != len(wanted) or any(
             span[2] != _bare(word.text) for span, word in zip(spans, wanted, strict=True)
@@ -233,13 +255,9 @@ class ScriptureLemmatizer:
         out: list[Token] = []
         for (start, end, _), word in zip(spans, wanted, strict=True):
             code = word.code
-            lexeme = word.lexeme
-            # The headword, not the surface. Where the lexicon has no entry — a handful
-            # of prefixes tagged as content — the bare word stands in, so a token always
-            # has a dictionary form to be filed under.
-            pointed = oshb.headword(lexeme)
-            dictionary = pointed or word.pieces[word.content]
-            lemma = _headword(dictionary)
+            pointed = oshb.headword(word.lexeme)
+            # The same function the band table is counted with, so the two cannot drift.
+            lemma = headword_of(word)
             out.append(
                 Token(
                     start=start,

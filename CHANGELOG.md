@@ -182,6 +182,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   two-hour operation the docs describe and should ride with the segmenter change rather
   than after it. The pinned "curse; oath" under bare `אלה` on the live box is untouched
   by this and has to be dropped by hand.
+- The first word of Nitzavim is no longer "modern · not in the Tanakh". The band table
+  behind the Tanakh levels and the register line was counted with Stanza on 2026-08-24
+  and never recounted after the hand-tagged lookup replaced Stanza on scripture and DICTA
+  replaced it everywhere else; both lookups match the lemma exactly, so every headword
+  spelled another way — half of them, `אתה`, `אני` and `הם` among them — was "not in the
+  Tanakh", and a verse DICTA read wrote `ניצב` where the table had `נצב`. The table is
+  now the Tanakh counted twice, through the two things that read it: once under the
+  tagging's headwords, through the same function the lookup files words under, and once
+  under DICTA's lemmas, since the tagging says `בוא` where DICTA says `הביא` and no rule
+  folds one onto the other — merged on the easier band (`scripts/count_tanakh.py`). A
+  name either reader can file a word under is a name the table has. It is also the
+  first table with no Stanza in its ancestry. On a text that is the Tanakh the register
+  line now never says a word is not in it — a miss there is a spelling the count did
+  not see, not a fact about scripture. `tanakh/2` and `register/2`, renamed together so
+  the shelf is re-annotated once. `targum preflight` says whether the tagging is on
+  disk where the service can see it, because a box without it reads every verse with a
+  model and used to say so nowhere (targum-internal#156).
 - The `file://` canary watches the mechanism that was actually fixed. It wrote with
   `localStorage.setItem` and read back with `localStorage.getItem`, the one path
   `durable.js` does not repair, so it was watching a fault that was never going to clear
