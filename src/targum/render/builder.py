@@ -1633,6 +1633,16 @@ def render(
     }
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
+    # Which rows are in a language other than the document's. Daniel and Ezra turn into
+    # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
+    # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
+    # leaves a block it cannot read honestly alone — so there is no card to draw for them,
+    # and nothing to tap (targum-internal#66).
+    languages = {
+        segment.id: segment.language
+        for segment in segmented.segments
+        if segment.language and segment.language != segmented.language
+    }
 
     # Where a reader may jump to. Only the top-level headings, and never the first one,
     # which is the masthead: the weekly is one long targum, and somebody who does not
@@ -1863,6 +1873,23 @@ def render(
         # The same rule `Library.chapters()` applies, so the contents page and the
         # chapter page cannot disagree about which chapters are waiting.
         translated = any(translations[0].segments.get(sid) for sid in section.segment_ids)
+        # Where the language turns, said once at the row where it does — "Aramaic" over
+        # Daniel 2:4, "Hebrew" over 8:1 — rather than on every row of a chapter. Counted
+        # from the document's language at the top of each page, because a page is opened
+        # on its own: chapter 3 is Aramaic from its first verse, and a reader who opened
+        # on it was not there when chapter 2 switched. A heading is the book's, not the
+        # text's, and is neither a switch nor the end of one.
+        switches: dict[str, str] = {}
+        standing = segmented.language
+        for segment in segments:
+            if segment.kind is BlockKind.heading:
+                continue
+            now = segment.language_in(segmented.language)
+            if now != standing:
+                switches[segment.id] = language_name(now)
+                standing = now
+        # This page's share of the rows in another language, for the payload.
+        tongues = {sid: languages[sid] for sid in section.segment_ids if sid in languages}
         html = env.get_template("reader.html.j2").render(
             **shared,
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
@@ -1877,6 +1904,8 @@ def render(
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             segments=segments,
             verses=verses,
+            languages=languages,
+            switches=switches,
             bare=bare,
             pointed=pointed,
             unaccented=unaccented,
@@ -1945,6 +1974,12 @@ def render(
                     **({"citations": citations} if any(citations) else {}),
                     **({"plurals": plurals} if any(plurals) else {}),
                     "glosses": glosses,
+                    # Which rows are in another language than the page's, by tag. Left
+                    # out where none is, which is every text but two. The reader does
+                    # not read it yet — those rows ship no tokens, so it has nothing to
+                    # decide — but a row that says what it is beats one a script would
+                    # have to infer from a missing table.
+                    **({"languages": tongues} if tongues else {}),
                     "levelNames": BAND_NAMES,
                     # Which text this is. Lists are kept per document, not per
                     # language, so reading two articles does not pool their words.

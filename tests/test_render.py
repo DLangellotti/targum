@@ -488,6 +488,91 @@ def test_word_data_ships_as_offsets_not_spans(tmp_path: Path) -> None:
     assert "band" not in controls.lower()  # a number from inside the program
 
 
+def _verse(index: int, ref: str, text: str, language: str | None = None) -> Segment:
+    return Segment(
+        id=f"{index:04d}.000-cccccc",
+        block_id=f"b{index:04d}",
+        block_index=index,
+        index=0,
+        kind=BlockKind.verse,
+        text=text,
+        ref=ref,
+        language=language,
+    )
+
+
+def _payload(html: str) -> dict[str, object]:
+    found = re.search(
+        r'<script type="application/json" id="targum-data">(.*?)</script>', html, re.S
+    )
+    assert found is not None
+    return dict(json.loads(found.group(1).replace("<\\/", "</")))
+
+
+def _render_verses(out: Path, segments: list[Segment]) -> str:
+    document = Document(
+        source="sefaria:Daniel", title="דניאל", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "tr" for segment in segments},
+    )
+    return render(document, make_segmented(segments), [translation], out)[0].read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_row_in_another_language_says_so_and_the_page_names_the_turn(tmp_path: Path) -> None:
+    """Daniel is Hebrew, then Aramaic from 2:4, then Hebrew again from 8:1. The Aramaic
+    rows carry `lang="arc"` on their own cells — a screen reader and a spell-checker are
+    told the truth — and the turn is named once above the row where it happens, in
+    either direction, rather than on every row of a chapter. Those rows also ship in the
+    payload by tag, so a reader that comes to read it is not left to infer the fact
+    from a missing table (targum-internal#66).
+    """
+    hebrew = _verse(0, "Daniel 2:3", "ויאמר המלך")
+    first = _verse(1, "Daniel 2:4", "מלכא לעלמין חיי", "arc")
+    second = _verse(2, "Daniel 2:5", "ענה מלכא", "arc")
+    back = _verse(3, "Daniel 8:1", "בשנת שלוש", None)
+    html = _render_verses(tmp_path / "r", [hebrew, first, second, back])
+
+    rows = {
+        sid: html.split(f'data-id="{sid}"', 1)[1].split("</div>", 1)[0]
+        for sid in (hebrew.id, first.id, second.id, back.id)
+    }
+    assert 'lang="he"' in rows[hebrew.id] and 'lang="arc"' not in rows[hebrew.id]
+    assert 'lang="arc"' in rows[first.id] and 'lang="arc"' in rows[second.id]
+    assert 'lang="he"' in rows[back.id]
+
+    # The row's opening tag carries the tag too, and the class the stylesheet keys on.
+    assert f'data-id="{first.id}" data-lang="arc"' in html
+    assert "unread" in html.split(f'data-id="{first.id}"', 1)[0].rsplit("<div", 1)[1]
+
+    # Named once at each turn, and nowhere else.
+    assert '<span class="language" lang="en">Aramaic</span>' in rows[first.id]
+    assert 'class="language"' not in rows[second.id], "not on every row of the run"
+    assert '<span class="language" lang="en">Hebrew</span>' in rows[back.id]
+    assert 'class="language"' not in rows[hebrew.id]
+
+    data = _payload(html)
+    assert data["languages"] == {first.id: "arc", second.id: "arc"}
+
+
+def test_a_page_in_one_language_names_no_turn_and_ships_no_table(tmp_path: Path) -> None:
+    """Every text but two, so the key and the label are left out rather than shipped
+    empty in every reader on the shelf."""
+    ruth = [_verse(0, "Ruth 1:1", "ויהי בימי"), _verse(1, "Ruth 1:2", "ושם האיש")]
+    html = _render_verses(tmp_path / "r", ruth)
+    assert 'class="language"' not in html
+    assert "data-lang=" not in html
+    data = _payload(html)
+    assert "languages" not in data
+
+
 def test_no_difficulty_means_no_control(
     tmp_path: Path, segmented: SegmentedDocument, translation: Translation
 ) -> None:
