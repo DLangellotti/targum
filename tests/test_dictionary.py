@@ -326,3 +326,26 @@ def dictionary_module_provider() -> FakeDictionary:
 def build_dictionary(forms: list[str], provider: FakeDictionary, cache: Cache) -> dict[str, Entry]:
     held, _ = build(forms, provider, cache=cache)
     return held
+
+
+def test_every_annotator_asks_the_same_question_about_the_dictionary(tmp_path: Path) -> None:
+    """`for_language` is the single answer, and it has to be, because the annotator's
+    name is the invalidation key.
+
+    A rebuild that read the dictionary while a repair did not would give one mended
+    paragraph a different annotator name from the file it belongs to, and the whole
+    document would be read again on the next build to settle a difference nobody asked
+    for. Non-Hebrew has no dictionary at all.
+    """
+    from targum.annotate.dictionary import for_language
+
+    cache = Cache(tmp_path / "cache")
+    assert for_language("ru", cache) == {}
+    assert for_language("he", cache) == {}, "nothing bought, nothing claimed"
+
+    build(["זורם"], dictionary_module_provider(), cache=cache)
+    got = for_language("he", cache)
+    assert got["dictionary"] == {"זורם": ZORAM}
+    assert got["dictionary_name"] == provider_name()
+    # A language tag with a region on it is still Hebrew.
+    assert for_language("he-IL", cache)["dictionary"] == {"זורם": ZORAM}

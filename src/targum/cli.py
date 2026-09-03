@@ -724,6 +724,7 @@ def repair(
         lemma,
         pronounceable,
     )
+    from .annotate import dictionary as dictionary_module
     from .ingest.base import infer_headings
     from .ingest.spacing import unglue as respace
     from .models import (
@@ -844,6 +845,7 @@ def repair(
                         lemmatizer=lemma.for_source(document.source),
                         bands=biblical.for_source(document.source),
                         pronouncer=pronouncer,
+                        **dictionary_module.for_language(segmented.language),
                     )
                     annotation.tokens.update(annotator.annotate(patch, vocalization).tokens)
                     # The whole document's annotator, not the patch's. A file that says
@@ -1083,6 +1085,7 @@ def rebuild(
             lemma,
             pronounceable,
         )
+        from .annotate import dictionary as dictionary_module
         from .annotate.base import Lemmatizer as LemmatizerProtocol
         from .models import Vocalization, read_artifact
 
@@ -1107,6 +1110,7 @@ def rebuild(
                 lemmatizer=lemmatizer_for(document.source),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
+                **dictionary_module.for_language(document.language),
             )
 
     # Homes are named for the person whose they are — `p<id>`, or `local` for the shared

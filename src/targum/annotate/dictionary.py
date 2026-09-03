@@ -369,6 +369,24 @@ def held(cache: Cache | None = None, provider: str = "") -> dict[str, Entry]:
     return out
 
 
+def for_language(language: str, cache: Cache | None = None) -> dict[str, Any]:
+    """The `Annotator` keyword arguments for a language, from what has been bought.
+
+    Every place that makes an `Annotator` calls this, and that is the point: a rebuild
+    that read the dictionary while a repair did not would give one paragraph a different
+    annotator name from the file it belongs to, and the whole document would be read
+    again on the next build to resolve a difference nobody asked for.
+
+    Cache only. Nothing here reaches the network or spends; `targum dictionary` does the
+    buying, once, and this picks up whatever is there.
+    """
+    if language.split("-")[0].lower() != "he":
+        return {}
+    provider = provider_name()
+    found = held(cache=cache, provider=provider)
+    return {"dictionary": found, "dictionary_name": provider} if found else {}
+
+
 def build(
     forms: Collection[str],
     provider: DictionaryProvider,

@@ -767,13 +767,9 @@ class Build:
         picks up whatever has been bought. A box that has bought nothing annotates
         exactly as before, down to the annotator's name.
         """
-        if language != "he":
-            return {}
         from .annotate import dictionary as dictionary_module
 
-        provider = dictionary_module.provider_name()
-        held = dictionary_module.held(cache=self.cache, provider=provider)
-        return {"dictionary": held, "dictionary_name": provider} if held else {}
+        return dictionary_module.for_language(language, self.cache)
 
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
