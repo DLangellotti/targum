@@ -288,3 +288,41 @@ def test_everything_bought_can_be_read_back_without_naming_it(tmp_path: Path) ->
 def test_reading_back_an_empty_cache_is_not_an_error(tmp_path: Path) -> None:
     """A box that has bought nothing annotates exactly as it did before."""
     assert held(cache=Cache(tmp_path / "nothing"), provider="fake-dictionary/1") == {}
+
+
+def test_a_build_reads_the_dictionary_and_never_buys(tmp_path: Path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """The split the two commands exist for: `targum dictionary` spends, a build reads.
+
+    A root on a card is an improvement on a word the reader already has, not a thing
+    they are waiting for, so a build that could discover halfway through that it owed
+    money for one would be a build that fails for a reason nobody asked about.
+    """
+    from targum.pipeline import Build
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    source = tmp_path / "text.md"
+    source.write_text("# כותרת\n\nהוא זורם.\n", encoding="utf-8")
+    builder = Build(str(source), provider_name="null", out=tmp_path / "out", target_language="en")
+    provider = dictionary_module_provider()
+    cache = Cache(tmp_path / "cache")
+    builder.cache = cache
+    build_ = builder
+    assert build_._dictionary("ru") == {}, "only Hebrew has one"
+    assert build_._dictionary("he") == {}, "a box that has bought nothing reads nothing"
+
+    assert build_dictionary(["זורם"], provider, cache=cache)
+    got = build_._dictionary("he")
+    assert got["dictionary"] == {"זורם": ZORAM}
+    assert got["dictionary_name"] == provider.name
+
+
+def dictionary_module_provider() -> FakeDictionary:
+    """A fake standing in for the real provider, named the way the cache expects."""
+    provider = FakeDictionary({"זורם": ZORAM})
+    provider.name = provider_name()  # type: ignore[misc]
+    return provider
+
+
+def build_dictionary(forms: list[str], provider: FakeDictionary, cache: Cache) -> dict[str, Entry]:
+    held, _ = build(forms, provider, cache=cache)
+    return held
