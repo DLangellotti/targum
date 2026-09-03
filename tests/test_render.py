@@ -2019,8 +2019,77 @@ def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> N
     page carries the chapter numbers so `index.html#12:1` can go on to the right one."""
     folder = tanakh(tmp_path / "reader", first_chapter=12)
     index = (folder / "index.html").read_text(encoding="utf-8")
-    assert '<li data-chapter="1" data-chapters="12">' in index
-    assert '<li data-chapter="2" data-chapters="13">' in index
+    assert '<li data-chapter="1" data-chapters="12" ' in index
+    assert '<li data-chapter="2" data-chapters="13" ' in index
+
+
+def portion(out: Path) -> Path:
+    """A portion the way `targum parasha build` cuts one: chapter 16 runs across two
+    aliyot, each under its own heading, so the chapter is two files and only the verse
+    ranges know which file holds a verse."""
+    segments: list[Segment] = []
+    segments.append(heading(len(segments), 2, "ראשון"))
+    for number in range(1, 4):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שני"))
+    for number in range(4, 7):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שלישי"))
+    for number in range(1, 3):
+        segments.append(verse(len(segments), 17, number))
+    document = Document(
+        source="sefaria:Leviticus", title="אחרי מות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+def test_the_contents_page_knows_which_verses_each_file_holds(tmp_path: Path) -> None:
+    """A portion's files are aliyot and a chapter runs across them, so the chapter
+    number alone sends `index.html#16:5` to the first file of chapter 16, which does not
+    hold verse 5. Each row carries its first and last verse so the script can pick the
+    file that has the verse (targum-internal#142)."""
+    folder = portion(tmp_path / "reader")
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="16" data-from="16:1" data-to="16:3">' in index
+    assert '<li data-chapter="2" data-chapters="16" data-from="16:4" data-to="16:6">' in index
+    assert '<li data-chapter="3" data-chapters="17" data-from="17:1" data-to="17:2">' in index
+
+
+def test_a_book_of_one_chapter_a_file_carries_its_range_too(tmp_path: Path) -> None:
+    folder = tanakh(tmp_path / "reader", first_chapter=12)
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="12" data-from="12:1" data-to="12:3">' in index
+    assert '<li data-chapter="2" data-chapters="13" data-from="13:1" data-to="13:3">' in index
+
+
+def test_a_file_with_no_verse_carries_no_range(tmp_path: Path) -> None:
+    """Prose has no address, so a prose reader's rows say nothing about verses."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, make_segmented(segments), [translation], tmp_path / "reader")
+    index = pages[0].read_text(encoding="utf-8")
+    rows = re.findall(r"<li data-chapter=[^>]*>", index)
+    assert rows == ['<li data-chapter="1">', '<li data-chapter="2">']
 
 
 def torah(out: Path, monkeypatch: pytest.MonkeyPatch, corpus: Path | None) -> str:
@@ -2117,8 +2186,11 @@ def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
     body = html[html.index("<body") : html.index("</main>")]
     assert 'class="portion"' not in body
     assert "portion-" not in body
-    assert '<li data-chapter="1" data-chapters="5">' in html
-    assert '<li data-chapter="3" data-chapters="7">' in html
+    # The rows carry the verse range each file holds, the way every other contents
+    # page does since a verse link learned to land on the file that has it — the
+    # portion layer is what a machine with no corpus goes without, not the range.
+    assert '<li data-chapter="1" data-chapters="5" data-from="5:1" data-to="5:10">' in html
+    assert '<li data-chapter="3" data-chapters="7" data-from="7:1" data-to="7:10">' in html
 
 
 def test_the_contents_script_keeps_the_key_in_front_of_a_verse_hash() -> None:
@@ -2144,7 +2216,8 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
     assert "if (paged()) turnTo(pair);" in reader[reader.index("function jumpToPair") :]
 
     contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
-    assert "[data-chapters~=" in contents
+    assert "[data-from]" in contents, "a verse takes the file whose range holds it"
+    assert "[data-chapters~=" in contents, "a chapter, or a verse no file holds, the chapter's"
     assert "location.replace(row.href + hash);" in contents
 
 
