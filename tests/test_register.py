@@ -40,16 +40,28 @@ def test_a_word_ordinary_in_both_registers_is_left_alone(word: str) -> None:
 
 
 def test_a_word_read_off_scripture_is_never_called_modern() -> None:
-    """DICTA writes ניצב where the tagging writes נצב, and wordfreq knows the modern
-    spelling well. Asked cold, the table has no ניצב and the answer is "modern". Asked
-    of a word that is on the page of Deuteronomy the reader is looking at, that answer
-    is false on its face, and the honest line is no line (targum-internal#156).
+    """A word on the page of Deuteronomy the reader is looking at is in the Tanakh,
+    whatever the table says: a miss there is a spelling the count did not see, and the
+    honest line is no line (targum-internal#156). The table cannot know טלוויזיה, and
+    on a modern text that is the right "modern"; on scripture the same miss says nothing.
     """
-    assert register.of("ניצב", "he") == register.MODERN, "the cold answer, for a modern text"
-    assert register.of("ניצב", "he", scripture=True) is None
+    assert register.of("טלוויזיה", "he") == register.MODERN, "the cold answer, for a modern text"
+    assert register.of("טלוויזיה", "he", scripture=True) is None
     # The other direction is untouched: a word the table knows is still what it is.
     assert register.of("זבח", "he", scripture=True) == register.BIBLICAL
     assert register.of("מלך", "he", scripture=True) is None
+
+
+def test_the_table_knows_a_word_under_both_names() -> None:
+    """The word that was noticed. The tagging files נִצָּבִים under נצב and DICTA under
+    ניצב; the first table had only Stanza's נצב, so a verse DICTA read was "modern · not
+    in the Tanakh" on the first word of Nitzavim. Counted under both, both are the same
+    ordinary biblical word, and neither is modern."""
+    assert register.of("נצב", "he") == register.BIBLICAL
+    assert register.of("ניצב", "he") is not register.MODERN
+    from targum.lexicon import biblical_strength
+
+    assert biblical_strength("ניצב") is not None
 
 
 def test_a_word_rare_in_both_registers_is_left_alone() -> None:
