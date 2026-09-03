@@ -291,8 +291,33 @@
   </button>
   <span class="player-body">
     <span class="player-said">Listen to {{ spoken_label }}</span>
-    <span class="player-track" aria-hidden="true"><span class="player-fill"></span></span>
+    {#- A control, not a readout. It was drawn as decoration for as long as the only way
+        through a recording was to press a line, and a reader who wanted the middle of a
+        sentence had nowhere to press. `aria-valuetext` is the clock rather than the
+        percentage: "four minutes ten of nine minutes" is where you are, and "forty-six
+        percent" is arithmetic about where you are. -#}
+    <span class="player-track" role="slider" tabindex="0" aria-label="Position"
+          aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00"><span class="player-fill"></span></span>
     <span class="player-clock" dir="ltr" aria-hidden="true"></span>
+  </span>
+  {#- A step either side of where the voice has got to. On a text whose recording was
+      aligned word by word the step is one word; on a text without, five seconds. The
+      label says which, and it is written by the reader rather than here, because only
+      the page knows whether its clocks go down to words. Two buttons and not one that
+      goes back only: a reader who oversteps has to be able to come back. -#}
+  <span class="player-step" role="group" aria-label="Step">
+    <button type="button" class="player-back" aria-label="Back">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M11 3.5 5.5 8 11 12.5"></path>
+        <path d="M4 3.5v9"></path>
+      </svg>
+    </button>
+    <button type="button" class="player-on" aria-label="Forward">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M5 3.5 10.5 8 5 12.5"></path>
+        <path d="M12 3.5v9"></path>
+      </svg>
+    </button>
   </span>
   {#- How fast. A pair rather than one button that cycles: a cycle from 2× comes round to
       0.5×, which is the one step nobody pressing "faster" means. In the card and not the

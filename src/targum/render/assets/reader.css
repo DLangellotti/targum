@@ -1446,7 +1446,8 @@ table.rows tr:hover .copy,
   :is(
     .bar .group button, .modes button, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .player-slower, .player-faster, .pair.voiced .say,
+    .player-play, .player-get, .player-close, .player-slower, .player-faster,
+    .player-back, .player-on, .pair.voiced .say,
     .list-items .drop, .toc .get, .rest .keep, .picked-note button
   ) {
     position: relative;
@@ -1454,7 +1455,8 @@ table.rows tr:hover .copy,
   :is(
     .bar .group button, .modes button, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
-    .player-play, .player-get, .player-close, .player-slower, .player-faster, .pair.voiced .say,
+    .player-play, .player-get, .player-close, .player-slower, .player-faster,
+    .player-back, .player-on, .pair.voiced .say,
     .list-items .drop, .toc .get, .rest .keep, .picked-note button
   )::after {
     content: "";
@@ -2219,13 +2221,29 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player.refused .player-track,
 .player.refused .player-clock { display: none; }
 
+/* A 2px rule the eye reads and a 14px target the thumb hits. The padding carries the
+   target, `content-box` keeps the paint off it so the line is the line it always was,
+   and the negative margin gives the height back to the column so the card is the size
+   it always was. A control drawn 2px tall and hit 2px tall is a control for a mouse on
+   a good day. */
 .player-track {
+  box-sizing: content-box;
   block-size: 2px;
+  padding-block: 6px;
+  margin-block: -6px;
   background: var(--rule);
+  background-clip: content-box;
   overflow: hidden;
   display: none;
+  cursor: pointer;
+  touch-action: none;
 }
-.player.playing .player-track { display: block; }
+/* Shown while it plays, and also once it has a place to show: a text picked up where it
+   was left is a text whose bar is already part of the way along, and hiding that until
+   the reader presses play throws away the only thing on screen that says so. */
+.player.playing .player-track,
+.player.placed .player-track { display: block; }
+.player-track:focus-visible { box-shadow: 0 0 0 1px var(--focus); border-radius: 4px; }
 
 .player-fill { display: block; block-size: 100%; inline-size: 0; background: var(--accent); }
 
@@ -2235,12 +2253,15 @@ body.has-player .next-up { margin-block-end: 9rem; }
   color: var(--ink-soft);
   display: none;
 }
-.player.playing .player-clock { display: block; }
+.player.playing .player-clock,
+.player.placed .player-clock { display: block; }
 
 .player-get,
 .player-close,
 .player-slower,
-.player-faster {
+.player-faster,
+.player-back,
+.player-on {
   flex: none;
   display: grid;
   place-items: center;
@@ -2292,11 +2313,33 @@ body.has-player .next-up { margin-block-end: 9rem; }
   stroke-linejoin: round;
 }
 
+/* A step either side of the voice. Beside the speed and before it, because a reader
+   reaching into the card is far likelier to want the last word again than a different
+   pace, and the order in the card is the order of how often it is pressed. */
+.player-step {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+.player-back svg,
+.player-on svg {
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .player-close { font-size: 1.0625rem; line-height: 1; }
 .player-get:hover, .player-close:hover,
-.player-slower:hover, .player-faster:hover { color: var(--ink); }
+.player-slower:hover, .player-faster:hover,
+.player-back:hover, .player-on:hover { color: var(--ink); }
 .player-get:focus-visible, .player-close:focus-visible,
-.player-slower:focus-visible, .player-faster:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.player-slower:focus-visible, .player-faster:focus-visible,
+.player-back:focus-visible, .player-on:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
 /* The picture, above the player in the same corner and on when the text opens: a text
    that carries media opens as its media (§1, §12, 2026-09-03). The transport is still

@@ -1952,6 +1952,170 @@ def test_the_angle_brackets_step_the_speed_and_turn_no_page(paged_scene) -> None
     assert paged_scene.evaluate(PAGE)["first"] == before["first"], "the page stood still"
 
 
+# --- the bar is a control, the steps are steps, and the place is kept ---------
+#
+# targum-internal#182. Three of these were gaps the note found and one was a half:
+# the bar was drawn as a readout, there was no way back a moment, and a text put
+# down was picked up at its beginning.
+
+
+#: Where the voice is and what the bar says about it, to the screen reader included.
+ALONG = """
+() => {
+  const player = document.getElementById("player");
+  const track = document.querySelector(".player-track");
+  return {
+    at: window.TargumPlayer.at(),
+    length: window.TargumPlayer.length(),
+    fill: parseFloat(document.querySelector(".player-fill").style.inlineSize) || 0,
+    placed: player.classList.contains("placed"),
+    valuenow: track.getAttribute("aria-valuenow"),
+    valuetext: track.getAttribute("aria-valuetext"),
+    direction: getComputedStyle(track).direction,
+  };
+}
+"""
+
+
+def pressed_along(page, part: float) -> None:
+    """Press the bar `part` of the way along it, left to right on the glass."""
+    box = page.locator(".player-track").bounding_box()
+    page.mouse.click(box["x"] + box["width"] * part, box["y"] + box["height"] / 2)
+
+
+def test_the_bar_seeks_where_it_is_pressed(scene) -> None:
+    """It was a readout for as long as pressing a line was the only way in, which is no
+    way at all on an hour of prose read straight through."""
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    length = scene.evaluate(ALONG)["length"]
+    assert length and length > 0
+
+    pressed_along(scene, 0.75)
+    landed = scene.evaluate(ALONG)
+    # The bar fills the way the page runs, so three quarters along the glass is three
+    # quarters through the recording on a page that reads left to right and one quarter
+    # through on one that reads right to left. Either is right; only one is right here.
+    want = 0.75 if landed["direction"] == "ltr" else 0.25
+    assert abs(landed["at"] - want * length) < length * 0.15, landed
+    assert abs(landed["fill"] - want * 100) < 15, landed
+
+
+def test_the_bar_says_a_clock_rather_than_a_percentage(scene) -> None:
+    """A screen reader is told where in the recording the voice is, in the same words
+    the clock uses. "Forty-six percent" is arithmetic about where you are."""
+    track = scene.locator(".player-track")
+    assert track.get_attribute("role") == "slider"
+    assert track.get_attribute("aria-label") == "Position"
+    scene.click(".player-play")
+    scene.wait_for_function(
+        "() => document.querySelector('.player-track').getAttribute('aria-valuetext') !== '0:00'"
+    )
+    seen = scene.evaluate(ALONG)
+    assert " of " in seen["valuetext"] and ":" in seen["valuetext"], seen
+    assert "%" not in seen["valuetext"], seen
+
+
+def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
+    """The arrows walk the text a word at a time. A reader whose focus is on the bar
+    means the bar, so the key stops there."""
+    before = paged_scene.evaluate(PAGE)
+    paged_scene.click(".player-play")
+    paged_scene.wait_for_function(
+        "() => document.getElementById('player').classList.contains('playing')"
+    )
+    paged_scene.locator(".player-track").focus()
+    paged_scene.keyboard.press("End")
+    ended = paged_scene.evaluate(ALONG)
+    assert ended["at"] >= ended["length"] - 0.3, ended
+    paged_scene.keyboard.press("Home")
+    assert paged_scene.evaluate(ALONG)["at"] < 0.3, "Home is the beginning"
+    assert paged_scene.evaluate(PAGE)["first"] == before["first"], "and no page turned"
+
+
+def test_a_step_says_what_size_it_is(scene) -> None:
+    """A control whose size changes silently is a control that lies. This scene was
+    never aligned word by word, so the step is the five seconds every transport uses."""
+    assert scene.locator(".player-back").get_attribute("aria-label") == "Back five seconds"
+    assert scene.locator(".player-on").get_attribute("aria-label") == "Forward five seconds"
+
+
+def test_a_step_on_an_aligned_text_is_a_word(browser, tmp_path: Path) -> None:
+    """Where the recording knows where each word begins, so does the button — and it
+    says so, which is why the label is written by the page and not by the template."""
+    built = imported(tmp_path / "reader")
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    assert page.locator(".player-back").get_attribute("aria-label") == "Back a word"
+    assert page.locator(".player-on").get_attribute("aria-label") == "Forward a word"
+
+    # The clocks are 0.2, 0.8 and 1.4 (see `imported`), so forward walks them in order
+    # rather than by any fixed number of seconds.
+    for want in (0.2, 0.8, 1.4):
+        page.click(".player-on")
+        assert abs(page.evaluate(ALONG)["at"] - want) < 0.02, want
+    page.click(".player-back")
+    assert abs(page.evaluate(ALONG)["at"] - 0.8) < 0.02, "and back is the word before"
+    context.close()
+
+
+def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
+    """Item 5 of the note. The speed, the shut picture and the reading place were all
+    kept across the door; the one thing a listener would notice was not."""
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    pressed_along(scene, 0.5)
+    scene.click(".player-play")  # pause, which is where the place is written down
+    stopped = scene.evaluate(ALONG)["at"]
+    assert stopped > 0.3, stopped
+
+    scene.reload()
+    scene.wait_for_selector("#player")
+    scene.wait_for_function("() => document.getElementById('player').classList.contains('placed')")
+    seen = scene.evaluate(ALONG)
+    assert abs(seen["at"] - stopped) < 0.5, seen
+    # And it shows. The bar is part of the way along before anything is pressed, which
+    # is the only thing on the page that says the text has been here before.
+    assert seen["fill"] > 0, seen
+
+
+def test_a_text_heard_to_its_end_starts_again(scene) -> None:
+    """Resuming a finished text on its last second is a control that appears to do
+    nothing, and a reader who comes back to a text they finished means to hear it."""
+    scene.click(".player-play")
+    scene.wait_for_function(
+        "() => !document.getElementById('player').classList.contains('playing')", timeout=8000
+    )
+    scene.reload()
+    scene.wait_for_selector("#player")
+    scene.wait_for_timeout(300)
+    seen = scene.evaluate(ALONG)
+    assert seen["at"] < 0.3, seen
+    assert seen["placed"] is False, "nothing was kept, so nothing is shown"
+
+
+def test_the_places_kept_do_not_grow_without_end(scene) -> None:
+    """A store with a row for every text ever opened is a store that one day will not
+    parse. Pruned oldest first on every write, the way `targum:place` is."""
+    scene.evaluate(
+        "() => { const all = {};"
+        " for (let i = 0; i < 140; i++) all['text-' + i] = { at: 1, when: i };"
+        " localStorage.setItem('targum:heard', JSON.stringify(all)); }"
+    )
+    scene.click(".player-play")
+    scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    pressed_along(scene, 0.5)
+    scene.click(".player-play")
+    kept = scene.evaluate(
+        "() => Object.keys(JSON.parse(localStorage.getItem('targum:heard') || '{}'))"
+    )
+    assert len(kept) <= 100, len(kept)
+    assert "text-0" not in kept, "the oldest went first"
+    assert "text-139" in kept, "the newest stayed"
+
+
 def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> None:
     """On a phone the player is a strip the width of the window, not a pill in a corner:
     play, the line being said, one speed control, the download, and the ×. The speed's

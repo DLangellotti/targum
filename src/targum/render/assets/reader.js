@@ -6481,6 +6481,245 @@ var targumReader = function () {
     });
   }
 
+  /* Where in it. The bar was a readout for as long as the only way into the middle of a
+     recording was to press the line said there — which works on a dialogue, where every
+     line has a button, and not at all on an hour of prose read straight through.
+     Dragging it is the one gesture every player on earth has already taught. */
+  var trackEl = player && player.querySelector(".player-track");
+
+  function span() {
+    var length = audio.duration;
+    return length && isFinite(length) ? length : 0;
+  }
+
+  /* The fill, the clock and what the slider tells a screen reader all read off the same
+     two numbers, and all three are wanted when the reader drags the bar with nothing
+     playing — which `timeupdate` never says. */
+  function paint() {
+    var length = span();
+    if (!length) return;
+    var now = audio.currentTime;
+    if (fill) fill.style.inlineSize = (now / length) * 100 + "%";
+    if (clock) clock.textContent = clocked(now) + " / " + clocked(length);
+    if (trackEl) {
+      trackEl.setAttribute("aria-valuemax", String(Math.floor(length)));
+      trackEl.setAttribute("aria-valuenow", String(Math.floor(now)));
+      // The clock and not the percentage: "four ten of nine twenty" is where you are,
+      // and "forty-six percent" is arithmetic about where you are.
+      trackEl.setAttribute("aria-valuetext", clocked(now) + " of " + clocked(length));
+    }
+  }
+
+  /* Moving the voice. A single line that was running stops being a single line — the
+     timer that would have halted it belongs to a span the reader has just left — and
+     becomes the whole text running, which is what dragging the bar means everywhere
+     else. */
+  function seek(to) {
+    var length = span();
+    if (!length) return;
+    var seconds = Math.min(length, Math.max(0, to));
+    if (playing) {
+      if (stopAt) { clearTimeout(stopAt); stopAt = null; }
+      playing.classList.remove("saying");
+      playing = null;
+      if (!audio.paused) { following = true; pressed(true); }
+    }
+    try {
+      audio.currentTime = seconds;
+    } catch (e) {
+      return;
+    }
+    if (player) player.classList.add("placed");
+    if (following) mark(at(seconds));
+    paint();
+    keepHeard();
+  }
+
+  if (trackEl) {
+    var dragging = false;
+    var along = function (event) {
+      var box = trackEl.getBoundingClientRect();
+      if (!box.width) return 0;
+      var part = (event.clientX - box.left) / box.width;
+      // The bar fills the way the page runs, so on a Hebrew page it starts at its right
+      // edge. Read off the computed direction rather than assumed: the same drag has to
+      // land on the same second in both.
+      if (getComputedStyle(trackEl).direction === "rtl") part = 1 - part;
+      return Math.min(1, Math.max(0, part));
+    };
+
+    trackEl.addEventListener("pointerdown", function (event) {
+      if (!span()) return;
+      dragging = true;
+      if (trackEl.setPointerCapture) {
+        try { trackEl.setPointerCapture(event.pointerId); } catch (e) {}
+      }
+      event.preventDefault();
+      seek(along(event) * span());
+    });
+    trackEl.addEventListener("pointermove", function (event) {
+      if (!dragging) return;
+      event.preventDefault();
+      seek(along(event) * span());
+    });
+    ["pointerup", "pointercancel"].forEach(function (name) {
+      trackEl.addEventListener(name, function () { dragging = false; });
+    });
+
+    /* The keyboard's own way along, stopped here rather than let up to the page: the
+       arrows walk the text a word at a time, and a reader whose focus is on the bar
+       means the bar. Five seconds is the step every transport uses; the word-sized one
+       is on the buttons below, where the label can say so. */
+    trackEl.addEventListener("keydown", function (event) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      var length = span();
+      if (!length) return;
+      var back = getComputedStyle(trackEl).direction === "rtl" ? "ArrowRight" : "ArrowLeft";
+      var to = null;
+      if (event.key === back) to = audio.currentTime - 5;
+      else if (event.key === (back === "ArrowLeft" ? "ArrowRight" : "ArrowLeft")) {
+        to = audio.currentTime + 5;
+      } else if (event.key === "Home") to = 0;
+      else if (event.key === "End") to = length;
+      if (to === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      seek(to);
+    });
+  }
+
+  /* A step either side. One word where the recording was aligned word by word, five
+     seconds where it was not — and the label says which, because a control whose size
+     changes silently is a control that lies. */
+  var stepBack = player && player.querySelector(".player-back");
+  var stepOn = player && player.querySelector(".player-on");
+  var wordStarts = null;
+
+  function starts() {
+    if (wordStarts) return wordStarts;
+    var all = [];
+    Object.keys(wordClocks).forEach(function (id) {
+      var rows = wordClocks[id];
+      for (var i = 0; i < rows.length; i++) all.push(rows[i][2]);
+    });
+    all.sort(function (a, b) { return a - b; });
+    wordStarts = all;
+    return all;
+  }
+
+  function stepBy(back) {
+    var all = starts();
+    var now = audio.currentTime;
+    var to;
+    if (!all.length) {
+      to = back ? now - 5 : now + 5;
+    } else if (back) {
+      // A little behind where the voice is, so pressing back at the top of a word goes
+      // to the word before it and not to the top of the one being said.
+      to = 0;
+      for (var i = 0; i < all.length; i++) {
+        if (all[i] >= now - 0.35) break;
+        to = all[i];
+      }
+    } else {
+      to = now + 5;
+      for (var j = 0; j < all.length; j++) {
+        if (all[j] > now + 0.05) { to = all[j]; break; }
+      }
+    }
+    seek(to);
+  }
+
+  if (stepBack || stepOn) {
+    var byWord = starts().length > 0;
+    if (stepBack) {
+      stepBack.setAttribute("aria-label", byWord ? "Back a word" : "Back five seconds");
+      stepBack.setAttribute("title", byWord ? "Back a word" : "Back five seconds");
+      stepBack.addEventListener("click", function () { stepBy(true); });
+    }
+    if (stepOn) {
+      stepOn.setAttribute("aria-label", byWord ? "Forward a word" : "Forward five seconds");
+      stepOn.setAttribute("title", byWord ? "Forward a word" : "Forward five seconds");
+      stepOn.addEventListener("click", function () { stepBy(false); });
+    }
+  }
+
+  /* Where the reader had got to, kept across the door. Per text, like the closed player
+     and the shut picture; capped and pruned like `targum:place` further up, because a
+     store that grows for every text ever opened is a store that one day will not parse.
+
+     A text heard to its end keeps nothing. Resuming a finished text on its last second
+     is a control that appears to do nothing, and a reader who comes back to a text they
+     finished means to hear it again. */
+  var HEARD = "targum:heard";
+  var HEARDS = 100;
+  var keptAt = 0;
+
+  /* How near the end counts as the end. Two seconds on anything long enough for two
+     seconds to be a moment, and a tenth of the way on anything shorter — a fixed two on
+     a three-second turn of dialogue calls two thirds of it "finished", and the reader
+     who stopped in the middle of it comes back to the top. */
+  function tail(length) {
+    return Math.min(2, length / 10);
+  }
+
+  function keepHeard() {
+    if (!spokenOf) return;
+    var length = span();
+    if (!length) return;
+    var now = audio.currentTime;
+    try {
+      var all = JSON.parse(localStorage.getItem(HEARD) || "{}");
+      if (now <= 0.5 || length - now <= tail(length)) delete all[spokenOf];
+      else all[spokenOf] = { at: Math.round(now * 100) / 100, when: Date.now() };
+      Object.keys(all)
+        .sort(function (a, b) { return (all[b].when || 0) - (all[a].when || 0); })
+        .slice(HEARDS)
+        .forEach(function (stale) { delete all[stale]; });
+      targumKeep(HEARD, JSON.stringify(all));
+    } catch (e) {}
+    keptAt = Date.now();
+  }
+
+  function resume() {
+    if (!spokenOf) return;
+    var length = span();
+    if (!length) return;
+    var kept = null;
+    try {
+      kept = JSON.parse(localStorage.getItem(HEARD) || "{}")[spokenOf];
+    } catch (e) {}
+    if (!kept || !kept.at || kept.at >= length - tail(length)) return;
+    try {
+      audio.currentTime = kept.at;
+    } catch (e) {
+      return;
+    }
+    if (player) player.classList.add("placed");
+    paint();
+  }
+
+  /* The duration may already be in hand — a data URI's usually is — or may not, which is
+     the video sidecar's case. Both, rather than either: waiting on an event that has
+     already fired resumes nothing, and reading a duration that is not there yet resumes
+     at the wrong second. */
+  function whenKnown(run) {
+    if (span()) run();
+    else audio.addEventListener("loadedmetadata", run);
+  }
+  whenKnown(resume);
+
+  /* A window on the transport, like `TargumSpeech` below is one on the recording. The
+     instrument is a closure variable and can be swapped once, so where it has got to is
+     not a thing anything outside can read off the page: the clock in the card is rounded
+     to the second, and the bar's width is a percentage of a duration nobody else holds.
+     Asked at call time, so the swap changes nothing here. */
+  window.TargumPlayer = {
+    at: function () { return audio.currentTime; },
+    length: function () { return span(); },
+    seek: seek,
+  };
+
   /* One line. */
   document.addEventListener("click", function (event) {
     var button = event.target.closest ? event.target.closest(".say") : null;
@@ -6572,16 +6811,17 @@ var targumReader = function () {
   });
 
   function onTime() {
-    if (fill && audio.duration) {
-      fill.style.inlineSize = (audio.currentTime / audio.duration) * 100 + "%";
-    }
-    if (clock && audio.duration) {
-      clock.textContent = clocked(audio.currentTime) + " / " + clocked(audio.duration);
-    }
+    paint();
+    /* Written down as it goes, not only when it stops. A tab closed by the system, a
+       phone that sleeps and never wakes to this page, a browser that crashes — none of
+       them send `pause`, and every one of them is a reader who comes back. Five seconds
+       is often enough to lose nothing worth hearing again and rare enough that a store
+       written on every tick is not what this is. */
+    if (Date.now() - keptAt > 5000) keepHeard();
     if (!following) return;
-    var at = audio.currentTime;
+    var now = audio.currentTime;
     for (var i = 0; i < order.length; i++) {
-      if (at >= order[i].start && at < order[i].end) { mark(order[i].id); return; }
+      if (now >= order[i].start && now < order[i].end) { mark(order[i].id); return; }
     }
   }
 
@@ -6592,6 +6832,9 @@ var targumReader = function () {
   function wire(element) {
     element.addEventListener("timeupdate", onTime);
     element.addEventListener("ended", halt);
+    // Every stop the reader can cause arrives here: the play button, the space bar, the
+    // tab going to the background, the end of the text.
+    element.addEventListener("pause", keepHeard);
   }
   wire(audio);
 
@@ -6789,6 +7032,10 @@ var targumReader = function () {
       audio = new Audio(speech.audio);
       wire(audio);
       setRate(rate, false);
+      // The place was restored onto the element that has just been thrown away. The
+      // inlined audio is the same recording at the same seconds, so it is restored
+      // again rather than lost with the sidecar.
+      whenKnown(resume);
     });
 
     /* On unless this reader put it away here before. Not `chosen`, so opening the page
