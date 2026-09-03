@@ -3887,3 +3887,116 @@ def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_pat
         assert page.get_attribute("[data-home]", "target") == "_blank"
     finally:
         context.close()
+
+
+# -- a text that carries media opens as its media ---------------------------------------
+
+
+def video_reader(tmp_path: Path) -> Path:
+    """A one-part reader whose import kept its picture, built the way a real one is."""
+    import wave
+
+    from targum.audio import manifest as manifest_module
+    from targum.models import Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    (tmp_path / "audio" / "parts").mkdir(parents=True)
+    with wave.open(str(tmp_path / "audio" / "parts" / "part-001.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    # A real one, not four bytes of "film": the script hides the panel and swaps to the
+    # inlined audio the moment the element errors, which is right when a sidecar did not
+    # travel and useless when what is being tested is the panel. WebM because that is
+    # what the test browser decodes; 1KB, so it is committed rather than generated.
+    (tmp_path / "video" / "parts").mkdir(parents=True)
+    (tmp_path / "video" / "parts" / "part-001.webm").write_bytes(
+        (Path(__file__).parent / "fixtures" / "tiny.webm").read_bytes()
+    )
+
+    segments = [
+        Segment(
+            id=f"000{n}.000-aaaaaa", block_id=f"b000{n}", block_index=n, index=0, text=f"שורה {n}"
+        )
+        for n in (1, 2)
+    ]
+    manifest_module.write(
+        tmp_path,
+        manifest_module.AudioManifest(
+            source="source.mp4",
+            sha256="x",
+            duration=200.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=0.0,
+                    end=200.0,
+                    audio="audio/parts/part-001.wav",
+                    video="video/parts/part-001.webm",
+                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source="source.mp4", title="A talk", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "A line." for segment in segments},
+    )
+    return render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+
+
+def test_a_text_with_a_picture_opens_with_the_picture_on(browser, tmp_path) -> None:
+    """design.md §1 and the §12 entry of 2026-09-03: a text that carries media opens as
+    its media. The default reversed after the first stranger was shown a page with a
+    recording and never found out it could be heard — the toggle stays, so the picture
+    can still be put away, and nothing plays until pressed."""
+    built = video_reader(tmp_path)
+    assert 'id="video"' in built.read_text(encoding="utf-8"), "the fixture has a picture"
+
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.is_visible("#video"), "the picture is on when the text opens"
+        assert page.get_attribute("[data-video]", "aria-pressed") == "true"
+        # Nothing plays until pressed: the half of the withdrawn sentence that survived.
+        assert page.evaluate(
+            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
+        ), "nothing sounds until the reader presses something"
+    finally:
+        context.close()
+
+
+def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
+    """The toggle stays and the reader's choice outlives the page. Stored the other way
+    up from before: the store records a reader who put the picture away, because the
+    departure from the default is the thing worth remembering."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.click(".video-close")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert page.get_attribute("[data-video]", "aria-pressed") == "false"
+
+        page.reload()
+        page.wait_for_selector(".pair")
+        assert page.get_attribute("#video", "hidden") is not None, "it stayed away"
+        assert page.get_attribute("[data-video]", "aria-pressed") == "false"
+
+        # And the toggle brings it back, which is what "the toggle stays" means.
+        page.click("[data-video]")
+        page.wait_for_selector("#video:not([hidden])")
+    finally:
+        context.close()

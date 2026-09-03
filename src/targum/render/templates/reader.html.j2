@@ -111,10 +111,13 @@
       </button>
     </div>
     {% endif %}
-    {#- Watch the recording. Only on a text whose import kept its pictures, and off
-        until pressed: the reader is a reader, not a player (§1) — the picture is
-        optional and the player strip stays the transport. The drawing is what it
-        does: a screen, with the play mark inside it. -#}
+    {#- Watch the recording. Only on a text whose import kept its pictures, and on when
+        the text opens: a text that carries media opens as its media (§1, §12). The
+        toggle stays — the picture can still be put away, and the player strip is still
+        the transport — only the default reversed. The button's pressed state is set by
+        the script, which is also what decides the panel: the markup ships it hidden so
+        a page whose sidecar never travelled shows no empty frame. The drawing is what
+        it does: a screen, with the play mark inside it. -#}
     {% if spoken_video %}
     <div class="group" data-what="Watch the recording">
       <button type="button" data-video aria-pressed="false"

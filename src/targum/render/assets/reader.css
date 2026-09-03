@@ -2204,7 +2204,13 @@ body.has-player .next-up { margin-block-end: 9rem; }
   inline-size: 8.5rem;
 }
 
-.player-said { font-size: 0.8125rem; color: var(--ink-soft); }
+/* The name of the thing, and the whole of what makes the page say it can be heard.
+   Ink at the gloss size, not muted at the UI size: §9 keeps muted for "genuinely
+   secondary lines only — captions, metadata", and after 2026-09-03 this line is not
+   metadata. It is the first thing a stranger should be able to say about the page
+   (§1, §12), and at 13px in --ink-soft it read as chrome to the designer who was
+   looking straight at it. */
+.player-said { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
 .player.playing .player-said { display: none; }
 /* Except when it has something to report. A player that failed shows why, in the space
    the label was using, and keeps showing it — the reader pressed a thing and is owed an
@@ -2292,9 +2298,10 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player-get:focus-visible, .player-close:focus-visible,
 .player-slower:focus-visible, .player-faster:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
-/* The picture, above the player in the same corner and away by default: the reader is
-   a reader, not a player (§1), and the transport stays the strip below — this panel
-   only shows what the import kept. A floating overlay, so the shadow is allowed (§8);
+/* The picture, above the player in the same corner and on when the text opens: a text
+   that carries media opens as its media (§1, §12, 2026-09-03). The transport is still
+   the strip below and this panel only shows what the import kept — closing it hides the
+   picture and never stops the sound. A floating overlay, so the shadow is allowed (§8);
    the panel radius is the 8 of panels and the picture sits inside on the 4 of controls. */
 .video {
   position: fixed;
