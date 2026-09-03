@@ -35,7 +35,7 @@ building on targum is entitled to know about.
 | beautifulsoup4 | MIT | |
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
-| nakdimon | MIT | Copyright 2022 Elazar Gershuni |
+| nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
 | **stanza** | Apache-2.0 (code) | Hebrew is no longer read by it — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
@@ -81,6 +81,27 @@ own spelling where that is unambiguous and left off where it is not — verb roo
 26% of verbs against Stanza's 51%. Against that, DICTA keeps the personal pronouns apart
 where Stanza's treebank collapsed אני, לי and בו onto one card, and its prefix
 segmentation is what #110 was opened about.
+
+### Nakdimon's weights — MIT, confirmed 2026-09-02
+
+The diacritizer's model is `nakdimon/data/Nakdimon.onnx`, 21 MB inside the `nakdimon`
+wheel on PyPI, so every install of targum redistributes it and the box serves its output
+commercially. The wheel carries one licence, MIT (Copyright 2022, Elazar Gershuni), the
+PyPI classifier and the [repository](https://github.com/elazarg/nakdimon) say the same,
+and the model file has no licence of its own and no model card. MIT grants use, copy,
+distribution, sublicensing and sale, on the condition that the copyright and permission
+notice travel with any copy. So the weights may be redistributed, and the notice above is
+kept for that reason.
+
+The training corpus is the caveat, the same shape as Stanza's and weaker.
+[`elazarg/hebrew_diacritized`](https://github.com/elazarg/hebrew_diacritized) has no
+licence at all, and the paper says why: its authors were "unaware of legally-obtainable
+dotted modern corpora", so the modern portion is copyrighted prose — books, news, forums,
+Wikipedia — dotted with Dicta's API and corrected by hand, and the pre-modern portion
+comes from Project Ben-Yehuda, Mechon Mamre and the Short Story Project. No one in that
+chain attached a NonCommercial term. Whether an unlicensed corpus reaches the weights is
+the same unsettled question recorded under Stanza, and targum takes the same position: it
+does not rely on the answer, and says so here.
 
 ### The forced aligner, which used to be here — resolved 2026-09-02
 
