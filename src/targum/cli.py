@@ -337,6 +337,40 @@ def admin(
 
 
 @app.command()
+def measures(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the readers are, for which shelf each text is on."),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="The same answers as data.")] = False,
+) -> None:
+    """The six beta measures, read off the store and nothing else.
+
+    Whether a reader comes back for a second text, how far they got into the first,
+    whether the two shelves share readers, how often the audio is played, who the readers
+    are, and how much they read a month. Counted from what the store holds; no model is
+    asked for anything and nothing is spent. Where the store does not hold the answer
+    the report says so in the answer's place, with what would have to be recorded first.
+
+    Run weekly and keep the output: the numbers are the beta, and they cannot be
+    collected after the fact.
+    """
+    import json
+
+    from .measures import as_state, measure_store, report
+    from .serve import default_store
+
+    found = measure_store(store or default_store(), out or Path("targum-out"))
+    # Plain text on stdout rather than through the console: the report is kept and
+    # pasted, and a line the console had folded to fit a terminal is not the line.
+    if as_json:
+        typer.echo(json.dumps(as_state(found), ensure_ascii=False, indent=2))
+        return
+    typer.echo(report(found), nl=False)
+
+
+@app.command()
 def usage(
     days: Annotated[
         int | None,
