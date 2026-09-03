@@ -59,7 +59,7 @@ from targum.annotate import Annotator  # noqa: E402
 from targum.annotate.frequency import FrequencyBands  # noqa: E402
 from targum.audio import is_audio, tools  # noqa: E402
 from targum.ingest.subtitles import load_cues  # noqa: E402
-from targum.segment import StanzaSegmenter, segment_document  # noqa: E402
+from targum.segment import HebrewSegmenter, segment_document  # noqa: E402
 from targum.video import is_video  # noqa: E402
 from targum.video.youtube import describe, fetch_subtitles, is_youtube  # noqa: E402
 
@@ -219,7 +219,7 @@ def main() -> None:
 
     # Stage two: Stanza, loaded once.
     bands = FrequencyBands()
-    segmenter = StanzaSegmenter()
+    segmenter = HebrewSegmenter()
     out: list[Screened] = []
     for n, candidate in enumerate(kept, 1):
         source = candidate.source

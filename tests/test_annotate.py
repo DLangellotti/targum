@@ -1275,3 +1275,32 @@ def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
     assert len(read) == len(segments), "every segment still comes back, in one dict"
     assert max(asked) <= BATCH, f"a batch of {max(asked)} was handed over at once"
     assert sum(asked) == len(segments), "and each segment is asked about exactly once"
+
+
+def test_the_default_annotator_reads_hebrew_through_dicta_and_never_the_delegate() -> None:
+    """`Annotator()` with nothing passed used to be Stanza alone, and the gloss command,
+    the weekly's gauge and two scripts reached it — each a way for a Hebrew word to reach
+    the NonCommercial model the swap removed (targum-internal#146)."""
+    from targum.annotate.dicta import DictaLemmatizer
+    from targum.models import Segment
+
+    class Refusing:
+        name = "stanza/refused"
+
+        def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+            raise AssertionError(f"the delegate was handed {language}")
+
+    class Empty:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            return [{"tokens": []} for _ in texts]
+
+    annotator = Annotator()
+    assert isinstance(annotator.lemmatizer, DictaLemmatizer)
+    annotator.lemmatizer.other = Refusing()
+    annotator.lemmatizer._model = Empty()
+    annotator.lemmatizer._tokenizer = object()
+
+    segment = Segment(
+        id="s0", text="הוא הלך.", ref="", kind="paragraph", block_id="b0", block_index=0, index=0
+    )
+    assert annotator.lemmatizer.lemmas([segment], "he") == {"s0": []}

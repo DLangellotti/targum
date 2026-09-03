@@ -6,6 +6,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
+  stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
+  left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
+  publishes no splitter — so `LICENSING.md` was claiming more than was true.
+  `segment/hebrew.py` splits Hebrew on terminal marks with four rules read off the shelf:
+  a closing quote or parenthesis after the mark keeps the quoted sentence inside the one
+  quoting it, a dash after it keeps a speech tag with its speech, an ellipsis alone is a
+  pause, and an initial's full stop is not an end. `HebrewSegmenter` holds Stanza for
+  every other language the way `DictaLemmatizer` does, `StanzaSegmenter` now refuses
+  Hebrew outright, `Annotator()` with nothing passed reads Hebrew through DICTA rather
+  than Stanza alone (the gloss command, the weekly's gauge and two scripts reached that
+  default), and `targum models fetch he` no longer fetches Stanza's Hebrew models at all.
+  Measured on the 47 readers before switching: 2,792 of 18,490 boundaries move (15.1%),
+  almost all of them exclamation marks Stanza had never split on, plus 327 speech tags it
+  had cut off their speech and closing quotes it had put at the start of the next
+  segment. A text on a shelf keeps the segmentation it was translated under, because the
+  pipeline reuses `segments.json` by document hash and the segmenter's name is a record
+  rather than a key; `scripts/measure_segmentation.py` reproduces the count and prices
+  what a forced rebuild would re-buy (targum-internal#146).
 - The shelf can say "video", and a YouTube address is turned away at the paste. A row says
   one word, `video` or `audio` and never both, since a video can be listened to as well;
   the fact is derived from the recordings the way `spoken` is rather than written into the

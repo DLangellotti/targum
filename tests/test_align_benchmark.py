@@ -15,7 +15,7 @@ import pytest
 from targum import ingest
 from targum.align import Aligner, SentenceTransformerEncoder, as_indices, load_gold, score
 from targum.align.embedding import is_downloaded as embeddings_downloaded
-from targum.segment import StanzaSegmenter, is_downloaded, segment_document
+from targum.segment import HebrewSegmenter, is_downloaded, segment_document
 
 CORPUS = Path(__file__).parent / "fixtures" / "corpus"
 
@@ -34,14 +34,14 @@ def aligner() -> Aligner:
 
 
 @pytest.fixture(scope="module")
-def segmenter() -> StanzaSegmenter:
-    return StanzaSegmenter(auto_download=False)
+def segmenter() -> HebrewSegmenter:
+    return HebrewSegmenter(auto_download=False)
 
 
 @pytest.mark.benchmark
 @pytest.mark.parametrize("gold_file", sorted(FLOORS))
 def test_scores_against_gold(
-    gold_file: str, aligner: Aligner, segmenter: StanzaSegmenter, capsys: pytest.CaptureFixture[str]
+    gold_file: str, aligner: Aligner, segmenter: HebrewSegmenter, capsys: pytest.CaptureFixture[str]
 ) -> None:
     if not os.environ.get("TARGUM_BENCHMARK"):
         pytest.skip("set TARGUM_BENCHMARK=1 to score the aligner")

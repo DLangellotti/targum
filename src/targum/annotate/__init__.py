@@ -54,7 +54,15 @@ class Annotator:
         bands: Bands | None = None,
         pronouncer: Pronouncer | None = None,
     ) -> None:
-        self.lemmatizer: Lemmatizer = lemmatizer or StanzaLemmatizer()
+        if lemmatizer is None:
+            # DICTA for Hebrew, Stanza for the rest, the way `lemma.for_source` builds it
+            # for a build. The bare default used to be Stanza alone, and three callers
+            # that measure or gloss a text reached it — every one a way for a Hebrew word
+            # to be read by the NonCommercial model the swap removed (targum-internal#146).
+            from .dicta import DictaLemmatizer
+
+            lemmatizer = DictaLemmatizer()
+        self.lemmatizer: Lemmatizer = lemmatizer
         self.bands: Bands = bands or FrequencyBands()
         # No default. A machine without phonikud installed produces an annotation with no
         # readings and says so in its name, so the machine that has it redoes the text
