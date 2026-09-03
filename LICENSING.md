@@ -74,11 +74,18 @@ read again — free, because annotating runs on the machine.
 **What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):
 the two agree on 75% of tokens, DICTA declines to lemmatize 3.7% of them where 1900s
 orthography is out of its vocabulary, and the surface form is used there. DICTA tags no
-binyan at all, so the binyan and the root derived from it are recovered from the lemma's
-own spelling where that is unambiguous and left off where it is not — verb roots land at
-26% of verbs against Stanza's 51%. Against that, DICTA keeps the personal pronouns apart
-where Stanza's treebank collapsed אני, לי and בו onto one card, and its prefix
+binyan at all, so the binyan and the root derived from it were recovered from the lemma's
+own spelling where that is unambiguous and left off where it is not — verb roots landed
+at 26% of verbs against Stanza's 51%. Against that, DICTA keeps the personal pronouns
+apart where Stanza's treebank collapsed אני, לי and בו onto one card, and its prefix
 segmentation is what #110 was opened about.
+
+**And what has been bought back since**, against a hand tagging rather than against
+Stanza — see the treebanks below. The biblical half reads its binyan and root off the
+Open Scriptures morphology, which had them all along: 97.9% and 99.9% of verbs, from
+1.7% and 1.1%. On the modern half a per-word dictionary supplies the binyan for 96.7% of
+verbs and the root for 99.1%, at 94.3% and 98.1% accuracy, where the spelling rules
+answered for 8.9%. Neither depends on anything NonCommercial and neither moves a lemma.
 
 ### The forced aligner, which used to be here — resolved 2026-09-02
 
@@ -128,6 +135,25 @@ The bar for a recording is that no-derivatives terms are refused outright — se
 transcribing and aligning are adaptations, and no access policy cures an ND term.
 ShareAlike is accepted, which means the segments cut from such a recording carry
 ShareAlike onward.
+
+### The treebanks the annotator is scored against, which never ship
+
+Until 2026-09-03 every number targum gave for its Hebrew annotation was one annotator
+measured against another, which cannot tell a correct answer from a shared mistake. The
+annotator is now scored against the **IAHLT** treebanks — `UD_Hebrew-IAHLTwiki` and
+`UD_Hebrew-IAHLTknesset`, through Universal Dependencies — which carry the lemma, part
+of speech and binyan of every word, written down by people.
+
+**They are CC BY-SA 4.0, which is the one door the text bar keeps shut**, so they are
+used for exactly one thing. Nothing is trained on them, nothing derived from them is
+served, and no build reads them. They are fetched to `targum models fetch gold`, sit
+beside the language models, and a scorecard is computed from them on a developer's
+machine: evaluation, which is not a commercial use and produces no derivative to carry
+the term onward. Their whole contribution to the corpus is a number in a commit message.
+
+If that ever stops being true — if a model is tuned on them, or a table derived from them
+ships — the ShareAlike term reaches the corpus and this paragraph is wrong. It is written
+down here so that would have to be a decision rather than a drift.
 
 ### The Hebrew Bible is read, not analysed
 
