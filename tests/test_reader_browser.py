@@ -3578,6 +3578,8 @@ def test_a_kept_phrase_is_a_card_too(browser, built) -> None:
     assert "root" not in card[1]
     assert '<span lang="he" dir="auto">' in card[1]
     context.close()
+
+
 def portion(out: Path) -> Path:
     """A built portion: chapter 2 cut across two aliyot, each under its own heading, the
     way `targum parasha build` cuts one — so the chapter is two files, and the chapter
