@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
 from ..vocalize.base import map_span, pointed_positions, strip_nikkud
 from . import register as register_module
@@ -17,6 +19,7 @@ from .base import (
     highlight_levels,
     method_label,
 )
+from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
@@ -51,7 +54,16 @@ class Annotator:
         lemmatizer: Lemmatizer | None = None,
         bands: Bands | None = None,
         pronouncer: Pronouncer | None = None,
+        dictionary: Mapping[str, DictionaryEntry] | None = None,
+        dictionary_name: str = "",
     ) -> None:
+        # What a dictionary says about each form, where one has been bought. It answers
+        # the facts that belong to the word rather than to the occurrence — the root and
+        # the binyan — and it is a mapping rather than a provider because nothing here
+        # may reach the network or spend: the entries are built before a text is
+        # annotated and handed in. See `annotate/dictionary.py`.
+        self.dictionary: Mapping[str, DictionaryEntry] = dictionary or {}
+        self.dictionary_name = dictionary_name if self.dictionary else ""
         self.lemmatizer: Lemmatizer = lemmatizer or StanzaLemmatizer()
         self.bands: Bands = bands or FrequencyBands()
         # No default. A machine without phonikud installed produces an annotation with no
@@ -66,6 +78,10 @@ class Annotator:
         # that would now record something it did not record before is a different one —
         # which is exactly what makes a text built before this get built again.
         base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}"
+        if self.dictionary_name:
+            # A text read with a dictionary behind it carries facts the same text read
+            # without one does not, so it is a different annotation and says so.
+            base = f"{base}+{self.dictionary_name}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
     def annotate(
@@ -114,6 +130,7 @@ class Annotator:
                     band = cache[token.lemma]
                     in_register = registers[token.lemma]
                 update: dict[str, object] = {"band": band, "word_register": in_register}
+                update |= self._from_dictionary(token)
                 if positions is not None:
                     # Back into the segment's own coordinates, so a token still spans
                     # exactly its own text and carries the marks belonging to it.
@@ -143,6 +160,29 @@ class Annotator:
             ),
             tokens=banded,
         )
+
+    def _from_dictionary(self, token: Token) -> dict[str, object]:
+        """The root and the binyan a dictionary holds for this word, where it holds them.
+
+        **Only fields that are not keys.** A reader's marked words and every bought gloss
+        are filed under the lemma, so moving a lemma orphans both — 23.4% of real marks,
+        measured (targum-internal#141). The root and the binyan are on the card and in
+        nobody's storage, so they can be corrected on any build and cost nothing. The
+        dictionary form the entry also carries is deliberately not applied here: it is
+        the same migration, and it is taken once, deliberately, with a map built first.
+
+        Nothing already found is overwritten. Scripture reads its binyan and root off the
+        hand tagging, and a model does not get to overrule an editor.
+        """
+        entry = self.dictionary.get(token.lemma)
+        if entry is None or token.pos != "VERB":
+            return {}
+        found: dict[str, object] = {}
+        if entry.binyan and not token.binyan:
+            found["binyan"] = entry.binyan
+        if entry.root and not token.root:
+            found["root"] = entry.root
+        return found
 
     def _pronounce(
         self,
