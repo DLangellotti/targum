@@ -429,6 +429,42 @@ def test_repair_separates_glued_words_without_paying(tmp_path: Path) -> None:
     assert (folder / "reader" / "index.html").is_file()
 
 
+def test_repair_takes_a_space_out_it_once_put_in(tmp_path: Path) -> None:
+    """The spacing repair used to cut after every final letter, and a scanned ו read as
+    ן came apart into a lone final letter and the rest of its word. The lone letter is
+    not a word, so the space comes out again — and is counted as a join, not as a
+    separation undone, so the report says what happened (targum-internal#86)."""
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.models import Block, BlockKind, Document, read_artifact
+
+    split = "עיר מלאה תשואות, ן נפשו"
+    clean = "עיר מלאה תשואות, ןנפשו"
+
+    out = tmp_path / "targum-out"
+    folder = out / "p1" / "psalm-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source="https://benyehuda.org/download/1.txt",
+        title="A Scan",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=split)],
+    )
+    document.content_hash = document.recompute_hash()
+    document.write(folder / "document.json")
+
+    result = CliRunner().invoke(app, ["repair", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "1 joined" in result.output
+    assert "Separated 0 words, joined 1" in result.output
+
+    repaired = read_artifact(Document, folder / "document.json")
+    assert repaired is not None
+    assert repaired.blocks[0].text == clean
+    assert repaired.content_hash == repaired.recompute_hash()
+
+
 def test_repair_leaves_a_clean_text_alone(tmp_path: Path) -> None:
     from typer.testing import CliRunner
 

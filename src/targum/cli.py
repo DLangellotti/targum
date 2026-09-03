@@ -741,6 +741,12 @@ def repair(
     text that arrived as plain prose with its section titles sitting in it as ordinary
     paragraphs gets those titles marked, which is what gives a reader its contents page.
 
+    And one undoing. The spacing repair once cut after every final letter it found,
+    and a scanned text with ו read as ן came apart into a lone final letter and the
+    rest of its word. A lone final letter is not a word, so the space in front of the
+    word it belongs to comes out again — the only join this makes, because it is the
+    only one the text itself can prove (targum-internal#86).
+
     Rebuilding from the source would do both and would cost money: every stage is keyed
     to the Hebrew, so a sentence one space longer is a sentence nothing has translated.
     So the English is carried across by hand instead. Marking a heading does not change
@@ -758,7 +764,7 @@ def repair(
         pronounceable,
     )
     from .ingest.base import infer_headings
-    from .ingest.spacing import unglue as respace
+    from .ingest.spacing import reglue, unglue
     from .models import (
         Alignment,
         Annotation,
@@ -778,20 +784,33 @@ def repair(
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
-    done = words = titles = 0
+    def respace(text: str, language: str) -> str:
+        return reglue(unglue(text, language), language)
+
+    done = words = joined = titles = 0
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
         document = read_artifact(Document, folder / "document.json")
         if document is None:
             continue
-        blocks = [
-            block.model_copy(update={"text": respace(block.text, document.language)})
+        separated = [
+            block.model_copy(update={"text": unglue(block.text, document.language)})
             for block in document.blocks
         ]
+        blocks = [
+            block.model_copy(update={"text": reglue(block.text, document.language)})
+            for block in separated
+        ]
+        # Counted apart, one against the other: a word put together is not a word
+        # taken apart undone, and a report that nets them says nothing happened.
         repaired = sum(
             len(new.text.split()) - len(old.text.split())
-            for new, old in zip(blocks, document.blocks, strict=True)
+            for new, old in zip(separated, document.blocks, strict=True)
+        )
+        rejoined = sum(
+            len(old.text.split()) - len(new.text.split())
+            for new, old in zip(blocks, separated, strict=True)
         )
 
         # Only where the source had no markup to state its structure with. What a text
@@ -813,7 +832,7 @@ def repair(
                 1 for b, old in zip(blocks, document.blocks, strict=True) if b.kind is not old.kind
             )
 
-        if not repaired and not marked:
+        if not repaired and not rejoined and not marked:
             continue
 
         document.blocks = blocks
@@ -905,6 +924,7 @@ def repair(
 
         done += 1
         words += repaired
+        joined += rejoined
         titles += marked
         if segmented is not None and translations:
             render_reader(
@@ -918,13 +938,13 @@ def repair(
                 covers=root / "thumbs",
             )
         console.print(
-            f"[dim]  {document.title or folder.name} — {repaired} word(s), "
-            f"{marked} heading(s)[/dim]"
+            f"[dim]  {document.title or folder.name} — {repaired} word(s) separated, "
+            f"{rejoined} joined, {marked} heading(s)[/dim]"
         )
 
     console.print(
-        f"[green]Separated {words} word{'' if words == 1 else 's'} and marked {titles} "
-        f"heading{'' if titles == 1 else 's'} in {done} "
+        f"[green]Separated {words} word{'' if words == 1 else 's'}, joined {joined} and "
+        f"marked {titles} heading{'' if titles == 1 else 's'} in {done} "
         f"targum{'' if done == 1 else 's'}.[/green] "
         f"[dim]Nothing was fetched and nothing was spent.[/dim]"
     )
