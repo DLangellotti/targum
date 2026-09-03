@@ -13,7 +13,13 @@ from pathlib import Path
 import pytest
 
 from targum.annotate import oshb
-from targum.annotate.scripture import ScriptureLemmatizer, features, part_of
+from targum.annotate.scripture import (
+    ScriptureLemmatizer,
+    binyan_of,
+    features,
+    part_of,
+    root_of,
+)
 from targum.models import Segment, Token
 
 FIXTURES = Path(__file__).parent / "fixtures" / "oshb"
@@ -132,14 +138,29 @@ def test_another_language_is_never_looked_up_here(tagged: Path) -> None:
 def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     """A text tagged from the morphology is a different artefact from one a model guessed
     at, and on most of the shelf the fallback is what ran — so the name carries both, and
-    changing it is what makes existing texts read again."""
-    assert ScriptureLemmatizer(Stub()).name == "oshb/1+stub/1"
+    changing it is what makes existing texts read again.
+
+    `oshb/2` is the version that reads the binyan and the root off the tagging instead of
+    dropping them. Every biblical reader is re-annotated on the next `rebuild --words`,
+    which is free: the lookup runs on this machine and `SCHEMA_VERSION` never moves.
+    """
+    assert ScriptureLemmatizer(Stub()).name == "oshb/2+stub/1"
 
 
 @pytest.mark.parametrize(
     ("code", "expected"),
     [
-        ("Vqp3ms", "Person=3|Gender=Masc|Number=Sing"),
+        ("Vqp3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        # The waw-consecutive, which is the form biblical narrative is told in. Read as
+        # the imperfect it is spelled as, the card would tell a learner that ויאמר is
+        # "he will say".
+        ("Vqw3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        ("Vqi3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"),
+        # A participle writes no person, so its gender and number sit two places earlier.
+        # On the finite layout this came out with no morphology at all.
+        ("Vqrmpa", "Gender=Masc|Number=Plur|Tense=Pres|VerbForm=Part"),
+        ("Vhrmsa", "Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part"),
+        ("Vqc", "VerbForm=Inf"),
         ("Ncfsa", "Gender=Fem|Number=Sing"),
         ("Ncmpa", "Gender=Masc|Number=Plur"),
         ("Sp2ms", "Person=2|Gender=Masc|Number=Sing"),
@@ -211,3 +232,76 @@ def test_a_lexeme_written_as_two_words_keeps_its_space(tagged: Path) -> None:
     assert _headword("בֵּית לֶחֶם") == "בית לחם"
     assert _headword("שָׁמַיִם") == "שמים", "a one-word headword is unaffected"
     assert _headword("  בֵּית   לֶחֶם ׃") == "בית לחם", "and the punctuation still goes"
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("Vqp3ms", "פעל"),
+        ("Vhw3ms", "הפעיל"),
+        ("Vtp3ms", "התפעל"),
+        ("VNi3fs", "נפעל"),
+        ("VPw3mp", "פועל"),
+        ("VHp3ms", "הופעל"),
+        ("Vpw3ms", "פיעל"),
+        # A stem outside the seven — polel here — is left unsaid rather than pushed into
+        # the nearest one. The root still comes, because it is read and not derived.
+        ("Vop3ms", None),
+        ("Ncfsa", None),
+        ("", None),
+    ],
+)
+def test_the_binyan_is_the_stem_letter_somebody_wrote_down(code: str, expected: str | None) -> None:
+    """The fact the modern annotator guesses at from spelling, and this one simply has.
+
+    DICTA tags no binyan, so on the modern half it is derived from the two lemma shapes
+    that cannot mean anything else, and lands on one verb in twenty. The morphology
+    carries it outright for every verb of the Tanakh (targum-internal#116).
+    """
+    assert binyan_of(code) == expected
+
+
+@pytest.mark.parametrize(
+    ("headword", "root"),
+    [
+        ("בָּרָא", "ברא"),
+        # The root is read whatever pattern the word in front of us is in: `מבדיל` is
+        # filed under `בדל` and `יקם` under `נקם`, with the נ the form does not write.
+        ("בָּדַל", "בדל"),
+        ("נָקַם", "נקם"),
+        # Undoing the pattern, the way the modern path must, would take this apart: the
+        # ה of הלך belongs to the root and a hitpael rule strips it.
+        ("הָלַךְ", "הלך"),
+        ("שָׁפַט", "שפט"),
+        # Quadriliterals are real roots and are kept.
+        ("כִּרְסֵם", "כרסם"),
+        # Not a root: a lexicon entry that is a phrase, or a defective record.
+        ("בֵּית לֶחֶם", None),
+        ("", None),
+    ],
+)
+def test_the_root_is_read_from_the_lexicon_not_worked_out(headword: str, root: str | None) -> None:
+    """16,205 of 16,248 verb pieces in Genesis, Isaiah, Psalms and Ruth have a
+    three-letter headword, and it is the root. Strong's numbers a lexeme, and for a verb
+    the lexeme it numbers is the root itself."""
+    assert root_of(headword) == root
+
+
+def test_a_verb_carries_its_binyan_and_root_off_the_tagging(tagged: Path) -> None:
+    """Genesis 1:1 — `ברא` is qal and its root is itself, straight out of the morphology.
+
+    Before this the biblical half of the shelf carried a binyan on 1.7% of its verbs and
+    a root on 1.1%, on data that had both written down for every one of them.
+    """
+    got = ScriptureLemmatizer(Stub()).lemmas([verse("Genesis 1:1", FIRST)], "he")
+    verbs = [token for token in got["s1"] if token.pos == "VERB"]
+    assert [(token.lemma, token.binyan, token.root) for token in verbs] == [("ברא", "פעל", "ברא")]
+
+
+def test_only_a_verb_is_given_a_binyan(tagged: Path) -> None:
+    """`Ncfsa` has letters in the stem's place too, and a noun with a binyan on its card
+    would be a lie the reader has no way to check."""
+    got = ScriptureLemmatizer(Stub()).lemmas([verse("Genesis 1:1", FIRST)], "he")
+    assert all(
+        token.binyan is None and token.root is None for token in got["s1"] if token.pos != "VERB"
+    )
