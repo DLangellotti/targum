@@ -12,6 +12,15 @@ stay beside the language models; they are CC BY-SA 4.0 and are never read at bui
 
 The commonest disagreements ride along in the JSON, because "lemma exact 91%" is not a
 list of things to fix and "היה was read as היי 81 times" is.
+
+**`dictabert-large-parse` was measured and is worse here**, which is worth writing down
+because the paper says the opposite and the paper is not wrong. It sets a new SOTA on UD
+dependency parsing and POS, and `--model large-parse` on 200 sentences of iahltwiki test
+gives: lemma 77.0% against joint's 84.2%, part of speech 96.8% against 97.4%, and — the
+one that decides it — it declines to lemmatize 13.2% of tokens where joint declines 4.6%.
+Its tokenization also aligns with the treebank's words less often, 95.9% against 99.2%.
+A parser tuned to a treebank's segmentation is not the same thing as a lexicon that knows
+more words, and it is the second that targum needs. Staying on joint.
 """
 
 from __future__ import annotations
