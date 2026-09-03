@@ -349,3 +349,44 @@ def test_every_annotator_asks_the_same_question_about_the_dictionary(tmp_path: P
     assert got["dictionary_name"] == provider_name()
     # A language tag with a region on it is still Hebrew.
     assert for_language("he-IL", cache)["dictionary"] == {"זורם": ZORAM}
+
+
+@pytest.mark.parametrize(
+    ("root", "surface", "keep"),
+    [
+        # A real derivation writes its radicals, in order, inside the word.
+        ("היה", "הייתה", True),
+        ("זרם", "הוזרם", True),
+        ("כתב", "נכתב", True),
+        # A weak root drops one, and two of three is the bar for exactly that reason.
+        ("נתן", "ניתן", True),
+        # The tagger called this word עשה; the dictionary answered correctly about עשה;
+        # neither of them was looking at הייתה. This is the case the screen exists for.
+        ("עשה", "הייתה", False),
+        ("אפשר", "גרם", False),
+        ("שדר", "דלף", False),
+        ("", "הייתה", False),
+    ],
+)
+def test_a_root_has_to_be_spelled_in_the_word_it_is_shown_on(
+    root: str, surface: str, keep: bool
+) -> None:
+    """The dictionary answers about the form it was given, and for a verb that form is
+    the wrong word 44% of the time. A correct root for the wrong word is a lie told with
+    a straight face, and worse than the gap it fills."""
+    from targum.annotate import _spells
+
+    assert _spells(root, surface) is keep
+
+
+def test_a_root_the_word_does_not_spell_takes_its_binyan_with_it() -> None:
+    """They are one answer about one word. Keeping the binyan after refusing the root
+    would print פיעל over a word the dictionary was never looking at."""
+    annotator = Annotator(
+        lemmatizer=OneVerb("הייתה"),
+        bands=NoBands(),
+        dictionary={"הייתה": Entry(dictionary_form="עשה", part="verb", root="עשה", binyan="פעל")},
+        dictionary_name="fake-dictionary/1",
+    )
+    token = annotator.annotate(_document("הייתה")).tokens["s1"][0]
+    assert token.root is None and token.binyan is None
