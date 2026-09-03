@@ -122,7 +122,7 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
         pointed[segment.id] = " ".join(QAMATS.join(word) + last for word in words)
         # One token per word, so the arrows have a queue to walk and the list a count.
         offset, marks = 0, []
-        for word in words:
+        for i, word in enumerate(words):
             marks.append(
                 Token(
                     start=offset,
@@ -130,6 +130,9 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
                     surface=word,
                     lemma=word,
                     band=1 + (offset % 5),
+                    # One word the registers disagree about — the second of the chapter,
+                    # so the first word's card, which most tests open, is unchanged.
+                    word_register="biblical" if n == 0 and i == 1 else None,
                 )
             )
             offset += len(word) + 1
@@ -969,11 +972,14 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
             # and a card opening asks that first. Only a real lookup counts as a call.
             if request.post_data_json.get("free"):
                 meaning = MEANING if bought else None
-                body = {"meaning": meaning, "cached": bool(meaning)}
+                body = {"meaning": meaning, "cached": bool(meaning), "grounded": bool(meaning)}
             else:
-                calls.append(request.url)
+                # Bought once, with its sentence, and grounded by it: the same question
+                # on a later page is a cache hit, and the real server buys nothing.
+                if not bought:
+                    calls.append(request.url)
                 bought.append(request.url)
-                body = {"meaning": MEANING}
+                body = {"meaning": MEANING, "grounded": True}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
@@ -997,6 +1003,49 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
         "the reader was asked to look up a word they had already looked up"
     )
     assert len(calls) == 1, f"the meaning was bought {len(calls)} times"
+    context.close()
+
+
+def test_a_meaning_the_build_shipped_is_asked_again_with_its_sentence(
+    browser, two_languages: Path
+) -> None:
+    """The glossary a build ships was bought for the whole text at once, no sentence per
+    word, so עם reads "people" on a page where it is "with". The first card to open on
+    such a word asks once more with the sentence it is in, and the card follows the
+    answer; the second card asks nothing — once a session per word, whatever came back.
+    A word whose sense a sentence already chose costs the server a cache hit, no more."""
+    html = two_languages.read_text(encoding="utf-8")
+    calls = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            sent = request.post_data_json
+            assert not sent.get("free"), "a word with a meaning has nothing to peek for"
+            calls.append(sent)
+            body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+
+    word = page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}, (
+        "the card did not follow the grounded meaning"
+    )
+    assert len(calls) == 1 and calls[0]["lemma"] == word, f"asked {calls}"
+    assert calls[0]["sentence"], "asked again without the sentence, which is the whole point"
+
+    page.keyboard.press("Escape")
+    page.evaluate(TAP_AGAIN, word)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}
+    assert len(calls) == 1, f"the same word was asked about {len(calls)} times in one session"
     context.close()
 
 
@@ -3169,6 +3218,21 @@ def test_the_card_is_a_panel_with_no_handle_where_there_is_room(page) -> None:
     assert not page.locator("#gloss-card .grab").is_visible()
 
 
+def test_the_card_says_which_hebrew_a_word_belongs_to(page) -> None:
+    """The register table has ridden beside the lemmas since it was built and nothing
+    read it. The card now draws the line it was built for, on the cards where the two
+    registers disagree and on no others — a word out of the Tanakh is an import in a
+    text written today, which is what this one is (targum-internal#140)."""
+    words = page.locator(".pair:not([hidden]) .src .w")
+    words.nth(1).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").inner_text() == "biblical · an import here"
+    page.keyboard.press("Escape")
+    words.nth(0).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").count() == 0
+
+
 def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
     """The same level said with a key has always closed the card — it answers the question
     the card was opened to ask. Tapped, it left the card sitting over the sentence, which
@@ -3194,10 +3258,41 @@ def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
     context.close()
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="targum-internal#137: a file:// store is not durable, and that is the bug",
-)
+#: Whether the place the reader wrote has reached the copy that survives — durable.js's
+#: shelf, asked directly rather than through the page. `localStorage` answering yes says
+#: only that `targumKeep` ran, and on `file://` that is exactly the answer that turns out
+#: not to be worth anything; the shelf answering yes says the write committed, which is
+#: the whole difference durable.js exists for. Waiting on it is what makes the reload
+#: below a test of coming back rather than a race with a flush.
+KEPT = """
+(id) => new Promise((done) => {
+  const ask = indexedDB.open('targum', 1);
+  ask.onerror = () => done(false);
+  ask.onsuccess = () => {
+    const db = ask.result;
+    let got;
+    try {
+      got = db.transaction('kept', 'readonly').objectStore('kept').get('targum:place');
+    } catch (e) {
+      db.close();
+      return done(false);
+    }
+    got.onerror = () => { db.close(); done(false); };
+    got.onsuccess = () => {
+      db.close();
+      let all;
+      try {
+        all = JSON.parse((got.result || {}).value || '{}');
+      } catch (e) {
+        return done(false);
+      }
+      done(Object.keys(all).some((k) => all[k].segment === id));
+    };
+  };
+})
+"""
+
+
 def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) -> None:
     """The canary for the shipped case, and the only test here that still uses `file://`.
 
@@ -3206,23 +3301,42 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
     browser that loses a write intermittently cannot hold a deploy gate; that did not
     make the loss go away, and something has to keep watching for it.
 
-    `xfail(strict=False)` on purpose: it passes most of the time and reports rather than
-    breaks when it does not, which is what a canary is for. When targum-internal#137 is
-    fixed this becomes a plain assertion and the marker comes off.
+    It watches through the reader's own path, which is the only version of this test
+    worth having. A canary that called `localStorage.setItem` itself would be watching
+    the one mechanism the fix deliberately did not repair: raw `localStorage` on
+    `file://` still loses writes, durable.js is the answer to that rather than a cure for
+    it, and a canary aimed there could never come good however well the reader worked.
+    So the place is put down the way a reader puts it down — a scroll, `keepPlace`
+    settling a second later, `targumKeep` mirroring to the shelf — and picked up the way
+    a reader picks it up, by `recover` handing it back before `resume` reads it.
     """
     context = opened(browser)
     page = context.new_page()
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    page.evaluate("() => localStorage.setItem('targum:canary', 'kept')")
+    # See the note at the top: the browser's own anchoring would answer for the page.
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.evaluate(SCROLL_TO_ANCHOR, ANCHOR)
+    page.wait_for_function(MARKED, arg=ANCHOR)
+    before = page.evaluate(WHERE)
+    page.wait_for_function(KEPT, arg=before["id"])
 
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    survived = page.evaluate("() => localStorage.getItem('targum:canary')")
-    held = page.evaluate("() => Object.keys(localStorage)")
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    after = page.evaluate(AT, before["id"])
+    held = page.evaluate(RESTORED)
     context.close()
 
-    assert survived == "kept", f"a write made from disk did not survive; the store holds {held}"
+    assert after is not None, (
+        f"the sentence is not on the page the reader came back to. left at {before}, "
+        f"came back to {held}"
+    )
+    assert abs(after["top"] - before["top"]) <= SLACK, (
+        f"a reader opened from disk came back on a different line. left at {before}, "
+        f"came back to {after} with {held}"
+    )
 
 
 # --- a link to a verse ---------------------------------------------------------------
@@ -3369,3 +3483,180 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
     assert page.evaluate(VERSE, "3:7")["number"] == "7"
     context.close()
+
+
+def portion(out: Path) -> Path:
+    """A built portion: chapter 2 cut across two aliyot, each under its own heading, the
+    way `targum parasha build` cuts one — so the chapter is two files, and the chapter
+    number alone cannot say which file holds verse 55."""
+    segments: list[Segment] = []
+    for title, chapter, numbers in (
+        ("ראשון", 2, range(1, 31)),
+        ("שני", 2, range(31, 61)),
+        ("שלישי", 3, range(1, 31)),
+    ):
+        n = len(segments)
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n:04d}",
+                block_index=n,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=title,
+            )
+        )
+        for number in numbers:
+            n = len(segments)
+            words = [coin(n * 16 + i) for i in range(14)]
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.000-aaaaaa",
+                    block_id=f"b{n:04d}",
+                    block_index=n,
+                    index=0,
+                    kind=BlockKind.verse,
+                    text=" ".join(words),
+                    ref=f"Ruth {chapter}:{number}",
+                )
+            )
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.fixture(scope="module")
+def aliyot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return portion(tmp_path_factory.mktemp("portion") / "reader")
+
+
+def test_a_verse_link_into_a_portion_lands_on_the_aliyah_that_holds_it(
+    browser, aliyot: Path
+) -> None:
+    """Chapter 2 runs across the first two files. `index.html#2:55` used to open the
+    first, which holds 2:1 to 2:30 and could do nothing with the verse; it now opens the
+    second, on the verse, with the row shown as the one the link meant
+    (targum-internal#142)."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + "#2:55")
+    page.wait_for_url(lambda url: url.endswith("sec-0002.html#2:55"))
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    assert seen["number"] == "55" and seen["target"]
+    context.close()
+
+
+@pytest.mark.parametrize(
+    ("hash", "lands"),
+    [
+        # A chapter alone: the first file that holds it.
+        ("#2", "sec-0001.html"),
+        # A verse no file holds: the chapter's first file, verse still in the address,
+        # rather than nowhere.
+        ("#2:99", "sec-0001.html#2:99"),
+    ],
+)
+def test_a_link_no_range_answers_falls_back_to_the_chapter(
+    browser, aliyot: Path, hash: str, lands: str
+) -> None:
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + hash)
+    page.wait_for_url(lambda url: url.endswith(lands))
+    page.wait_for_selector(".pair")
+    context.close()
+
+
+# -- the link home ---------------------------------------------------------------------
+
+
+def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_path) -> None:
+    """A video fetched from YouTube links to where it lives, at the second the sentence
+    the reader is on begins — the part's place in the whole video plus the line's span
+    into the part. Decided at the click, so the markup carries no time and the address a
+    reader copies is the one they are looking at."""
+    import wave
+
+    from targum.audio import manifest as manifest_module
+    from targum.models import Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    (tmp_path / "audio" / "parts").mkdir(parents=True)
+    with wave.open(str(tmp_path / "audio" / "parts" / "part-001.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    segments = [
+        Segment(
+            id=f"000{n}.000-aaaaaa", block_id=f"b000{n}", block_index=n, index=0, text=f"שורה {n}"
+        )
+        for n in (1, 2)
+    ]
+    manifest_module.write(
+        tmp_path,
+        manifest_module.AudioManifest(
+            source="source.mp4",
+            home="https://youtu.be/abc123",
+            sha256="x",
+            duration=200.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=100.0,
+                    end=200.0,
+                    audio="audio/parts/part-001.wav",
+                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source="source.mp4", title="A talk", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "A line." for segment in segments},
+    )
+    built = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+
+    context, page = open_reader(browser, built)
+    try:
+        # Nothing playing: the first sentence on the page is the one in front of the
+        # reader. Its span starts 2s into a cut that begins at 100 − 0.35s: second 101.
+        opened = page.evaluate(
+            """() => {
+              const link = document.querySelector('[data-home]');
+              link.addEventListener('click', (event) => event.preventDefault());
+              link.click();
+              return link.href;
+            }"""
+        )
+        assert opened == "https://www.youtube.com/watch?v=abc123&t=101s"
+        assert page.get_attribute("[data-home]", "rel") == "noreferrer noopener"
+        assert page.get_attribute("[data-home]", "target") == "_blank"
+    finally:
+        context.close()

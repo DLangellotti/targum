@@ -137,6 +137,10 @@ process.stdout.write(
     // The card's grammar line, as the annotator's pipe strings come out in words.
     grammar: (payload.grammarLines || []).map((line) => reader.useLine(line)),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
+    // The register line, from where the reader is standing: [code, sourceRegister].
+    registers: (payload.registerLines || []).map((pair) =>
+      reader.registerLine(pair[0], pair[1]),
+    ),
     // The arithmetic of a page, asked of the pure half: a stub lays nothing out.
     pages: payload.pages
       ? reader.boundariesFrom(

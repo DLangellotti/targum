@@ -38,6 +38,11 @@ class Part(BaseModel):
     #: [word, start, end, score] in seconds into this part's own file. Empty for
     #: scripture, whose spans were cut on verses at attach time.
     words: str = ""
+    #: The part's video cut, named like `audio`, or "" for a recording that is sound
+    #: alone — which is every recording in the library today. Here so that whether a
+    #: catalogue text has video is asked of the disk the way `spoken.py` asks about
+    #: audio, and never written into the catalogue by hand.
+    video: str = ""
     #: Which blocks of the document this part reads: [first, last] block index,
     #: inclusive. How a section finds its part when there is no ref to ask by. Block
     #: indexes hold as long as the source text does — and these sources are snapshots —

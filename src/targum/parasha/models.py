@@ -113,3 +113,28 @@ class Index(BaseModel):
             (one for one in self.portions.values() if one.listed(covered)),
             key=lambda one: one.numbers[0] if one.numbers else 999,
         )
+
+
+def neighbours(portion: Portion, listed: list[Portion]) -> tuple[Portion | None, Portion | None]:
+    """The portion read before this one and the one read after it.
+
+    In the order of the year, and the year wraps: after וזאת הברכה comes בראשית, because
+    that is what happens on Simchat Torah. A doubled week stands between the portion
+    before its first half and the one after its second, whether or not its halves are on
+    the shelf beside it. A festival reading belongs to a date rather than to the cycle
+    and has neither — the same line `Portion.listed` draws.
+
+    `listed` is what the shelf shows, so a neighbour is always somewhere a reader can go.
+    """
+    if portion.kind is not ReadingKind.parasha or not portion.numbers:
+        return None, None
+    cycle = sorted(
+        (one for one in listed if one.numbers and one.slug != portion.slug),
+        key=lambda one: one.numbers[0],
+    )
+    if not cycle:
+        return None, None
+    first, last = portion.numbers[0], portion.numbers[-1]
+    before = [one for one in cycle if one.numbers[-1] < first]
+    after = [one for one in cycle if one.numbers[0] > last]
+    return (before[-1] if before else cycle[-1]), (after[0] if after else cycle[0])

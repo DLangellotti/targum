@@ -23,7 +23,18 @@
   var links = document.querySelectorAll(".toc a");
   Array.prototype.forEach.call(links, function (link) {
     var href = link.getAttribute("href");
-    if (href && href.indexOf("?") === -1) link.setAttribute("href", href + suffix);
+    // A link out of the folder — a portion's own page, by route — needs no key. A link
+    // to a verse carries its hash, and the key goes in front of that, not after it.
+    if (!href || href.charAt(0) === "/" || href.indexOf("?") !== -1) return;
+    var cut = href.indexOf("#");
+    if (cut < 0) link.setAttribute("href", href + suffix);
+    else link.setAttribute("href", href.slice(0, cut) + suffix + href.slice(cut));
+  });
+
+  // A portion's own page is a route, so it is offered only where there is a server to
+  // answer it — the same rule the mark in the corner follows.
+  Array.prototype.forEach.call(document.querySelectorAll(".toc .portion-page"), function (link) {
+    link.hidden = false;
   });
 
   // The link says Learn, so it goes there: somebody leaving a text wants their own
@@ -70,12 +81,35 @@
  * not always the second: a range ingested from chapter 12 opens on chapter 12. Each row
  * says which chapters its file holds; the address is the one the verse rows answer to
  * (targum-internal#28). `replace`, so the contents page is not a step on the way back.
+ *
+ * A chapter is not always one file: a portion's files are aliyot, and Leviticus 16 runs
+ * across three of them. So each row also says the first and last verse it holds, and a
+ * link to a verse takes the row whose range has it (targum-internal#142). The chapter
+ * match stays for a link with no verse, and for a verse no row holds — a number past
+ * the end of its chapter opens on the chapter rather than on nothing.
  */
 (function () {
   "use strict";
   var found = /^#(\d+)(?:[:.](\d+))?$/.exec(location.hash);
   if (!found) return;
-  var row = document.querySelector('.toc [data-chapters~="' + found[1] + '"] a');
+  function place(text) {
+    var parts = text.split(":");
+    return [Number(parts[0]), Number(parts[1] || 0)];
+  }
+  function before(a, b) {
+    return a[0] < b[0] || (a[0] === b[0] && a[1] <= b[1]);
+  }
+  var row = null;
+  if (found[2]) {
+    var want = place(found[1] + ":" + found[2]);
+    var rows = document.querySelectorAll(".toc [data-from]");
+    for (var i = 0; i < rows.length && !row; i++) {
+      var from = place(rows[i].getAttribute("data-from"));
+      var to = place(rows[i].getAttribute("data-to"));
+      if (before(from, want) && before(want, to)) row = rows[i].querySelector("a");
+    }
+  }
+  if (!row) row = document.querySelector('.toc [data-chapters~="' + found[1] + '"] a');
   if (!row) return;
   var hash = found[2] ? "#" + found[1] + ":" + found[2] : "";
   location.replace(row.href + hash);

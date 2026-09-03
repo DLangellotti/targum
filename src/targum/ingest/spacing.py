@@ -143,6 +143,60 @@ def _after(token: str, index: int) -> int:
     return end
 
 
+# The inverse rule, for the one way the certain rule used to be wrong. Before `MIN_PIECE`
+# it cut after every final form it found, so `ןיזבח` — one OCR'd word — became `ן יזבח`,
+# and a text built then still says so. The evidence for the join is the evidence the
+# guard uses for the refusal: no Hebrew word is one letter long, and a final form on its
+# own is not a word, so a lone final letter beside a word is a piece of that word.
+#
+# It sits to the left of its word — the cut fell after it — and that is the case this
+# is written for. A lone final letter to the right of a word is the same shape from a
+# doubled final, and is joined the other way when nothing stands to its right.
+#
+# The neighbour has to be a word, `MIN_PIECE` letters or more. An alef-bet written out
+# one letter at a time is a row of lone letters with finals among them, and it stays
+# as it is.
+#
+# And no quotation mark may touch the letter. Hebrew abbreviates with gershayim before
+# the last letter — תנ"ך, רמב"ם, האו"ם, בג"ץ — and the letter after the mark is a final
+# form standing on its own by every other measure. Scanned over every text built here,
+# the rule without this clause found nothing else.
+_QUOTES = "\"'\u05f3\u05f4\u201c\u201d\u2018\u2019"
+_LONE = f"(?<![{_LETTERS}{_MARKS}{_QUOTES}])[{FINALS}][{_MARKS}]*(?![{_LETTERS}{_MARKS}{_QUOTES}])"
+_WORD = f"[{_LETTERS}][{_MARKS}]*(?:[{_LETTERS}][{_MARKS}]*){{{MIN_PIECE - 1},}}"
+_STRAY_LEFT = re.compile(f"({_LONE}) (?={_WORD}(?![{_LETTERS}{_MARKS}]))")
+# The word is matched rather than looked behind for, because a lookbehind cannot be
+# told to want two letters or more. The lookahead is what keeps the two rules apart:
+# a lone letter with a word on either side belongs to the one on its right.
+_STRAY_RIGHT = re.compile(
+    f"(?<![{_LETTERS}{_MARKS}])({_WORD}) ({_LONE})(?! {_WORD}(?![{_LETTERS}{_MARKS}]))"
+)
+
+
+def stranded(text: str) -> list[str]:
+    """Every lone final letter in `text` that `reglue` would put back on its word.
+
+    The scan the repair is measured by: a built text with nothing here is clean.
+    """
+    return [m.group(1) for m in _STRAY_LEFT.finditer(text)] + [
+        m.group(2) for m in _STRAY_RIGHT.finditer(text)
+    ]
+
+
+def reglue(text: str, language: str) -> str:
+    """Take out the space a repair once put in front of a word that was never two.
+
+    Only a lone final letter beside a word — the one split the certain rule made
+    before it learned that a piece one letter long proves the word was misspelled
+    rather than run together. Anything else that looks like a bad split is left,
+    because nothing in the text can prove it was one.
+    """
+    if not language.split("-")[0].lower() == "he" or not text:
+        return text
+    text = _STRAY_LEFT.sub(r"\1", text)
+    return _STRAY_RIGHT.sub(r"\1\2", text)
+
+
 def unglue(text: str, language: str) -> str:
     """Put back the spaces a source dropped between two Hebrew words.
 

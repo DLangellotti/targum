@@ -17,6 +17,7 @@ from targum.preflight import (
     check_disk,
     check_mail,
     check_paths,
+    check_ytdlp,
     fatal,
     preflight,
 )
@@ -150,6 +151,33 @@ def test_a_local_machine_is_not_asked_about_a_guest_list(
 
     monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT", raising=False)
     assert check_invitations(tmp_path / "nothing.db").ok
+
+
+def test_the_box_is_not_asked_to_install_ytdlp(
+    hosted_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The hosted box never fetches from YouTube — the paste is refused by name — so a
+    standing warning there would be one nobody reads, and the real one beside it goes
+    unread with it."""
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    check = check_ytdlp()
+    assert check.ok and "command line" in check.detail
+
+
+def test_a_laptop_without_ytdlp_is_still_told(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Off the box the door is real, and the warning stays exactly as it was."""
+    monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT", raising=False)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    check = check_ytdlp()
+    assert not check.ok and not check.fatal
+    assert "install yt-dlp" in check.fix
+
+
+@pytest.mark.parametrize("hosted", ["1", ""])
+def test_ytdlp_on_the_path_passes_everywhere(hosted: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TARGUM_REQUIRE_ACCOUNT", hosted)
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/local/bin/yt-dlp")
+    assert check_ytdlp().ok
 
 
 def test_covers_being_off_is_a_warning_and_says_which_half(

@@ -84,10 +84,13 @@
   });
 
   //: Only one direction is worth offering. "Without audio" is not a thing anybody looks
-  //: for — the question is always whether there is something to listen to.
+  //: for — the question is always whether there is something to listen to. The same
+  //: holds for video: a lecture with its slides and a podcast were one row saying
+  //: "audio", and the reader who imported the lecture could not find it again.
   var SPOKEN = [
     ["", "Any"],
     ["yes", "With audio"],
+    ["video", "With video"],
   ];
 
   var LENGTHS = [
@@ -138,6 +141,7 @@
       modern: "Modern — Hebrew as it is written today.",
     },
     spoken: "With audio — a recording, line by line.",
+    video: "With video — a recording that kept its pictures.",
     sort: {
       difficulty: "New words — the share of a text's words that are hard.",
     },
@@ -149,6 +153,7 @@
     if (view.kind && NOTES.kind[view.kind]) clauses.push(NOTES.kind[view.kind]);
     if (view.register && NOTES.register[view.register]) clauses.push(NOTES.register[view.register]);
     if (view.spoken === "yes") clauses.push(NOTES.spoken);
+    if (view.spoken === "video") clauses.push(NOTES.video);
     if (NOTES.sort[view.sort]) clauses.push(NOTES.sort[view.sort]);
     if (!clauses.length) clauses.push(NOTES.base);
     clauses = clauses.slice(0, 2);
@@ -288,6 +293,7 @@
         difficulty: entry.difficulty,
         minutes: entry.minutes,
         spoken: !!entry.spoken,
+        video: !!entry.video,
         built: built || null,
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
@@ -307,6 +313,7 @@
         difficulty: reader.difficulty,
         minutes: reader.minutes,
         spoken: !!reader.spoken,
+        video: !!reader.video,
         built: reader,
         opened: reader.opened || 0,
       });
@@ -391,6 +398,9 @@
       }, 0),
       spoken: rows.some(function (row) {
         return row.spoken;
+      }),
+      video: rows.some(function (row) {
+        return row.video;
       }),
       built: null,
       opened: 0,
@@ -529,9 +539,11 @@
     }
     // The one thing on a row that is not a column: a text either can be listened to or
     // cannot, and a column of blanks down the page to say "no audio" would be noise.
-    // No tooltip: what the word means is said in the line under the controls, where a
-    // phone can read it.
-    if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
+    // One word, not two: a video can be listened to as well, and a row saying
+    // "audio video" says less than "video" does. No tooltip: what the word means is
+    // said in the line under the controls, where a phone can read it.
+    if (row.video) what.appendChild(el("span", "row-video", "video"));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
@@ -608,7 +620,8 @@
       el("span", "row-by-after", (row.english ? " · " : "") + row.rows.length + " texts")
     );
     what.appendChild(under);
-    if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
+    if (row.video) what.appendChild(el("span", "row-video", "video"));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
@@ -699,6 +712,7 @@
     if (state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
     if (state.spoken === "yes" && !row.spoken) return false;
+    if (state.spoken === "video" && !row.video) return false;
     if (state.level && level(row) !== state.level) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;

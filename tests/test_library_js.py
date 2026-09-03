@@ -124,6 +124,60 @@ def test_an_ordered_collection_keeps_its_own_order(tmp_path: Path) -> None:
         assert inside == ["בראשית", "רות", "אסתר", "קהלת", "איוב", "תהילים"]
 
 
+def test_the_portions_keep_the_order_of_the_year_under_every_sort(tmp_path: Path) -> None:
+    """Fifty-four rows in one ordered collection, בראשית to וזאת הברכה whatever column
+    the page is sorted on — and a title sort would otherwise put פרשה 10 before פרשה 2
+    (targum-internal #145)."""
+    ids = [f"parasha-p{n:02d}" for n in range(1, 55)]
+    titles = [f"פרשה {n}" for n in range(1, 55)]
+    catalogue = [
+        {
+            "id": entry_id,
+            "title": title,
+            "english": entry_id,
+            "author": "בראשית",
+            "language": "he",
+            "source": f"sefaria:{entry_id}",
+            "blurb": "",
+            "words": 0,
+            "minutes": (n * 13) % 40,
+            "kind": "prose",
+            "register": "biblical",
+            "difficulty": (n * 7) % 50,
+            "spoken": False,
+            "tags": ["tanakh"],
+            "translations": [],
+        }
+        for n, (entry_id, title) in enumerate(zip(ids, titles, strict=True), start=1)
+    ]
+    # A text outside the collection, because a list that is *only* one collection is
+    # drawn as that collection — and the real shelf has four hundred others.
+    catalogue.append({**catalogue[0], "id": "ruth", "title": "רות", "english": "Ruth"})
+    group = {
+        "id": "torah-portions",
+        "title": "פרשות השבוע",
+        "english": "The Torah, by portion",
+        "blurb": "",
+        "members": ids,
+        "ordered": True,
+    }
+    for sort in ("title", "minutes", "difficulty"):
+        for direction in (1, -1):
+            drawn = draw(
+                tmp_path,
+                catalogue=catalogue,
+                collections=[group],
+                view={"sort": sort, "dir": direction},
+                opened={"torah-portions": True},
+            )
+            inside = [row["title"] for row in drawn["rows"] if row["member"]]
+            assert inside == titles, (sort, direction)
+    shut = draw(tmp_path, catalogue=catalogue, collections=[group])
+    assert [row["title"] for row in shut["rows"]] == ["רות", "פרשות השבוע"], (
+        "one row, not fifty-four"
+    )
+
+
 def test_an_author_shelf_takes_the_readers_sort(tmp_path: Path) -> None:
     """The order a shelf of stories is in is the order somebody typed them in, and the
     reader's own question is the better one."""
@@ -623,3 +677,34 @@ def test_your_own_copy_wins_over_the_shared_one(tmp_path: Path) -> None:
     first = drawn["rows"][0]
     assert first["fit"] == "you know 50% of its words"
     assert first["draws"] == "Draw cover", "theirs, so a cover can be drawn"
+
+
+def test_a_video_import_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
+    """A lecture with its slides and a podcast episode were the same row. One word
+    beside the title now says which — and only one word, since a video can be
+    listened to as well and "audio video" says less than "video" does."""
+    mine = [
+        shelf("", "lecture-he", spoken=True, video=True),
+        shelf("", "podcast-he", spoken=True),
+        shelf("", "essay-he"),
+    ]
+    rows = {
+        row["title"]: row["media"]
+        for row in draw(tmp_path, readers=mine, view={"where": "mine"})["rows"]
+    }
+    assert rows == {"lecture-he": "video", "podcast-he": "audio", "essay-he": ""}
+
+
+def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Path) -> None:
+    """One direction each, like the audio filter: "With video" is worth offering,
+    "without video" is not — and a video is still something to listen to."""
+    mine = [
+        shelf("", "lecture-he", spoken=True, video=True),
+        shelf("", "podcast-he", spoken=True),
+        shelf("", "essay-he"),
+    ]
+    videos = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "video"})
+    assert {row["title"] for row in videos["rows"]} == {"lecture-he"}
+    assert videos["note"].startswith("With video — ")
+    heard = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "yes"})
+    assert {row["title"] for row in heard["rows"]} == {"lecture-he", "podcast-he"}

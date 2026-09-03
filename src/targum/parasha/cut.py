@@ -280,6 +280,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
                     level=segment.level,
                     text=segment.text,
                     ref=segment.ref,
+                    language=segment.language,
                 )
             )
             segments.append(
@@ -292,6 +293,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
                     level=segment.level,
                     text=segment.text,
                     ref=segment.ref,
+                    language=segment.language,
                 )
             )
 

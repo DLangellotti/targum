@@ -355,6 +355,106 @@ def test_a_verse_is_never_split() -> None:
     assert len(cut.segments) == 2, "the segmenter is not splitting, so the test is empty"
 
 
+# -- the Aramaic ---------------------------------------------------------------
+
+
+#: Verses per chapter, as the Masoretic text divides them. Real counts rather than round
+#: ones, so a boundary in the table below is checked against the chapter it actually
+#: closes: Daniel 7 has 28 verses and the Aramaic ends at the last of them.
+DANIEL = [21, 49, 33, 34, 30, 29, 28, 27, 27, 21, 45, 13]
+EZRA = [11, 70, 13, 24, 17, 22, 28, 36, 15, 44]
+
+
+def scripture(book: str, chapters: list[int]) -> dict[str, Any]:
+    """A response shaped like Sefaria's, with a placeholder for every verse."""
+    text = [[f"פסוק {c + 1}:{v + 1}" for v in range(n)] for c, n in enumerate(chapters)]
+    return {
+        "edition": {"text": text, "license": "Public Domain"},
+        "body": {"ref": book, "heRef": book, "sections": [1], "textDepth": 2},
+    }
+
+
+@pytest.mark.parametrize(
+    ("book", "chapter", "verse", "expected"),
+    [
+        ("Daniel", 2, 3, None),
+        ("Daniel", 2, 4, "arc"),
+        ("Daniel", 7, 28, "arc"),
+        ("Daniel", 8, 1, None),
+        ("Ezra", 4, 7, None),
+        ("Ezra", 4, 8, "arc"),
+        ("Ezra", 6, 18, "arc"),
+        ("Ezra", 6, 19, None),
+        ("Ezra", 7, 11, None),
+        ("Ezra", 7, 12, "arc"),
+        ("Ezra", 7, 26, "arc"),
+        ("Ezra", 7, 27, None),
+    ],
+)
+def test_the_aramaic_begins_and_ends_where_the_books_say(
+    book: str, chapter: int, verse: int, expected: str | None
+) -> None:
+    """Daniel 2:4b to 7:28, Ezra 4:8 to 6:18 and 7:12 to 26, each end checked from both
+    sides. A boundary off by one verse is a verse glossed in the wrong language."""
+    assert sefaria.language_of(book, chapter, verse) == expected
+
+
+def test_the_verses_below_the_block_stay_hebrew() -> None:
+    """Jeremiah 10:11 and Genesis 31:47 hold Aramaic inside a Hebrew chapter and a Hebrew
+    verse, and a block is a verse. Marking Genesis 31:47 would un-gloss thirteen Hebrew
+    words to be right about two; both are Hebrew until a block can carry a span, and the
+    module says why beside the table."""
+    assert sefaria.language_of("Jeremiah", 10, 11) is None
+    assert sefaria.language_of("Genesis", 31, 47) is None
+
+
+def test_daniel_s_aramaic_is_marked_verse_by_verse() -> None:
+    """Every verse from 2:4 to 7:28 and no other. Two hundred of them, which is 2:4 to
+    the end of its chapter and five whole chapters after it."""
+    document = sefaria.document_from_payload(scripture("Daniel", DANIEL), "Daniel", "he")
+    by_ref = {b.ref: b.language for b in document.blocks if b.kind is BlockKind.verse}
+    assert by_ref["Daniel 2:3"] is None
+    assert by_ref["Daniel 2:4"] == "arc"
+    assert by_ref["Daniel 7:28"] == "arc"
+    assert by_ref["Daniel 8:1"] is None
+    assert sum(1 for tag in by_ref.values() if tag == "arc") == (49 - 3) + 33 + 34 + 30 + 29 + 28
+    # A chapter heading is the book's and stays in the book's language.
+    assert all(b.language is None for b in document.blocks if b.kind is BlockKind.heading)
+
+
+def test_ezra_s_two_aramaic_spans_are_marked_and_nothing_between_them() -> None:
+    document = sefaria.document_from_payload(scripture("Ezra", EZRA), "Ezra", "he")
+    by_ref = {b.ref: b.language for b in document.blocks if b.kind is BlockKind.verse}
+    assert by_ref["Ezra 4:8"] == "arc" and by_ref["Ezra 6:18"] == "arc"
+    assert by_ref["Ezra 7:12"] == "arc" and by_ref["Ezra 7:26"] == "arc"
+    assert by_ref["Ezra 6:19"] is None and by_ref["Ezra 7:11"] is None
+    assert sum(1 for tag in by_ref.values() if tag == "arc") == 17 + 17 + 18 + 15
+
+
+def test_the_english_side_is_english_whatever_the_hebrew_beside_it_is() -> None:
+    document = sefaria.document_from_payload(scripture("Daniel", DANIEL), "Daniel", "en")
+    assert all(b.language is None for b in document.blocks)
+
+
+def test_a_book_with_no_aramaic_marks_nothing() -> None:
+    assert all(b.language is None for b in document("he").blocks)
+
+
+def test_the_marking_costs_a_re_ingest_and_not_a_re_translation() -> None:
+    """Every Daniel and Ezra on the shelf was ingested before this. The ingester's name
+    is what makes them be read again, and the text they hash to has not changed."""
+    assert sefaria.SefariaFetcher.name == "sefaria/5"
+    marked = sefaria.document_from_payload(scripture("Daniel", DANIEL), "Daniel", "he")
+    for block in marked.blocks:
+        block.language = None
+    assert (
+        marked.recompute_hash()
+        == sefaria.document_from_payload(
+            scripture("Daniel", DANIEL), "Daniel", "he"
+        ).recompute_hash()
+    )
+
+
 # -- the edition -------------------------------------------------------------
 
 

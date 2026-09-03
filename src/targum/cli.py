@@ -337,6 +337,40 @@ def admin(
 
 
 @app.command()
+def measures(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the readers are, for which shelf each text is on."),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="The same answers as data.")] = False,
+) -> None:
+    """The six beta measures, read off the store and nothing else.
+
+    Whether a reader comes back for a second text, how far they got into the first,
+    whether the two shelves share readers, how often the audio is played, who the readers
+    are, and how much they read a month. Counted from what the store holds; no model is
+    asked for anything and nothing is spent. Where the store does not hold the answer
+    the report says so in the answer's place, with what would have to be recorded first.
+
+    Run weekly and keep the output: the numbers are the beta, and they cannot be
+    collected after the fact.
+    """
+    import json
+
+    from .measures import as_state, measure_store, report
+    from .serve import default_store
+
+    found = measure_store(store or default_store(), out or Path("targum-out"))
+    # Plain text on stdout rather than through the console: the report is kept and
+    # pasted, and a line the console had folded to fit a terminal is not the line.
+    if as_json:
+        typer.echo(json.dumps(as_state(found), ensure_ascii=False, indent=2))
+        return
+    typer.echo(report(found), nl=False)
+
+
+@app.command()
 def usage(
     days: Annotated[
         int | None,
@@ -707,6 +741,12 @@ def repair(
     text that arrived as plain prose with its section titles sitting in it as ordinary
     paragraphs gets those titles marked, which is what gives a reader its contents page.
 
+    And one undoing. The spacing repair once cut after every final letter it found,
+    and a scanned text with ו read as ן came apart into a lone final letter and the
+    rest of its word. A lone final letter is not a word, so the space in front of the
+    word it belongs to comes out again — the only join this makes, because it is the
+    only one the text itself can prove (targum-internal#86).
+
     Rebuilding from the source would do both and would cost money: every stage is keyed
     to the Hebrew, so a sentence one space longer is a sentence nothing has translated.
     So the English is carried across by hand instead. Marking a heading does not change
@@ -724,7 +764,7 @@ def repair(
         pronounceable,
     )
     from .ingest.base import infer_headings
-    from .ingest.spacing import unglue as respace
+    from .ingest.spacing import reglue, unglue
     from .models import (
         Alignment,
         Annotation,
@@ -744,20 +784,33 @@ def repair(
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
-    done = words = titles = 0
+    def respace(text: str, language: str) -> str:
+        return reglue(unglue(text, language), language)
+
+    done = words = joined = titles = 0
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
         document = read_artifact(Document, folder / "document.json")
         if document is None:
             continue
-        blocks = [
-            block.model_copy(update={"text": respace(block.text, document.language)})
+        separated = [
+            block.model_copy(update={"text": unglue(block.text, document.language)})
             for block in document.blocks
         ]
+        blocks = [
+            block.model_copy(update={"text": reglue(block.text, document.language)})
+            for block in separated
+        ]
+        # Counted apart, one against the other: a word put together is not a word
+        # taken apart undone, and a report that nets them says nothing happened.
         repaired = sum(
             len(new.text.split()) - len(old.text.split())
-            for new, old in zip(blocks, document.blocks, strict=True)
+            for new, old in zip(separated, document.blocks, strict=True)
+        )
+        rejoined = sum(
+            len(old.text.split()) - len(new.text.split())
+            for new, old in zip(blocks, separated, strict=True)
         )
 
         # Only where the source had no markup to state its structure with. What a text
@@ -779,7 +832,7 @@ def repair(
                 1 for b, old in zip(blocks, document.blocks, strict=True) if b.kind is not old.kind
             )
 
-        if not repaired and not marked:
+        if not repaired and not rejoined and not marked:
             continue
 
         document.blocks = blocks
@@ -871,6 +924,7 @@ def repair(
 
         done += 1
         words += repaired
+        joined += rejoined
         titles += marked
         if segmented is not None and translations:
             render_reader(
@@ -884,13 +938,13 @@ def repair(
                 covers=root / "thumbs",
             )
         console.print(
-            f"[dim]  {document.title or folder.name} — {repaired} word(s), "
-            f"{marked} heading(s)[/dim]"
+            f"[dim]  {document.title or folder.name} — {repaired} word(s) separated, "
+            f"{rejoined} joined, {marked} heading(s)[/dim]"
         )
 
     console.print(
-        f"[green]Separated {words} word{'' if words == 1 else 's'} and marked {titles} "
-        f"heading{'' if titles == 1 else 's'} in {done} "
+        f"[green]Separated {words} word{'' if words == 1 else 's'}, joined {joined} and "
+        f"marked {titles} heading{'' if titles == 1 else 's'} in {done} "
         f"targum{'' if done == 1 else 's'}.[/green] "
         f"[dim]Nothing was fetched and nothing was spent.[/dim]"
     )
@@ -981,11 +1035,25 @@ def rebuild_one(
             if rendering.target_language == "en":
                 rendering.segments.update(known)
     annotation = read_artifact(Annotation, folder / "annotation.json")
+    # What this text's words used to be called, when the words are being worked out again
+    # by a different annotator. `rebuild --words` is how an annotator change reaches texts
+    # already on a box — it is what deploy.sh runs — so this is the path that carries a
+    # reader's marks across, and without it a deploy is exactly the event that orphans
+    # them (targum-internal#141).
+    from .annotate import moves as moves_module
+
+    # Whatever earlier rebuilds recorded, whether or not this one moves anything. A page
+    # rendered without them drops the migration for every reader who has not opened it
+    # yet — and two rebuilds in an evening is what a deploy that failed halfway does.
+    moves: dict[str, object] | None = moves_module.carried(folder) or None
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if annotation.annotator != annotator.name:
             vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+            was = annotation
             annotation = annotator.annotate(segmented, vocalization)
+            if was.document_hash == annotation.document_hash:
+                moves = moves_module.keep(folder, moves_module.between(was, annotation))
             annotation.write(folder / "annotation.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
@@ -1005,6 +1073,7 @@ def rebuild_one(
         translations,
         folder / "reader",
         annotation=annotation,
+        moves=moves,
         glossaries=glossaries,
         vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
         covers=covers,
@@ -2365,12 +2434,16 @@ def parasha_entries(
         bool, typer.Option("--write", help="Merge them into the catalogue in place.")
     ] = False,
 ) -> None:
-    """The corpus as catalogue entries, so the library lists the portions.
+    """The corpus as catalogue entries and their collection, so the library lists the portions.
 
     Printed by default and merged only when asked, because the catalogue is the one file
     that is a reader's own rather than this repository's — it lives outside the checkout
     (see `catalogue_path`), and a build command that quietly rewrote it would be editing
     somebody's shelf behind their back.
+
+    The merge owns what the corpus knows and leaves what a person wrote: an entry's row
+    is updated field by field, and the collection's member list is replaced outright
+    while a blurb somebody edited on it stays.
     """
     import json as _json
 
@@ -2378,15 +2451,19 @@ def parasha_entries(
     from .parasha import build as corpus
 
     made = corpus.entries()
-    if not made:
+    group = corpus.collection()
+    if not made or group is None:
         raise TargumError(
             "Nothing to add: the corpus is empty.",
             "Run `targum parasha build` first.",
         )
     if not write:
-        console.print_json(_json.dumps(made, ensure_ascii=False))
+        console.print_json(
+            _json.dumps({"entries": made, "collections": [group]}, ensure_ascii=False)
+        )
         console.print(
-            f"[dim]{len(made)} entries. `--write` merges them into {catalogue_path()}.[/dim]"
+            f"[dim]{len(made)} entries and one collection. "
+            f"`--write` merges them into {catalogue_path()}.[/dim]"
         )
         return
     path = catalogue_path()
@@ -2414,8 +2491,22 @@ def parasha_entries(
             # difficulty of their own, and a rebuild should not take it back off them.
             rows[at] = {**rows[at], **entry}
     existing["entries"] = rows
+    groups = existing.get("collections") or []
+    held = next((at for at, row in enumerate(groups) if row.get("id") == group["id"]), None)
+    if held is None:
+        groups.append(group)
+        placed = "added"
+    else:
+        # The other way round from an entry. Which portions are on the shelf and in
+        # what order is the corpus's to say; what the collection is called is not.
+        groups[held] = {**group, **groups[held], "members": group["members"], "ordered": True}
+        placed = "kept, its members rewritten"
+    existing["collections"] = groups
     write_atomic(path, _json.dumps(existing, ensure_ascii=False, indent=2) + "\n")
-    console.print(f"[green]{added} added[/green], {len(made) - added} updated, in {path}.")
+    console.print(
+        f"[green]{added} added[/green], {len(made) - added} updated, "
+        f"and the collection {placed}, in {path}."
+    )
 
 
 @parasha_app.command("leyning")

@@ -60,9 +60,28 @@
       chapter titles with no verb on it, which the first alpha reader opened and then
       had "NO IDEA what to do next". The first chapter, or the one last opened. -#}
   <p class="start"><a id="start" href="{{ sections[0].filename }}" data-first="{{ sections[0].filename }}">Start reading</a></p>
+  {# One row per chapter. On a book the weekly readings are cut from the rows come in
+     groups, one per portion: its name links to its first verse in the file that holds
+     it — for נח that is the chapter-6 file, listed under בראשית — and a chapter is
+     listed once, under the portion it starts in. Everything else is one group with no
+     portion, and the list is the flat one it always was. #}
+  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>{% endmacro %}
   <ol class="toc" dir="{{ source_direction }}" data-document="{{ document.content_hash }}">
-    {% for section in sections %}
-    <li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>
+    {% for group in groups %}
+    {% if group.portion %}
+    <li class="portion" data-portion="{{ group.portion.slug }}">
+      <p class="portion-head"><a class="portion-name" href="{{ group.portion.href }}">{{ group.portion.hebrew|isolate(source_direction) }}</a> <span class="portion-span">{{ group.portion.summary }}</span> <a class="portion-page" href="/parasha/{{ group.portion.slug }}" hidden>This portion's page</a></p>
+      <ol start="{{ group.sections[0].number }}">
+        {% for section in group.sections %}
+        {{ row(section) }}
+        {% endfor %}
+      </ol>
+    </li>
+    {% else %}
+    {% for section in group.sections %}
+    {{ row(section) }}
+    {% endfor %}
+    {% endif %}
     {% endfor %}
   </ol>
   {#- For somebody about to lose their connection. A reader off a disk is the promise

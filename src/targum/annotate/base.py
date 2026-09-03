@@ -66,6 +66,29 @@ def method_label(method: str) -> str:
 
 NO_METHOD = "none"
 
+#: The rule that a segment in a language other than its document's is left unread, in
+#: the annotator's name. A name, because the name is what decides whether an existing
+#: annotation is the one this code would write: every Daniel and Ezra on the shelf was
+#: annotated before a block could say it was Aramaic, and carries a Hebrew reading of
+#: it. A new component in the name is what makes them be read again, and reading again
+#: is free — nothing here is fetched or bought.
+LANGUAGES = "languages/1"
+
+
+def unread(segment: Segment, document_language: str) -> bool:
+    """Whether the annotator leaves this segment's words alone.
+
+    A block in a language other than its document's is left without tokens rather than
+    read as if it were in the document's. The lemmatizer, the bands, the register and
+    the pronouncer were each chosen for the document's language, and every one of them
+    answers confidently about a word in another: on Aramaic read as Hebrew, Stanza tagged
+    half the tokens as names and gave יָת — the object marker — the lemma of the Hebrew
+    verb נתן. No token is a word the reader can still read, and cannot tap; a wrong
+    token is a card that lies. Routing such a block to a lemmatizer of its own is the
+    step after this one (targum-internal#65, #67), and this is where it will go.
+    """
+    return segment.language_in(document_language) != document_language
+
 
 def highlight_levels() -> list[dict[str, object]]:
     return [{"value": value, "label": label} for value, label in sorted(HIGHLIGHT_LABELS.items())]
