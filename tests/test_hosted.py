@@ -673,7 +673,15 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
 
     assert ask("ארץ") == (
         200,
-        {"lemma": "ארץ", "meaning": "land", "citation": "", "plural": "", "cached": True},
+        {
+            "lemma": "ארץ",
+            "meaning": "land",
+            "citation": "",
+            "plural": "",
+            "cached": True,
+            # Bought with no sentence behind it, so the page knows to ask once more.
+            "grounded": False,
+        },
     )
     status, answer = ask("שלום")
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False

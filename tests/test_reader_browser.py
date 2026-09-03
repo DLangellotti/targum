@@ -969,11 +969,14 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
             # and a card opening asks that first. Only a real lookup counts as a call.
             if request.post_data_json.get("free"):
                 meaning = MEANING if bought else None
-                body = {"meaning": meaning, "cached": bool(meaning)}
+                body = {"meaning": meaning, "cached": bool(meaning), "grounded": bool(meaning)}
             else:
-                calls.append(request.url)
+                # Bought once, with its sentence, and grounded by it: the same question
+                # on a later page is a cache hit, and the real server buys nothing.
+                if not bought:
+                    calls.append(request.url)
                 bought.append(request.url)
-                body = {"meaning": MEANING}
+                body = {"meaning": MEANING, "grounded": True}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
@@ -997,6 +1000,49 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
         "the reader was asked to look up a word they had already looked up"
     )
     assert len(calls) == 1, f"the meaning was bought {len(calls)} times"
+    context.close()
+
+
+def test_a_meaning_the_build_shipped_is_asked_again_with_its_sentence(
+    browser, two_languages: Path
+) -> None:
+    """The glossary a build ships was bought for the whole text at once, no sentence per
+    word, so עם reads "people" on a page where it is "with". The first card to open on
+    such a word asks once more with the sentence it is in, and the card follows the
+    answer; the second card asks nothing — once a session per word, whatever came back.
+    A word whose sense a sentence already chose costs the server a cache hit, no more."""
+    html = two_languages.read_text(encoding="utf-8")
+    calls = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            sent = request.post_data_json
+            assert not sent.get("free"), "a word with a meaning has nothing to peek for"
+            calls.append(sent)
+            body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+
+    word = page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}, (
+        "the card did not follow the grounded meaning"
+    )
+    assert len(calls) == 1 and calls[0]["lemma"] == word, f"asked {calls}"
+    assert calls[0]["sentence"], "asked again without the sentence, which is the whole point"
+
+    page.keyboard.press("Escape")
+    page.evaluate(TAP_AGAIN, word)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}
+    assert len(calls) == 1, f"the same word was asked about {len(calls)} times in one session"
     context.close()
 
 

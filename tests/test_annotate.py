@@ -421,6 +421,73 @@ def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
     assert provider.contexts == [{"עם": "ויצא עם העם"}, None]
 
 
+def test_a_sense_bought_bare_is_bought_once_more_when_a_sentence_arrives(
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    """The catalogue's lemmas were all glossed with no sentence behind them, so עם is
+    held as "people" for a reader who met it as "with". They are not re-bought in bulk —
+    that would cost the same per word and guess a sentence. The first tap that carries
+    a sentence buys the word again, grounded, and after that nothing ever is."""
+    from targum.annotate.gloss import cached_gloss
+
+    class Contextual(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append(list(lemmas))
+            sentence = (contexts or {}).get(lemmas[0], "")
+            sense = "with; people" if sentence else "people; nation"
+            return {lemma: (sense, "noun") for lemma in lemmas}
+
+    cache = Cache(tmp_path)
+    provider = Contextual()
+    # Bought by a whole-text build: bare, and it says so.
+    build_glossary(annotation_with({"עם": 1}), "en", provider, cache=cache)
+    bare = cached_gloss("עם", "he", "en", provider.name, cache=cache)
+    assert bare is not None and (bare.gloss, bare.grounded) == ("people; nation", False)
+
+    # Asked with no sentence: what is held is handed over, nothing is bought.
+    assert gloss_one("עם", "he", "en", provider, cache=cache) == bare
+    assert provider.asked == [["עם"]]
+
+    # Asked with one: bought again, and the sentence's sense comes first now.
+    grounded = gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם")
+    assert grounded is not None and (grounded.gloss, grounded.grounded) == ("with; people", True)
+    assert provider.asked == [["עם"], ["עם"]]
+
+    # And that one stands: a different sentence buys nothing.
+    again = gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי")
+    assert again == grounded
+    assert provider.asked == [["עם"], ["עם"]]
+
+
+def test_grounding_that_fails_leaves_the_meaning_that_was_there(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A word that has a meaning does not lose it because the second purchase failed:
+    the reader is shown what was held, and the next sentence tries again."""
+    from targum.errors import ProviderError
+
+    class Down(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            if contexts:
+                raise ProviderError("Anthropic API error 529 while glossing.", "overloaded")
+            return super().gloss(lemmas, source_language, target_language, on_progress)
+
+    cache = Cache(tmp_path)
+    provider = Down()
+    bare = gloss_one("עם", "he", "en", provider, cache=cache)
+    assert bare is not None and not bare.grounded
+    assert gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == bare
+    assert not cached_gloss_is_grounded(cache, provider.name), "a failure grounded nothing"
+    # A word with nothing held is a failure the reader has to hear about.
+    with pytest.raises(ProviderError):
+        gloss_one("בית", "he", "en", provider, cache=cache, context="בית גדול")
+
+
+def cached_gloss_is_grounded(cache: Cache, provider: str) -> bool:
+    from targum.annotate.gloss import cached_gloss
+
+    held = cached_gloss("עם", "he", "en", provider, cache=cache)
+    return held is not None and held.grounded
+
+
 def test_unrated_words_are_still_worth_glossing() -> None:
     from targum.models import Annotation, Token
 
@@ -593,6 +660,16 @@ def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ign
     assert grown["en"].parts_of_speech == {"ארץ": "noun"}
     again = fill_from_cache(annotation, grown, ["en"], cache=cache)
     assert again == {}, "nothing new, nothing written"
+
+    # A reader met ארץ in a sentence since, and the sense was bought again with it. The
+    # cache is the later word, and the file catches up on the next rebuild.
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", annotation.language, "en", gloss_provider_name()),
+        {"gloss": "earth; land", "part_of_speech": "noun", "grounded": True},
+    )
+    caught_up = fill_from_cache(annotation, grown, ["en"], cache=cache)
+    assert caught_up["en"].entries == {"ארץ": "earth; land"}
 
 
 # -- every word is a word ---------------------------------------------------------
