@@ -35,6 +35,7 @@ participle that reads as an adjective — are the two mistakes it made systemati
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Collection
 from typing import Any, NamedTuple, Protocol
 
@@ -329,6 +330,45 @@ def estimate(form_count: int, model: str = DICTIONARY_MODEL) -> float:
     ) / 1_000_000
 
 
+def held(cache: Cache | None = None, provider: str = "") -> dict[str, Entry]:
+    """Every form this provider has already answered, read off the cache directory.
+
+    A build does not know which forms a text will produce until it has been annotated,
+    and annotating is what needs the answers — so the whole of what has been bought is
+    handed in rather than a list looked up form by form. It is a few tens of thousands
+    of small files at worst, and reading them is local.
+
+    The cache stores what was asked as well as what came back, so a form that was asked
+    about and declined is skipped here rather than counted as an answer.
+    """
+    cache = cache or Cache()
+    provider = provider or provider_name()
+    out: dict[str, Entry] = {}
+    root = cache.root / "dictionary"
+    if not root.is_dir():
+        return out
+    for path in root.glob("*/*.json"):
+        try:
+            stored = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(stored, dict):
+            continue
+        form = str(stored.get("form", ""))
+        if not form or stored.get("provider") != provider:
+            continue
+        entry = Entry(
+            dictionary_form=str(stored.get("dictionary_form", "")),
+            part=str(stored.get("part_of_speech", "")),
+            root=str(stored.get("root", "")),
+            binyan=str(stored.get("binyan", "")),
+            certain=bool(stored.get("certain", True)),
+        )
+        if not entry.empty:
+            out[form] = entry
+    return out
+
+
 def build(
     forms: Collection[str],
     provider: DictionaryProvider,
@@ -360,7 +400,14 @@ def build(
         entry = bought.get(form, Entry())
         # A form the provider declined is written too, and written empty. Otherwise it is
         # asked again on every build, and a word that is not a word never stops costing.
-        cache.put("dictionary", key(cache, form, provider.name), entry.as_dict())
+        cache.put(
+            "dictionary",
+            key(cache, form, provider.name),
+            # The form and the provider are written into the value as well as hashed
+            # into the key, because `held` reads the directory rather than asking about
+            # a form it does not yet know it wants.
+            entry.as_dict() | {"form": form, "provider": provider.name},
+        )
         if not entry.empty:
             held[form] = entry
     return held, 0

@@ -22,6 +22,7 @@ from targum.annotate.dictionary import (
     clean_binyan,
     clean_root,
     estimate,
+    held,
     provider_name,
     unpaid,
 )
@@ -270,3 +271,20 @@ def test_an_empty_dictionary_leaves_the_name_alone() -> None:
         Annotator(lemmatizer=OneVerb(), bands=NoBands(), dictionary={}, dictionary_name="d/1").name
         == Annotator(lemmatizer=OneVerb(), bands=NoBands()).name
     )
+
+
+def test_everything_bought_can_be_read_back_without_naming_it(tmp_path: Path) -> None:
+    """A build does not know which forms a text will produce until it has annotated it,
+    and annotating is what needs the answers — so the whole of what has been bought is
+    handed in, read off the cache directory rather than asked for form by form."""
+    cache = Cache(tmp_path / "cache")
+    provider = FakeDictionary({"זורם": ZORAM})
+    build(["זורם", "מיועד"], provider, cache=cache)
+    got = held(cache=cache, provider="fake-dictionary/1")
+    assert got == {"זורם": ZORAM}, "a form that was declined is not an answer"
+    assert held(cache=cache, provider="somebody-else/1") == {}
+
+
+def test_reading_back_an_empty_cache_is_not_an_error(tmp_path: Path) -> None:
+    """A box that has bought nothing annotates exactly as it did before."""
+    assert held(cache=Cache(tmp_path / "nothing"), provider="fake-dictionary/1") == {}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import subprocess
@@ -1596,6 +1597,94 @@ def gloss_command(
     console.print(
         f"[green]Wrote[/green] {path} "
         f"[dim]{len(glossary.entries)} glossed, {len(lemmas) - paid} already cached[/dim]"
+    )
+
+
+@app.command(name="dictionary")
+def dictionary_command(
+    shelf: Annotated[
+        Path, typer.Argument(help="A built reader, or a directory of them, to read the forms from.")
+    ],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Count the forms and the cost, spend nothing.")
+    ] = False,
+    verbs_only: Annotated[
+        bool,
+        typer.Option(
+            "--verbs-only/--every-word",
+            help="Only the words tagged as verbs, which are the ones missing a root.",
+        ),
+    ] = True,
+) -> None:
+    """Look up the root and binyan of every Hebrew form on a shelf, once, for ever.
+
+    The root and the binyan belong to the word rather than to the sentence, so they are
+    bought per dictionary form and cached across every text — the same bargain glosses
+    strike. Run it after a build and before `rebuild --words`, which is what carries the
+    answers onto the cards.
+    """
+    from .annotate import dictionary as dictionary_module
+
+    forms: set[str] = set()
+    readers = _annotated_readers(shelf)
+    if not readers:
+        fail(TargumError(f"No annotated Hebrew readers under {shelf}.", "Build one first."))
+    for path in readers:
+        annotation = json.loads(path.read_text(encoding="utf-8"))
+        if annotation.get("language") != "he":
+            continue
+        for tokens in annotation.get("tokens", {}).values():
+            for token in tokens:
+                if not verbs_only or token.get("pos") == "VERB":
+                    forms.add(str(token.get("lemma", "")))
+    forms.discard("")
+
+    provider = dictionary_module.AnthropicDictionary()
+    owing = dictionary_module.unpaid(forms, provider.name)
+    cost = dictionary_module.estimate(len(owing), provider.model)
+    console.print(
+        f"[bold]{len(readers)} readers[/bold] "
+        f"[dim]{len(forms)} distinct forms, {len(forms) - len(owing)} already looked up[/dim]"
+    )
+    console.print(f"[dim]Looking up the remaining {len(owing)} would cost about ${cost:.2f}.[/dim]")
+    if dry_run or not owing:
+        return
+
+    usable, detail = provider.available()
+    if not usable:
+        fail(TargumError("The Anthropic provider is not ready.", detail))
+    if cost > CONFIRM_ABOVE_USD and not typer.confirm("Look them up?", default=True):
+        raise typer.Abort()
+
+    try:
+        with Progress(
+            TextColumn("[dim]looking up[/dim]"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("dictionary", total=len(owing))
+            held, _ = dictionary_module.build(
+                owing, provider, on_progress=lambda n: progress.advance(task, n)
+            )
+    except TargumError as error:
+        fail(error)
+    console.print(
+        f"[green]Looked up[/green] {len(owing)} forms "
+        f"[dim]${provider.spent.cost():.2f} · {len(held)} answered[/dim]"
+    )
+    console.print("[dim]targum rebuild --words puts them on the cards.[/dim]")
+
+
+def _annotated_readers(shelf: Path) -> list[Path]:
+    """Every `annotation.json` under a path, whether it is one reader or a shelf."""
+    if (shelf / "annotation.json").is_file():
+        return [shelf / "annotation.json"]
+    if shelf.name == "annotation.json" and shelf.is_file():
+        return [shelf]
+    return sorted(
+        path / "annotation.json" for path in shelf.iterdir() if (path / "annotation.json").is_file()
     )
 
 
