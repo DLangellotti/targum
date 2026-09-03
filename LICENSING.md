@@ -80,8 +80,8 @@ a time and publishes no splitter, so each sentence it was handed had been cut by
 Hebrew tokenizer, trained on the same treebank (targum-internal#146). Since 2026-09-03
 Hebrew sentences are drawn by rule in `segment/hebrew.py`, and Stanza refuses a Hebrew
 text outright rather than being trusted not to receive one; a test pins both, and the
-default annotator was closed the same day, since three measuring paths still built it
-with Stanza alone. No Hebrew text now passes through a Stanza pipeline at any stage —
+default annotator was closed the same day, since four callers — the gloss command and three
+that measure — still built it with Stanza alone. No Hebrew text now passes through a Stanza pipeline at any stage —
 segmentation, annotation or difficulty — and the credit at the foot of a reader that
 names DICTA is, from that date, the whole truth.
 
