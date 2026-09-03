@@ -56,7 +56,7 @@ class Annotator:
     ) -> None:
         if lemmatizer is None:
             # DICTA for Hebrew, Stanza for the rest, the way `lemma.for_source` builds it
-            # for a build. The bare default used to be Stanza alone, and three callers
+            # for a build. The bare default used to be Stanza alone, and four callers
             # that measure or gloss a text reached it — every one a way for a Hebrew word
             # to be read by the NonCommercial model the swap removed (targum-internal#146).
             from .dicta import DictaLemmatizer
