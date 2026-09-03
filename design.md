@@ -32,7 +32,10 @@ forever** — no gradients, bevels or metallic ramps on them, ever. Interactive 
 UI elements may carry the gloss recipe and hover lift in §9. Metallic gold ramps stay banned
 everywhere.
 
-**The reader is a reader, not a player.** Engagement is welcome, arcade is not. Streaks,
+**A text that carries media opens as its media.** The player stands and is named; a
+picture is on. Nothing plays until pressed, and the text is still the page. This replaced
+"the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
+meant still holds: engagement is welcome, arcade is not. Streaks,
 goals and milestones are a ledger: real counts in serif tabular numbers, leaf for
 achievement, iris for novelty, celebration in type rather than motion. No mascots, no flags,
 no emoji.
@@ -263,8 +266,41 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Thirteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+Fourteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
+
+### A text that carries media opens as its media — 2026-09-03
+
+§1 said *the reader is a reader, not a player*, and the 2026-08-31 departure below leaned on
+it to keep the video panel shut until pressed. The sentence was written against the
+language-app arcade, and for the reader the research corpus knew: the Biblical autodidact
+who reads first and listens beside. Both halves were decided before anyone outside the
+household had seen a page.
+
+On 2026-09-03 the first stranger — an olah, a designer, the modern segment the corpus had
+almost nothing on — was shown a scene that had a recording. She did not find out it could
+be heard, and she said the thing the corpus could not: *I like to start with media and
+learn from that; this is just a boring text.* That is not one person's taste. It is the
+comprehensible-input method, and it is how the modern learner arrives. David withdrew the
+sentence the same day.
+
+What stands in its place:
+
+- **A text with a recording opens with the player standing and named.** Not a button in
+  the bar to be discovered, and not a strip that reads as chrome: the first thing a
+  stranger can say about the page is that it can be heard.
+- **A text with video opens with its picture on.** The toggle stays, so the picture can be
+  put away; the default reverses.
+- **Nothing plays until pressed.** Autoplay is the arcade's move, and a reader on a train
+  is still a reader.
+- **A text with neither opens exactly as before.** The Tanakh page is untouched by this.
+- **The text is still the page.** The media is how it opens, not what it is: the player
+  and the picture stay occupants of the band, and the reading column keeps its measure.
+
+The other half of the withdrawn sentence — engagement yes, arcade no; streaks and goals as
+a ledger in serif tabular numbers — is unchanged and `test_brand.py` still enforces it.
+Recorded in the vault: *Targum user session 2026-09-03 — designer olah*. Built under
+targum-internal #168.
 
 ### A word's card covers the page on a phone; it does not move it — 2026-09-03
 
@@ -408,11 +444,13 @@ An imported video keeps its pictures, and three rules bend to carry them:
   too heavy to inline. It stands beside the file with a relative address — a folder that
   travels to a disk keeps its picture, and the page still fetches nothing from any
   network. `test_render.py`'s no-network rules hold unchanged.
-- **The video panel is off by default and toggled.** §1's "a reader is a reader, not a
-  player" stands: the transport is still the player strip, the picture is optional, and a
-  reader who never presses the button reads exactly the page they had. On a narrow
-  window the panel is an occupant of the band like the sheet, the keys and the menu,
-  one at a time; the word cards are drawn over it (see the 2026-09-03 entry above).
+- **The video panel is off by default and toggled** — *superseded 2026-09-03, see "A text
+  that carries media opens as its media" above: the picture now opens on.* As written on
+  2026-08-31: §1's "a reader is a reader, not a player" stands: the transport is still the
+  player strip, the picture is optional, and a reader who never presses the button reads
+  exactly the page they had. On a narrow window the panel is an occupant of the band like
+  the sheet, the keys and the menu, one at a time; the word cards are drawn over it (see
+  "A word's card covers the page on a phone" above).
 - **The serve policy's `media-src` gains `'self'`** — for exactly these sidecars, and
   nothing else. The embedded recordings stay `data:`; no address leaves the origin.
 - **A video fetched from YouTube links home, at the line being read** (2026-09-02).
