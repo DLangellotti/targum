@@ -185,8 +185,11 @@ class ScriptureLemmatizer:
         morphology is a different artefact from one the model guessed at — so the name
         has to say which happened, and the fallback's name has to stay in it because on
         most of the shelf the fallback is what ran.
+
+        `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
+        shared, so a meaning is filed under the word and not the spelling.
         """
-        return f"oshb/1+{self.fallback.name}"
+        return f"oshb/2+{self.fallback.name}"
 
     def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
         looked_up: dict[str, list[Token]] = {}
@@ -234,18 +237,30 @@ class ScriptureLemmatizer:
             # The headword, not the surface. Where the lexicon has no entry — a handful
             # of prefixes tagged as content — the bare word stands in, so a token always
             # has a dictionary form to be filed under.
-            dictionary = oshb.headword(lexeme) or word.pieces[word.content]
+            pointed = oshb.headword(lexeme)
+            dictionary = pointed or word.pieces[word.content]
+            lemma = _headword(dictionary)
             out.append(
                 Token(
                     start=start,
                     end=end,
                     surface=text[start:end],
-                    lemma=_headword(dictionary),
+                    lemma=lemma,
                     band=0,
                     split=len(word.pieces) > 1,
                     pos=part_of(code),
                     feats=features(code),
                     built=built_from(word),
+                    # The points, kept only where they are the difference between two
+                    # words. אֵלֶּה and אָלָה are both filed under אלה, and the lemma has
+                    # to stay bare — it is what a reader's marks and the bands are keyed
+                    # on, across every text — so the pointed form rides beside it for
+                    # the one thing that must not be shared: the meaning.
+                    headword=(
+                        unicodedata.normalize("NFC", pointed)
+                        if pointed and oshb.contested(lemma)
+                        else None
+                    ),
                 )
             )
         return out

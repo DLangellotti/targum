@@ -127,6 +127,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- A word that shares its spelling with another is glossed as itself. הָאֵלֶּה in
+  Deuteronomy 30:1 showed "curse; oath, pl. אלות": the scripture path takes the lemma
+  from the Strong's headword and strips the points, so אֵלֶּה (these) and אָלָה (a curse)
+  were both filed under אלה, one cache entry between them — and the first tap on one of
+  Nitzavim's five curses grounded that sense for good, onto every "these" in the Tanakh.
+  A token now carries its pointed headword where the lexicon has more than one word
+  spelled that way (1,160 of 6,242 bare spellings; 2,851 headwords between them), and
+  that is what its meaning is bought and filed under, on the page and at the tap. The
+  lemma stays bare: it is the word's identity across every text — marks, counts, the
+  list — and a reader's marks on אלה still cover both. Only the shared spellings are
+  bought again, one gloss each, and only as texts are rebuilt. The annotator is renamed
+  `oshb/2`, so every text is re-annotated on the next `rebuild --words`; that is the
+  two-hour operation the docs describe and should ride with the segmenter change rather
+  than after it. The pinned "curse; oath" under bare `אלה` on the live box is untouched
+  by this and has to be dropped by hand.
 - The `file://` canary watches the mechanism that was actually fixed. It wrote with
   `localStorage.setItem` and read back with `localStorage.getItem`, the one path
   `durable.js` does not repair, so it was watching a fault that was never going to clear

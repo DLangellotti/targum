@@ -129,6 +129,16 @@ var targumReader = function () {
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
+  // The pointed headword, parallel to the lemmas, on the rows whose spelling is shared:
+  // אֵלֶּה and אָלָה are two rows with the lemma אלה on both. The lemma is the word's
+  // identity — marks, counts, the list — and the head is what its meaning is filed
+  // under, so everything that asks for or takes a meaning goes through `glossedAs`.
+  // Absent on every reader built before it existed, and on every row that has the
+  // spelling to itself; the lemma stands in on both.
+  var heads = data.heads || [];
+  function glossedAs(index) {
+    return heads[index] || lemmas[index];
+  }
   // What this language knows about its dictionary forms beyond what every language
   // carries: tables parallel to the lemmas, named for the fact. Only the Hebrew ones are
   // drawn here; a table this reader does not know is left alone.
@@ -772,12 +782,13 @@ var targumReader = function () {
   // what targum has before it offers to go and get what it does not.
   function peek(index, onDone) {
     var lemma = lemmas[index];
+    var form = glossedAs(index);
     if (!lemma || !canAsk() || typeof fetch !== "function") return;
     var into = targetLanguage || "en";
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: lemma, source: language, target: into, free: true }),
+      body: JSON.stringify({ lemma: form, source: language, target: into, free: true }),
     })
       .then(function (response) {
         return response.json();
@@ -788,7 +799,7 @@ var targumReader = function () {
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
-          if (answer.grounded) grounded[lemma] = true;
+          if (answer.grounded) grounded[form] = true;
           onDone(true);
         } else {
           onDone(false);
@@ -804,8 +815,9 @@ var targumReader = function () {
   // the card is redrawn only where the answer moved it.
   function ground(index, word, onChanged) {
     var lemma = lemmas[index];
-    if (!lemma || grounded[lemma] || !canAsk()) return;
-    grounded[lemma] = true;
+    var form = glossedAs(index);
+    if (!lemma || grounded[form] || !canAsk()) return;
+    grounded[form] = true;
     var before = glosses[index];
     lookUp(index, sentenceOf(word), function () {
       if (glosses[index] !== before) onChanged();
@@ -815,11 +827,12 @@ var targumReader = function () {
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !canAsk()) return;
-    if (asked[lemma]) return;
-    asked[lemma] = true;
+    var form = glossedAs(index);
+    if (asked[form]) return;
+    asked[form] = true;
     // A lookup that carries its sentence is a grounding: whatever comes back, the
     // server has now had the sentence, and the card need not send it again.
-    if (sentence) grounded[lemma] = true;
+    if (sentence) grounded[form] = true;
     // The language asked about, held for the length of the flight. A reader can change
     // translations while an answer is in the air, and an English meaning filed against
     // Russian is exactly the thing none of this is allowed to do.
@@ -828,7 +841,7 @@ var targumReader = function () {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
-        lemma: lemma,
+        lemma: form,
         source: language,
         target: into,
         sentence: sentence || "",
@@ -838,22 +851,22 @@ var targumReader = function () {
         return response.json();
       })
       .then(function (answer) {
-        asked[lemma] = false;
+        asked[form] = false;
         if (answer && answer.meaning) {
           keepMeaning(lemma, answer.meaning, into);
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
-          delete lookup[lemma];
+          delete lookup[form];
         } else {
           // A lemma the lemmatiser mangled is not a word, and the model is right to
           // decline rather than invent something for it.
-          lookup[lemma] = answer && answer.error ? String(answer.error) : "none";
+          lookup[form] = answer && answer.error ? String(answer.error) : "none";
         }
         onDone(answer && answer.error ? String(answer.error) : "");
       })
       .catch(function () {
-        asked[lemma] = false;
+        asked[form] = false;
         onDone("Cannot reach targum.");
       });
   }
@@ -2688,14 +2701,14 @@ var targumReader = function () {
     // Nothing has been looked up for this word, so nothing is claimed about it. The
     // translation is beside the line; write down what you make of it, or ask.
     if (!own && !glosses[index]) {
-      var outcome = lookup[lemma];
+      var outcome = lookup[glossedAs(index)];
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
         meaning.textContent = "nothing found — write your own";
       } else {
-        if (!peeked[lemma]) {
-          peeked[lemma] = true;
+        if (!peeked[glossedAs(index)]) {
+          peeked[glossedAs(index)] = true;
           peek(index, function (found) {
             if (found && lookedUp === word) showCard(word);
           });
@@ -5715,7 +5728,7 @@ var targumReader = function () {
     var complete = true;
     var have = glossesBy[target] || [];
     var filled = lemmas.map(function (lemma, index) {
-      var meaning = entries[lemma] || "";
+      var meaning = entries[glossedAs(index)] || "";
       if (meaning) found = true;
       // Whether the file is finished is a question about the file, so it is asked of
       // what came back and not of what this browser happens to know.

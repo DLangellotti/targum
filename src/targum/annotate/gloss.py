@@ -216,6 +216,10 @@ def unique_lemmas(
     Meanings are the expensive half of a build, and looking them up for a whole novel
     when one chapter of it was bought is how a long book came to cost more than the cap
     allowed and could never be opened at all.
+
+    "Lemma" here is the form a meaning is filed under, which is the lemma except where
+    two words share a spelling and the token says which — see `Token.glossed_as`. אֵלֶּה
+    and אָלָה are one lemma and two entries, because they are two words.
     """
     best: dict[str, int] = {}
     for segment_id, tokens in annotation.tokens.items():
@@ -224,7 +228,8 @@ def unique_lemmas(
         for token in tokens:
             # An unrated word is still a word worth looking up.
             if token.band >= min_band or (token.band == 0 and min_band <= 1):
-                best[token.lemma] = max(best.get(token.lemma, 0), token.band)
+                form = token.glossed_as
+                best[form] = max(best.get(form, 0), token.band)
     return [lemma for lemma, _ in sorted(best.items(), key=lambda item: (-item[1], item[0]))]
 
 
