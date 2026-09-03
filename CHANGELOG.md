@@ -127,6 +127,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- Every count of words is the same count. "You know 1,285 Hebrew words" on Learn and
+  "1,439 words marked known" on Your Progress were the same account at the same moment,
+  and the gap was names and numbers: a name marked known has been left out of what
+  counts as vocabulary since 2026-08-28, because knowing that אחשורוש is a king is not
+  knowing a word of Hebrew, but the rule had been applied one figure at a time. The
+  milestones, the ulpan ladder and Learn's headline filtered for themselves; the ledger,
+  the status bar, the growth line and the day strip drew from the shared list and took
+  the names. The rule now lives in the one place every chart reads from, so words
+  saved, words learned and the bar of where they are move with words marked known, and
+  no two figures on the page can disagree again.
 - The `file://` canary watches the mechanism that was actually fixed. It wrote with
   `localStorage.setItem` and read back with `localStorage.getItem`, the one path
   `durable.js` does not repair, so it was watching a fault that was never going to clear

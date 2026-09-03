@@ -23,12 +23,30 @@
   var KNOWN = 9;
   var IGNORED = 0;
 
+  // A name or a number, marked while reading. The reader records what it was as the
+  // band, and nothing that counts vocabulary counts it: knowing that אחשורוש is a king
+  // is not knowing a word of Hebrew.
+  var NOT_VOCABULARY = { name: true, number: true };
+
+  function vocabulary(words) {
+    return (words || []).filter(function (word) {
+      return !NOT_VOCABULARY[word.band];
+    });
+  }
+
   // Ignore means "this is not vocabulary" — a name, a numeral, a word from another
   // language. A word you ignored is not a word you kept, so nothing that counts what you
   // have counts it and nothing that draws it draws it. Dismissing something and then
   // being shown a tally of it is not dismissing it.
+  //
+  // A name the reader marked known rather than ignored is the same thing by a different
+  // key, so it is not kept either. The rule was applied piecemeal — the milestones, the
+  // ladder and Learn's headline each filtered for themselves, while the ledger, the
+  // growth line, the day strip and the status bar drew from this and took the names —
+  // so one page said 1,285 words known at the top and 1,439 in the block under it. One
+  // filter, here, and every count on every page moves by it.
   function kept(words) {
-    return (words || []).filter(function (word) {
+    return vocabulary(words).filter(function (word) {
       return word.status !== IGNORED;
     });
   }
@@ -498,17 +516,6 @@
 
   /* How many of these are finished with. Learn says it at the top of the page and the
      ledger counts it too, and the two must never be able to disagree. */
-  // A name or a number, marked while reading. The reader records what it was as the
-  // band, and nothing that counts vocabulary counts it: knowing that אחשורוש is a king
-  // is not knowing a word of Hebrew.
-  var NOT_VOCABULARY = { name: true, number: true };
-
-  function vocabulary(words) {
-    return (words || []).filter(function (word) {
-      return !NOT_VOCABULARY[word.band];
-    });
-  }
-
   function known(words) {
     var count = 0;
     vocabulary(words).forEach(function (word) {
