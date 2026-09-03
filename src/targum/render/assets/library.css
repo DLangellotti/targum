@@ -365,7 +365,8 @@
   .rows .row-title bdi { white-space: nowrap; }
   .rows .row-next { display: block; inline-size: max-content; margin: 0.15rem 0 0; }
   .rows .row-by-after,
-  .rows .row-audio { display: none; }
+  .rows .row-audio,
+  .rows .row-video { display: none; }
 }
 
 /* --- the shelf, as a table ------------------------------------------------- */

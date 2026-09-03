@@ -748,3 +748,31 @@ def test_every_page_with_the_header_can_follow_a_build() -> None:
             continue
         assert 'id="building"' in page, f"{name} has no strip"
         assert body in page, f"{name} does not inline building.js"
+
+
+def test_a_youtube_address_is_turned_away_at_the_paste_and_told_where_to_go() -> None:
+    """The server refuses a YouTube address by name, a stage after a job was created.
+    The page says so the moment the address lands, before any request, and names the
+    two doors that open: the file itself, or targum on the reader's own machine."""
+    import re
+
+    from targum.video import youtube
+
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    listed = re.search(r"var YOUTUBE = \[([^\]]*)\];", source)
+    assert listed, "the hosts are named in the page"
+    hosts = set(re.findall(r'"([^"]+)"', listed.group(1)))
+    assert hosts == set(youtube.HOSTS), "the same list the server refuses by"
+
+    # Recognised as the address is typed, and again at the button — before /prepare.
+    typed = source[source.index('sourceInput.addEventListener("input"') :][:400]
+    assert "youtubeAddress(sourceInput.value)" in typed
+    sent = source[source.index("payload.source = sourceInput.value.trim();") :]
+    assert sent.index("youtubeAddress(payload.source)") < sent.index('ask("/prepare"')
+    # Both doors, and the command ready to copy.
+    assert "Upload the video file, or run targum on your own computer" in source
+    assert "targum build " in source and 'textContent = "Copy"' in source
+
+    add = PAGES["add"]
+    assert "YouTube links are not fetched here" in add
+    assert "command line" not in add, "a reader is told what to do, not where it runs"

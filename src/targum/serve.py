@@ -1279,6 +1279,7 @@ class Library:
         """
         from . import catalogue as catalogue_module
         from . import spoken
+        from .audio import manifest as manifest_module
 
         entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
         if entry is not None:
@@ -1288,6 +1289,7 @@ class Library:
                 "difficulty": entry.difficulty,
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
+                "video": spoken.is_video(source),
                 "entry": entry.id,
                 "english": entry.english,
                 "drawn": any(
@@ -1313,6 +1315,9 @@ class Library:
             # The claim is made by whatever is actually there — for an import, the
             # manifest sitting beside the reader.
             "spoken": spoken.is_spoken(source) or (folder / "audio.json").is_file(),
+            # Kept its pictures, by the manifest's own word — the sidecar folder is a
+            # copy the build remakes, and the manifest is the claim.
+            "video": spoken.is_video(source) or manifest_module.keeps_video(folder),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.
@@ -2422,6 +2427,9 @@ class Handler(BaseHTTPRequestHandler):
             shabbat=shabbat,
             hdate=hdate,
             address=self.address,
+            # Where "all portions" goes: a reader with a shelf has them on it, in their
+            # collection; a visitor has the list at the foot of this page.
+            signed_in=self._person() is not None,
         )
         return self._send(200, page.encode("utf-8"), HTML, frames="in")
 
@@ -3637,6 +3645,9 @@ class Handler(BaseHTTPRequestHandler):
                     "citation": held.citation if held else "",
                     "plural": held.plural if held else "",
                     "cached": bool(held),
+                    # Whether a sentence chose the sense. A held meaning with no
+                    # sentence behind it is what the page asks again, with its own.
+                    "grounded": bool(held and held.grounded),
                 }
             )
         usable, _ = provider.available()
@@ -3655,6 +3666,7 @@ class Handler(BaseHTTPRequestHandler):
                 "meaning": sense.gloss if sense else "",
                 "citation": sense.citation if sense else "",
                 "plural": sense.plural if sense else "",
+                "grounded": bool(sense and sense.grounded),
             }
         )
 

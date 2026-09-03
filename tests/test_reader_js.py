@@ -644,6 +644,29 @@ def test_a_verb_is_parsed_in_plain_words() -> None:
     assert grammar("UPOS=VERB|Gender=Masc|Number=Plur|VerbForm=Part|Person=3") == ["present · they"]
 
 
+def test_the_register_is_said_from_where_the_reader_stands() -> None:
+    """The table holds a code only where the two registers disagree, so every line is
+    news — and the same word is ordinary in a Tanakh and an import in a newspaper, so
+    the line depends on which the reader is looking at (targum-internal#140)."""
+    lines = run(
+        [],
+        registerLines=[
+            ["biblical", "biblical"],
+            ["biblical", "modern"],
+            ["modern", "modern"],
+            ["modern", "biblical"],
+            ["", "modern"],
+        ],
+    )["registers"]
+    assert lines == [
+        "biblical · rare today",
+        "biblical · an import here",
+        "modern · not in the Tanakh",
+        "modern · not in the Tanakh",
+        "",
+    ]
+
+
 def test_a_noun_declares_its_gender_and_state() -> None:
     assert grammar("UPOS=NOUN|Gender=Fem|Number=Plur") == ["noun · f · pl."]
     assert grammar("UPOS=NOUN|Gender=Masc|Number=Sing|Definite=Cons") == ["noun · m · construct"]

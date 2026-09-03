@@ -9,6 +9,7 @@ from .base import (
     BAND_COUNT,
     BAND_NAMES,
     HIGHLIGHT_LABELS,
+    LANGUAGES,
     NOT_VOCABULARY,
     UNRATED,
     Bands,
@@ -16,6 +17,7 @@ from .base import (
     Pronouncer,
     highlight_levels,
     method_label,
+    unread,
 )
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
@@ -65,7 +67,9 @@ class Annotator:
         # say about. The name is the annotator's, not the document's, and an annotator
         # that would now record something it did not record before is a different one —
         # which is exactly what makes a text built before this get built again.
-        base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}"
+        # And so is the language rule, for the same reason: it is a fact about what this
+        # annotator does to a block, not about whether any text on the shelf has one.
+        base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}+{LANGUAGES}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
     def annotate(
@@ -80,6 +84,10 @@ class Annotator:
         plain: list[Segment] = []
         to_source: dict[str, list[int]] = {}
         for segment in segmented.segments:
+            if unread(segment, segmented.language):
+                # Not the document's language, so nothing here can read it honestly.
+                # Left without tokens rather than read as Hebrew — see `unread`.
+                continue
             text, _ = strip_nikkud(segment.text)
             if text != segment.text:
                 to_source[segment.id] = pointed_positions(segment.text)

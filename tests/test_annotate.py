@@ -421,6 +421,73 @@ def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
     assert provider.contexts == [{"עם": "ויצא עם העם"}, None]
 
 
+def test_a_sense_bought_bare_is_bought_once_more_when_a_sentence_arrives(
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    """The catalogue's lemmas were all glossed with no sentence behind them, so עם is
+    held as "people" for a reader who met it as "with". They are not re-bought in bulk —
+    that would cost the same per word and guess a sentence. The first tap that carries
+    a sentence buys the word again, grounded, and after that nothing ever is."""
+    from targum.annotate.gloss import cached_gloss
+
+    class Contextual(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append(list(lemmas))
+            sentence = (contexts or {}).get(lemmas[0], "")
+            sense = "with; people" if sentence else "people; nation"
+            return {lemma: (sense, "noun") for lemma in lemmas}
+
+    cache = Cache(tmp_path)
+    provider = Contextual()
+    # Bought by a whole-text build: bare, and it says so.
+    build_glossary(annotation_with({"עם": 1}), "en", provider, cache=cache)
+    bare = cached_gloss("עם", "he", "en", provider.name, cache=cache)
+    assert bare is not None and (bare.gloss, bare.grounded) == ("people; nation", False)
+
+    # Asked with no sentence: what is held is handed over, nothing is bought.
+    assert gloss_one("עם", "he", "en", provider, cache=cache) == bare
+    assert provider.asked == [["עם"]]
+
+    # Asked with one: bought again, and the sentence's sense comes first now.
+    grounded = gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם")
+    assert grounded is not None and (grounded.gloss, grounded.grounded) == ("with; people", True)
+    assert provider.asked == [["עם"], ["עם"]]
+
+    # And that one stands: a different sentence buys nothing.
+    again = gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי")
+    assert again == grounded
+    assert provider.asked == [["עם"], ["עם"]]
+
+
+def test_grounding_that_fails_leaves_the_meaning_that_was_there(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A word that has a meaning does not lose it because the second purchase failed:
+    the reader is shown what was held, and the next sentence tries again."""
+    from targum.errors import ProviderError
+
+    class Down(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            if contexts:
+                raise ProviderError("Anthropic API error 529 while glossing.", "overloaded")
+            return super().gloss(lemmas, source_language, target_language, on_progress)
+
+    cache = Cache(tmp_path)
+    provider = Down()
+    bare = gloss_one("עם", "he", "en", provider, cache=cache)
+    assert bare is not None and not bare.grounded
+    assert gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == bare
+    assert not cached_gloss_is_grounded(cache, provider.name), "a failure grounded nothing"
+    # A word with nothing held is a failure the reader has to hear about.
+    with pytest.raises(ProviderError):
+        gloss_one("בית", "he", "en", provider, cache=cache, context="בית גדול")
+
+
+def cached_gloss_is_grounded(cache: Cache, provider: str) -> bool:
+    from targum.annotate.gloss import cached_gloss
+
+    held = cached_gloss("עם", "he", "en", provider, cache=cache)
+    return held is not None and held.grounded
+
+
 def test_unrated_words_are_still_worth_glossing() -> None:
     from targum.models import Annotation, Token
 
@@ -593,6 +660,16 @@ def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ign
     assert grown["en"].parts_of_speech == {"ארץ": "noun"}
     again = fill_from_cache(annotation, grown, ["en"], cache=cache)
     assert again == {}, "nothing new, nothing written"
+
+    # A reader met ארץ in a sentence since, and the sense was bought again with it. The
+    # cache is the later word, and the file catches up on the next rebuild.
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", annotation.language, "en", gloss_provider_name()),
+        {"gloss": "earth; land", "part_of_speech": "noun", "grounded": True},
+    )
+    caught_up = fill_from_cache(annotation, grown, ["en"], cache=cache)
+    assert caught_up["en"].entries == {"ארץ": "earth; land"}
 
 
 # -- every word is a word ---------------------------------------------------------
@@ -1105,3 +1182,96 @@ def test_a_wordpiece_is_never_a_destination() -> None:
     was = annotated("stanza/1", [(0, "מלבלב", "מלבלב")])
     now = annotated("dicta/1", [(0, "מלבלב", "##לבים")])
     assert between(was, now)["lemmas"] == {}
+
+
+def test_moves_outlive_the_rebuild_that_found_them(tmp_path: Path) -> None:
+    """They lived exactly one rebuild, which is one too few.
+
+    The build that re-annotated put them in the page; the next found the annotator
+    unchanged, worked out nothing, and rendered the page without them. A reader who did
+    not open that targum in between lost their marks for good — and two rebuilds in one
+    evening is not hypothetical, it is what a deploy that fails halfway and is run again
+    does (targum-internal#141).
+    """
+    from targum.annotate.moves import carried, keep
+
+    assert carried(tmp_path) == {}, "a text that has never moved a word says nothing"
+
+    first = keep(tmp_path, {"lemmas": {"לאורך": "ארך"}, "surfaces": {"בו": "הוא"}})
+    assert first["lemmas"] == {"לאורך": "ארך"}
+    assert carried(tmp_path)["lemmas"] == {"לאורך": "ארך"}, "written down, not only returned"
+
+    # The next rebuild moves nothing: the page still has to carry what the first one did.
+    again = keep(tmp_path, {"lemmas": {}, "surfaces": {}})
+    assert again["lemmas"] == {"לאורך": "ארך"}
+    assert again["id"] == first["id"], "unchanged tables keep their name, so it is not reapplied"
+
+
+def test_a_word_that_moves_twice_still_reaches_a_reader_holding_the_first_name(
+    tmp_path: Path,
+) -> None:
+    """Composed rather than merged. A reader who missed the first migration holds לאורך,
+    and after a second annotator change the word is called אורח — so the table has to say
+    לאורך → אורח, not only ארך → אורח, or the second rebuild strands exactly the marks the
+    first one was there to move."""
+    from targum.annotate.moves import keep
+
+    keep(tmp_path, {"lemmas": {"לאורך": "ארך"}, "surfaces": {"לאורך": "ארך"}})
+    now = keep(tmp_path, {"lemmas": {"ארך": "אורח"}, "surfaces": {}})
+
+    assert now["lemmas"]["לאורך"] == "אורח", "the first name follows the second move"
+    assert now["lemmas"]["ארך"] == "אורח"
+    assert now["surfaces"]["לאורך"] == "אורח", "and a surface answer follows it too"
+    assert now["id"] != "", "grown tables get a new name, so the reader applies them again"
+
+
+def test_a_word_that_comes_back_to_itself_is_not_a_move(tmp_path: Path) -> None:
+    """Two annotator changes that cancel out leave the mark where it started, and asking
+    the reader to rename a word onto itself is how one word becomes two."""
+    from targum.annotate.moves import keep
+
+    keep(tmp_path, {"lemmas": {"ספר": "סֵפֶר"}, "surfaces": {}})
+    now = keep(tmp_path, {"lemmas": {"סֵפֶר": "ספר"}, "surfaces": {}})
+
+    assert "ספר" not in now["lemmas"]
+
+
+def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
+    """One `predict` pads every sentence in it to the longest, so a whole book in one call
+    builds a tensor the size of the longest line times the number of lines.
+
+    `targum rebuild --words` on the box peaked at 7.1 GB of a 7.7 GB machine and was
+    OOM-killed on it, twice, which is how this was found — the deploy of the swap itself
+    could not finish (targum-internal#141, targum-internal#93).
+    """
+    from targum.annotate.dicta import BATCH, DictaLemmatizer
+    from targum.models import Segment
+
+    asked: list[int] = []
+
+    class Counting:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            asked.append(len(texts))
+            return [{"tokens": []} for _ in texts]
+
+    lemmatizer = DictaLemmatizer()
+    lemmatizer._model = Counting()
+    lemmatizer._tokenizer = object()
+
+    segments = [
+        Segment(
+            id=f"s{n}",
+            text="הוא הלך לבית הספר.",
+            ref=str(n),
+            kind="paragraph",
+            block_id="b1",
+            block_index=1,
+            index=n,
+        )
+        for n in range(BATCH * 3 + 5)
+    ]
+    read = lemmatizer.lemmas(segments, "he")
+
+    assert len(read) == len(segments), "every segment still comes back, in one dict"
+    assert max(asked) <= BATCH, f"a batch of {max(asked)} was handed over at once"
+    assert sum(asked) == len(segments), "and each segment is asked about exactly once"

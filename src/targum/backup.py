@@ -4,7 +4,10 @@ Readers are rendered from artifacts on disk and models are downloads, so neither
 backed up. Two things are not like that:
 
 **The database.** Accounts, the words somebody has spent months keeping, their phrases,
-the job queue and the spend ledger exist nowhere else.
+the days they read on, the job queue and the spend ledger exist nowhere else. It is
+copied whole rather than table by table, on purpose: the progress page is drawn from
+these same records and keeps nothing of its own, so a copy of the file is a copy of
+everything that page will ever count, including a table nobody has added yet.
 
 **The translation cache.** This module used to say the cache did not need copying,
 because "the readers hold the same translations" — which was true of a tool one person

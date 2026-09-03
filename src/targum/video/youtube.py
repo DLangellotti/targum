@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from ..errors import TargumError
 from . import MAX_VIDEO_BYTES, VIDEO_HEIGHT, ytdlp_available
@@ -31,6 +31,11 @@ from . import MAX_VIDEO_BYTES, VIDEO_HEIGHT, ytdlp_available
 HOSTS = frozenset(
     {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
 )
+
+#: The one shape a video's home is written in. Every address in `HOSTS` names the same
+#: video several ways — youtu.be, /shorts/, m. — and the reader carries exactly one,
+#: because `test_render.py` allows outbound links by prefix and a prefix is one string.
+WATCH = "https://www.youtube.com/watch?v="
 
 #: Never more than the sidecar needs. The format is chosen at the download, because
 #: fetching 1080p to throw three quarters of it away is paying twice.
@@ -54,6 +59,32 @@ def is_youtube(url: str) -> bool:
             "targum reads one video at a time.", "Give the address of a single video."
         )
     return parsed.path.startswith(("/watch", "/shorts/", "/live/"))
+
+
+def video_id(url: str) -> str:
+    """The video's own id, or "" for anything that is not one YouTube video."""
+    try:
+        if not is_youtube(url):
+            return ""
+    except TargumError:
+        return ""
+    parsed = urlparse(url)
+    if parsed.path.startswith("/watch"):
+        found = parse_qs(parsed.query).get("v") or [""]
+        return found[0]
+    # youtu.be/<id>, /shorts/<id>, /live/<id>: the id is the last step of the path.
+    return parsed.path.rstrip("/").rsplit("/", 1)[-1]
+
+
+def watch_url(url: str) -> str:
+    """The canonical address of the video this one names, or "".
+
+    What the reader links home to. One shape for every spelling, so the page's one
+    outbound address is the one the allowlist pins, and so `&t=` can be appended
+    without asking whether the address already carries a query.
+    """
+    found = video_id(url)
+    return f"{WATCH}{found}" if found else ""
 
 
 def fetch(url: str, into: Path) -> Path:

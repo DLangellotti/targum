@@ -136,8 +136,9 @@ var targumReader = function () {
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
-  // which one this text is written in. Codes, not sentences: the words are below, so
-  // rewriting them costs nothing and re-annotating a library is not part of it.
+  // which one this text is written in. Codes, not sentences: the words are in
+  // `registerLine`, so rewriting them costs nothing and re-annotating a library is not
+  // part of it.
   var registers = data.registers || [];
   var sourceRegister = data.sourceRegister || "";
   // Absent in every reader with no Hebrew in it, and in one built before there was
@@ -746,6 +747,14 @@ var targumReader = function () {
   var asked = {};
   // Words whose meaning the card has already asked the cache for, found or not.
   var peeked = {};
+  // Words whose meaning a sentence has chosen — the server's, or asked for from here
+  // this session. A meaning the build shipped was bought for the whole text at once,
+  // with no sentence per word, and עם came back "people" on a page where it was "with".
+  // The first card that opens on such a word asks once more, with the sentence it is
+  // in, and the answer stands for every reader after. Once a session per word: an
+  // answer that is already grounded is a cache hit on the server, and asking again
+  // buys nothing either way.
+  var grounded = {};
   // What came back for a word that had no meaning: "none" when it was looked up and
   // there was nothing to find, or the reason it could not be looked up. Kept so the
   // card can say which, instead of quietly offering the same button again.
@@ -779,6 +788,7 @@ var targumReader = function () {
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
+          if (answer.grounded) grounded[lemma] = true;
           onDone(true);
         } else {
           onDone(false);
@@ -789,11 +799,27 @@ var targumReader = function () {
       });
   }
 
+  // A meaning already on the card, asked about once more with the sentence it is in.
+  // Nothing is claimed while the answer is in the air — the old meaning stays up — and
+  // the card is redrawn only where the answer moved it.
+  function ground(index, word, onChanged) {
+    var lemma = lemmas[index];
+    if (!lemma || grounded[lemma] || !canAsk()) return;
+    grounded[lemma] = true;
+    var before = glosses[index];
+    lookUp(index, sentenceOf(word), function () {
+      if (glosses[index] !== before) onChanged();
+    });
+  }
+
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !canAsk()) return;
     if (asked[lemma]) return;
     asked[lemma] = true;
+    // A lookup that carries its sentence is a grounding: whatever comes back, the
+    // server has now had the sentence, and the card need not send it again.
+    if (sentence) grounded[lemma] = true;
     // The language asked about, held for the length of the flight. A reader can change
     // translations while an answer is in the air, and an English meaning filed against
     // Russian is exactly the thing none of this is allowed to do.
@@ -2308,6 +2334,19 @@ var targumReader = function () {
   // is the usual reason a learner mis-reads it. A verb is parsed, a noun declares its
   // gender and number, an adjective its agreement — and an adverb needs nothing, so
   // it gets nothing.
+  // Which Hebrew a word belongs to, said from where the reader is standing. The table
+  // holds a code only where the two registers disagree, so every line here is news: a
+  // word ordinary in scripture and gone from the street, or in use today and never in
+  // the Tanakh. The same word is ordinary in a Tanakh and an import in a newspaper,
+  // and the line says whichever the reader is looking at.
+  function registerLine(code, source) {
+    if (code === "biblical") {
+      return source === "biblical" ? "biblical · rare today" : "biblical · an import here";
+    }
+    if (code === "modern") return "modern · not in the Tanakh";
+    return "";
+  }
+
   function useLine(line) {
     var pos = feat(line, "UPOS");
     if (pos === "VERB" || pos === "AUX") {
@@ -2683,6 +2722,11 @@ var targumReader = function () {
           card.appendChild(trouble);
         }
       }
+    } else if (!own) {
+      // A meaning is up. If no sentence chose it, this one does — see `grounded`.
+      ground(index, word, function () {
+        if (lookedUp === word) showCard(word);
+      });
     }
 
     // How it is said — the IPA bare, its stress mark being the half of the reading a
@@ -2789,6 +2833,16 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // Which Hebrew the word belongs to, on the cards where that is worth a line at all:
+    // the table is empty wherever the two registers agreed.
+    var where = registerLine(registers[index] || "", sourceRegister);
+    if (where) {
+      var belongs = document.createElement("span");
+      belongs.className = "register";
+      belongs.textContent = where;
+      card.appendChild(belongs);
     }
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
@@ -5864,6 +5918,8 @@ var targumReader = function () {
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
     personWord: personWord,
+    // And the register line: which Hebrew a word belongs to, from where the reader is.
+    registerLine: registerLine,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
@@ -5880,6 +5936,9 @@ var targumReader = function () {
     // places is how two things end up standing in one band.
     occupy: occupy,
     vacate: vacate,
+    // The sentence in front of the reader, for the link home: the line a deep link
+    // should open on when nothing is being spoken.
+    inFront: onScreen,
   };
 })();
 
@@ -6621,6 +6680,35 @@ var targumReader = function () {
     try {
       if (localStorage.getItem(VIDEO_STORE) === "1") showVideo(true, false);
     } catch (e) {}
+  }
+
+  /* The video's home, opened at the line in front of the reader. The sidecar stays
+     the instrument — it plays on a plane and this does not — and the link is a credit
+     that happens to be useful: YouTube's own page, at the second this sentence starts.
+     The address is fixed in the markup and only the time is decided, at the click
+     rather than on every tick, because an address that changes forty times a minute
+     is one nobody can copy. The spans are into this part's own cut, which begins
+     `offset` seconds into the whole video; the two are added here. */
+  var home = document.querySelector("[data-home]");
+  if (home) {
+    var homeBase = home.getAttribute("href");
+    var homeOffset = Number(speech.offset) || 0;
+    var homeAt = function () {
+      // The line being spoken, then the one line playing, then the sentence in front
+      // of the reader — and failing all three, the whole video from its start.
+      var pair = marked || (playing && playing.closest(".pair"));
+      if (!pair) {
+        var reader = window.TargumReader;
+        pair = reader && reader.inFront ? reader.inFront() : null;
+      }
+      var id = pair ? pair.getAttribute("data-id") : "";
+      if (id && spans[id]) return homeOffset + spans[id][0];
+      return audio.currentTime ? homeOffset + audio.currentTime : 0;
+    };
+    home.addEventListener("click", function () {
+      var seconds = Math.max(0, Math.floor(homeAt()));
+      home.href = homeBase + (seconds ? "&t=" + seconds + "s" : "");
+    });
   }
 
   /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */

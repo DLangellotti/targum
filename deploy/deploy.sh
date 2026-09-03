@@ -71,8 +71,19 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # every deploy.
   # The launcher lands in targum's own bin; root then points /usr/local/bin at it,
   # because the service user cannot write to /usr/local/bin and should not be able to.
+  #
+  # Torch from PyTorch's own CPU index rather than PyPI, where the Linux wheel is the
+  # CUDA build and brings 4.9 GB of driver libraries to a box with no GPU. The index
+  # is added beside PyPI, not in front of it: on its own it also carries old copies of
+  # requests and friends, and uv's default of trusting the first index that has a
+  # package would pin them there. Best match across both leaves every other package
+  # exactly where PyPI put it and changes torch alone, from 2.14.0 to 2.14.0+cpu,
+  # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
+  # extras for x86_64 Linux both ways and diffing (targum-internal#93).
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" >/dev/null
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" \
+      --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+      >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   rm -f "${REMOTE_WHEEL}"
   # The directory too: it was root-only, which systemd never minded — it reads the

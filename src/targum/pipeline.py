@@ -189,6 +189,10 @@ class Build:
         notify: Notify | None = None,
     ) -> None:
         self.source = source
+        #: Where a fetched recording lives, when it was fetched from somewhere that is
+        #: its home rather than a file: `_adopt_audio` sets it for a YouTube address
+        #: and the manifest carries it, so the reader can hand the video back.
+        self.home = ""
         self.target_language = target_language
         self.source_language = source_language
         self.style = style
@@ -801,6 +805,11 @@ class Build:
                 and existing.annotator == annotator.name
             ):
                 self.reused.append("difficulty")
+                # Nothing moved this time, and what moved before still has to reach a
+                # reader who has not opened this targum since it did.
+                from .annotate import moves as moves_module
+
+                self.moves = moves_module.carried(path.parent) or None
                 return existing
         try:
             annotation = annotator.annotate(segmented, vocalization)
@@ -813,11 +822,13 @@ class Build:
         # What the words used to be called, worked out here because this is the one
         # moment both annotations exist: the reader's marks are filed by lemma, and a
         # lemma that moved takes a reader's word out of their list without saying so
-        # (targum-internal#141). Read from the file that is about to be overwritten.
+        # (targum-internal#141). Read from the file that is about to be overwritten, and
+        # kept beside it: a build that moves nothing still has to hand the reader what
+        # earlier builds moved.
         if existing is not None and existing.document_hash == segmented.document_hash:
             from .annotate import moves as moves_module
 
-            self.moves = moves_module.between(existing, annotation)
+            self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
         annotation.write(path)
         return annotation
 
@@ -1035,6 +1046,7 @@ class Build:
             address = str(self.source)
             watching = is_youtube(address)
             if watching:
+                self.home = address
                 # The video id, not the path's stem — every watch page's stem is "watch".
                 from urllib.parse import parse_qs
 
@@ -1559,6 +1571,7 @@ class Build:
             self.resolved_out,
             manifest_module.AudioManifest(
                 source=str(self.source),
+                home=self.home,
                 sha256=found.sha256,
                 duration=found.duration,
                 language=drafted.language,

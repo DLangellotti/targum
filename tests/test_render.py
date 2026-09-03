@@ -169,7 +169,14 @@ LICENCE = "https://creativecommons.org/licenses/"
 #: page is the decision the recording's licence link already made. Added when Hebrew
 #: moved off Stanza's NonCommercial models (targum-internal#116).
 DICTA = "https://huggingface.co/dicta-il/"
-OUTBOUND = (PEALIM, LICENCE, DICTA)
+#: Where a video fetched from YouTube lives. targum holds a study copy and the video's
+#: home is not here, and the page says so with the one link that opens there — at the
+#: line being read. Decided on 2026-09-02, for the same reason the hosted fetch stays
+#: refused: the honest posture is that we did not take the video. One canonical shape,
+#: `youtube.WATCH`, whatever address the reader pasted, so this prefix is the whole
+#: allowance; and never for an uploaded file, which has no home to link to.
+YOUTUBE = "https://www.youtube.com/watch?v="
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -250,6 +257,84 @@ def test_a_recorded_reader_links_its_licence_and_nothing_else(
     assert "Rabbi Somebody" in html, "the reader is credited on the page"
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def imported(folder: Path, home: str) -> tuple[Document, SegmentedDocument, Translation]:
+    """A reader built from somebody's own recording: the manifest beside it, a part on
+    disk, and — where the recording was fetched from YouTube — the address it lives at."""
+    import wave
+
+    from targum.audio import manifest as manifest_module
+
+    (folder / "audio" / "parts").mkdir(parents=True)
+    with wave.open(str(folder / "audio" / "parts" / "part-001.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    segments = [paragraph(1), paragraph(2)]
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source=str(folder / "audio" / "source.mp4"),
+            home=home,
+            sha256="x",
+            duration=200.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    # The part begins a hundred seconds in; its cut begins a pad earlier.
+                    start=100.0,
+                    end=200.0,
+                    audio="audio/parts/part-001.wav",
+                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source=str(folder / "audio" / "source.mp4"),
+        title="A talk",
+        language="he",
+        blocks=[],
+        content_hash="h",
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "Said." for segment in segments},
+    )
+    return document, make_segmented(segments), translation
+
+
+def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
+    """The third outbound address, pinned the way the licence is: a video fetched from
+    YouTube links to where it lives, an uploaded file links nowhere, and neither page
+    carries any other address."""
+    document, segmented, translation = imported(tmp_path, "https://youtu.be/abc123")
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'data-home href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
+    assert 'target="_blank" rel="noreferrer noopener"' in html
+    # The time is the reader's line, decided at the click: the markup carries none.
+    assert not re.search(r'data-home href="[^"]*[?&]t=', html)
+    # And the part's place in the whole video, so the script can add the two.
+    assert '"offset": 99.65' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    document, segmented, translation = imported(plain, "")
+    page = render(document, segmented, [translation], plain / "reader", folder=plain)[0]
+    html = page.read_text(encoding="utf-8")
+    assert "data-home href=" not in html, "an uploaded file has no home to go to"
+    assert '"home": ' not in html and '"offset": ' not in html
+    assert YOUTUBE not in html
 
 
 def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:
@@ -401,6 +486,91 @@ def test_word_data_ships_as_offsets_not_spans(tmp_path: Path) -> None:
     assert 'id="list-items"' in html
     controls = html.split("<header", 1)[1].split("</header>", 1)[0]
     assert "band" not in controls.lower()  # a number from inside the program
+
+
+def _verse(index: int, ref: str, text: str, language: str | None = None) -> Segment:
+    return Segment(
+        id=f"{index:04d}.000-cccccc",
+        block_id=f"b{index:04d}",
+        block_index=index,
+        index=0,
+        kind=BlockKind.verse,
+        text=text,
+        ref=ref,
+        language=language,
+    )
+
+
+def _payload(html: str) -> dict[str, object]:
+    found = re.search(
+        r'<script type="application/json" id="targum-data">(.*?)</script>', html, re.S
+    )
+    assert found is not None
+    return dict(json.loads(found.group(1).replace("<\\/", "</")))
+
+
+def _render_verses(out: Path, segments: list[Segment]) -> str:
+    document = Document(
+        source="sefaria:Daniel", title="דניאל", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "tr" for segment in segments},
+    )
+    return render(document, make_segmented(segments), [translation], out)[0].read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_row_in_another_language_says_so_and_the_page_names_the_turn(tmp_path: Path) -> None:
+    """Daniel is Hebrew, then Aramaic from 2:4, then Hebrew again from 8:1. The Aramaic
+    rows carry `lang="arc"` on their own cells — a screen reader and a spell-checker are
+    told the truth — and the turn is named once above the row where it happens, in
+    either direction, rather than on every row of a chapter. Those rows also ship in the
+    payload by tag, so a reader that comes to read it is not left to infer the fact
+    from a missing table (targum-internal#66).
+    """
+    hebrew = _verse(0, "Daniel 2:3", "ויאמר המלך")
+    first = _verse(1, "Daniel 2:4", "מלכא לעלמין חיי", "arc")
+    second = _verse(2, "Daniel 2:5", "ענה מלכא", "arc")
+    back = _verse(3, "Daniel 8:1", "בשנת שלוש", None)
+    html = _render_verses(tmp_path / "r", [hebrew, first, second, back])
+
+    rows = {
+        sid: html.split(f'data-id="{sid}"', 1)[1].split("</div>", 1)[0]
+        for sid in (hebrew.id, first.id, second.id, back.id)
+    }
+    assert 'lang="he"' in rows[hebrew.id] and 'lang="arc"' not in rows[hebrew.id]
+    assert 'lang="arc"' in rows[first.id] and 'lang="arc"' in rows[second.id]
+    assert 'lang="he"' in rows[back.id]
+
+    # The row's opening tag carries the tag too, and the class the stylesheet keys on.
+    assert f'data-id="{first.id}" data-lang="arc"' in html
+    assert "unread" in html.split(f'data-id="{first.id}"', 1)[0].rsplit("<div", 1)[1]
+
+    # Named once at each turn, and nowhere else.
+    assert '<span class="language" lang="en">Aramaic</span>' in rows[first.id]
+    assert 'class="language"' not in rows[second.id], "not on every row of the run"
+    assert '<span class="language" lang="en">Hebrew</span>' in rows[back.id]
+    assert 'class="language"' not in rows[hebrew.id]
+
+    data = _payload(html)
+    assert data["languages"] == {first.id: "arc", second.id: "arc"}
+
+
+def test_a_page_in_one_language_names_no_turn_and_ships_no_table(tmp_path: Path) -> None:
+    """Every text but two, so the key and the label are left out rather than shipped
+    empty in every reader on the shelf."""
+    ruth = [_verse(0, "Ruth 1:1", "ויהי בימי"), _verse(1, "Ruth 1:2", "ושם האיש")]
+    html = _render_verses(tmp_path / "r", ruth)
+    assert 'class="language"' not in html
+    assert "data-lang=" not in html
+    data = _payload(html)
+    assert "languages" not in data
 
 
 def test_no_difficulty_means_no_control(
@@ -1978,8 +2148,189 @@ def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> N
     page carries the chapter numbers so `index.html#12:1` can go on to the right one."""
     folder = tanakh(tmp_path / "reader", first_chapter=12)
     index = (folder / "index.html").read_text(encoding="utf-8")
-    assert '<li data-chapter="1" data-chapters="12">' in index
-    assert '<li data-chapter="2" data-chapters="13">' in index
+    assert '<li data-chapter="1" data-chapters="12" ' in index
+    assert '<li data-chapter="2" data-chapters="13" ' in index
+
+
+def portion(out: Path) -> Path:
+    """A portion the way `targum parasha build` cuts one: chapter 16 runs across two
+    aliyot, each under its own heading, so the chapter is two files and only the verse
+    ranges know which file holds a verse."""
+    segments: list[Segment] = []
+    segments.append(heading(len(segments), 2, "ראשון"))
+    for number in range(1, 4):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שני"))
+    for number in range(4, 7):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שלישי"))
+    for number in range(1, 3):
+        segments.append(verse(len(segments), 17, number))
+    document = Document(
+        source="sefaria:Leviticus", title="אחרי מות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+def test_the_contents_page_knows_which_verses_each_file_holds(tmp_path: Path) -> None:
+    """A portion's files are aliyot and a chapter runs across them, so the chapter
+    number alone sends `index.html#16:5` to the first file of chapter 16, which does not
+    hold verse 5. Each row carries its first and last verse so the script can pick the
+    file that has the verse (targum-internal#142)."""
+    folder = portion(tmp_path / "reader")
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="16" data-from="16:1" data-to="16:3">' in index
+    assert '<li data-chapter="2" data-chapters="16" data-from="16:4" data-to="16:6">' in index
+    assert '<li data-chapter="3" data-chapters="17" data-from="17:1" data-to="17:2">' in index
+
+
+def test_a_book_of_one_chapter_a_file_carries_its_range_too(tmp_path: Path) -> None:
+    folder = tanakh(tmp_path / "reader", first_chapter=12)
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="12" data-from="12:1" data-to="12:3">' in index
+    assert '<li data-chapter="2" data-chapters="13" data-from="13:1" data-to="13:3">' in index
+
+
+def test_a_file_with_no_verse_carries_no_range(tmp_path: Path) -> None:
+    """Prose has no address, so a prose reader's rows say nothing about verses."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, make_segmented(segments), [translation], tmp_path / "reader")
+    index = pages[0].read_text(encoding="utf-8")
+    rows = re.findall(r"<li data-chapter=[^>]*>", index)
+    assert rows == ['<li data-chapter="1">', '<li data-chapter="2">']
+
+
+def torah(out: Path, monkeypatch: pytest.MonkeyPatch, corpus: Path | None) -> str:
+    """Three chapters of Genesis — 5, 6 and 7 — and, where `corpus` is given, an index
+    there with בראשית ending at 6:8 and נח beginning at 6:9. Returns the contents page."""
+    from targum.parasha.models import Index, Portion
+
+    if corpus is not None:
+        corpus.mkdir(parents=True, exist_ok=True)
+        index = Index(
+            portions={
+                "bereshit": Portion(
+                    slug="bereshit",
+                    name="Bereshit",
+                    hebrew="בְּרֵאשִׁית",
+                    numbers=[1],
+                    summary="Genesis 1:1-6:8",
+                    books=["Genesis"],
+                    opening_ref="Genesis 1:1",
+                ),
+                "noach": Portion(
+                    slug="noach",
+                    name="Noach",
+                    hebrew="נֹחַ",
+                    numbers=[2],
+                    summary="Genesis 6:9-11:32",
+                    books=["Genesis"],
+                    opening_ref="Genesis 6:9",
+                ),
+            }
+        )
+        (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    else:
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(out / "nowhere"))
+
+    segments: list[Segment] = []
+    for chapter in (5, 6, 7):
+        segments.append(heading(len(segments), 2, f"בראשית {chapter}"))
+        for number in range(1, 11):
+            segments.append(verse(len(segments), chapter, number))
+    document = Document(
+        source="sefaria:Genesis", title="בראשית", language="he", blocks=[], content_hash="g"
+    )
+    segmented = SegmentedDocument(
+        document_hash="g", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="g",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out / "reader")
+    return (out / "reader" / "index.html").read_text(encoding="utf-8")
+
+
+def test_a_torah_books_contents_page_groups_its_chapters_by_portion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Genesis 6 is listed once, under בראשית, which is where it starts; נח's own name
+    goes to 6:9 in the file that holds chapter 6 (targum-internal #145)."""
+    html = torah(tmp_path, monkeypatch, tmp_path / "parasha")
+
+    assert re.findall(r'<li class="portion" data-portion="([^"]+)">', html) == [
+        "bereshit",
+        "noach",
+    ]
+    rows = re.findall(r'<li data-chapter="(\d+)" data-chapters="(\d+)"', html)
+    assert rows == [("1", "5"), ("2", "6"), ("3", "7")], "every chapter, once"
+    before, after = html.split('data-portion="noach"')
+    assert 'data-chapters="6"' in before, "chapter 6 sits under the portion it starts in"
+    assert 'data-chapters="7"' in after
+    assert '<a class="portion-name" href="sec-0002.html#6:9">נֹחַ</a>' in html
+    assert '<span class="portion-span">Genesis 6:9–11:32</span>' in html
+    assert '<a class="portion-page" href="/parasha/noach" hidden>' in html
+    # The inner lists carry the numbering on rather than starting again at one.
+    assert '<ol start="1">' in before
+    assert '<ol start="3">' in after
+    # A first verse this range does not hold has only its address to point at.
+    assert '<a class="portion-name" href="#1:1">' in before
+
+
+def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The layer is data: with nothing built there is nothing to draw, and a fresh
+    machine gets the page it got before the corpus existed."""
+    html = torah(tmp_path, monkeypatch, None)
+    # The body, not the page: the stylesheet is inlined into every reader and carries the
+    # rules for a layer this page does not draw.
+    body = html[html.index("<body") : html.index("</main>")]
+    assert 'class="portion"' not in body
+    assert "portion-" not in body
+    # The rows carry the verse range each file holds, the way every other contents
+    # page does since a verse link learned to land on the file that has it — the
+    # portion layer is what a machine with no corpus goes without, not the range.
+    assert '<li data-chapter="1" data-chapters="5" data-from="5:1" data-to="5:10">' in html
+    assert '<li data-chapter="3" data-chapters="7" data-from="7:1" data-to="7:10">' in html
+
+
+def test_the_contents_script_keeps_the_key_in_front_of_a_verse_hash() -> None:
+    """`sec-0006.html?k=…#6:9`, not `sec-0006.html#6:9?k=…` — and a portion's own page
+    is a route, which needs no key and is offered only where there is a server."""
+    from targum.render.builder import ASSETS
+
+    contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
+    assert "href.slice(0, cut) + suffix + href.slice(cut)" in contents
+    assert 'href.charAt(0) === "/"' in contents
+    assert '".toc .portion-page"' in contents
 
 
 def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
@@ -1994,7 +2345,8 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
     assert "if (paged()) turnTo(pair);" in reader[reader.index("function jumpToPair") :]
 
     contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
-    assert "[data-chapters~=" in contents
+    assert "[data-from]" in contents, "a verse takes the file whose range holds it"
+    assert "[data-chapters~=" in contents, "a chapter, or a verse no file holds, the chapter's"
     assert "location.replace(row.href + hash);" in contents
 
 
