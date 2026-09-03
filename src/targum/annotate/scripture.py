@@ -31,6 +31,7 @@ from ..models import Segment, Token
 from . import oshb
 from .base import Lemmatizer
 from .canonical import canonical
+from .hebrew import ENDINGS, FINALS
 
 #: Sefaria writes a word the Masoretes read differently as `ketiv [qere]` — both forms,
 #: the read one bracketed. The morphology carries one word there, so a comparison that
@@ -91,6 +92,50 @@ _GENDER = {"m": "Masc", "f": "Fem", "b": "Masc,Fem", "c": "Masc,Fem"}
 _NUMBER = {"s": "Sing", "p": "Plur", "d": "Dual"}
 _PERSON = {"1": "1", "2": "2", "3": "3"}
 
+#: The verb stem, which is the binyan, as the reader already names one. The letter sits
+#: second in a verb code — `Vqp3ms` is qal — and it is the fact the modern annotator has
+#: to guess at from spelling and this one simply has (targum-internal#116).
+#:
+#: The seven are 98% of the verbs in the corpus. The rest are the rarer stems — polel,
+#: pilpel, qal passive and the Aramaic ones the code cannot be told apart from Hebrew
+#: once the language letter is stripped — and they are left unmapped rather than pushed
+#: into the nearest of the seven. A verb with no binyan still gets its root, because the
+#: root here is read from the lexicon and not worked out from the pattern.
+_STEMS = {
+    "q": "פעל",
+    "N": "נפעל",
+    "p": "פיעל",
+    "P": "פועל",
+    "h": "הפעיל",
+    "H": "הופעל",
+    "t": "התפעל",
+}
+
+#: The aspect letter, third in a verb code, as tense and verb form. The waw-consecutive
+#: is read as what it means rather than as what it is spelled: `Vqw3ms` — the form that
+#: carries biblical narrative — is past, and calling it imperfect would tell a learner
+#: that ויאמר is "he will say".
+_ASPECTS: dict[str, tuple[str, str]] = {
+    "p": ("Past", "Fin"),
+    "q": ("Past", "Fin"),
+    "i": ("Fut", "Fin"),
+    "w": ("Past", "Fin"),
+    "h": ("", "Fin"),
+    "j": ("", "Fin"),
+    "v": ("", "Fin"),
+    "r": ("Pres", "Part"),
+    "s": ("", "Part"),
+    "a": ("", "Inf"),
+    "c": ("", "Inf"),
+}
+
+#: A participle writes no person, so its gender and number sit two places earlier than a
+#: finite verb's — `Vhrmsa` is masculine singular, and reading it on the finite layout
+#: found a person where there was none and a gender in the number's place. Every
+#: participle in the Tanakh came out with no morphology at all until this was split out.
+_PARTICIPLE = frozenset("rs")
+_INFINITIVE = frozenset("ac")
+
 #: Where person, gender and number sit inside a code, per class. **Positional, and read
 #: positionally**, which is the whole of the difficulty: the letters mean different things
 #: in different places and several of them collide.
@@ -103,7 +148,7 @@ _PERSON = {"1": "1", "2": "2", "3": "3"}
 #: Index 0 is the class letter, so every offset below counts from there.
 _LAYOUT: dict[str, tuple[int | None, int | None, int | None]] = {
     # class:      person, gender, number
-    "V": (3, 4, 5),  # verb: stem, aspect, then the three
+    "V": (3, 4, 5),  # finite verb: stem, aspect, then the three. See `_verb_layout`.
     "N": (None, 2, 3),  # noun: type, gender, number, state
     "A": (None, 2, 3),  # adjective, same shape as a noun
     "P": (2, 3, 4),  # pronoun: type, then the three
@@ -126,25 +171,77 @@ def _at(code: str, index: int | None, table: dict[str, str]) -> str | None:
     return table.get(code[index])
 
 
-def features(code: str) -> str | None:
-    """Person, gender and number out of a morphology code, in the shape the card reads.
+def _verb_layout(code: str) -> tuple[int | None, int | None, int | None]:
+    """Where person, gender and number sit in a verb code, which the aspect decides."""
+    aspect = code[2] if len(code) > 2 else ""
+    if aspect in _INFINITIVE:
+        return (None, None, None)
+    if aspect in _PARTICIPLE:
+        return (None, 3, 4)
+    return _LAYOUT["V"]
 
-    Deliberately partial. The code carries state, stem and aspect besides, and the card
-    has a line for the three facts a learner is usually missing rather than for
-    everything an editor recorded. What is not read here is not lost — it is still in the
-    morphology, and a later feature can ask for it.
+
+def binyan_of(code: str) -> str | None:
+    """The binyan a verb code names, or None for anything that is not one of the seven.
+
+    The stem is the second letter and is a fact somebody wrote down, which is the whole
+    argument for the lookup: on the modern half the same field is derived from how a
+    lemma happens to be spelled and is right about one verb in twenty.
+    """
+    if not code or code[0] != "V" or len(code) < 2:
+        return None
+    return _STEMS.get(code[1])
+
+
+def root_of(headword: str) -> str | None:
+    """The root of a verb, read off its lexicon entry rather than worked out.
+
+    Strong's numbers a *lexeme*, and for a verb the entry it numbers is the root itself:
+    measured over Genesis, Isaiah, Psalms and Ruth, 16,205 of 16,248 verb pieces have a
+    three-letter headword, and it is the root whatever pattern the word in front of us is
+    in — `מבדיל` is filed under `בדל`, `יקם` under `נקם` with the נ the form does not
+    write. Undoing the pattern here, the way the modern path must, would take that apart
+    again: `hebrew.root_of("הלך", "התפעל")` strips a ה that belongs to the root and comes
+    back two letters short.
+
+    Four letters are kept because Hebrew has quadriliteral roots. Anything else is a
+    lexicon entry that is not a root — a phrase, a defective record — and is dropped.
+    """
+    letters = [ch for ch in _headword(headword).translate(FINALS) if "א" <= ch <= "ת"]
+    if len(letters) not in (3, 4):
+        return None
+    return "".join(letters[:-1]) + letters[-1].translate(ENDINGS)
+
+
+def features(code: str) -> str | None:
+    """The morphology a code carries, in the shape the card reads.
+
+    Person, gender and number, and for a verb its tense and form as well: the reader has
+    a line that says "past · he" and it had nothing to say it with on the biblical half.
+    Still partial — state and the rest stay in the morphology — but no longer partial in
+    a way that leaves a whole register blank.
     """
     if not code:
         return None
-    layout = _LAYOUT.get(code[0])
-    if layout is None:
-        return None
-    person, gender, number = layout
-    kept = [
+    # The part of speech leads, because the reader's grammar line branches on it before
+    # it reads anything else, and a class this function has no layout for still has one
+    # — a particle says "particle" where it used to say nothing at all. See
+    # `hebrew.kept_feats` for why nothing wrote it until now.
+    kept = [f"UPOS={part_of(code)}"] if part_of(code) else []
+    person, gender, number = (
+        _verb_layout(code) if code[0] == "V" else _LAYOUT.get(code[0], (None, None, None))
+    )
+    kept += [
         f"Person={_at(code, person, _PERSON)}" if _at(code, person, _PERSON) else "",
         f"Gender={_at(code, gender, _GENDER)}" if _at(code, gender, _GENDER) else "",
         f"Number={_at(code, number, _NUMBER)}" if _at(code, number, _NUMBER) else "",
     ]
+    if code[0] == "V" and len(code) > 2:
+        tense, form = _ASPECTS.get(code[2], ("", ""))
+        if tense:
+            kept.append(f"Tense={tense}")
+        if form:
+            kept.append(f"VerbForm={form}")
     return "|".join(part for part in kept if part) or None
 
 
@@ -256,8 +353,13 @@ class ScriptureLemmatizer:
         for (start, end, _), word in zip(spans, wanted, strict=True):
             code = word.code
             pointed = oshb.headword(word.lexeme)
+            # The dictionary form the binyan and the root are read off. Where the lexicon
+            # has no entry — a handful of prefixes tagged as content — the bare word
+            # stands in, the same fallback `headword_of` makes.
+            dictionary = pointed or word.pieces[word.content]
             # The same function the band table is counted with, so the two cannot drift.
             lemma = headword_of(word)
+            verb = part_of(code) == "VERB"
             out.append(
                 Token(
                     start=start,
@@ -267,6 +369,8 @@ class ScriptureLemmatizer:
                     band=0,
                     split=len(word.pieces) > 1,
                     pos=part_of(code),
+                    binyan=binyan_of(code) if verb else None,
+                    root=root_of(dictionary) if verb else None,
                     feats=features(code),
                     built=built_from(word),
                     # The points, kept only where they are the difference between two

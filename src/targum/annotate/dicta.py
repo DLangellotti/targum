@@ -28,6 +28,7 @@ hardest would put the licence back exactly where the corpus is thinnest.
 
 from __future__ import annotations
 
+import collections
 from typing import Any
 
 from ..errors import TargumError
@@ -42,7 +43,7 @@ MODEL = "dicta-il/dictabert-joint"
 # What this annotator knows how to say about a word, in the vocabulary `lemma.py` uses
 # for the same list. Identical to Stanza's: the roots survive the swap because the
 # binyan is derived rather than read, and dropping "roots" here would claim otherwise.
-FEATURES = "roots+everyword+names+grammar"
+FEATURES = "roots+everyword+names+grammar/2"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -190,18 +191,27 @@ class DictaLemmatizer:
     different Stanza is a box that should read its Russian again.
     """
 
-    def __init__(self, *, other: Any = None, auto_download: bool = True) -> None:
+    def __init__(
+        self, *, other: Any = None, auto_download: bool = True, model: str = MODEL
+    ) -> None:
         from .lemma import StanzaLemmatizer
 
         self.auto_download = auto_download
         self.other = other if other is not None else StanzaLemmatizer(auto_download=auto_download)
+        # Which DICTA. The joint model unless a scorecard is comparing it with another,
+        # and named in full in `name` either way, so two boxes that read with different
+        # weights never claim to have produced the same annotation.
+        self.model_id = model
         self._model: Any = None
         self._tokenizer: Any = None
+        # How often the model declined and the surface stood in, since the last reset.
+        # Read by the scorecard; a token cannot say on its own that it was a fallback.
+        self.tally: collections.Counter[str] = collections.Counter()
 
     @property
     def name(self) -> str:
         """What made this annotation, stable before the model is loaded."""
-        return f"dicta/{MODEL}/{FEATURES}+{self.other.name}"
+        return f"dicta/{self.model_id}/{FEATURES}+{self.other.name}"
 
     def model(self) -> tuple[Any, Any]:
         """The weights, loaded once and kept where Stanza's are.
@@ -225,8 +235,8 @@ class DictaLemmatizer:
                     "pip install 'transformers>=4.40'",
                 ) from missing
 
-            self._tokenizer = AutoTokenizer.from_pretrained(MODEL)
-            model = AutoModel.from_pretrained(MODEL, trust_remote_code=True)
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+            model = AutoModel.from_pretrained(self.model_id, trust_remote_code=True)
             model.eval()
             torch.set_grad_enabled(False)
             self._model = model
@@ -253,11 +263,11 @@ class DictaLemmatizer:
                     [segment.text for segment in batch], tokenizer, output_style="json"
                 )
                 for segment, said in zip(batch, read, strict=True):
-                    out[segment.id] = _tokens(said)
+                    out[segment.id] = _tokens(said, self.tally)
         return out
 
 
-def _tokens(said: dict[str, Any]) -> list[Token]:
+def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None) -> list[Token]:
     out: list[Token] = []
     for word in said.get("tokens", []):
         morph = word.get("morph") or {}
@@ -268,7 +278,10 @@ def _tokens(said: dict[str, Any]) -> list[Token]:
         seg = list(word.get("seg") or [])
         # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
         # name is never corrected, because בני is a lemma to mend and Benny is a person.
-        lemma = _lemma(word.get("lex") or "", surface, seg[-1] if seg else surface, pos)
+        lex = word.get("lex") or ""
+        lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos)
+        if tally is not None and declined(lex):
+            tally["declined"] += 1
         feats = _stanza_feats(morph.get("feats"))
         binyan = binyan_of(feats) or (_binyan_of(lemma) if pos == "VERB" else None)
         offsets = word.get("offsets") or {}
@@ -284,16 +297,22 @@ def _tokens(said: dict[str, Any]) -> list[Token]:
                 binyan=binyan,
                 root=root_of(lemma, binyan),
                 built=_pieces_of(seg, lemma, morph.get("suffix")),
-                feats=kept_feats(feats),
+                feats=kept_feats(feats, pos),
             )
         )
     return out
 
 
+def declined(lex: str) -> bool:
+    """Whether DICTA gave no usable lemma: nothing, `[BLANK]`, or a raw wordpiece."""
+    lemma = (lex or "").strip()
+    return not lemma or lemma == BLANK or PIECE in lemma
+
+
 def _lemma(lex: str, surface: str, base: str, pos: str | None = None) -> str:
     """The dictionary form, corrected where DICTA is reliably wrong or silent."""
     lemma = (lex or "").strip()
-    if not lemma or lemma == BLANK or PIECE in lemma:
+    if declined(lemma):
         return surface.lower()
     if pos == "PROPN":
         return lemma.lower()

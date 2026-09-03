@@ -74,13 +74,20 @@ def _feat(feats: str | None, key: str) -> str:
     return ""
 
 
-def kept_feats(feats: str | None) -> str | None:
+def kept_feats(feats: str | None, pos: str | None = None) -> str | None:
     """The card's slice of the morphology, in Stanza's own pipe format.
 
     `Definite` is kept only as `Cons` — the construct state is a fact the card names,
     while ordinary definiteness is the ה the pieces line already shows.
+
+    The part of speech leads, as `UPOS=`. The reader has always read it — `useLine`
+    branches on it to decide whether to say "past · he" or "noun · f · pl." — and
+    nothing had ever written it, so the whole grammar line rendered empty for every word
+    of every text while the features behind it shipped in the payload regardless. It
+    goes here rather than in the reader off the kind column because that column only
+    distinguishes a word from a name from a number, which is not a part of speech.
     """
-    kept = []
+    kept = [f"UPOS={pos}"] if pos else []
     for key in KEPT_FEATS:
         value = _feat(feats, key)
         if key == "Definite" and value != "Cons":
@@ -153,7 +160,7 @@ def root_of(lemma: str, binyan: str | None) -> str | None:
     if binyan == "פעל":
         pass
     elif binyan == "נפעל":
-        letters = _strip(letters, "נ")
+        letters = _nifal(letters)
     elif binyan == "פיעל":
         letters = _drop_mater(letters, 1, "י")
     elif binyan == "פועל":
@@ -185,6 +192,34 @@ def _drop_mater(letters: list[str], at: int, mater: str) -> list[str]:
     if len(letters) == 4 and letters[at : at + 1] == [mater]:
         return letters[:at] + letters[at + 1 :]
     return letters
+
+
+def _nifal(letters: list[str]) -> list[str]:
+    """נפעל, whose prefix is a נ and whose weak roots hide behind a vowel letter.
+
+    A regular verb writes נ plus the three radicals and taking the נ off is the whole
+    job: נכתב is כ־ת־ב. Two families do not, and stripping the נ on those invented a
+    root that is not one — measured against the IAHLT treebanks, all eleven of the
+    irregular nifal lemmas in them came out wrong, and ניתן was shown to readers as
+    י־ת־ן.
+
+    The vowel letter in second place says which family it is, and says it unambiguously:
+
+    - a ו stands where a root's first radical י has dropped, exactly as it does in
+      הפעיל — נודע is י־ד־ע, נולד is י־ל־ד, נוסף is י־ס־ף;
+    - a י stands where the root's own first radical נ has assimilated into the pattern's
+      נ, so the two are written once — ניתן is נ־ת־ן, נישא is נ־שׂ־א, ניצב is נ־צ־ב.
+
+    Hebrew roots essentially never begin with ו, which is what makes the first safe; and
+    a נ that is not doubled in writing is the ordinary fate of a root-initial נ, which is
+    what makes the second.
+    """
+    if len(letters) == 4 and letters[:1] == ["נ"]:
+        if letters[1] == "ו":
+            return ["י"] + letters[2:]
+        if letters[1] == "י":
+            return ["נ"] + letters[2:]
+    return _strip(letters, "נ")
 
 
 def _hifil(letters: list[str]) -> list[str]:

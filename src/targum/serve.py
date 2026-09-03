@@ -1576,6 +1576,7 @@ class Library:
         how long they will keep arriving for after the reader opens.
         """
         from .annotate import Annotator, biblical, lemma
+        from .annotate import dictionary as dictionary_module
         from .annotate.gloss import AnthropicGlosses, estimate, unique_lemmas, unpaid
 
         run = SegmentedDocument(
@@ -1591,6 +1592,7 @@ class Library:
             annotation = Annotator(
                 lemmatizer=lemma.for_source(builder.source),
                 bands=biblical.for_source(builder.source),
+                **dictionary_module.for_language(segmented.language),
             ).annotate(run)
         except TargumError:
             # Word help is worth saying goodbye to out loud; it is not worth a card that

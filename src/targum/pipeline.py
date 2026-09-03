@@ -762,6 +762,19 @@ class Build:
             segments=segments,
         )
 
+    def _dictionary(self, language: str) -> dict[str, Any]:
+        """What the dictionary already holds, for the annotator to fill roots from.
+
+        Cache only, and deliberately: a build must not discover halfway through that it
+        owes money for a field, and the root and binyan are an improvement on a card
+        rather than a thing a reader is waiting for. `targum dictionary` buys them; this
+        picks up whatever has been bought. A box that has bought nothing annotates
+        exactly as before, down to the annotator's name.
+        """
+        from .annotate import dictionary as dictionary_module
+
+        return dictionary_module.for_language(language, self.cache)
+
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
     ) -> Annotation | None:
@@ -792,6 +805,7 @@ class Build:
             lemmatizer=self._lemmatizer or lemma.for_source(self.source),
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
+            **self._dictionary(segmented.language),
         )
         existing = read_artifact(Annotation, path)
         if not self.force:

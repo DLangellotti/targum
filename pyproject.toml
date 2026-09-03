@@ -22,11 +22,11 @@ dependencies = [
   "pydantic>=2.7",
   "jinja2>=3.1",
   "stanza>=1.8",
-  # DICTA's weights are loaded through it, and Hebrew is read by DICTA (targum-internal
-  # #116) — so this is as load-bearing as stanza and cannot be an extra. It was one until
-  # the swap, reachable only through `speech-align`, which would have left a default
-  # install raising ImportError on the first Hebrew text while CI stayed green: CI
-  # installs three extras and none of them is that one. Torch rides in with stanza.
+  # Hebrew reads through DICTA since targum-internal#116, and this is what loads the
+  # weights — so it is a hard dependency rather than an extra, as Stanza is. It was
+  # reachable only through the `speech-align` extra until 2026-09-03, which meant a
+  # plain install could segment Hebrew and not find a single dictionary form in it.
+  # Torch rides in with Stanza already.
   "transformers>=4.40",
   "anthropic>=0.40",
   "beautifulsoup4>=4.12",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
 from ..vocalize.base import map_span, pointed_positions, strip_nikkud
 from . import register as register_module
@@ -20,9 +22,12 @@ from .base import (
     unread,
 )
 from .biblical import METHOD as TANAKH_METHOD
+from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
+from .moves import letters as _letters
+from .moves import shared as _shared
 from .pronounce import PhonikudPronouncer
 from .pronounce import supports as pronounceable
 
@@ -45,6 +50,20 @@ __all__ = [
 ]
 
 
+def _spells(root: str, surface: str) -> bool:
+    """Whether a word actually writes the root it is about to be given.
+
+    The radicals of a Hebrew root appear in order inside every form built on it, give or
+    take the one a weak root drops. Two of three is the bar, which is the same screen
+    `moves.same_word` uses for the same reason — a real derivation keeps its letters and
+    a wrong word does not share them.
+    """
+    have = _letters(root)
+    if not have:
+        return False
+    return _shared(root, surface) >= max(2, len(have) - 1)
+
+
 class Annotator:
     """Lemmatize, then band. In that order, because the other way round misses most
     of the vocabulary in a morphologically rich language."""
@@ -54,7 +73,16 @@ class Annotator:
         lemmatizer: Lemmatizer | None = None,
         bands: Bands | None = None,
         pronouncer: Pronouncer | None = None,
+        dictionary: Mapping[str, DictionaryEntry] | None = None,
+        dictionary_name: str = "",
     ) -> None:
+        # What a dictionary says about each form, where one has been bought. It answers
+        # the facts that belong to the word rather than to the occurrence — the root and
+        # the binyan — and it is a mapping rather than a provider because nothing here
+        # may reach the network or spend: the entries are built before a text is
+        # annotated and handed in. See `annotate/dictionary.py`.
+        self.dictionary: Mapping[str, DictionaryEntry] = dictionary or {}
+        self.dictionary_name = dictionary_name if self.dictionary else ""
         if lemmatizer is None:
             # DICTA for Hebrew, Stanza for the rest, the way `lemma.for_source` builds it
             # for a build. The bare default used to be Stanza alone, and four callers
@@ -79,6 +107,10 @@ class Annotator:
         # And so is the language rule, for the same reason: it is a fact about what this
         # annotator does to a block, not about whether any text on the shelf has one.
         base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}+{LANGUAGES}"
+        if self.dictionary_name:
+            # A text read with a dictionary behind it carries facts the same text read
+            # without one does not, so it is a different annotation and says so.
+            base = f"{base}+{self.dictionary_name}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
     @property
@@ -144,6 +176,7 @@ class Annotator:
                     band = cache[token.lemma]
                     in_register = registers[token.lemma]
                 update: dict[str, object] = {"band": band, "word_register": in_register}
+                update |= self._from_dictionary(token)
                 if positions is not None:
                     # Back into the segment's own coordinates, so a token still spans
                     # exactly its own text and carries the marks belonging to it.
@@ -173,6 +206,42 @@ class Annotator:
             ),
             tokens=banded,
         )
+
+    def _from_dictionary(self, token: Token) -> dict[str, object]:
+        """The root and the binyan a dictionary holds for this word, where it holds them.
+
+        **Only fields that are not keys.** A reader's marked words and every bought gloss
+        are filed under the lemma, so moving a lemma orphans both — 23.4% of real marks,
+        measured (targum-internal#141). The root and the binyan are on the card and in
+        nobody's storage, so they can be corrected on any build and cost nothing. The
+        dictionary form the entry also carries is deliberately not applied here: it is
+        the same migration, and it is taken once, deliberately, with a map built first.
+
+        Nothing already found is overwritten. Scripture reads its binyan and root off the
+        hand tagging, and a model does not get to overrule an editor.
+
+        **And the root has to be spelled in the word it is shown on.** The dictionary
+        answers about the form it was given, and the form it was given is whatever the
+        tagger called this word — which for a verb is the wrong word 44% of the time.
+        Ask it about `עשה` and it correctly says ע־שׂ־ה; put that on a card over `הייתה`
+        and the reader is told a lie with a straight face, which is worse than the gap
+        it replaces. So the radicals have to appear, in order, in the surface: two of
+        three, because a weak root really does drop one — ניתן writes its נ once.
+        Measured on the treebanks, this is what takes the roots that reach a card from
+        91.7% right to 98%, at a cost of about a twentieth of the coverage.
+        """
+        entry = self.dictionary.get(token.lemma)
+        if entry is None or token.pos != "VERB":
+            return {}
+        found: dict[str, object] = {}
+        if entry.root and not token.root and _spells(entry.root, token.surface):
+            found["root"] = entry.root
+        if entry.binyan and not token.binyan and (not entry.root or "root" in found):
+            # The binyan and the root are one answer about one word. Keeping the binyan
+            # after refusing the root would say פיעל over a word the dictionary was
+            # never really looking at.
+            found["binyan"] = entry.binyan
+        return found
 
     def _pronounce(
         self,

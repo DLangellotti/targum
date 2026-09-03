@@ -530,6 +530,20 @@ def test_binyan_is_read_off_the_features_stanza_already_produced() -> None:
         ("הוריש", "הפעיל", "ירש"),
         ("הודיע", "הפעיל", "ידע"),
         ("שילם", "פיעל", "שלם"),
+        # נפעל, the regular way: the נ is the pattern's and comes off.
+        ("נכתב", "נפעל", "כתב"),
+        ("נמצא", "נפעל", "מצא"),
+        # And the two families where it is not. A ו in second place stands where a root's
+        # first radical י has dropped, exactly as it does in הפעיל; a י stands where the
+        # root's own נ has assimilated into the pattern's, so the two are written once.
+        # Stripping the נ regardless showed ניתן to readers as י־ת־ן, and got all eleven
+        # of the irregular nifal lemmas in the IAHLT treebanks wrong.
+        ("נודע", "נפעל", "ידע"),
+        ("נולד", "נפעל", "ילד"),
+        ("נותר", "נפעל", "יתר"),
+        ("ניתן", "נפעל", "נתן"),
+        ("נישא", "נפעל", "נשא"),
+        ("ניצב", "נפעל", "נצב"),
     ],
 )
 def test_the_root_behind_a_regular_verb(lemma: str, binyan: str, root: str) -> None:
