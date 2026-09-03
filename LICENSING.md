@@ -21,7 +21,8 @@ building on targum is entitled to know about.
   commercial use and asks to be named. targum names it at the foot of every reader whose
   words it read.
 - Nothing in targum is NonCommercial any more. Two things were: the forced aligner until
-  2026-09-02, and Stanza's Hebrew models until later the same day.
+  2026-09-02, and Stanza's Hebrew models until later the same day — except for the
+  sentence splitter, which the swap overlooked and which ran on them until 2026-09-03.
 
 ## Direct dependencies
 
@@ -72,6 +73,29 @@ Hebrew is now read by **[DICTA](https://huggingface.co/dicta-il/dictabert-joint)
 CC BY 4.0. Stanza stays installed and keeps every other language it served; it is simply
 never handed a Hebrew word. Annotations made before the swap carry Stanza's name and are
 read again — free, because annotating runs on the machine.
+
+**That sentence was not true on the day it was written.** The swap moved every Hebrew
+word off Stanza and left every Hebrew sentence boundary on it: DICTA takes a sentence at
+a time and publishes no splitter, so each sentence it was handed had been cut by Stanza's
+Hebrew tokenizer, trained on the same treebank (targum-internal#146). Since 2026-09-03
+Hebrew sentences are drawn by rule in `segment/hebrew.py`, and Stanza refuses a Hebrew
+text outright rather than being trusted not to receive one; a test pins both, and the
+default annotator was closed the same day, since four callers — the gloss command and three
+that measure — still built it with Stanza alone. No Hebrew text now passes through a Stanza pipeline at any stage —
+segmentation, annotation or difficulty — and the credit at the foot of a reader that
+names DICTA is, from that date, the whole truth.
+
+Measured before the switch, on the 47 readers' stored segmentation: the rules and Stanza
+differ at 2,768 boundary positions against the 18,490 Stanza drew (15.0%, an upper bound
+since a boundary that shifts counts twice), and nearly all of the difference is
+exclamation marks, which Stanza's Hebrew tokenizer had never once split on. The same
+day's review found the lemmatizer routing on the raw language tag, so a text tagged
+`he-IL` or `iw` had been reaching Stanza's Hebrew models since the swap; it routes by
+code now, and Stanza's lemmatizer refuses Hebrew the way its segmenter does. Texts already on a shelf keep the
+segmentation they were translated under — the pipeline reuses it by document hash — so
+the switch bought no translation again. A forced rebuild of everything would re-buy 2,227
+translated segments, about $5.77, and re-annotate and re-time every one of them, which is
+the actual reason nothing forces one.
 
 **What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):
 the two agree on 75% of tokens, DICTA declines to lemmatize 3.7% of them where 1900s

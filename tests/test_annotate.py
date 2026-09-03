@@ -255,25 +255,15 @@ def test_a_different_language_pair_is_a_different_cache_entry(tmp_path) -> None:
     assert paid == 1
 
 
-@pytest.mark.stanza
-def test_hebrew_prefixes_are_stripped_for_real(needs_hebrew_model: None) -> None:
+def test_stanza_lemmatizer_refuses_hebrew() -> None:
+    """Refused at the class, not merely routed around: a caller that reaches for the
+    delegate with a Hebrew text gets an error naming the reason, never the model."""
     from targum.annotate import StanzaLemmatizer
-    from targum.annotate.lemma import PROCESSORS
-    from targum.segment import has_processors
+    from targum.errors import TargumError
 
-    if not has_processors("he", PROCESSORS):
-        pytest.skip("Hebrew lemmatizer not downloaded")
-
-    segmented = document(["בה חי חיי קוממיות ממלכתית, בה עוצבה דמותו הרוחנית, הדתית והמדינית."])
-    annotation = Annotator(lemmatizer=StanzaLemmatizer()).annotate(segmented)
-    tokens = next(iter(annotation.tokens.values()))
-    lemmas = {token.surface: token.lemma for token in tokens}
-    # ו + ה + מדינית, three morphemes deep, resolved to the dictionary form.
-    assert lemmas.get("והמדינית") == "מדיני"
-    assert lemmas.get("הרוחנית") == "רוחני"
-    assert all(token.split for token in tokens if token.surface.startswith("ה"))
-    bands = {token.surface: token.band for token in tokens}
-    assert bands.get("קוממיות", 0) >= 4  # archaic, and banded as such
+    for tag in ("he", "he-IL", "iw"):
+        with pytest.raises(TargumError, match="NonCommercial"):
+            StanzaLemmatizer().pipeline(tag)
 
 
 def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
@@ -1301,3 +1291,34 @@ def test_two_words_that_share_a_spelling_are_two_entries(tmp_path) -> None:  # t
     assert paid == 3
     assert set(glossary.entries) == {"אֵלֶּה", "אָלָה", "בית"}
     assert "אלה" not in glossary.entries, "the shared spelling itself is nobody's entry"
+
+
+def test_the_default_annotator_reads_hebrew_through_dicta_and_never_the_delegate() -> None:
+    """`Annotator()` with nothing passed used to be Stanza alone, and the gloss command,
+    the weekly's gauge and two scripts reached it — each a way for a Hebrew word to reach
+    the NonCommercial model the swap removed (targum-internal#146)."""
+    from targum.annotate.dicta import DictaLemmatizer
+    from targum.models import Segment
+
+    class Refusing:
+        name = "stanza/refused"
+
+        def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+            raise AssertionError(f"the delegate was handed {language}")
+
+    class Empty:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            return [{"tokens": []} for _ in texts]
+
+    annotator = Annotator()
+    assert isinstance(annotator.lemmatizer, DictaLemmatizer)
+    annotator.lemmatizer.other = Refusing()
+    annotator.lemmatizer._model = Empty()
+    annotator.lemmatizer._tokenizer = object()
+
+    segment = Segment(
+        id="s0", text="הוא הלך.", ref="", kind="paragraph", block_id="b0", block_index=0, index=0
+    )
+    # By the code and never the raw tag: an upload's front matter can say any of these.
+    for tag in ("he", "he-IL", "iw", "HE"):
+        assert annotator.lemmatizer.lemmas([segment], tag) == {"s0": []}, tag

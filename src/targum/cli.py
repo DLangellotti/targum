@@ -1611,14 +1611,14 @@ def gloss_command(
     from .annotate import BAND_NAMES, Annotator, frequency_available
     from .annotate.frequency import MISSING
     from .annotate.gloss import AnthropicGlosses, build_glossary, estimate, unique_lemmas
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
         if not frequency_available():
             raise TargumError(*MISSING)
         with console.status("Reading, segmenting and lemmatizing..."):
             document = ingest.load(source)
-            segmented = segment_document(document, StanzaSegmenter())
+            segmented = segment_document(document, HebrewSegmenter())
             annotation = Annotator().annotate(segmented)
 
         lemmas = unique_lemmas(annotation, min_band=from_level)
@@ -1676,10 +1676,10 @@ def align(
 ) -> None:
     """Align an existing translation to a source, and report how well it went."""
     from . import align as align_module
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
-        segmenter = StanzaSegmenter()
+        segmenter = HebrewSegmenter()
         with console.status("Reading and segmenting..."):
             source_document = ingest.load(str(source))
             target_document = ingest.load(str(translation))
@@ -2274,7 +2274,8 @@ def models_fetch(
     # Hebrew's words come from DICTA rather than from Stanza (targum-internal#116), and
     # the point of fetching ahead is that a build reaches for nothing — so the weights
     # come down here, where a box is asking for them, and not in the middle of a job.
-    # Stanza is still fetched for the same language, because it is what segments it.
+    # Nothing of Stanza's is fetched for Hebrew: its sentences are drawn by rule since
+    # targum-internal#146, so no Hebrew model of Stanza's is ever loaded.
     if code == "he":
         from .annotate.dicta import MODEL, DictaLemmatizer
 
@@ -2283,6 +2284,7 @@ def models_fetch(
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             fail(TargumError(f"Could not download {MODEL}.", str(error)))
         console.print(f"[green]Downloaded[/green] {MODEL}")
+        return
 
     # Both builds of the tokenizer, where the language has two: scripture is read with
     # one and everything else with the other, and a box that fetches ahead of a long job
