@@ -83,8 +83,14 @@ def check_address() -> Check:
     return Check("public address", True, address)
 
 
+def _hosted() -> bool:
+    """Whether this is the box: `TARGUM_REQUIRE_ACCOUNT` set is what hosted means, and
+    every check that needs to know reads it here so that no two of them can disagree."""
+    return _env("TARGUM_REQUIRE_ACCOUNT").lower() in {"1", "true", "yes"}
+
+
 def check_account_required() -> Check:
-    if _env("TARGUM_REQUIRE_ACCOUNT").lower() in {"1", "true", "yes"}:
+    if _hosted():
         return Check("hosted mode", True, "every route asks for an account")
     return Check(
         "hosted mode",
@@ -163,9 +169,19 @@ def check_ffmpeg() -> Check:
 
 def check_ytdlp() -> Check:
     """Whether a YouTube address can be fetched. A warning like ffmpeg's, and quieter:
-    the CLI is the only door this opens — the hosted box never fetches from YouTube."""
+    the CLI is the only door this opens — the hosted box never fetches from YouTube, by
+    decision rather than by oversight (`Library.prepare` refuses the paste by name), so
+    on the box the check passes with a note. A warning that is always wrong is a warning
+    nobody reads, and it would take the real one beside it down with it."""
     from .video import ytdlp_available
 
+    if _hosted():
+        return Check(
+            "yt-dlp",
+            True,
+            "not a hosted door; YouTube is fetched on the command line",
+            fatal=False,
+        )
     usable, fix = ytdlp_available()
     if usable:
         return Check("yt-dlp", True, "YouTube imports are on")
@@ -260,7 +276,7 @@ def check_invitations(store: Path) -> Check:
     failure: a box with nobody invited yet is a normal state on the way to inviting
     somebody, and refusing to start would leave no way to run the command that fixes it.
     """
-    if _env("TARGUM_REQUIRE_ACCOUNT").lower() not in {"1", "true", "yes"}:
+    if not _hosted():
         return Check("invitations", True, "not hosted, so no guest list", fatal=False)
     try:
         from .accounts import Store
