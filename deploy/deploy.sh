@@ -107,9 +107,13 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # --words: a text whose words were worked out by an older annotator has them worked
   # out again, on the box, before its page is written. Free, and nothing at all when
   # the annotator has not changed — the name is compared without loading a model.
+  # --gloss: and the meanings that re-annotation left unbought are bought, here, with
+  # the box's key. Nothing when nothing moved; a few dollars once when an annotator
+  # starts filing words under keys nobody has paid for, which oshb/2 did — 92 of 200
+  # rows of Judges opened on "look it up" for a day because this line did not say it.
   systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
     --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum rebuild --words --out /var/lib/targum/targums >/dev/null
+    /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums >/dev/null
 
   # The shared texts a reader with nothing is handed first. Published translations, so
   # nothing is spent; every stage is cached, so after the first time this is a rewrite.

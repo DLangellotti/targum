@@ -151,6 +151,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- `targum rebuild --gloss` buys the meanings the cache lacks, and the deploy passes it.
+  A rebuild filled glossaries from the cache and never bought, which was right until an
+  annotator started filing words under keys nobody had paid for: `oshb/2` reached the box
+  and 92 of the 200 rows on the first page of Judges — היה, אמר, מות — opened on "look
+  it up". Free stays the default; `--gloss` says what it bought and about what it cost,
+  and buys bare, so the first tap on each word grounds it the way a build's do.
 - Every count of words is the same count. "You know 1,285 Hebrew words" on Learn and
   "1,439 words marked known" on Your Progress were the same account at the same moment,
   and the gap was names and numbers: a name marked known has been left out of what
