@@ -22,6 +22,12 @@ dependencies = [
   "pydantic>=2.7",
   "jinja2>=3.1",
   "stanza>=1.8",
+  # Hebrew reads through DICTA since targum-internal#116, and this is what loads the
+  # weights — so it is a hard dependency rather than an extra, as Stanza is. It was
+  # reachable only through the `speech-align` extra until 2026-09-03, which meant a
+  # plain install could segment Hebrew and not find a single dictionary form in it.
+  # Torch rides in with Stanza already.
+  "transformers>=4.40",
   "anthropic>=0.40",
   "beautifulsoup4>=4.12",
   "trafilatura>=1.12",
