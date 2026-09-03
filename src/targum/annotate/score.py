@@ -91,6 +91,10 @@ class Scorecard:
     by_pos: dict[str, collections.Counter[str]] = dataclasses.field(
         default_factory=lambda: collections.defaultdict(collections.Counter)
     )
+    #: Every dictionary form the annotator produced for a verb. A dictionary is bought
+    #: for the forms the tagger actually returns, and nothing knows what those are until
+    #: it has run — so the first pass collects them and the second reads them back.
+    verb_forms: set[str] = dataclasses.field(default_factory=set)
     lemma_misses: collections.Counter[tuple[str, str]] = dataclasses.field(
         default_factory=collections.Counter
     )
@@ -132,6 +136,7 @@ class Scorecard:
 
         if gold.upos == "VERB":
             c["verbs"] += 1
+            self.verb_forms.add(ours.lemma)
             want_binyan = BINYANIM.get(gold.binyan.upper()) if gold.binyan else None
             if want_binyan:
                 c["verbs_with_gold_binyan"] += 1

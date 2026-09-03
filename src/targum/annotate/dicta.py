@@ -41,7 +41,7 @@ MODEL = "dicta-il/dictabert-joint"
 # What this annotator knows how to say about a word, in the vocabulary `lemma.py` uses
 # for the same list. Identical to Stanza's: the roots survive the swap because the
 # binyan is derived rather than read, and dropping "roots" here would claim otherwise.
-FEATURES = "roots+everyword+names+grammar"
+FEATURES = "roots+everyword+names+grammar/2"
 
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
@@ -267,7 +267,7 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
                 binyan=binyan,
                 root=root_of(lemma, binyan),
                 built=_pieces_of(seg, lemma, morph.get("suffix")),
-                feats=kept_feats(feats),
+                feats=kept_feats(feats, pos),
             )
         )
     return out

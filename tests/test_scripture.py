@@ -150,21 +150,21 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
 @pytest.mark.parametrize(
     ("code", "expected"),
     [
-        ("Vqp3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        ("Vqp3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
         # The waw-consecutive, which is the form biblical narrative is told in. Read as
         # the imperfect it is spelled as, the card would tell a learner that ויאמר is
         # "he will say".
-        ("Vqw3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
-        ("Vqi3ms", "Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"),
+        ("Vqw3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Fin"),
+        ("Vqi3ms", "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Fut|VerbForm=Fin"),
         # A participle writes no person, so its gender and number sit two places earlier.
         # On the finite layout this came out with no morphology at all.
-        ("Vqrmpa", "Gender=Masc|Number=Plur|Tense=Pres|VerbForm=Part"),
-        ("Vhrmsa", "Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part"),
-        ("Vqc", "VerbForm=Inf"),
-        ("Ncfsa", "Gender=Fem|Number=Sing"),
-        ("Ncmpa", "Gender=Masc|Number=Plur"),
-        ("Sp2ms", "Person=2|Gender=Masc|Number=Sing"),
-        ("Td", None),
+        ("Vqrmpa", "UPOS=VERB|Gender=Masc|Number=Plur|Tense=Pres|VerbForm=Part"),
+        ("Vhrmsa", "UPOS=VERB|Gender=Masc|Number=Sing|Tense=Pres|VerbForm=Part"),
+        ("Vqc", "UPOS=VERB|VerbForm=Inf"),
+        ("Ncfsa", "UPOS=NOUN|Gender=Fem|Number=Sing"),
+        ("Ncmpa", "UPOS=NOUN|Gender=Masc|Number=Plur"),
+        ("Sp2ms", "UPOS=PRON|Person=2|Gender=Masc|Number=Sing"),
+        ("Td", "UPOS=PART"),
     ],
 )
 def test_the_morphology_is_read_positionally(code: str, expected: str | None) -> None:
@@ -305,3 +305,12 @@ def test_only_a_verb_is_given_a_binyan(tagged: Path) -> None:
     assert all(
         token.binyan is None and token.root is None for token in got["s1"] if token.pos != "VERB"
     )
+
+
+def test_the_grammar_line_has_a_part_of_speech_to_branch_on(tagged: Path) -> None:
+    """`reader.js` reads `UPOS=` out of the grammar string before anything else — it is
+    what decides whether the card says "past · he" or "noun · f · pl." — and nothing had
+    ever written it. So the line rendered empty for every word of every text while the
+    features behind it shipped in the payload regardless."""
+    got = ScriptureLemmatizer(Stub()).lemmas([verse("Genesis 1:1", FIRST)], "he")
+    assert all((token.feats or "").startswith("UPOS=") for token in got["s1"])

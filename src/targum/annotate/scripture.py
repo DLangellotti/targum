@@ -223,11 +223,15 @@ def features(code: str) -> str | None:
     """
     if not code:
         return None
-    layout = _verb_layout(code) if code[0] == "V" else _LAYOUT.get(code[0])
-    if layout is None:
-        return None
-    person, gender, number = layout
-    kept = [
+    # The part of speech leads, because the reader's grammar line branches on it before
+    # it reads anything else, and a class this function has no layout for still has one
+    # — a particle says "particle" where it used to say nothing at all. See
+    # `hebrew.kept_feats` for why nothing wrote it until now.
+    kept = [f"UPOS={part_of(code)}"] if part_of(code) else []
+    person, gender, number = (
+        _verb_layout(code) if code[0] == "V" else _LAYOUT.get(code[0], (None, None, None))
+    )
+    kept += [
         f"Person={_at(code, person, _PERSON)}" if _at(code, person, _PERSON) else "",
         f"Gender={_at(code, gender, _GENDER)}" if _at(code, gender, _GENDER) else "",
         f"Number={_at(code, number, _NUMBER)}" if _at(code, number, _NUMBER) else "",

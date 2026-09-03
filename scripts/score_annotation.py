@@ -43,7 +43,10 @@ def main() -> int:
     parser.add_argument(
         "--dictionary",
         action="store_true",
-        help="fill the root and binyan from what the dictionary already holds (never buys)",
+        help="score again with the dictionary's roots and binyanim filled in",
+    )
+    parser.add_argument(
+        "--buy", action="store_true", help="look up the forms the dictionary has not seen"
     )
     args = parser.parse_args()
 
@@ -64,19 +67,17 @@ def main() -> int:
             sentences = gold.load(corpus, splits)
             if args.limit:
                 sentences = sentences[: args.limit]
-            annotator = score.annotator_for(
-                lemmatizer=_lemmatizer(wanted), **_dictionary(sentences, args.dictionary)
-            )
             print(f"{wanted} on {corpus}: {len(sentences)} sentences", file=sys.stderr)
-            card = score.score(
-                sentences,
-                annotator,
-                corpus=corpus,
-                batch=args.batch,
-                notify=lambda m: print(f"  {m}", end="\r", file=sys.stderr),
-            )
-            print(file=sys.stderr)
+            card = _run(sentences, wanted, corpus, args)
             cards.append(card)
+            if not args.dictionary:
+                continue
+            # The dictionary answers about the forms the tagger returned, and nothing
+            # knows what those are until it has run. So the pass above is the baseline
+            # and this is the same text read again with the answers in hand.
+            held = _dictionary(card.verb_forms, buy=args.buy)
+            if held:
+                cards.append(_run(sentences, wanted, f"{corpus}+dict", args, **held))
 
     print(score.table(cards))
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -92,25 +93,39 @@ def main() -> int:
     return 0
 
 
-def _dictionary(sentences: list[object], wanted: bool) -> dict[str, object]:
-    """What the dictionary already holds for the words in these sentences.
+def _run(sentences: list[object], model: str, corpus: str, args: object, **extra: object) -> object:
+    from targum.annotate import score
 
-    Cache only — `buy=False` — because a scorecard that spent money every time it ran
-    would be run once. Score what has been bought; buy with `targum dictionary`.
+    annotator = score.annotator_for(lemmatizer=_lemmatizer(model), **extra)
+    card = score.score(
+        sentences,
+        annotator,
+        corpus=corpus,
+        batch=args.batch,  # type: ignore[attr-defined]
+        notify=lambda m: print(f"  {m}", end="\r", file=sys.stderr),
+    )
+    print(file=sys.stderr)
+    return card
+
+
+def _dictionary(forms: set[str], buy: bool) -> dict[str, object]:
+    """What the dictionary holds for these forms, buying the rest only when told to.
+
+    Default is cache only, because a scorecard that spent money every time it ran would
+    be run once.
     """
-    if not wanted:
-        return {}
     from targum.annotate import dictionary
 
-    provider = dictionary.provider_name()
-    forms = {token.lemma for sentence in sentences for token in sentence.tokens}  # type: ignore[attr-defined]
-    held = {}
-    for form in forms:
-        entry = dictionary.cached(form, provider)
-        if entry is not None and not entry.empty:
-            held[form] = entry
-    print(f"  dictionary: {len(held)} of {len(forms)} forms held", file=sys.stderr)
-    return {"dictionary": held, "dictionary_name": provider}
+    provider = dictionary.AnthropicDictionary()
+    owing = dictionary.unpaid(forms, provider.name)
+    if owing and buy:
+        print(
+            f"  buying {len(owing)} forms, about ${dictionary.estimate(len(owing)):.2f}",
+            file=sys.stderr,
+        )
+    held, _ = dictionary.build(forms, provider, buy=buy and bool(owing))
+    print(f"  dictionary: {len(held)} of {len(forms)} verb forms answered", file=sys.stderr)
+    return {"dictionary": held, "dictionary_name": provider.name} if held else {}
 
 
 def _lemmatizer(wanted: str) -> object:

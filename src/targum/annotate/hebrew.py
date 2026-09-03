@@ -74,13 +74,20 @@ def _feat(feats: str | None, key: str) -> str:
     return ""
 
 
-def kept_feats(feats: str | None) -> str | None:
+def kept_feats(feats: str | None, pos: str | None = None) -> str | None:
     """The card's slice of the morphology, in Stanza's own pipe format.
 
     `Definite` is kept only as `Cons` — the construct state is a fact the card names,
     while ordinary definiteness is the ה the pieces line already shows.
+
+    The part of speech leads, as `UPOS=`. The reader has always read it — `useLine`
+    branches on it to decide whether to say "past · he" or "noun · f · pl." — and
+    nothing had ever written it, so the whole grammar line rendered empty for every word
+    of every text while the features behind it shipped in the payload regardless. It
+    goes here rather than in the reader off the kind column because that column only
+    distinguishes a word from a name from a number, which is not a part of speech.
     """
-    kept = []
+    kept = [f"UPOS={pos}"] if pos else []
     for key in KEPT_FEATS:
         value = _feat(feats, key)
         if key == "Definite" and value != "Cons":

@@ -31,7 +31,7 @@ PROCESSORS = "tokenize,pos,lemma"
 # into the name, and so into every annotation.json, which is what lets the pipeline spot
 # a file written before a feature existed and redo it. Redoing one is free: Stanza runs
 # on the machine, so nothing is fetched and nothing is spent.
-FEATURES = "roots+everyword+names+grammar"
+FEATURES = "roots+everyword+names+grammar/2"
 
 # Stanza's Hebrew tokenizer comes in two builds, one with a character language model
 # trained on the modern web behind it and one without, and the tokenizer is where a
@@ -227,7 +227,7 @@ def _tokens(document: Any) -> list[Token]:
                     binyan=binyan,
                     root=root_of(lemma, binyan),
                     built=pieces_of(words, content),
-                    feats=kept_feats(content.feats),
+                    feats=kept_feats(content.feats, content.upos or None),
                 )
             )
     return out
