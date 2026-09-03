@@ -362,6 +362,60 @@ def test_an_entry_is_filed_under_the_books_hebrew_title() -> None:
     assert entry["author"] == "בראשית"
 
 
+def test_an_entry_carries_what_the_library_measures_it_by() -> None:
+    """A row is drawn from the catalogue, and the catalogue is written from the index.
+    A portion whose index says nothing reads on the shelf as a text with nothing in it —
+    one minute long and nought per cent hard, which is how the fifty-four first landed
+    there."""
+    from targum.parasha import build as corpus_build
+
+    noach = Portion(
+        slug="noach",
+        name="Noach",
+        hebrew="נֹחַ",
+        numbers=[2],
+        summary="Genesis 6:9-11:32",
+        books=["Genesis"],
+        verses=153,
+        aliyot=7,
+        words=1861,
+        difficulty=23,
+    )
+    (entry,) = corpus_build.entries(Index(portions={"noach": noach}))
+    assert entry["words"] == 1861
+    assert entry["difficulty"] == 23
+    # Through the same parser the library draws its row with: 1,861 words is fourteen
+    # minutes at the reader's 130 a minute, not the one minute nought words rounds to.
+    from targum.catalogue import _entry
+
+    row = _entry(entry)
+    assert row.minutes == 14
+    assert row.difficulty == 23
+
+
+def test_a_blurb_counts_the_aliyot_the_reading_actually_has() -> None:
+    """Seven for the fifty-four, eight where two portions are read as one — the number
+    is in the index, so the sentence has no business hard-coding it."""
+    from targum.parasha import build as corpus_build
+
+    def blurb(aliyot: int) -> str:
+        one = Portion(
+            slug="x",
+            name="X",
+            hebrew="א",
+            numbers=[1],
+            summary="Genesis 1:1-2:3",
+            books=["Genesis"],
+            verses=34,
+            aliyot=aliyot,
+        )
+        (entry,) = corpus_build.entries(Index(portions={"x": one}))
+        return str(entry["blurb"])
+
+    assert blurb(7).endswith("seven aliyot.")
+    assert blurb(8).endswith("eight aliyot.")
+
+
 # -- where each portion begins in its book ------------------------------------
 
 

@@ -30,6 +30,12 @@ class Portion(BaseModel):
     books: list[str] = Field(default_factory=list)
     verses: int = 0
     aliyot: int = 0
+    #: Running words, and the share of them that are hard. Both are measured at build
+    #: time and written down here, because the library draws a row from the catalogue
+    #: and the catalogue is written from this index — a portion with neither reads as a
+    #: text with nothing in it, which is how the fifty-four first reached the shelf.
+    words: int = 0
+    difficulty: int = 0
     #: The words the reading opens with, pointed and accented as the Masorah wrote them.
     #: A portion is named for them, and they are what the page tells a search engine it
     #: is about — the one line that says which reading this is to somebody who knows.

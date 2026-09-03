@@ -175,6 +175,12 @@ class Portion:
     def verses(self) -> int:
         return sum(1 for s in self.segmented.segments if s.kind is BlockKind.verse)
 
+    @property
+    def words(self) -> int:
+        """Running words, counted the way the weekly counts them so the library's
+        minutes mean the same thing on a portion as on the book it came out of."""
+        return sum(len(segment.text.split()) for segment in self.segmented.segments)
+
     def opening(self, words: int = 4) -> tuple[str, str]:
         """The first few words of the reading, and where they are.
 
