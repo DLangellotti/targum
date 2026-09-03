@@ -514,3 +514,76 @@ def test_the_opening_words_describe_the_page(serving: int) -> None:
     assert "Deuteronomy 29:9" in found.group(1), "and where the reading starts"
     # The opening words themselves: pointed Hebrew out of the reading's first verse.
     assert any("\u0591" <= c <= "\u05c7" for c in found.group(1)), "opening words present"
+
+
+# -- the portion before and the one after --------------------------------------
+
+
+def _cycle() -> list[object]:
+    from targum.parasha.models import Portion as P
+
+    return [
+        P(slug="bereshit", name="Bereshit", hebrew="בְּרֵאשִׁית", numbers=[1], summary="x"),
+        P(slug="noach", name="Noach", hebrew="נֹחַ", numbers=[2], summary="x"),
+        P(slug="vzot-haberachah", name="Vzot", hebrew="וְזֹאת הַבְּרָכָה", numbers=[54], summary="x"),
+    ]
+
+
+def _nav(page: str) -> str:
+    """The portions nav alone. Its closing tag is found from its own opening one — the
+    ladder above it is also a nav, and its close comes first in the document."""
+    at = page.index('<nav class="portions"')
+    return page[at : page.index("</nav>", at)]
+
+
+def test_a_portion_page_leads_to_the_portions_before_and_after_it() -> None:
+    from targum.render.builder import parasha_page
+
+    listed = _cycle()
+    nav = _nav(parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed))
+    assert 'class="prev" href="/parasha/bereshit"' in nav
+    assert "בְּרֵאשִׁית" in nav, "named in Hebrew, the way the shelf names it"
+    assert 'class="next" href="/parasha/vzot-haberachah"' in nav
+    assert 'class="all" href="/parasha#sources"' in nav, "signed out, the list on this page"
+
+    wrapped = _nav(parasha_page(listed[2], schedule=cal.Schedule.diaspora, listed=listed))
+    assert 'class="next" href="/parasha/bereshit"' in wrapped, "after וזאת הברכה, בראשית"
+    assert 'class="prev" href="/parasha/noach"' in wrapped
+
+
+def test_a_festival_page_has_no_place_in_the_cycle_but_still_the_whole_list() -> None:
+    from targum.parasha.models import Portion as P
+    from targum.render.builder import parasha_page
+
+    festival = P(
+        slug="pesach", name="Pesach", hebrew="פסח", kind=cal.ReadingKind.festival, summary="x"
+    )
+    nav = _nav(parasha_page(festival, schedule=cal.Schedule.diaspora, listed=_cycle()))
+    assert 'class="prev"' not in nav
+    assert 'class="next"' not in nav
+    assert 'class="all" href="/parasha#sources"' in nav
+
+
+def test_a_signed_in_reader_is_sent_to_the_portion_on_their_own_shelf() -> None:
+    from targum.parasha.models import Portion as P
+    from targum.render.builder import parasha_page
+
+    listed = _cycle()
+    page = parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed, signed_in=True)
+    assert 'class="all" href="/library#parasha-noach"' in page
+    # A doubled week is not on the shelf beside its halves; its first half is.
+    doubled = P(slug="bereshit-noach", name="x", hebrew="x", numbers=[1, 2], summary="x")
+    page = parasha_page(doubled, schedule=cal.Schedule.diaspora, listed=listed, signed_in=True)
+    assert 'class="all" href="/library#parasha-bereshit"' in page
+
+
+def test_the_served_page_carries_the_way_round_the_year(serving: int, built: Index) -> None:
+    listed = [one for one in built.listed()]
+    assert listed, "the fixture builds at least one portion"
+    status, body = get(serving, f"/parasha/{listed[0].slug}")
+    assert status == 200
+    nav = _nav(body)
+    assert 'class="all" href="/parasha#sources"' in nav
+    if len(listed) > 1:
+        assert 'class="prev"' in nav
+        assert 'class="next"' in nav

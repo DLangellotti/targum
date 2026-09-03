@@ -309,3 +309,169 @@ def test_catalogue_entries_are_shaped_like_the_shelf(corpus: Path) -> None:
     assert str(entry["source"]).startswith("sefaria:")
     # Every key the catalogue reader needs, so a merged entry is not half an entry.
     assert {"id", "title", "author", "language", "source", "blurb", "kind"} <= set(entry)
+
+
+# -- the shelf: the portions as one collection ---------------------------------
+
+
+def test_the_portions_are_one_ordered_collection_in_cycle_order() -> None:
+    """Fifty-four loose rows beside the `torah` collection is exactly the shape a
+    collection exists to prevent, and the members run in the order of the year."""
+    from targum.parasha import build as corpus_build
+
+    index = Index(portions={"b": one("b", [2]), "a": one("a", [1]), "c": one("c", [3])})
+    group = corpus_build.collection(index)
+    assert group is not None
+    assert group["id"] == "torah-portions"
+    assert group["ordered"] is True
+    assert group["members"] == ["parasha-a", "parasha-b", "parasha-c"]
+    assert group["members"] == [f"parasha-{p.slug}" for p in index.listed()]
+    assert {"id", "title", "english", "blurb", "members", "ordered"} <= set(group)
+
+
+def test_a_doubled_week_stands_in_for_halves_nobody_built() -> None:
+    """Matot and Masei come apart about once a decade; a corpus with neither has the
+    doubled build on the shelf once, for both numbers."""
+    from targum.parasha import build as corpus_build
+
+    index = Index(portions={"a": one("a", [1]), "b-c": one("b-c", [2, 3]), "d": one("d", [4])})
+    group = corpus_build.collection(index)
+    assert group is not None
+    assert group["members"] == ["parasha-a", "parasha-b-c", "parasha-d"]
+
+
+def test_an_empty_corpus_has_no_collection() -> None:
+    from targum.parasha import build as corpus_build
+
+    assert corpus_build.collection(Index()) is None
+
+
+def test_an_entry_is_filed_under_the_books_hebrew_title() -> None:
+    """So a portion under its collection reads the way the book rows above it do."""
+    from targum.parasha import build as corpus_build
+
+    noach = Portion(
+        slug="noach",
+        name="Noach",
+        hebrew="נֹחַ",
+        numbers=[2],
+        summary="Genesis 6:9-11:32",
+        books=["Genesis"],
+    )
+    (entry,) = corpus_build.entries(Index(portions={"noach": noach}))
+    assert entry["author"] == "בראשית"
+
+
+# -- where each portion begins in its book ------------------------------------
+
+
+def _start(slug: str, hebrew: str, number: int, ref: str, summary: str) -> Portion:
+    book = ref.split(" ")[0]
+    return Portion(
+        slug=slug,
+        name=slug,
+        hebrew=hebrew,
+        numbers=[number],
+        summary=summary,
+        books=[book],
+        opening_ref=ref,
+    )
+
+
+def genesis_index() -> Index:
+    """Three portions of Genesis, out of order, and the first of Exodus."""
+    return Index(
+        portions={
+            "noach": _start("noach", "נֹחַ", 2, "Genesis 6:9", "Genesis 6:9-11:32"),
+            "bereshit": _start("bereshit", "בְּרֵאשִׁית", 1, "Genesis 1:1", "Genesis 1:1-6:8"),
+            "lech-lecha": _start("lech-lecha", "לֶךְ־לְךָ", 3, "Genesis 12:1", "Genesis 12:1-17:27"),
+            "shemot": _start("shemot", "שְׁמוֹת", 13, "Exodus 1:1", "Exodus 1:1-6:1"),
+        }
+    )
+
+
+def test_the_portions_of_a_book_come_in_reading_order_with_their_first_verse() -> None:
+    from targum.parasha import build as corpus_build
+
+    starts = corpus_build.portions_for("Genesis", genesis_index())
+    assert [(s.slug, s.chapter, s.verse) for s in starts] == [
+        ("bereshit", 1, 1),
+        ("noach", 6, 9),
+        ("lech-lecha", 12, 1),
+    ]
+    assert starts[1].hebrew == "נֹחַ"
+    assert starts[1].summary == "Genesis 6:9-11:32"
+
+
+def test_a_book_answers_to_any_of_its_three_names() -> None:
+    """Hebcal's name, the shelf's Hebrew title, and the source the built book carries."""
+    from targum.parasha import build as corpus_build
+
+    index = genesis_index()
+    by_english = corpus_build.portions_for("Genesis", index)
+    assert len(by_english) == 3
+    assert corpus_build.portions_for("בראשית", index) == by_english
+    assert corpus_build.portions_for("sefaria:Genesis", index) == by_english
+
+
+def test_a_book_with_no_portions_has_none(corpus: Path) -> None:
+    """Ruth, and every one of the five on a machine with no corpus built."""
+    from targum.parasha import build as corpus_build
+
+    assert corpus_build.portions_for("Ruth", genesis_index()) == []
+    assert corpus_build.portions_for("sefaria:Ruth", genesis_index()) == []
+    assert corpus_build.portions_for("Genesis", Index()) == []
+    # Off the disk, where the fixture corpus has no index written at all.
+    assert corpus_build.portions_for("Genesis") == []
+
+
+def test_a_portion_written_before_opening_ref_starts_where_its_range_line_says() -> None:
+    from targum.parasha import build as corpus_build
+
+    noach = Portion(
+        slug="noach",
+        name="Noach",
+        hebrew="נֹחַ",
+        numbers=[2],
+        summary="Genesis 6:9-11:32",
+        books=["Genesis"],
+    )
+    (start,) = corpus_build.portions_for("Genesis", Index(portions={"noach": noach}))
+    assert (start.chapter, start.verse) == (6, 9)
+
+
+# -- the portion before and the one after ------------------------------------
+
+
+def test_the_year_wraps_from_the_last_portion_to_the_first() -> None:
+    from targum.parasha.models import neighbours
+
+    listed = [one("a", [1]), one("b", [2]), one("c", [3])]
+
+    def around(portion: Portion) -> list[str | None]:
+        return [p.slug if p else None for p in neighbours(portion, listed)]
+
+    assert around(listed[1]) == ["a", "c"]
+    assert around(listed[2]) == ["b", "a"], "after the last comes the first"
+    assert around(listed[0]) == ["c", "b"]
+
+
+def test_a_doubled_week_stands_between_the_portions_around_both_halves() -> None:
+    from targum.parasha.models import neighbours
+
+    listed = [one("a", [1]), one("b", [2]), one("c", [3]), one("d", [4])]
+    doubled = one("b-c", [2, 3])
+    assert [p.slug for p in neighbours(doubled, listed) if p] == ["a", "d"]
+    # Where the halves are not built, the doubled build is on the shelf itself.
+    shelf = [one("a", [1]), doubled, one("d", [4])]
+    assert [p.slug for p in neighbours(listed[3], shelf) if p] == ["b-c", "a"]
+
+
+def test_a_festival_has_no_place_in_the_cycle() -> None:
+    from targum.parasha.models import neighbours
+
+    listed = [one("a", [1]), one("b", [2])]
+    festival = one("pesach", [], kind=cal.ReadingKind.festival)
+    assert neighbours(festival, listed) == (None, None)
+    assert neighbours(listed[0], []) == (None, None)
+    assert neighbours(listed[0], [listed[0]]) == (None, None), "nowhere else to go"

@@ -888,6 +888,40 @@ body.public {
 }
 .public .daily .cycles a:hover { border-block-end-color: var(--ink); }
 
+/* Where the year goes from here, under the reader: the portion before, the one after,
+   and the whole list. Ruled like the ladder and ink like it; the Hebrew name is in the
+   reading face at text size, because it is the thing being named. */
+.public nav.portions {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 1.25rem 0 2rem;
+  padding-block-start: 0.7rem;
+  border-block-start: 1px solid var(--rule);
+  font-size: 0.9375rem;
+}
+.public nav.portions a { color: var(--ink); text-decoration: none; }
+.public nav.portions .which {
+  display: block;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.public nav.portions bdi {
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  border-block-end: 1px solid transparent;
+}
+.public nav.portions a:hover bdi { border-block-end-color: var(--ink-soft); }
+.public nav.portions .next { text-align: end; }
+.public nav.portions .all {
+  font-size: 0.8125rem;
+  border-block-end: 1px solid var(--rule);
+}
+.public nav.portions .all:hover { border-block-end-color: var(--ink-soft); }
+
 /* Every portion, at the foot. The weekly's source rows, with the Hebrew name doing the
    work the headline does there. */
 .public .portions .story {
