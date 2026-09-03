@@ -2166,8 +2166,9 @@ def models_list() -> None:
 def models_fetch(
     language: Annotated[str, typer.Argument(help="A language tag, such as he or ru.")],
 ) -> None:
-    """Download a language model ahead of time. Use 'embeddings' for the aligner, or
-    'scripture' for the hand-tagged Hebrew Bible."""
+    """Download a language model ahead of time. Use 'embeddings' for the aligner,
+    'scripture' for the hand-tagged Hebrew Bible, or 'gold' for the treebanks the
+    annotator is scored against."""
     from .align import embedding
 
     if language in {"scripture", "tanakh", "oshb"}:
@@ -2185,6 +2186,23 @@ def models_fetch(
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {got} books · {oshb.CREDIT} · {oshb.LICENCE}")
+        return
+
+    if language in {"gold", "iahlt", "treebanks"}:
+        from .annotate import gold
+
+        if gold.available():
+            console.print("[dim]The gold treebanks are already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching the IAHLT treebanks, {gold.LICENCE}. For scoring the annotator "
+            f"only: nothing here is trained on or shipped.[/dim]"
+        )
+        try:
+            got = gold.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(f"[green]Downloaded[/green] {got} files · {gold.CREDIT} · {gold.LICENCE}")
         return
 
     if language in {"embeddings", "align", "aligner"}:
