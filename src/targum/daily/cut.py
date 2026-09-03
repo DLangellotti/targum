@@ -171,6 +171,7 @@ def cut(day: Day, root: Path | None = None) -> Portion:
                     level=segment.level,
                     text=segment.text,
                     ref=segment.ref,
+                    language=segment.language,
                 )
             )
             segments.append(
@@ -183,6 +184,7 @@ def cut(day: Day, root: Path | None = None) -> Portion:
                     level=segment.level,
                     text=segment.text,
                     ref=segment.ref,
+                    language=segment.language,
                 )
             )
 

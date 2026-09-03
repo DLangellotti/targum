@@ -523,6 +523,20 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
   .pair.verse .verse-number { inset-inline-start: 0.2rem; width: 1.4rem; }
 }
 
+/* Where the text turns into another language and back. Daniel is Hebrew, then Aramaic
+   from 2:4, then Hebrew again from 8:1, and the rows of Aramaic carry no words to tap: the
+   annotator leaves what it cannot read honestly alone. A reader who found the taps had
+   stopped working would think the page broken, so the turn is named once, above the row
+   where it happens, in the label's size and `--ink-soft` for the reason the verse number
+   is. Across both columns, since it is about the row and not about the source alone. */
+.pair .language {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  margin-block-end: 0.2rem;
+}
+
 /* The pairing has to be visible, or a learner cannot trust it. */
 .pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
 /* Inset because a sentence is as wide as the column and an outset ring would clip at

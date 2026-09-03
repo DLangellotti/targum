@@ -47,6 +47,11 @@ def band_of(lemma: str, language: str) -> int:
 def hard_share(annotation: Annotation, language: str) -> int:
     """The percentage of running words a learner would have to look up."""
     counts: Counter[int] = Counter()
+    # A block in another language than the document's has no tokens at all — the
+    # annotator leaves it unread rather than reading Aramaic as Hebrew — so it counts for
+    # nothing here, and Daniel is measured on its Hebrew. Not a rule of this function
+    # but of the annotation, and said here because a reader of this number would
+    # otherwise wonder where the Aramaic went.
     for tokens in annotation.tokens.values():
         for token in tokens:
             # The same rule the server applies to an upload: a name is a token the

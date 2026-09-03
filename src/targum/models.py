@@ -156,6 +156,15 @@ class Block(Artifact):
     #: Which side of a dialogue said this, where the block is a turn. Absent everywhere
     #: else, and optional so every artifact written before dialogues existed still reads.
     speaker: str | None = None
+    #: Which language this block is in, where it is not the document's. None means the
+    #: document's, which is every block of every text but two: Daniel and Ezra switch
+    #: into Aramaic mid-book and back, and a document with one language sent their
+    #: Aramaic through the Hebrew lemmatizer, which tagged half of it as names and read
+    #: יָת as the Hebrew verb נתן (targum-internal#66). A BCP-47 tag, like the document's.
+    #: Optional so every artifact written before it existed still reads, and left out of
+    #: `body()` like `ref`, so giving a text its languages costs a re-ingest and not a
+    #: re-translation.
+    language: str | None = None
 
 
 class Document(Artifact):
@@ -199,6 +208,15 @@ class Segment(Artifact):
     #: The block's own ref, carried through. A verse is never split, so a segment of a
     #: numbered text is a verse and can be addressed as one.
     ref: str = ""
+    #: The block's own language, carried through the same way, and None where the block
+    #: has none of its own. Ask `language_in()` rather than reading this: what a stage
+    #: wants to know is which language the words are in, and the answer is usually the
+    #: document's.
+    language: str | None = None
+
+    def language_in(self, document: str) -> str:
+        """Which language this segment's words are in, given the document's."""
+        return self.language or document
 
 
 class SegmentedDocument(Artifact):

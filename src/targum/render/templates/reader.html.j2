@@ -362,15 +362,22 @@
       learner locates a line by chapter and verse and nothing else. The number is a link
       to itself, so the address bar carries the verse and a reader can hand it on. -#}
   {% set at = verses.get(segment.id, '') %}
-  <div class="pair{% if at %} verse{% endif %}{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}"{% if at %} id="{{ at }}" data-ref="{{ segment.ref }}"{% endif %} data-id="{{ segment.id }}" tabindex="-1">
+  {#- A row in another language than the page's says so on its own cells: Daniel turns
+      into Aramaic at 2:4 and back at 8:1, and `lang` is how a screen reader and a
+      spell-checker are told. Where the language turns, a line above the row names it
+      once, in the label's size and ink, so the switch is seen rather than inferred from
+      words that have stopped answering to a tap. -#}
+  {% set tongue = languages.get(segment.id, source_language) %}
+  <div class="pair{% if at %} verse{% endif %}{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}{% if segment.id in languages %} unread{% endif %}"{% if at %} id="{{ at }}" data-ref="{{ segment.ref }}"{% endif %} data-id="{{ segment.id }}"{% if segment.id in languages %} data-lang="{{ tongue }}"{% endif %} tabindex="-1">
+    {% if segment.id in switches %}<span class="language" lang="en">{{ switches[segment.id] }}</span>{% endif %}
     {% if at %}<a class="verse-number" href="#{{ at }}" aria-label="{{ segment.ref }}" title="{{ segment.ref }}">{{ at.split(':')[1] }}</a>{% endif %}
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
-    <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
+    <p class="src plain" data-form="plain" lang="{{ tongue }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
-    <p class="src pointed" data-form="pointed" lang="{{ source_language }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
+    <p class="src pointed" data-form="pointed" lang="{{ tongue }}" dir="{{ source_direction }}">{{ pointed[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
     {% if segment.id in unaccented %}
-    <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
+    <p class="src unaccented" data-form="unaccented" lang="{{ tongue }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
     {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
