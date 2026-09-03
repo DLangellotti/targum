@@ -18,10 +18,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew outright, `Annotator()` with nothing passed reads Hebrew through DICTA rather
   than Stanza alone (the gloss command, the weekly's gauge and two scripts reached that
   default), and `targum models fetch he` no longer fetches Stanza's Hebrew models at all.
-  Measured on the 47 readers before switching: 2,792 of 18,490 boundaries move (15.1%),
-  almost all of them exclamation marks Stanza had never split on, plus 327 speech tags it
-  had cut off their speech and closing quotes it had put at the start of the next
-  segment. A text on a shelf keeps the segmentation it was translated under, because the
+  Measured on the 47 readers before switching: the rules and Stanza differ at 2,768
+  boundary positions of the 18,490 Stanza drew (15.0%), almost all of them exclamation
+  marks Stanza had never split on, plus 327 speech tags it had cut off their speech and
+  closing quotes it had put at the start of the next segment. Review before landing
+  found that `DictaLemmatizer` routed on the raw language tag, so a text whose front
+  matter said `he-IL` or `iw` had been reaching Stanza's Hebrew models since the swap;
+  it routes by code now, and the Stanza lemmatizer refuses Hebrew as the segmenter does.
+  The DICTA weights load once per process rather than once per annotator, since the
+  weekly's gauge builds one per attempt. A text on a shelf keeps the segmentation it was translated under, because the
   pipeline reuses `segments.json` by document hash and the segmenter's name is a record
   rather than a key; `scripts/measure_segmentation.py` reproduces the count and prices
   what a forced rebuild would re-buy (targum-internal#146).

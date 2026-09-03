@@ -44,9 +44,19 @@ The rules:
   goes on: `"מה אתה רוצה?" שאל.` is one thing said and who said it. A full stop after the
   closing quote (`"קורס".`) is bare, and ends it.
 - A dash after the run continues the turn: `– מה יש? – שאל הוא עברית.` is the speech and
-  its tag, and a translation of the tag alone is a fragment.
+  its tag, and a translation of the tag alone is a fragment. Three dashes in a row are a
+  section break, and a dash the block ends on stays where it is.
 - A full stop after a single letter that is itself preceded by a space, a full stop or the
-  start of the text is an initial, and continues.
+  start of the text is an initial, and continues. Only a letter: `בן 5.` ends, and so does
+  `חו"ל.`, whose quote is a gershayim inside the word and not a quote before an initial.
+- A mark followed by anything but space or the end of the block — `3.14`, `?"בוא` — is
+  inside something and ends nothing. Bidirectional and zero-width marks, which pasted text
+  carries after nearly every full stop, are looked through.
+
+Every lookup reads a fixed handful of characters around the mark rather than the rest of
+the block, and the run is matched by one character class with nothing to backtrack into:
+a reader can upload a single block of a megabyte, or a line of ten thousand dots, and the
+build must stay linear in it.
 """
 
 from __future__ import annotations
@@ -60,40 +70,60 @@ from .stanza_segmenter import StanzaSegmenter, stanza_code
 #: says which rules cut it — see the docstring for why that is a record and not a key.
 NAME = "hebrew-rules/1"
 
-TERMINAL = ".!?…"
+#: Sof pasuk (׃) is the verse end of pointed text, and ends a sentence in a paragraph too.
+TERMINAL = ".!?…׃"
 CLOSING = "\"'”’»)]"
 DASHES = "–—-"
 OPENING = "\"'“‘«"
+#: Bidirectional and zero-width controls, invisible and not whitespace.
+FORMAT = "\u200b\u200c\u200d\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069"
 
-# A run of terminal marks, whatever trails it, and the space that would end the sentence.
-_CANDIDATE = re.compile(rf"[{re.escape(TERMINAL)}]+[{re.escape(TERMINAL + CLOSING)}]*(?=\s|$)")
-_INITIAL = re.compile(rf"(?:^|[\s.{re.escape(OPENING)}])\w$")
+# A run: one terminal mark, then any mix of marks, closers and invisibles. One class with
+# no alternative to fall back to, so a run of ten thousand dots is matched once.
+_RUN = re.compile(rf"[{re.escape(TERMINAL)}][{re.escape(TERMINAL + CLOSING + FORMAT)}]*")
+# The first three visible characters after the run, read in place rather than by slicing
+# the rest of the block.
+_AFTER = re.compile(rf"[\s{FORMAT}]*(.{{0,3}})", re.S)
+_LETTER = re.compile(r"[^\W\d_]")
+_DROP_FORMAT = {ord(c): None for c in FORMAT}
+
+
+def _initial(text: str, at: int) -> bool:
+    """Whether the full stop at `at` follows a lone letter: `N.`, `נ.ב.`."""
+    before = text[at - 1 : at] if at else ""
+    if not before or not _LETTER.fullmatch(before):
+        return False
+    earlier = text[at - 2 : at - 1] if at >= 2 else ""
+    return not earlier or earlier.isspace() or earlier == "."
 
 
 def _ends_here(text: str, found: re.Match[str]) -> bool:
+    end = found.end()
+    if end < len(text) and not text[end].isspace():
+        # `3.14`, `?"בוא` — the mark is inside something.
+        return False
     run = found.group(0)
-    marks = run.rstrip(CLOSING)
-    after = text[found.end() :].lstrip()
-
-    if len(marks) != len(run):
+    last_closer = max(run.rfind(closer) for closer in CLOSING)
+    marks = run[last_closer + 1 :].translate(_DROP_FORMAT)
+    if not marks:
         # `...!)` — the terminal is inside something, and the outer sentence goes on.
         return False
-    if "!" not in marks and "?" not in marks and marks != ".":
+    after = _AFTER.match(text, end).group(1)  # type: ignore[union-attr]
+
+    if "!" not in marks and "?" not in marks and marks not in (".", "׃"):
         # Ellipsis alone is a pause, unless a new speaker takes over after it.
         return bool(after) and after[0] in DASHES + OPENING
     if after and after[0] in DASHES and (len(after) == 1 or after[1].isspace()):
         # `– שאל הוא` — the tag stays with what was said. `– – –` is a section break.
-        return after[2:3] in DASHES
-    if marks == "." and _INITIAL.search(text[: found.start()]):
-        return False
-    return True
+        return len(after) > 2 and after[2] in DASHES
+    return not (marks == "." and _initial(text, found.start() + last_closer + 1))
 
 
 def sentences(text: str) -> list[str]:
     """One block's sentences, in order, whitespace-trimmed, nothing dropped."""
     out: list[str] = []
     start = 0
-    for found in _CANDIDATE.finditer(text):
+    for found in _RUN.finditer(text):
         if not _ends_here(text, found):
             continue
         piece = text[start : found.end()].strip()

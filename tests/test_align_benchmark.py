@@ -15,7 +15,7 @@ import pytest
 from targum import ingest
 from targum.align import Aligner, SentenceTransformerEncoder, as_indices, load_gold, score
 from targum.align.embedding import is_downloaded as embeddings_downloaded
-from targum.segment import HebrewSegmenter, is_downloaded, segment_document
+from targum.segment import HebrewSegmenter, is_downloaded, segment_document, stanza_code
 
 CORPUS = Path(__file__).parent / "fixtures" / "corpus"
 
@@ -50,7 +50,8 @@ def test_scores_against_gold(
 
     gold = load_gold(CORPUS / gold_file)
     for language in gold["pair"].split("-"):
-        if not is_downloaded(language):
+        # Hebrew is split by rule and needs nothing on disk.
+        if stanza_code(language) != "he" and not is_downloaded(language):
             pytest.skip(f"{language} model not downloaded")
 
     source = segment_document(ingest.load(str(CORPUS / gold["source"])), segmenter)

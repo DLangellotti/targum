@@ -83,8 +83,8 @@ class Annotator:
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
     ) -> Annotation:
-        # Lemmatize the bare text, never the pointed text. Stanza's Hebrew models are
-        # trained unpointed, and fed nikkud they return lemmas that are not words:
+        # Lemmatize the bare text, never the pointed text. The Hebrew models are trained
+        # unpointed, and fed nikkud Stanza's returned lemmas that are not words:
         # נַּפְשִׁי comes back as נַּ'ְשִׁ, שׁוּבֵךְ as הוּבֵך. Every band, gloss and saved-word
         # grouping downstream is keyed to the lemma, so one pointed source poisons all
         # three. Offsets are mapped back onto the segment as ingested afterwards, which

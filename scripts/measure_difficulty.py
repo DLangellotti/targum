@@ -67,8 +67,8 @@ def measured(entry: Entry, root: Path) -> tuple[int, str]:
     annotation = on_disk(root, entry.source)
     if annotation is not None:
         return hard_share(annotation, entry.language), "on disk"
-    # Nothing built yet: fetch it and read it here. Free — the network and Stanza, and no
-    # model is asked for anything.
+    # Nothing built yet: fetch it and read it here. No spend — the network, the rule
+    # splitter and DICTA — though DICTA on a box without a GPU is about a minute a text.
     document = ingest.load(entry.source)
     segmented = segment_document(document, HebrewSegmenter())
     annotation = Annotator().annotate(segmented)

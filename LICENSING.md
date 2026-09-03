@@ -85,12 +85,16 @@ with Stanza alone. No Hebrew text now passes through a Stanza pipeline at any st
 segmentation, annotation or difficulty — and the credit at the foot of a reader that
 names DICTA is, from that date, the whole truth.
 
-Measured before the switch, on the 47 readers' stored segmentation: the rules move 2,792
-of 18,490 boundaries (15.1%), and nearly all of the moves are exclamation marks, which
-Stanza's Hebrew tokenizer had never once split on. Texts already on a shelf keep the
+Measured before the switch, on the 47 readers' stored segmentation: the rules and Stanza
+differ at 2,768 boundary positions against the 18,490 Stanza drew (15.0%, an upper bound
+since a boundary that shifts counts twice), and nearly all of the difference is
+exclamation marks, which Stanza's Hebrew tokenizer had never once split on. The same
+day's review found the lemmatizer routing on the raw language tag, so a text tagged
+`he-IL` or `iw` had been reaching Stanza's Hebrew models since the swap; it routes by
+code now, and Stanza's lemmatizer refuses Hebrew the way its segmenter does. Texts already on a shelf keep the
 segmentation they were translated under — the pipeline reuses it by document hash — so
-the switch bought no translation again. A forced rebuild of everything would re-buy 2,244
-translated segments, about $5.80, and re-annotate and re-time every one of them, which is
+the switch bought no translation again. A forced rebuild of everything would re-buy 2,227
+translated segments, about $5.77, and re-annotate and re-time every one of them, which is
 the actual reason nothing forces one.
 
 **What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):

@@ -17,8 +17,7 @@ def source(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.mark.stanza
-def test_build_writes_a_reader(source: Path, tmp_path: Path, needs_hebrew_model: None) -> None:
+def test_build_writes_a_reader(source: Path, tmp_path: Path, needs_dicta_model: None) -> None:
     out = tmp_path / "out"
     result = runner.invoke(
         app, ["build", str(source), "--to", "en", "--provider", "null", "--out", str(out)]
@@ -902,3 +901,37 @@ def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(
     group = next(g for g in written["collections"] if g["id"] == "torah-portions")
     assert group["members"] == ["parasha-bereshit", "parasha-noach", "parasha-lech-lecha"]
     assert group["blurb"] == "Mine."
+
+
+def test_models_fetch_he_fetches_dicta_and_nothing_of_stanzas(monkeypatch, tmp_path: Path) -> None:
+    """A licence claim, pinned: Hebrew's sentences are drawn by rule and its words read by
+    DICTA, so no model of Stanza's is fetched for it (targum-internal#146)."""
+    from targum import segment as segment_module
+    from targum.annotate import dicta
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path / "models"))
+    monkeypatch.setattr(dicta.DictaLemmatizer, "model", lambda self: (object(), object()))
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Stanza was asked for a Hebrew model")
+
+    monkeypatch.setattr(segment_module, "download", refuse)
+    monkeypatch.setattr(segment_module, "has_processors", refuse)
+    result = runner.invoke(app, ["models", "fetch", "he"])
+    assert result.exit_code == 0, result.output
+    assert dicta.MODEL in result.output
+
+
+def test_models_fetch_he_says_when_dicta_cannot_be_fetched(monkeypatch, tmp_path: Path) -> None:
+    from targum.annotate import dicta
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path / "models"))
+
+    def broken(self: object) -> None:
+        raise OSError("no route to host")
+
+    monkeypatch.setattr(dicta.DictaLemmatizer, "model", broken)
+    result = runner.invoke(app, ["models", "fetch", "he"])
+    assert result.exit_code == 1
+    assert "Could not download" in result.output
+    assert "Traceback" not in result.output

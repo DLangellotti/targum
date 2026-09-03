@@ -37,20 +37,31 @@ from targum.translate.anthropic_provider import (  # noqa: E402
     batches,
 )
 
+#: Context printed around a boundary, and the tail a boundary is binned by.
+BEFORE, AFTER, TAIL, TOP_TAILS = 40, 30, 2, 16
 
-def ends(block: str, pieces: list[str]) -> set[int]:
+
+def ends(block: str, pieces: list[str]) -> set[int] | None:
     """Where each sentence ends in its block, as offsets; the thing two splitters can
-    agree or disagree about."""
+    agree or disagree about. None where a stored piece is not in its block any more —
+    a text whose segments were repointed by hand — since nothing can be said then."""
     out: set[int] = set()
     at = 0
     for piece in pieces:
-        at = block.index(piece, at) + len(piece)
+        where = block.find(piece, at)
+        if where < 0:
+            return None
+        at = where + len(piece)
         out.add(at)
     return out
 
 
 def around(text: str, at: int) -> tuple[str, str]:
-    return text[max(0, at - 40) : at], text[at : at + 30]
+    return text[max(0, at - BEFORE) : at], text[at : at + AFTER]
+
+
+def tail_of(text: str, at: int) -> str:
+    return text[max(0, at - TAIL) : at]
 
 
 def main() -> None:
@@ -93,19 +104,25 @@ def main() -> None:
 
         moved = 0
         boundaries = 0
+        unmatched = 0
         for block in document.blocks:
             if block.kind in UNSPLIT:
                 continue
             old = ends(block.text, old_by_block.get(block.id, []))
             new = ends(block.text, new_by_block.get(block.id, []))
+            if old is None or new is None:
+                unmatched += 1
+                continue
             boundaries += len(old)
+            # Positions in one segmentation and not the other. A boundary that shifted
+            # by a word counts once as gone and once as new, so this is an upper bound.
             moved += len(old ^ new)
             for at in sorted(new - old):
                 added.append((reader.name, *around(block.text, at)))
-                tails["+" + block.text[max(0, at - 2) : at]] += 1
+                tails["+" + tail_of(block.text, at)] += 1
             for at in sorted(old - new):
                 removed.append((reader.name, *around(block.text, at)))
-                tails["-" + block.text[max(0, at - 2) : at]] += 1
+                tails["-" + tail_of(block.text, at)] += 1
 
         new_texts = {segment.text for segment in fresh.segments}
         changed = [segment for segment in stored.segments if segment.text not in new_texts]
@@ -127,6 +144,7 @@ def main() -> None:
             words=words,
         )
         totals["usd"] += cost
+        totals["unmatched"] += unmatched
 
     head = ("reader", "bounds", "moved", "segs", "changed", "paid", "words")
     print(f"{head[0]:28} " + " ".join(f"{h:>7}" for h in head[1:]))
@@ -136,8 +154,9 @@ def main() -> None:
     print()
     print(f"readers: {len(rows)}")
     print(
-        f"boundaries: {totals['boundaries']}   moved: {totals['moved']} "
+        f"boundaries: {totals['boundaries']}   differing positions: {totals['moved']} "
         f"({100 * totals['moved'] / max(1, totals['boundaries']):.1f}%)"
+        f"   blocks whose stored pieces could not be placed: {totals['unmatched']}"
     )
     print(
         f"stored segments: {totals['segments']}   whose text changes: {totals['changed']} "
@@ -149,7 +168,7 @@ def main() -> None:
     )
     print()
     print("what the moved boundaries end on (+ new boundary, - old one gone):")
-    for tail, count in tails.most_common(16):
+    for tail, count in tails.most_common(TOP_TAILS):
         print(f"  {count:6}  {tail!r}")
 
     random.seed(args.seed)

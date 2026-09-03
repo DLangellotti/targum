@@ -30,11 +30,12 @@ def _unsplit(block: Block, document: Document) -> bool:
     """Whether this block is handed on whole rather than to the segmenter.
 
     The kinds in `UNSPLIT`, and any block in a language other than the document's. The
-    segmenter is built for one language — Stanza is loaded per language and refuses
-    `arc` outright — so a block that says it is in another is not something it can be
-    asked about. Today the only such blocks are verses, which are whole anyway; the
-    rule is here so that a paragraph of Aramaic, when one arrives, is kept whole rather
-    than cut by a Hebrew sentence model that was never trained on it.
+    segmenter routes by the document's language — rules for Hebrew, a Stanza model per
+    language for the rest, and nothing at all for `arc` — so a block that says it is in
+    another is not something it can be asked about. Today the only such blocks are
+    verses, which are whole anyway; the rule is here so that a paragraph of Aramaic,
+    when one arrives, is kept whole rather than cut by rules or a model meant for a
+    different language.
     """
     return block.kind in UNSPLIT or bool(block.language and block.language != document.language)
 

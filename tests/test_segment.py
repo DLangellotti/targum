@@ -112,6 +112,66 @@ def test_an_ellipsis_is_a_pause_unless_a_new_speaker_follows() -> None:
 
 def test_an_initial_does_not_end_a_sentence() -> None:
     assert _sentences("ושם N. O. Body ישב. נ.ב. שלום.") == ["ושם N. O. Body ישב.", "נ.ב. שלום."]
+    assert _sentences("א. הלך. ב. בא.") == ["א. הלך.", "ב. בא."], "at the start of the text too"
+
+
+def test_a_gershayim_inside_a_word_is_not_a_quote_before_an_initial() -> None:
+    """`חו"ל.` ended nothing at first: the ASCII quote was read as an opening quote and the
+    ל as an initial. Thirty-three boundaries on four readers were silently un-drawn."""
+    assert _sentences('הוא נסע לחו"ל. למחרת חזר.') == ['הוא נסע לחו"ל.', "למחרת חזר."]
+    assert _sentences("הוא בן 5. הוא גדול.") == ["הוא בן 5.", "הוא גדול."], (
+        "a digit is not an initial"
+    )
+
+
+def test_a_dash_the_block_ends_on_stays_where_it_is() -> None:
+    assert _sentences("מה? –") == ["מה? –"], "never a one-character segment"
+    assert _sentences("מה? – – – כן.") == ["מה?", "– – – כן."], "three dashes are a section break"
+
+
+def test_a_closer_between_two_marks_leaves_the_last_one_bare() -> None:
+    assert _sentences('הוא אמר "לא.". ואז הלך.') == ['הוא אמר "לא.".', "ואז הלך."]
+
+
+def test_invisible_marks_after_a_full_stop_are_looked_through() -> None:
+    """Pasted Wikipedia and Wikisource text carries a right-to-left mark after nearly
+    every full stop, and ingest normalises to NFC and nothing else."""
+    for mark in ("\u200f", "\u200e", "\u200b", "\u2069"):
+        assert _sentences(f"שלום.{mark} בוקר טוב.") == [f"שלום.{mark}", "בוקר טוב."], repr(mark)
+
+
+def test_sof_pasuk_ends_a_sentence_in_prose() -> None:
+    assert _sentences("בראשית ברא׃ והארץ היתה׃") == ["בראשית ברא׃", "והארץ היתה׃"]
+
+
+def test_a_mark_inside_something_ends_nothing() -> None:
+    assert _sentences("פאי הוא 3.14 בערך. כן.") == ["פאי הוא 3.14 בערך.", "כן."]
+    assert _sentences('מה?"בוא" אמר.') == ['מה?"בוא" אמר.']
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [("", []), ("   ", []), ("רק שלום", ["רק שלום"]), ("…", ["…"]), (". . .", [".", ".", "."])],
+)
+def test_sentences_on_the_edges(text: str, expected: list[str]) -> None:
+    from targum.segment.hebrew import sentences
+
+    assert sentences(text) == expected
+
+
+def test_a_block_of_any_size_splits_in_linear_time() -> None:
+    """A reader can upload a single block of a megabyte, or a line of ten thousand dots,
+    and the build queue is one worker: the first version was quadratic in the block and
+    cubic in a run of marks, and a crafted paragraph would have parked every build."""
+    import time
+
+    from targum.segment.hebrew import sentences
+
+    started = time.perf_counter()
+    assert sentences("." * 20_000 + "x") == ["." * 20_000 + "x"]
+    assert len(sentences("א. " * 20_000)) == 1
+    assert len(sentences("הוא הלך. " * 50_000)) == 50_000
+    assert time.perf_counter() - started < 2.0
 
 
 def test_nothing_is_dropped_and_nothing_is_reordered() -> None:
@@ -145,12 +205,41 @@ def test_hebrew_never_reaches_a_stanza_pipeline(monkeypatch: pytest.MonkeyPatch)
         StanzaSegmenter().pipeline("he")
 
 
+def test_the_delegate_is_told_not_to_download(monkeypatch: pytest.MonkeyPatch) -> None:
+    import stanza
+
+    from targum.errors import ModelMissing
+    from targum.segment import HebrewSegmenter, stanza_segmenter
+
+    monkeypatch.setattr(stanza_segmenter, "is_downloaded", lambda *args, **kwargs: False)
+    monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: pytest.fail("downloaded"))
+    with pytest.raises(ModelMissing, match="not downloaded"):
+        HebrewSegmenter(auto_download=False).split(["Один. Два."], "ru")
+
+
+def test_the_name_carries_the_installed_stanza_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib.metadata as metadata
+
+    from targum.segment import stanza_segmenter
+
+    monkeypatch.setattr(metadata, "version", lambda name: "9.9.9")
+    assert stanza_segmenter.StanzaSegmenter().name == "stanza/9.9.9"
+
+    def missing(name: str) -> str:
+        raise metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(metadata, "version", missing)
+    assert stanza_segmenter.StanzaSegmenter().name == "stanza/unknown"
+
+
 def test_other_languages_still_go_to_the_delegate() -> None:
     from targum.segment import HebrewSegmenter
 
     class Counting:
         name = "fake/1"
-        asked: list[str] = []
+
+        def __init__(self) -> None:
+            self.asked: list[str] = []
 
         def split(self, texts: list[str], language: str) -> list[list[str]]:
             self.asked.append(language)

@@ -217,7 +217,7 @@ def main() -> None:
 
     print(f"{len(kept)} to annotate", file=sys.stderr, flush=True)
 
-    # Stage two: Stanza, loaded once.
+    # Stage two: the annotator (DICTA for Hebrew) and the segmenter, built once.
     bands = FrequencyBands()
     segmenter = HebrewSegmenter()
     out: list[Screened] = []
