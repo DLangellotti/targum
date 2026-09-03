@@ -694,8 +694,10 @@ def learn_page(token: str) -> str:
     """The page you land on: carry on, what you have, what you know.
 
     In that order on purpose. Most visits are somebody returning to a text rather than
-    looking for a new one, and the brand rule is that the reader is a reader rather than
-    a player — so the numbers sit under the thing you came to do, not over it.
+    looking for a new one, and the brand rule is that engagement is welcome but arcade is
+    not (§1) — so the numbers sit under the thing you came to do, not over it. This used
+    to cite "the reader is a reader, not a player", which was withdrawn on 2026-09-03;
+    the half of it that governs this page was not.
 
     Nothing about the reader is baked in. The shelf comes from `/readers` and the words
     from the browser's own stores, which is what lets one rendered page serve everybody.

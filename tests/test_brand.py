@@ -320,3 +320,19 @@ def test_every_section_the_code_cites_is_a_section_that_exists() -> None:
 
     missing = sorted(cited - headings, key=int)
     assert not missing, "the code cites §" + ", §".join(missing) + ", which design.md lacks"
+
+
+def test_a_page_that_can_be_heard_says_so_in_ink() -> None:
+    """§1, §9, and the §12 entry of 2026-09-03.
+
+    A text that carries media opens as its media, and the player's own name is what says
+    the page can be heard. §9 keeps muted for "genuinely secondary lines only — captions,
+    metadata", so the name is ink: at 13px in `--ink-soft` it read as chrome to the first
+    stranger, a designer, who looked straight at it and never found the audio.
+    """
+    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    rule = re.search(r"\.player-said\s*\{([^}]*)\}", text)
+    assert rule is not None, "the player still names itself"
+    body = rule.group(1)
+    assert "var(--ink)" in body, ".player-said must be ink, not muted (§9)"
+    assert "--ink-soft" not in body, "the name of the thing is not metadata (§9)"

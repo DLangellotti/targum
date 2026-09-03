@@ -6717,14 +6717,22 @@ var targumReader = function () {
     }
   }
 
-  /* The picture, brought out and put away. Off by default — the reader is a reader,
-     not a player, and the transport stays the strip — so the toggle only decides
-     whether the picture is on the page, never whether anything sounds. Kept per text,
-     like the closed player and for the same reason. On a narrow window the panel is an
-     occupant of the band, one at a time with the sheet and the cards. */
+  /* The picture, on when the text opens and put away by hand. A text that carries media
+     opens as its media (design.md §1, §12, 2026-09-03): the default reversed after the
+     first stranger was shown a page with a recording and never found out it could be
+     heard. The toggle still only decides whether the picture is on the page, never
+     whether anything sounds — nothing plays until pressed, which is the half of the old
+     rule that survived. Kept per text, like the closed player, but stored the other way
+     up: the store now records that a reader put the picture away, because the thing
+     worth remembering is the departure from the default and not the default itself. On a
+     narrow window the panel is an occupant of the band, one at a time with the sheet and
+     the cards. */
   if (videoBox && videoEl) {
     var flips = Array.prototype.slice.call(document.querySelectorAll("[data-video]"));
-    var VIDEO_STORE = "targum:video-open:" + spokenOf;
+    /* A new key, not the old one inverted: `targum:video-open` meant "this reader opened
+       the picture", and reading those stored 1s as "put it away" would shut the panel for
+       exactly the readers who liked it. The old key is left where it is and ignored. */
+    var VIDEO_STORE = "targum:video-shut:" + spokenOf;
 
     var revideo = function () {
       var reader = window.TargumReader;
@@ -6742,8 +6750,8 @@ var targumReader = function () {
       if (!out && reader && reader.vacate) reader.vacate("video");
       if (chosen) {
         try {
-          if (out) targumKeep(VIDEO_STORE, "1");
-          else targumForget(VIDEO_STORE);
+          if (out) targumForget(VIDEO_STORE);
+          else targumKeep(VIDEO_STORE, "1");
         } catch (e) {}
       }
       revideo();
@@ -6783,9 +6791,13 @@ var targumReader = function () {
       setRate(rate, false);
     });
 
+    /* On unless this reader put it away here before. Not `chosen`, so opening the page
+       never writes a preference the reader did not express. */
+    var putAway = false;
     try {
-      if (localStorage.getItem(VIDEO_STORE) === "1") showVideo(true, false);
+      putAway = localStorage.getItem(VIDEO_STORE) === "1";
     } catch (e) {}
+    showVideo(!putAway, false);
   }
 
   /* The video's home, opened at the line in front of the reader. The sidecar stays

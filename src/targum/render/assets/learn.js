@@ -2,8 +2,11 @@
  *
  * How many words you know, then three doors — carry on, find something, bring your own —
  * then your shelf, then the words and phrases themselves. The count is one line rather
- * than a panel of numbers: the reader is a reader rather than a player, and the charts
- * that make an account of it live on Your Progress.
+ * than a panel of numbers: engagement is welcome and arcade is not (design.md §1), and
+ * the charts that make an account of it live on Your Progress. That rule used to be
+ * written "the reader is a reader rather than a player"; the sentence was withdrawn on
+ * 2026-09-03 when a text that carries media began opening as its media, but the half of
+ * it that keeps a scoreboard off this page still stands.
  *
  * Everything here is drawn from what already exists. `targum:opened` says which text you
  * had open last and already syncs; `/readers` says what is on your shelf and, since
