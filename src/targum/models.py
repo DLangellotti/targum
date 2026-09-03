@@ -277,6 +277,21 @@ class Token(Artifact):
     # verb form, and the construct state — in the pipe format Stanza gave it. On the
     # occurrence, because agreement is: מילים is Plur where מילה is Sing.
     feats: str | None = None
+    # The pointed dictionary form, carried only where the bare lemma is shared by more
+    # than one word. `אלה` is filed under one spelling whether it is אֵלֶּה, these, or
+    # אָלָה, a curse, and a meaning bought for one was shown for the other (the first
+    # tap in a parasha with five curses grounded "curse; oath" onto every "these" in the
+    # Tanakh). The lemma stays the word's identity — what a reader marks known, what
+    # the bands are counted on — and this is what its meaning is looked up under. Only
+    # the scripture path knows it, from the lexicon; absent everywhere else, and on
+    # annotations written before it existed.
+    headword: str | None = None
+
+    @property
+    def glossed_as(self) -> str:
+        """The form a meaning is bought and filed under: the headword where two words
+        share a spelling, the lemma everywhere else."""
+        return self.headword or self.lemma
 
 
 class Annotation(Artifact):

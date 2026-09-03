@@ -171,16 +171,13 @@ def available() -> bool:
 
 
 _HEADWORDS: dict[str, str] | None = None
+#: Bare spelling -> every pointed headword written that way. How the lexicon says a
+#: spelling is shared: `אלה` has five entries, and which one a word belongs to is a fact
+#: the morphology knows and the bare lemma throws away.
+_SPELLED: dict[str, set[str]] | None = None
 
 
-def headword(lexeme: str) -> str:
-    """The Hebrew word a Strong's number names, pointed, or "" where it names none.
-
-    The number arrives as the morphology writes it — `7225`, or `1254 a` where a lexeme
-    was split into senses after Strong numbered it. The letter is a distinction Strong's
-    own dictionary does not carry, so it is dropped to find the headword and kept on the
-    token, where it still tells `ספר` the book from `ספר` the scribe.
-    """
+def _lexicon() -> dict[str, str]:
     global _HEADWORDS
     if _HEADWORDS is None:
         path = root() / LEXICON_FILE
@@ -188,10 +185,48 @@ def headword(lexeme: str) -> str:
             _HEADWORDS = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             _HEADWORDS = {}
+    return _HEADWORDS
+
+
+def headword(lexeme: str) -> str:
+    """The Hebrew word a Strong's number names, pointed, or "" where it names none.
+
+    The number arrives as the morphology writes it — `7225`, or `1254 a` where a lexeme
+    was split into senses after Strong numbered it. The letter is a distinction Strong's
+    own dictionary does not carry, so it is dropped to find the headword. What tells
+    `סֵפֶר` the book from `סֹפֵר` the scribe is the pointing of the headword itself —
+    see `contested`.
+    """
     number = (lexeme or "").strip().split(" ")[0].lstrip("H")
     if not number.isdigit():
         return ""
-    return _HEADWORDS.get(number, "")
+    return _lexicon().get(number, "")
+
+
+def bare(text: str) -> str:
+    """Letters only, with the space of a two-word headword kept."""
+    stripped = "".join(
+        ch for ch in unicodedata.normalize("NFC", text or "") if not unicodedata.combining(ch)
+    )
+    return re.sub(r"\s+", " ", re.sub(r"[^א-ת ]", "", stripped)).strip()
+
+
+def contested(spelling: str) -> bool:
+    """Whether more than one headword in the lexicon is spelled this way bare.
+
+    `אלה` is: אֵלֶּה these, אָלָה a curse, אֵלָה a terebinth, and two more. `בית` is not:
+    every entry written that way is בַּיִת. Measured over the whole lexicon, 1,160 of
+    6,242 bare spellings are shared, by 2,851 headwords between them — and for each of
+    those the bare lemma alone cannot say which word this is, so a meaning filed under
+    it alone is filed under the wrong word half the time.
+    """
+    global _SPELLED
+    if _SPELLED is None:
+        spelled: dict[str, set[str]] = {}
+        for head in _lexicon().values():
+            spelled.setdefault(bare(head), set()).add(unicodedata.normalize("NFC", head))
+        _SPELLED = spelled
+    return len(_SPELLED.get(bare(spelling), ())) > 1
 
 
 def parse_lexicon(xml: str) -> dict[str, str]:
@@ -336,9 +371,10 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
-    global _HEADWORDS
+    global _HEADWORDS, _SPELLED
     _loaded.clear()
     _HEADWORDS = None
+    _SPELLED = None
 
 
 _REF = re.compile(r"^(?P<book>.+?)\s+(?P<chapter>\d+)[:.](?P<verse>\d+)\s*$")

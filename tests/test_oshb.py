@@ -139,3 +139,22 @@ def test_a_word_read_as_it_is_written_carries_no_ketiv(tagged: Path) -> None:
     treat a non-empty one as the exception it is."""
     for word in oshb.words("Genesis 1:1"):  # type: ignore[union-attr]
         assert word.ketiv == ""
+
+
+def test_the_lexicon_says_which_spellings_are_shared(tagged: Path) -> None:
+    """אלה is five headwords; בית is one. A meaning filed under the bare spelling alone is
+    filed under the wrong word for the first and the right one for the second, and this
+    is how the scripture path tells them apart."""
+    (tagged / oshb.LEXICON_FILE).write_text(
+        json.dumps(
+            {"423": "אָלָה", "428": "אֵלֶּה", "1004": "בַּיִת", "1035": "בֵּית לֶחֶם"},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    oshb.forget()
+    assert oshb.contested("אלה")
+    assert oshb.contested("אָלָה"), "asked with points or without, the answer is the same"
+    assert not oshb.contested("בית")
+    assert not oshb.contested("בית לחם"), "a two-word headword is its own spelling"
+    assert not oshb.contested(""), "nothing is not a shared spelling"
