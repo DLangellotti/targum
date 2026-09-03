@@ -862,6 +862,30 @@ def test_the_register_is_recorded_beside_the_band() -> None:
     assert [token.word_register for token in tokens] == ["biblical", "modern", None]
 
 
+def test_on_the_tanakh_a_word_is_never_modern() -> None:
+    """The annotator knows it is reading scripture from the bands it was handed, and on
+    scripture the register line has one answer fewer: the word is on the page, so "not
+    in the Tanakh" is not something the table can say about it (targum-internal#156).
+    """
+    from targum.annotate import biblical, register
+
+    class TanakhLike(FakeBands):
+        method = biblical.METHOD
+
+    assert register.of("אוטובוס", "he") == "modern", "the lexicon would say so"
+    cold = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands())
+    assert not cold.scripture
+    (tokens,) = cold.annotate(document(["אוטובוס"])).tokens.values()
+    assert tokens[0].word_register == "modern"
+
+    tanakh = Annotator(lemmatizer=FakeLemmatizer(), bands=TanakhLike())
+    assert tanakh.scripture
+    (tokens,) = tanakh.annotate(document(["אוטובוס"])).tokens.values()
+    assert tokens[0].word_register is None
+    (tokens,) = tanakh.annotate(document(["זבח"])).tokens.values()
+    assert tokens[0].word_register == "biblical", "the other direction is untouched"
+
+
 def test_a_name_has_no_register() -> None:
     """A name is not vocabulary, which is already why it has no band.
 

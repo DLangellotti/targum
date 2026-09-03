@@ -188,6 +188,31 @@ def check_ytdlp() -> Check:
     return Check("yt-dlp", False, "yt-dlp is not installed.", fix, fatal=False)
 
 
+def check_scripture() -> Check:
+    """Whether the Hebrew Bible is read from the hand tagging or guessed at by a model.
+
+    A warning rather than a failure: a box without the tagging still builds a Tanakh,
+    but every verse of it is read by DICTA, which spells its lemmas its own way and, until
+    the register line learnt to hold its tongue, called the first word of Nitzavim modern
+    (targum-internal#156). `for_source()` wraps the model only when the data is on disk
+    under the process's own model directory, and the service's directory is not the
+    deployer's — so the question is asked here, in the service's environment, where the
+    answer is the one that matters.
+    """
+    from .annotate import oshb
+
+    where = oshb.root()
+    if oshb.available():
+        return Check("scripture", True, f"the Hebrew Bible tagging is at {where}", fatal=False)
+    return Check(
+        "scripture",
+        False,
+        f"no Hebrew Bible tagging at {where}; scripture will be read by a model.",
+        "targum models fetch scripture, as the service user",
+        fatal=False,
+    )
+
+
 def check_transcriber() -> Check:
     """Whether a recording without a transcript can be heard, and on whose key."""
     from .transcribe import build, default_name
@@ -357,6 +382,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_ffmpeg())
     checks.append(check_ytdlp())
     checks.append(check_transcriber())
+    checks.append(check_scripture())
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

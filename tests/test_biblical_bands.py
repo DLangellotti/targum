@@ -71,13 +71,33 @@ def test_common_biblical_words_are_easy() -> None:
     several of them are unremarkable or rare; here they must be near the front.
     """
     bands = biblical.BiblicalBands()
-    # Written as Stanza lemmatises them, not as a dictionary would: `כול` rather than
-    # `כל`. That is the point rather than a wart — the table is counted with the same
-    # lemmatizer that reads the book, so a band is a true statement about the form the
-    # reader will actually be shown. A more scholarly lemma that disagreed with the one
-    # doing the reading would be worse, not better.
-    for lemma in ("אמר", "היה", "אשר", "כול", "עשה"):
+    # Written as the tagging names them, which is how `ScriptureLemmatizer` files them:
+    # `כל`, where Stanza used to write `כול`. The table is counted from the same tagging
+    # through the same function, so a band is a true statement about the form the
+    # reader will actually be shown.
+    for lemma in ("אמר", "היה", "אשר", "כל", "עשה"):
         assert bands.band(lemma, "he") <= 2, f"{lemma} should be among the first learnt"
+
+
+@pytest.mark.skipif(not TABLE.is_file(), reason="the counted table has not been built")
+def test_the_table_is_keyed_to_the_headwords_the_tagging_files_under() -> None:
+    """The pronouns are the tell. Stanza folded אתה, אני and הם onto הוא, so the table
+    it counted had none of them, and every one was "modern · not in the Tanakh" on the
+    first page of Nitzavim (targum-internal#156). The tagging names them, so the table
+    counted from it has them — and has נצב, the first word of that portion, under the
+    spelling the lookup files it by.
+    """
+    bands = biblical.BiblicalBands()
+    for lemma in ("אתה", "אני", "הם", "זאת", "נצב", "כל"):
+        assert bands.band(lemma, "he") < BAND_COUNT, f"{lemma} is in the Tanakh"
+
+
+def test_the_table_says_what_it_was_counted_from() -> None:
+    """The header is the provenance a future reader of the file has, and the first
+    table's said `stanza-he` for a fortnight after nothing read Hebrew with Stanza."""
+    raw = json.loads(TABLE.read_text(encoding="utf-8"))
+    assert "Open Scriptures" in raw["corpus"]
+    assert "stanza" not in raw["corpus"].lower()
 
 
 @pytest.mark.skipif(not TABLE.is_file(), reason="the counted table has not been built")

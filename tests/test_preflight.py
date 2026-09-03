@@ -17,6 +17,7 @@ from targum.preflight import (
     check_disk,
     check_mail,
     check_paths,
+    check_scripture,
     check_ytdlp,
     fatal,
     preflight,
@@ -275,3 +276,23 @@ def test_nothing_in_the_remote_block_is_written_in_backticks() -> None:
     deploy."""
     remote = DEPLOY.split("<<EOF", 1)[1].split("\nEOF", 1)[0]
     assert "`" not in remote, "backticks in an unquoted heredoc are run, not written"
+
+
+def test_scripture_warns_when_the_tagging_is_not_where_the_service_looks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A box without the Hebrew Bible tagging reads every verse with a model, and the
+    only sign used to be a lemma spelled DICTA's way on a card (targum-internal#156).
+    Asked in the service's environment, because `model_dir()` follows the process's own
+    home and the deployer's is not the service's."""
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    check = check_scripture()
+    assert not check.ok and not check.fatal, "a working product, read by a model"
+    assert str(tmp_path) in check.detail
+    assert "targum models fetch scripture" in check.fix
+
+
+def test_scripture_passes_when_the_tagging_is_on_disk(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("targum.annotate.oshb.available", lambda: True)
+    check = check_scripture()
+    assert check.ok and check.state == "ok"
