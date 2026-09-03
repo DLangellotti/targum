@@ -986,7 +986,12 @@ def rebuild_one(
     # already on a box — it is what deploy.sh runs — so this is the path that carries a
     # reader's marks across, and without it a deploy is exactly the event that orphans
     # them (targum-internal#141).
-    moves: dict[str, object] | None = None
+    from .annotate import moves as moves_module
+
+    # Whatever earlier rebuilds recorded, whether or not this one moves anything. A page
+    # rendered without them drops the migration for every reader who has not opened it
+    # yet — and two rebuilds in an evening is what a deploy that failed halfway does.
+    moves: dict[str, object] | None = moves_module.carried(folder) or None
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if annotation.annotator != annotator.name:
@@ -994,9 +999,7 @@ def rebuild_one(
             was = annotation
             annotation = annotator.annotate(segmented, vocalization)
             if was.document_hash == annotation.document_hash:
-                from .annotate import moves as moves_module
-
-                moves = moves_module.between(was, annotation)
+                moves = moves_module.keep(folder, moves_module.between(was, annotation))
             annotation.write(folder / "annotation.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:

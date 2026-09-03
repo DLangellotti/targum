@@ -43,6 +43,14 @@ MODEL = "dicta-il/dictabert-joint"
 # binyan is derived rather than read, and dropping "roots" here would claim otherwise.
 FEATURES = "roots+everyword+names+grammar"
 
+# Sentences handed to the model at once. One call pads every sentence in it to the
+# longest, so asking for a whole book in one go builds a tensor the size of the longest
+# line times the number of lines: `targum rebuild --words` on the box peaked at 7.1 GB on
+# a 7.7 GB machine and was OOM-killed, twice, before this existed. Sixteen holds a book
+# of four thousand segments inside 1.5 GB, and the throughput difference against a batch
+# ten times larger is not measurable next to what the box does with the rest of a rebuild.
+BATCH = 16
+
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
 
@@ -224,11 +232,16 @@ class DictaLemmatizer:
         import torch
 
         model, tokenizer = self.model()
+        out: dict[str, list[Token]] = {}
         with torch.inference_mode():
-            read = model.predict(
-                [segment.text for segment in segments], tokenizer, output_style="json"
-            )
-        return {segment.id: _tokens(said) for segment, said in zip(segments, read, strict=True)}
+            for start in range(0, len(segments), BATCH):
+                batch = segments[start : start + BATCH]
+                read = model.predict(
+                    [segment.text for segment in batch], tokenizer, output_style="json"
+                )
+                for segment, said in zip(batch, read, strict=True):
+                    out[segment.id] = _tokens(said)
+        return out
 
 
 def _tokens(said: dict[str, Any]) -> list[Token]:
