@@ -3,6 +3,49 @@
 Notable changes to targum, newest first. Versions follow the 4-digit
 `MAJOR.MINOR.PATCH.MICRO` in `pyproject.toml` and are tagged in git.
 
+## Unreleased
+
+### Added
+- Hebrew annotation is measured against a hand tagging rather than against another
+  model. `scripts/score_annotation.py` runs the real annotator over the IAHLT treebanks
+  — twenty thousand words of contemporary Hebrew with the lemma, part of speech and
+  binyan of each written down by a person — and reports lemma, part-of-speech, binyan,
+  root and prefix-split accuracy. Agreement between two annotators cannot tell a right
+  answer from a shared mistake, and every figure targum had given lived only in a commit
+  message. `targum models fetch gold` brings the files down; they are CC BY-SA 4.0,
+  never trained on, never shipped and never read by a build.
+- A dictionary for the facts that belong to a word rather than to a sentence. The root
+  and binyan of a form are the same in every sentence it appears in, so
+  `targum dictionary <shelf>` buys them once per form and caches them across every text,
+  as glosses already are. A build reads what has been bought and never buys: a box that
+  has looked up nothing annotates exactly as before. Scored before it was believed, and
+  its prompt is versioned into the cache key, because the question is half of what
+  produced the answer.
+
+### Fixed
+- Scripture carries the binyan and root the Open Scriptures morphology had all along.
+  The stem is the second letter of a verb's code and was being read past; Strong's
+  numbers a lexeme, and for a verb that lexeme is the root itself. Measured over Genesis,
+  Isaiah, Psalms, Ruth and Daniel: binyan on 97.9% of verbs and root on 99.9%, from 1.7%
+  and 1.1%. A verb's tense and form reach the card with it, and the waw-consecutive is
+  read as what it means — ויאמר is past, not "he will say". Participles get their
+  morphology at last: they write no person, so gender and number sit two places earlier
+  than in a finite verb, and on the finite layout every participle in the Tanakh came out
+  blank.
+- `ניתן` is `נ־ת־ן`, not `י־ת־ן`. Stripping the נ of נפעל invented a root for two
+  families of verb — where a root's first radical י has dropped behind a ו (נודע is
+  י־ד־ע) and where the root's own נ assimilated into the pattern's (ניתן is נ־ת־ן). All
+  eleven irregular nifal lemmas in the treebanks were wrong; the eighty-one regular ones
+  are unchanged.
+- The card's grammar line renders. `reader.js` branches on `UPOS=` in the grammar string
+  before it reads anything else, and no annotator had ever written that key — so "past ·
+  he", "noun · f · pl." and "construct" never appeared for any word of any text, while
+  the features behind them shipped in every payload.
+- `transformers` is a hard dependency. Hebrew has read through DICTA since the annotator
+  swap and `transformers` is what loads it, but it was reachable only through the
+  `speech-align` extra — so a plain install could segment a Hebrew text and find no
+  dictionary form in any word of it.
+
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
