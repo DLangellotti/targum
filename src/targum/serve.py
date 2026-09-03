@@ -2427,6 +2427,9 @@ class Handler(BaseHTTPRequestHandler):
             shabbat=shabbat,
             hdate=hdate,
             address=self.address,
+            # Where "all portions" goes: a reader with a shelf has them on it, in their
+            # collection; a visitor has the list at the foot of this page.
+            signed_in=self._person() is not None,
         )
         return self._send(200, page.encode("utf-8"), HTML, frames="in")
 

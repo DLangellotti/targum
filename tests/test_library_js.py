@@ -124,6 +124,60 @@ def test_an_ordered_collection_keeps_its_own_order(tmp_path: Path) -> None:
         assert inside == ["בראשית", "רות", "אסתר", "קהלת", "איוב", "תהילים"]
 
 
+def test_the_portions_keep_the_order_of_the_year_under_every_sort(tmp_path: Path) -> None:
+    """Fifty-four rows in one ordered collection, בראשית to וזאת הברכה whatever column
+    the page is sorted on — and a title sort would otherwise put פרשה 10 before פרשה 2
+    (targum-internal #145)."""
+    ids = [f"parasha-p{n:02d}" for n in range(1, 55)]
+    titles = [f"פרשה {n}" for n in range(1, 55)]
+    catalogue = [
+        {
+            "id": entry_id,
+            "title": title,
+            "english": entry_id,
+            "author": "בראשית",
+            "language": "he",
+            "source": f"sefaria:{entry_id}",
+            "blurb": "",
+            "words": 0,
+            "minutes": (n * 13) % 40,
+            "kind": "prose",
+            "register": "biblical",
+            "difficulty": (n * 7) % 50,
+            "spoken": False,
+            "tags": ["tanakh"],
+            "translations": [],
+        }
+        for n, (entry_id, title) in enumerate(zip(ids, titles, strict=True), start=1)
+    ]
+    # A text outside the collection, because a list that is *only* one collection is
+    # drawn as that collection — and the real shelf has four hundred others.
+    catalogue.append({**catalogue[0], "id": "ruth", "title": "רות", "english": "Ruth"})
+    group = {
+        "id": "torah-portions",
+        "title": "פרשות השבוע",
+        "english": "The Torah, by portion",
+        "blurb": "",
+        "members": ids,
+        "ordered": True,
+    }
+    for sort in ("title", "minutes", "difficulty"):
+        for direction in (1, -1):
+            drawn = draw(
+                tmp_path,
+                catalogue=catalogue,
+                collections=[group],
+                view={"sort": sort, "dir": direction},
+                opened={"torah-portions": True},
+            )
+            inside = [row["title"] for row in drawn["rows"] if row["member"]]
+            assert inside == titles, (sort, direction)
+    shut = draw(tmp_path, catalogue=catalogue, collections=[group])
+    assert [row["title"] for row in shut["rows"]] == ["רות", "פרשות השבוע"], (
+        "one row, not fifty-four"
+    )
+
+
 def test_an_author_shelf_takes_the_readers_sort(tmp_path: Path) -> None:
     """The order a shelf of stories is in is the order somebody typed them in, and the
     reader's own question is the better one."""

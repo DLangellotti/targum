@@ -148,6 +148,20 @@ def needs_hebrew_model() -> None:
         pytest.skip("Hebrew model not downloaded: run `targum models fetch he`")
 
 
+@pytest.fixture
+def needs_dicta_model() -> None:
+    """Hebrew's weights since targum-internal#116, kept where Stanza's are.
+
+    Checked as a directory rather than by loading, because loading it on a box that does
+    not have it would fetch 700 MB from a test.
+    """
+    from targum.paths import model_dir
+
+    weights = model_dir() / "hf" / "hub" / "models--dicta-il--dictabert-joint"
+    if not weights.is_dir():
+        pytest.skip("DICTA not downloaded: run `targum models fetch he`")
+
+
 class FakeSegmenter:
     """Splits on a full stop. Enough to exercise everything around the segmenter."""
 

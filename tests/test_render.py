@@ -10,10 +10,12 @@ from pathlib import Path
 import pytest
 
 from targum.models import (
+    Annotation,
     BlockKind,
     Document,
     Segment,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -162,6 +164,11 @@ def test_layout_uses_logical_properties_only(rendered: Path) -> None:
 PEALIM = "https://www.pealim.com/"
 #: The licence a recording is used under.
 LICENCE = "https://creativecommons.org/licenses/"
+#: The model that read the words. CC BY 4.0 asks for the work to be named and linked
+#: wherever it is used, and the words are used in the reader — so discharging it in the
+#: page is the decision the recording's licence link already made. Added when Hebrew
+#: moved off Stanza's NonCommercial models (targum-internal#116).
+DICTA = "https://huggingface.co/dicta-il/"
 #: Where a video fetched from YouTube lives. targum holds a study copy and the video's
 #: home is not here, and the page says so with the one link that opens there — at the
 #: line being read. Decided on 2026-09-02, for the same reason the hosted fetch stays
@@ -169,7 +176,7 @@ LICENCE = "https://creativecommons.org/licenses/"
 #: `youtube.WATCH`, whatever address the reader pasted, so this prefix is the whole
 #: allowance; and never for an uploaded file, which has no home to link to.
 YOUTUBE = "https://www.youtube.com/watch?v="
-OUTBOUND = (PEALIM, LICENCE, YOUTUBE)
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -1497,8 +1504,7 @@ def test_a_hebrew_verb_carries_its_root_and_binyan(tmp_path: Path) -> None:
 
     data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
     assert data["lemmas"] == ["התלבש", "בית"]
-    assert data["roots"] == ["לבש", ""]
-    assert data["binyanim"] == ["התפעל", ""]
+    assert data["extensions"] == {"roots": ["לבש", ""], "binyanim": ["התפעל", ""]}
     # Where the reader can go for the full tables, which are more than a page can carry.
     assert PEALIM in html
 
@@ -2015,6 +2021,115 @@ def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> N
     index = (folder / "index.html").read_text(encoding="utf-8")
     assert '<li data-chapter="1" data-chapters="12">' in index
     assert '<li data-chapter="2" data-chapters="13">' in index
+
+
+def torah(out: Path, monkeypatch: pytest.MonkeyPatch, corpus: Path | None) -> str:
+    """Three chapters of Genesis — 5, 6 and 7 — and, where `corpus` is given, an index
+    there with בראשית ending at 6:8 and נח beginning at 6:9. Returns the contents page."""
+    from targum.parasha.models import Index, Portion
+
+    if corpus is not None:
+        corpus.mkdir(parents=True, exist_ok=True)
+        index = Index(
+            portions={
+                "bereshit": Portion(
+                    slug="bereshit",
+                    name="Bereshit",
+                    hebrew="בְּרֵאשִׁית",
+                    numbers=[1],
+                    summary="Genesis 1:1-6:8",
+                    books=["Genesis"],
+                    opening_ref="Genesis 1:1",
+                ),
+                "noach": Portion(
+                    slug="noach",
+                    name="Noach",
+                    hebrew="נֹחַ",
+                    numbers=[2],
+                    summary="Genesis 6:9-11:32",
+                    books=["Genesis"],
+                    opening_ref="Genesis 6:9",
+                ),
+            }
+        )
+        (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    else:
+        monkeypatch.setenv("TARGUM_PARASHA_DIR", str(out / "nowhere"))
+
+    segments: list[Segment] = []
+    for chapter in (5, 6, 7):
+        segments.append(heading(len(segments), 2, f"בראשית {chapter}"))
+        for number in range(1, 11):
+            segments.append(verse(len(segments), chapter, number))
+    document = Document(
+        source="sefaria:Genesis", title="בראשית", language="he", blocks=[], content_hash="g"
+    )
+    segmented = SegmentedDocument(
+        document_hash="g", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="g",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out / "reader")
+    return (out / "reader" / "index.html").read_text(encoding="utf-8")
+
+
+def test_a_torah_books_contents_page_groups_its_chapters_by_portion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Genesis 6 is listed once, under בראשית, which is where it starts; נח's own name
+    goes to 6:9 in the file that holds chapter 6 (targum-internal #145)."""
+    html = torah(tmp_path, monkeypatch, tmp_path / "parasha")
+
+    assert re.findall(r'<li class="portion" data-portion="([^"]+)">', html) == [
+        "bereshit",
+        "noach",
+    ]
+    rows = re.findall(r'<li data-chapter="(\d+)" data-chapters="(\d+)"', html)
+    assert rows == [("1", "5"), ("2", "6"), ("3", "7")], "every chapter, once"
+    before, after = html.split('data-portion="noach"')
+    assert 'data-chapters="6"' in before, "chapter 6 sits under the portion it starts in"
+    assert 'data-chapters="7"' in after
+    assert '<a class="portion-name" href="sec-0002.html#6:9">נֹחַ</a>' in html
+    assert '<span class="portion-span">Genesis 6:9–11:32</span>' in html
+    assert '<a class="portion-page" href="/parasha/noach" hidden>' in html
+    # The inner lists carry the numbering on rather than starting again at one.
+    assert '<ol start="1">' in before
+    assert '<ol start="3">' in after
+    # A first verse this range does not hold has only its address to point at.
+    assert '<a class="portion-name" href="#1:1">' in before
+
+
+def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The layer is data: with nothing built there is nothing to draw, and a fresh
+    machine gets the page it got before the corpus existed."""
+    html = torah(tmp_path, monkeypatch, None)
+    # The body, not the page: the stylesheet is inlined into every reader and carries the
+    # rules for a layer this page does not draw.
+    body = html[html.index("<body") : html.index("</main>")]
+    assert 'class="portion"' not in body
+    assert "portion-" not in body
+    assert '<li data-chapter="1" data-chapters="5">' in html
+    assert '<li data-chapter="3" data-chapters="7">' in html
+
+
+def test_the_contents_script_keeps_the_key_in_front_of_a_verse_hash() -> None:
+    """`sec-0006.html?k=…#6:9`, not `sec-0006.html#6:9?k=…` — and a portion's own page
+    is a route, which needs no key and is offered only where there is a server."""
+    from targum.render.builder import ASSETS
+
+    contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
+    assert "href.slice(0, cut) + suffix + href.slice(cut)" in contents
+    assert 'href.charAt(0) === "/"' in contents
+    assert '".toc .portion-page"' in contents
 
 
 def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
@@ -3791,6 +3906,65 @@ def test_a_page_whose_registers_all_agreed_ships_no_table(tmp_path: Path) -> Non
     assert data["sourceRegister"] == "modern"
 
 
+def _one_page(tmp_path: Path, tokens: list[Token]) -> dict[str, object]:
+    """The payload of a one-paragraph Hebrew page annotated with exactly these tokens."""
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segments[0].id: tokens},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data: dict[str, object] = json.loads(
+        re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)
+    )
+    return data
+
+
+def test_the_payload_says_which_shape_it_is(tmp_path: Path) -> None:
+    """One field, so a payload can be told apart from an older one by a reader it did not
+    ship with. Not the cache's `SCHEMA_VERSION`: this one is free to move."""
+    from targum.render.builder import PAYLOAD_VERSION
+
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["schemaVersion"] == PAYLOAD_VERSION == 1
+
+
+def test_a_page_with_no_verb_ships_no_root_or_binyan_table(tmp_path: Path) -> None:
+    """Like the registers and the sounds: a row of empty strings nothing would read is
+    left out, rather than shipped in every reader whose language has no binyanim and
+    every one annotated before there was a root to give."""
+    data = _one_page(tmp_path, [Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert data["lemmas"] == ["בית"]
+    assert "extensions" not in data
+
+
+def test_a_binyan_without_a_root_ships_the_one_table_it_has(tmp_path: Path) -> None:
+    """The two are decided apart. A verb whose binyan Stanza tagged and whose root could
+    not honestly be had is the common case for a weak verb, and the card still says the
+    binyan — so the binyanim table rides alone, and the roots table is not sent empty
+    beside it."""
+    data = _one_page(
+        tmp_path, [Token(start=0, end=3, surface="קם", lemma="קם", band=2, binyan="פעל")]
+    )
+    assert data["extensions"] == {"binyanim": ["פעל"]}
+
+
 # -- what to read next -------------------------------------------------------------
 
 
@@ -3892,3 +4066,44 @@ def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyP
         ("news-a", "s:news", 6, "modern"),
     )
     assert suggestion(monkeypatch, "dialogue:03-which-way", rows) == "news-a"
+
+
+def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """CC BY 4.0 asks for the work to be named where it is used, and the words are used
+    here (targum-internal#116). Keyed to the annotator that actually ran, so a reader
+    built before the swap does not claim a credit it did not earn — which is also what
+    keeps the credit honest once both kinds of reader are on the shelf at once."""
+    from targum.models import Annotation, Token
+
+    document = Document(
+        source="memory", title="Declaration", language="he", blocks=[], content_hash="abc123"
+    )
+
+    def page(annotator: str) -> str:
+        annotation = Annotation(
+            document_hash="h",
+            language="he",
+            annotator=annotator,
+            method="frequency",
+            method_note="note",
+            tokens={
+                segmented.segments[0].id: [
+                    Token(start=0, end=4, surface="ספר", lemma="ספר", band=1),
+                ]
+            },
+        )
+        out = tmp_path / annotator.split("/")[0]
+        return render(document, segmented, [translation], out, annotation=annotation)[0].read_text(
+            encoding="utf-8"
+        )
+
+    read_by_dicta = page("dicta/dicta-il/dictabert-joint/roots+everyword+names+grammar")
+    assert "Dictionary forms by" in read_by_dicta
+    assert "https://huggingface.co/dicta-il/dictabert-joint" in read_by_dicta
+    assert "https://creativecommons.org/licenses/by/4.0/" in read_by_dicta
+
+    read_by_stanza = page("stanza/1.10.1/tokenize,pos,lemma+roots")
+    assert "Dictionary forms by" not in read_by_stanza
+    assert "huggingface.co" not in read_by_stanza

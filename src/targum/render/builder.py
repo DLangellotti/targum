@@ -108,6 +108,16 @@ def isolate(text: str, direction: str) -> Markup:
     return Markup("".join(parts))
 
 
+# The version of the shape `embed_json` writes into `targum-data`, so a payload can say
+# what it is to a reader that did not ship with it. Not `models.SCHEMA_VERSION`, which
+# keys the cache and re-buys every translation when it moves: this one costs a local
+# re-render and nothing else, because every targum carries its own copy of the reader.
+# Bump it when a key changes meaning or moves, not when one is added — a reader ignores
+# what it does not know. 1 is the first shape stamped at all; a payload without the key
+# is older than that.
+PAYLOAD_VERSION = 1
+
+
 def embed_json(payload: object) -> Markup:
     r"""JSON safe to sit inside a <script> element.
 
@@ -1214,13 +1224,36 @@ def parasha_page(
     shabbat: date | None = None,
     hdate: str = "",
     address: str = "",
+    signed_in: bool = False,
 ) -> str:
     """This week's portion, with its own reader inside it.
 
     Everything it needs comes off the corpus index, the same way `weekly_page` reads the
     weekly's: the calendar ran at build time and what is left at serve time is a lookup.
+
+    `signed_in` decides where "all portions" leads. A reader with a shelf has the
+    fifty-four on it as one collection, and is sent to their own row in it; a visitor
+    has the list at the foot of this page.
     """
+    from ..parasha.build import COLLECTION_ID
+    from ..parasha.models import neighbours
+
     said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    previous, following = neighbours(portion, listed or [])
+    # The row to point at on the shelf: this portion's own, or — for a doubled week,
+    # which is not on the shelf beside its halves — the first of its halves that is.
+    mine = next(
+        (
+            one
+            for one in listed or []
+            if one.slug == portion.slug or set(one.numbers) & set(portion.numbers)
+        ),
+        None,
+    )
+    if signed_in:
+        all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
+    else:
+        all_href = "/parasha#sources"
     return (
         _environment()
         .get_template("parasha.html.j2")
@@ -1259,6 +1292,9 @@ def parasha_page(
             # on a different one every year — so it arrives from the week's own record.
             hdate=hdate,
             listed=listed or [],
+            previous=previous,
+            following=following,
+            all_href=all_href,
             taamim=taamim,
             shabbat_said=said,
             translation_said=(
@@ -1453,6 +1489,7 @@ def render(
     siblings: list[dict[str, str]] | None = None,
     whole: bool = False,
     folder: Path | None = None,
+    moves: Mapping[str, object] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
@@ -1468,6 +1505,11 @@ def render(
     a language rather than a flag for the same reason: the reader polls for the target it
     is showing, and switching to one that was never bought must not start a wait for a
     file nobody is writing.
+
+    `moves` is what this text's words used to be called, when it has just been
+    re-annotated by a different annotator — see `annotate/moves.py`. A mark is filed by
+    lemma, so without it a reader's word quietly stops being theirs. Each text carries its
+    own; there is no table of the library.
 
     `reads` is which languages the person this reader belongs to reads. A translation into
     any other is left out of the page: a picker offering a language somebody cannot read
@@ -1691,8 +1733,9 @@ def render(
         lemmas: list[str] = []
         lemma_at: dict[str, int] = {}
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
-        # ride in tables beside the lemmas rather than on every token. Absent for every
-        # word that is not a Hebrew verb, and for the verbs whose root could not be had.
+        # ride in tables beside the lemmas rather than on every token. Empty for every
+        # word that is not a Hebrew verb, and for the verbs whose root could not be had
+        # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
         binyanim: list[str] = []
         # And so does the register, for the same reason: which Hebrew a word belongs to
@@ -1776,6 +1819,9 @@ def render(
             for at, lemma in enumerate(lemmas):
                 citations[at] = citations[at] or book.citations.get(lemma, "")
                 plurals[at] = plurals[at] or book.plurals.get(lemma, "")
+        extensions = {
+            name: table for name, table in (("roots", roots), ("binyanim", binyanim)) if any(table)
+        }
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
@@ -1824,6 +1870,11 @@ def render(
             translated=translated,
             audio_waiting=audio_waiting,
             words=bool(words),
+            # CC BY asks to be named where the work is used, and the words are used in
+            # the reader, so the naming goes in the reader rather than in a file about
+            # the reader. Keyed off what actually ran: a text annotated before the swap
+            # carries Stanza's name and gets no DICTA credit it did not earn.
+            words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             segments=segments,
             verses=verses,
             bare=bare,
@@ -1847,11 +1898,30 @@ def render(
             primary_coarse=set(translations[0].coarse),
             data=embed_json(
                 {
+                    "schemaVersion": PAYLOAD_VERSION,
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
-                    "roots": roots,
-                    "binyanim": binyanim,
+                    # Only where a word actually moved. A rebuild that changed no name
+                    # ships nothing, which is every rebuild after the first. An added key
+                    # rather than a changed one, so `PAYLOAD_VERSION` stays where it is —
+                    # a reader that predates this passes over what it does not know, and
+                    # migrates when it is next rebuilt.
+                    **(
+                        {"moves": moves}
+                        if moves and (moves.get("lemmas") or moves.get("surfaces"))
+                        else {}
+                    ),
+                    # Facts a language knows about its dictionary forms and the format
+                    # does not: a Hebrew verb's root and binyan today; an Arabic root, a
+                    # Japanese reading and its pitch, tomorrow. Each is a table parallel
+                    # to the lemmas, named for the fact, and a reader draws the ones it
+                    # understands and passes over the rest. Kept out of the top level so
+                    # the top level stays the format — what every language carries — and
+                    # left out wherever no word on the page had any of them. Two tables,
+                    # not one, because a binyan can be tagged where a three-letter root
+                    # could not honestly be had.
+                    **({"extensions": extensions} if extensions else {}),
                     # Left out where the two registers agreed about every word on the
                     # page, and for every language the question is not asked of, rather
                     # than shipping a row of empty strings the reader would never read.
@@ -1883,9 +1953,11 @@ def render(
                     # For naming an export of the language's words, which the reader
                     # otherwise only knows by its tag.
                     "languageName": language_name(segmented.language),
-                    # Whether the vowels on this text are its own, and so whether it
-                    # should open with them showing.
-                    "sourcePointed": source_pointed,
+                    # Whether the source carries its own phonetic layer, and so opens
+                    # showing it. Nikkud and trope here — a Tanakh arrives pointed and
+                    # someone chose it for that, where a newspaper's points are guessed
+                    # — and furigana, harakat and pinyin are the same question.
+                    "sourceMarked": source_pointed,
                     # Which target's meanings are on their way, if any. Words are looked
                     # up one at a time now, so most readers have none coming and must not
                     # sit asking for one for ten minutes — and a reader that switches to
@@ -1959,9 +2031,81 @@ def render(
             **shared,
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
+            groups=portion_groups(sections, chapters, verses, document.source),
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written
+
+
+def portion_groups(
+    sections: list[Section],
+    chapters: Mapping[int, str],
+    verses: Mapping[str, str],
+    source: str,
+) -> list[dict[str, Any]]:
+    """The chapter rows of a contents page, grouped under the portion each falls in.
+
+    A reader who opens the Torah week to week thinks in portions — בראשית, נח, לך לך —
+    and a book listed as fifty numbered chapters cannot take them there. For a book the
+    weekly readings are cut from, each group is one portion: its name, its range, its
+    own page, and the chapters that begin inside it. A chapter two portions share —
+    Genesis 6, where בראשית ends at 6:8 and נח starts at 6:9 — is listed once, under the
+    portion it starts in; the next portion's name links to its own first verse, in
+    whichever file holds it.
+
+    Every other text, and the five on a machine with no corpus, come back as one group
+    with no portion, and the template draws the flat list it always drew. The layer is
+    data, not a special case, and a reader fetches nothing: the portions are read off the
+    corpus index here, at build time.
+    """
+    from ..parasha.build import portions_for
+
+    starts = portions_for(source) if source.startswith("sefaria:") else []
+    if not starts:
+        return [{"portion": None, "sections": list(sections)}]
+
+    # Which file holds each chapter — the contents page's own `data-chapters`, turned
+    # round — so a portion's name can link to its first verse in the file that has it.
+    holder: dict[str, Section] = {}
+    for section in sections:
+        for number in chapters.get(section.number, "").split():
+            holder.setdefault(number, section)
+
+    def opens_at(section: Section) -> tuple[int, int]:
+        for sid in section.segment_ids:
+            address = verses.get(sid, "")
+            if address:
+                chapter, _, verse = address.partition(":")
+                return int(chapter), int(verse)
+        return (0, 0)
+
+    groups: list[dict[str, Any]] = []
+    for section in sections:
+        at = opens_at(section)
+        placed = None
+        for start in starts:
+            if (start.chapter, start.verse) <= at:
+                placed = start
+            else:
+                break
+        key = placed.slug if placed is not None else None
+        if not groups or groups[-1]["key"] != key:
+            portion = None
+            if placed is not None:
+                holding = holder.get(str(placed.chapter))
+                where = f"#{placed.chapter}:{placed.verse}"
+                portion = {
+                    "slug": placed.slug,
+                    "name": placed.name,
+                    "hebrew": placed.hebrew or placed.name,
+                    # An en dash for the range: Hebcal writes a hyphen, and on a page
+                    # this is a span of chapters, not a compound.
+                    "summary": placed.summary.replace("-", "–"),
+                    "href": holding.filename + where if holding is not None else where,
+                }
+            groups.append({"key": key, "portion": portion, "sections": []})
+        groups[-1]["sections"].append(section)
+    return groups
 
 
 def _write(path: Path, html: str) -> Path:

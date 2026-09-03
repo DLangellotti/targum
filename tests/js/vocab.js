@@ -27,7 +27,11 @@ require(path.join(path.resolve(__dirname, "../../src/targum/render/assets"), "vo
  */
 if (payload.migrate) {
   for (let n = 0; n < (payload.runs || 1); n += 1) {
-    window.TargumVocab.migrate(payload.language || "he", payload.document || "");
+    window.TargumVocab.migrate(
+      payload.language || "he",
+      payload.document || "",
+      payload.moves
+    );
   }
   const after = {};
   for (let n = 0; n < localStorage.length; n += 1) {
