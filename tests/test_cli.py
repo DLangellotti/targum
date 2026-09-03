@@ -602,6 +602,94 @@ def test_rebuild_words_re_annotates_and_spends_nothing(tmp_path: Path) -> None:
     assert (folder / "annotation.json").read_text(encoding="utf-8") == "{}"
 
 
+def test_rebuilt_words_carry_what_they_used_to_be_called(tmp_path: Path) -> None:
+    """`rebuild --words` is how an annotator change reaches a box — it is what deploy.sh
+    runs — so it is the moment a reader's marks are carried across or lost.
+
+    Marks are filed by lemma. The build path worked the moves out and handed them to the
+    page; this one re-annotated and rendered without them, which would have made a deploy
+    precisely the event that orphaned a quarter of every reader's words, silently
+    (targum-internal#141).
+    """
+    from targum.cli import rebuild_one
+    from targum.models import (
+        Annotation,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Token,
+        Translation,
+    )
+
+    out = tmp_path / "targum-out"
+    folder = out / "book-he"
+    (folder / "translations").mkdir(parents=True)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="לאורך הדרך",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "along the way"},
+    ).write(folder / "translations" / "null.natural.en.json")
+    # As the older annotator left it: the ל stayed on the lemma, which is the bug the
+    # newer one fixes and the reason the mark has to move.
+    Annotation(
+        document_hash="h",
+        language="he",
+        annotator="stanza/old/tokenize,pos,lemma",
+        method="frequency",
+        method_note="",
+        tokens={
+            segment.id: [Token(start=0, end=5, surface="לאורך", lemma="לאורך", band=3)],
+        },
+    ).write(folder / "annotation.json")
+
+    class Newer:
+        name = "dicta/dicta-il/dictabert-joint/roots"
+
+        def annotate(self, segmented, vocalization=None):  # type: ignore[no-untyped-def]
+            return Annotation(
+                document_hash="h",
+                language="he",
+                annotator=self.name,
+                method="frequency",
+                method_note="",
+                tokens={
+                    segment.id: [
+                        Token(start=0, end=5, surface="לאורך", lemma="ארך", band=3, pos="NOUN")
+                    ]
+                },
+            )
+
+    title, pages = rebuild_one(
+        folder,
+        reads=None,
+        covers=out / "thumbs",
+        annotate=lambda f, d: Newer(),  # type: ignore[arg-type,return-value]
+    )
+    assert title == "A Book" and pages
+
+    page = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert '"moves"' in page, "the rebuilt page tells the reader what its words were called"
+    assert "לאורך" in page and "ארך" in page
+
+
 def test_seed_builds_ruth_the_news_piece_and_every_scene_in_order() -> None:
     """A path with a gap in it is a row of build buttons a reader who knows no Hebrew
     can press, so every scene is seeded, always, in scene order."""
