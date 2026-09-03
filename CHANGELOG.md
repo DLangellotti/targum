@@ -53,6 +53,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [0.2.0.0] - 2026-09-01
 
 ### Added
+- The Torah can be read by portion, not only by chapter. The fifty-four weekly readings
+  are one ordered collection on the shelf — פרשות השבוע, בראשית to וזאת הברכה, in the
+  order of the year — beside the five books, which stay exactly as they were: two doors
+  onto the same text. `targum parasha entries` emits the collection with the portions and
+  `--write` merges it, rewriting the member list and keeping a blurb somebody edited;
+  `deploy/ship-parasha.sh` runs the merge and carries the catalogue, so the live shelf
+  cannot fall out of step with the corpus again. A Torah book's contents page groups its
+  chapters under the portion each falls in, with the portion's name linking to its own
+  first verse — נח to Genesis 6:9, in the file that holds chapter 6 — and a chapter two
+  portions share listed once, under the one it starts in. Every portion page carries the
+  reading before it and the reading after it, wrapping from וזאת הברכה back to בראשית the
+  way the year does. Read off the corpus index at build time, so a reader still fetches
+  nothing, and a machine with no corpus built renders every page as it did before
+  (targum-internal#145).
 - A verse answers to its address. Every verse of a Tanakh targum carries its number in
   the margin, the way a printed edition sets it, and its row is `#2:1` — chapter and
   verse, which is how every learner of a Biblical text locates a line — so a link to

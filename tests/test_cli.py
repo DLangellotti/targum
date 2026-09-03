@@ -602,6 +602,94 @@ def test_rebuild_words_re_annotates_and_spends_nothing(tmp_path: Path) -> None:
     assert (folder / "annotation.json").read_text(encoding="utf-8") == "{}"
 
 
+def test_rebuilt_words_carry_what_they_used_to_be_called(tmp_path: Path) -> None:
+    """`rebuild --words` is how an annotator change reaches a box — it is what deploy.sh
+    runs — so it is the moment a reader's marks are carried across or lost.
+
+    Marks are filed by lemma. The build path worked the moves out and handed them to the
+    page; this one re-annotated and rendered without them, which would have made a deploy
+    precisely the event that orphaned a quarter of every reader's words, silently
+    (targum-internal#141).
+    """
+    from targum.cli import rebuild_one
+    from targum.models import (
+        Annotation,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Token,
+        Translation,
+    )
+
+    out = tmp_path / "targum-out"
+    folder = out / "book-he"
+    (folder / "translations").mkdir(parents=True)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="לאורך הדרך",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "along the way"},
+    ).write(folder / "translations" / "null.natural.en.json")
+    # As the older annotator left it: the ל stayed on the lemma, which is the bug the
+    # newer one fixes and the reason the mark has to move.
+    Annotation(
+        document_hash="h",
+        language="he",
+        annotator="stanza/old/tokenize,pos,lemma",
+        method="frequency",
+        method_note="",
+        tokens={
+            segment.id: [Token(start=0, end=5, surface="לאורך", lemma="לאורך", band=3)],
+        },
+    ).write(folder / "annotation.json")
+
+    class Newer:
+        name = "dicta/dicta-il/dictabert-joint/roots"
+
+        def annotate(self, segmented, vocalization=None):  # type: ignore[no-untyped-def]
+            return Annotation(
+                document_hash="h",
+                language="he",
+                annotator=self.name,
+                method="frequency",
+                method_note="",
+                tokens={
+                    segment.id: [
+                        Token(start=0, end=5, surface="לאורך", lemma="ארך", band=3, pos="NOUN")
+                    ]
+                },
+            )
+
+    title, pages = rebuild_one(
+        folder,
+        reads=None,
+        covers=out / "thumbs",
+        annotate=lambda f, d: Newer(),  # type: ignore[arg-type,return-value]
+    )
+    assert title == "A Book" and pages
+
+    page = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert '"moves"' in page, "the rebuilt page tells the reader what its words were called"
+    assert "לאורך" in page and "ארך" in page
+
+
 def test_seed_builds_ruth_the_news_piece_and_every_scene_in_order() -> None:
     """A path with a gap in it is a row of build buttons a reader who knows no Hebrew
     can press, so every scene is seeded, always, in scene order."""
@@ -693,3 +781,88 @@ def test_licences_reports_the_corpus_by_what_may_leave(
     assert "free" in result.output and "owed" in result.output
     assert "unknown" in result.output
     assert "unchecked" in result.output, "it names what to go and check"
+
+
+def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Added when absent. On a rerun the members are the corpus's to say and the words
+    are whoever edited them (targum-internal #145)."""
+    import json
+
+    from targum.parasha.models import Index, Portion
+
+    def portion(slug: str, hebrew: str, number: int, summary: str) -> Portion:
+        return Portion(
+            slug=slug,
+            name=slug,
+            hebrew=hebrew,
+            numbers=[number],
+            summary=summary,
+            books=["Genesis"],
+        )
+
+    corpus = tmp_path / "parasha"
+    corpus.mkdir()
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    index = Index(
+        portions={
+            "noach": portion("noach", "נֹחַ", 2, "Genesis 6:9-11:32"),
+            "bereshit": portion("bereshit", "בְּרֵאשִׁית", 1, "Genesis 1:1-6:8"),
+        }
+    )
+    (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+    catalogue = tmp_path / "catalogue.json"
+    catalogue.write_text(
+        json.dumps(
+            {
+                "entries": [{"id": "genesis", "title": "בראשית"}],
+                "collections": [
+                    {
+                        "id": "torah",
+                        "title": "תורה",
+                        "english": "The Torah",
+                        "members": ["genesis"],
+                        "ordered": True,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(catalogue))
+
+    printed = runner.invoke(app, ["parasha", "entries"])
+    assert printed.exit_code == 0, printed.output
+    assert "torah-portions" in printed.output
+    assert "parasha-noach" in printed.output
+
+    result = runner.invoke(app, ["parasha", "entries", "--write"])
+    assert result.exit_code == 0, result.output
+    written = json.loads(catalogue.read_text(encoding="utf-8"))
+    assert [row["id"] for row in written["entries"]] == [
+        "genesis",
+        "parasha-bereshit",
+        "parasha-noach",
+    ]
+    assert [group["id"] for group in written["collections"]] == ["torah", "torah-portions"]
+    group = written["collections"][1]
+    assert group["members"] == ["parasha-bereshit", "parasha-noach"]
+    assert group["ordered"] is True
+    assert written["entries"][2]["author"] == "בראשית"
+
+    # A person edits the blurb and drops a member; the corpus grows by one.
+    group["blurb"] = "Mine."
+    group["members"] = ["parasha-noach"]
+    catalogue.write_text(json.dumps(written, ensure_ascii=False), encoding="utf-8")
+    index.portions["lech-lecha"] = portion("lech-lecha", "לֶךְ־לְךָ", 3, "Genesis 12:1-17:27")
+    (corpus / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+
+    again = runner.invoke(app, ["parasha", "entries", "--write"])
+    assert again.exit_code == 0, again.output
+    written = json.loads(catalogue.read_text(encoding="utf-8"))
+    assert len(written["collections"]) == 2, "merged into the one it has, not added again"
+    group = next(g for g in written["collections"] if g["id"] == "torah-portions")
+    assert group["members"] == ["parasha-bereshit", "parasha-noach", "parasha-lech-lecha"]
+    assert group["blurb"] == "Mine."

@@ -31,6 +31,7 @@ from __future__ import annotations
 import collections
 from typing import Any
 
+from ..errors import TargumError
 from ..models import Segment, Token
 from ..paths import model_dir
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
@@ -42,6 +43,14 @@ MODEL = "dicta-il/dictabert-joint"
 # for the same list. Identical to Stanza's: the roots survive the swap because the
 # binyan is derived rather than read, and dropping "roots" here would claim otherwise.
 FEATURES = "roots+everyword+names+grammar/2"
+
+# Sentences handed to the model at once. One call pads every sentence in it to the
+# longest, so asking for a whole book in one go builds a tensor the size of the longest
+# line times the number of lines: `targum rebuild --words` on the box peaked at 7.1 GB on
+# a 7.7 GB machine and was OOM-killed, twice, before this existed. Sixteen holds a book
+# of four thousand segments inside 1.5 GB, and the throughput difference against a batch
+# ten times larger is not measurable next to what the box does with the rest of a rebuild.
+BATCH = 16
 
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
@@ -208,8 +217,14 @@ class DictaLemmatizer:
             import os
 
             os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
-            import torch
-            from transformers import AutoModel, AutoTokenizer
+            try:
+                import torch
+                from transformers import AutoModel, AutoTokenizer
+            except ImportError as missing:  # pragma: no cover — a broken install only
+                raise TargumError(
+                    "The Hebrew annotator needs transformers, which is not installed.",
+                    "pip install 'transformers>=4.40'",
+                ) from missing
 
             self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
             model = AutoModel.from_pretrained(self.model_id, trust_remote_code=True)
@@ -227,14 +242,16 @@ class DictaLemmatizer:
         import torch
 
         model, tokenizer = self.model()
+        out: dict[str, list[Token]] = {}
         with torch.inference_mode():
-            read = model.predict(
-                [segment.text for segment in segments], tokenizer, output_style="json"
-            )
-        return {
-            segment.id: _tokens(said, self.tally)
-            for segment, said in zip(segments, read, strict=True)
-        }
+            for start in range(0, len(segments), BATCH):
+                batch = segments[start : start + BATCH]
+                read = model.predict(
+                    [segment.text for segment in batch], tokenizer, output_style="json"
+                )
+                for segment, said in zip(batch, read, strict=True):
+                    out[segment.id] = _tokens(said, self.tally)
+        return out
 
 
 def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None) -> list[Token]:

@@ -5735,6 +5735,9 @@ var targumReader = function () {
     // places is how two things end up standing in one band.
     occupy: occupy,
     vacate: vacate,
+    // The sentence in front of the reader, for the link home: the line a deep link
+    // should open on when nothing is being spoken.
+    inFront: onScreen,
   };
 })();
 
@@ -6476,6 +6479,35 @@ var targumReader = function () {
     try {
       if (localStorage.getItem(VIDEO_STORE) === "1") showVideo(true, false);
     } catch (e) {}
+  }
+
+  /* The video's home, opened at the line in front of the reader. The sidecar stays
+     the instrument — it plays on a plane and this does not — and the link is a credit
+     that happens to be useful: YouTube's own page, at the second this sentence starts.
+     The address is fixed in the markup and only the time is decided, at the click
+     rather than on every tick, because an address that changes forty times a minute
+     is one nobody can copy. The spans are into this part's own cut, which begins
+     `offset` seconds into the whole video; the two are added here. */
+  var home = document.querySelector("[data-home]");
+  if (home) {
+    var homeBase = home.getAttribute("href");
+    var homeOffset = Number(speech.offset) || 0;
+    var homeAt = function () {
+      // The line being spoken, then the one line playing, then the sentence in front
+      // of the reader — and failing all three, the whole video from its start.
+      var pair = marked || (playing && playing.closest(".pair"));
+      if (!pair) {
+        var reader = window.TargumReader;
+        pair = reader && reader.inFront ? reader.inFront() : null;
+      }
+      var id = pair ? pair.getAttribute("data-id") : "";
+      if (id && spans[id]) return homeOffset + spans[id][0];
+      return audio.currentTime ? homeOffset + audio.currentTime : 0;
+    };
+    home.addEventListener("click", function () {
+      var seconds = Math.max(0, Math.floor(homeAt()));
+      home.href = homeBase + (seconds ? "&t=" + seconds + "s" : "");
+    });
   }
 
   /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */

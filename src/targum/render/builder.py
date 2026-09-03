@@ -356,6 +356,15 @@ class Spoken(NamedTuple):
     #: inline rides beside the reader instead — `render()` copies it and writes the
     #: relative address the page carries.
     video: str = ""
+    #: Where the video lives, when it lives somewhere: the canonical YouTube address
+    #: for an import fetched from there, and "" for everything else. An uploaded file
+    #: has no home — the sidecar is the video and possession is the whole of ownership
+    #: — so the page must not offer to open one. Only `_imported` fills this.
+    home: str = ""
+    #: Seconds into the whole recording at which this part's file begins. The spans
+    #: are into the part's own cut, and a link home has to say where in the whole
+    #: video a line is — so the two are added at the click. Only meaningful with a home.
+    offset: float = 0.0
 
 
 SILENT = Spoken({}, {}, "")
@@ -520,7 +529,9 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
     targum cannot verify is one it must not print. The artist tag became the byline at
     ingest, which is where a name a page can stand behind belongs.
     """
+    from ..audio import PAD
     from ..audio import manifest as manifest_module
+    from ..video import youtube
 
     kept = manifest_module.load(folder)
     if kept is None:
@@ -555,6 +566,14 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
         "the recording",
         word_clocks,
         str(reel) if reel is not None and reel.is_file() else "",
+        # One shape whatever the reader pasted, or nothing: a podcast episode's address
+        # is also a home, but not one the page may link to — the reader's outbound
+        # addresses are a closed list, and only YouTube's is on it.
+        youtube.watch_url(kept.home),
+        # The cut begins a pad before the part does — the same arithmetic the build
+        # used to make it, and the one figure that turns a span into a place in the
+        # whole video.
+        max(0.0, part.start - PAD),
     )
 
 
@@ -1205,13 +1224,36 @@ def parasha_page(
     shabbat: date | None = None,
     hdate: str = "",
     address: str = "",
+    signed_in: bool = False,
 ) -> str:
     """This week's portion, with its own reader inside it.
 
     Everything it needs comes off the corpus index, the same way `weekly_page` reads the
     weekly's: the calendar ran at build time and what is left at serve time is a lookup.
+
+    `signed_in` decides where "all portions" leads. A reader with a shelf has the
+    fifty-four on it as one collection, and is sent to their own row in it; a visitor
+    has the list at the foot of this page.
     """
+    from ..parasha.build import COLLECTION_ID
+    from ..parasha.models import neighbours
+
     said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    previous, following = neighbours(portion, listed or [])
+    # The row to point at on the shelf: this portion's own, or — for a doubled week,
+    # which is not on the shelf beside its halves — the first of its halves that is.
+    mine = next(
+        (
+            one
+            for one in listed or []
+            if one.slug == portion.slug or set(one.numbers) & set(portion.numbers)
+        ),
+        None,
+    )
+    if signed_in:
+        all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
+    else:
+        all_href = "/parasha#sources"
     return (
         _environment()
         .get_template("parasha.html.j2")
@@ -1250,6 +1292,9 @@ def parasha_page(
             # on a different one every year — so it arrives from the week's own record.
             hdate=hdate,
             listed=listed or [],
+            previous=previous,
+            following=following,
+            all_href=all_href,
             taamim=taamim,
             shabbat_said=said,
             translation_said=(
@@ -1842,6 +1887,9 @@ def render(
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
             spoken_video=spoken_video,
+            # The video's home, for the one control that leaves the page. Where the
+            # source was a file there is none, and the control is not drawn.
+            spoken_home=spoken.home,
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_licence=spoken.licence,
@@ -1927,6 +1975,14 @@ def render(
                                 "audio": spoken.audio,
                                 # The sidecar's relative address, never its bytes.
                                 **({"video": spoken_video} if spoken_video else {}),
+                                # Where the video lives and where this part starts in
+                                # it, so the link home can open at the line being
+                                # read. Only where there is a home to go to.
+                                **(
+                                    {"home": spoken.home, "offset": spoken.offset}
+                                    if spoken.home
+                                    else {}
+                                ),
                                 "spans": spoken.spans,
                                 # Each written word's clock, char offsets mapped into
                                 # the bare text like every token row, so the card can
@@ -1975,9 +2031,81 @@ def render(
             **shared,
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
+            groups=portion_groups(sections, chapters, verses, document.source),
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written
+
+
+def portion_groups(
+    sections: list[Section],
+    chapters: Mapping[int, str],
+    verses: Mapping[str, str],
+    source: str,
+) -> list[dict[str, Any]]:
+    """The chapter rows of a contents page, grouped under the portion each falls in.
+
+    A reader who opens the Torah week to week thinks in portions — בראשית, נח, לך לך —
+    and a book listed as fifty numbered chapters cannot take them there. For a book the
+    weekly readings are cut from, each group is one portion: its name, its range, its
+    own page, and the chapters that begin inside it. A chapter two portions share —
+    Genesis 6, where בראשית ends at 6:8 and נח starts at 6:9 — is listed once, under the
+    portion it starts in; the next portion's name links to its own first verse, in
+    whichever file holds it.
+
+    Every other text, and the five on a machine with no corpus, come back as one group
+    with no portion, and the template draws the flat list it always drew. The layer is
+    data, not a special case, and a reader fetches nothing: the portions are read off the
+    corpus index here, at build time.
+    """
+    from ..parasha.build import portions_for
+
+    starts = portions_for(source) if source.startswith("sefaria:") else []
+    if not starts:
+        return [{"portion": None, "sections": list(sections)}]
+
+    # Which file holds each chapter — the contents page's own `data-chapters`, turned
+    # round — so a portion's name can link to its first verse in the file that has it.
+    holder: dict[str, Section] = {}
+    for section in sections:
+        for number in chapters.get(section.number, "").split():
+            holder.setdefault(number, section)
+
+    def opens_at(section: Section) -> tuple[int, int]:
+        for sid in section.segment_ids:
+            address = verses.get(sid, "")
+            if address:
+                chapter, _, verse = address.partition(":")
+                return int(chapter), int(verse)
+        return (0, 0)
+
+    groups: list[dict[str, Any]] = []
+    for section in sections:
+        at = opens_at(section)
+        placed = None
+        for start in starts:
+            if (start.chapter, start.verse) <= at:
+                placed = start
+            else:
+                break
+        key = placed.slug if placed is not None else None
+        if not groups or groups[-1]["key"] != key:
+            portion = None
+            if placed is not None:
+                holding = holder.get(str(placed.chapter))
+                where = f"#{placed.chapter}:{placed.verse}"
+                portion = {
+                    "slug": placed.slug,
+                    "name": placed.name,
+                    "hebrew": placed.hebrew or placed.name,
+                    # An en dash for the range: Hebcal writes a hyphen, and on a page
+                    # this is a span of chapters, not a compound.
+                    "summary": placed.summary.replace("-", "–"),
+                    "href": holding.filename + where if holding is not None else where,
+                }
+            groups.append({"key": key, "portion": portion, "sections": []})
+        groups[-1]["sections"].append(section)
+    return groups
 
 
 def _write(path: Path, html: str) -> Path:

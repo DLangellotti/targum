@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -24,7 +25,7 @@ from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Reading, Schedule, always, root
 from .calendar import year as readings_for
-from .cut import MissingBook, books_for, cut
+from .cut import BOOKS, MissingBook, books_for, cut, parse_ref
 from .models import Index, Portion, Week
 
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
@@ -253,12 +254,21 @@ def build(
     return index
 
 
+#: The collection the portions sit in on the shelf. Its members are the corpus's to
+#: own and are rewritten on every merge; its words are a person's to edit and are kept.
+COLLECTION_ID = "torah-portions"
+
+
 def entries(index: Index | None = None) -> list[dict[str, object]]:
     """The corpus as catalogue entries, for the library to list.
 
     Returned rather than written: the catalogue is the reader's own file and lives
     outside this repository, so this hands back what belongs in it and the caller — the
     CLI, with the path in front of it — decides where that goes.
+
+    The byline is the book's Hebrew title, the way the five book rows carry theirs, so a
+    portion listed under its collection reads like the row above it rather than like a
+    label ("Torah · Genesis") somebody typed into a column meant for a name.
     """
     index = index or load()
     out: list[dict[str, object]] = []
@@ -268,7 +278,7 @@ def entries(index: Index | None = None) -> list[dict[str, object]]:
                 "id": f"parasha-{portion.slug}",
                 "title": portion.hebrew or portion.name,
                 "english": portion.name,
-                "author": f"Torah · {' · '.join(portion.books)}",
+                "author": " · ".join(BOOKS.get(book, book) for book in portion.books),
                 "language": "he",
                 "source": f"sefaria:{portion.summary}",
                 "blurb": f"{portion.summary}. {portion.verses} verses, seven aliyot.",
@@ -279,6 +289,91 @@ def entries(index: Index | None = None) -> list[dict[str, object]]:
                 "translations": [],
             }
         )
+    return out
+
+
+def collection(index: Index | None = None) -> dict[str, object] | None:
+    """The portions as one ordered collection, so the shelf shows a path and not a pile.
+
+    Fifty-four loose rows beside the `torah` collection is exactly the shape
+    `catalogue.Collection` exists to prevent. This is the second door onto the same
+    text: the five books stay where they are, and beside them the year, בראשית to
+    וזאת הברכה in the order it is read. The members are `Index.listed()` in its order,
+    which is what keeps a doubled build off the shelf wherever its halves are on it.
+
+    None where the corpus is empty, rather than a collection of nothing.
+    """
+    index = index or load()
+    members = [f"parasha-{portion.slug}" for portion in index.listed()]
+    if not members:
+        return None
+    return {
+        "id": COLLECTION_ID,
+        "title": "פרשות השבוע",
+        "english": "The Torah, by portion",
+        "blurb": (
+            "The five books cut into the fifty-four weekly readings, in the order of the year."
+        ),
+        "members": members,
+        "ordered": True,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class Start:
+    """Where one portion begins inside its book, for a page that lists the book."""
+
+    slug: str
+    name: str
+    hebrew: str
+    chapter: int
+    verse: int
+    #: Hebcal's own range line: "Genesis 6:9-11:32".
+    summary: str
+
+
+def portions_for(book: str, index: Index | None = None) -> list[Start]:
+    """Every listed portion that begins in one book, in the order they are read.
+
+    For the contents page of a book the portions are cut from, so its chapters can be
+    grouped under the portion each falls in. `book` may be the name Hebcal uses
+    ("Genesis"), the Hebrew title the shelf files it under ("בראשית"), or the source the
+    built book carries ("sefaria:Genesis") — the three names one book goes by, and any of
+    them is the same question. Anything that is not one of the five answers with nothing,
+    and so does an empty corpus: the layer is data, and a page with none renders as it
+    always has.
+
+    Read off the index at build time. A reader fetches nothing.
+    """
+    name = book.strip().removeprefix("sefaria:").strip()
+    if name not in BOOKS:
+        by_hebrew = {hebrew: english for english, hebrew in BOOKS.items()}
+        name = by_hebrew.get(name, "")
+    if not name:
+        return []
+    index = index or load()
+    out: list[Start] = []
+    for portion in index.listed():
+        if not portion.books or portion.books[0] != name:
+            continue
+        # The first verse's own reference, or the front of the range line where an index
+        # written before `opening_ref` existed has none.
+        parsed = parse_ref(portion.opening_ref) or parse_ref(
+            portion.summary.partition("-")[0].strip()
+        )
+        if parsed is None or parsed[0] != name:
+            continue
+        out.append(
+            Start(
+                slug=portion.slug,
+                name=portion.name,
+                hebrew=portion.hebrew,
+                chapter=parsed[1].chapter,
+                verse=parsed[1].verse,
+                summary=portion.summary,
+            )
+        )
+    out.sort(key=lambda one: (one.chapter, one.verse))
     return out
 
 

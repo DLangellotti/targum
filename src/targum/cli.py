@@ -984,11 +984,25 @@ def rebuild_one(
             if rendering.target_language == "en":
                 rendering.segments.update(known)
     annotation = read_artifact(Annotation, folder / "annotation.json")
+    # What this text's words used to be called, when the words are being worked out again
+    # by a different annotator. `rebuild --words` is how an annotator change reaches texts
+    # already on a box — it is what deploy.sh runs — so this is the path that carries a
+    # reader's marks across, and without it a deploy is exactly the event that orphans
+    # them (targum-internal#141).
+    from .annotate import moves as moves_module
+
+    # Whatever earlier rebuilds recorded, whether or not this one moves anything. A page
+    # rendered without them drops the migration for every reader who has not opened it
+    # yet — and two rebuilds in an evening is what a deploy that failed halfway does.
+    moves: dict[str, object] | None = moves_module.carried(folder) or None
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
         if annotation.annotator != annotator.name:
             vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+            was = annotation
             annotation = annotator.annotate(segmented, vocalization)
+            if was.document_hash == annotation.document_hash:
+                moves = moves_module.keep(folder, moves_module.between(was, annotation))
             annotation.write(folder / "annotation.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
@@ -1008,6 +1022,7 @@ def rebuild_one(
         translations,
         folder / "reader",
         annotation=annotation,
+        moves=moves,
         glossaries=glossaries,
         vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
         covers=covers,
@@ -2476,12 +2491,16 @@ def parasha_entries(
         bool, typer.Option("--write", help="Merge them into the catalogue in place.")
     ] = False,
 ) -> None:
-    """The corpus as catalogue entries, so the library lists the portions.
+    """The corpus as catalogue entries and their collection, so the library lists the portions.
 
     Printed by default and merged only when asked, because the catalogue is the one file
     that is a reader's own rather than this repository's — it lives outside the checkout
     (see `catalogue_path`), and a build command that quietly rewrote it would be editing
     somebody's shelf behind their back.
+
+    The merge owns what the corpus knows and leaves what a person wrote: an entry's row
+    is updated field by field, and the collection's member list is replaced outright
+    while a blurb somebody edited on it stays.
     """
     import json as _json
 
@@ -2489,15 +2508,19 @@ def parasha_entries(
     from .parasha import build as corpus
 
     made = corpus.entries()
-    if not made:
+    group = corpus.collection()
+    if not made or group is None:
         raise TargumError(
             "Nothing to add: the corpus is empty.",
             "Run `targum parasha build` first.",
         )
     if not write:
-        console.print_json(_json.dumps(made, ensure_ascii=False))
+        console.print_json(
+            _json.dumps({"entries": made, "collections": [group]}, ensure_ascii=False)
+        )
         console.print(
-            f"[dim]{len(made)} entries. `--write` merges them into {catalogue_path()}.[/dim]"
+            f"[dim]{len(made)} entries and one collection. "
+            f"`--write` merges them into {catalogue_path()}.[/dim]"
         )
         return
     path = catalogue_path()
@@ -2525,8 +2548,22 @@ def parasha_entries(
             # difficulty of their own, and a rebuild should not take it back off them.
             rows[at] = {**rows[at], **entry}
     existing["entries"] = rows
+    groups = existing.get("collections") or []
+    held = next((at for at, row in enumerate(groups) if row.get("id") == group["id"]), None)
+    if held is None:
+        groups.append(group)
+        placed = "added"
+    else:
+        # The other way round from an entry. Which portions are on the shelf and in
+        # what order is the corpus's to say; what the collection is called is not.
+        groups[held] = {**group, **groups[held], "members": group["members"], "ordered": True}
+        placed = "kept, its members rewritten"
+    existing["collections"] = groups
     write_atomic(path, _json.dumps(existing, ensure_ascii=False, indent=2) + "\n")
-    console.print(f"[green]{added} added[/green], {len(made) - added} updated, in {path}.")
+    console.print(
+        f"[green]{added} added[/green], {len(made) - added} updated, "
+        f"and the collection {placed}, in {path}."
+    )
 
 
 @parasha_app.command("leyning")

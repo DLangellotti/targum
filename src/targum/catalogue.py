@@ -289,6 +289,7 @@ class Entry:
 
     def state(self) -> dict[str, object]:
         from .spoken import is_spoken as _is_spoken
+        from .spoken import is_video as _is_video
 
         return {
             "id": self.id,
@@ -308,6 +309,11 @@ class Entry:
             # `spoken.py`. Imported inside the method for the same reason `everything`
             # does it: this module reads the catalogue file and nothing else.
             "spoken": _is_spoken(self.source),
+            # And whether it can be watched: the same question of the same disk. A
+            # video is not a second kind of audio on the shelf — a lecture with its
+            # slides and a podcast were one row saying "audio", and the reader who
+            # imported the lecture could not find it again by looking.
+            "video": _is_video(self.source),
             "tags": sorted(tag.value for tag in self.tags),
             # Not the model: the page has no use for it and it is not the browser's to
             # ask for. The server reads it back from here when a build starts.
