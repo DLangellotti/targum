@@ -1322,3 +1322,37 @@ def test_the_default_annotator_reads_hebrew_through_dicta_and_never_the_delegate
     # By the code and never the raw tag: an upload's front matter can say any of these.
     for tag in ("he", "he-IL", "iw", "HE"):
         assert annotator.lemmatizer.lemmas([segment], tag) == {"s0": []}, tag
+
+
+def test_a_rebuild_asked_to_buy_fills_what_the_cache_lacks(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Free by default, and a shelf of "look it up" buttons is not a state to leave a
+    reader in: given a provider, the fill buys the missing entries, caches them like a
+    build would, and the next fill has nothing left to buy."""
+    from targum.annotate.gloss import fill_from_cache, gloss_key, gloss_provider_name
+
+    class SameModel(FakeGlosses):
+        # The build, the tap and the rebuild all buy on one model, and its name is the
+        # cache key — so the free fill and the paid one have to be looking in one place.
+        name = gloss_provider_name()
+
+    cache = Cache(tmp_path / "cache")
+    annotation = annotation_with({"ארץ": 2, "שלום": 1})
+    provider = SameModel()
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", "he", "en", provider.name),
+        {"gloss": "land", "part_of_speech": "noun"},
+    )
+
+    free = fill_from_cache(annotation, {}, ["en"], cache=cache)
+    assert free["en"].entries == {"ארץ": "land"}, "without a provider only the cache answers"
+    assert provider.asked == []
+
+    grown = fill_from_cache(annotation, {}, ["en"], cache=cache, provider=provider)
+    assert grown["en"].entries == {"ארץ": "land", "שלום": "meaning of שלום"}
+    assert provider.asked == [["שלום"]], "only the missing word is paid for"
+    stored = cache.get("gloss", gloss_key(cache, "שלום", "he", "en", provider.name))
+    assert stored and stored["gloss"] == "meaning of שלום" and stored["grounded"] is False
+
+    again = fill_from_cache(annotation, grown, ["en"], cache=cache, provider=provider)
+    assert again == {} and provider.asked == [["שלום"]], "bought once, free after"
