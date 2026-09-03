@@ -42,7 +42,7 @@ from targum.annotate import Annotator  # noqa: E402
 from targum.annotate.difficulty import hard_share  # noqa: E402
 from targum.catalogue import CATALOGUE, Entry  # noqa: E402
 from targum.models import Annotation, read_artifact  # noqa: E402
-from targum.segment import StanzaSegmenter, segment_document  # noqa: E402
+from targum.segment import HebrewSegmenter, segment_document  # noqa: E402
 
 
 def on_disk(root: Path, source: str) -> Annotation | None:
@@ -67,10 +67,10 @@ def measured(entry: Entry, root: Path) -> tuple[int, str]:
     annotation = on_disk(root, entry.source)
     if annotation is not None:
         return hard_share(annotation, entry.language), "on disk"
-    # Nothing built yet: fetch it and read it here. Free — the network and Stanza, and no
-    # model is asked for anything.
+    # Nothing built yet: fetch it and read it here. No spend — the network, the rule
+    # splitter and DICTA — though DICTA on a box without a GPU is about a minute a text.
     document = ingest.load(entry.source)
-    segmented = segment_document(document, StanzaSegmenter())
+    segmented = segment_document(document, HebrewSegmenter())
     annotation = Annotator().annotate(segmented)
     return hard_share(annotation, entry.language), "measured now"
 

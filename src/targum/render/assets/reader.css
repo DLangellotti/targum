@@ -2394,6 +2394,14 @@ html:fullscreen { background: var(--paper); }
    page is laid out above the highest of them, or, in the scrolling reader, padded by
    the band so the last line can be scrolled clear of it.
 
+   Except the two word cards. A word's card and a phrase's chip are overlays: drawn over
+   the page, the strip, the arrows and the sheet, and never measured — `--occupant` is
+   the sheet's, the keys', the menu's or the video's height, never a card's. A card was
+   in the band once, and every tap on a word laid the pages out again around it, so the
+   words in front of the reader changed twice for one look at one meaning; the reader
+   asked for a screen that holds still (targum-internal#155, and §12). So the card
+   stands above everything at the foot rather than lifting it.
+
    The bar is one row: the mark, the title, the three modes and ⋯. Everything the bar
    lost is in the menu, as rows with names. At the end of the file on purpose: these
    rules override the wide window's, and the wide window's are written above. */
@@ -2460,6 +2468,9 @@ html:fullscreen { background: var(--paper); }
     border-start-end-radius: 8px;
     box-shadow: 0 -6px 24px rgb(0 0 0 / 0.14);
   }
+  /* Over the strip (28) and the tab (29), which do not ride up for an overlay and are
+     under it while it is up. */
+  .gloss-card, .pick-card { z-index: 30; }
   .list {
     max-block-size: 42svh;
     padding: 0.9rem 1rem 1.5rem;

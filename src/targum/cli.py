@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .annotate import Annotator
+    from .annotate.gloss import GlossProvider
 
 app = typer.Typer(
     add_completion=False,
@@ -990,12 +991,16 @@ def rebuild_one(
     annotate: Callable[[Path, Document], Annotator] | None = None,
     siblings: list[dict[str, str]] | None = None,
     whole: bool = False,
+    provider: GlossProvider | None = None,
+    bought: list[int] | None = None,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
     Returns the title and how many files were written, or `(None, why)` where there
     was nothing to write: a folder with no text, or one that was priced and never
-    paid for. Nothing is fetched and nothing is spent.
+    paid for. Nothing is fetched and nothing is spent — unless `provider` is given,
+    in which case the meanings the cache lacks are bought, and how many is appended
+    to `bought` so the caller can say so.
 
     `annotate`, given, names the annotator this machine would use for the text, and a
     reader whose words were worked out by an older one has them worked out again
@@ -1061,10 +1066,21 @@ def rebuild_one(
         # another text, or bought by somebody else — are its for free. Filled in here
         # so a card opens with the meaning rather than a button, and written down so
         # the next rebuild has nothing to do.
-        from .annotate.gloss import fill_from_cache
+        from .annotate.gloss import fill_from_cache, unique_lemmas, unpaid
         from .models import glossary_path
 
-        for target, grown in fill_from_cache(annotation, glossaries, reads or ["en"]).items():
+        targets = reads or ["en"]
+        if provider is not None and bought is not None:
+            wanted = unique_lemmas(annotation)
+            bought.append(
+                sum(
+                    len(unpaid(wanted, annotation.language, target, provider.name))
+                    for target in sorted(set(targets) | set(glossaries))
+                )
+            )
+        for target, grown in fill_from_cache(
+            annotation, glossaries, targets, provider=provider
+        ).items():
             grown.write(glossary_path(folder, target))
             glossaries[target] = grown
     pages = render_reader(
@@ -1124,6 +1140,13 @@ def rebuild(
             help="Work the words out again where a newer annotator would. Free: Stanza runs here.",
         ),
     ] = False,
+    gloss: Annotated[
+        bool,
+        typer.Option(
+            "--gloss",
+            help="Buy the meanings the cache lacks. Spends: one lookup per word nobody has met.",
+        ),
+    ] = False,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -1177,6 +1200,19 @@ def rebuild(
                 pronouncer=pronouncer,
             )
 
+    # The one provider a rebuild buys from, and only when asked to. The same model the
+    # build and the tap use, because the model is part of the cache key and a rebuild
+    # that bought on another would pay for every word a second time.
+    provider: GlossProvider | None = None
+    bought: list[int] = []
+    if gloss:
+        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses
+
+        provider = AnthropicGlosses(GLOSS_MODEL)
+        usable, why = provider.available()
+        if not usable:
+            fail(TargumError("Cannot buy meanings without a key.", why))
+
     # Homes are named for the person whose they are — `p<id>`, or `local` for the shared
     # signed-out one. Asked once per home rather than once per targum.
     known: dict[str, list[str] | None] = {}
@@ -1216,18 +1252,30 @@ def rebuild(
             whole=siblings is not None,
             covers=root / "thumbs",
             annotate=annotate,
+            provider=provider,
+            bought=bought,
         )
         if title is None:
             skipped.append((folder.name, str(outcome)))
             continue
         done += 1
-        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'})[/dim]")
+        paid = f", {bought[-1]} meanings bought" if bought and bought[-1] else ""
+        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'}{paid})[/dim]")
 
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")
+    if provider is None:
+        spent = "Nothing was fetched and nothing was spent."
+    else:
+        from .annotate.gloss import GLOSS_MODEL, estimate
+
+        total = sum(bought)
+        spent = (
+            f"Bought {total} meaning{'' if total == 1 else 's'}, "
+            f"about ${estimate(total, GLOSS_MODEL):.2f}."
+        )
     console.print(
-        f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] "
-        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+        f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] [dim]{spent}[/dim]"
     )
 
 
@@ -1611,14 +1659,14 @@ def gloss_command(
     from .annotate import BAND_NAMES, Annotator, frequency_available
     from .annotate.frequency import MISSING
     from .annotate.gloss import AnthropicGlosses, build_glossary, estimate, unique_lemmas
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
         if not frequency_available():
             raise TargumError(*MISSING)
         with console.status("Reading, segmenting and lemmatizing..."):
             document = ingest.load(source)
-            segmented = segment_document(document, StanzaSegmenter())
+            segmented = segment_document(document, HebrewSegmenter())
             annotation = Annotator().annotate(segmented)
 
         lemmas = unique_lemmas(annotation, min_band=from_level)
@@ -1676,10 +1724,10 @@ def align(
 ) -> None:
     """Align an existing translation to a source, and report how well it went."""
     from . import align as align_module
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
-        segmenter = StanzaSegmenter()
+        segmenter = HebrewSegmenter()
         with console.status("Reading and segmenting..."):
             source_document = ingest.load(str(source))
             target_document = ingest.load(str(translation))
@@ -2274,7 +2322,8 @@ def models_fetch(
     # Hebrew's words come from DICTA rather than from Stanza (targum-internal#116), and
     # the point of fetching ahead is that a build reaches for nothing — so the weights
     # come down here, where a box is asking for them, and not in the middle of a job.
-    # Stanza is still fetched for the same language, because it is what segments it.
+    # Nothing of Stanza's is fetched for Hebrew: its sentences are drawn by rule since
+    # targum-internal#146, so no Hebrew model of Stanza's is ever loaded.
     if code == "he":
         from .annotate.dicta import MODEL, DictaLemmatizer
 
@@ -2283,6 +2332,7 @@ def models_fetch(
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             fail(TargumError(f"Could not download {MODEL}.", str(error)))
         console.print(f"[green]Downloaded[/green] {MODEL}")
+        return
 
     # Both builds of the tokenizer, where the language has two: scripture is read with
     # one and everything else with the other, and a box that fetches ahead of a long job

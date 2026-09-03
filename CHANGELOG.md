@@ -6,6 +6,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
+  stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
+  left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
+  publishes no splitter — so `LICENSING.md` was claiming more than was true.
+  `segment/hebrew.py` splits Hebrew on terminal marks with four rules read off the shelf:
+  a closing quote or parenthesis after the mark keeps the quoted sentence inside the one
+  quoting it, a dash after it keeps a speech tag with its speech, an ellipsis alone is a
+  pause, and an initial's full stop is not an end. `HebrewSegmenter` holds Stanza for
+  every other language the way `DictaLemmatizer` does, `StanzaSegmenter` now refuses
+  Hebrew outright, `Annotator()` with nothing passed reads Hebrew through DICTA rather
+  than Stanza alone (the gloss command, the weekly's gauge and two scripts reached that
+  default), and `targum models fetch he` no longer fetches Stanza's Hebrew models at all.
+  Measured on the 47 readers before switching: the rules and Stanza differ at 2,768
+  boundary positions of the 18,490 Stanza drew (15.0%), almost all of them exclamation
+  marks Stanza had never split on, plus 327 speech tags it had cut off their speech and
+  closing quotes it had put at the start of the next segment. Review before landing
+  found that `DictaLemmatizer` routed on the raw language tag, so a text whose front
+  matter said `he-IL` or `iw` had been reaching Stanza's Hebrew models since the swap;
+  it routes by code now, and the Stanza lemmatizer refuses Hebrew as the segmenter does.
+  The DICTA weights load once per process rather than once per annotator, since the
+  weekly's gauge builds one per attempt. A text on a shelf keeps the segmentation it was translated under, because the
+  pipeline reuses `segments.json` by document hash and the segmenter's name is a record
+  rather than a key; `scripts/measure_segmentation.py` reproduces the count and prices
+  what a forced rebuild would re-buy (targum-internal#146).
 - The shelf can say "video", and a YouTube address is turned away at the paste. A row says
   one word, `video` or `audio` and never both, since a video can be listened to as well;
   the fact is derived from the recordings the way `spoken` is rather than written into the
@@ -127,6 +151,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- On a phone, a word's card no longer moves the page (targum-internal#155). The card was
+  an occupant of the band at the foot, and the pages were cut again around it: a tap on a
+  word turned 60 pages into 80 with the card up and 60 again as it closed, so one look at
+  one meaning moved the screen twice, and the words in front of the reader changed each
+  time. A word's card and a phrase's chip are now overlays — drawn over the page, the
+  strip, the arrows and the sheet, and measured by nothing — and the page holds still
+  until it is turned. `design.md` §12 records the departure. Two more that went with it:
+  the first letter of a custom meaning used to open the sheet, which on a phone put the
+  card and its field away mid-word (writing a meaning is what keeps a word for the first
+  time, and the first word kept opened the sheet); and a keyboard that shrinks the window
+  used to lay the pages out again for the sliver above it. The sheet now waits while a
+  card is up, a height-only resize while a card's field has the focus is left alone, and
+  on a browser that shrinks only the visual viewport for its keyboard — iOS Safari,
+  Chrome on Android — the card is lifted to the visible foot of the window.
+- `targum rebuild --gloss` buys the meanings the cache lacks, and the deploy passes it.
+  A rebuild filled glossaries from the cache and never bought, which was right until an
+  annotator started filing words under keys nobody had paid for: `oshb/2` reached the box
+  and 92 of the 200 rows on the first page of Judges — היה, אמר, מות — opened on "look
+  it up". Free stays the default; `--gloss` says what it bought and about what it cost,
+  and buys bare, so the first tap on each word grounds it the way a build's do.
 - Every count of words is the same count. "You know 1,285 Hebrew words" on Learn and
   "1,439 words marked known" on Your Progress were the same account at the same moment,
   and the gap was names and numbers: a name marked known has been left out of what
@@ -152,6 +196,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   two-hour operation the docs describe and should ride with the segmenter change rather
   than after it. The pinned "curse; oath" under bare `אלה` on the live box is untouched
   by this and has to be dropped by hand.
+- The first word of Nitzavim is no longer "modern · not in the Tanakh". The band table
+  behind the Tanakh levels and the register line was counted with Stanza on 2026-08-24
+  and never recounted after the hand-tagged lookup replaced Stanza on scripture and DICTA
+  replaced it everywhere else; both lookups match the lemma exactly, so every headword
+  spelled another way — half of them, `אתה`, `אני` and `הם` among them — was "not in the
+  Tanakh", and a verse DICTA read wrote `ניצב` where the table had `נצב`. The table is
+  now the Tanakh counted twice, through the two things that read it: once under the
+  tagging's headwords, through the same function the lookup files words under, and once
+  under DICTA's lemmas, since the tagging says `בוא` where DICTA says `הביא` and no rule
+  folds one onto the other — merged on the easier band (`scripts/count_tanakh.py`). A
+  name either reader can file a word under is a name the table has. It is also the
+  first table with no Stanza in its ancestry. On a text that is the Tanakh the register
+  line now never says a word is not in it — a miss there is a spelling the count did
+  not see, not a fact about scripture. `tanakh/2` and `register/2`, renamed together so
+  the shelf is re-annotated once. `targum preflight` says whether the tagging is on
+  disk where the service can see it, because a box without it reads every verse with a
+  model and used to say so nowhere (targum-internal#156).
 - The `file://` canary watches the mechanism that was actually fixed. It wrote with
   `localStorage.setItem` and read back with `localStorage.getItem`, the one path
   `durable.js` does not repair, so it was watching a fault that was never going to clear

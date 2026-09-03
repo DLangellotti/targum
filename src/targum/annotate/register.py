@@ -26,7 +26,11 @@ from __future__ import annotations
 
 from ..lexicon import biblical_strength, modern_strength
 
-NAME = "register/1"
+# `/2`: the Tanakh table behind `biblical_strength` was recounted from the hand tagging
+# rather than from Stanza, and a word read off scripture is no longer called modern for
+# being spelled a way the count had not seen (targum-internal#156). Renamed together with
+# `tanakh/2`, which reads the same table, so the shelf is re-annotated once and not twice.
+NAME = "register/2"
 
 # In the Tanakh and out of use since — "ordinary in the Tanakh, rare today".
 BIBLICAL = "biblical"
@@ -48,11 +52,17 @@ def supports(language: str) -> bool:
     return language.split("-")[0].lower() in LANGUAGES
 
 
-def of(lemma: str, language: str) -> str | None:
+def of(lemma: str, language: str, *, scripture: bool = False) -> str | None:
     """Which register this dictionary form belongs to, where the two disagree.
 
     `None` is the common answer and the honest one: ordinary in both registers, or rare
     in both, are not facts worth a line on the card.
+
+    `scripture` says the word was read off the Tanakh. Then "not in the Tanakh" is not
+    an answer the table can give: the word is on the page of the Tanakh the reader is
+    looking at, and a headword the table lacks is a disagreement between whatever read
+    the word and whatever counted the table — DICTA writes ניצב where the tagging writes
+    נצב — not evidence about scripture. The honest line there is no line.
     """
     if not lemma or not supports(language):
         return None
@@ -64,6 +74,6 @@ def of(lemma: str, language: str) -> str | None:
     biblical = biblical_strength(lemma)
     if biblical is not None and biblical >= ORDINARY and modern < ORDINARY:
         return BIBLICAL
-    if biblical is None and modern >= ORDINARY:
+    if biblical is None and modern >= ORDINARY and not scripture:
         return MODERN
     return None

@@ -266,7 +266,7 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Thirteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+Fourteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
 
 ### A text that carries media opens as its media — 2026-09-03
@@ -301,6 +301,22 @@ The other half of the withdrawn sentence — engagement yes, arcade no; streaks 
 a ledger in serif tabular numbers — is unchanged and `test_brand.py` still enforces it.
 Recorded in the vault: *Targum user session 2026-09-03 — designer olah*. Built under
 targum-internal #168.
+
+### A word's card covers the page on a phone; it does not move it — 2026-09-03
+
+The band at the foot of a narrow window was built on one rule: a control fixed over a
+page of text takes its room out of the layout, never out of the reading. The sheet, the
+keys, the menu and the video panel still do. A word's card and a phrase's chip no longer
+do. They are drawn over the page, the strip, the arrows and the sheet, and the page is
+not laid out again for them.
+
+The rule was right for the things that stay and wrong for the thing that lasts a moment.
+With the card in the band, every tap on a word cut the chapter into different pages
+(measured: 60 pages became 80 with a card up and 60 again when it closed), so the words
+in front of the reader changed twice for one look at one meaning, and the reader said so
+(targum-internal#155): the screen must not move, and the words on it must not change
+until they turn the page. A card over the last lines of a page is a card they can pull
+down. A page that moves under their finger is not something they can do anything about.
 
 ### A daily page carries an artefact, not an invented face — 2026-09-01
 
@@ -428,12 +444,13 @@ An imported video keeps its pictures, and three rules bend to carry them:
   too heavy to inline. It stands beside the file with a relative address — a folder that
   travels to a disk keeps its picture, and the page still fetches nothing from any
   network. `test_render.py`'s no-network rules hold unchanged.
-- **The video panel is off by default and toggled** — *superseded 2026-09-03, see the
-  entry above: the picture now opens on.* As written on 2026-08-31: §1's "a reader is a
-  reader, not a player" stands: the transport is still the player strip, the picture is
-  optional, and a reader who never presses the button reads exactly the page they had. On a narrow
-  window the panel is an occupant of the band like the sheet and the cards, one at a
-  time.
+- **The video panel is off by default and toggled** — *superseded 2026-09-03, see "A text
+  that carries media opens as its media" above: the picture now opens on.* As written on
+  2026-08-31: §1's "a reader is a reader, not a player" stands: the transport is still the
+  player strip, the picture is optional, and a reader who never presses the button reads
+  exactly the page they had. On a narrow window the panel is an occupant of the band like
+  the sheet, the keys and the menu, one at a time; the word cards are drawn over it (see
+  "A word's card covers the page on a phone" above).
 - **The serve policy's `media-src` gains `'self'`** — for exactly these sidecars, and
   nothing else. The embedded recordings stay `data:`; no address leaves the origin.
 - **A video fetched from YouTube links home, at the line being read** (2026-09-02).

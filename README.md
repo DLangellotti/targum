@@ -41,9 +41,10 @@ that targum.page carries is data, kept privately alongside the code.
 
 AGPL-3.0-or-later. Copyright © 2026 David Langellotti.
 
-Two of the models targum runs are licensed for non-commercial use only: the forced
+Two of the models targum ran were licensed for non-commercial use only: the forced
 aligner behind the `speech-align` extra, and Stanza's Hebrew models through the treebank
-they are trained on. The AGPL cannot lift somebody else's NonCommercial term, so
-`LICENSING.md` sets out what is encumbered and what is being done about it.
+they are trained on. Neither has run since 2026-09-03. The AGPL cannot lift somebody
+else's NonCommercial term, so `LICENSING.md` sets out what was encumbered and what
+replaced it.
 
 Contributions are welcome. `CONTRIBUTING.md` explains the sign-off and what it grants.

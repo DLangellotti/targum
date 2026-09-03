@@ -554,3 +554,12 @@ def test_a_chapter_is_only_free_when_all_of_it_is_bought(
     whole = {segment.id: "x" for segment in run}
     builder.cache.put("translate", builder.cache_key(plan.segmented, run), {"segments": whole})
     assert builder.bought(plan.segmented, run) is True
+
+
+def test_the_default_segmenter_draws_hebrew_by_rule(tmp_path: Path) -> None:
+    """A regression back to `StanzaSegmenter()` would raise on every Hebrew build."""
+    from targum.segment import HebrewSegmenter, StanzaSegmenter
+
+    built = Build("x.md", target_language="en", provider_name="null", out=tmp_path)
+    assert isinstance(built.segmenter, HebrewSegmenter)
+    assert isinstance(built.segmenter.other, StanzaSegmenter)

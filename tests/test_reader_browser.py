@@ -2675,31 +2675,163 @@ BAND = """
 """
 
 
-def test_a_word_takes_the_band_from_the_sheet_and_gives_it_back(phone_scene_scrolling) -> None:
+def test_a_word_s_card_is_drawn_over_the_sheet_and_moves_nothing(phone_scene_scrolling) -> None:
     """The sheet is a mode and the card is a visit. Tap a word with the sheet open and
-    the card has the band, the sheet is folded to its tab; answer or dismiss the word
-    and the sheet is back — and its remembered preference was never touched."""
+    the card is drawn over it: the sheet stays where it is, the strip stays where it
+    was, and the page is neither padded nor laid out again. Dismiss the word and the
+    sheet is simply there, its remembered preference never touched.
+
+    The card used to take the band from the sheet and give it back, which laid the page
+    out twice for one tap — and on pages, cut the chapter differently each time
+    (targum-internal#155)."""
     page = phone_scene_scrolling
     page.click("#list-tab")
     page.wait_for_function("() => document.body.classList.contains('list-open')")
+    before = page.evaluate(BAND)
     page.click(".pair:not([hidden]) .src:not([hidden]) .w >> nth=1")
     page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
-    # The sheet is given back a frame after the band is vacated; a frame is long enough
-    # for a mistake here to have shown, so it is waited for.
+    # A frame is what the band used to take to fold the sheet; long enough for a mistake
+    # here to have shown, so it is waited for.
     page.wait_for_timeout(100)
     band = page.evaluate(BAND)
-    assert band["card"] and not band["sheet"], "the card has the band, the sheet does not"
-    assert band["tab"], "the sheet is folded to its tab"
+    assert band["card"] and band["sheet"], "the card is up and the sheet is still there"
     assert band["card"]["bottom"] == pytest.approx(page.viewport_size["height"], abs=1)
-    assert band["strip"] and band["strip"]["bottom"] <= band["card"]["top"] + 1, (
-        "the strip stands on the card"
+    assert band["strip"] == before["strip"], "the strip did not move for the card"
+    assert band["foot"] == before["foot"] and band["room"] == before["room"], (
+        "the page was laid out again for the card"
     )
     page.keyboard.press("Escape")
-    page.wait_for_function("() => !document.getElementById('list').hidden")
+    page.wait_for_function("() => document.getElementById('gloss-card').hidden")
     band = page.evaluate(BAND)
-    assert band["sheet"] and not band["card"], "the sheet is back"
+    assert band["sheet"] and not band["card"], "the sheet is still there"
     prefs = page.evaluate("() => JSON.parse(localStorage.getItem('targum:prefs') || '{}')")
     assert prefs.get("list") is True
+
+
+#: The page as the reader sees it, in one frame: which pairs are on show and where each
+#: one sits, the page counter, and the scroll. Two of these being equal is the screen
+#: not having moved.
+LINES = """
+() => ({
+  of: (document.getElementById('page-of') || {}).textContent || '',
+  scrollY: Math.round(window.scrollY),
+  shown: [...document.querySelectorAll('.pair:not([hidden])')].map((pair) => {
+    const b = pair.getBoundingClientRect();
+    return [pair.getAttribute('data-id'), Math.round(b.top)];
+  }),
+})
+"""
+
+#: Tap the lowest word that the card will not cover — the one a reader looking things
+#: up on a phone would most often tap — and say which one it was.
+TAP_CLEAR = """
+() => {
+  const bar = document.querySelector('.bar');
+  const top = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+  const limit = window.innerHeight * 0.5;
+  let pick = null;
+  for (const w of document.querySelectorAll('.pair:not([hidden]) .src:not([hidden]) .w')) {
+    const box = w.getBoundingClientRect();
+    if (box.top >= top && box.bottom <= limit) pick = w;
+  }
+  if (!pick) return null;
+  pick.click();
+  return { id: pick.closest('.pair').dataset.id, text: pick.textContent };
+}
+"""
+
+
+def test_a_tapped_word_moves_nothing_on_a_phone(phone_chapter) -> None:
+    """The words in front of the reader are the words in front of them until they turn
+    the page. A tap on one draws its card over the foot of the page and moves nothing;
+    closing the card moves nothing back. It used to cut the chapter into different
+    pages with the card up — 60 pages became 80 — and cut it again on the way out, so
+    one look at one meaning moved the screen twice (targum-internal#155)."""
+    page = phone_chapter
+    page.evaluate("() => document.querySelector('.turn button[data-turn=\"1\"]').click()")
+    page.wait_for_timeout(300)
+    before = page.evaluate(LINES)
+    assert len(before["shown"]) > 1, "a page with more than one line on it"
+    assert page.evaluate(TAP_CLEAR), "a word above the card's reach to tap"
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.wait_for_timeout(300)
+    assert page.evaluate(LINES) == before, "the page moved under the tap"
+    page.click("#gloss-card .grab")
+    page.wait_for_function("() => document.getElementById('gloss-card').hidden")
+    page.wait_for_timeout(300)
+    assert page.evaluate(LINES) == before, "the page moved when the card went"
+
+
+def test_a_meaning_typed_on_a_phone_keeps_its_card(phone_chapter) -> None:
+    """Writing a meaning is what keeps a word for the first time, and the first word kept
+    used to open the sheet — which on a phone takes the band, and took the card and the
+    field being typed into with it, four hundred milliseconds after the first letter
+    (targum-internal#155). The card stays, the field keeps the focus, and the sheet
+    waits; the tab in the corner says where the word went."""
+    page = phone_chapter
+    assert page.evaluate(TAP_CLEAR)
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.focus("#gloss-card .note-field")
+    page.keyboard.type("milk")
+    # Past the field's own commit, and past the frame the band takes to change hands.
+    page.wait_for_timeout(700)
+    state = page.evaluate(
+        """() => ({
+          card: !document.getElementById('gloss-card').hidden,
+          typing: document.activeElement === document.querySelector('#gloss-card .note-field'),
+          value: (document.querySelector('#gloss-card .note-field') || {}).value,
+          sheet: !document.getElementById('list').hidden,
+          tab: !document.getElementById('list-tab').hidden,
+        })"""
+    )
+    assert state["card"], "the card went while a meaning was being typed"
+    assert state["typing"] and state["value"] == "milk", "the field lost the focus"
+    assert not state["sheet"] and state["tab"], "the sheet took the band from the card"
+    # And the meaning was kept all the same — the field's own commit ran, on a card
+    # that was still there to run it on.
+    assert page.locator("#gloss-card .note-save").text_content() == "Saved"
+    page.click("#gloss-card .grab")
+    page.wait_for_function("() => document.getElementById('gloss-card').hidden")
+    page.wait_for_timeout(100)
+    assert page.evaluate("() => document.getElementById('list').hidden"), (
+        "the sheet came up as the card went"
+    )
+    assert page.evaluate(TAP_CLEAR)
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    mine = page.locator("#gloss-card .meaning.mine")
+    assert mine.count() == 1 and "milk" in mine.text_content()
+
+
+def test_the_keyboard_does_not_lay_the_pages_out_again(phone_chapter) -> None:
+    """A browser that shrinks the window for its keyboard fires a resize, and a resize
+    lays the pages out again — for the sliver above the keyboard, which cut the chapter
+    into twice the pages and turned to one of them under somebody typing a meaning
+    (targum-internal#155). A resize that changes only the height while a field on the
+    card has the focus is the keyboard, and the page holds."""
+    page = phone_chapter
+    assert page.evaluate(TAP_CLEAR)
+    page.wait_for_function("() => !document.getElementById('gloss-card').hidden")
+    page.focus("#gloss-card .note-field")
+
+    # The same page and the same lines on it, not the same pixels: under 40rem the
+    # stylesheet's short-window rule takes 12px off the margin above the text, and
+    # that is a margin, not a page laid out again.
+    def page_shown() -> tuple:
+        lines = page.evaluate(LINES)
+        return lines["of"], lines["scrollY"], [line[0] for line in lines["shown"]]
+
+    before = page_shown()
+    page.set_viewport_size({"width": PHONE["width"], "height": 450})
+    page.wait_for_timeout(300)
+    assert page_shown() == before, "the keyboard laid the pages out again"
+    card = page.evaluate(
+        "() => document.getElementById('gloss-card').getBoundingClientRect().bottom"
+    )
+    assert card == pytest.approx(450, abs=1), "the card is above the keyboard"
+    page.keyboard.type("milk")
+    page.set_viewport_size(PHONE)
+    page.wait_for_timeout(300)
+    assert page_shown() == before, "the keyboard going laid the pages out again"
 
 
 def test_the_text_keeps_most_of_a_phone_whatever_is_up(phone_scene_scrolling) -> None:

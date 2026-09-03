@@ -19,12 +19,25 @@ if I know this much", which is the question a learner actually has. Band 1 is th
 of lemmas that carry half of all running text; band 6 is the long tail, where most of the
 hapax legomena live.
 
-**Counted with the same lemmatizer that reads the book, and that matters more than
-linguistic perfection.** Stanza's Hebrew models are trained on modern unpointed text and
-will mishandle some Biblical morphology — waw-consecutive, pausal forms, archaic suffixes.
-But the table is built by running the same pipeline over the same corpus, so a lemma's
-count is a true count of that lemma *as the reader will meet it*. A more scholarly
-lemmatizer that disagreed with the one doing the reading would be worse, not better.
+**Counted under the names the readers of it actually use — both of them.** The Tanakh
+is a closed corpus that has been morphologically tagged by hand and released openly
+(`oshb.py`), and `ScriptureLemmatizer` files every word of a verse it can line up under
+the headword that tagging names. The verses it cannot, and every text that is not
+scripture, are read by DICTA, which names the same word differently — `הביא` where the
+tagging says `בוא`, `אלוהים` for `אלהים` — and those are two vocabularies, not two
+spellings a rule could fold. So the table is the Tanakh counted twice, once through
+`headword_of` and once through DICTA, each keying banded by its own coverage and the two
+merged on the easier band. A lemma's count is then a true count of that lemma *as the
+reader will meet it*, whichever of the two met it, and a name either can file a word
+under is a name the table has.
+
+It was not always. The first table was counted with Stanza, on the argument that the
+same lemmatizer read the book — true on the day and false within a fortnight, when the
+lookup replaced Stanza on scripture and DICTA replaced it everywhere else. Half the
+headwords in the Tanakh then missed the table, `אתה` and `הם` among them, and every miss
+was "modern · not in the Tanakh" on the Tanakh page (targum-internal#156). The count is
+`scripts/count_tanakh.py`; run it again only if the tagging, `headword_of` or the DICTA
+model changes, and rename this module and `register.py` together when you do.
 """
 
 from __future__ import annotations
@@ -37,7 +50,9 @@ from pathlib import Path
 from ..models import is_biblical
 from .base import BAND_COUNT, UNRATED
 
-NAME = "tanakh/1"
+# `/2`: recounted from the hand tagging rather than from Stanza (targum-internal#156).
+# Renamed together with `register/2`, which reads the same table.
+NAME = "tanakh/2"
 METHOD = "curated:tanakh"
 
 # Where each band ends, as a share of all running text. Band 1 is whatever it takes to
@@ -56,9 +71,10 @@ LANGUAGES = frozenset({"he", "iw"})
 def _table() -> tuple[dict[str, int], int]:
     """Lemma -> band, and how many lemmas the table knows.
 
-    Read once. The file ships with the package because building it means running Stanza
-    over a hundred and fifty thousand words, which is not something to do at build time
-    for every reader.
+    Read once. The file ships with the package because counting it means reading the
+    whole of the tagged Hebrew Bible, which is not something to do at build time for
+    every reader — and not something a box can do at all until it has fetched the
+    tagging.
     """
     path = Path(__file__).with_name("tanakh.json")
     if not path.is_file():
@@ -114,9 +130,10 @@ class BiblicalBands:
     def band(self, lemma: str, language: str) -> int:
         if not self.supports(language):
             return UNRATED
-        # A lemma the Tanakh does not contain, in a text that is the Tanakh, is almost
-        # always the lemmatizer having produced something the table was built without.
-        # The hardest band is the honest answer: it is not a word this corpus teaches.
+        # A lemma the Tanakh does not contain, in a text that is the Tanakh, is a verse
+        # the lookup could not line up and a model read instead, spelling the word its
+        # own way. The hardest band is the honest answer: it is not a word this list
+        # teaches under that name.
         return _table()[0].get(lemma, BAND_COUNT)
 
 
