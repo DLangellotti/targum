@@ -2426,6 +2426,24 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .video-mode:focus-visible,
 .video-corner:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
+/* --- the dock --------------------------------------------------------------
+   Reading, with the picture in a corner the reader chose. Never dragged: a control
+   fixed over a page of text takes its room out of the layout (§12), and `room()` keeps
+   the reading clear of whichever corner this is.
+
+   Before watching, deliberately: a panel carries its corner and its mode at once, and
+   these two sets of insets have the same weight. Written the other way round, the
+   corner won and the full-screen picture stayed a 20rem box in the margin. */
+/* Above the strip, by however tall the strip actually is. 4.75rem was the height of a
+   player showing only its name; one showing a bar and a clock — which is every text a
+   reader has been in before — is taller than that, and the picture sat on it. The
+   script keeps `--player-tall` measured; the fallback is the old figure, for the frame
+   before the first measurement and for a browser without a ResizeObserver. */
+.video.dock-bottom-end { inset-block: auto calc(var(--player-tall, 3.5rem) + 1.25rem); inset-inline: auto 1.25rem; }
+.video.dock-bottom-start { inset-block: auto calc(var(--player-tall, 3.5rem) + 1.25rem); inset-inline: 1.25rem auto; }
+.video.dock-top-end { inset-block: 4.5rem auto; inset-inline: auto 1.25rem; }
+.video.dock-top-start { inset-block: 4.5rem auto; inset-inline: 1.25rem auto; }
+
 /* --- watching --------------------------------------------------------------
    A text carrying a video sidecar opens as video (§12, 2026-09-03): the picture fills
    the window and the line being said is drawn over it. The reading page is left
@@ -2513,16 +2531,13 @@ body.watching { overflow: hidden; }
   justify-self: center;
   align-self: end;
   margin-block-end: 1.25rem;
+  /* Wide, where in the corner it is a pill. The strip's middle column is fixed at
+     8.5rem so the card does not breathe as the clock ticks, which is right for a pill
+     and wrong here twice over: the label wraps onto a second line and the bar a reader
+     is meant to drag is an inch long. */
+  inline-size: min(38rem, 92vw);
 }
-
-/* --- the dock --------------------------------------------------------------
-   Reading, with the picture in a corner the reader chose. Never dragged: a control
-   fixed over a page of text takes its room out of the layout (§12), and `room()` keeps
-   the reading clear of whichever corner this is. */
-.video.dock-bottom-end { inset-block: auto 4.75rem; inset-inline: auto 1.25rem; }
-.video.dock-bottom-start { inset-block: auto 4.75rem; inset-inline: 1.25rem auto; }
-.video.dock-top-end { inset-block: 4.5rem auto; inset-inline: auto 1.25rem; }
-.video.dock-top-start { inset-block: 4.5rem auto; inset-inline: 1.25rem auto; }
+.video.watching .player-body { flex: 1 1 auto; inline-size: auto; min-inline-size: 0; }
 
 /* Held up, rather than held sideways. `screen.orientation.lock()` works only inside
    the Fullscreen API and not at all in Safari on iOS, so the note's "on mobile the
@@ -2531,23 +2546,26 @@ body.watching { overflow: hidden; }
    ways up instead: laid over the picture in landscape, under it in portrait, where a
    16:9 frame leaves most of the window empty and the line can have some of it. */
 @media (orientation: portrait) {
-  .video.watching {
-    grid-template-rows: 1fr auto auto;
-    align-content: center;
-  }
+  /* Read down the window: the picture, the line it is saying, and the transport at the
+     foot where every strip in this reader lives. The empty room goes between the line
+     and the transport rather than between the picture and the line — a caption is part
+     of the frame it belongs to, and half a screen of paper between them makes it a
+     paragraph about the film instead. */
+  .video.watching { grid-template-rows: auto auto 1fr; }
   .video.watching .video-el {
     grid-row: 1;
-    align-self: center;
+    align-self: start;
+    margin-block-start: 3rem;
     block-size: auto;
     aspect-ratio: 16 / 9;
   }
   .video.watching .video-keys { grid-row: 1; align-self: start; }
   .video.watching .video-titles {
     grid-row: 2;
-    margin-block-end: 1rem;
+    margin-block: 1.25rem 0;
     background: none;
   }
-  .video.watching .player { grid-row: 3; }
+  .video.watching .player { grid-row: 3; align-self: end; }
   .video.watching .video-src { color: var(--ink); }
   .video.watching .video-tr { color: var(--ink-soft); }
   /* The frame is a letterbox in the middle of the page rather than the page itself, so
@@ -2874,4 +2892,26 @@ html:fullscreen { background: var(--paper); }
   /* A turned page arrives; it does not come in from anywhere. Here rather than in the
      block above, because the turn's own rules are written after that one. */
   #reader.turned-from-left, #reader.turned-from-right { animation: none; }
+}
+
+/* Watching, on a narrow window, and written last on purpose.
+   Below 60rem every occupant of the band becomes a bottom sheet: half the height of the
+   window, on paper, with a rise as it arrives and a scroll inside it. Watching is not an
+   occupant — it is the window — and those rules are weighted the same as these, so
+   written any earlier they capped the picture at 45svh and left the reading page showing
+   underneath it. The band's treatment is right for the docked picture and this is the
+   one state it is wrong for. */
+@media (max-width: 60rem) {
+  .video.watching:not([hidden]) {
+    inset: 0;
+    inline-size: auto;
+    max-inline-size: none;
+    max-block-size: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    z-index: 40;
+    animation: none;
+  }
 }

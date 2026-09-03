@@ -4421,3 +4421,59 @@ def test_the_docked_picture_takes_its_room_out_of_the_layout(browser, tmp_path) 
         )
     finally:
         context.close()
+
+
+def test_watching_fills_the_window_whatever_size_it_is(browser, tmp_path) -> None:
+    """Two rules of equal weight sat between the picture and the window, and both won
+    for a while: the corner's insets, written after the mode's, kept the full-screen
+    picture a 20rem box in the margin; and below 60rem the band's own sheet capped it at
+    45svh with the reading page showing underneath. Both are ordering, so both are the
+    kind of thing that comes back."""
+    built = video_reader(tmp_path, lines=40)
+    for size in ({"width": 1280, "height": 800}, {"width": 390, "height": 844}):
+        context, page = open_reader(browser, built, viewport=size)
+        try:
+            page.wait_for_selector("#video.watching")
+            page.wait_for_timeout(150)
+            box = page.locator("#video").bounding_box()
+            assert abs(box["width"] - size["width"]) < 2, (size, box)
+            assert abs(box["height"] - size["height"]) < 2, (size, box)
+            # And nothing of the page beneath is showing through beside it.
+            assert page.evaluate("() => getComputedStyle(document.body).overflow") == "hidden"
+        finally:
+            context.close()
+
+
+def test_the_docked_picture_stands_clear_of_the_transport(browser, tmp_path) -> None:
+    """The dock's offset was a figure written into the stylesheet, and the strip is not
+    one height: it grows a bar and a clock the moment a text has a place to show, which
+    is every text the reader has been in before. The picture sat on it."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=40)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video.watching")
+        page.wait_for_function("() => window.TargumPlayer.length() > 0")
+        # A place to show, which is what makes the strip its taller self.
+        page.evaluate("() => window.TargumPlayer.seek(0.2)")
+        page.click(".video-mode")
+        page.wait_for_timeout(250)
+        assert page.evaluate("() => document.getElementById('player').classList.contains('placed')")
+
+        picture = page.locator("#video").bounding_box()
+        strip = page.locator("#player").bounding_box()
+        assert picture["y"] + picture["height"] <= strip["y"] + SLACK, (picture, strip)
+    finally:
+        context.close()
+
+
+def test_a_text_with_no_picture_is_untouched_by_the_modes(scene) -> None:
+    """The modes are the sidecar's, and a text without one has none of them: no scrim,
+    no full-screen state, and `v` is a letter the page hands back."""
+    assert scene.locator(".video-titles").count() == 0
+    assert scene.locator("#video").count() == 0
+    scene.keyboard.press("v")
+    assert scene.evaluate("() => document.body.classList.contains('watching')") is False
+    assert scene.evaluate("() => !window.TargumVideo")
+    # And its own transport is where it always was, with the gaps the note found closed.
+    assert scene.locator("#player .player-track").get_attribute("role") == "slider"
+    assert scene.locator("#player .player-back").count() == 1

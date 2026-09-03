@@ -6790,6 +6790,19 @@ var targumReader = function () {
     seek: seek,
   };
 
+  /* How tall the strip is, for the things that stand above it. The picture's dock used
+     a figure written into the stylesheet, and the strip is not one height: it grows a
+     bar and a clock the moment a text has a place to show, which is every text the
+     reader has been in before — and the picture sat on top of it. Measured rather than
+     guessed, and only when it changes. */
+  if (player && window.ResizeObserver) {
+    var measure = new ResizeObserver(function () {
+      var tall = player.hidden ? 0 : player.offsetHeight;
+      document.documentElement.style.setProperty("--player-tall", tall + "px");
+    });
+    measure.observe(player);
+  }
+
   /* One line. */
   document.addEventListener("click", function (event) {
     var button = event.target.closest ? event.target.closest(".say") : null;
