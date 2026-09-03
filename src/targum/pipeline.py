@@ -36,7 +36,7 @@ from .models import (
     keeps_its_own_pointing,
     read_artifact,
 )
-from .segment import Segmenter, StanzaSegmenter, segment_document
+from .segment import HebrewSegmenter, Segmenter, segment_document
 from .translate import build as build_provider
 from .usage import Usage
 
@@ -201,7 +201,7 @@ class Build:
         self.force = force
         self.notify = notify or (lambda _message: None)
         self.cache = Cache()
-        self.segmenter: Segmenter = segmenter or StanzaSegmenter()
+        self.segmenter: Segmenter = segmenter or HebrewSegmenter()
         self.translation_files: list[Path | str] = list(translations)
         # Supplying a published translation is a reason not to pay for a machine one,
         # unless the point is to compare them.

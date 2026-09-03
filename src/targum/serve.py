@@ -3647,6 +3647,9 @@ class Handler(BaseHTTPRequestHandler):
                     "citation": held.citation if held else "",
                     "plural": held.plural if held else "",
                     "cached": bool(held),
+                    # Whether a sentence chose the sense. A held meaning with no
+                    # sentence behind it is what the page asks again, with its own.
+                    "grounded": bool(held and held.grounded),
                 }
             )
         usable, _ = provider.available()
@@ -3665,6 +3668,7 @@ class Handler(BaseHTTPRequestHandler):
                 "meaning": sense.gloss if sense else "",
                 "citation": sense.citation if sense else "",
                 "plural": sense.plural if sense else "",
+                "grounded": bool(sense and sense.grounded),
             }
         )
 

@@ -255,25 +255,15 @@ def test_a_different_language_pair_is_a_different_cache_entry(tmp_path) -> None:
     assert paid == 1
 
 
-@pytest.mark.stanza
-def test_hebrew_prefixes_are_stripped_for_real(needs_hebrew_model: None) -> None:
+def test_stanza_lemmatizer_refuses_hebrew() -> None:
+    """Refused at the class, not merely routed around: a caller that reaches for the
+    delegate with a Hebrew text gets an error naming the reason, never the model."""
     from targum.annotate import StanzaLemmatizer
-    from targum.annotate.lemma import PROCESSORS
-    from targum.segment import has_processors
+    from targum.errors import TargumError
 
-    if not has_processors("he", PROCESSORS):
-        pytest.skip("Hebrew lemmatizer not downloaded")
-
-    segmented = document(["בה חי חיי קוממיות ממלכתית, בה עוצבה דמותו הרוחנית, הדתית והמדינית."])
-    annotation = Annotator(lemmatizer=StanzaLemmatizer()).annotate(segmented)
-    tokens = next(iter(annotation.tokens.values()))
-    lemmas = {token.surface: token.lemma for token in tokens}
-    # ו + ה + מדינית, three morphemes deep, resolved to the dictionary form.
-    assert lemmas.get("והמדינית") == "מדיני"
-    assert lemmas.get("הרוחנית") == "רוחני"
-    assert all(token.split for token in tokens if token.surface.startswith("ה"))
-    bands = {token.surface: token.band for token in tokens}
-    assert bands.get("קוממיות", 0) >= 4  # archaic, and banded as such
+    for tag in ("he", "he-IL", "iw"):
+        with pytest.raises(TargumError, match="NonCommercial"):
+            StanzaLemmatizer().pipeline(tag)
 
 
 def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
@@ -419,6 +409,73 @@ def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(
     # And a word with no sentence behind it is asked for the old way.
     gloss_one("בית", "he", "en", provider, cache=cache)
     assert provider.contexts == [{"עם": "ויצא עם העם"}, None]
+
+
+def test_a_sense_bought_bare_is_bought_once_more_when_a_sentence_arrives(
+    tmp_path,  # type: ignore[no-untyped-def]
+) -> None:
+    """The catalogue's lemmas were all glossed with no sentence behind them, so עם is
+    held as "people" for a reader who met it as "with". They are not re-bought in bulk —
+    that would cost the same per word and guess a sentence. The first tap that carries
+    a sentence buys the word again, grounded, and after that nothing ever is."""
+    from targum.annotate.gloss import cached_gloss
+
+    class Contextual(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            self.asked.append(list(lemmas))
+            sentence = (contexts or {}).get(lemmas[0], "")
+            sense = "with; people" if sentence else "people; nation"
+            return {lemma: (sense, "noun") for lemma in lemmas}
+
+    cache = Cache(tmp_path)
+    provider = Contextual()
+    # Bought by a whole-text build: bare, and it says so.
+    build_glossary(annotation_with({"עם": 1}), "en", provider, cache=cache)
+    bare = cached_gloss("עם", "he", "en", provider.name, cache=cache)
+    assert bare is not None and (bare.gloss, bare.grounded) == ("people; nation", False)
+
+    # Asked with no sentence: what is held is handed over, nothing is bought.
+    assert gloss_one("עם", "he", "en", provider, cache=cache) == bare
+    assert provider.asked == [["עם"]]
+
+    # Asked with one: bought again, and the sentence's sense comes first now.
+    grounded = gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם")
+    assert grounded is not None and (grounded.gloss, grounded.grounded) == ("with; people", True)
+    assert provider.asked == [["עם"], ["עם"]]
+
+    # And that one stands: a different sentence buys nothing.
+    again = gloss_one("עם", "he", "en", provider, cache=cache, context="עם ישראל חי")
+    assert again == grounded
+    assert provider.asked == [["עם"], ["עם"]]
+
+
+def test_grounding_that_fails_leaves_the_meaning_that_was_there(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A word that has a meaning does not lose it because the second purchase failed:
+    the reader is shown what was held, and the next sentence tries again."""
+    from targum.errors import ProviderError
+
+    class Down(FakeGlosses):
+        def gloss(self, lemmas, source_language, target_language, on_progress=None, contexts=None):  # type: ignore[no-untyped-def]
+            if contexts:
+                raise ProviderError("Anthropic API error 529 while glossing.", "overloaded")
+            return super().gloss(lemmas, source_language, target_language, on_progress)
+
+    cache = Cache(tmp_path)
+    provider = Down()
+    bare = gloss_one("עם", "he", "en", provider, cache=cache)
+    assert bare is not None and not bare.grounded
+    assert gloss_one("עם", "he", "en", provider, cache=cache, context="ויצא עם העם") == bare
+    assert not cached_gloss_is_grounded(cache, provider.name), "a failure grounded nothing"
+    # A word with nothing held is a failure the reader has to hear about.
+    with pytest.raises(ProviderError):
+        gloss_one("בית", "he", "en", provider, cache=cache, context="בית גדול")
+
+
+def cached_gloss_is_grounded(cache: Cache, provider: str) -> bool:
+    from targum.annotate.gloss import cached_gloss
+
+    held = cached_gloss("עם", "he", "en", provider, cache=cache)
+    return held is not None and held.grounded
 
 
 def test_unrated_words_are_still_worth_glossing() -> None:
@@ -607,6 +664,16 @@ def test_a_rebuild_fills_a_reader_from_the_cache(tmp_path) -> None:  # type: ign
     assert grown["en"].parts_of_speech == {"ארץ": "noun"}
     again = fill_from_cache(annotation, grown, ["en"], cache=cache)
     assert again == {}, "nothing new, nothing written"
+
+    # A reader met ארץ in a sentence since, and the sense was bought again with it. The
+    # cache is the later word, and the file catches up on the next rebuild.
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", annotation.language, "en", gloss_provider_name()),
+        {"gloss": "earth; land", "part_of_speech": "noun", "grounded": True},
+    )
+    caught_up = fill_from_cache(annotation, grown, ["en"], cache=cache)
+    assert caught_up["en"].entries == {"ארץ": "earth; land"}
 
 
 # -- every word is a word ---------------------------------------------------------
@@ -807,6 +874,30 @@ def test_the_register_is_recorded_beside_the_band() -> None:
     annotation = annotator().annotate(document(["זבח אוטובוס בית"]))
     (tokens,) = annotation.tokens.values()
     assert [token.word_register for token in tokens] == ["biblical", "modern", None]
+
+
+def test_on_the_tanakh_a_word_is_never_modern() -> None:
+    """The annotator knows it is reading scripture from the bands it was handed, and on
+    scripture the register line has one answer fewer: the word is on the page, so "not
+    in the Tanakh" is not something the table can say about it (targum-internal#156).
+    """
+    from targum.annotate import biblical, register
+
+    class TanakhLike(FakeBands):
+        method = biblical.METHOD
+
+    assert register.of("אוטובוס", "he") == "modern", "the lexicon would say so"
+    cold = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands())
+    assert not cold.scripture
+    (tokens,) = cold.annotate(document(["אוטובוס"])).tokens.values()
+    assert tokens[0].word_register == "modern"
+
+    tanakh = Annotator(lemmatizer=FakeLemmatizer(), bands=TanakhLike())
+    assert tanakh.scripture
+    (tokens,) = tanakh.annotate(document(["אוטובוס"])).tokens.values()
+    assert tokens[0].word_register is None
+    (tokens,) = tanakh.annotate(document(["זבח"])).tokens.values()
+    assert tokens[0].word_register == "biblical", "the other direction is untouched"
 
 
 def test_a_name_has_no_register() -> None:
@@ -1212,3 +1303,94 @@ def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
     assert len(read) == len(segments), "every segment still comes back, in one dict"
     assert max(asked) <= BATCH, f"a batch of {max(asked)} was handed over at once"
     assert sum(asked) == len(segments), "and each segment is asked about exactly once"
+
+
+def test_two_words_that_share_a_spelling_are_two_entries(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """אֵלֶּה and אָלָה are one lemma and two meanings. The list a glossary is bought from
+    counts them apart, and the glossary files each under its own headword — so the curse
+    can never again be shown for "these"."""
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={
+            "s1": [
+                Token(start=0, end=3, surface="אלה", lemma="אלה", band=1, headword="אֵלֶּה"),
+                Token(start=4, end=7, surface="אלה", lemma="אלה", band=5, headword="אָלָה"),
+                Token(start=8, end=11, surface="בית", lemma="בית", band=1),
+            ]
+        },
+    )
+    assert unique_lemmas(annotation) == ["אָלָה", "אֵלֶּה", "בית"]
+
+    glossary, paid = build_glossary(annotation, "en", FakeGlosses(), cache=Cache(tmp_path))
+    assert paid == 3
+    assert set(glossary.entries) == {"אֵלֶּה", "אָלָה", "בית"}
+    assert "אלה" not in glossary.entries, "the shared spelling itself is nobody's entry"
+
+
+def test_the_default_annotator_reads_hebrew_through_dicta_and_never_the_delegate() -> None:
+    """`Annotator()` with nothing passed used to be Stanza alone, and the gloss command,
+    the weekly's gauge and two scripts reached it — each a way for a Hebrew word to reach
+    the NonCommercial model the swap removed (targum-internal#146)."""
+    from targum.annotate.dicta import DictaLemmatizer
+    from targum.models import Segment
+
+    class Refusing:
+        name = "stanza/refused"
+
+        def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+            raise AssertionError(f"the delegate was handed {language}")
+
+    class Empty:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            return [{"tokens": []} for _ in texts]
+
+    annotator = Annotator()
+    assert isinstance(annotator.lemmatizer, DictaLemmatizer)
+    annotator.lemmatizer.other = Refusing()
+    annotator.lemmatizer._model = Empty()
+    annotator.lemmatizer._tokenizer = object()
+
+    segment = Segment(
+        id="s0", text="הוא הלך.", ref="", kind="paragraph", block_id="b0", block_index=0, index=0
+    )
+    # By the code and never the raw tag: an upload's front matter can say any of these.
+    for tag in ("he", "he-IL", "iw", "HE"):
+        assert annotator.lemmatizer.lemmas([segment], tag) == {"s0": []}, tag
+
+
+def test_a_rebuild_asked_to_buy_fills_what_the_cache_lacks(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """Free by default, and a shelf of "look it up" buttons is not a state to leave a
+    reader in: given a provider, the fill buys the missing entries, caches them like a
+    build would, and the next fill has nothing left to buy."""
+    from targum.annotate.gloss import fill_from_cache, gloss_key, gloss_provider_name
+
+    class SameModel(FakeGlosses):
+        # The build, the tap and the rebuild all buy on one model, and its name is the
+        # cache key — so the free fill and the paid one have to be looking in one place.
+        name = gloss_provider_name()
+
+    cache = Cache(tmp_path / "cache")
+    annotation = annotation_with({"ארץ": 2, "שלום": 1})
+    provider = SameModel()
+    cache.put(
+        "gloss",
+        gloss_key(cache, "ארץ", "he", "en", provider.name),
+        {"gloss": "land", "part_of_speech": "noun"},
+    )
+
+    free = fill_from_cache(annotation, {}, ["en"], cache=cache)
+    assert free["en"].entries == {"ארץ": "land"}, "without a provider only the cache answers"
+    assert provider.asked == []
+
+    grown = fill_from_cache(annotation, {}, ["en"], cache=cache, provider=provider)
+    assert grown["en"].entries == {"ארץ": "land", "שלום": "meaning of שלום"}
+    assert provider.asked == [["שלום"]], "only the missing word is paid for"
+    stored = cache.get("gloss", gloss_key(cache, "שלום", "he", "en", provider.name))
+    assert stored and stored["gloss"] == "meaning of שלום" and stored["grounded"] is False
+
+    again = fill_from_cache(annotation, grown, ["en"], cache=cache, provider=provider)
+    assert again == {} and provider.asked == [["שלום"]], "bought once, free after"

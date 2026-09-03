@@ -253,3 +253,18 @@ def test_the_terms_take_a_position_on_what_a_reader_uploads() -> None:
     assert "stored under the User's account alone" in terms, "private per person, and said so"
     assert "shall remove the material complained of" in terms, "the takedown obligation"
     assert "Notice of infringement" in terms, "and it has a clause of its own"
+
+
+def test_the_name_is_reserved_where_the_licence_is_not() -> None:
+    """The AGPL is a licence on the code and says nothing about the name. `NOTICE` says
+    it: a derived product or service is not called targum, and `LICENSING.md` sends a
+    reader there so the reservation is found beside the grant it qualifies."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    notice = (root / "NOTICE").read_text(encoding="utf-8")
+    assert "targum" in notice and "name" in notice
+    assert "grants no right" in notice
+    assert "derived product or service" in notice
+    assert "`NOTICE`" in (root / "LICENSING.md").read_text(encoding="utf-8")
+    assert '"NOTICE"' in (root / "pyproject.toml").read_text(encoding="utf-8")

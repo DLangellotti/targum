@@ -34,6 +34,7 @@ from typing import Any
 from ..errors import TargumError
 from ..models import Segment, Token
 from ..paths import model_dir
+from ..segment.stanza_segmenter import stanza_code
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
 
 # The one model, named in full because the name rides into every annotation.
@@ -174,6 +175,12 @@ def _pieces_of(seg: list[str], lemma: str, suffix: Any) -> str | None:
     return " + ".join(chunk for chunk in chunks if chunk) or None
 
 
+#: The weights, once per process. Twenty seconds and 1.5 GB to load, and read-only once
+#: loaded, so a second instance — the weekly's gauge builds an annotator per attempt —
+#: shares them rather than paying again.
+_LOADED: dict[str, tuple[Any, Any]] = {}
+
+
 class DictaLemmatizer:
     """Hebrew through DICTA; anything else through the lemmatizer it is given.
 
@@ -213,6 +220,8 @@ class DictaLemmatizer:
         beside the weights instead of in the home directory — one place to back up, one
         place a box without a network has to have been given.
         """
+        if self._model is None and MODEL in _LOADED:
+            self._model, self._tokenizer = _LOADED[MODEL]
         if self._model is None:
             import os
 
@@ -231,12 +240,16 @@ class DictaLemmatizer:
             model.eval()
             torch.set_grad_enabled(False)
             self._model = model
+            _LOADED[MODEL] = (model, self._tokenizer)
         return self._model, self._tokenizer
 
     def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
         if not segments:
             return {}
-        if language != "he":
+        # By the code and never the raw tag: a text tagged `he-IL` or `iw` is Hebrew, and
+        # handing it to the delegate would read it with the NonCommercial model this
+        # class exists to keep it away from (targum-internal#146).
+        if stanza_code(language) != "he":
             return self.other.lemmas(segments, language)
 
         import torch

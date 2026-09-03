@@ -12,10 +12,12 @@ from targum.annotate import register
     [
         # Everywhere in scripture, gone from the street. The whole reason the card says
         # anything: `strength` calls this ordinary and a learner reads that as "you will
-        # meet this in Tel Aviv", which is false.
-        "עקש",
+        # meet this in Tel Aviv", which is false. Not עקש, which was here while the table
+        # was counted off four books: over the whole Tanakh it is eleven occurrences, and
+        # eleven is the tail, not "ordinary in the Tanakh".
         "זבח",
         "שפחה",
+        "אהל",
     ],
 )
 def test_a_word_out_of_the_tanakh_and_out_of_use_is_biblical(word: str) -> None:
@@ -35,6 +37,31 @@ def test_a_word_ordinary_in_both_registers_is_left_alone(word: str) -> None:
     the card that called it modern would be wrong about the reader's own Bible.
     """
     assert register.of(word, "he") is None
+
+
+def test_a_word_read_off_scripture_is_never_called_modern() -> None:
+    """A word on the page of Deuteronomy the reader is looking at is in the Tanakh,
+    whatever the table says: a miss there is a spelling the count did not see, and the
+    honest line is no line (targum-internal#156). The table cannot know טלוויזיה, and
+    on a modern text that is the right "modern"; on scripture the same miss says nothing.
+    """
+    assert register.of("טלוויזיה", "he") == register.MODERN, "the cold answer, for a modern text"
+    assert register.of("טלוויזיה", "he", scripture=True) is None
+    # The other direction is untouched: a word the table knows is still what it is.
+    assert register.of("זבח", "he", scripture=True) == register.BIBLICAL
+    assert register.of("מלך", "he", scripture=True) is None
+
+
+def test_the_table_knows_a_word_under_both_names() -> None:
+    """The word that was noticed. The tagging files נִצָּבִים under נצב and DICTA under
+    ניצב; the first table had only Stanza's נצב, so a verse DICTA read was "modern · not
+    in the Tanakh" on the first word of Nitzavim. Counted under both, both are the same
+    ordinary biblical word, and neither is modern."""
+    assert register.of("נצב", "he") == register.BIBLICAL
+    assert register.of("ניצב", "he") is not register.MODERN
+    from targum.lexicon import biblical_strength
+
+    assert biblical_strength("ניצב") is not None
 
 
 def test_a_word_rare_in_both_registers_is_left_alone() -> None:

@@ -11,6 +11,7 @@ from .base import (
     BAND_COUNT,
     BAND_NAMES,
     HIGHLIGHT_LABELS,
+    LANGUAGES,
     NOT_VOCABULARY,
     UNRATED,
     Bands,
@@ -18,7 +19,9 @@ from .base import (
     Pronouncer,
     highlight_levels,
     method_label,
+    unread,
 )
+from .biblical import METHOD as TANAKH_METHOD
 from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
@@ -80,7 +83,15 @@ class Annotator:
         # annotated and handed in. See `annotate/dictionary.py`.
         self.dictionary: Mapping[str, DictionaryEntry] = dictionary or {}
         self.dictionary_name = dictionary_name if self.dictionary else ""
-        self.lemmatizer: Lemmatizer = lemmatizer or StanzaLemmatizer()
+        if lemmatizer is None:
+            # DICTA for Hebrew, Stanza for the rest, the way `lemma.for_source` builds it
+            # for a build. The bare default used to be Stanza alone, and four callers
+            # that measure or gloss a text reached it — every one a way for a Hebrew word
+            # to be read by the NonCommercial model the swap removed (targum-internal#146).
+            from .dicta import DictaLemmatizer
+
+            lemmatizer = DictaLemmatizer()
+        self.lemmatizer: Lemmatizer = lemmatizer
         self.bands: Bands = bands or FrequencyBands()
         # No default. A machine without phonikud installed produces an annotation with no
         # readings and says so in its name, so the machine that has it redoes the text
@@ -93,18 +104,31 @@ class Annotator:
         # say about. The name is the annotator's, not the document's, and an annotator
         # that would now record something it did not record before is a different one —
         # which is exactly what makes a text built before this get built again.
-        base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}"
+        # And so is the language rule, for the same reason: it is a fact about what this
+        # annotator does to a block, not about whether any text on the shelf has one.
+        base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}+{LANGUAGES}"
         if self.dictionary_name:
             # A text read with a dictionary behind it carries facts the same text read
             # without one does not, so it is a different annotation and says so.
             base = f"{base}+{self.dictionary_name}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
+    @property
+    def scripture(self) -> bool:
+        """Whether the text being read is the Tanakh.
+
+        Known from the bands rather than told separately: every caller already chooses
+        the Tanakh word list by `is_biblical(source)`, and a text banded against the
+        Tanakh is the Tanakh. The register line needs the same fact, because on that
+        text "not in the Tanakh" is never an answer (targum-internal#156).
+        """
+        return self.bands.method == TANAKH_METHOD
+
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
     ) -> Annotation:
-        # Lemmatize the bare text, never the pointed text. Stanza's Hebrew models are
-        # trained unpointed, and fed nikkud they return lemmas that are not words:
+        # Lemmatize the bare text, never the pointed text. The Hebrew models are trained
+        # unpointed, and fed nikkud Stanza's returned lemmas that are not words:
         # נַּפְשִׁי comes back as נַּ'ְשִׁ, שׁוּבֵךְ as הוּבֵך. Every band, gloss and saved-word
         # grouping downstream is keyed to the lemma, so one pointed source poisons all
         # three. Offsets are mapped back onto the segment as ingested afterwards, which
@@ -112,6 +136,10 @@ class Annotator:
         plain: list[Segment] = []
         to_source: dict[str, list[int]] = {}
         for segment in segmented.segments:
+            if unread(segment, segmented.language):
+                # Not the document's language, so nothing here can read it honestly.
+                # Left without tokens rather than read as Hebrew — see `unread`.
+                continue
             text, _ = strip_nikkud(segment.text)
             if text != segment.text:
                 to_source[segment.id] = pointed_positions(segment.text)
@@ -142,7 +170,9 @@ class Annotator:
                     if token.lemma not in cache:
                         # A text has far fewer distinct lemmas than tokens.
                         cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
-                        registers[token.lemma] = register_module.of(token.lemma, segmented.language)
+                        registers[token.lemma] = register_module.of(
+                            token.lemma, segmented.language, scripture=self.scripture
+                        )
                     band = cache[token.lemma]
                     in_register = registers[token.lemma]
                 update: dict[str, object] = {"band": band, "word_register": in_register}

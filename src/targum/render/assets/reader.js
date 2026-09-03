@@ -129,6 +129,16 @@ var targumReader = function () {
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
+  // The pointed headword, parallel to the lemmas, on the rows whose spelling is shared:
+  // אֵלֶּה and אָלָה are two rows with the lemma אלה on both. The lemma is the word's
+  // identity — marks, counts, the list — and the head is what its meaning is filed
+  // under, so everything that asks for or takes a meaning goes through `glossedAs`.
+  // Absent on every reader built before it existed, and on every row that has the
+  // spelling to itself; the lemma stands in on both.
+  var heads = data.heads || [];
+  function glossedAs(index) {
+    return heads[index] || lemmas[index];
+  }
   // What this language knows about its dictionary forms beyond what every language
   // carries: tables parallel to the lemmas, named for the fact. Only the Hebrew ones are
   // drawn here; a table this reader does not know is left alone.
@@ -136,8 +146,9 @@ var targumReader = function () {
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
-  // which one this text is written in. Codes, not sentences: the words are below, so
-  // rewriting them costs nothing and re-annotating a library is not part of it.
+  // which one this text is written in. Codes, not sentences: the words are in
+  // `registerLine`, so rewriting them costs nothing and re-annotating a library is not
+  // part of it.
   var registers = data.registers || [];
   var sourceRegister = data.sourceRegister || "";
   // Absent in every reader with no Hebrew in it, and in one built before there was
@@ -746,6 +757,14 @@ var targumReader = function () {
   var asked = {};
   // Words whose meaning the card has already asked the cache for, found or not.
   var peeked = {};
+  // Words whose meaning a sentence has chosen — the server's, or asked for from here
+  // this session. A meaning the build shipped was bought for the whole text at once,
+  // with no sentence per word, and עם came back "people" on a page where it was "with".
+  // The first card that opens on such a word asks once more, with the sentence it is
+  // in, and the answer stands for every reader after. Once a session per word: an
+  // answer that is already grounded is a cache hit on the server, and asking again
+  // buys nothing either way.
+  var grounded = {};
   // What came back for a word that had no meaning: "none" when it was looked up and
   // there was nothing to find, or the reason it could not be looked up. Kept so the
   // card can say which, instead of quietly offering the same button again.
@@ -763,12 +782,13 @@ var targumReader = function () {
   // what targum has before it offers to go and get what it does not.
   function peek(index, onDone) {
     var lemma = lemmas[index];
+    var form = glossedAs(index);
     if (!lemma || !canAsk() || typeof fetch !== "function") return;
     var into = targetLanguage || "en";
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: lemma, source: language, target: into, free: true }),
+      body: JSON.stringify({ lemma: form, source: language, target: into, free: true }),
     })
       .then(function (response) {
         return response.json();
@@ -779,6 +799,7 @@ var targumReader = function () {
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
+          if (answer.grounded) grounded[form] = true;
           onDone(true);
         } else {
           onDone(false);
@@ -789,11 +810,29 @@ var targumReader = function () {
       });
   }
 
+  // A meaning already on the card, asked about once more with the sentence it is in.
+  // Nothing is claimed while the answer is in the air — the old meaning stays up — and
+  // the card is redrawn only where the answer moved it.
+  function ground(index, word, onChanged) {
+    var lemma = lemmas[index];
+    var form = glossedAs(index);
+    if (!lemma || grounded[form] || !canAsk()) return;
+    grounded[form] = true;
+    var before = glosses[index];
+    lookUp(index, sentenceOf(word), function () {
+      if (glosses[index] !== before) onChanged();
+    });
+  }
+
   function lookUp(index, sentence, onDone) {
     var lemma = lemmas[index];
     if (!lemma || !canAsk()) return;
-    if (asked[lemma]) return;
-    asked[lemma] = true;
+    var form = glossedAs(index);
+    if (asked[form]) return;
+    asked[form] = true;
+    // A lookup that carries its sentence is a grounding: whatever comes back, the
+    // server has now had the sentence, and the card need not send it again.
+    if (sentence) grounded[form] = true;
     // The language asked about, held for the length of the flight. A reader can change
     // translations while an answer is in the air, and an English meaning filed against
     // Russian is exactly the thing none of this is allowed to do.
@@ -802,7 +841,7 @@ var targumReader = function () {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
-        lemma: lemma,
+        lemma: form,
         source: language,
         target: into,
         sentence: sentence || "",
@@ -812,22 +851,22 @@ var targumReader = function () {
         return response.json();
       })
       .then(function (answer) {
-        asked[lemma] = false;
+        asked[form] = false;
         if (answer && answer.meaning) {
           keepMeaning(lemma, answer.meaning, into);
           if (into === targetLanguage) glosses[index] = answer.meaning;
           if (answer.citation) citations[index] = String(answer.citation);
           if (answer.plural) plurals[index] = String(answer.plural);
-          delete lookup[lemma];
+          delete lookup[form];
         } else {
           // A lemma the lemmatiser mangled is not a word, and the model is right to
           // decline rather than invent something for it.
-          lookup[lemma] = answer && answer.error ? String(answer.error) : "none";
+          lookup[form] = answer && answer.error ? String(answer.error) : "none";
         }
         onDone(answer && answer.error ? String(answer.error) : "");
       })
       .catch(function () {
-        asked[lemma] = false;
+        asked[form] = false;
         onDone("Cannot reach targum.");
       });
   }
@@ -1450,6 +1489,7 @@ var targumReader = function () {
   var wordsEmpty = document.getElementById("words-empty");
   var phrasesEmpty = document.getElementById("phrases-empty");
   var exportButton = document.getElementById("export-button");
+  var ankiButton = document.getElementById("anki-button");
   var tabs = document.querySelectorAll("[data-list]");
 
   // The other half of the tablist contract: arrows move between the two tabs, and the
@@ -1899,6 +1939,7 @@ var targumReader = function () {
     if (phrasesEmpty) phrasesEmpty.hidden = !onPhrases || lastPhrases > 0;
     // Nothing to hand over is not worth offering.
     if (exportButton) exportButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
+    if (ankiButton) ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
   }
 
   function renderList() {
@@ -2306,6 +2347,19 @@ var targumReader = function () {
   // is the usual reason a learner mis-reads it. A verb is parsed, a noun declares its
   // gender and number, an adjective its agreement — and an adverb needs nothing, so
   // it gets nothing.
+  // Which Hebrew a word belongs to, said from where the reader is standing. The table
+  // holds a code only where the two registers disagree, so every line here is news: a
+  // word ordinary in scripture and gone from the street, or in use today and never in
+  // the Tanakh. The same word is ordinary in a Tanakh and an import in a newspaper,
+  // and the line says whichever the reader is looking at.
+  function registerLine(code, source) {
+    if (code === "biblical") {
+      return source === "biblical" ? "biblical · rare today" : "biblical · an import here";
+    }
+    if (code === "modern") return "modern · not in the Tanakh";
+    return "";
+  }
+
   function useLine(line) {
     var pos = feat(line, "UPOS");
     if (pos === "VERB" || pos === "AUX") {
@@ -2647,14 +2701,14 @@ var targumReader = function () {
     // Nothing has been looked up for this word, so nothing is claimed about it. The
     // translation is beside the line; write down what you make of it, or ask.
     if (!own && !glosses[index]) {
-      var outcome = lookup[lemma];
+      var outcome = lookup[glossedAs(index)];
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
         meaning.textContent = "nothing found — write your own";
       } else {
-        if (!peeked[lemma]) {
-          peeked[lemma] = true;
+        if (!peeked[glossedAs(index)]) {
+          peeked[glossedAs(index)] = true;
           peek(index, function (found) {
             if (found && lookedUp === word) showCard(word);
           });
@@ -2681,6 +2735,11 @@ var targumReader = function () {
           card.appendChild(trouble);
         }
       }
+    } else if (!own) {
+      // A meaning is up. If no sentence chose it, this one does — see `grounded`.
+      ground(index, word, function () {
+        if (lookedUp === word) showCard(word);
+      });
     }
 
     // How it is said — the IPA bare, its stress mark being the half of the reading a
@@ -2787,6 +2846,16 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // Which Hebrew the word belongs to, on the cards where that is worth a line at all:
+    // the table is empty wherever the two registers agreed.
+    var where = registerLine(registers[index] || "", sourceRegister);
+    if (where) {
+      var belongs = document.createElement("span");
+      belongs.className = "register";
+      belongs.textContent = where;
+      card.appendChild(belongs);
     }
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
@@ -3431,6 +3500,143 @@ var targumReader = function () {
   function exportCsv() {
     if (prefs.listTab === "phrases") exportPhrases();
     else exportWords();
+  }
+
+  /* --- an Anki deck -------------------------------------------------------- */
+
+  /* The two files above are for a spreadsheet. This one is for Anki, which is where
+     most people learning Hebrew already keep the words they are drilling, and it carries
+     what a card wants that a column does not: the word as it is pointed on the page, the
+     sentence it was met in, and for a verb its root and binyan. Tab-separated with
+     Anki's own header lines, so it imports as it is — no note type to make first and no
+     columns to map — and HTML is on, which is what puts the sentence on a line of its
+     own on the back.
+
+     No formula guard here. This is not a spreadsheet's file, and the apostrophe that
+     makes a cell inert would be the first character of a flashcard. */
+
+  // The form a card is read in: the vowels without the chant. A Masoretic text ships
+  // its accented form and its unaccented one, and the te'amim are for leyning, not
+  // for learning a word; every other text has the pointed cell or only the bare one.
+  function readingCell(segmentId) {
+    return (
+      cells.unaccented[segmentId] || cells.pointed[segmentId] || cells.plain[segmentId] || null
+    );
+  }
+
+  // A run of the bare text, read back out of the reading form: the same offsets
+  // carried across the marks, which is how the page draws a pointed span.
+  function readingRun(segmentId, start, end) {
+    var cell = readingCell(segmentId);
+    if (!cell) return "";
+    var map = cell === cells.plain[segmentId] ? null : markMap(cell);
+    var text = cellText(cell);
+    var from = map ? map[Math.min(start, map.length - 1)] : start;
+    var to = map ? map[Math.min(end, map.length - 1)] : end;
+    return text.slice(from, to);
+  }
+
+  // Where a word is first met in this text, which is the sentence its card quotes.
+  function firstMeeting(lemma) {
+    var ids = Object.keys(wordData);
+    for (var i = 0; i < ids.length; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var j = 0; j < rows.length; j++) {
+        if (lemmas[rows[j][4]] === lemma) return { segmentId: ids[i], token: rows[j] };
+      }
+    }
+    return null;
+  }
+
+  // What goes on the cards: one per entry the list is showing, in the list's order.
+  function ankiCards(kind) {
+    if (kind === "phrases") {
+      return phraseEntries().map(function (entry) {
+        var pick = (picks[entry.segmentId] || [])[entry.index] || {};
+        return {
+          front: readingRun(entry.segmentId, pick.start || 0, pick.end || 0) || entry.term,
+          meaning: entry.meaning || "",
+          sentence: cellText(readingCell(entry.segmentId)),
+          root: "",
+          binyan: "",
+        };
+      });
+    }
+    return wordEntries().map(function (entry) {
+      var met = firstMeeting(entry.lemma);
+      var index = met ? met.token[4] : -1;
+      return {
+        front: met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term,
+        // What the reader wrote or kept first; failing that, the meaning the page
+        // shipped, which is what the card beside the word shows.
+        meaning: entry.meaning || (index >= 0 && glosses[index]) || "",
+        sentence: met ? cellText(readingCell(met.segmentId)) : "",
+        root: (index >= 0 && roots[index]) || "",
+        binyan: (index >= 0 && binyanim[index]) || "",
+      };
+    });
+  }
+
+  // A field of the file. HTML is on, so the text is escaped as HTML; a tab or a line
+  // break inside a field would be read as the next field or the next card.
+  function ankiField(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/\t/g, " ")
+      .replace(/\r?\n/g, "<br>");
+  }
+
+  // The file itself, from a deck's name and its cards. Pure, so a test can hold it.
+  //
+  // Front: the word. Back: what it means, the sentence under it in the language it is
+  // in, and a verb's root and binyan on a third line. Tags: targum, and the text, so a
+  // deck merged into a bigger one can still be told apart. The deck is filed under
+  // `targum::`, which is how Anki nests, so every text's deck sits under one parent.
+  function ankiText(name, cards) {
+    var lines = [
+      "#separator:tab",
+      "#html:true",
+      "#notetype:Basic",
+      "#deck:targum::" + name.replace(/::/g, ":"),
+      "#columns:Front\tBack\tTags",
+      "#tags column:3",
+    ];
+    var tag = "targum::" + name.replace(/\s+/g, "-");
+    cards.forEach(function (card) {
+      var back = [ankiField(card.meaning)];
+      if (card.sentence) {
+        back.push(
+          '<span lang="' + language + '" dir="auto">' + ankiField(card.sentence) + "</span>"
+        );
+      }
+      if (card.root || card.binyan) {
+        var verb = [];
+        if (card.root) verb.push("root " + ankiField(card.root.split("").join("\u05be")));
+        if (card.binyan) verb.push(ankiField(card.binyan));
+        back.push(verb.join(" \u00b7 "));
+      }
+      lines.push([ankiField(card.front), back.join("<br>"), "targum " + tag].join("\t"));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  function exportAnki() {
+    var kind = prefs.listTab === "phrases" ? "phrases" : "words";
+    var text = ankiText(title(), ankiCards(kind));
+    var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = title() + " \u2014 " + kind + ".anki.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
   }
 
   /* --- type and mode ------------------------------------------------------- */
@@ -4775,6 +4981,10 @@ var targumReader = function () {
         exportCsv();
         return;
       }
+      if (button.getAttribute("data-export") === "anki") {
+        exportAnki();
+        return;
+      }
       var whichList = button.getAttribute("data-list");
       if (whichList) {
         showTab(whichList);
@@ -5518,7 +5728,7 @@ var targumReader = function () {
     var complete = true;
     var have = glossesBy[target] || [];
     var filled = lemmas.map(function (lemma, index) {
-      var meaning = entries[lemma] || "";
+      var meaning = entries[glossedAs(index)] || "";
       if (meaning) found = true;
       // Whether the file is finished is a question about the file, so it is asked of
       // what came back and not of what this browser happens to know.
@@ -5710,6 +5920,8 @@ var targumReader = function () {
     // The list beside the text, as it would be drawn: newest first, and with the word
     // you have just finished with still on it.
     entries: wordEntries,
+    // The Anki file, from cards a test hands it: the headers, the columns, the back.
+    ankiText: ankiText,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
     // Finished with the text, and taken back.
@@ -5719,6 +5931,8 @@ var targumReader = function () {
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
     personWord: personWord,
+    // And the register line: which Hebrew a word belongs to, from where the reader is.
+    registerLine: registerLine,
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,

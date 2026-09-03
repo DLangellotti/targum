@@ -257,6 +257,28 @@ def _trim(found: re.Match[str], text: str) -> tuple[int, int, str] | None:
     return start, end, _bare(text[start:end])
 
 
+def is_section(word: oshb.Word) -> bool:
+    """A paragraph marker, which the tagging carries as a word and the page does not."""
+    return _bare(word.text) in _SECTION
+
+
+def headword_of(word: oshb.Word) -> str:
+    """The dictionary form a tagged word is filed under.
+
+    The headword, not the surface. Where the lexicon has no entry — a handful of prefixes
+    tagged as content — the bare word stands in, so a token always has a dictionary form
+    to be filed under.
+
+    One function rather than a line in `_verse`, because the band table is counted with
+    it too. The table used to be counted with Stanza, and the lookup here filed words
+    under headwords Stanza never produced — so half the headwords in the Tanakh missed
+    the table, and the pronouns on the first page of Nitzavim were "modern · not in the
+    Tanakh" (targum-internal#156). A count keyed to anything but this function is that
+    fault again.
+    """
+    return _headword(oshb.headword(word.lexeme) or word.pieces[word.content])
+
+
 def built_from(word: oshb.Word) -> str | None:
     """How a split word is put together, said the way the card already says it.
 
@@ -282,6 +304,9 @@ class ScriptureLemmatizer:
         morphology is a different artefact from one the model guessed at — so the name
         has to say which happened, and the fallback's name has to stay in it because on
         most of the shelf the fallback is what ran.
+
+        `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
+        shared, so a meaning is filed under the word and not the spelling.
         """
         return f"oshb/2+{self.fallback.name}"
 
@@ -315,7 +340,7 @@ class ScriptureLemmatizer:
             span for span in (_trim(found, text) for found in re.finditer(r"[^\s־]+", text)) if span
         ]
         spans = [span for span in spans if span[2] not in _SECTION]
-        wanted = [word for word in tagged if _bare(word.text) not in _SECTION]
+        wanted = [word for word in tagged if not is_section(word)]
 
         if len(spans) != len(wanted) or any(
             span[2] != _bare(word.text) for span, word in zip(spans, wanted, strict=True)
@@ -327,18 +352,20 @@ class ScriptureLemmatizer:
         out: list[Token] = []
         for (start, end, _), word in zip(spans, wanted, strict=True):
             code = word.code
-            lexeme = word.lexeme
-            # The headword, not the surface. Where the lexicon has no entry — a handful
-            # of prefixes tagged as content — the bare word stands in, so a token always
-            # has a dictionary form to be filed under.
-            dictionary = oshb.headword(lexeme) or word.pieces[word.content]
+            pointed = oshb.headword(word.lexeme)
+            # The dictionary form the binyan and the root are read off. Where the lexicon
+            # has no entry — a handful of prefixes tagged as content — the bare word
+            # stands in, the same fallback `headword_of` makes.
+            dictionary = pointed or word.pieces[word.content]
+            # The same function the band table is counted with, so the two cannot drift.
+            lemma = headword_of(word)
             verb = part_of(code) == "VERB"
             out.append(
                 Token(
                     start=start,
                     end=end,
                     surface=text[start:end],
-                    lemma=_headword(dictionary),
+                    lemma=lemma,
                     band=0,
                     split=len(word.pieces) > 1,
                     pos=part_of(code),
@@ -346,6 +373,16 @@ class ScriptureLemmatizer:
                     root=root_of(dictionary) if verb else None,
                     feats=features(code),
                     built=built_from(word),
+                    # The points, kept only where they are the difference between two
+                    # words. אֵלֶּה and אָלָה are both filed under אלה, and the lemma has
+                    # to stay bare — it is what a reader's marks and the bands are keyed
+                    # on, across every text — so the pointed form rides beside it for
+                    # the one thing that must not be shared: the meaning.
+                    headword=(
+                        unicodedata.normalize("NFC", pointed)
+                        if pointed and oshb.contested(lemma)
+                        else None
+                    ),
                 )
             )
         return out

@@ -59,6 +59,14 @@ class Sense(NamedTuple):
     #: Nouns: the plural, only where it lies about the gender or changes the stem.
     #: מִלִּים beside מילה; nothing beside ספר.
     plural: str = ""
+    #: Whether a sentence decided which sense came first. A gloss bought bare is a guess
+    #: at which sense a reader will need — עם came back "people; nation", and the
+    #: preposition never — so it stands only until a reader meets the word in a
+    #: sentence, which buys it once more, grounded, and that one stands for good.
+    #: Absent on everything glossed before 2026-09-02, which is the point: the
+    #: catalogue's lemmas were bought without a sentence, and re-buying them all would
+    #: only guess a different sentence.
+    grounded: bool = False
 
 
 class _Batch(BaseModel):
@@ -208,6 +216,10 @@ def unique_lemmas(
     Meanings are the expensive half of a build, and looking them up for a whole novel
     when one chapter of it was bought is how a long book came to cost more than the cap
     allowed and could never be opened at all.
+
+    "Lemma" here is the form a meaning is filed under, which is the lemma except where
+    two words share a spelling and the token says which — see `Token.glossed_as`. אֵלֶּה
+    and אָלָה are one lemma and two entries, because they are two words.
     """
     best: dict[str, int] = {}
     for segment_id, tokens in annotation.tokens.items():
@@ -216,7 +228,8 @@ def unique_lemmas(
         for token in tokens:
             # An unrated word is still a word worth looking up.
             if token.band >= min_band or (token.band == 0 and min_band <= 1):
-                best[token.lemma] = max(best.get(token.lemma, 0), token.band)
+                form = token.glossed_as
+                best[form] = max(best.get(form, 0), token.band)
     return [lemma for lemma, _ in sorted(best.items(), key=lambda item: (-item[1], item[0]))]
 
 
@@ -281,7 +294,20 @@ def _sense_of(stored: dict[str, Any]) -> Sense:
         str(stored.get("part_of_speech", "")),
         str(stored.get("citation", "")),
         str(stored.get("plural", "")),
+        bool(stored.get("grounded", False)),
     )
+
+
+def _record(sense: Sense, *, grounded: bool) -> dict[str, Any]:
+    """What is written to the cache for one sense — one place, so a sense bought by the
+    build and one bought at a tap are read back by the same code."""
+    return {
+        "gloss": sense.gloss,
+        "part_of_speech": sense.part,
+        "citation": sense.citation,
+        "plural": sense.plural,
+        "grounded": grounded,
+    }
 
 
 class _Held:
@@ -299,20 +325,36 @@ def fill_from_cache(
     glossaries: dict[str, Glossary],
     targets: Collection[str],
     cache: Cache | None = None,
+    provider: GlossProvider | None = None,
 ) -> dict[str, Glossary]:
     """Every glossary this text can have for free: what it has, plus whatever the cache
     holds for its words in each language somebody reads. Returns only the ones that
-    grew, so a rebuild writes nothing where nothing changed."""
+    changed, so a rebuild writes nothing where nothing changed.
+
+    A lemma the glossary already has is taken from the cache too where the two differ:
+    the cache is the later word, because a reader met the word in a sentence and the
+    sense was bought again with that sentence in hand, and the file should catch up.
+
+    `provider`, given, buys what the cache lacks as well. Free is the default because a
+    rebuild is; but a word can come to be filed under a key nobody has bought yet — the
+    pointed headwords of `oshb/2` reached the box with 92 of 200 rows of Judges empty —
+    and a shelf full of "look it up" buttons on everyday words is not a state a rebuild
+    should leave a reader in. Bought bare, the way a build buys them, so the first tap
+    grounds each one.
+    """
     cache = cache or Cache()
     grown: dict[str, Glossary] = {}
     for target in sorted(set(targets) | set(glossaries)):
-        held, _ = build_glossary(annotation, target, _Held(), cache=cache, buy=False)
+        if provider is None:
+            held, _ = build_glossary(annotation, target, _Held(), cache=cache, buy=False)
+        else:
+            held, _ = build_glossary(annotation, target, provider, cache=cache)
         have = glossaries.get(target)
         entries = dict(have.entries) if have else {}
         parts = dict(have.parts_of_speech) if have else {}
         citations = dict(have.citations) if have else {}
         plurals = dict(have.plurals) if have else {}
-        new = {lemma: gloss for lemma, gloss in held.entries.items() if lemma not in entries}
+        new = {lemma: gloss for lemma, gloss in held.entries.items() if entries.get(lemma) != gloss}
         if not new:
             continue
         entries |= new
@@ -352,6 +394,12 @@ def gloss_one(
     the sentence would make every word cost again in every text — so the sentence
     decides which sense comes first, and the other common sense rides after it for
     whoever meets the word elsewhere.
+
+    A sense held without a sentence behind it is bought once more the first time a
+    sentence arrives, and never after: the catalogue's lemmas were all bought bare, and
+    this is how each one gets its sentence — the sentence a reader was actually in,
+    at the moment they asked, for the price of one lookup. Re-buying all of them at
+    once would cost the same per word and guess the sentence.
     """
     cache = cache or Cache()
     key = cache.key(
@@ -362,29 +410,29 @@ def gloss_one(
         provider=provider.name,
     )
     stored = cache.get("gloss", key)
-    if isinstance(stored, dict) and stored.get("gloss"):
-        return _sense_of(stored)
+    held = _sense_of(stored) if isinstance(stored, dict) and stored.get("gloss") else None
+    if held is not None and (held.grounded or not context):
+        return held
 
-    if context:
-        fresh = provider.gloss(
-            [lemma], source_language, target_language, None, contexts={lemma: context}
-        )
-    else:
-        fresh = provider.gloss([lemma], source_language, target_language, None)
+    try:
+        if context:
+            fresh = provider.gloss(
+                [lemma], source_language, target_language, None, contexts={lemma: context}
+            )
+        else:
+            fresh = provider.gloss([lemma], source_language, target_language, None)
+    except TargumError:
+        # A word that already has a meaning does not lose it because grounding it
+        # failed just now; the next sentence will try again. A word with nothing is
+        # a failure the reader has to be told about.
+        if held is not None:
+            return held
+        raise
     found = fresh.get(lemma)
     if not found:
-        return None
-    sense = Sense(*found)
-    cache.put(
-        "gloss",
-        key,
-        {
-            "gloss": sense.gloss,
-            "part_of_speech": sense.part,
-            "citation": sense.citation,
-            "plural": sense.plural,
-        },
-    )
+        return held
+    sense = Sense(*found)._replace(grounded=bool(context))
+    cache.put("gloss", key, _record(sense, grounded=sense.grounded))
     return sense
 
 
@@ -462,15 +510,12 @@ def build_glossary(
             # sense, so a provider that says less still fits.
             sense = Sense(*found)
             keep(lemma, sense)
+            # Bought bare — the whole text at once, no sentence per word — so it
+            # says so, and the first reader to meet the word in a sentence grounds it.
             cache.put(
                 "gloss",
                 gloss_key(cache, lemma, annotation.language, target_language, provider.name),
-                {
-                    "gloss": sense.gloss,
-                    "part_of_speech": sense.part,
-                    "citation": sense.citation,
-                    "plural": sense.plural,
-                },
+                _record(sense, grounded=False),
             )
         if on_batch:
             on_batch(assembled())

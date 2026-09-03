@@ -122,7 +122,7 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
         pointed[segment.id] = " ".join(QAMATS.join(word) + last for word in words)
         # One token per word, so the arrows have a queue to walk and the list a count.
         offset, marks = 0, []
-        for word in words:
+        for i, word in enumerate(words):
             marks.append(
                 Token(
                     start=offset,
@@ -130,6 +130,9 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
                     surface=word,
                     lemma=word,
                     band=1 + (offset % 5),
+                    # One word the registers disagree about — the second of the chapter,
+                    # so the first word's card, which most tests open, is unchanged.
+                    word_register="biblical" if n == 0 and i == 1 else None,
                 )
             )
             offset += len(word) + 1
@@ -969,11 +972,14 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
             # and a card opening asks that first. Only a real lookup counts as a call.
             if request.post_data_json.get("free"):
                 meaning = MEANING if bought else None
-                body = {"meaning": meaning, "cached": bool(meaning)}
+                body = {"meaning": meaning, "cached": bool(meaning), "grounded": bool(meaning)}
             else:
-                calls.append(request.url)
+                # Bought once, with its sentence, and grounded by it: the same question
+                # on a later page is a cache hit, and the real server buys nothing.
+                if not bought:
+                    calls.append(request.url)
                 bought.append(request.url)
-                body = {"meaning": MEANING}
+                body = {"meaning": MEANING, "grounded": True}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
@@ -997,6 +1003,49 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
         "the reader was asked to look up a word they had already looked up"
     )
     assert len(calls) == 1, f"the meaning was bought {len(calls)} times"
+    context.close()
+
+
+def test_a_meaning_the_build_shipped_is_asked_again_with_its_sentence(
+    browser, two_languages: Path
+) -> None:
+    """The glossary a build ships was bought for the whole text at once, no sentence per
+    word, so עם reads "people" on a page where it is "with". The first card to open on
+    such a word asks once more with the sentence it is in, and the card follows the
+    answer; the second card asks nothing — once a session per word, whatever came back.
+    A word whose sense a sentence already chose costs the server a cache hit, no more."""
+    html = two_languages.read_text(encoding="utf-8")
+    calls = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            sent = request.post_data_json
+            assert not sent.get("free"), "a word with a meaning has nothing to peek for"
+            calls.append(sent)
+            body = {"meaning": MEANING, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+
+    word = page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}, (
+        "the card did not follow the grounded meaning"
+    )
+    assert len(calls) == 1 and calls[0]["lemma"] == word, f"asked {calls}"
+    assert calls[0]["sentence"], "asked again without the sentence, which is the whole point"
+
+    page.keyboard.press("Escape")
+    page.evaluate(TAP_AGAIN, word)
+    page.wait_for_timeout(300)
+    assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}
+    assert len(calls) == 1, f"the same word was asked about {len(calls)} times in one session"
     context.close()
 
 
@@ -3169,6 +3218,21 @@ def test_the_card_is_a_panel_with_no_handle_where_there_is_room(page) -> None:
     assert not page.locator("#gloss-card .grab").is_visible()
 
 
+def test_the_card_says_which_hebrew_a_word_belongs_to(page) -> None:
+    """The register table has ridden beside the lemmas since it was built and nothing
+    read it. The card now draws the line it was built for, on the cards where the two
+    registers disagree and on no others — a word out of the Tanakh is an import in a
+    text written today, which is what this one is (targum-internal#140)."""
+    words = page.locator(".pair:not([hidden]) .src .w")
+    words.nth(1).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").inner_text() == "biblical · an import here"
+    page.keyboard.press("Escape")
+    words.nth(0).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").count() == 0
+
+
 def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
     """The same level said with a key has always closed the card — it answers the question
     the card was opened to ask. Tapped, it left the card sitting over the sentence, which
@@ -3418,6 +3482,198 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.wait_for_url(lambda url: url.endswith("sec-0002.html#3:7"))
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
     assert page.evaluate(VERSE, "3:7")["number"] == "7"
+    context.close()
+
+
+# --- the Anki deck -------------------------------------------------------------------
+
+
+def downloaded(page, seed: str, kind: str = "words") -> list[str]:
+    """The deck the button hands over, as lines, with the list the button reads seeded
+    the way the reader would have written it."""
+    page.evaluate(seed)
+    page.reload()
+    page.wait_for_selector(".pair")
+    if kind == "phrases":
+        page.eval_on_selector('[data-list="phrases"]', "button => button.click()")
+    with page.expect_download() as handed:
+        page.eval_on_selector("#anki-button", "button => button.click()")
+    path = handed.value.path()
+    assert path is not None
+    return Path(path).read_text(encoding="utf-8").rstrip("\n").split("\n")
+
+
+def test_the_deck_carries_the_pointed_word_and_its_sentence(browser, two_languages) -> None:
+    """What the CSV cannot say and a flashcard needs: the word as it is pointed on the
+    page on the front, and on the back its meaning and the sentence it was met in, in
+    the form the page reads it in (targum-internal#39)."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(two_languages))
+    page.wait_for_selector(".pair")
+    first = coin(0)
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:vocab:he", JSON.stringify({{
+            "{first}": {{ surface: "{first}", status: 1, band: "moderate", at: 1 }}
+        }}))""",
+    )
+    assert lines[0] == "#separator:tab"
+    assert lines[3] == "#deck:targum::A chapter"
+    cards = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert len(cards) == 1, lines
+    front, back, tags = cards[0]
+    # The bilingual fixture carries no vowels, so the front is the word as the page has
+    # it; the back is its English and the whole sentence it is first met in.
+    assert front == first
+    assert back.startswith(f"the English of {first}<br>")
+    sentence = " ".join(coin(i) for i in range(3))
+    assert f'<span lang="he" dir="auto">{sentence}</span>' in back
+    assert tags == "targum targum::A-chapter"
+    context.close()
+
+
+def test_a_masoretic_word_is_learned_without_its_chant(browser, built_with_taamim) -> None:
+    """A text that ships its accents ships the vowels without them too, and that is the
+    form a word is learned in: the te'amim are for leyning."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built_with_taamim))
+    page.wait_for_selector(".pair")
+    first = coin(0)
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:vocab:he", JSON.stringify({{
+            "{first}": {{ surface: "{first}", status: 1, band: "moderate", at: 1 }}
+        }}))""",
+    )
+    (card,) = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert card[0] == QAMATS.join(first) + QAMATS, "the front is the pointed word"
+    assert ZAQEF not in card[0] and ZAQEF not in card[1], "the chant came with it"
+    assert QAMATS in card[1], "the sentence on the back is unpointed"
+    context.close()
+
+
+def test_a_kept_phrase_is_a_card_too(browser, built) -> None:
+    """A phrase is a piece of the sentence, pointed the way the page points it, with
+    the sentence under it and no root line: a phrase has no root."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair")
+    document_id = page.evaluate(
+        "() => JSON.parse(document.getElementById('targum-data').textContent).document"
+    )
+    first_pair = page.evaluate("() => document.querySelector('.pair').getAttribute('data-id')")
+    run = " ".join(coin(i) for i in range(2))
+    lines = downloaded(
+        page,
+        f"""() => localStorage.setItem("targum:picked:{document_id}", JSON.stringify({{
+            "{first_pair}": [{{ start: 0, end: {len(run)}, text: "{run}", status: 1, at: 1 }}]
+        }}))""",
+        kind="phrases",
+    )
+    (card,) = [line.split("\t") for line in lines if not line.startswith("#")]
+    assert card[0] == " ".join(QAMATS.join(coin(i)) + QAMATS for i in range(2))
+    assert "root" not in card[1]
+    assert '<span lang="he" dir="auto">' in card[1]
+    context.close()
+
+
+def portion(out: Path) -> Path:
+    """A built portion: chapter 2 cut across two aliyot, each under its own heading, the
+    way `targum parasha build` cuts one — so the chapter is two files, and the chapter
+    number alone cannot say which file holds verse 55."""
+    segments: list[Segment] = []
+    for title, chapter, numbers in (
+        ("ראשון", 2, range(1, 31)),
+        ("שני", 2, range(31, 61)),
+        ("שלישי", 3, range(1, 31)),
+    ):
+        n = len(segments)
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n:04d}",
+                block_index=n,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=title,
+            )
+        )
+        for number in numbers:
+            n = len(segments)
+            words = [coin(n * 16 + i) for i in range(14)]
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.000-aaaaaa",
+                    block_id=f"b{n:04d}",
+                    block_index=n,
+                    index=0,
+                    kind=BlockKind.verse,
+                    text=" ".join(words),
+                    ref=f"Ruth {chapter}:{number}",
+                )
+            )
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.fixture(scope="module")
+def aliyot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return portion(tmp_path_factory.mktemp("portion") / "reader")
+
+
+def test_a_verse_link_into_a_portion_lands_on_the_aliyah_that_holds_it(
+    browser, aliyot: Path
+) -> None:
+    """Chapter 2 runs across the first two files. `index.html#2:55` used to open the
+    first, which holds 2:1 to 2:30 and could do nothing with the verse; it now opens the
+    second, on the verse, with the row shown as the one the link meant
+    (targum-internal#142)."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + "#2:55")
+    page.wait_for_url(lambda url: url.endswith("sec-0002.html#2:55"))
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    assert seen["number"] == "55" and seen["target"]
+    context.close()
+
+
+@pytest.mark.parametrize(
+    ("hash", "lands"),
+    [
+        # A chapter alone: the first file that holds it.
+        ("#2", "sec-0001.html"),
+        # A verse no file holds: the chapter's first file, verse still in the address,
+        # rather than nowhere.
+        ("#2:99", "sec-0001.html#2:99"),
+    ],
+)
+def test_a_link_no_range_answers_falls_back_to_the_chapter(
+    browser, aliyot: Path, hash: str, lands: str
+) -> None:
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(aliyot / "index.html") + hash)
+    page.wait_for_url(lambda url: url.endswith(lands))
+    page.wait_for_selector(".pair")
     context.close()
 
 

@@ -156,6 +156,15 @@ class Block(Artifact):
     #: Which side of a dialogue said this, where the block is a turn. Absent everywhere
     #: else, and optional so every artifact written before dialogues existed still reads.
     speaker: str | None = None
+    #: Which language this block is in, where it is not the document's. None means the
+    #: document's, which is every block of every text but two: Daniel and Ezra switch
+    #: into Aramaic mid-book and back, and a document with one language sent their
+    #: Aramaic through the Hebrew lemmatizer, which tagged half of it as names and read
+    #: יָת as the Hebrew verb נתן (targum-internal#66). A BCP-47 tag, like the document's.
+    #: Optional so every artifact written before it existed still reads, and left out of
+    #: `body()` like `ref`, so giving a text its languages costs a re-ingest and not a
+    #: re-translation.
+    language: str | None = None
 
 
 class Document(Artifact):
@@ -199,6 +208,15 @@ class Segment(Artifact):
     #: The block's own ref, carried through. A verse is never split, so a segment of a
     #: numbered text is a verse and can be addressed as one.
     ref: str = ""
+    #: The block's own language, carried through the same way, and None where the block
+    #: has none of its own. Ask `language_in()` rather than reading this: what a stage
+    #: wants to know is which language the words are in, and the answer is usually the
+    #: document's.
+    language: str | None = None
+
+    def language_in(self, document: str) -> str:
+        """Which language this segment's words are in, given the document's."""
+        return self.language or document
 
 
 class SegmentedDocument(Artifact):
@@ -259,6 +277,21 @@ class Token(Artifact):
     # verb form, and the construct state — in the pipe format Stanza gave it. On the
     # occurrence, because agreement is: מילים is Plur where מילה is Sing.
     feats: str | None = None
+    # The pointed dictionary form, carried only where the bare lemma is shared by more
+    # than one word. `אלה` is filed under one spelling whether it is אֵלֶּה, these, or
+    # אָלָה, a curse, and a meaning bought for one was shown for the other (the first
+    # tap in a parasha with five curses grounded "curse; oath" onto every "these" in the
+    # Tanakh). The lemma stays the word's identity — what a reader marks known, what
+    # the bands are counted on — and this is what its meaning is looked up under. Only
+    # the scripture path knows it, from the lexicon; absent everywhere else, and on
+    # annotations written before it existed.
+    headword: str | None = None
+
+    @property
+    def glossed_as(self) -> str:
+        """The form a meaning is bought and filed under: the headword where two words
+        share a spelling, the lemma everywhere else."""
+        return self.headword or self.lemma
 
 
 class Annotation(Artifact):

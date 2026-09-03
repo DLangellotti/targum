@@ -17,14 +17,14 @@ from typing import Any
 from ..errors import TargumError
 from ..models import Segment, Token, is_biblical
 from ..paths import model_dir
-from ..segment.stanza_segmenter import download, has_processors, stanza_code
+from ..segment.stanza_segmenter import download, has_processors, installed_version, stanza_code
 from .base import Lemmatizer
 from .hebrew import binyan_of, kept_feats, pieces_of, root_of
 
 # Multi-word tokens are not asked for by name. Only some languages have an mwt model,
 # and naming it for one that does not, Russian among them, fails the download outright.
-# Stanza adds it itself wherever the language's tokenizer needs it, which is how Hebrew
-# still gets its prefixes split.
+# Stanza adds it itself wherever the language's tokenizer needs it. Hebrew's prefixes
+# are DICTA's to split now; this is for the languages Stanza still serves.
 PROCESSORS = "tokenize,pos,lemma"
 
 # What the annotator knows how to say about a word, beyond its dictionary form. It goes
@@ -69,15 +69,6 @@ SKIP_POS = frozenset({"PUNCT", "SYM"})
 FUNCTION_POS = frozenset({"ADP", "DET", "CCONJ", "SCONJ", "PART", "AUX", "PRON"})
 
 
-def _installed_version() -> str:
-    from importlib.metadata import PackageNotFoundError, version
-
-    try:
-        return version("stanza")
-    except PackageNotFoundError:
-        return "unknown"
-
-
 class StanzaLemmatizer:
     def __init__(self, *, auto_download: bool = True, scripture: bool = False) -> None:
         self.auto_download = auto_download
@@ -100,7 +91,7 @@ class StanzaLemmatizer:
         was chosen by register, because scripture is read exactly as it was: no Tanakh
         is redone for a change that would read it the same.
         """
-        base = f"stanza/{self._version or _installed_version()}/{PROCESSORS}+{FEATURES}"
+        base = f"stanza/{self._version or installed_version()}/{PROCESSORS}+{FEATURES}"
         return base if self.scripture else f"{base}+charlm"
 
     def packages(self, language: str) -> dict[str, str]:
@@ -114,6 +105,11 @@ class StanzaLemmatizer:
         code = stanza_code(language)
         if code in self._pipelines:
             return self._pipelines[code]
+        if code == "he":
+            raise TargumError(
+                "Hebrew is not read by Stanza: its Hebrew models are NonCommercial.",
+                "DictaLemmatizer() reads Hebrew and keeps Stanza for the rest.",
+            )
 
         import stanza
 

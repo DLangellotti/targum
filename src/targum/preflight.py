@@ -83,8 +83,14 @@ def check_address() -> Check:
     return Check("public address", True, address)
 
 
+def _hosted() -> bool:
+    """Whether this is the box: `TARGUM_REQUIRE_ACCOUNT` set is what hosted means, and
+    every check that needs to know reads it here so that no two of them can disagree."""
+    return _env("TARGUM_REQUIRE_ACCOUNT").lower() in {"1", "true", "yes"}
+
+
 def check_account_required() -> Check:
-    if _env("TARGUM_REQUIRE_ACCOUNT").lower() in {"1", "true", "yes"}:
+    if _hosted():
         return Check("hosted mode", True, "every route asks for an account")
     return Check(
         "hosted mode",
@@ -163,13 +169,48 @@ def check_ffmpeg() -> Check:
 
 def check_ytdlp() -> Check:
     """Whether a YouTube address can be fetched. A warning like ffmpeg's, and quieter:
-    the CLI is the only door this opens — the hosted box never fetches from YouTube."""
+    the CLI is the only door this opens — the hosted box never fetches from YouTube, by
+    decision rather than by oversight (`Library.prepare` refuses the paste by name), so
+    on the box the check passes with a note. A warning that is always wrong is a warning
+    nobody reads, and it would take the real one beside it down with it."""
     from .video import ytdlp_available
 
+    if _hosted():
+        return Check(
+            "yt-dlp",
+            True,
+            "not a hosted door; YouTube is fetched on the command line",
+            fatal=False,
+        )
     usable, fix = ytdlp_available()
     if usable:
         return Check("yt-dlp", True, "YouTube imports are on")
     return Check("yt-dlp", False, "yt-dlp is not installed.", fix, fatal=False)
+
+
+def check_scripture() -> Check:
+    """Whether the Hebrew Bible is read from the hand tagging or guessed at by a model.
+
+    A warning rather than a failure: a box without the tagging still builds a Tanakh,
+    but every verse of it is read by DICTA, which spells its lemmas its own way and, until
+    the register line learnt to hold its tongue, called the first word of Nitzavim modern
+    (targum-internal#156). `for_source()` wraps the model only when the data is on disk
+    under the process's own model directory, and the service's directory is not the
+    deployer's — so the question is asked here, in the service's environment, where the
+    answer is the one that matters.
+    """
+    from .annotate import oshb
+
+    where = oshb.root()
+    if oshb.available():
+        return Check("scripture", True, f"the Hebrew Bible tagging is at {where}", fatal=False)
+    return Check(
+        "scripture",
+        False,
+        f"no Hebrew Bible tagging at {where}; scripture will be read by a model.",
+        "targum models fetch scripture, as the service user",
+        fatal=False,
+    )
 
 
 def check_transcriber() -> Check:
@@ -260,7 +301,7 @@ def check_invitations(store: Path) -> Check:
     failure: a box with nobody invited yet is a normal state on the way to inviting
     somebody, and refusing to start would leave no way to run the command that fixes it.
     """
-    if _env("TARGUM_REQUIRE_ACCOUNT").lower() not in {"1", "true", "yes"}:
+    if not _hosted():
         return Check("invitations", True, "not hosted, so no guest list", fatal=False)
     try:
         from .accounts import Store
@@ -341,6 +382,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_ffmpeg())
     checks.append(check_ytdlp())
     checks.append(check_transcriber())
+    checks.append(check_scripture())
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

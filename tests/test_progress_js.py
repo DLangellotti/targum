@@ -299,6 +299,27 @@ def test_a_word_you_ignored_is_not_a_word_you_counted() -> None:
     assert 12 not in figures and 9 not in figures
 
 
+def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
+    """The line Learn opens with — "You know N Hebrew words" — leaves out every name and
+    number, because knowing that אחשורוש is a king is not knowing a word of Hebrew. The
+    ledger counted them, so its figure sat above Learn's by exactly the names the reader
+    had ticked off while reading; so did the status bar under it, while the milestones
+    beside it did not. Every figure on the page leaves them out now, from one rule."""
+    words = marked(known=4, learning=2)
+    for n, kind in enumerate(("name", "number", "name")):
+        words[f"n{n}"] = {"status": KNOWN, "surface": f"n{n}", "band": kind, "at": 1}
+    words["n3"] = {"status": 2, "surface": "n3", "band": "name", "at": 1}
+    # A name carried up to known is not a word targum taught either.
+    words["n0"]["learned"] = 1
+    drawn = page(words)
+    plain = page(marked(known=4, learning=2))
+    assert tile(drawn, "words marked known") == 4
+    assert tile(drawn, "words saved") == 6
+    assert tile(drawn, "words learned") == 0
+    assert drawn["marks"] == plain["marks"]
+    assert drawn["bar"] == plain["bar"] == "Your Hebrew words: 2 getting there, 4 known"
+
+
 def test_nothing_on_the_page_says_how_many_you_ignored() -> None:
     """The line under "Where they are" kept a tally of them. Being shown a count of what
     you dismissed is not being allowed to dismiss it."""

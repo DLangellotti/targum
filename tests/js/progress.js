@@ -122,6 +122,12 @@ process.stdout.write(
       .children.map((node) => node.textContent)
       .join(" "),
     progressNote: at("progress-note").textContent,
+    // What the status bar says of itself: "Your Hebrew words: 4 known, 2 just met".
+    bar: (function () {
+      var chart = at("progress").children[0];
+      var picture = chart && chart.children ? chart.children[0] : null;
+      return picture && picture.getAttribute ? picture.getAttribute("aria-label") || "" : "";
+    })(),
     // Every figure lives in the one block at the top now, so they are read from there.
     tiles: counts_(),
     ulpan: {

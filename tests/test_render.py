@@ -488,6 +488,91 @@ def test_word_data_ships_as_offsets_not_spans(tmp_path: Path) -> None:
     assert "band" not in controls.lower()  # a number from inside the program
 
 
+def _verse(index: int, ref: str, text: str, language: str | None = None) -> Segment:
+    return Segment(
+        id=f"{index:04d}.000-cccccc",
+        block_id=f"b{index:04d}",
+        block_index=index,
+        index=0,
+        kind=BlockKind.verse,
+        text=text,
+        ref=ref,
+        language=language,
+    )
+
+
+def _payload(html: str) -> dict[str, object]:
+    found = re.search(
+        r'<script type="application/json" id="targum-data">(.*?)</script>', html, re.S
+    )
+    assert found is not None
+    return dict(json.loads(found.group(1).replace("<\\/", "</")))
+
+
+def _render_verses(out: Path, segments: list[Segment]) -> str:
+    document = Document(
+        source="sefaria:Daniel", title="דניאל", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "tr" for segment in segments},
+    )
+    return render(document, make_segmented(segments), [translation], out)[0].read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_row_in_another_language_says_so_and_the_page_names_the_turn(tmp_path: Path) -> None:
+    """Daniel is Hebrew, then Aramaic from 2:4, then Hebrew again from 8:1. The Aramaic
+    rows carry `lang="arc"` on their own cells — a screen reader and a spell-checker are
+    told the truth — and the turn is named once above the row where it happens, in
+    either direction, rather than on every row of a chapter. Those rows also ship in the
+    payload by tag, so a reader that comes to read it is not left to infer the fact
+    from a missing table (targum-internal#66).
+    """
+    hebrew = _verse(0, "Daniel 2:3", "ויאמר המלך")
+    first = _verse(1, "Daniel 2:4", "מלכא לעלמין חיי", "arc")
+    second = _verse(2, "Daniel 2:5", "ענה מלכא", "arc")
+    back = _verse(3, "Daniel 8:1", "בשנת שלוש", None)
+    html = _render_verses(tmp_path / "r", [hebrew, first, second, back])
+
+    rows = {
+        sid: html.split(f'data-id="{sid}"', 1)[1].split("</div>", 1)[0]
+        for sid in (hebrew.id, first.id, second.id, back.id)
+    }
+    assert 'lang="he"' in rows[hebrew.id] and 'lang="arc"' not in rows[hebrew.id]
+    assert 'lang="arc"' in rows[first.id] and 'lang="arc"' in rows[second.id]
+    assert 'lang="he"' in rows[back.id]
+
+    # The row's opening tag carries the tag too, and the class the stylesheet keys on.
+    assert f'data-id="{first.id}" data-lang="arc"' in html
+    assert "unread" in html.split(f'data-id="{first.id}"', 1)[0].rsplit("<div", 1)[1]
+
+    # Named once at each turn, and nowhere else.
+    assert '<span class="language" lang="en">Aramaic</span>' in rows[first.id]
+    assert 'class="language"' not in rows[second.id], "not on every row of the run"
+    assert '<span class="language" lang="en">Hebrew</span>' in rows[back.id]
+    assert 'class="language"' not in rows[hebrew.id]
+
+    data = _payload(html)
+    assert data["languages"] == {first.id: "arc", second.id: "arc"}
+
+
+def test_a_page_in_one_language_names_no_turn_and_ships_no_table(tmp_path: Path) -> None:
+    """Every text but two, so the key and the label are left out rather than shipped
+    empty in every reader on the shelf."""
+    ruth = [_verse(0, "Ruth 1:1", "ויהי בימי"), _verse(1, "Ruth 1:2", "ושם האיש")]
+    html = _render_verses(tmp_path / "r", ruth)
+    assert 'class="language"' not in html
+    assert "data-lang=" not in html
+    data = _payload(html)
+    assert "languages" not in data
+
+
 def test_no_difficulty_means_no_control(
     tmp_path: Path, segmented: SegmentedDocument, translation: Translation
 ) -> None:
@@ -638,6 +723,50 @@ def test_words_and_phrases_are_two_lists_with_two_counts(tmp_path: Path) -> None
     assert "function exportPhrases()" in script
     assert '" — words.csv"' in script
     assert '" — phrases.csv"' in script
+
+
+def test_the_list_offers_an_anki_deck_beside_the_spreadsheet(tmp_path: Path) -> None:
+    """The CSVs are for a spreadsheet. Most people learning Hebrew keep the words they
+    are drilling in Anki, and a deck wants what a column does not carry: the pointed
+    word, the sentence it was met in, a verb's root (targum-internal#39)."""
+    from targum.models import Annotation, Token
+    from targum.render.builder import ASSETS
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={
+            segments[0].id: [Token(start=0, end=9, surface="paragraph", lemma="paragraph", band=3)]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    assert 'data-export="anki"' in html
+    assert 'id="anki-button"' in html
+    assert ">Anki deck<" in html
+
+    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert "function exportAnki()" in script
+    assert "function ankiText(name, cards)" in script
+    # The same offer as the CSV's: nothing to hand over is not worth offering.
+    assert "ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0" in script
+    # The vowels without the chant: a Masoretic text is learned unaccented.
+    assert "cells.unaccented[segmentId] || cells.pointed[segmentId]" in script
 
 
 def test_the_progress_page_stands_on_its_own() -> None:
@@ -2019,8 +2148,77 @@ def test_the_contents_page_knows_which_file_holds_a_chapter(tmp_path: Path) -> N
     page carries the chapter numbers so `index.html#12:1` can go on to the right one."""
     folder = tanakh(tmp_path / "reader", first_chapter=12)
     index = (folder / "index.html").read_text(encoding="utf-8")
-    assert '<li data-chapter="1" data-chapters="12">' in index
-    assert '<li data-chapter="2" data-chapters="13">' in index
+    assert '<li data-chapter="1" data-chapters="12" ' in index
+    assert '<li data-chapter="2" data-chapters="13" ' in index
+
+
+def portion(out: Path) -> Path:
+    """A portion the way `targum parasha build` cuts one: chapter 16 runs across two
+    aliyot, each under its own heading, so the chapter is two files and only the verse
+    ranges know which file holds a verse."""
+    segments: list[Segment] = []
+    segments.append(heading(len(segments), 2, "ראשון"))
+    for number in range(1, 4):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שני"))
+    for number in range(4, 7):
+        segments.append(verse(len(segments), 16, number))
+    segments.append(heading(len(segments), 2, "שלישי"))
+    for number in range(1, 3):
+        segments.append(verse(len(segments), 17, number))
+    document = Document(
+        source="sefaria:Leviticus", title="אחרי מות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+def test_the_contents_page_knows_which_verses_each_file_holds(tmp_path: Path) -> None:
+    """A portion's files are aliyot and a chapter runs across them, so the chapter
+    number alone sends `index.html#16:5` to the first file of chapter 16, which does not
+    hold verse 5. Each row carries its first and last verse so the script can pick the
+    file that has the verse (targum-internal#142)."""
+    folder = portion(tmp_path / "reader")
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="16" data-from="16:1" data-to="16:3">' in index
+    assert '<li data-chapter="2" data-chapters="16" data-from="16:4" data-to="16:6">' in index
+    assert '<li data-chapter="3" data-chapters="17" data-from="17:1" data-to="17:2">' in index
+
+
+def test_a_book_of_one_chapter_a_file_carries_its_range_too(tmp_path: Path) -> None:
+    folder = tanakh(tmp_path / "reader", first_chapter=12)
+    index = (folder / "index.html").read_text(encoding="utf-8")
+    assert '<li data-chapter="1" data-chapters="12" data-from="12:1" data-to="12:3">' in index
+    assert '<li data-chapter="2" data-chapters="13" data-from="13:1" data-to="13:3">' in index
+
+
+def test_a_file_with_no_verse_carries_no_range(tmp_path: Path) -> None:
+    """Prose has no address, so a prose reader's rows say nothing about verses."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, make_segmented(segments), [translation], tmp_path / "reader")
+    index = pages[0].read_text(encoding="utf-8")
+    rows = re.findall(r"<li data-chapter=[^>]*>", index)
+    assert rows == ['<li data-chapter="1">', '<li data-chapter="2">']
 
 
 def torah(out: Path, monkeypatch: pytest.MonkeyPatch, corpus: Path | None) -> str:
@@ -2117,8 +2315,11 @@ def test_a_torah_book_with_no_corpus_lists_its_chapters_as_it_always_has(
     body = html[html.index("<body") : html.index("</main>")]
     assert 'class="portion"' not in body
     assert "portion-" not in body
-    assert '<li data-chapter="1" data-chapters="5">' in html
-    assert '<li data-chapter="3" data-chapters="7">' in html
+    # The rows carry the verse range each file holds, the way every other contents
+    # page does since a verse link learned to land on the file that has it — the
+    # portion layer is what a machine with no corpus goes without, not the range.
+    assert '<li data-chapter="1" data-chapters="5" data-from="5:1" data-to="5:10">' in html
+    assert '<li data-chapter="3" data-chapters="7" data-from="7:1" data-to="7:10">' in html
 
 
 def test_the_contents_script_keeps_the_key_in_front_of_a_verse_hash() -> None:
@@ -2144,7 +2345,8 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
     assert "if (paged()) turnTo(pair);" in reader[reader.index("function jumpToPair") :]
 
     contents = (ASSETS / "contents.js").read_text(encoding="utf-8")
-    assert "[data-chapters~=" in contents
+    assert "[data-from]" in contents, "a verse takes the file whose range holds it"
+    assert "[data-chapters~=" in contents, "a chapter, or a verse no file holds, the chapter's"
     assert "location.replace(row.href + hash);" in contents
 
 
@@ -4107,3 +4309,71 @@ def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
     read_by_stanza = page("stanza/1.10.1/tokenize,pos,lemma+roots")
     assert "Dictionary forms by" not in read_by_stanza
     assert "huggingface.co" not in read_by_stanza
+
+
+def test_two_words_with_one_spelling_are_two_rows_with_one_lemma(tmp_path: Path) -> None:
+    """אֵלֶּה, these, and אָלָה, a curse, are both filed under אלה. Each gets its own row —
+    a row has one meaning and they have two — with the lemma repeated on both, because a
+    mark on one is a mark on the other, and the pointed headword beside it is what the
+    meaning is looked up by. A page where no row has a headword ships no table."""
+    from targum.models import Annotation, Glossary, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+
+    def annotation_with(tokens: list[Token]) -> Annotation:
+        return Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={segments[0].id: tokens},
+        )
+
+    def data_of(annotation: Annotation, glossary: Glossary) -> dict:  # type: ignore[type-arg]
+        html = render(
+            document,
+            segmented,
+            [translation],
+            tmp_path / "r",
+            annotation=annotation,
+            glossaries={"en": glossary},
+        )[0].read_text(encoding="utf-8")
+        return json.loads(  # type: ignore[no-any-return]
+            re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)
+        )
+
+    shared = annotation_with(
+        [
+            Token(start=0, end=3, surface="אלה", lemma="אלה", band=1, headword="אֵלֶּה"),
+            Token(start=4, end=7, surface="אלה", lemma="אלה", band=5, headword="אָלָה"),
+            Token(start=8, end=11, surface="בית", lemma="בית", band=1),
+        ]
+    )
+    glossary = Glossary(
+        source_language="he",
+        target_language="en",
+        provider="p",
+        entries={"אֵלֶּה": "these", "אָלָה": "curse; oath", "בית": "house", "אלה": "wrong"},
+        plurals={"אָלָה": "אלות"},
+    )
+    data = data_of(shared, glossary)
+    assert data["lemmas"] == ["אלה", "אלה", "בית"]
+    assert data["heads"] == ["אֵלֶּה", "אָלָה", ""]
+    assert data["glosses"]["en"] == ["these", "curse; oath", "house"]
+    assert data["plurals"] == ["", "אלות", ""], "the plural belongs to the curse alone"
+    rows = data["words"][segments[0].id]
+    assert [row[4] for row in rows] == [0, 1, 2], "each occurrence points at its own word"
+
+    plain = annotation_with([Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert "heads" not in data_of(plain, glossary)

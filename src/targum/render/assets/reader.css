@@ -547,6 +547,20 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
   .pair.verse .verse-number { inset-inline-start: 0.2rem; width: 1.4rem; }
 }
 
+/* Where the text turns into another language and back. Daniel is Hebrew, then Aramaic
+   from 2:4, then Hebrew again from 8:1, and the rows of Aramaic carry no words to tap: the
+   annotator leaves what it cannot read honestly alone. A reader who found the taps had
+   stopped working would think the page broken, so the turn is named once, above the row
+   where it happens, in the label's size and `--ink-soft` for the reason the verse number
+   is. Across both columns, since it is about the row and not about the source alone. */
+.pair .language {
+  grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  margin-block-end: 0.2rem;
+}
+
 /* The pairing has to be visible, or a learner cannot trust it. */
 .pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
 /* Inset because a sentence is as wide as the column and an outset ring would clip at
@@ -957,8 +971,11 @@ body.marking .w.here,
 }
 .gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
 /* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
-   is one. Muted like the other metadata; the answer above it is the ink. */
-.gloss-card .use {
+   is one. Muted like the other metadata; the answer above it is the ink. The register
+   line is the same kind of fact and is set the same way: which Hebrew the word belongs
+   to, on the few cards where the two registers disagree. */
+.gloss-card .use,
+.gloss-card .register {
   display: block;
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -1224,11 +1241,15 @@ table.rows tr:hover .copy,
 
 /* The export sits at the foot, out of the way of the list and always reachable. */
 .list-foot {
+  display: flex;
+  gap: 0.4rem;
   padding-block-start: 0.7rem;
   margin-block-start: 0.5rem;
   border-block-start: 1px solid var(--rule);
 }
-.list-foot button { width: 100%; padding: 0.3rem; font-size: 0.6875rem; }
+/* Two files side by side: the spreadsheet's and Anki's. Equal halves, so neither reads
+   as the main one. */
+.list-foot button { flex: 1 1 0; min-width: 0; padding: 0.3rem; font-size: 0.6875rem; }
 .list-foot button:disabled { opacity: 0.4; cursor: default; }
 .list-foot button:disabled:hover { color: var(--ink-soft); border-color: var(--rule); }
 .list-items li {

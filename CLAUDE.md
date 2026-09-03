@@ -47,8 +47,15 @@ wrong. There is; it is just not in the environment of a fresh shell.
 
 - **Do not bump `SCHEMA_VERSION`** to invalidate one stage. It feeds the cache key for
   every stage, so it forces paid re-translation of every text. To make a new word-level
-  feature reach existing readers, change the annotator's name instead — re-annotating is
-  free because Stanza runs locally.
+  feature reach existing readers, change the annotator's name instead — that costs no
+  money, because the annotator runs locally.
+- **An annotator rename is free of spend but not of time.** The name is the cache key, so
+  renaming it re-annotates every text by design. That was unremarkable under Stanza. Since
+  the DICTA swap the annotator is a BERT model on a box with no GPU: measured on
+  2026-09-03, ~1 text per minute over 158 texts — a two-hour `targum rebuild --words`
+  inside `deploy.sh`, which OOM-killed twice before the box had a swapfile. Treat a rename
+  as a scheduled operation rather than a side effect of a deploy, and do not rename twice
+  in one release: the second rename only re-does the first one's work.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

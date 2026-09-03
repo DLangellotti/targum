@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .base import Segmenter, segment_document
+from .hebrew import HebrewSegmenter
 from .stanza_segmenter import (
     StanzaSegmenter,
     download,
@@ -14,6 +15,7 @@ from .stanza_segmenter import (
 )
 
 __all__ = [
+    "HebrewSegmenter",
     "Segmenter",
     "StanzaSegmenter",
     "download",

@@ -14,7 +14,6 @@ import pytest
 os.environ["TARGUM_CATALOGUE"] = str(Path(__file__).parent / "fixtures" / "catalogue.json")
 
 from targum.models import Block, BlockKind, Document, SegmentedDocument, Translation
-from targum.segment import is_downloaded
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DECLARATION = FIXTURES / "texts" / "il-declaration-1948.he.md"
@@ -140,12 +139,6 @@ def epub_source() -> Path:
 @pytest.fixture
 def hebrew_source() -> Path:
     return DECLARATION
-
-
-@pytest.fixture
-def needs_hebrew_model() -> None:
-    if not is_downloaded("he"):
-        pytest.skip("Hebrew model not downloaded: run `targum models fetch he`")
 
 
 @pytest.fixture

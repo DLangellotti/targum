@@ -2,7 +2,9 @@
 
 targum's own code is **AGPL-3.0-or-later**. Copyright © 2026 David Langellotti. That is
 the whole of the licence on everything in this repository, and `LICENSE` is the text of
-it.
+it. The licence is on the code and not on the name: `NOTICE` says that "targum" is the
+project's name and that nothing here grants the right to call a derived product or
+service by it.
 
 This file exists because that sentence used not to be the whole story. targum runs on
 other people's models, and two of them were licensed for non-commercial use only. The
@@ -19,7 +21,8 @@ building on targum is entitled to know about.
   commercial use and asks to be named. targum names it at the foot of every reader whose
   words it read.
 - Nothing in targum is NonCommercial any more. Two things were: the forced aligner until
-  2026-09-02, and Stanza's Hebrew models until later the same day.
+  2026-09-02, and Stanza's Hebrew models until later the same day — except for the
+  sentence splitter, which the swap overlooked and which ran on them until 2026-09-03.
 
 ## Direct dependencies
 
@@ -33,7 +36,7 @@ building on targum is entitled to know about.
 | beautifulsoup4 | MIT | |
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
-| nakdimon | MIT | Copyright 2022 Elazar Gershuni |
+| nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
 | **stanza** | Apache-2.0 (code) | Hebrew is no longer read by it — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
@@ -71,6 +74,29 @@ CC BY 4.0. Stanza stays installed and keeps every other language it served; it i
 never handed a Hebrew word. Annotations made before the swap carry Stanza's name and are
 read again — free, because annotating runs on the machine.
 
+**That sentence was not true on the day it was written.** The swap moved every Hebrew
+word off Stanza and left every Hebrew sentence boundary on it: DICTA takes a sentence at
+a time and publishes no splitter, so each sentence it was handed had been cut by Stanza's
+Hebrew tokenizer, trained on the same treebank (targum-internal#146). Since 2026-09-03
+Hebrew sentences are drawn by rule in `segment/hebrew.py`, and Stanza refuses a Hebrew
+text outright rather than being trusted not to receive one; a test pins both, and the
+default annotator was closed the same day, since four callers — the gloss command and three
+that measure — still built it with Stanza alone. No Hebrew text now passes through a Stanza pipeline at any stage —
+segmentation, annotation or difficulty — and the credit at the foot of a reader that
+names DICTA is, from that date, the whole truth.
+
+Measured before the switch, on the 47 readers' stored segmentation: the rules and Stanza
+differ at 2,768 boundary positions against the 18,490 Stanza drew (15.0%, an upper bound
+since a boundary that shifts counts twice), and nearly all of the difference is
+exclamation marks, which Stanza's Hebrew tokenizer had never once split on. The same
+day's review found the lemmatizer routing on the raw language tag, so a text tagged
+`he-IL` or `iw` had been reaching Stanza's Hebrew models since the swap; it routes by
+code now, and Stanza's lemmatizer refuses Hebrew the way its segmenter does. Texts already on a shelf keep the
+segmentation they were translated under — the pipeline reuses it by document hash — so
+the switch bought no translation again. A forced rebuild of everything would re-buy 2,227
+translated segments, about $5.77, and re-annotate and re-time every one of them, which is
+the actual reason nothing forces one.
+
 **What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):
 the two agree on 75% of tokens, DICTA declines to lemmatize 3.7% of them where 1900s
 orthography is out of its vocabulary, and the surface form is used there. DICTA tags no
@@ -86,6 +112,27 @@ Open Scriptures morphology, which had them all along: 97.9% and 99.9% of verbs, 
 1.7% and 1.1%. On the modern half a per-word dictionary supplies the binyan for 96.7% of
 verbs and the root for 99.1%, at 94.3% and 98.1% accuracy, where the spelling rules
 answered for 8.9%. Neither depends on anything NonCommercial and neither moves a lemma.
+
+### Nakdimon's weights — MIT, confirmed 2026-09-02
+
+The diacritizer's model is `nakdimon/data/Nakdimon.onnx`, 21 MB inside the `nakdimon`
+wheel on PyPI, so every install of targum redistributes it and the box serves its output
+commercially. The wheel carries one licence, MIT (Copyright 2022, Elazar Gershuni), the
+PyPI classifier and the [repository](https://github.com/elazarg/nakdimon) say the same,
+and the model file has no licence of its own and no model card. MIT grants use, copy,
+distribution, sublicensing and sale, on the condition that the copyright and permission
+notice travel with any copy. So the weights may be redistributed, and the notice above is
+kept for that reason.
+
+The training corpus is the caveat, the same shape as Stanza's and weaker.
+[`elazarg/hebrew_diacritized`](https://github.com/elazarg/hebrew_diacritized) has no
+licence at all, and the paper says why: its authors were "unaware of legally-obtainable
+dotted modern corpora", so the modern portion is copyrighted prose — books, news, forums,
+Wikipedia — dotted with Dicta's API and corrected by hand, and the pre-modern portion
+comes from Project Ben-Yehuda, Mechon Mamre and the Short Story Project. No one in that
+chain attached a NonCommercial term. Whether an unlicensed corpus reaches the weights is
+the same unsettled question recorded under Stanza, and targum takes the same position: it
+does not rely on the answer, and says so here.
 
 ### The forced aligner, which used to be here — resolved 2026-09-02
 

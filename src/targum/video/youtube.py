@@ -18,8 +18,10 @@ authorized to publish. That line is policy, not code — deliberately (2026-08-3
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from ..errors import TargumError
@@ -143,3 +145,74 @@ def fetch(url: str, into: Path) -> Path:
         target.unlink()
         raise TargumError("That video is larger than 4 GB.")
     return target
+
+
+def _said(error: subprocess.CalledProcessError, fallback: str) -> str:
+    # yt-dlp's own last line is usually the honest sentence — an age gate, a private
+    # video, a region block — and better than anything written here.
+    said = (error.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    return said[-1] if said else fallback
+
+
+def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
+    if not is_youtube(argv[-1]):
+        raise TargumError("That address is not a YouTube video.")
+    usable, hint = ytdlp_available()
+    if not usable:
+        raise TargumError("yt-dlp is not installed.", hint)
+    try:
+        return subprocess.run(argv, capture_output=True, check=True, timeout=timeout)
+    except OSError as error:
+        raise TargumError("yt-dlp is not installed.", hint) from error
+    except subprocess.TimeoutExpired as error:
+        raise TargumError("yt-dlp did not answer in time, so it was stopped.") from error
+    except subprocess.CalledProcessError as error:
+        raise TargumError(_said(error, "yt-dlp could not read that video.")) from error
+
+
+def describe(url: str) -> dict[str, Any]:
+    """What yt-dlp knows about the video without fetching it: `yt-dlp -J`.
+
+    Duration, a language tag per format, which subtitle tracks somebody wrote and
+    which YouTube guessed, and the licence the uploader set. This is what
+    `screen.from_ytdlp` reads, and it is metadata only — a few hundred kilobytes of
+    JSON, never the video.
+    """
+    done = _run(["yt-dlp", "-J", "--no-playlist", "--skip-download", url], timeout=120)
+    try:
+        answer: dict[str, Any] = json.loads(done.stdout.decode("utf-8", "replace"))
+    except json.JSONDecodeError as error:
+        raise TargumError("yt-dlp answered with something that is not JSON.") from error
+    return answer
+
+
+def fetch_subtitles(url: str, into: Path, languages: tuple[str, ...] = ("he", "iw")) -> Path:
+    """The manual subtitle track in one of these languages, written into `into`.
+
+    Manual only: `--write-auto-subs` is not passed, because a track YouTube guessed
+    is not a transcript anybody checked, and the screen is looking for exactly the
+    mismatch a guess would paper over. SRT first, then VTT — both parse the same.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    _run(
+        [
+            "yt-dlp",
+            "--skip-download",
+            "--no-playlist",
+            "--write-subs",
+            "--sub-langs",
+            ",".join(languages),
+            "--sub-format",
+            "srt/vtt/best",
+            "-o",
+            str(into / "%(id)s.%(ext)s"),
+            url,
+        ],
+        timeout=300,
+    )
+    written = sorted(p for p in into.iterdir() if p.suffix.lower() in (".srt", ".vtt"))
+    if not written:
+        raise TargumError(
+            "That video has no subtitle track anybody wrote in " + ", ".join(languages) + "."
+        )
+    return written[0]

@@ -1633,6 +1633,16 @@ def render(
     }
     source_direction = direction_for(segmented.language)
     target_direction = direction_for(translations[0].target_language)
+    # Which rows are in a language other than the document's. Daniel and Ezra turn into
+    # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
+    # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
+    # leaves a block it cannot read honestly alone — so there is no card to draw for them,
+    # and nothing to tap (targum-internal#66).
+    languages = {
+        segment.id: segment.language
+        for segment in segmented.segments
+        if segment.language and segment.language != segmented.language
+    }
 
     # Where a reader may jump to. Only the top-level headings, and never the first one,
     # which is the masthead: the weekly is one long targum, and somebody who does not
@@ -1731,7 +1741,15 @@ def render(
         # dozens of times in a chapter, and repeating it with every token is what makes
         # a page heavy.
         lemmas: list[str] = []
-        lemma_at: dict[str, int] = {}
+        # A row is a word, not a spelling: אֵלֶּה and אָלָה share the lemma אלה and get a
+        # row each, because a row has one meaning and they have two. The lemma is
+        # repeated on both — it is what the reader's marks are filed under, and a mark
+        # on one is a mark on the other — and the pointed headword rides beside it in
+        # `heads`, which is what the meaning is looked up by. Empty on every row of
+        # every word that has the spelling to itself, and the table is left out where
+        # no row on the page needs it.
+        lemma_at: dict[tuple[str, str], int] = {}
+        heads: list[str] = []
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
         # ride in tables beside the lemmas rather than on every token. Empty for every
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
@@ -1766,9 +1784,11 @@ def render(
                     continue
                 rows: list[list[int]] = []
                 for token in tokens:
-                    if token.lemma not in lemma_at:
-                        lemma_at[token.lemma] = len(lemmas)
+                    word = (token.lemma, token.headword or "")
+                    if word not in lemma_at:
+                        lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
+                        heads.append(token.headword or "")
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
                         registers.append(token.word_register or "")
@@ -1792,7 +1812,7 @@ def render(
                             end,
                             token.band,
                             1 if token.split else 0,
-                            lemma_at[token.lemma],
+                            lemma_at[word],
                             sound_at.get(token.ipa or "", 0),
                             # A name or a number, which the reader can tap and mark but
                             # which is never counted as vocabulary.
@@ -1806,19 +1826,22 @@ def render(
         # holding an English and a Russian translation carries both and shows whichever
         # its picker is on; a reader with one carries one, which is what every text built
         # so far is. Empty tables are left out rather than shipped as a row of "".
+        # Looked up by the headword where a row has one: a glossary files a meaning under
+        # the word, and for a shared spelling the word is the pointed form.
+        forms = [head or lemma for lemma, head in zip(lemmas, heads, strict=True)]
         glosses = {
             code: filled
             for code, book in (glossaries or {}).items()
-            if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
+            if (filled := [book.entries.get(form, "") for form in forms]) and any(filled)
         }
         # Facts about the source word itself — a verb's citation form, a lying plural —
         # which any glossary that holds them can supply: they do not vary by target.
         citations = [""] * len(lemmas)
         plurals = [""] * len(lemmas)
         for book in (glossaries or {}).values():
-            for at, lemma in enumerate(lemmas):
-                citations[at] = citations[at] or book.citations.get(lemma, "")
-                plurals[at] = plurals[at] or book.plurals.get(lemma, "")
+            for at, form in enumerate(forms):
+                citations[at] = citations[at] or book.citations.get(form, "")
+                plurals[at] = plurals[at] or book.plurals.get(form, "")
         extensions = {
             name: table for name, table in (("roots", roots), ("binyanim", binyanim)) if any(table)
         }
@@ -1863,6 +1886,23 @@ def render(
         # The same rule `Library.chapters()` applies, so the contents page and the
         # chapter page cannot disagree about which chapters are waiting.
         translated = any(translations[0].segments.get(sid) for sid in section.segment_ids)
+        # Where the language turns, said once at the row where it does — "Aramaic" over
+        # Daniel 2:4, "Hebrew" over 8:1 — rather than on every row of a chapter. Counted
+        # from the document's language at the top of each page, because a page is opened
+        # on its own: chapter 3 is Aramaic from its first verse, and a reader who opened
+        # on it was not there when chapter 2 switched. A heading is the book's, not the
+        # text's, and is neither a switch nor the end of one.
+        switches: dict[str, str] = {}
+        standing = segmented.language
+        for segment in segments:
+            if segment.kind is BlockKind.heading:
+                continue
+            now = segment.language_in(segmented.language)
+            if now != standing:
+                switches[segment.id] = language_name(now)
+                standing = now
+        # This page's share of the rows in another language, for the payload.
+        tongues = {sid: languages[sid] for sid in section.segment_ids if sid in languages}
         html = env.get_template("reader.html.j2").render(
             **shared,
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
@@ -1877,6 +1917,8 @@ def render(
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             segments=segments,
             verses=verses,
+            languages=languages,
+            switches=switches,
             bare=bare,
             pointed=pointed,
             unaccented=unaccented,
@@ -1902,6 +1944,7 @@ def render(
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
+                    **({"heads": heads} if any(heads) else {}),
                     # Only where a word actually moved. A rebuild that changed no name
                     # ships nothing, which is every rebuild after the first. An added key
                     # rather than a changed one, so `PAYLOAD_VERSION` stays where it is —
@@ -1945,6 +1988,12 @@ def render(
                     **({"citations": citations} if any(citations) else {}),
                     **({"plurals": plurals} if any(plurals) else {}),
                     "glosses": glosses,
+                    # Which rows are in another language than the page's, by tag. Left
+                    # out where none is, which is every text but two. The reader does
+                    # not read it yet — those rows ship no tokens, so it has nothing to
+                    # decide — but a row that says what it is beats one a script would
+                    # have to infer from a missing table.
+                    **({"languages": tongues} if tongues else {}),
                     "levelNames": BAND_NAMES,
                     # Which text this is. Lists are kept per document, not per
                     # language, so reading two articles does not pool their words.
@@ -2027,11 +2076,21 @@ def render(
             )
             for section in sections
         }
+        # And the first and last address each file holds, so a verse link can pick the
+        # file that has the verse and not merely the chapter: a portion's files are
+        # aliyot, and a chapter runs across them (targum-internal#142). Segment order
+        # within a section is verse order, so first and last are positional.
+        held = {
+            section.number: [verses[sid] for sid in section.segment_ids if sid in verses]
+            for section in sections
+        }
+        spans = {n: (a[0], a[-1]) if a else ("", "") for n, a in held.items()}
         index = env.get_template("index.html.j2").render(
             **shared,
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
             groups=portion_groups(sections, chapters, verses, document.source),
+            spans=spans,
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written

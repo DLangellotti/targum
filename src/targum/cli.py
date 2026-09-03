@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .annotate import Annotator
+    from .annotate.gloss import GlossProvider
 
 app = typer.Typer(
     add_completion=False,
@@ -335,6 +336,40 @@ def admin(
     for person in people:
         console.print(person)
     console.print(f"[dim]{len(people)} admin(s)[/dim]")
+
+
+@app.command()
+def measures(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the readers are, for which shelf each text is on."),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="The same answers as data.")] = False,
+) -> None:
+    """The six beta measures, read off the store and nothing else.
+
+    Whether a reader comes back for a second text, how far they got into the first,
+    whether the two shelves share readers, how often the audio is played, who the readers
+    are, and how much they read a month. Counted from what the store holds; no model is
+    asked for anything and nothing is spent. Where the store does not hold the answer
+    the report says so in the answer's place, with what would have to be recorded first.
+
+    Run weekly and keep the output: the numbers are the beta, and they cannot be
+    collected after the fact.
+    """
+    import json
+
+    from .measures import as_state, measure_store, report
+    from .serve import default_store
+
+    found = measure_store(store or default_store(), out or Path("targum-out"))
+    # Plain text on stdout rather than through the console: the report is kept and
+    # pasted, and a line the console had folded to fit a terminal is not the line.
+    if as_json:
+        typer.echo(json.dumps(as_state(found), ensure_ascii=False, indent=2))
+        return
+    typer.echo(report(found), nl=False)
 
 
 @app.command()
@@ -708,6 +743,12 @@ def repair(
     text that arrived as plain prose with its section titles sitting in it as ordinary
     paragraphs gets those titles marked, which is what gives a reader its contents page.
 
+    And one undoing. The spacing repair once cut after every final letter it found,
+    and a scanned text with ו read as ן came apart into a lone final letter and the
+    rest of its word. A lone final letter is not a word, so the space in front of the
+    word it belongs to comes out again — the only join this makes, because it is the
+    only one the text itself can prove (targum-internal#86).
+
     Rebuilding from the source would do both and would cost money: every stage is keyed
     to the Hebrew, so a sentence one space longer is a sentence nothing has translated.
     So the English is carried across by hand instead. Marking a heading does not change
@@ -726,7 +767,7 @@ def repair(
     )
     from .annotate import dictionary as dictionary_module
     from .ingest.base import infer_headings
-    from .ingest.spacing import unglue as respace
+    from .ingest.spacing import reglue, unglue
     from .models import (
         Alignment,
         Annotation,
@@ -746,20 +787,33 @@ def repair(
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
-    done = words = titles = 0
+    def respace(text: str, language: str) -> str:
+        return reglue(unglue(text, language), language)
+
+    done = words = joined = titles = 0
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
             continue
         document = read_artifact(Document, folder / "document.json")
         if document is None:
             continue
-        blocks = [
-            block.model_copy(update={"text": respace(block.text, document.language)})
+        separated = [
+            block.model_copy(update={"text": unglue(block.text, document.language)})
             for block in document.blocks
         ]
+        blocks = [
+            block.model_copy(update={"text": reglue(block.text, document.language)})
+            for block in separated
+        ]
+        # Counted apart, one against the other: a word put together is not a word
+        # taken apart undone, and a report that nets them says nothing happened.
         repaired = sum(
             len(new.text.split()) - len(old.text.split())
-            for new, old in zip(blocks, document.blocks, strict=True)
+            for new, old in zip(separated, document.blocks, strict=True)
+        )
+        rejoined = sum(
+            len(old.text.split()) - len(new.text.split())
+            for new, old in zip(blocks, separated, strict=True)
         )
 
         # Only where the source had no markup to state its structure with. What a text
@@ -781,7 +835,7 @@ def repair(
                 1 for b, old in zip(blocks, document.blocks, strict=True) if b.kind is not old.kind
             )
 
-        if not repaired and not marked:
+        if not repaired and not rejoined and not marked:
             continue
 
         document.blocks = blocks
@@ -874,6 +928,7 @@ def repair(
 
         done += 1
         words += repaired
+        joined += rejoined
         titles += marked
         if segmented is not None and translations:
             render_reader(
@@ -887,13 +942,13 @@ def repair(
                 covers=root / "thumbs",
             )
         console.print(
-            f"[dim]  {document.title or folder.name} — {repaired} word(s), "
-            f"{marked} heading(s)[/dim]"
+            f"[dim]  {document.title or folder.name} — {repaired} word(s) separated, "
+            f"{rejoined} joined, {marked} heading(s)[/dim]"
         )
 
     console.print(
-        f"[green]Separated {words} word{'' if words == 1 else 's'} and marked {titles} "
-        f"heading{'' if titles == 1 else 's'} in {done} "
+        f"[green]Separated {words} word{'' if words == 1 else 's'}, joined {joined} and "
+        f"marked {titles} heading{'' if titles == 1 else 's'} in {done} "
         f"targum{'' if done == 1 else 's'}.[/green] "
         f"[dim]Nothing was fetched and nothing was spent.[/dim]"
     )
@@ -939,12 +994,16 @@ def rebuild_one(
     annotate: Callable[[Path, Document], Annotator] | None = None,
     siblings: list[dict[str, str]] | None = None,
     whole: bool = False,
+    provider: GlossProvider | None = None,
+    bought: list[int] | None = None,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
     Returns the title and how many files were written, or `(None, why)` where there
     was nothing to write: a folder with no text, or one that was priced and never
-    paid for. Nothing is fetched and nothing is spent.
+    paid for. Nothing is fetched and nothing is spent — unless `provider` is given,
+    in which case the meanings the cache lacks are bought, and how many is appended
+    to `bought` so the caller can say so.
 
     `annotate`, given, names the annotator this machine would use for the text, and a
     reader whose words were worked out by an older one has them worked out again
@@ -1010,10 +1069,21 @@ def rebuild_one(
         # another text, or bought by somebody else — are its for free. Filled in here
         # so a card opens with the meaning rather than a button, and written down so
         # the next rebuild has nothing to do.
-        from .annotate.gloss import fill_from_cache
+        from .annotate.gloss import fill_from_cache, unique_lemmas, unpaid
         from .models import glossary_path
 
-        for target, grown in fill_from_cache(annotation, glossaries, reads or ["en"]).items():
+        targets = reads or ["en"]
+        if provider is not None and bought is not None:
+            wanted = unique_lemmas(annotation)
+            bought.append(
+                sum(
+                    len(unpaid(wanted, annotation.language, target, provider.name))
+                    for target in sorted(set(targets) | set(glossaries))
+                )
+            )
+        for target, grown in fill_from_cache(
+            annotation, glossaries, targets, provider=provider
+        ).items():
             grown.write(glossary_path(folder, target))
             glossaries[target] = grown
     pages = render_reader(
@@ -1073,6 +1143,13 @@ def rebuild(
             help="Work the words out again where a newer annotator would. Free: Stanza runs here.",
         ),
     ] = False,
+    gloss: Annotated[
+        bool,
+        typer.Option(
+            "--gloss",
+            help="Buy the meanings the cache lacks. Spends: one lookup per word nobody has met.",
+        ),
+    ] = False,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -1128,6 +1205,19 @@ def rebuild(
                 **dictionary_module.for_language(document.language),
             )
 
+    # The one provider a rebuild buys from, and only when asked to. The same model the
+    # build and the tap use, because the model is part of the cache key and a rebuild
+    # that bought on another would pay for every word a second time.
+    provider: GlossProvider | None = None
+    bought: list[int] = []
+    if gloss:
+        from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses
+
+        provider = AnthropicGlosses(GLOSS_MODEL)
+        usable, why = provider.available()
+        if not usable:
+            fail(TargumError("Cannot buy meanings without a key.", why))
+
     # Homes are named for the person whose they are — `p<id>`, or `local` for the shared
     # signed-out one. Asked once per home rather than once per targum.
     known: dict[str, list[str] | None] = {}
@@ -1167,18 +1257,30 @@ def rebuild(
             whole=siblings is not None,
             covers=root / "thumbs",
             annotate=annotate,
+            provider=provider,
+            bought=bought,
         )
         if title is None:
             skipped.append((folder.name, str(outcome)))
             continue
         done += 1
-        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'})[/dim]")
+        paid = f", {bought[-1]} meanings bought" if bought and bought[-1] else ""
+        console.print(f"[dim]  {title} ({outcome} file{'' if outcome == 1 else 's'}{paid})[/dim]")
 
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")
+    if provider is None:
+        spent = "Nothing was fetched and nothing was spent."
+    else:
+        from .annotate.gloss import GLOSS_MODEL, estimate
+
+        total = sum(bought)
+        spent = (
+            f"Bought {total} meaning{'' if total == 1 else 's'}, "
+            f"about ${estimate(total, GLOSS_MODEL):.2f}."
+        )
     console.print(
-        f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] "
-        f"[dim]Nothing was fetched and nothing was spent.[/dim]"
+        f"[green]Rewrote {done} targum{'' if done == 1 else 's'}.[/green] [dim]{spent}[/dim]"
     )
 
 
@@ -1562,14 +1664,14 @@ def gloss_command(
     from .annotate import BAND_NAMES, Annotator, frequency_available
     from .annotate.frequency import MISSING
     from .annotate.gloss import AnthropicGlosses, build_glossary, estimate, unique_lemmas
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
         if not frequency_available():
             raise TargumError(*MISSING)
         with console.status("Reading, segmenting and lemmatizing..."):
             document = ingest.load(source)
-            segmented = segment_document(document, StanzaSegmenter())
+            segmented = segment_document(document, HebrewSegmenter())
             annotation = Annotator().annotate(segmented)
 
         lemmas = unique_lemmas(annotation, min_band=from_level)
@@ -1715,10 +1817,10 @@ def align(
 ) -> None:
     """Align an existing translation to a source, and report how well it went."""
     from . import align as align_module
-    from .segment import StanzaSegmenter, segment_document
+    from .segment import HebrewSegmenter, segment_document
 
     try:
-        segmenter = StanzaSegmenter()
+        segmenter = HebrewSegmenter()
         with console.status("Reading and segmenting..."):
             source_document = ingest.load(str(source))
             target_document = ingest.load(str(translation))
@@ -2331,7 +2433,8 @@ def models_fetch(
     # Hebrew's words come from DICTA rather than from Stanza (targum-internal#116), and
     # the point of fetching ahead is that a build reaches for nothing — so the weights
     # come down here, where a box is asking for them, and not in the middle of a job.
-    # Stanza is still fetched for the same language, because it is what segments it.
+    # Nothing of Stanza's is fetched for Hebrew: its sentences are drawn by rule since
+    # targum-internal#146, so no Hebrew model of Stanza's is ever loaded.
     if code == "he":
         from .annotate.dicta import MODEL, DictaLemmatizer
 
@@ -2340,6 +2443,7 @@ def models_fetch(
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             fail(TargumError(f"Could not download {MODEL}.", str(error)))
         console.print(f"[green]Downloaded[/green] {MODEL}")
+        return
 
     # Both builds of the tokenizer, where the language has two: scripture is read with
     # one and everything else with the other, and a box that fetches ahead of a long job

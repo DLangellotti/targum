@@ -71,8 +71,19 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # every deploy.
   # The launcher lands in targum's own bin; root then points /usr/local/bin at it,
   # because the service user cannot write to /usr/local/bin and should not be able to.
+  #
+  # Torch from PyTorch's own CPU index rather than PyPI, where the Linux wheel is the
+  # CUDA build and brings 4.9 GB of driver libraries to a box with no GPU. The index
+  # is added beside PyPI, not in front of it: on its own it also carries old copies of
+  # requests and friends, and uv's default of trusting the first index that has a
+  # package would pin them there. Best match across both leaves every other package
+  # exactly where PyPI put it and changes torch alone, from 2.14.0 to 2.14.0+cpu,
+  # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
+  # extras for x86_64 Linux both ways and diffing (targum-internal#93).
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" >/dev/null
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" \
+      --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
+      >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
   rm -f "${REMOTE_WHEEL}"
   # The directory too: it was root-only, which systemd never minded — it reads the
@@ -96,9 +107,13 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
   # --words: a text whose words were worked out by an older annotator has them worked
   # out again, on the box, before its page is written. Free, and nothing at all when
   # the annotator has not changed — the name is compared without loading a model.
+  # --gloss: and the meanings that re-annotation left unbought are bought, here, with
+  # the box's key. Nothing when nothing moved; a few dollars once when an annotator
+  # starts filing words under keys nobody has paid for, which oshb/2 did — 92 of 200
+  # rows of Judges opened on "look it up" for a day because this line did not say it.
   systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
     --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum rebuild --words --out /var/lib/targum/targums >/dev/null
+    /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums >/dev/null
 
   # The shared texts a reader with nothing is handed first. Published translations, so
   # nothing is spent; every stage is cached, so after the first time this is a rewrite.

@@ -147,14 +147,14 @@ class Gauge:
 def gauge(markdown: str, language: str = "he") -> Gauge:
     """Measure this prose, both ways, off one segmentation.
 
-    Stanza and wordfreq and nothing else — local, free, and the same steps a build runs,
+    DICTA and wordfreq and nothing else — local, free, and the same steps a build runs,
     so the number here is the number the entry will carry rather than an approximation.
     """
     from ..annotate import Annotator
     from ..annotate.difficulty import hard_share
     from ..ingest.base import blocks_from_paragraphs, build_document
     from ..models import BlockKind
-    from ..segment import StanzaSegmenter, segment_document
+    from ..segment import HebrewSegmenter, segment_document
 
     paragraphs = [
         (BlockKind.paragraph, None, line.strip())
@@ -174,7 +174,7 @@ def gauge(markdown: str, language: str = "he") -> Gauge:
         ingester="weekly/measure",
         language=language,
     )
-    segmented = segment_document(document, StanzaSegmenter())
+    segmented = segment_document(document, HebrewSegmenter())
     sentences = segmented.segments
     words = sum(len(segment.text.split()) for segment in sentences)
     annotation = Annotator().annotate(segmented)

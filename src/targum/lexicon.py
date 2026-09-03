@@ -170,8 +170,8 @@ def biblical_strength(lemma: str) -> float | None:
     is built for running text, and every Hebrew stem is some word's stem. מקרר comes
     apart into קר, which is in Proverbs, and a refrigerator is not scriptural for it.
     A lemma is already a dictionary form and the table holds dictionary forms — counted
-    with the same lemmatizer that will produce this one, which is the whole argument of
-    `annotate/biblical.py` — so it is looked up as it stands.
+    from the same tagging that files a word of scripture under this one, which is the
+    whole argument of `annotate/biblical.py` — so it is looked up as it stands.
     """
     band = _biblical().get(lemma)
     return None if band is None else _BIBLICAL_STRENGTH.get(band, 0.0)

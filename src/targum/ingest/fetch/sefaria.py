@@ -298,6 +298,49 @@ BEYOND_TANAKH: dict[str, Pair] = {
 
 
 _TAG = {"he": "hebrew", "en": "english"}
+
+#: The one language of the Tanakh that is not Hebrew, and where it is.
+ARAMAIC = "arc"
+
+#: The Aramaic of the Tanakh, by book, as closed verse ranges `(from, to)` in
+#: `(chapter, verse)`. Daniel 2:4b to 7:28 and Ezra 4:8 to 6:18 and 7:12 to 26, which
+#: every introduction to either book states and which is the whole of the biblical Aramaic
+#: that fills a verse. Marked here rather than detected from the text: the two languages
+#: share a script, a lexicon and most of a grammar, and a detector that told them apart on
+#: a single verse would be guessing at the one thing this exists to stop guessing at.
+#:
+#: **Daniel 2:4 is split mid-verse.** The Chaldeans are introduced in Hebrew and answer in
+#: Aramaic — "and the Chaldeans spoke to the king in Aramaic: O king, live forever" —
+#: and the switch is inside the verse. A block is a verse, and a verse is the boundary the
+#: granularity allows, so 2:4 is Aramaic whole: eight of its words are, and the Hebrew
+#: seven are the ones that say the Aramaic is coming.
+#:
+#: **Two places are left Hebrew on purpose.** Jeremiah 10:11 is one Aramaic verse inside a
+#: Hebrew chapter, and Genesis 31:47 holds two Aramaic words, יְגַר שָׂהֲדוּתָא, inside a
+#: Hebrew verse that translates them in the same breath. Both are below the block: a
+#: verse-sized mark on Genesis 31:47 would un-gloss the thirteen Hebrew words around the
+#: two Aramaic ones, and a mark on Jeremiah 10:11 alone would be right about one verse and
+#: teach the reader that the surrounding chapter had been checked, which it has not.
+#: Both are Hebrew until a block can carry a span, and the reader is told nothing false
+#: by that: a Hebrew card on יְגַר is wrong in the way a card on any loanword is.
+BIBLICAL_ARAMAIC: dict[str, tuple[tuple[tuple[int, int], tuple[int, int]], ...]] = {
+    "Daniel": (((2, 4), (7, 28)),),
+    "Ezra": (((4, 8), (6, 18)), ((7, 12), (7, 26))),
+}
+
+
+def language_of(book: str, chapter: int, verse: int) -> str | None:
+    """The language of one verse where it is not the document's, or None.
+
+    None is the ordinary answer — every verse of thirty-seven books, and most of these
+    two — and means "the document's", which is what `Block.language` means by it too.
+    """
+    for first, last in BIBLICAL_ARAMAIC.get(book, ()):
+        if first <= (chapter, verse) <= last:
+            return ARAMAIC
+    return None
+
+
 _MARKUP = re.compile(r"<[^>]+>")
 # Whether a verse carries an apparatus rather than only formatting. Cheap enough to ask
 # of every verse, and it keeps the Tanakh — which carries neither — on the regex path.
@@ -506,6 +549,9 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     # rather than inside them: `Paragraph` is the shape every ingester builds, and only a
     # numbered text has anything to put here.
     refs: dict[int, str] = {}
+    # And which verses are not in the document's language. Only the Hebrew side: the
+    # English of Daniel 2 is English, whatever the Hebrew beside it is.
+    languages: dict[int, str] = {}
     for offset, verses in enumerate(chapters(payload)):
         number = start + offset
         label = hebrew_numeral(number) if language == "he" else str(number)
@@ -515,6 +561,10 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
             # pairing that only works because both sides count the same.
             clean = normalize(plain(verse or "")).strip()
             refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
+            if language == DEFAULT_LANGUAGE:
+                found = language_of(named_in_english, number, count)
+                if found is not None:
+                    languages[len(paragraphs)] = found
             paragraphs.append((BlockKind.verse, None, clean or "—"))
 
     blocks = blocks_from_paragraphs(paragraphs)
@@ -522,8 +572,10 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     # numbers what is left by its original index, so zipping the two lists would silently
     # slide every ref after the first gap onto the wrong verse.
     by_id = {block_id(index): text for index, text in refs.items()}
+    spoken_in = {block_id(index): tag for index, tag in languages.items()}
     for block in blocks:
         block.ref = by_id.get(block.id, "")
+        block.language = spoken_in.get(block.id)
 
     return build_document(
         f"sefaria:{ref}" if language == DEFAULT_LANGUAGE else f"sefaria:{language}:{ref}",
@@ -538,9 +590,10 @@ class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
     # somebody hand-edited the document on disk. 2: the accented Hebrew edition. 3: every
     # verse carries its ref. 4: works beyond the Tanakh, and footnotes dropped rather than
-    # inlined. Free to bump — the hash a document is keyed by is its text, and the text has
-    # not changed, so nothing downstream is bought again.
-    name = "sefaria/4"
+    # inlined. 5: the Aramaic of Daniel and Ezra says so. Free to bump — the hash a
+    # document is keyed by is its text, and the text has not changed, so nothing
+    # downstream is bought again.
+    name = "sefaria/5"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)
