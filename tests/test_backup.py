@@ -369,3 +369,66 @@ def test_where_copies_go_comes_from_the_flag_or_the_environment(
     monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:two")
     assert destination() == "b2:two"
     assert destination("b2:one") == "b2:one", "the flag wins over the environment"
+
+
+def test_a_restore_brings_back_everything_the_progress_page_counts(tmp_path: Path) -> None:
+    """targum-internal#17: a backup is only a backup if a restore reproduces the account,
+    days and all — not the words alone, which is all the test above asks.
+
+    Judged by `Store.everything`, which loops `KINDS`, rather than by a list of tables
+    written here: a kind added tomorrow is compared tomorrow. The restore goes into a
+    fresh path rather than over the live file, which is the shape a real one takes when
+    the box is gone.
+    """
+    live = tmp_path / "live" / "targum.db"
+    store = Store(live)
+    person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+    store.rename(person, "Ruth")
+    store.choose(person, "learning", ["he", "yi"])
+    store.choose(person, "reading", ["en", "ru"])
+    store.push(
+        person,
+        {
+            "words": [{"language": "he", "lemma": "ספר", "status": 9, "at": 1, "seen": 1}],
+            "meanings": [
+                {"source": "he", "target": "en", "term": "ספר", "meaning": "book", "seen": 1}
+            ],
+            "phrases": [
+                {
+                    "id": "p1",
+                    "document": "h",
+                    "segment": "s1",
+                    "span_start": 0,
+                    "span_end": 2,
+                    "text": "ספר טוב",
+                    "status": 1,
+                    "at": 2,
+                    "seen": 2,
+                }
+            ],
+            "docs": [
+                {"hash": "h", "title": "One", "language": "he", "opened": 4, "done": 9, "seen": 5}
+            ],
+            "days": [
+                {"day": "2026-08-25", "count": 1, "seen": 6},
+                {"day": "2026-08-27", "count": 1, "seen": 7},
+            ],
+        },
+    )
+    before = store.everything(person)
+    taken = snapshot(live, tmp_path / "backups")
+    store.close()
+
+    fresh = tmp_path / "elsewhere" / "targum.db"
+    restore(taken, fresh)
+    back = Store(fresh)
+    same = back.person_by_email("reader@example.com")
+    assert same is not None
+    after = back.everything(same)
+
+    del before["exported"], after["exported"]
+    assert after == before, "what the export says must not change across a restore"
+    assert [row["day"] for row in after["days"]] == ["2026-08-25", "2026-08-27"]
+    assert after["docs"][0]["done"] == 9 and after["docs"][0]["opened"] == 4
+    assert back.profile(same)["name"] == "Ruth"
+    assert back.learning(same.id) == {"he", "yi"} and back.reads(same.id) == {"en", "ru"}

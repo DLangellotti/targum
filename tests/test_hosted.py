@@ -511,6 +511,26 @@ def test_the_export_holds_every_kind_the_account_syncs(hosted: tuple[int, str]) 
     assert "days" in data, "reading days are progress, and progress is the point of this"
 
 
+def test_the_export_carries_what_they_said_about_themselves() -> None:
+    """A name typed on the profile page and the languages chosen there are as much
+    theirs as their words are, and neither is a kind the account syncs — so `KINDS`
+    could not carry them and the export had to say so itself (targum-internal#17)."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw:
+        store = Store(Path(raw) / "db")
+        person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+        store.rename(person, "Ruth")
+        store.choose(person, "learning", ["he", "yi"])
+        taken = store.everything(person)
+        assert taken["account"]["name"] == "Ruth"
+        assert "picture" in taken["account"]
+        assert {(row["kind"], row["language"]) for row in taken["languages"]} == {
+            ("learning", "he"),
+            ("learning", "yi"),
+        }
+
+
 def test_the_export_arrives_as_a_file(hosted: tuple[int, str]) -> None:
     """A wall of JSON in a browser tab is not a thing anybody can keep."""
     port, session = hosted
