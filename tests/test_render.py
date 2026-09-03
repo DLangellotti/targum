@@ -4309,3 +4309,71 @@ def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
     read_by_stanza = page("stanza/1.10.1/tokenize,pos,lemma+roots")
     assert "Dictionary forms by" not in read_by_stanza
     assert "huggingface.co" not in read_by_stanza
+
+
+def test_two_words_with_one_spelling_are_two_rows_with_one_lemma(tmp_path: Path) -> None:
+    """אֵלֶּה, these, and אָלָה, a curse, are both filed under אלה. Each gets its own row —
+    a row has one meaning and they have two — with the lemma repeated on both, because a
+    mark on one is a mark on the other, and the pointed headword beside it is what the
+    meaning is looked up by. A page where no row has a headword ships no table."""
+    from targum.models import Annotation, Glossary, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+
+    def annotation_with(tokens: list[Token]) -> Annotation:
+        return Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={segments[0].id: tokens},
+        )
+
+    def data_of(annotation: Annotation, glossary: Glossary) -> dict:  # type: ignore[type-arg]
+        html = render(
+            document,
+            segmented,
+            [translation],
+            tmp_path / "r",
+            annotation=annotation,
+            glossaries={"en": glossary},
+        )[0].read_text(encoding="utf-8")
+        return json.loads(  # type: ignore[no-any-return]
+            re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)
+        )
+
+    shared = annotation_with(
+        [
+            Token(start=0, end=3, surface="אלה", lemma="אלה", band=1, headword="אֵלֶּה"),
+            Token(start=4, end=7, surface="אלה", lemma="אלה", band=5, headword="אָלָה"),
+            Token(start=8, end=11, surface="בית", lemma="בית", band=1),
+        ]
+    )
+    glossary = Glossary(
+        source_language="he",
+        target_language="en",
+        provider="p",
+        entries={"אֵלֶּה": "these", "אָלָה": "curse; oath", "בית": "house", "אלה": "wrong"},
+        plurals={"אָלָה": "אלות"},
+    )
+    data = data_of(shared, glossary)
+    assert data["lemmas"] == ["אלה", "אלה", "בית"]
+    assert data["heads"] == ["אֵלֶּה", "אָלָה", ""]
+    assert data["glosses"]["en"] == ["these", "curse; oath", "house"]
+    assert data["plurals"] == ["", "אלות", ""], "the plural belongs to the curse alone"
+    rows = data["words"][segments[0].id]
+    assert [row[4] for row in rows] == [0, 1, 2], "each occurrence points at its own word"
+
+    plain = annotation_with([Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
+    assert "heads" not in data_of(plain, glossary)

@@ -1741,7 +1741,15 @@ def render(
         # dozens of times in a chapter, and repeating it with every token is what makes
         # a page heavy.
         lemmas: list[str] = []
-        lemma_at: dict[str, int] = {}
+        # A row is a word, not a spelling: אֵלֶּה and אָלָה share the lemma אלה and get a
+        # row each, because a row has one meaning and they have two. The lemma is
+        # repeated on both — it is what the reader's marks are filed under, and a mark
+        # on one is a mark on the other — and the pointed headword rides beside it in
+        # `heads`, which is what the meaning is looked up by. Empty on every row of
+        # every word that has the spelling to itself, and the table is left out where
+        # no row on the page needs it.
+        lemma_at: dict[tuple[str, str], int] = {}
+        heads: list[str] = []
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
         # ride in tables beside the lemmas rather than on every token. Empty for every
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
@@ -1776,9 +1784,11 @@ def render(
                     continue
                 rows: list[list[int]] = []
                 for token in tokens:
-                    if token.lemma not in lemma_at:
-                        lemma_at[token.lemma] = len(lemmas)
+                    word = (token.lemma, token.headword or "")
+                    if word not in lemma_at:
+                        lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
+                        heads.append(token.headword or "")
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
                         registers.append(token.word_register or "")
@@ -1802,7 +1812,7 @@ def render(
                             end,
                             token.band,
                             1 if token.split else 0,
-                            lemma_at[token.lemma],
+                            lemma_at[word],
                             sound_at.get(token.ipa or "", 0),
                             # A name or a number, which the reader can tap and mark but
                             # which is never counted as vocabulary.
@@ -1816,19 +1826,22 @@ def render(
         # holding an English and a Russian translation carries both and shows whichever
         # its picker is on; a reader with one carries one, which is what every text built
         # so far is. Empty tables are left out rather than shipped as a row of "".
+        # Looked up by the headword where a row has one: a glossary files a meaning under
+        # the word, and for a shared spelling the word is the pointed form.
+        forms = [head or lemma for lemma, head in zip(lemmas, heads, strict=True)]
         glosses = {
             code: filled
             for code, book in (glossaries or {}).items()
-            if (filled := [book.entries.get(lemma, "") for lemma in lemmas]) and any(filled)
+            if (filled := [book.entries.get(form, "") for form in forms]) and any(filled)
         }
         # Facts about the source word itself — a verb's citation form, a lying plural —
         # which any glossary that holds them can supply: they do not vary by target.
         citations = [""] * len(lemmas)
         plurals = [""] * len(lemmas)
         for book in (glossaries or {}).values():
-            for at, lemma in enumerate(lemmas):
-                citations[at] = citations[at] or book.citations.get(lemma, "")
-                plurals[at] = plurals[at] or book.plurals.get(lemma, "")
+            for at, form in enumerate(forms):
+                citations[at] = citations[at] or book.citations.get(form, "")
+                plurals[at] = plurals[at] or book.plurals.get(form, "")
         extensions = {
             name: table for name, table in (("roots", roots), ("binyanim", binyanim)) if any(table)
         }
@@ -1931,6 +1944,7 @@ def render(
                     "translations": payload,
                     "words": words,
                     "lemmas": lemmas,
+                    **({"heads": heads} if any(heads) else {}),
                     # Only where a word actually moved. A rebuild that changed no name
                     # ships nothing, which is every rebuild after the first. An added key
                     # rather than a changed one, so `PAYLOAD_VERSION` stays where it is —

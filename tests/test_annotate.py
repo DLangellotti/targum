@@ -1275,3 +1275,29 @@ def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
     assert len(read) == len(segments), "every segment still comes back, in one dict"
     assert max(asked) <= BATCH, f"a batch of {max(asked)} was handed over at once"
     assert sum(asked) == len(segments), "and each segment is asked about exactly once"
+
+
+def test_two_words_that_share_a_spelling_are_two_entries(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """אֵלֶּה and אָלָה are one lemma and two meanings. The list a glossary is bought from
+    counts them apart, and the glossary files each under its own headword — so the curse
+    can never again be shown for "these"."""
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={
+            "s1": [
+                Token(start=0, end=3, surface="אלה", lemma="אלה", band=1, headword="אֵלֶּה"),
+                Token(start=4, end=7, surface="אלה", lemma="אלה", band=5, headword="אָלָה"),
+                Token(start=8, end=11, surface="בית", lemma="בית", band=1),
+            ]
+        },
+    )
+    assert unique_lemmas(annotation) == ["אָלָה", "אֵלֶּה", "בית"]
+
+    glossary, paid = build_glossary(annotation, "en", FakeGlosses(), cache=Cache(tmp_path))
+    assert paid == 3
+    assert set(glossary.entries) == {"אֵלֶּה", "אָלָה", "בית"}
+    assert "אלה" not in glossary.entries, "the shared spelling itself is nobody's entry"
