@@ -82,3 +82,13 @@ def test_an_unrecognised_licence_says_so_rather_than_guessing() -> None:
     assert call.standing is Standing.unknown
     assert not call.exportable
     assert "Ben-Yehuda" in call.because
+
+
+def test_derivatives_is_the_readers_question_and_export_is_the_corpus_one() -> None:
+    """NonCommercial may be read in a reader nobody pays for and may not leave in a
+    corpus somebody sells; NoDerivatives may do neither; unknown may do neither because
+    nobody has checked. The flags `screen_candidates.py` prints are these two."""
+    assert verdict("CC BY-NC 4.0").derivatives and not verdict("CC BY-NC 4.0").exportable
+    assert not verdict("CC BY-ND 4.0").derivatives
+    assert not verdict("").derivatives
+    assert verdict("CC BY-SA 4.0").derivatives and verdict("CC BY-SA 4.0").exportable

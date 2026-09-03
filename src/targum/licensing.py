@@ -59,6 +59,11 @@ class Verdict:
     #: May derived data — aligned pairs, cut audio, annotations — leave targum inside a
     #: commercial offering. The question #115 asks the corpus to be able to answer.
     exportable: bool
+    #: May derivatives be made at all — which is the question a free-to-use reader
+    #: asks, and it is not the export question. NonCommercial says yes; the reader
+    #: charges nobody. NoDerivatives says no at any price. Unknown says no, for the
+    #: same reason it is not free.
+    derivatives: bool
     #: A credit must travel with it.
     attribution: bool
     #: Derivatives must go out under the same terms. Sellable, not keepable.
@@ -90,6 +95,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.unknown,
             exportable=False,
+            derivatives=False,
             attribution=False,
             sharealike=False,
             because="no licence recorded",
@@ -100,6 +106,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.closed,
             exportable=False,
+            derivatives=True,
             attribution=True,
             sharealike="sa" in flat.split(),
             because="NonCommercial: bites on the offering, not on who paid",
@@ -108,6 +115,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.closed,
             exportable=False,
+            derivatives=False,
             attribution=True,
             sharealike=False,
             because="NoDerivatives: everything targum makes is a derivative",
@@ -117,6 +125,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.free,
             exportable=True,
+            derivatives=True,
             attribution=False,
             sharealike=False,
             because="public domain: nothing is owed, and it is credited anyway",
@@ -127,6 +136,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.owed,
             exportable=True,
+            derivatives=True,
             attribution=True,
             sharealike=True,
             because="ShareAlike: sellable, not keepable — derivatives go out the same way",
@@ -135,6 +145,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.owed,
             exportable=True,
+            derivatives=True,
             attribution=True,
             sharealike=False,
             because="Attribution: a credit travels with it",
@@ -143,6 +154,7 @@ def verdict(licence: str) -> Verdict:
         return Verdict(
             Standing.owed,
             exportable=True,
+            derivatives=True,
             attribution=True,
             sharealike=False,
             because="permissive: a notice travels with it",
@@ -153,6 +165,7 @@ def verdict(licence: str) -> Verdict:
     return Verdict(
         Standing.unknown,
         exportable=False,
+        derivatives=False,
         attribution=True,
         sharealike=False,
         because=f"unrecognised terms: {licence.strip()!r}",
