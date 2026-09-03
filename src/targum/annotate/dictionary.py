@@ -63,6 +63,13 @@ TOKENS_PER_FORM_OUT = 80
 #: which is the mistake `serve._gloss_word` records having made.
 DICTIONARY_MODEL = "claude-sonnet-5"
 
+#: The question, versioned, because the question is half of what produced the answer.
+#: The model is in the cache key already; the prompt was not, so sharpening it returned
+#: the old answers from disk and reported no change. Same lesson as the annotator's
+#: name, and the same rule: move this whenever an instruction below changes what a
+#: correct answer looks like, and never to force a re-buy of an unchanged one.
+PROMPT_VERSION = 3
+
 #: What a binyan may be called, so a model that answers "hitpael" or "HITPAEL" or a name
 #: nobody uses cannot put a word on the card that the reader has never seen.
 _BINYAN_NAMES = {name: name for name in BINYANIM.values()}
@@ -137,8 +144,8 @@ class Entry(NamedTuple):
         return not (self.dictionary_form or self.root or self.binyan or self.part)
 
 
-def provider_name(model: str = DICTIONARY_MODEL) -> str:
-    return f"anthropic/{model}"
+def provider_name(model: str = DICTIONARY_MODEL, version: int = PROMPT_VERSION) -> str:
+    return f"anthropic/{model}/dictionary-{version}"
 
 
 class DictionaryProvider(Protocol):
@@ -168,6 +175,9 @@ misreading that is not a Hebrew word at all.
   מעורב — is still a form of its verb, and its dictionary form is that verb's past
   tense: בדק, ידע, טמן, עורב. Give the adjective itself only where no verb stands
   behind it.
+- A passive participle belongs to the *passive* verb, not the active one it was built
+  from. מעורב is עורב and not עירב; מסולק is סולק and not סילק; מחולק is חולק, משוער is
+  שוער, מבוסס is בוסס, מאושר is אושר. The same holds for הופעל: מוצג is הוצג.
 - `part_of_speech`: one of noun, verb, adjective, adverb, preposition, pronoun,
   conjunction, particle, name, other. A participle used as an adjective is a verb.
 - `root`: for a verb, and for a noun or adjective transparently built on a verbal root,
@@ -178,6 +188,10 @@ misreading that is not a Hebrew word at all.
   empty for anything that is not a verb, and for the rare stems outside those seven.
   Read the pattern off the dictionary form you gave, not off the form you were handed:
   התחיל is הפעיל and not התפעל, and איפשר is פיעל and not הפעיל.
+- A פועל verb built on a root whose first letter is י is written with וּ in that place
+  and looks exactly like הופעל. It is not: יוצר, יוצג, יועד, יושם, יובש and יוחד are
+  פועל, the passives of ייצר, ייצג, ייעד, יישם, ייבש and ייחד. Ask what the active verb
+  is — if it is פיעל, the passive is פועל.
 - `certain`: false where the unpointed spelling is genuinely ambiguous and you are
   choosing between real readings, true otherwise.
 - If the form is not a Hebrew word — a wordpiece, a fragment, a foreign string — return

@@ -15,6 +15,7 @@ import pytest
 from targum.annotate import Annotator
 from targum.annotate.dictionary import (
     DICTIONARY_MODEL,
+    PROMPT_VERSION,
     Entry,
     build,
     cached,
@@ -86,11 +87,17 @@ def test_the_price_is_quoted_net_of_what_is_already_held(tmp_path: Path) -> None
     assert estimate(0) == 0 and estimate(1000) > 0
 
 
-def test_the_model_is_part_of_the_provider_name() -> None:
-    """The mistake `serve._gloss_word` records: a server and a build that disagree about
-    the model buy the whole library twice, on the dearer one."""
-    assert provider_name() == f"anthropic/{DICTIONARY_MODEL}"
+def test_the_model_and_the_question_are_both_in_the_provider_name() -> None:
+    """The model, for the reason `serve._gloss_word` records: a server and a build that
+    disagree about it buy the whole library twice, on the dearer one.
+
+    And the prompt, because the prompt is half of what produced the answer. Sharpening
+    it and re-running returned the old answers off disk and reported that nothing had
+    changed, which is the same trap the annotator's name exists to avoid.
+    """
+    assert provider_name().startswith(f"anthropic/{DICTIONARY_MODEL}/")
     assert provider_name("claude-opus-5") != provider_name()
+    assert provider_name(version=PROMPT_VERSION + 1) != provider_name()
 
 
 @pytest.mark.parametrize(
