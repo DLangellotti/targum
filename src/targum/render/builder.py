@@ -1205,13 +1205,36 @@ def parasha_page(
     shabbat: date | None = None,
     hdate: str = "",
     address: str = "",
+    signed_in: bool = False,
 ) -> str:
     """This week's portion, with its own reader inside it.
 
     Everything it needs comes off the corpus index, the same way `weekly_page` reads the
     weekly's: the calendar ran at build time and what is left at serve time is a lookup.
+
+    `signed_in` decides where "all portions" leads. A reader with a shelf has the
+    fifty-four on it as one collection, and is sent to their own row in it; a visitor
+    has the list at the foot of this page.
     """
+    from ..parasha.build import COLLECTION_ID
+    from ..parasha.models import neighbours
+
     said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    previous, following = neighbours(portion, listed or [])
+    # The row to point at on the shelf: this portion's own, or — for a doubled week,
+    # which is not on the shelf beside its halves — the first of its halves that is.
+    mine = next(
+        (
+            one
+            for one in listed or []
+            if one.slug == portion.slug or set(one.numbers) & set(portion.numbers)
+        ),
+        None,
+    )
+    if signed_in:
+        all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
+    else:
+        all_href = "/parasha#sources"
     return (
         _environment()
         .get_template("parasha.html.j2")
@@ -1250,6 +1273,9 @@ def parasha_page(
             # on a different one every year — so it arrives from the week's own record.
             hdate=hdate,
             listed=listed or [],
+            previous=previous,
+            following=following,
+            all_href=all_href,
             taamim=taamim,
             shabbat_said=said,
             translation_said=(
@@ -1984,10 +2010,82 @@ def render(
             **shared,
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
+            groups=portion_groups(sections, chapters, verses, document.source),
             spans=spans,
         )
         written.insert(0, _write(out_dir / "index.html", index))
     return written
+
+
+def portion_groups(
+    sections: list[Section],
+    chapters: Mapping[int, str],
+    verses: Mapping[str, str],
+    source: str,
+) -> list[dict[str, Any]]:
+    """The chapter rows of a contents page, grouped under the portion each falls in.
+
+    A reader who opens the Torah week to week thinks in portions — בראשית, נח, לך לך —
+    and a book listed as fifty numbered chapters cannot take them there. For a book the
+    weekly readings are cut from, each group is one portion: its name, its range, its
+    own page, and the chapters that begin inside it. A chapter two portions share —
+    Genesis 6, where בראשית ends at 6:8 and נח starts at 6:9 — is listed once, under the
+    portion it starts in; the next portion's name links to its own first verse, in
+    whichever file holds it.
+
+    Every other text, and the five on a machine with no corpus, come back as one group
+    with no portion, and the template draws the flat list it always drew. The layer is
+    data, not a special case, and a reader fetches nothing: the portions are read off the
+    corpus index here, at build time.
+    """
+    from ..parasha.build import portions_for
+
+    starts = portions_for(source) if source.startswith("sefaria:") else []
+    if not starts:
+        return [{"portion": None, "sections": list(sections)}]
+
+    # Which file holds each chapter — the contents page's own `data-chapters`, turned
+    # round — so a portion's name can link to its first verse in the file that has it.
+    holder: dict[str, Section] = {}
+    for section in sections:
+        for number in chapters.get(section.number, "").split():
+            holder.setdefault(number, section)
+
+    def opens_at(section: Section) -> tuple[int, int]:
+        for sid in section.segment_ids:
+            address = verses.get(sid, "")
+            if address:
+                chapter, _, verse = address.partition(":")
+                return int(chapter), int(verse)
+        return (0, 0)
+
+    groups: list[dict[str, Any]] = []
+    for section in sections:
+        at = opens_at(section)
+        placed = None
+        for start in starts:
+            if (start.chapter, start.verse) <= at:
+                placed = start
+            else:
+                break
+        key = placed.slug if placed is not None else None
+        if not groups or groups[-1]["key"] != key:
+            portion = None
+            if placed is not None:
+                holding = holder.get(str(placed.chapter))
+                where = f"#{placed.chapter}:{placed.verse}"
+                portion = {
+                    "slug": placed.slug,
+                    "name": placed.name,
+                    "hebrew": placed.hebrew or placed.name,
+                    # An en dash for the range: Hebcal writes a hyphen, and on a page
+                    # this is a span of chapters, not a compound.
+                    "summary": placed.summary.replace("-", "–"),
+                    "href": holding.filename + where if holding is not None else where,
+                }
+            groups.append({"key": key, "portion": portion, "sections": []})
+        groups[-1]["sections"].append(section)
+    return groups
 
 
 def _write(path: Path, html: str) -> Path:

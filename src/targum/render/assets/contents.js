@@ -23,7 +23,18 @@
   var links = document.querySelectorAll(".toc a");
   Array.prototype.forEach.call(links, function (link) {
     var href = link.getAttribute("href");
-    if (href && href.indexOf("?") === -1) link.setAttribute("href", href + suffix);
+    // A link out of the folder — a portion's own page, by route — needs no key. A link
+    // to a verse carries its hash, and the key goes in front of that, not after it.
+    if (!href || href.charAt(0) === "/" || href.indexOf("?") !== -1) return;
+    var cut = href.indexOf("#");
+    if (cut < 0) link.setAttribute("href", href + suffix);
+    else link.setAttribute("href", href.slice(0, cut) + suffix + href.slice(cut));
+  });
+
+  // A portion's own page is a route, so it is offered only where there is a server to
+  // answer it — the same rule the mark in the corner follows.
+  Array.prototype.forEach.call(document.querySelectorAll(".toc .portion-page"), function (link) {
+    link.hidden = false;
   });
 
   // The link says Learn, so it goes there: somebody leaving a text wants their own

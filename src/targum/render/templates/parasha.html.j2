@@ -142,6 +142,20 @@
       loading="lazy"></iframe>
   </div>
 
+  {#- Where the year goes from here. The portion before and the one after, in the order
+      they are read — and it wraps, because after וזאת הברכה comes בראשית. A festival
+      reading belongs to a date rather than to the cycle and has neither, only the way to
+      the whole list. -#}
+  <nav class="portions" aria-label="The other portions">
+    {% if previous %}
+    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">Previous</span> <bdi lang="he" dir="rtl">{{ previous.hebrew or previous.name }}</bdi></a>
+    {% endif %}
+    <a class="all" href="{{ all_href }}">All portions</a>
+    {% if following %}
+    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">Next</span> <bdi lang="he" dir="rtl">{{ following.hebrew or following.name }}</bdi></a>
+    {% endif %}
+  </nav>
+
   <section class="how">
     <h2 class="label">Why targum</h2>
     <p class="section-title">Built for reading, not for drills.</p>

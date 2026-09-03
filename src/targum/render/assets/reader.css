@@ -1510,6 +1510,29 @@ table.rows tr:hover .copy,
   direction: ltr;
   unicode-bidi: isolate;
 }
+/* The portion layer, on a book the weekly readings are cut from. The names stand where
+   the heading does and the chapters stay where they were: a group pulls back by the
+   list's own indent and its inner list puts the rows back. The type is the chapter rows'
+   own, one weight up, in ink — a portion is a place in the book, not a control. */
+.toc .portion { list-style: none; margin-inline-start: -2rem; margin-block-start: 1.4rem; }
+.toc .portion:first-child { margin-block-start: 0; }
+.toc .portion-head { margin: 0 0 0.6rem; }
+.toc .portion-name { font-weight: 600; }
+.toc .portion-span {
+  color: var(--ink-soft);
+  font-size: 0.8em;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.toc .portion-page {
+  margin-inline-start: 0.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.toc .portion-page[hidden] { display: none; }
+.toc .portion ol { list-style: decimal; padding-inline-start: 2rem; margin: 0; }
 
 .pager {
   display: flex;
