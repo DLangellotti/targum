@@ -266,8 +266,44 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Fourteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+Fifteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
+
+### A video text opens as video, and the picture never floats — 2026-09-03
+
+The section below reversed the default the same day: a text that carries media opens as
+its media. It stopped one step short of the thing it had just argued for. The picture came
+on, but it came on beside a page of text, in the band, at the size a panel is — which is
+what a reader who has just been told *this is a video* does not see.
+
+Two rules, decided together because they pull opposite ways and only settle as a pair.
+
+- **A text carrying a video sidecar opens full-screen as video, its Hebrew and English
+  overlaid as subtitles.** This is the mode a reader lands in. Leaving it for the reading
+  page is one press and is remembered per text, the same way the panel's own closure
+  already is. It is scoped to the sidecar and nothing else: a text with audio, a text with
+  neither, and every page of the Tanakh open exactly as they did.
+
+  This amends the last bullet of the section below — *the player and the picture stay
+  occupants of the band* — for video only. The sentence was written when the picture was
+  a panel and it is right about the panel; it is wrong about a reader who imported an
+  hour of speech to watch it. The reading column keeps its measure in every mode the
+  reader can be in with the text in front of them, which is what that sentence was
+  protecting. It is not protecting a thumbnail.
+
+- **The picture is never dragged.** It docks. Learn mode puts the video in one of four
+  corners, the reader chooses which once and it is remembered, and the dock is a resident
+  of the band in the sense "A word's card covers the page on a phone" gives that word: it
+  takes its room out of the layout, and the reading is laid out around it.
+
+  The note this came from asked for a draggable player, and the reason it asked is real —
+  a picture parked over the sentence being read is the whole complaint. A drag solves that
+  once, per session, per device, with a thumb, while reading. A corner solves it for good.
+  The rule that a control fixed over a page of text takes its room out of the layout was
+  settled five days earlier and it survives this: what changed is where the picture may
+  stand, not whether the page is laid out around it.
+
+Written from a note dated 2026-09-03. Built under targum-internal #182.
 
 ### A text that carries media opens as its media — 2026-09-03
 
@@ -290,12 +326,18 @@ What stands in its place:
   the bar to be discovered, and not a strip that reads as chrome: the first thing a
   stranger can say about the page is that it can be heard.
 - **A text with video opens with its picture on.** The toggle stays, so the picture can be
-  put away; the default reverses.
+  put away; the default reverses. *Carried further 2026-09-03, see "A video text opens as
+  video" above: the picture is not on beside the page, it is the page until the reader
+  says otherwise.*
 - **Nothing plays until pressed.** Autoplay is the arcade's move, and a reader on a train
   is still a reader.
 - **A text with neither opens exactly as before.** The Tanakh page is untouched by this.
 - **The text is still the page.** The media is how it opens, not what it is: the player
   and the picture stay occupants of the band, and the reading column keeps its measure.
+  *Amended for video 2026-09-03, see "A video text opens as video" above: a text carrying
+  a video sidecar opens full-screen with its text as subtitles, and the picture is an
+  occupant of the band only in learn mode. Audio is untouched — the player is still an
+  occupant, always.*
 
 The other half of the withdrawn sentence — engagement yes, arcade no; streaks and goals as
 a ledger in serif tabular numbers — is unchanged and `test_brand.py` still enforces it.
