@@ -23,7 +23,18 @@
   var links = document.querySelectorAll(".toc a");
   Array.prototype.forEach.call(links, function (link) {
     var href = link.getAttribute("href");
-    if (href && href.indexOf("?") === -1) link.setAttribute("href", href + suffix);
+    // A link out of the folder — a portion's own page, by route — needs no key. A link
+    // to a verse carries its hash, and the key goes in front of that, not after it.
+    if (!href || href.charAt(0) === "/" || href.indexOf("?") !== -1) return;
+    var cut = href.indexOf("#");
+    if (cut < 0) link.setAttribute("href", href + suffix);
+    else link.setAttribute("href", href.slice(0, cut) + suffix + href.slice(cut));
+  });
+
+  // A portion's own page is a route, so it is offered only where there is a server to
+  // answer it — the same rule the mark in the corner follows.
+  Array.prototype.forEach.call(document.querySelectorAll(".toc .portion-page"), function (link) {
+    link.hidden = false;
   });
 
   // The link says Learn, so it goes there: somebody leaving a text wants their own
@@ -61,6 +72,24 @@
   if (!row) return;
   start.href = row.getAttribute("href");
   start.textContent = "Continue";
+})();
+
+/* --- a link to a verse ------------------------------------------------------
+ *
+ * `index.html#2:1` goes on to the file that holds chapter 2, hash and all, so a link to
+ * Ruth 2:1 can be written without knowing which file chapter 2 landed in — and it is
+ * not always the second: a range ingested from chapter 12 opens on chapter 12. Each row
+ * says which chapters its file holds; the address is the one the verse rows answer to
+ * (targum-internal#28). `replace`, so the contents page is not a step on the way back.
+ */
+(function () {
+  "use strict";
+  var found = /^#(\d+)(?:[:.](\d+))?$/.exec(location.hash);
+  if (!found) return;
+  var row = document.querySelector('.toc [data-chapters~="' + found[1] + '"] a');
+  if (!row) return;
+  var hash = found[2] ? "#" + found[1] + ":" + found[2] : "";
+  location.replace(row.href + hash);
 })();
 
 /* --- which chapters are ready -----------------------------------------------

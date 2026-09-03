@@ -169,9 +169,13 @@ class StanzaLemmatizer:
 def for_source(source: object, *, auto_download: bool = True) -> Lemmatizer:
     """The lemmatizer for a text, by where the text came from.
 
-    The Tanakh is read with the tokenizer its band table was counted with; everything
-    else with the one that reads modern Hebrew. Decided from the source rather than by
-    guessing at the content, for the reason `biblical.for_source` gives.
+    Hebrew is read by DICTA, under CC BY 4.0, and not by Stanza's Hebrew models, which
+    are trained on a NonCommercial treebank that `LICENSING.md` says a paid offering
+    cannot use (targum-internal#116). Stanza stays for every other language it serves.
+
+    The register still decides how the Stanza delegate is built, so a non-Hebrew text
+    reads exactly as it did. It no longer decides anything for Hebrew: the tokenizer the
+    Tanakh was counted with was Stanza's, and Stanza no longer sees a Hebrew word.
 
     And where the Hebrew Bible has been fetched, scripture is not read by a model at all:
     it is looked up in the hand tagging, with this as the fallback for the verses the
@@ -179,7 +183,15 @@ def for_source(source: object, *, auto_download: bool = True) -> Lemmatizer:
     tagging is actually on disk, so the name an annotation records is the name of what
     ran — a box without the data says so rather than claiming a lookup it never made.
     """
-    model = StanzaLemmatizer(auto_download=auto_download, scripture=is_biblical(source))
+    # Hebrew is DICTA's; everything else stays Stanza's, and `DictaLemmatizer` holds the
+    # second one because the language is not known here — `for_source` decides from where
+    # a text came from, and the language only arrives with the segments.
+    from .dicta import DictaLemmatizer
+
+    model = DictaLemmatizer(
+        other=StanzaLemmatizer(auto_download=auto_download, scripture=is_biblical(source)),
+        auto_download=auto_download,
+    )
     if not is_biblical(source):
         return model
     from . import oshb

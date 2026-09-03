@@ -488,6 +488,41 @@ main {
    a list of separate sayings, which is the one thing the layout must not say. */
 body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 
+/* The verse's number, in the margin where a printed edition sets it. A detail per §5 —
+   `ui-monospace`, tabular — at the label size, in `--ink-soft` for the same reason the
+   speaker's name is: a hundred and fifty of them down a psalm would spend the whole hue
+   ration on addresses. It is a link to the verse itself, so it takes the accent only
+   under the pointer, where the one link being looked at is the one that needs to say so.
+   The row is `:target` after a link opens on it — the same band the pointer draws, so a
+   reader who followed a link to Ruth 2:1 is shown which line that was, and it means
+   "this one" the way that band already does. */
+.pair.verse { position: relative; }
+.pair.verse .verse-number {
+  position: absolute;
+  inset-inline-start: -2.6rem;
+  inset-block-start: 0.32rem;
+  width: 2rem;
+  text-align: end;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pair.verse .verse-number:hover,
+.pair.verse .verse-number:focus-visible { color: var(--accent); text-decoration: underline; }
+.pair.verse .verse-number:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pair:target { background: var(--paper-raised); }
+/* Under 60rem the page has no margin to hang a number in, so the row makes room for it
+   inside its own padding: every verse on the page moves over by the same amount, which
+   reads as a gutter rather than as an indent. */
+@media (max-width: 60rem) {
+  .pair.verse { padding-inline-start: 1.9rem; }
+  .pair.verse .verse-number { inset-inline-start: 0.2rem; width: 1.4rem; }
+}
+
 /* The pairing has to be visible, or a learner cannot trust it. */
 .pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
 /* Inset because a sentence is as wide as the column and an outset ring would clip at
@@ -1475,6 +1510,29 @@ table.rows tr:hover .copy,
   direction: ltr;
   unicode-bidi: isolate;
 }
+/* The portion layer, on a book the weekly readings are cut from. The names stand where
+   the heading does and the chapters stay where they were: a group pulls back by the
+   list's own indent and its inner list puts the rows back. The type is the chapter rows'
+   own, one weight up, in ink — a portion is a place in the book, not a control. */
+.toc .portion { list-style: none; margin-inline-start: -2rem; margin-block-start: 1.4rem; }
+.toc .portion:first-child { margin-block-start: 0; }
+.toc .portion-head { margin: 0 0 0.6rem; }
+.toc .portion-name { font-weight: 600; }
+.toc .portion-span {
+  color: var(--ink-soft);
+  font-size: 0.8em;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.toc .portion-page {
+  margin-inline-start: 0.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.toc .portion-page[hidden] { display: none; }
+.toc .portion ol { list-style: decimal; padding-inline-start: 2rem; margin: 0; }
 
 .pager {
   display: flex;

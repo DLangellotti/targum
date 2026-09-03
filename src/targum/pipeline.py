@@ -231,6 +231,10 @@ class Build:
         self._out_root = out_root
         self._resolved_out: Path | None = None
         self.reused: list[str] = []
+        # What this build's words used to be called, when it re-annotated a text that had
+        # already been annotated by something else. None until that happens, which is
+        # every build but the one after an annotator changes (targum-internal#141).
+        self.moves: dict[str, object] | None = None
 
     # -- locations ---------------------------------------------------------
 
@@ -785,8 +789,8 @@ class Build:
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
         )
+        existing = read_artifact(Annotation, path)
         if not self.force:
-            existing = read_artifact(Annotation, path)
             # Same text, and made by the same annotator that would run now. Naming
             # the annotator is what lets a new word-level feature reach texts already
             # built: a file from before it names something else, so it is redone.
@@ -806,6 +810,14 @@ class Build:
             self.notify(f"{error.message} Building without it.")
             self.gloss = False
             return None
+        # What the words used to be called, worked out here because this is the one
+        # moment both annotations exist: the reader's marks are filed by lemma, and a
+        # lemma that moved takes a reader's word out of their list without saying so
+        # (targum-internal#141). Read from the file that is about to be overwritten.
+        if existing is not None and existing.document_hash == segmented.document_hash:
+            from .annotate import moves as moves_module
+
+            self.moves = moves_module.between(existing, annotation)
         annotation.write(path)
         return annotation
 
@@ -1736,6 +1748,7 @@ class Build:
                 siblings=self.siblings,
                 whole=self.whole,
                 folder=self.resolved_out,
+                moves=self.moves,
             )
 
         result = Result(
