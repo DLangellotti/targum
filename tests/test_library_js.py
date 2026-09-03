@@ -677,3 +677,34 @@ def test_your_own_copy_wins_over_the_shared_one(tmp_path: Path) -> None:
     first = drawn["rows"][0]
     assert first["fit"] == "you know 50% of its words"
     assert first["draws"] == "Draw cover", "theirs, so a cover can be drawn"
+
+
+def test_a_video_import_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
+    """A lecture with its slides and a podcast episode were the same row. One word
+    beside the title now says which — and only one word, since a video can be
+    listened to as well and "audio video" says less than "video" does."""
+    mine = [
+        shelf("", "lecture-he", spoken=True, video=True),
+        shelf("", "podcast-he", spoken=True),
+        shelf("", "essay-he"),
+    ]
+    rows = {
+        row["title"]: row["media"]
+        for row in draw(tmp_path, readers=mine, view={"where": "mine"})["rows"]
+    }
+    assert rows == {"lecture-he": "video", "podcast-he": "audio", "essay-he": ""}
+
+
+def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Path) -> None:
+    """One direction each, like the audio filter: "With video" is worth offering,
+    "without video" is not — and a video is still something to listen to."""
+    mine = [
+        shelf("", "lecture-he", spoken=True, video=True),
+        shelf("", "podcast-he", spoken=True),
+        shelf("", "essay-he"),
+    ]
+    videos = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "video"})
+    assert {row["title"] for row in videos["rows"]} == {"lecture-he"}
+    assert videos["note"].startswith("With video — ")
+    heard = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "yes"})
+    assert {row["title"] for row in heard["rows"]} == {"lecture-he", "podcast-he"}

@@ -41,6 +41,12 @@ class ManifestPart(BaseModel):
 
 class AudioManifest(BaseModel):
     source: str
+    #: The address the recording was fetched from, where it had one, and "" for a file
+    #: somebody uploaded. `source` is the local file by the time this is written — the
+    #: build adopts what it fetched — so without this the page could not say where the
+    #: video lives, which for a YouTube import is the one link a reader should be handed
+    #: back: targum holds a study copy, and the video's home is not here.
+    home: str = ""
     sha256: str
     duration: float
     language: str
@@ -60,6 +66,17 @@ class AudioManifest(BaseModel):
 
 def write(folder: Path, manifest: AudioManifest) -> None:
     write_atomic(folder / MANIFEST, manifest.model_dump_json(indent=2) + "\n")
+
+
+def keeps_video(folder: Path) -> bool:
+    """Whether the import beside this reader kept its pictures.
+
+    Asked of the manifest, not of the `video/` sidecar folder: the sidecar is a copy the
+    build makes and remakes, while the manifest is the claim. A part that lost its cut
+    is a soundtrack, and a manifest with no video in any part is an audio import.
+    """
+    kept = load(folder)
+    return kept is not None and any(part.video for part in kept.parts)
 
 
 def load(folder: Path) -> AudioManifest | None:

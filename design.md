@@ -399,6 +399,14 @@ An imported video keeps its pictures, and three rules bend to carry them:
   time.
 - **The serve policy's `media-src` gains `'self'`** — for exactly these sidecars, and
   nothing else. The embedded recordings stay `data:`; no address leaves the origin.
+- **A video fetched from YouTube links home, at the line being read** (2026-09-02).
+  The bar gains one link beside the video toggle — the only control in it that is a
+  link — opening YouTube's own page at the second the sentence in front of the reader
+  starts. It is drawn as its neighbours are and is second to the toggle: the sidecar
+  plays on a plane and the link does not. It appears only where there is a home to go
+  to; an uploaded file has none, and a dead "open the original" is a control that
+  lies. `test_render.py` pins the address as the third outbound allowance, beside the
+  conjugation tables and the licence, each with its reason written next to it.
 
 ### The weekly landing carries the press — 2026-08-31
 

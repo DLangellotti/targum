@@ -133,3 +133,34 @@ def test_ytdlps_own_last_line_is_the_error(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
     with pytest.raises(TargumError, match="Private video"):
         youtube.fetch("https://youtu.be/abc123", tmp_path)
+
+
+def test_every_spelling_of_a_video_has_one_home() -> None:
+    """The reader carries one address for a video however it was pasted, because the
+    allowlist in `test_render.py` pins outbound links by prefix and a prefix is one
+    string — and because `&t=` is appended to it without asking what it already has."""
+    home = "https://www.youtube.com/watch?v=abc123"
+    for url in (
+        "https://www.youtube.com/watch?v=abc123",
+        "https://www.youtube.com/watch?v=abc123&t=42s&list=PL9",
+        "https://youtube.com/watch?v=abc123",
+        "https://m.youtube.com/watch?v=abc123",
+        "https://youtu.be/abc123",
+        "https://youtu.be/abc123?si=share",
+        "https://www.youtube.com/shorts/abc123",
+        "https://www.youtube.com/live/abc123/",
+    ):
+        assert youtube.watch_url(url) == home, url
+    assert youtube.watch_url(home).startswith(youtube.WATCH)
+
+
+def test_anything_that_is_not_one_video_has_no_home() -> None:
+    for url in (
+        "https://example.com/watch?v=abc123",
+        "https://www.youtube.com/playlist?list=PL123",
+        "https://www.youtube.com/@somebody",
+        "https://www.youtube.com/watch",
+        "talk.mp4",
+        "",
+    ):
+        assert youtube.watch_url(url) == "", url

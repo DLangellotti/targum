@@ -356,6 +356,15 @@ class Spoken(NamedTuple):
     #: inline rides beside the reader instead — `render()` copies it and writes the
     #: relative address the page carries.
     video: str = ""
+    #: Where the video lives, when it lives somewhere: the canonical YouTube address
+    #: for an import fetched from there, and "" for everything else. An uploaded file
+    #: has no home — the sidecar is the video and possession is the whole of ownership
+    #: — so the page must not offer to open one. Only `_imported` fills this.
+    home: str = ""
+    #: Seconds into the whole recording at which this part's file begins. The spans
+    #: are into the part's own cut, and a link home has to say where in the whole
+    #: video a line is — so the two are added at the click. Only meaningful with a home.
+    offset: float = 0.0
 
 
 SILENT = Spoken({}, {}, "")
@@ -520,7 +529,9 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
     targum cannot verify is one it must not print. The artist tag became the byline at
     ingest, which is where a name a page can stand behind belongs.
     """
+    from ..audio import PAD
     from ..audio import manifest as manifest_module
+    from ..video import youtube
 
     kept = manifest_module.load(folder)
     if kept is None:
@@ -555,6 +566,14 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
         "the recording",
         word_clocks,
         str(reel) if reel is not None and reel.is_file() else "",
+        # One shape whatever the reader pasted, or nothing: a podcast episode's address
+        # is also a home, but not one the page may link to — the reader's outbound
+        # addresses are a closed list, and only YouTube's is on it.
+        youtube.watch_url(kept.home),
+        # The cut begins a pad before the part does — the same arithmetic the build
+        # used to make it, and the one figure that turns a span into a place in the
+        # whole video.
+        max(0.0, part.start - PAD),
     )
 
 
@@ -1868,6 +1887,9 @@ def render(
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
             spoken_video=spoken_video,
+            # The video's home, for the one control that leaves the page. Where the
+            # source was a file there is none, and the control is not drawn.
+            spoken_home=spoken.home,
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_licence=spoken.licence,
@@ -1953,6 +1975,14 @@ def render(
                                 "audio": spoken.audio,
                                 # The sidecar's relative address, never its bytes.
                                 **({"video": spoken_video} if spoken_video else {}),
+                                # Where the video lives and where this part starts in
+                                # it, so the link home can open at the line being
+                                # read. Only where there is a home to go to.
+                                **(
+                                    {"home": spoken.home, "offset": spoken.offset}
+                                    if spoken.home
+                                    else {}
+                                ),
                                 "spans": spoken.spans,
                                 # Each written word's clock, char offsets mapped into
                                 # the bare text like every token row, so the card can
