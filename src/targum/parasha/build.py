@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from ..annotate.difficulty import hard_share
 from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
@@ -225,6 +226,15 @@ def build(
             books=list(reading.books),
             verses=portion.verses,
             aliyot=len(reading.aliyot),
+            words=portion.words,
+            # Measured here because here is where the annotation is: the corpus keeps
+            # no artifact beside the rendered pages, so nothing downstream can recover
+            # this without cutting the portion again.
+            difficulty=(
+                hard_share(portion.annotation, portion.document.language)
+                if portion.annotation is not None
+                else 0
+            ),
             opening=opening,
             opening_ref=opening_ref,
             folder=slug,
@@ -254,6 +264,12 @@ def build(
     return index
 
 
+#: How many aliyot a reading is cut into, spelled rather than numbered — the blurb is a
+#: sentence and a sentence says "seven". Written out only as far as the readings go: the
+#: fifty-four take seven, and a doubled build takes eight. Anything else falls back to
+#: the digits rather than inventing a word for a number nobody has seen here.
+ALIYOT = {7: "seven", 8: "eight"}
+
 #: The collection the portions sit in on the shelf. Its members are the corpus's to
 #: own and are rewritten on every merge; its words are a person's to edit and are kept.
 COLLECTION_ID = "torah-portions"
@@ -281,8 +297,12 @@ def entries(index: Index | None = None) -> list[dict[str, object]]:
                 "author": " · ".join(BOOKS.get(book, book) for book in portion.books),
                 "language": "he",
                 "source": f"sefaria:{portion.summary}",
-                "blurb": f"{portion.summary}. {portion.verses} verses, seven aliyot.",
-                "words": 0,
+                "blurb": (
+                    f"{portion.summary}. {portion.verses} verses, "
+                    f"{ALIYOT.get(portion.aliyot, str(portion.aliyot))} aliyot."
+                ),
+                "words": portion.words,
+                "difficulty": portion.difficulty,
                 "tags": ["tanakh"],
                 "kind": "prose",
                 "register": "biblical",
