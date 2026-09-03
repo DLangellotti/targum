@@ -935,3 +935,85 @@ def test_models_fetch_he_says_when_dicta_cannot_be_fetched(monkeypatch, tmp_path
     assert result.exit_code == 1
     assert "Could not download" in result.output
     assert "Traceback" not in result.output
+
+
+def test_a_rebuilt_import_keeps_its_recording_and_its_pictures(tmp_path: Path) -> None:
+    """A deploy runs `rebuild` over every home, so a rebuild that drops the media is the
+    one event guaranteed to silence every imported text on the box.
+
+    `speech` finds an import by the manifest beside the reader, and only when it is told
+    where the folder is. `rebuild_one` never told it, so a build wrote the audio into the
+    page and the reel beside it and the next rebuild wrote neither — a reader that played
+    a video came back a fifth of the size with nothing in it (targum-internal#179).
+    """
+    from typer.testing import CliRunner
+
+    from targum.audio import manifest as manifest_module
+    from targum.cli import app
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "talk-he"
+    (folder / "audio" / "parts").mkdir(parents=True)
+    (folder / "audio" / "parts" / "part-001.mp3").write_bytes(b"ID3sound")
+    (folder / "audio" / "parts" / "part-001.mp4").write_bytes(b"ftypmp42film")
+
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    document = Document(
+        source="talk.mp4", title="A Talk", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source="talk.mp4",
+            sha256="x",
+            duration=10.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=0.0,
+                    end=10.0,
+                    audio="audio/parts/part-001.mp3",
+                    video="audio/parts/part-001.mp4",
+                    spans={segment.id: [0.0, 10.0]},
+                )
+            ],
+        ),
+    )
+
+    render(document, segmented, [translation], folder / "reader", folder=folder)
+    built = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert "data:audio" in built and "<video" in built
+    assert (folder / "reader" / "video" / "part-001.mp4").is_file()
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+
+    again = (folder / "reader" / "index.html").read_text(encoding="utf-8")
+    assert "data:audio" in again, "the rebuild wrote a reader with no recording in it"
+    assert "<video" in again, "the rebuild wrote a reader with no picture in it"
+    assert (folder / "reader" / "video" / "part-001.mp4").is_file()

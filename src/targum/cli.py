@@ -1105,6 +1105,14 @@ def rebuild_one(
         # and six chapter files with no player.
         siblings=siblings,
         whole=whole,
+        # Where an imported recording's manifest and parts live. Without it `speech`
+        # never reaches `_imported` and a rebuilt import comes out silent: a build put
+        # the audio in the page and the reel beside it, and the rebuild wrote neither.
+        # A deploy runs `rebuild --words --gloss` over every home, so this was the one
+        # event guaranteed to strip the media from every imported text on the box —
+        # a 5.4 MB reader with a video rewritten as a 442 KB reader with nothing
+        # (targum-internal#179).
+        folder=folder,
         # Written over rather than emptied first. This runs on a box with readers
         # open on it: the same segments produce the same section files under the
         # same names, so overwriting leaves nothing stale behind, and nobody has the
