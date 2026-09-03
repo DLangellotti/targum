@@ -122,7 +122,7 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
         pointed[segment.id] = " ".join(QAMATS.join(word) + last for word in words)
         # One token per word, so the arrows have a queue to walk and the list a count.
         offset, marks = 0, []
-        for word in words:
+        for i, word in enumerate(words):
             marks.append(
                 Token(
                     start=offset,
@@ -130,6 +130,9 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
                     surface=word,
                     lemma=word,
                     band=1 + (offset % 5),
+                    # One word the registers disagree about — the second of the chapter,
+                    # so the first word's card, which most tests open, is unchanged.
+                    word_register="biblical" if n == 0 and i == 1 else None,
                 )
             )
             offset += len(word) + 1
@@ -3213,6 +3216,21 @@ def test_the_card_is_a_panel_with_no_handle_where_there_is_room(page) -> None:
     page.wait_for_timeout(200)
     assert page.evaluate("() => !document.getElementById('gloss-card').hidden")
     assert not page.locator("#gloss-card .grab").is_visible()
+
+
+def test_the_card_says_which_hebrew_a_word_belongs_to(page) -> None:
+    """The register table has ridden beside the lemmas since it was built and nothing
+    read it. The card now draws the line it was built for, on the cards where the two
+    registers disagree and on no others — a word out of the Tanakh is an import in a
+    text written today, which is what this one is (targum-internal#140)."""
+    words = page.locator(".pair:not([hidden]) .src .w")
+    words.nth(1).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").inner_text() == "biblical · an import here"
+    page.keyboard.press("Escape")
+    words.nth(0).click()
+    page.wait_for_timeout(200)
+    assert page.locator("#gloss-card .register").count() == 0
 
 
 def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
