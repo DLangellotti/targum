@@ -223,7 +223,10 @@
     } else if (reader.minutes && door.state !== "carry") {
       out.push(reader.minutes + " min");
     }
-    if (reader.spoken) out.push("audio");
+    // One word, as on the library's rows: a video can be heard too, and saying both
+    // says less than "video" does.
+    if (reader.video) out.push("video");
+    else if (reader.spoken) out.push("audio");
     if (door.state === "carry" && !number) {
       out.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
     }

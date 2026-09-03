@@ -3419,3 +3419,83 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
     assert page.evaluate(VERSE, "3:7")["number"] == "7"
     context.close()
+
+
+# -- the link home ---------------------------------------------------------------------
+
+
+def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_path) -> None:
+    """A video fetched from YouTube links to where it lives, at the second the sentence
+    the reader is on begins — the part's place in the whole video plus the line's span
+    into the part. Decided at the click, so the markup carries no time and the address a
+    reader copies is the one they are looking at."""
+    import wave
+
+    from targum.audio import manifest as manifest_module
+    from targum.models import Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    (tmp_path / "audio" / "parts").mkdir(parents=True)
+    with wave.open(str(tmp_path / "audio" / "parts" / "part-001.wav"), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(8000)
+        out.writeframes(b"\x00" * 16000)
+    segments = [
+        Segment(
+            id=f"000{n}.000-aaaaaa", block_id=f"b000{n}", block_index=n, index=0, text=f"שורה {n}"
+        )
+        for n in (1, 2)
+    ]
+    manifest_module.write(
+        tmp_path,
+        manifest_module.AudioManifest(
+            source="source.mp4",
+            home="https://youtu.be/abc123",
+            sha256="x",
+            duration=200.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=100.0,
+                    end=200.0,
+                    audio="audio/parts/part-001.wav",
+                    spans={segments[0].id: [2.0, 4.0], segments[1].id: [5.0, 7.0]},
+                )
+            ],
+        ),
+    )
+    document = Document(
+        source="source.mp4", title="A talk", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "A line." for segment in segments},
+    )
+    built = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+
+    context, page = open_reader(browser, built)
+    try:
+        # Nothing playing: the first sentence on the page is the one in front of the
+        # reader. Its span starts 2s into a cut that begins at 100 − 0.35s: second 101.
+        opened = page.evaluate(
+            """() => {
+              const link = document.querySelector('[data-home]');
+              link.addEventListener('click', (event) => event.preventDefault());
+              link.click();
+              return link.href;
+            }"""
+        )
+        assert opened == "https://www.youtube.com/watch?v=abc123&t=101s"
+        assert page.get_attribute("[data-home]", "rel") == "noreferrer noopener"
+        assert page.get_attribute("[data-home]", "target") == "_blank"
+    finally:
+        context.close()

@@ -50,7 +50,9 @@
         <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
       </div>
       <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
-      <label class="pick"><span>Audio</span><select id="audio"></select></label>
+      {#- "Media", since the answers are audio and video: a select called "Audio"
+          offering "With video" was a label contradicting its own list. -#}
+      <label class="pick"><span>Media</span><select id="audio"></select></label>
       <label class="pick"><span>Length</span><select id="length"></select></label>
       {#- One name for one measure: the column below is "New words", and a select called
           "Difficulty" over it was two names for the same number. -#}

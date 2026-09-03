@@ -162,6 +162,48 @@ def test_a_youtube_address_runs_the_import_through_the_youtube_door(
     kept = manifest_module.load(result.out_dir)
     assert kept is not None
     assert kept.parts[0].video == "audio/parts/part-001.mp4"
+    # The address survives the adoption that turns `source` into a local file: it is
+    # the one fact the page needs to hand the video back.
+    assert kept.home == address
+    assert kept.source.endswith("source.mp4")
+
+
+def test_a_video_from_youtube_links_home_at_the_line_and_an_upload_links_nowhere(
+    fake_audio, tmp_path, monkeypatch
+) -> None:
+    """A YouTube-sourced reader is a study copy of a video that lives elsewhere, and
+    says so with a link that opens there; an uploaded file has no elsewhere, and the
+    page must not offer a door to nowhere."""
+    import re
+
+    from targum.video import youtube
+
+    def pretend(url: str, into: Path) -> Path:
+        into.mkdir(parents=True, exist_ok=True)
+        target = into / "source.mp4"
+        target.write_bytes(b"film")
+        return target
+
+    monkeypatch.setattr(youtube, "fetch", pretend)
+    fake_audio.video = True
+    fake_audio.duration = 600.0
+    fetched = builder(tmp_path, "https://youtu.be/abc123?si=share").run()  # type: ignore[arg-type]
+    html = fetched.pages[-1].read_text(encoding="utf-8")
+    assert 'data-home href="https://www.youtube.com/watch?v=abc123"' in html, "canonical"
+    assert 'rel="noreferrer noopener"' in html and 'target="_blank"' in html
+    assert not re.search(r'data-home href="[^"]*[?&]t=', html), "decided at the click"
+    assert '"home": "https://www.youtube.com/watch?v=abc123"' in html
+    assert '"offset": 0.0' in html, "the first part begins at the start"
+    assert "data-video aria-pressed" in html, "and the sidecar is still the instrument"
+
+    (tmp_path / "up").mkdir()
+    uploaded = builder(tmp_path / "up", film(tmp_path / "up")).run()
+    for page in uploaded.pages:
+        text = page.read_text(encoding="utf-8")
+        assert "data-home href=" not in text
+        assert '"home": ' not in text
+    kept = manifest_module.load(uploaded.out_dir)
+    assert kept is not None and kept.home == ""
 
 
 def test_a_short_link_takes_its_stem_for_a_name(fake_audio, tmp_path, monkeypatch) -> None:
@@ -259,3 +301,25 @@ def test_an_old_manifest_without_the_video_field_still_reads(tmp_path: Path) -> 
     kept = manifest_module.load(tmp_path)
     assert kept is not None
     assert kept.parts[0].video == ""
+
+
+def test_whether_an_import_kept_its_pictures_is_the_manifests_word(tmp_path: Path) -> None:
+    """The shelf's "video" is asked of the manifest beside the reader, not of the
+    sidecar folder — the folder is a copy the build remakes, the manifest is the claim."""
+    assert not manifest_module.keeps_video(tmp_path), "no manifest, no claim"
+    part = manifest_module.ManifestPart(number=1, start=0.0, end=10.0, audio="a.mp3")
+    manifest_module.write(
+        tmp_path,
+        manifest_module.AudioManifest(
+            source="talk.mp3", sha256="x", duration=10.0, language="en", parts=[part]
+        ),
+    )
+    assert not manifest_module.keeps_video(tmp_path), "sound alone is an audio import"
+    part.video = "audio/parts/part-001.mp4"
+    manifest_module.write(
+        tmp_path,
+        manifest_module.AudioManifest(
+            source="talk.mp4", sha256="x", duration=10.0, language="en", parts=[part]
+        ),
+    )
+    assert manifest_module.keeps_video(tmp_path)

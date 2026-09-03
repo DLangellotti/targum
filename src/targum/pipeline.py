@@ -189,6 +189,10 @@ class Build:
         notify: Notify | None = None,
     ) -> None:
         self.source = source
+        #: Where a fetched recording lives, when it was fetched from somewhere that is
+        #: its home rather than a file: `_adopt_audio` sets it for a YouTube address
+        #: and the manifest carries it, so the reader can hand the video back.
+        self.home = ""
         self.target_language = target_language
         self.source_language = source_language
         self.style = style
@@ -1042,6 +1046,7 @@ class Build:
             address = str(self.source)
             watching = is_youtube(address)
             if watching:
+                self.home = address
                 # The video id, not the path's stem — every watch page's stem is "watch".
                 from urllib.parse import parse_qs
 
@@ -1566,6 +1571,7 @@ class Build:
             self.resolved_out,
             manifest_module.AudioManifest(
                 source=str(self.source),
+                home=self.home,
                 sha256=found.sha256,
                 duration=found.duration,
                 language=drafted.language,

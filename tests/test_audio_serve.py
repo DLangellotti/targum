@@ -340,3 +340,34 @@ def test_an_unfinished_upload_is_swept_after_a_day(served, monkeypatch) -> None:
     monkeypatch.setattr(serve_module, "UPLOAD_TTL_MS", -1)
     begin(port, token, size=8)  # any begin sweeps
     assert not left.exists()
+
+
+def test_the_shelf_says_video_where_the_import_kept_its_pictures(tmp_path: Path) -> None:
+    """A lecture with its slides and a podcast were one row saying "audio". The
+    readers list carries both facts, so the page can draw one word and filter on it."""
+    from targum.audio import manifest as manifest_module
+
+    library = Library(tmp_path)
+    talk = tmp_path / "talk-en"
+    talk.mkdir()
+    part = manifest_module.ManifestPart(number=1, start=0.0, end=10.0, audio="a.mp3")
+    manifest_module.write(
+        talk,
+        manifest_module.AudioManifest(
+            source="talk.mp3", sha256="x", duration=10.0, language="en", parts=[part]
+        ),
+    )
+    heard = library._shape(talk, "talk.mp3", "en", 100)
+    assert heard["spoken"] and not heard["video"]
+
+    lecture = tmp_path / "lecture-en"
+    lecture.mkdir()
+    part.video = "audio/parts/part-001.mp4"
+    manifest_module.write(
+        lecture,
+        manifest_module.AudioManifest(
+            source="lecture.mp4", sha256="y", duration=10.0, language="en", parts=[part]
+        ),
+    )
+    seen = library._shape(lecture, "lecture.mp4", "en", 100)
+    assert seen["spoken"] and seen["video"], "a video can be listened to as well"
