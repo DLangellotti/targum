@@ -127,6 +127,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- On a phone, a word's card no longer moves the page (targum-internal#155). The card was
+  an occupant of the band at the foot, and the pages were cut again around it: a tap on a
+  word turned 60 pages into 80 with the card up and 60 again as it closed, so one look at
+  one meaning moved the screen twice, and the words in front of the reader changed each
+  time. A word's card and a phrase's chip are now overlays — drawn over the page, the
+  strip, the arrows and the sheet, and measured by nothing — and the page holds still
+  until it is turned. `design.md` §12 records the departure. Two more that went with it:
+  the first letter of a custom meaning used to open the sheet, which on a phone put the
+  card and its field away mid-word (writing a meaning is what keeps a word for the first
+  time, and the first word kept opened the sheet); and a keyboard that shrinks the window
+  used to lay the pages out again for the sliver above it. The sheet now waits while a
+  card is up, a height-only resize while a card's field has the focus is left alone, and
+  on a browser that shrinks only the visual viewport for its keyboard — iOS Safari,
+  Chrome on Android — the card is lifted to the visible foot of the window.
 - The `file://` canary watches the mechanism that was actually fixed. It wrote with
   `localStorage.setItem` and read back with `localStorage.getItem`, the one path
   `durable.js` does not repair, so it was watching a fault that was never going to clear
