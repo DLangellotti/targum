@@ -153,7 +153,7 @@ def root_of(lemma: str, binyan: str | None) -> str | None:
     if binyan == "פעל":
         pass
     elif binyan == "נפעל":
-        letters = _strip(letters, "נ")
+        letters = _nifal(letters)
     elif binyan == "פיעל":
         letters = _drop_mater(letters, 1, "י")
     elif binyan == "פועל":
@@ -185,6 +185,34 @@ def _drop_mater(letters: list[str], at: int, mater: str) -> list[str]:
     if len(letters) == 4 and letters[at : at + 1] == [mater]:
         return letters[:at] + letters[at + 1 :]
     return letters
+
+
+def _nifal(letters: list[str]) -> list[str]:
+    """נפעל, whose prefix is a נ and whose weak roots hide behind a vowel letter.
+
+    A regular verb writes נ plus the three radicals and taking the נ off is the whole
+    job: נכתב is כ־ת־ב. Two families do not, and stripping the נ on those invented a
+    root that is not one — measured against the IAHLT treebanks, all eleven of the
+    irregular nifal lemmas in them came out wrong, and ניתן was shown to readers as
+    י־ת־ן.
+
+    The vowel letter in second place says which family it is, and says it unambiguously:
+
+    - a ו stands where a root's first radical י has dropped, exactly as it does in
+      הפעיל — נודע is י־ד־ע, נולד is י־ל־ד, נוסף is י־ס־ף;
+    - a י stands where the root's own first radical נ has assimilated into the pattern's
+      נ, so the two are written once — ניתן is נ־ת־ן, נישא is נ־שׂ־א, ניצב is נ־צ־ב.
+
+    Hebrew roots essentially never begin with ו, which is what makes the first safe; and
+    a נ that is not doubled in writing is the ordinary fate of a root-initial נ, which is
+    what makes the second.
+    """
+    if len(letters) == 4 and letters[:1] == ["נ"]:
+        if letters[1] == "ו":
+            return ["י"] + letters[2:]
+        if letters[1] == "י":
+            return ["נ"] + letters[2:]
+    return _strip(letters, "נ")
 
 
 def _hifil(letters: list[str]) -> list[str]:
