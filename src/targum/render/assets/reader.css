@@ -1241,11 +1241,15 @@ table.rows tr:hover .copy,
 
 /* The export sits at the foot, out of the way of the list and always reachable. */
 .list-foot {
+  display: flex;
+  gap: 0.4rem;
   padding-block-start: 0.7rem;
   margin-block-start: 0.5rem;
   border-block-start: 1px solid var(--rule);
 }
-.list-foot button { width: 100%; padding: 0.3rem; font-size: 0.6875rem; }
+/* Two files side by side: the spreadsheet's and Anki's. Equal halves, so neither reads
+   as the main one. */
+.list-foot button { flex: 1 1 0; min-width: 0; padding: 0.3rem; font-size: 0.6875rem; }
 .list-foot button:disabled { opacity: 0.4; cursor: default; }
 .list-foot button:disabled:hover { color: var(--ink-soft); border-color: var(--rule); }
 .list-items li {

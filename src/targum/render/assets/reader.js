@@ -1476,6 +1476,7 @@ var targumReader = function () {
   var wordsEmpty = document.getElementById("words-empty");
   var phrasesEmpty = document.getElementById("phrases-empty");
   var exportButton = document.getElementById("export-button");
+  var ankiButton = document.getElementById("anki-button");
   var tabs = document.querySelectorAll("[data-list]");
 
   // The other half of the tablist contract: arrows move between the two tabs, and the
@@ -1925,6 +1926,7 @@ var targumReader = function () {
     if (phrasesEmpty) phrasesEmpty.hidden = !onPhrases || lastPhrases > 0;
     // Nothing to hand over is not worth offering.
     if (exportButton) exportButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
+    if (ankiButton) ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
   }
 
   function renderList() {
@@ -3487,6 +3489,143 @@ var targumReader = function () {
     else exportWords();
   }
 
+  /* --- an Anki deck -------------------------------------------------------- */
+
+  /* The two files above are for a spreadsheet. This one is for Anki, which is where
+     most people learning Hebrew already keep the words they are drilling, and it carries
+     what a card wants that a column does not: the word as it is pointed on the page, the
+     sentence it was met in, and for a verb its root and binyan. Tab-separated with
+     Anki's own header lines, so it imports as it is — no note type to make first and no
+     columns to map — and HTML is on, which is what puts the sentence on a line of its
+     own on the back.
+
+     No formula guard here. This is not a spreadsheet's file, and the apostrophe that
+     makes a cell inert would be the first character of a flashcard. */
+
+  // The form a card is read in: the vowels without the chant. A Masoretic text ships
+  // its accented form and its unaccented one, and the te'amim are for leyning, not
+  // for learning a word; every other text has the pointed cell or only the bare one.
+  function readingCell(segmentId) {
+    return (
+      cells.unaccented[segmentId] || cells.pointed[segmentId] || cells.plain[segmentId] || null
+    );
+  }
+
+  // A run of the bare text, read back out of the reading form: the same offsets
+  // carried across the marks, which is how the page draws a pointed span.
+  function readingRun(segmentId, start, end) {
+    var cell = readingCell(segmentId);
+    if (!cell) return "";
+    var map = cell === cells.plain[segmentId] ? null : markMap(cell);
+    var text = cellText(cell);
+    var from = map ? map[Math.min(start, map.length - 1)] : start;
+    var to = map ? map[Math.min(end, map.length - 1)] : end;
+    return text.slice(from, to);
+  }
+
+  // Where a word is first met in this text, which is the sentence its card quotes.
+  function firstMeeting(lemma) {
+    var ids = Object.keys(wordData);
+    for (var i = 0; i < ids.length; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var j = 0; j < rows.length; j++) {
+        if (lemmas[rows[j][4]] === lemma) return { segmentId: ids[i], token: rows[j] };
+      }
+    }
+    return null;
+  }
+
+  // What goes on the cards: one per entry the list is showing, in the list's order.
+  function ankiCards(kind) {
+    if (kind === "phrases") {
+      return phraseEntries().map(function (entry) {
+        var pick = (picks[entry.segmentId] || [])[entry.index] || {};
+        return {
+          front: readingRun(entry.segmentId, pick.start || 0, pick.end || 0) || entry.term,
+          meaning: entry.meaning || "",
+          sentence: cellText(readingCell(entry.segmentId)),
+          root: "",
+          binyan: "",
+        };
+      });
+    }
+    return wordEntries().map(function (entry) {
+      var met = firstMeeting(entry.lemma);
+      var index = met ? met.token[4] : -1;
+      return {
+        front: met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term,
+        // What the reader wrote or kept first; failing that, the meaning the page
+        // shipped, which is what the card beside the word shows.
+        meaning: entry.meaning || (index >= 0 && glosses[index]) || "",
+        sentence: met ? cellText(readingCell(met.segmentId)) : "",
+        root: (index >= 0 && roots[index]) || "",
+        binyan: (index >= 0 && binyanim[index]) || "",
+      };
+    });
+  }
+
+  // A field of the file. HTML is on, so the text is escaped as HTML; a tab or a line
+  // break inside a field would be read as the next field or the next card.
+  function ankiField(value) {
+    return String(value === undefined || value === null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/\t/g, " ")
+      .replace(/\r?\n/g, "<br>");
+  }
+
+  // The file itself, from a deck's name and its cards. Pure, so a test can hold it.
+  //
+  // Front: the word. Back: what it means, the sentence under it in the language it is
+  // in, and a verb's root and binyan on a third line. Tags: targum, and the text, so a
+  // deck merged into a bigger one can still be told apart. The deck is filed under
+  // `targum::`, which is how Anki nests, so every text's deck sits under one parent.
+  function ankiText(name, cards) {
+    var lines = [
+      "#separator:tab",
+      "#html:true",
+      "#notetype:Basic",
+      "#deck:targum::" + name.replace(/::/g, ":"),
+      "#columns:Front\tBack\tTags",
+      "#tags column:3",
+    ];
+    var tag = "targum::" + name.replace(/\s+/g, "-");
+    cards.forEach(function (card) {
+      var back = [ankiField(card.meaning)];
+      if (card.sentence) {
+        back.push(
+          '<span lang="' + language + '" dir="auto">' + ankiField(card.sentence) + "</span>"
+        );
+      }
+      if (card.root || card.binyan) {
+        var verb = [];
+        if (card.root) verb.push("root " + ankiField(card.root.split("").join("\u05be")));
+        if (card.binyan) verb.push(ankiField(card.binyan));
+        back.push(verb.join(" \u00b7 "));
+      }
+      lines.push([ankiField(card.front), back.join("<br>"), "targum " + tag].join("\t"));
+    });
+    return lines.join("\n") + "\n";
+  }
+
+  function exportAnki() {
+    var kind = prefs.listTab === "phrases" ? "phrases" : "words";
+    var text = ankiText(title(), ankiCards(kind));
+    var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = title() + " \u2014 " + kind + ".anki.txt";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
   /* --- type and mode ------------------------------------------------------- */
 
   function applyType() {
@@ -4829,6 +4968,10 @@ var targumReader = function () {
         exportCsv();
         return;
       }
+      if (button.getAttribute("data-export") === "anki") {
+        exportAnki();
+        return;
+      }
       var whichList = button.getAttribute("data-list");
       if (whichList) {
         showTab(whichList);
@@ -5764,6 +5907,8 @@ var targumReader = function () {
     // The list beside the text, as it would be drawn: newest first, and with the word
     // you have just finished with still on it.
     entries: wordEntries,
+    // The Anki file, from cards a test hands it: the headers, the columns, the back.
+    ankiText: ankiText,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
     // Finished with the text, and taken back.

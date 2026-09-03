@@ -694,3 +694,90 @@ def test_a_pronoun_is_its_person() -> None:
     assert run([], personLines=["Person=1|Number=Plur", "Person=3|Gender=Fem|Number=Sing"])[
         "persons"
     ] == ["we", "she"]
+
+
+# --- the Anki deck -------------------------------------------------------------------
+#
+# Anki reads a text file with its own header lines, and what those lines say decides
+# whether the deck imports as it is or lands on a dialog asking which column is which.
+# The file is written by one pure function, so the file is what is held here; what goes
+# on the cards is read off a real page and belongs to `test_reader_browser.py`.
+
+
+def deck(*cards: dict[str, str], name: str = "A chapter") -> list[str]:
+    text = run([], deck={"name": name, "cards": list(cards)})["deck"]
+    assert text.endswith("\n"), "the last card has no line end, so Anki drops it"
+    return text.rstrip("\n").split("\n")
+
+
+WORD = {
+    "front": "\u05e9\u05b8\u05c1\u05dc\u05d5\u05b9\u05dd",
+    "meaning": "peace",
+    "sentence": "\u05e9\u05b8\u05c1\u05dc\u05d5\u05b9\u05dd \u05dc\u05b8\u05da\u05b0",
+    "root": "\u05e9\u05dc\u05dd",
+    "binyan": "",
+}
+
+
+def test_the_file_says_what_it_is_before_the_first_card() -> None:
+    """Anki's own header lines: separator, HTML on, the note type and the deck, and
+    which column carries the tags. With these the file imports on one click."""
+    lines = deck(WORD)
+    assert lines[:6] == [
+        "#separator:tab",
+        "#html:true",
+        "#notetype:Basic",
+        "#deck:targum::A chapter",
+        "#columns:Front\tBack\tTags",
+        "#tags column:3",
+    ]
+    assert len(lines) == 7
+
+
+def test_front_back_tags_in_that_order() -> None:
+    front, back, tags = deck(WORD)[6].split("\t")
+    assert front == WORD["front"]
+    assert back.startswith("peace<br>")
+    assert tags == "targum targum::A-chapter"
+
+
+def test_the_sentence_is_on_the_back_in_its_own_language() -> None:
+    """The point of the deck: a word is learned in the sentence it was met in."""
+    back = deck(WORD)[6].split("\t")[1]
+    assert '<span lang="he" dir="auto">' + WORD["sentence"] + "</span>" in back
+
+
+def test_a_verb_carries_its_root_and_binyan() -> None:
+    verb = dict(WORD, root="\u05db\u05ea\u05d1", binyan="\u05e4\u05b8\u05bc\u05e2\u05b7\u05dc")
+    back = deck(verb)[6].split("\t")[1]
+    # Spaced the way a root is written, so it reads as three letters and not a word.
+    assert back.endswith("root \u05db\u05be\u05ea\u05be\u05d1 \u00b7 " + verb["binyan"])
+
+
+def test_a_phrase_is_a_card_with_no_root_line() -> None:
+    phrase = {
+        "front": "\u05e9\u05b8\u05c1\u05dc\u05d5\u05b9\u05dd \u05dc\u05b8\u05da\u05b0",
+        "meaning": "peace be with you",
+        "sentence": WORD["sentence"],
+        "root": "",
+        "binyan": "",
+    }
+    back = deck(phrase)[6].split("\t")[1]
+    assert back.count("<br>") == 1, "a phrase has a meaning and a sentence and nothing else"
+    assert "root" not in back
+
+
+def test_a_meaning_cannot_break_out_of_its_field() -> None:
+    """HTML is on, so a meaning with markup in it is text and not markup; a tab or a
+    line break in one would be read as the next field or the next card."""
+    odd = dict(WORD, meaning='<b>bold</b>\tand "quoted"\nand more')
+    lines = deck(odd)
+    assert len(lines) == 7, "a line break in a meaning became a second card"
+    back = lines[6].split("\t")[1]
+    assert "&lt;b&gt;bold&lt;/b&gt; and &quot;quoted&quot;<br>and more" in back
+
+
+def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
+    """`::` is how Anki nests decks, and a title with it in would file the text two
+    levels down."""
+    assert deck(WORD, name="Genesis::1")[3] == "#deck:targum::Genesis:1"

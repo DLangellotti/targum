@@ -134,6 +134,9 @@ process.stdout.write(
       button: byId["done-mark"].textContent,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
     },
+    // The Anki file, written from cards the test hands over: what a deck is made of
+    // is decided on the page, but what the file says is decided here.
+    deck: payload.deck ? reader.ankiText(payload.deck.name, payload.deck.cards) : "",
     // The card's grammar line, as the annotator's pipe strings come out in words.
     grammar: (payload.grammarLines || []).map((line) => reader.useLine(line)),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
