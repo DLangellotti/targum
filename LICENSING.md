@@ -4,20 +4,22 @@ targum's own code is **AGPL-3.0-or-later**. Copyright © 2026 David Langellotti.
 the whole of the licence on everything in this repository, and `LICENSE` is the text of
 it.
 
-This file exists because that sentence is not the whole story. targum runs on other
-people's models, and two of them are licensed for non-commercial use only. The AGPL
-promises you may use this software for any purpose including a commercial one. For most
-of targum that promise is good. For two features it is not mine to make, and saying so
-here is better than letting you find out downstream.
+This file exists because that sentence used not to be the whole story. targum runs on
+other people's models, and two of them were licensed for non-commercial use only. The
+AGPL promises you may use this software for any purpose including a commercial one, and
+for two features that promise was not mine to make. Both are now resolved — the aligner
+on 2026-09-02 and the Hebrew annotator the same day — and the history is kept below
+rather than deleted, because a supply chain that was once encumbered is a thing anyone
+building on targum is entitled to know about.
 
 ## The short version
 
 - Install `targum` and use it for anything, commercial included.
-- Run the Hebrew annotator and you are using a model licensed **NonCommercial**. That
-  restriction comes from the model's authors, not from targum, and the AGPL cannot lift
-  it. It is the last one left.
-- `targum[speech-align]` used to be the second. Since 2026-09-02 it is not: the forced
-  aligner runs on an Apache-2.0 acoustic model.
+- Run the Hebrew annotator and you are using **DICTA**, CC BY 4.0, which permits
+  commercial use and asks to be named. targum names it at the foot of every reader whose
+  words it read.
+- Nothing in targum is NonCommercial any more. Two things were: the forced aligner until
+  2026-09-02, and Stanza's Hebrew models until later the same day.
 
 ## Direct dependencies
 
@@ -32,7 +34,8 @@ here is better than letting you find out downstream.
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
-| **stanza** | Apache-2.0 (code) | **the Hebrew models are the problem — see below** |
+| **stanza** | Apache-2.0 (code) | Hebrew is no longer read by it — see below |
+| transformers | Apache-2.0 | loads the DICTA weights |
 
 ### Optional extras
 
@@ -48,20 +51,34 @@ here is better than letting you find out downstream.
 `torch` arrives transitively with stanza and sentence-transformers; its metadata reports
 Apache-2.0 for the package and bundles third-party components under their own terms.
 
-## The one NonCommercial piece
+## Nothing NonCommercial is left
 
-### Stanza's Hebrew models — CC BY-NC-SA 4.0, upstream
+### Stanza's Hebrew models, which used to be here — resolved 2026-09-02
 
 Stanza itself is Apache-2.0. Its Hebrew models are trained on
 [UD_Hebrew-HTB](https://universaldependencies.org/treebanks/he_htb/index.html), which is
-CC BY-NC-SA 4.0 and drawn from Ha'aretz. The Hebrew annotator is what produces the
+CC BY-NC-SA 4.0 and drawn from Ha'aretz — and the Hebrew annotator is what produces the
 dictionary forms that targum's whole one-vocabulary-across-biblical-and-modern idea rests
-on, and it is in the default install rather than an extra.
+on. It was in the default install rather than an extra.
 
 Whether a NonCommercial term on training data reaches the trained model, and then reaches
-that model's output, is genuinely unsettled — and much of the industry proceeds as though
-it does not. targum does not rely on that assumption being correct. It is recorded here
-so that anyone building on targum can make their own call rather than inherit mine.
+that model's output, is genuinely unsettled, and much of the industry proceeds as though
+it does not. targum does not rely on that assumption being correct, which is why the
+model was replaced rather than reasoned around.
+
+Hebrew is now read by **[DICTA](https://huggingface.co/dicta-il/dictabert-joint)**,
+CC BY 4.0. Stanza stays installed and keeps every other language it served; it is simply
+never handed a Hebrew word. Annotations made before the swap carry Stanza's name and are
+read again — free, because annotating runs on the machine.
+
+**What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):
+the two agree on 75% of tokens, DICTA declines to lemmatize 3.7% of them where 1900s
+orthography is out of its vocabulary, and the surface form is used there. DICTA tags no
+binyan at all, so the binyan and the root derived from it are recovered from the lemma's
+own spelling where that is unambiguous and left off where it is not — verb roots land at
+26% of verbs against Stanza's 51%. Against that, DICTA keeps the personal pronouns apart
+where Stanza's treebank collapsed אני, לי and בו onto one card, and its prefix
+segmentation is what #110 was opened about.
 
 ### Nakdimon's weights — MIT, confirmed 2026-09-02
 
@@ -108,17 +125,18 @@ this model's vocabulary is the Hebrew alphabet with its final forms.
 
 Timings made before the swap carry the old aligner's name and are re-derived.
 
-## What targum is doing about the one that is left
+### What CC BY 4.0 asks of targum, and where it is given
 
-Stanza's Hebrew annotator is being replaced with a permissively licensed model rather
-than worked around. [DICTA](https://huggingface.co/dicta-il) publishes `dictabert-morph`
-and `dictabert-seg` under CC BY 4.0, which permits commercial use with attribution. The
-biblical half of that job is already done and does not need a model at all: the Tanakh is
-looked up in the Open Scriptures morphology, CC BY 4.0, hand-tagged.
+DICTA's terms permit commercial use and require attribution. The naming is at the foot of
+every reader whose words DICTA read — beside the credit for whoever read the audio, and
+for the same reason: a credit in a file nobody opens is not a credit. It is keyed to the
+annotator that actually ran, so a reader built before the swap does not claim a credit it
+did not earn.
 
-The tracking issues live on the private board; this file is updated when the swap lands.
+The biblical half never needed a model at all: the Tanakh is looked up in the Open
+Scriptures morphology, CC BY 4.0, hand-tagged.
 
-Until it does, this is the honest state of the supply chain.
+This is the honest state of the supply chain.
 
 ## Content is not code
 

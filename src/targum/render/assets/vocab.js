@@ -458,12 +458,98 @@
     return button;
   }
 
-  // Both moves, in the order they have to happen: the words find their language first,
-  // and their meanings find their pair second. Every page that shows a word runs this,
-  // so whichever one the reader opens first is the one that does it.
-  function migrateAll(language, documentId) {
+  /* --- a word that is now called something else ------------------------------ */
+
+  /* The annotator changed, and some lemmas changed with it (targum-internal#141).
+   *
+   * Marks are filed by lemma, so a text re-annotated by a different annotator leaves a
+   * reader's word under a name nothing produces any more: it stops being highlighted,
+   * stops counting, and looks exactly like a word they never met. Measured at 23.4% of
+   * real marks when Hebrew moved from Stanza to DICTA.
+   *
+   * The page carries the moves for its own text, worked out at build time by pairing the
+   * annotation that was on disk against the one that replaced it. Each text brings its
+   * own, so a reader migrates what it has words for and the rest arrive as those texts
+   * are rebuilt — no table of the whole library has to be carried by anyone.
+   *
+   * Two rules this obeys and one it refuses.
+   *
+   * A mark is never deleted. It moves to the name the word is now called by, and where
+   * both names are already kept, the record that was touched more recently is the one
+   * that stands — the same rule `intoPair` merges meanings by.
+   *
+   * The meaning follows the word. Meanings live per language pair, keyed by the term, so
+   * renaming the word without renaming its meaning would strand what the reader wrote.
+   *
+   * And it never guesses. Moves that land on a different word are screened out at build
+   * time and are not in here at all, because carrying a mark across one of those is worse
+   * than losing it: the reader keeps a word they never learned, under a meaning that was
+   * never theirs, and nothing in the reader would ever show it.
+   */
+  function migrateLemmas(language, moves) {
+    if (!language || !moves || !moves.id) return;
+    var done = read("targum:migrated", "{}");
+    var flag = "lemmas:" + moves.id;
+    if (done[flag]) return;
+
+    var tag = String(language).split("-")[0].toLowerCase();
+    var name = "targum:vocab:" + tag;
+    var words = read(name, "{}");
+    var lemmas = moves.lemmas || {};
+    var surfaces = moves.surfaces || {};
+
+    // Worked out before anything is written, because a rename can land on a name this
+    // same pass is about to move, and reading a half-rewritten store is how one word
+    // ends up as two.
+    var renames = [];
+    Object.keys(words).forEach(function (lemma) {
+      var word = words[lemma] || {};
+      // The lemma alone where it can answer; the surface the reader marked where the old
+      // lemma split several ways and only the word itself can say which card is theirs.
+      var now = lemmas[lemma] || surfaces[word.surface || ""] || "";
+      if (now && now !== lemma) renames.push([lemma, now]);
+    });
+
+    if (renames.length) {
+      renames.forEach(function (move) {
+        var was = move[0];
+        var now = move[1];
+        var word = words[was];
+        if (!word) return;
+        var already = words[now];
+        if (!already || (already.at || 0) < (word.at || 0)) {
+          word.surface = word.surface || was;
+          words[now] = word;
+        }
+        delete words[was];
+      });
+      write(name, words);
+
+      keys("targum:meanings:" + tag + ":").forEach(function (pair) {
+        var store = read(pair, "{}");
+        var touched = false;
+        renames.forEach(function (move) {
+          if (!store[move[0]] || store[move[1]]) return;
+          store[move[1]] = store[move[0]];
+          delete store[move[0]];
+          touched = true;
+        });
+        if (touched) write(pair, store);
+      });
+    }
+
+    done[flag] = Date.now();
+    write("targum:migrated", done);
+  }
+
+  // The moves, in the order they have to happen: the words find their language first,
+  // their meanings find their pair second, and only then is it safe to rename a word,
+  // because renaming reads both stores. Every page that shows a word runs this, so
+  // whichever one the reader opens first is the one that does it.
+  function migrateAll(language, documentId, moves) {
     migrate(language, documentId);
     migrateMeanings();
+    migrateLemmas(language, moves);
   }
 
   window.TargumVocab = {

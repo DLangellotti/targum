@@ -547,7 +547,7 @@ PRESSED = "() => document.querySelector('[data-nikkud-toggle]').getAttribute('ar
 
 
 def test_a_masoretic_text_opens_the_way_it_was_published(accented) -> None:
-    """Accents and all. `sourcePointed` has always meant "open in the form this text was
+    """Accents and all. `sourceMarked` has always meant "open in the form this text was
     published in", and a Masoretic edition publishes the trope."""
     assert accented.evaluate(PRESSED) == "true"
     seen = accented.evaluate(
@@ -3194,10 +3194,41 @@ def test_saying_a_level_on_the_card_spends_it(browser, built: Path) -> None:
     context.close()
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason="targum-internal#137: a file:// store is not durable, and that is the bug",
-)
+#: Whether the place the reader wrote has reached the copy that survives — durable.js's
+#: shelf, asked directly rather than through the page. `localStorage` answering yes says
+#: only that `targumKeep` ran, and on `file://` that is exactly the answer that turns out
+#: not to be worth anything; the shelf answering yes says the write committed, which is
+#: the whole difference durable.js exists for. Waiting on it is what makes the reload
+#: below a test of coming back rather than a race with a flush.
+KEPT = """
+(id) => new Promise((done) => {
+  const ask = indexedDB.open('targum', 1);
+  ask.onerror = () => done(false);
+  ask.onsuccess = () => {
+    const db = ask.result;
+    let got;
+    try {
+      got = db.transaction('kept', 'readonly').objectStore('kept').get('targum:place');
+    } catch (e) {
+      db.close();
+      return done(false);
+    }
+    got.onerror = () => { db.close(); done(false); };
+    got.onsuccess = () => {
+      db.close();
+      let all;
+      try {
+        all = JSON.parse((got.result || {}).value || '{}');
+      } catch (e) {
+        return done(false);
+      }
+      done(Object.keys(all).some((k) => all[k].segment === id));
+    };
+  };
+})
+"""
+
+
 def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) -> None:
     """The canary for the shipped case, and the only test here that still uses `file://`.
 
@@ -3206,20 +3237,185 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
     browser that loses a write intermittently cannot hold a deploy gate; that did not
     make the loss go away, and something has to keep watching for it.
 
-    `xfail(strict=False)` on purpose: it passes most of the time and reports rather than
-    breaks when it does not, which is what a canary is for. When targum-internal#137 is
-    fixed this becomes a plain assertion and the marker comes off.
+    It watches through the reader's own path, which is the only version of this test
+    worth having. A canary that called `localStorage.setItem` itself would be watching
+    the one mechanism the fix deliberately did not repair: raw `localStorage` on
+    `file://` still loses writes, durable.js is the answer to that rather than a cure for
+    it, and a canary aimed there could never come good however well the reader worked.
+    So the place is put down the way a reader puts it down — a scroll, `keepPlace`
+    settling a second later, `targumKeep` mirroring to the shelf — and picked up the way
+    a reader picks it up, by `recover` handing it back before `resume` reads it.
     """
     context = opened(browser)
     page = context.new_page()
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    page.evaluate("() => localStorage.setItem('targum:canary', 'kept')")
+    # See the note at the top: the browser's own anchoring would answer for the page.
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.evaluate(SCROLL_TO_ANCHOR, ANCHOR)
+    page.wait_for_function(MARKED, arg=ANCHOR)
+    before = page.evaluate(WHERE)
+    page.wait_for_function(KEPT, arg=before["id"])
 
     page.goto(built.as_uri())
     page.wait_for_selector(".pair")
-    survived = page.evaluate("() => localStorage.getItem('targum:canary')")
-    held = page.evaluate("() => Object.keys(localStorage)")
+    page.add_style_tag(content="* { overflow-anchor: none !important; }")
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    after = page.evaluate(AT, before["id"])
+    held = page.evaluate(RESTORED)
     context.close()
 
-    assert survived == "kept", f"a write made from disk did not survive; the store holds {held}"
+    assert after is not None, (
+        f"the sentence is not on the page the reader came back to. left at {before}, "
+        f"came back to {held}"
+    )
+    assert abs(after["top"] - before["top"]) <= SLACK, (
+        f"a reader opened from disk came back on a different line. left at {before}, "
+        f"came back to {after} with {held}"
+    )
+
+
+# --- a link to a verse ---------------------------------------------------------------
+#
+# A verse's row is `#2:1`, so a link to Ruth 2:1 opens on Ruth 2:1 (targum-internal#28).
+# The scrolling reader gets that from the browser; the pages have to turn to it, and the
+# contents page has to send it on to the file that holds the chapter.
+
+
+def tanakh(out: Path) -> Path:
+    """A built book: two chapters of sixty verses under their headings, each verse with
+    its ref, the way `sefaria/3` ingests one. From chapter 2, because a range does not
+    start at one and the file that holds a chapter is not the chapter's number."""
+    segments: list[Segment] = []
+    for chapter in (2, 3):
+        n = len(segments)
+        segments.append(
+            Segment(
+                id=f"{n:04d}.000-aaaaaa",
+                block_id=f"b{n:04d}",
+                block_index=n,
+                index=0,
+                kind=BlockKind.heading,
+                level=2,
+                text=f"רות {chapter}",
+            )
+        )
+        for number in range(1, 61):
+            n = len(segments)
+            words = [coin(n * 16 + i) for i in range(14)]
+            segments.append(
+                Segment(
+                    id=f"{n:04d}.000-aaaaaa",
+                    block_id=f"b{n:04d}",
+                    block_index=n,
+                    index=0,
+                    kind=BlockKind.verse,
+                    text=" ".join(words),
+                    ref=f"Ruth {chapter}:{number}",
+                )
+            )
+    document = Document(
+        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
+    )
+    render(document, segmented, [translation], out)
+    return out
+
+
+@pytest.fixture(scope="module")
+def book(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return tanakh(tmp_path_factory.mktemp("tanakh") / "reader")
+
+
+#: Where the verse a link named ended up, measured against the bar the way `WHERE` does.
+VERSE = """
+(id) => {
+  const pair = document.getElementById(id);
+  if (!pair || pair.hidden) return null;
+  const box = pair.getBoundingClientRect();
+  const bar = document.querySelector('.bar');
+  const number = pair.querySelector('.verse-number');
+  return {
+    target: pair.matches(':target'),
+    top: box.top,
+    bottom: box.bottom,
+    ceiling: bar ? bar.getBoundingClientRect().bottom : 0,
+    window: window.innerHeight,
+    number: number ? number.textContent : '',
+  };
+}
+"""
+
+#: The verse is drawn and inside the window — the pages take a frame to turn.
+VERSE_SHOWN = """
+(id) => {
+  const pair = document.getElementById(id);
+  if (!pair || pair.hidden) return false;
+  const box = pair.getBoundingClientRect();
+  return box.top >= 0 && box.bottom <= window.innerHeight;
+}
+"""
+
+
+@pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
+def test_a_link_to_a_verse_turns_to_its_page(browser, book: Path, hash: str) -> None:
+    """Verse 55 is pages in. A plain id cannot reach it — the pair is not rendered — so
+    the reader turns to its page. Sefaria writes the same address `Ruth.2.55`, and a
+    link copied from there should land too."""
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + hash)
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    assert seen["number"] == "55", "the number in the margin is the verse's"
+    assert seen["ceiling"] <= seen["top"] and seen["bottom"] <= seen["window"]
+    context.close()
+
+
+@pytest.mark.parametrize("hash", ["#2:55", "#2.55"])
+def test_a_link_to_a_verse_opens_the_scrolling_reader_on_it(browser, book: Path, hash: str) -> None:
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + hash)
+    page.wait_for_selector(".pair")
+    page.wait_for_function(VERSE_SHOWN, arg="2:55")
+    seen = page.evaluate(VERSE, "2:55")
+    # At the top of the reading area rather than merely somewhere in the window: a link
+    # to a verse opens *on* it, and the bar is not allowed to cover it.
+    assert seen["top"] >= seen["ceiling"] - 1
+    assert seen["top"] < seen["window"] / 2
+    context.close()
+
+
+def test_a_link_a_verse_opened_on_says_which_line(browser, book: Path) -> None:
+    """The row a link opened on is `:target`, which the stylesheet draws as the band the
+    pointer draws — so a reader who followed a link to Ruth 2:1 is shown which line."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "sec-0001.html") + "#2:3")
+    page.wait_for_function(VERSE_SHOWN, arg="2:3")
+    assert page.evaluate(VERSE, "2:3")["target"]
+    context.close()
+
+
+def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: Path) -> None:
+    """`index.html#3:7` goes to the file that holds chapter 3 — the second, here, though
+    the book opens at chapter 2 — with the verse still in the address."""
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(book / "index.html") + "#3:7")
+    page.wait_for_url(lambda url: url.endswith("sec-0002.html#3:7"))
+    page.wait_for_function(VERSE_SHOWN, arg="3:7")
+    assert page.evaluate(VERSE, "3:7")["number"] == "7"
+    context.close()

@@ -44,6 +44,18 @@ for folder in $FOLDERS; do
     echo "not built: $folder — run targum parasha build" >&2; exit 1; }
 done
 
+# The shelf, kept in step with the corpus. A portion is a catalogue row and the
+# fifty-four are one collection, and the catalogue is a file on this machine that
+# deploy.sh carries over. The merge used to be a separate step run by hand, and it had
+# not been run: the box held every portion and the live library listed none of them.
+# Merged here from the corpus about to be shipped and sent below the way deploy.sh sends
+# it, so a portion cannot be on the box without being on the shelf.
+CATALOGUE="${TARGUM_CATALOGUE:-$HOME/.targum/catalogue.json}"
+[ -f "$CATALOGUE" ] || {
+  echo "no catalogue at $CATALOGUE — the portions have no shelf to go on" >&2; exit 1; }
+echo "== shelf =="
+TARGUM_PARASHA_DIR="$LOCAL" TARGUM_CATALOGUE="$CATALOGUE" uv run targum parasha entries --write
+
 ssh "$HOST" "mkdir -p '$REMOTE/read' '$REMOTE/calendar'"
 
 # rsync rather than scp, and directly rather than through a staging directory. The
@@ -71,6 +83,13 @@ ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json'"
 # Handed to the service, for the reason the weekly's copy records: everything above
 # arrived as root, and the service reads and rewrites it as targum.
 ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+
+# The catalogue with the portions in it, placed the way deploy.sh places it. The service
+# reads it as targum, from a directory only root writes.
+echo "== catalogue =="
+scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
+ssh "$HOST" "install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json \
+  && rm -f /tmp/catalogue.json"
 
 # Where the server looks. Without it `root()` falls back to the working directory, which
 # for the unit is /srv/targum, and every portion 404s while the files sit in
