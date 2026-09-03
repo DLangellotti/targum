@@ -102,6 +102,17 @@ term, so only the acoustic model changed —
 Apache-2.0, fine-tuned from XLS-R (Apache-2.0) on Common Voice (CC0). Nothing in that
 chain restricts use.
 
+**The lockfile kept it three days longer than the code did.** `pyproject.toml` stopped
+requiring `ctc-forced-aligner` on 2026-09-02, but `uv.lock` was not regenerated, so it
+stayed pinned as a dependency of the `speech-align` extra — and `uv sync --extra
+speech-align` went on installing a CC BY-NC package that nothing imported. The claim
+above was true of the source and false of an install. Regenerated 2026-09-03; the lock
+now resolves `torchaudio` and the six packages that came in behind the old aligner —
+`nltk`, `uroman`, `torchcodec`, `unidecode`, `defusedxml` — are gone with it.
+
+A licence audit that reads the manifest and not the lock will keep finding this class of
+thing, since the lock is what a machine actually installs.
+
 Measured against the spans the old aligner produced for the same reading, rather than
 asserted: over 408 words of a Ben-Yehuda recording the two agree to a median of **20 ms**,
 with 96% of word starts inside 100 ms — and the new one runs at 0.20 minutes per minute

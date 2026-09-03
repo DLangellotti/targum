@@ -41,6 +41,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   before it reads anything else, and no annotator had ever written that key — so "past ·
   he", "noun · f · pl." and "construct" never appeared for any word of any text, while
   the features behind them shipped in every payload.
+- The lockfile no longer pins `ctc-forced-aligner`. `pyproject.toml` stopped requiring
+  the CC BY-NC aligner when the Apache-2.0 one replaced it, but `uv.lock` was never
+  regenerated — so `uv sync --extra speech-align` went on installing it, and "nothing
+  NonCommercial is left" was true of the source and false of an install.
 - `transformers` is a hard dependency. Hebrew has read through DICTA since the annotator
   swap and `transformers` is what loads it, but it was reachable only through the
   `speech-align` extra — so a plain install could segment a Hebrew text and find no
