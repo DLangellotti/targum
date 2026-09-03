@@ -801,6 +801,11 @@ class Build:
                 and existing.annotator == annotator.name
             ):
                 self.reused.append("difficulty")
+                # Nothing moved this time, and what moved before still has to reach a
+                # reader who has not opened this targum since it did.
+                from .annotate import moves as moves_module
+
+                self.moves = moves_module.carried(path.parent) or None
                 return existing
         try:
             annotation = annotator.annotate(segmented, vocalization)
@@ -813,11 +818,13 @@ class Build:
         # What the words used to be called, worked out here because this is the one
         # moment both annotations exist: the reader's marks are filed by lemma, and a
         # lemma that moved takes a reader's word out of their list without saying so
-        # (targum-internal#141). Read from the file that is about to be overwritten.
+        # (targum-internal#141). Read from the file that is about to be overwritten, and
+        # kept beside it: a build that moves nothing still has to hand the reader what
+        # earlier builds moved.
         if existing is not None and existing.document_hash == segmented.document_hash:
             from .annotate import moves as moves_module
 
-            self.moves = moves_module.between(existing, annotation)
+            self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
         annotation.write(path)
         return annotation
 

@@ -1105,3 +1105,96 @@ def test_a_wordpiece_is_never_a_destination() -> None:
     was = annotated("stanza/1", [(0, "מלבלב", "מלבלב")])
     now = annotated("dicta/1", [(0, "מלבלב", "##לבים")])
     assert between(was, now)["lemmas"] == {}
+
+
+def test_moves_outlive_the_rebuild_that_found_them(tmp_path: Path) -> None:
+    """They lived exactly one rebuild, which is one too few.
+
+    The build that re-annotated put them in the page; the next found the annotator
+    unchanged, worked out nothing, and rendered the page without them. A reader who did
+    not open that targum in between lost their marks for good — and two rebuilds in one
+    evening is not hypothetical, it is what a deploy that fails halfway and is run again
+    does (targum-internal#141).
+    """
+    from targum.annotate.moves import carried, keep
+
+    assert carried(tmp_path) == {}, "a text that has never moved a word says nothing"
+
+    first = keep(tmp_path, {"lemmas": {"לאורך": "ארך"}, "surfaces": {"בו": "הוא"}})
+    assert first["lemmas"] == {"לאורך": "ארך"}
+    assert carried(tmp_path)["lemmas"] == {"לאורך": "ארך"}, "written down, not only returned"
+
+    # The next rebuild moves nothing: the page still has to carry what the first one did.
+    again = keep(tmp_path, {"lemmas": {}, "surfaces": {}})
+    assert again["lemmas"] == {"לאורך": "ארך"}
+    assert again["id"] == first["id"], "unchanged tables keep their name, so it is not reapplied"
+
+
+def test_a_word_that_moves_twice_still_reaches_a_reader_holding_the_first_name(
+    tmp_path: Path,
+) -> None:
+    """Composed rather than merged. A reader who missed the first migration holds לאורך,
+    and after a second annotator change the word is called אורח — so the table has to say
+    לאורך → אורח, not only ארך → אורח, or the second rebuild strands exactly the marks the
+    first one was there to move."""
+    from targum.annotate.moves import keep
+
+    keep(tmp_path, {"lemmas": {"לאורך": "ארך"}, "surfaces": {"לאורך": "ארך"}})
+    now = keep(tmp_path, {"lemmas": {"ארך": "אורח"}, "surfaces": {}})
+
+    assert now["lemmas"]["לאורך"] == "אורח", "the first name follows the second move"
+    assert now["lemmas"]["ארך"] == "אורח"
+    assert now["surfaces"]["לאורך"] == "אורח", "and a surface answer follows it too"
+    assert now["id"] != "", "grown tables get a new name, so the reader applies them again"
+
+
+def test_a_word_that_comes_back_to_itself_is_not_a_move(tmp_path: Path) -> None:
+    """Two annotator changes that cancel out leave the mark where it started, and asking
+    the reader to rename a word onto itself is how one word becomes two."""
+    from targum.annotate.moves import keep
+
+    keep(tmp_path, {"lemmas": {"ספר": "סֵפֶר"}, "surfaces": {}})
+    now = keep(tmp_path, {"lemmas": {"סֵפֶר": "ספר"}, "surfaces": {}})
+
+    assert "ספר" not in now["lemmas"]
+
+
+def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
+    """One `predict` pads every sentence in it to the longest, so a whole book in one call
+    builds a tensor the size of the longest line times the number of lines.
+
+    `targum rebuild --words` on the box peaked at 7.1 GB of a 7.7 GB machine and was
+    OOM-killed on it, twice, which is how this was found — the deploy of the swap itself
+    could not finish (targum-internal#141, targum-internal#93).
+    """
+    from targum.annotate.dicta import BATCH, DictaLemmatizer
+    from targum.models import Segment
+
+    asked: list[int] = []
+
+    class Counting:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            asked.append(len(texts))
+            return [{"tokens": []} for _ in texts]
+
+    lemmatizer = DictaLemmatizer()
+    lemmatizer._model = Counting()
+    lemmatizer._tokenizer = object()
+
+    segments = [
+        Segment(
+            id=f"s{n}",
+            text="הוא הלך לבית הספר.",
+            ref=str(n),
+            kind="paragraph",
+            block_id="b1",
+            block_index=1,
+            index=n,
+        )
+        for n in range(BATCH * 3 + 5)
+    ]
+    read = lemmatizer.lemmas(segments, "he")
+
+    assert len(read) == len(segments), "every segment still comes back, in one dict"
+    assert max(asked) <= BATCH, f"a batch of {max(asked)} was handed over at once"
+    assert sum(asked) == len(segments), "and each segment is asked about exactly once"

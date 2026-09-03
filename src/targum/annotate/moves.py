@@ -24,9 +24,17 @@ the safe side of that error.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any
 
 from ..models import Annotation
+
+# Where a text keeps what its words used to be called. Beside the annotation, because it
+# is about that annotation — and on disk rather than only in the page, for the reason
+# `keep` exists.
+FILE = "moves.json"
 
 # Folded so a rule can see past a final letter, exactly as `hebrew.py` folds them.
 FINALS = str.maketrans("ךםןףץ", "כמנפצ")
@@ -58,6 +66,68 @@ def same_word(old: str, new: str) -> bool:
         return False
     need = max(2, min(len(letters(old)), len(letters(new))) - 1)
     return shared(old, new) >= need
+
+
+def carried(folder: Path) -> dict[str, Any]:
+    """What this text already knows its words used to be called, or nothing."""
+    try:
+        held = json.loads((folder / FILE).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return held if isinstance(held, dict) else {}
+
+
+def _named(tables: dict[str, Any]) -> dict[str, Any]:
+    """The same tables, under a name that changes when they do.
+
+    The reader applies a table once and remembers the name it applied. So the name has to
+    come from the content: a text whose moves have grown must be applied again, and one
+    rebuilt with nothing new must not.
+    """
+    body = json.dumps(
+        {"lemmas": tables.get("lemmas") or {}, "surfaces": tables.get("surfaces") or {}},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return {"id": hashlib.sha256(body.encode()).hexdigest()[:12], **tables}
+
+
+def keep(folder: Path, now: dict[str, Any]) -> dict[str, Any]:
+    """Add what just moved to what had already moved, write it down, and hand it back.
+
+    Without this a text's moves lived exactly one rebuild. The build that re-annotated
+    put them in the page; the next build found the annotator unchanged, worked out no
+    moves, and rendered the page without them — so a reader who did not open that targum
+    in between lost their marks for good, silently, which is the whole failure #141 is
+    about. Two rebuilds in one evening is not a hypothetical: it is what a deploy that
+    fails halfway and gets run again does.
+
+    Composed rather than merely merged. A word that went אורך → ארך in one rebuild and
+    ארך → אורח in the next has to reach a reader still holding אורך as אורך → אורח, or
+    the second rebuild strands exactly the marks the first one moved.
+    """
+    before = carried(folder)
+    lemmas: dict[str, str] = dict(before.get("lemmas") or {})
+    surfaces: dict[str, str] = dict(before.get("surfaces") or {})
+    fresh_lemmas: dict[str, str] = dict(now.get("lemmas") or {})
+    fresh_surfaces: dict[str, str] = dict(now.get("surfaces") or {})
+
+    for table in (lemmas, surfaces):
+        for was, to in list(table.items()):
+            if to in fresh_lemmas:
+                table[was] = fresh_lemmas[to]
+    lemmas.update(fresh_lemmas)
+    surfaces.update(fresh_surfaces)
+    # A word that ended up back where it started is not a move, and carrying it would
+    # have the reader rename a mark onto itself.
+    tables = {
+        "lemmas": {was: to for was, to in lemmas.items() if was != to},
+        "surfaces": surfaces,
+    }
+    held = _named(tables)
+    if held["lemmas"] or held["surfaces"]:
+        (folder / FILE).write_text(json.dumps(held, ensure_ascii=False, indent=1), encoding="utf-8")
+    return held
 
 
 def between(old: Annotation, new: Annotation) -> dict[str, object]:
@@ -104,12 +174,7 @@ def between(old: Annotation, new: Annotation) -> dict[str, object]:
         # wordpiece is still refused, because that is not a word in any language.
         if filed[surface] & split and "##" not in where.most_common(1)[0][0]
     }
-    return {
-        # Named so a reader applies one text's moves once, and so a rebuilt text with
-        # different moves is applied again rather than skipped.
-        "id": hashlib.sha256(
-            f"{old.annotator}|{new.annotator}|{new.document_hash}".encode()
-        ).hexdigest()[:12],
-        "lemmas": lemmas,
-        "surfaces": surfaces,
-    }
+    # Unnamed on purpose: `keep` names the tables once it has composed them with whatever
+    # this text had already recorded, and the name has to describe what the reader is
+    # actually handed rather than this one step of it.
+    return {"lemmas": lemmas, "surfaces": surfaces}
