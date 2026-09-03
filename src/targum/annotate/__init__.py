@@ -19,6 +19,7 @@ from .base import (
     method_label,
     unread,
 )
+from .biblical import METHOD as TANAKH_METHOD
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
@@ -54,7 +55,15 @@ class Annotator:
         bands: Bands | None = None,
         pronouncer: Pronouncer | None = None,
     ) -> None:
-        self.lemmatizer: Lemmatizer = lemmatizer or StanzaLemmatizer()
+        if lemmatizer is None:
+            # DICTA for Hebrew, Stanza for the rest, the way `lemma.for_source` builds it
+            # for a build. The bare default used to be Stanza alone, and four callers
+            # that measure or gloss a text reached it — every one a way for a Hebrew word
+            # to be read by the NonCommercial model the swap removed (targum-internal#146).
+            from .dicta import DictaLemmatizer
+
+            lemmatizer = DictaLemmatizer()
+        self.lemmatizer: Lemmatizer = lemmatizer
         self.bands: Bands = bands or FrequencyBands()
         # No default. A machine without phonikud installed produces an annotation with no
         # readings and says so in its name, so the machine that has it redoes the text
@@ -72,11 +81,22 @@ class Annotator:
         base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}+{LANGUAGES}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
 
+    @property
+    def scripture(self) -> bool:
+        """Whether the text being read is the Tanakh.
+
+        Known from the bands rather than told separately: every caller already chooses
+        the Tanakh word list by `is_biblical(source)`, and a text banded against the
+        Tanakh is the Tanakh. The register line needs the same fact, because on that
+        text "not in the Tanakh" is never an answer (targum-internal#156).
+        """
+        return self.bands.method == TANAKH_METHOD
+
     def annotate(
         self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
     ) -> Annotation:
-        # Lemmatize the bare text, never the pointed text. Stanza's Hebrew models are
-        # trained unpointed, and fed nikkud they return lemmas that are not words:
+        # Lemmatize the bare text, never the pointed text. The Hebrew models are trained
+        # unpointed, and fed nikkud Stanza's returned lemmas that are not words:
         # נַּפְשִׁי comes back as נַּ'ְשִׁ, שׁוּבֵךְ as הוּבֵך. Every band, gloss and saved-word
         # grouping downstream is keyed to the lemma, so one pointed source poisons all
         # three. Offsets are mapped back onto the segment as ingested afterwards, which
@@ -118,7 +138,9 @@ class Annotator:
                     if token.lemma not in cache:
                         # A text has far fewer distinct lemmas than tokens.
                         cache[token.lemma] = self.bands.band(token.lemma, segmented.language)
-                        registers[token.lemma] = register_module.of(token.lemma, segmented.language)
+                        registers[token.lemma] = register_module.of(
+                            token.lemma, segmented.language, scripture=self.scripture
+                        )
                     band = cache[token.lemma]
                     in_register = registers[token.lemma]
                 update: dict[str, object] = {"band": band, "word_register": in_register}

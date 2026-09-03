@@ -216,6 +216,10 @@ def unique_lemmas(
     Meanings are the expensive half of a build, and looking them up for a whole novel
     when one chapter of it was bought is how a long book came to cost more than the cap
     allowed and could never be opened at all.
+
+    "Lemma" here is the form a meaning is filed under, which is the lemma except where
+    two words share a spelling and the token says which — see `Token.glossed_as`. אֵלֶּה
+    and אָלָה are one lemma and two entries, because they are two words.
     """
     best: dict[str, int] = {}
     for segment_id, tokens in annotation.tokens.items():
@@ -224,7 +228,8 @@ def unique_lemmas(
         for token in tokens:
             # An unrated word is still a word worth looking up.
             if token.band >= min_band or (token.band == 0 and min_band <= 1):
-                best[token.lemma] = max(best.get(token.lemma, 0), token.band)
+                form = token.glossed_as
+                best[form] = max(best.get(form, 0), token.band)
     return [lemma for lemma, _ in sorted(best.items(), key=lambda item: (-item[1], item[0]))]
 
 
@@ -320,6 +325,7 @@ def fill_from_cache(
     glossaries: dict[str, Glossary],
     targets: Collection[str],
     cache: Cache | None = None,
+    provider: GlossProvider | None = None,
 ) -> dict[str, Glossary]:
     """Every glossary this text can have for free: what it has, plus whatever the cache
     holds for its words in each language somebody reads. Returns only the ones that
@@ -328,11 +334,21 @@ def fill_from_cache(
     A lemma the glossary already has is taken from the cache too where the two differ:
     the cache is the later word, because a reader met the word in a sentence and the
     sense was bought again with that sentence in hand, and the file should catch up.
+
+    `provider`, given, buys what the cache lacks as well. Free is the default because a
+    rebuild is; but a word can come to be filed under a key nobody has bought yet — the
+    pointed headwords of `oshb/2` reached the box with 92 of 200 rows of Judges empty —
+    and a shelf full of "look it up" buttons on everyday words is not a state a rebuild
+    should leave a reader in. Bought bare, the way a build buys them, so the first tap
+    grounds each one.
     """
     cache = cache or Cache()
     grown: dict[str, Glossary] = {}
     for target in sorted(set(targets) | set(glossaries)):
-        held, _ = build_glossary(annotation, target, _Held(), cache=cache, buy=False)
+        if provider is None:
+            held, _ = build_glossary(annotation, target, _Held(), cache=cache, buy=False)
+        else:
+            held, _ = build_glossary(annotation, target, provider, cache=cache)
         have = glossaries.get(target)
         entries = dict(have.entries) if have else {}
         parts = dict(have.parts_of_speech) if have else {}

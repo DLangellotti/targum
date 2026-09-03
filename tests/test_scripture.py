@@ -133,7 +133,7 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     """A text tagged from the morphology is a different artefact from one a model guessed
     at, and on most of the shelf the fallback is what ran — so the name carries both, and
     changing it is what makes existing texts read again."""
-    assert ScriptureLemmatizer(Stub()).name == "oshb/1+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/2+stub/1"
 
 
 @pytest.mark.parametrize(
@@ -155,6 +155,29 @@ def test_the_morphology_is_read_positionally(code: str, expected: str | None) ->
     reads the `c` of "common" as a gender.
     """
     assert features(code) == expected
+
+
+@pytest.mark.skipif(not oshb.available(), reason="the Hebrew Bible tagging is not on disk")
+def test_every_headword_the_tagging_files_under_is_in_the_band_table() -> None:
+    """The invariant the table exists on. It is counted from the tagging through
+    `headword_of`, so nothing the lookup can file a word under is a word the table has
+    never heard of — which is what made half the Tanakh "not in the Tanakh" when the
+    table was Stanza's (targum-internal#156). Deuteronomy, because Nitzavim is where it
+    was noticed; every book, if the tagging is there, would pass the same way.
+    """
+    from targum.annotate.biblical import _table
+    from targum.annotate.scripture import headword_of, is_section
+
+    table, _ = _table()
+    missing: set[str] = set()
+    for _ref, words in oshb.verses(oshb.BOOKS["Deuteronomy"]):
+        for word in words:
+            if is_section(word):
+                continue
+            headword = headword_of(word)
+            if headword and headword not in table:
+                missing.add(headword)
+    assert not missing, sorted(missing)[:20]
 
 
 def test_a_name_is_a_proper_noun_so_it_is_left_out_of_the_counting() -> None:
@@ -211,3 +234,34 @@ def test_a_lexeme_written_as_two_words_keeps_its_space(tagged: Path) -> None:
     assert _headword("בֵּית לֶחֶם") == "בית לחם"
     assert _headword("שָׁמַיִם") == "שמים", "a one-word headword is unaffected"
     assert _headword("  בֵּית   לֶחֶם ׃") == "בית לחם", "and the punctuation still goes"
+
+
+def test_a_shared_spelling_keeps_its_points_beside_the_lemma(tagged: Path) -> None:
+    """Deuteronomy 30:1 has הָאֵלֶּה, these, and 29:19 has הָאָלָה, the curse. Both are
+    filed under אלה, and a meaning bought for the curse was shown for "these" across the
+    whole Tanakh. The lemma has to stay bare — it is what a reader's marks are keyed on —
+    so the pointed headword rides beside it, and only where the lexicon has more than
+    one word spelled that way. The fixture lends ארץ a second pointing to stand in."""
+    (tagged / oshb.LEXICON_FILE).write_text(
+        json.dumps(
+            {
+                "7225": "רֵאשִׁית",
+                "1254": "בָּרָא",
+                "430": "אֱלֹהִים",
+                "8064": "שָׁמַיִם",
+                "776": "אֶרֶץ",
+                "9999": "אָרַץ",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    oshb.forget()
+    got = ScriptureLemmatizer(Stub()).lemmas([verse("Genesis 1:1", FIRST)], "he")["s1"]
+    earth = got[-1]
+    assert earth.lemma == "ארץ", "the identity is still the bare spelling"
+    assert earth.headword == "אֶרֶץ", "and the points say which of the two words it is"
+    assert earth.glossed_as == "אֶרֶץ"
+    heavens = got[4]
+    assert heavens.headword is None, "a spelling with one word to its name carries nothing"
+    assert heavens.glossed_as == "שמים"

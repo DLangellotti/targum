@@ -170,8 +170,7 @@ def test_the_bands_rise_with_the_levels() -> None:
 # -- the measurement ------------------------------------------------------------------
 
 
-@pytest.mark.stanza
-def test_the_ruler_is_the_one_the_library_filters_on(needs_hebrew_model: None) -> None:
+def test_the_ruler_is_the_one_the_library_filters_on(needs_dicta_model: None) -> None:
     """Segment, annotate, count — the same three steps a build runs, so the number here
     is the number the entry will carry rather than an approximation of it."""
     from targum.weekly.verify import measure
@@ -184,8 +183,7 @@ def test_the_ruler_is_the_one_the_library_filters_on(needs_hebrew_model: None) -
     assert measure(easy) < measure(hard), "the ruler orders these the way a reader would"
 
 
-@pytest.mark.stanza
-def test_the_section_headings_are_not_counted(needs_hebrew_model: None) -> None:
+def test_the_section_headings_are_not_counted(needs_dicta_model: None) -> None:
     """They are the same five words every week. Counting them would drag every issue's
     number toward every other issue's."""
     from targum.weekly.verify import measure
@@ -194,16 +192,14 @@ def test_the_section_headings_are_not_counted(needs_hebrew_model: None) -> None:
     assert measure(body) == measure(f"# ישראל\n\n{body}\n\n# ספורט\n\n")
 
 
-@pytest.mark.stanza
-def test_nothing_to_measure_is_nought_rather_than_a_crash(needs_hebrew_model: None) -> None:
+def test_nothing_to_measure_is_nought_rather_than_a_crash(needs_dicta_model: None) -> None:
     from targum.weekly.verify import measure
 
     assert measure("") == 0
     assert measure("# ישראל\n\n# ספורט") == 0
 
 
-@pytest.mark.stanza
-def test_the_two_rulers_measure_different_things(needs_hebrew_model: None) -> None:
+def test_the_two_rulers_measure_different_things(needs_dicta_model: None) -> None:
     """Why there are two, pinned with the case that made it necessary.
 
     Prose written for a small vocabulary explains who everybody is, and an explanation
@@ -225,8 +221,7 @@ def test_the_two_rulers_measure_different_things(needs_hebrew_model: None) -> No
     assert simple.sentence < complicated.sentence, "sentence length orders them"
 
 
-@pytest.mark.stanza
-def test_a_headline_is_not_a_sentence(needs_hebrew_model: None) -> None:
+def test_a_headline_is_not_a_sentence(needs_dicta_model: None) -> None:
     """Section headings are the same five words every week, and an item headline is
     not a sentence. Counted, they drag every issue's numbers toward every other
     issue's and flatten the mean that does most of the work here."""

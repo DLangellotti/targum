@@ -123,7 +123,7 @@
   function drawProgress(host, note, words) {
     host.textContent = "";
     var counts = {};
-    words.forEach(function (word) {
+    charts.kept(words).forEach(function (word) {
       counts[word.status] = (counts[word.status] || 0) + 1;
     });
     var order = [1, 2, 3, KNOWN];

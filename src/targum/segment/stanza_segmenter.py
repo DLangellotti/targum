@@ -133,30 +133,45 @@ def remove(language: str) -> bool:
     return True
 
 
-class StanzaSegmenter:
-    """Sentence splitting via Stanza's tokenizer.
+def installed_version() -> str:
+    """Stanza's version without importing it, which is most of a second and torch."""
+    from importlib.metadata import PackageNotFoundError, version
 
-    Abbreviations, quoted dialogue, initials and ellipses all break a regex on periods,
-    and Hebrew geresh and gershayim (׳ ״) look like quote marks without being them.
+    try:
+        return version("stanza")
+    except PackageNotFoundError:
+        return "unknown"
+
+
+class StanzaSegmenter:
+    """Sentence splitting via Stanza's tokenizer, for every language but Hebrew.
+
+    Abbreviations, quoted dialogue, initials and ellipses all break a regex on periods
+    in a language that abbreviates with them. Hebrew does not, and its Stanza models are
+    trained on a NonCommercial treebank, so Hebrew is refused here and drawn by rule in
+    `hebrew.py` (targum-internal#146). `HebrewSegmenter` holds one of these for the rest.
     """
 
     def __init__(self, *, auto_download: bool = True) -> None:
         self.auto_download = auto_download
         self._pipelines: dict[str, Any] = {}
-        self._loaded_version: str | None = None
 
     @property
     def name(self) -> str:
-        return f"stanza/{self._loaded_version or 'unloaded'}"
+        return f"stanza/{installed_version()}"
 
     def pipeline(self, language: str) -> Any:
         code = stanza_code(language)
         if code in self._pipelines:
             return self._pipelines[code]
+        if code == "he":
+            raise TargumError(
+                "Hebrew is not split by Stanza: its Hebrew models are NonCommercial.",
+                "HebrewSegmenter() draws Hebrew sentences by rule and keeps Stanza for the rest.",
+            )
 
         import stanza
 
-        self._loaded_version = stanza.__version__
         if not is_downloaded(code):
             if not self.auto_download:
                 raise ModelMissing(
