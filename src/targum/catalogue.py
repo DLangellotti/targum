@@ -97,6 +97,12 @@ class Kind(StrEnum):
     #: written so somebody can learn to ask for something at a pharmacy. Filed together,
     #: the fifteen minutes a learner has goes to the wrong one.
     dialogue = "dialogue"
+    #: A lecture or an explainer: somebody talking to a camera, and the text is what they
+    #: said. Its own value because `prose` is the catalogue's word for the narrative books
+    #: of the Tanakh and the shelf says so in as many words — a Khan Academy lesson on the
+    #: heart filed there is labelled "Bible narrative", which is not a near miss. It is
+    #: also the register a learner meets in a classroom and nowhere else on this shelf.
+    talk = "talk"
 
 
 class Register(StrEnum):
@@ -365,6 +371,7 @@ def cover_prompt(entry: Entry) -> str:
         # Every value of `Kind`, or the library page's Draw button dies on the first text
         # of the kind that was left out — which is what happened to the scenes.
         Kind.dialogue: "a short scene of everyday conversation",
+        Kind.talk: "a recorded lesson, explained aloud",
     }[entry.kind]
     return (
         f"A cover image for {kind}: {entry.title} — {entry.author}. {entry.blurb} "

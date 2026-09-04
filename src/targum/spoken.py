@@ -13,7 +13,12 @@ reasoning as the catalogue's own read.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import cache
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .audio.manifest import ManifestPart
 
 
 @cache
@@ -35,6 +40,7 @@ def sources() -> frozenset[str]:
                 found.add(f"dialogue:{scene.id}")
     except Exception:  # noqa: BLE001 - a shelf that is not there is not an error
         pass
+    found |= _curated(lambda part: bool(part.audio))
     try:
         for folder in recording_index.root().iterdir():
             if not (folder / recording_index.MANIFEST).is_file():
@@ -47,6 +53,28 @@ def sources() -> frozenset[str]:
     return frozenset(found)
 
 
+def _curated(wanted: Callable[[ManifestPart], bool]) -> set[str]:
+    """Every curated video whose manifest holds a part answering `wanted`.
+
+    The third shelf, and the one that does not keep a `Recording`: a video's timing is
+    per segment, cut from its own subtitle track, where a `Recording` addresses a part
+    by verse or by block. So the claim is read off the import manifest the curation
+    shipped — the same file, and the same question, as `manifest.keeps_video`.
+    """
+    from .audio import manifest as manifest_module
+    from .video import store as video_store
+
+    found: set[str] = set()
+    try:
+        for identifier in video_store.every():
+            kept = manifest_module.load(video_store.folder(identifier))
+            if kept is not None and any(wanted(part) for part in kept.parts):
+                found.add(f"video:{identifier}")
+    except Exception:  # noqa: BLE001 - a shelf that is not there is not an error
+        pass
+    return found
+
+
 def is_spoken(source: str) -> bool:
     return source in sources()
 
@@ -55,10 +83,11 @@ def is_spoken(source: str) -> bool:
 def video_sources() -> frozenset[str]:
     """Every source whose recording kept its pictures: a subset of `sources()`.
 
-    Nothing in the library carries one yet, and this still reads the disk rather than
-    answering no: the day a recording arrives with a video part beside its audio, the
-    shelf says so with no code changed, and until then no entry can claim a picture
-    this machine has not got.
+    Two shelves answer, because two things can hold a picture. A `Recording` may carry
+    a video part beside its audio — nothing in the library does yet, and this still
+    reads the disk rather than answering no, so the day one arrives the shelf says so
+    with no code changed. A curated video always does, and is why this stopped being
+    hypothetical: it is what puts the chip on a catalogue row.
     """
     from .recording import index as recording_index
 
@@ -72,7 +101,7 @@ def video_sources() -> frozenset[str]:
                 found.add(recording.source)
     except Exception:  # noqa: BLE001 - a shelf that is not there is not an error
         pass
-    return frozenset(found)
+    return frozenset(found | _curated(lambda part: bool(part.video)))
 
 
 def is_video(source: str) -> bool:

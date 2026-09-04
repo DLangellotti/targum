@@ -10,6 +10,7 @@ from .dialogue import DialogueFetcher
 from .gutenberg import GutenbergFetcher
 from .sefaria import SefariaFetcher
 from .siddur import SiddurFetcher
+from .video import VideoFetcher
 from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
@@ -31,6 +32,7 @@ FETCHERS: dict[str, Fetcher] = {
     "siddur": SiddurFetcher(),
     "wikisource": WikisourceFetcher(),
     "weekly": WeeklyFetcher(),
+    "video": VideoFetcher(),
 }
 
 

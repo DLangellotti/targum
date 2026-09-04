@@ -48,11 +48,13 @@ weekly_app = typer.Typer(no_args_is_help=True, help="The weekly digest.")
 parasha_app = typer.Typer(no_args_is_help=True, help="The weekly Torah portion.")
 daily_app = typer.Typer(no_args_is_help=True, help="The daily learning cycles.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
+video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
 app.add_typer(parasha_app, name="parasha")
 app.add_typer(daily_app, name="daily")
+app.add_typer(video_app, name="video")
 
 console = Console()
 err = Console(stderr=True)
@@ -1555,7 +1557,11 @@ def build(
         # there both answered "Provider 'anthropic' is not ready", which is neither
         # the problem nor a thing anyone can act on.
         usable, detail = builder.provider.available()
-        if builder.machine and not usable:
+        # And not at all where the text brought its own English. A dialogue's was written
+        # with the scene and a curated video's was bought before it was shipped, so both
+        # build with no key, no network and nothing spent — which is exactly what a box
+        # with no key should still be able to do with them.
+        if builder.machine and plan.carried is None and not usable:
             raise TargumError(f"Provider '{builder.provider_name}' is not ready.", detail)
 
         count = len(plan.segmented.segments) if plan.segmented else 0
@@ -2763,3 +2769,61 @@ def parasha_leyning(
 # entry point is used.
 if __name__ == "__main__":
     main()
+
+
+@video_app.command("curate")
+def video_curate(
+    built: Annotated[Path, typer.Argument(help="A folder `targum build --video` wrote.")],
+    credit: Annotated[str, typer.Option("--credit", help="Who made the video. Shown on the page.")],
+    licence: Annotated[
+        str, typer.Option("--licence", help="The licence, as it is written: 'CC BY 3.0'.")
+    ] = "",
+    licence_url: Annotated[
+        str, typer.Option("--licence-url", help="Where that licence can be read.")
+    ] = "",
+    identifier: Annotated[
+        str, typer.Option("--id", help="The shelf name. Default: the YouTube video id.")
+    ] = "",
+) -> None:
+    """Put a built video on the shelf, so a catalogue row can name it.
+
+    The box cannot fetch a YouTube address — `Library.prepare` refuses one by name — so a
+    curated video is fetched, cut and translated here and carried there. This copies what
+    the box cannot make for itself: the text, the English already bought, the manifest,
+    and the cut files it names. Nothing is fetched and nothing is spent.
+
+    `--credit` is not optional. A video used under CC BY that names nobody is a licence
+    breach, and this is the last place to catch one.
+    """
+    from .video.curate import curate
+
+    try:
+        folder = curate(
+            built,
+            credit=credit,
+            licence=licence,
+            licence_url=licence_url,
+            identifier=identifier,
+        )
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]{folder.name}[/green][dim] on the shelf at {folder.parent}[/dim]")
+    console.print(f"[dim]Catalogue it as [/dim]video:{folder.name}")
+
+
+@video_app.command("list")
+def video_list() -> None:
+    """What is on the curated video shelf, and what each says about itself."""
+    from .video import store as video_store
+
+    names = video_store.every()
+    if not names:
+        console.print(f"[dim]Nothing on the shelf at {video_store.root()}.[/dim]")
+        return
+    for name in names:
+        held = video_store.load(name)
+        if held is None:
+            continue
+        licence = held.licence or "[red]no licence[/red]"
+        console.print(f"video:{name}[dim] · {held.title} · {held.credit} · {licence}[/dim]")
+    console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
