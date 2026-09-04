@@ -452,6 +452,77 @@ def test_a_text_said_finished_is_counted_once() -> None:
     assert drawn["counts"]["targum finished"] == 1
 
 
+def test_a_finished_chapter_is_a_finished_targum() -> None:
+    """targum-internal#173. Genesis is one document, so the ledger used to see one
+    finished thing at the end of fifty chapters — and a reader three chapters in had
+    finished nothing. A chapter is a targum now, and the count can move in an evening."""
+    drawn = draw(
+        {
+            "targum:vocab:he": vocab(known=1),
+            "targum:docs": {
+                "gen": {
+                    "language": "he",
+                    "title": "Genesis",
+                    "sections": {"1": 1_700_000_000_000, "2": 1_700_000_001_000},
+                }
+            },
+            "targum:opened": {"gen": 1},
+            "targum:days": {"2026-08-25": 1},
+        }
+    )
+    assert drawn["counts"]["targums finished"] == 2
+
+
+def test_an_old_record_and_its_chapters_are_never_added_together() -> None:
+    """The rule stated once in #173, so nothing re-derives it: a document is worth the
+    greater of its old whole-document record and its finished sections, never the sum.
+
+    A book finished before the change sits at 1. Its first chapter re-read leaves it at
+    1, because the old record already claimed that much. Its second takes it to 2."""
+
+    def count(sections: dict[str, int]) -> int:
+        drawn = draw(
+            {
+                "targum:vocab:he": vocab(known=1),
+                "targum:docs": {
+                    "gen": {
+                        "language": "he",
+                        "title": "Genesis",
+                        "done": 1_600_000_000_000,
+                        **({"sections": sections} if sections else {}),
+                    }
+                },
+                "targum:opened": {"gen": 1},
+                "targum:days": {"2026-08-25": 1},
+            }
+        )
+        counts = drawn["counts"]
+        return counts.get("targum finished", counts.get("targums finished", 0))
+
+    assert count({}) == 1, "the old record stands"
+    assert count({"1": 1_700_000_000_000}) == 1, "and the first chapter is what it claimed"
+    assert count({"1": 1_700_000_000_000, "2": 1_700_000_001_000}) == 2, "the second is new"
+
+
+def test_nobody_count_jumps_on_the_day_of_the_change() -> None:
+    """The migration, and the reason back-filling was rejected: with no floor it turns
+    one finished Genesis into fifty overnight, and every reader's count leaps without
+    them having read anything that morning. A number that jumps fifty overnight is the
+    one that teaches a reader not to trust the rest of the page."""
+    before = draw(
+        {
+            "targum:vocab:he": vocab(known=1),
+            "targum:docs": {
+                "gen": {"language": "he", "title": "Genesis", "done": 1_600_000_000_000},
+                "ruth": {"language": "he", "title": "Ruth", "done": 1_600_000_001_000},
+            },
+            "targum:opened": {"gen": 1, "ruth": 2},
+            "targum:days": {"2026-08-25": 1},
+        }
+    )
+    assert before["counts"]["targums finished"] == 2, "two books, two targums, unchanged"
+
+
 def _on(day: date, n: int, tag: str) -> dict[str, Any]:
     """`n` words marked on `day`, at noon so no timezone can push them into another."""
     at = int(datetime.combine(day, time(12, 0)).timestamp() * 1000)

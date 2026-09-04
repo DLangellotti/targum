@@ -359,6 +359,84 @@ def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:
     assert "paragraph 3" not in first  # section two's text is not in section one
 
 
+def test_every_section_carries_its_own_done(tmp_path: Path) -> None:
+    """targum-internal#173. The Done used to be written only where there was no section
+    after this one, so a book of fifty chapters carried one, fifty chapters in — and a
+    reader who read three had finished nothing. A chapter is a targum now."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, segmented, [translation], tmp_path / "reader")
+    first = pages[1].read_text(encoding="utf-8")
+    last = pages[2].read_text(encoding="utf-8")
+
+    assert 'id="done-mark"' in first, "the first chapter can be finished on its own"
+    assert 'id="done-mark"' in last
+
+    # And each page says which part of the document it is, because that is what gets
+    # marked: the section number the filename, the contents page and the pager all use.
+    assert '"section": 1' in first and '"sections": 2' in first
+    assert '"section": 2' in last
+
+
+def test_the_foot_of_a_section_offers_the_next_one_by_name(tmp_path: Path) -> None:
+    """A reader who has just finished something should not have to shop, and the library
+    is a shop. The next section, by name and by how long it is; the library's suggestion
+    only where there is no next section."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, segmented, [translation], tmp_path / "reader")
+    first = pages[1].read_text(encoding="utf-8")
+
+    assert 'class="next-up here"' in first, "the next section, not the library"
+    assert 'class="next-up-link" href="sec-0002.html"' in first
+    assert "Two" in first
+    assert " min</span>" in first, "and how long it is, which is what makes it a cheap yes"
+    # Shipped away and revealed by the reader when this section is marked finished. Not
+    # before: the pager at the foot already names the next section, and two controls a
+    # hand's width apart saying the same thing is one control nobody presses.
+    assert 'class="next-up here" id="next-up" dir="ltr" hidden>' in first
+
+
+def test_the_contents_page_says_how_long_each_section_is(tmp_path: Path) -> None:
+    """The same figure the library gives a whole text, one level down: a reader deciding
+    whether to start one more chapter is asking the question the shelf answers."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    pages = render(document, segmented, [translation], tmp_path / "reader")
+    index = pages[0].read_text(encoding="utf-8")
+    assert "min</span>" in index
+    # Never nought: a section that says it takes no time is one a reader cannot decide
+    # about, so the shortest still rounds up to a minute.
+    assert "0 min" not in index
+
+
 def test_a_section_ships_only_its_own_translation_data(tmp_path: Path) -> None:
     segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
     segmented = make_segmented(segments)

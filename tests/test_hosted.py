@@ -511,6 +511,40 @@ def test_the_export_holds_every_kind_the_account_syncs(hosted: tuple[int, str]) 
     assert "days" in data, "reading days are progress, and progress is the point of this"
 
 
+def test_a_chapter_finished_on_one_device_reaches_the_other() -> None:
+    """targum-internal#173. A finished chapter is a row, like a saved word is a row.
+
+    A column on `doc` holding a map of them was the obvious shape and the wrong one:
+    `_merge` keeps whichever version of a *record* is newer, so a map pushed from a phone
+    that had not heard about the laptop's would replace the laptop's wholesale and take a
+    morning's reading with it. One row each merges independently, and an un-finish
+    travels as a `gone` row the way a dropped word does.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as raw:
+        store = Store(Path(raw) / "db")
+        person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+
+        # The laptop finished Genesis 1; the phone, which never heard of that, finished 2.
+        store.push(person, {"sections": [{"hash": "gen", "section": "1", "at": 10, "seen": 10}]})
+        store.push(person, {"sections": [{"hash": "gen", "section": "2", "at": 20, "seen": 20}]})
+        held = {row["section"]: row for row in store.pull(person)["sections"]}
+        assert set(held) == {"1", "2"}, "neither replaced the other"
+        assert all(not row["gone"] for row in held.values())
+
+        # Un-finished at its own foot, and the un-finish travels.
+        store.push(person, {"sections": [{"hash": "gen", "section": "1", "gone": 1, "seen": 30}]})
+        held = {row["section"]: row for row in store.pull(person)["sections"]}
+        assert held["1"]["gone"] == 1 and held["2"]["gone"] == 0
+
+        # And an un-finish older than the finish it would undo does not undo it: the
+        # merge rule is the same one line it is for everything else.
+        store.push(person, {"sections": [{"hash": "gen", "section": "2", "gone": 1, "seen": 5}]})
+        held = {row["section"]: row for row in store.pull(person)["sections"]}
+        assert held["2"]["gone"] == 0, "an older press does not overwrite a newer one"
+
+
 def test_the_export_carries_what_they_said_about_themselves() -> None:
     """A name typed on the profile page and the languages chosen there are as much
     theirs as their words are, and neither is a kind the account syncs — so `KINDS`

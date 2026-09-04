@@ -46,7 +46,21 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   registers: payload.registers || [],
   sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
+  // Which part of the document this file is, and how many there are. A targum finishes
+  // at the end of a chapter (targum-internal#173), so a test about the Done button is a
+  // test about a section — and a page that says neither is its own single section,
+  // which is what every page built before this said.
+  ...(payload.section ? { section: payload.section } : {}),
+  ...(payload.sections ? { sections: payload.sections } : {}),
 });
+
+// The offer at the foot, as the template ships it: the next section of this same
+// document, away until this one is finished. `.here` is what tells the script this is
+// the near one and not the library's suggestion, which has its own rule.
+byId["next-up"] = element("aside");
+byId["next-up"].classList.add("next-up");
+byId["next-up"].classList.add("here");
+byId["next-up"].hidden = true;
 
 // The first-time line as the template ships it: hidden, with its sentence in it. The
 // script decides whether to show it and what it says after the first word is marked.
@@ -129,10 +143,19 @@ process.stdout.write(
     finished: {
       at: reader.finishedAt(),
       record: (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).done || 0,
+      // Which parts of it stand finished, which is what the ledger counts.
+      sections:
+        (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).sections || {},
+      // And what the count itself comes to, by the rule that never adds the old record
+      // to the sections it did not record.
+      tally: reader.finishedCount(),
       language:
         (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).language || "",
       button: byId["done-mark"].textContent,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
+      // Whether the next section is being offered, which happens on finishing and not
+      // before: the pager already names it, and twice is once.
+      onward: !byId["next-up"].hidden,
     },
     // The Anki file, written from cards the test hands over: what a deck is made of
     // is decided on the page, but what the file says is decided here.

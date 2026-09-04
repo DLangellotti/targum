@@ -604,6 +604,74 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     assert back["at"] == 0 and back["button"] == "Done"
 
 
+def test_a_chapter_of_a_book_is_finished_on_its_own() -> None:
+    """targum-internal#173. Genesis is one document, so the Done stood at the foot of
+    chapter fifty and a reader three chapters in had finished nothing — the ledger
+    agreed with them, and that is most of what "feels like work" means.
+
+    Marked per section now, and the whole-document field is left alone: one chapter of
+    fifty is not a claim about the book, and `done` is what the library row, the next
+    unread scene and the monthly measures all read."""
+    words, lemmas = chapter(["a"])
+    done = run([], chapter=words, lemmas=lemmas, section=3, sections=50, finish=[True])["finished"]
+    assert done["at"] > 0, "the chapter is finished"
+    assert done["sections"] == {"3": done["at"]}, "and it is the chapter that is recorded"
+    assert done["record"] == 0, "the book is not finished by one chapter of it"
+    assert done["tally"] == 1, "and it is worth one finished targum"
+    assert done["said"].startswith("You finished a targum.")
+
+    back = run([], chapter=words, lemmas=lemmas, section=3, sections=50, finish=[True, False])[
+        "finished"
+    ]
+    assert back["at"] == 0 and back["sections"] == {}, "and taking it back takes it back"
+
+
+def test_the_next_section_is_offered_once_this_one_is_finished() -> None:
+    """ "Next is one tap from the foot of a finished section, and it goes to the next
+    section, not back to the library. The library is a menu; a reader who has just
+    finished something should not have to shop."
+
+    Once finished and not before: the pager at the foot already carries the next
+    section's name, and two controls a hand's width apart saying the same thing is the
+    shape this codebase calls one control nobody presses."""
+    words, lemmas = chapter(["a"])
+    fresh = run([], chapter=words, lemmas=lemmas, section=1, sections=3)["finished"]
+    assert fresh["onward"] is False, "the pager is enough while there is nothing to say"
+
+    done = run([], chapter=words, lemmas=lemmas, section=1, sections=3, finish=[True])["finished"]
+    assert done["onward"] is True, "and now there is: this is what a reader does next"
+
+    back = run([], chapter=words, lemmas=lemmas, section=1, sections=3, finish=[True, False])[
+        "finished"
+    ]
+    assert back["onward"] is False, "taken back, and the offer goes with it"
+
+
+def test_the_last_chapter_finishes_the_book_as_well() -> None:
+    """`done` goes on meaning what it always meant, so a one-chapter book behaves exactly
+    as a scene and an article do — and the library row, which asks about a whole text and
+    not about a chapter, is right about both."""
+    words, lemmas = chapter(["a"])
+    one = run([], chapter=words, lemmas=lemmas, section=1, sections=1, finish=[True])["finished"]
+    assert one["record"] > 0, "one part, so finishing the part finishes the text"
+    assert one["tally"] == 1, "and it is worth one, not two"
+
+    part = run([], chapter=words, lemmas=lemmas, section=1, sections=2, finish=[True])["finished"]
+    assert part["record"] == 0, "the first of two is not the text"
+
+
+def test_a_page_that_names_no_section_is_its_own_single_section() -> None:
+    """Every page built before 2026-09-04 says neither which part it is nor how many
+    there are, and every one of them is one whole text. Reading such a page has to keep
+    writing the record it always wrote, or the library rows of every text already built
+    quietly stop saying finished."""
+    words, lemmas = chapter(["a"])
+    done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
+    assert done["record"] > 0, "the whole-document field, as before"
+    assert done["sections"] == {"1": done["at"]}, "and its one section beside it"
+    assert done["tally"] == 1, "worth one, never two"
+
+
 def test_finishing_names_the_language_on_a_record_born_without_one() -> None:
     """The sync sweeps opened texts before a word is kept, and a row made that way has
     no language. The progress page drops a finish it cannot place — so the celebration

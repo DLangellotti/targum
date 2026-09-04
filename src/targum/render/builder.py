@@ -163,6 +163,32 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
     return sections
 
 
+#: What a learner reads in a minute. The library's own figure (`catalogue.Entry.minutes`),
+#: repeated rather than imported because the catalogue is the private half and the reader
+#: builds without it.
+WORDS_A_MINUTE = 130
+
+
+def section_minutes(sections: list[Section], by_id: Mapping[str, Segment]) -> dict[int, int]:
+    """How long each section takes to read, by section number.
+
+    Running words of the source, the way the leyning counts them and the way the library
+    turns them into minutes — one figure, so a chapter's estimate and its book's cannot
+    disagree. Rounded up to a minute, because a section that says it takes no time is a
+    section a reader cannot decide about.
+    """
+    return {
+        section.number: max(
+            1,
+            round(
+                sum(len(by_id[sid].text.split()) for sid in section.segment_ids if sid in by_id)
+                / WORDS_A_MINUTE
+            ),
+        )
+        for section in sections
+    }
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATES),
@@ -1741,6 +1767,11 @@ def render(
         # The whole tile, once, on the page that lists the chapters.
         "cover": cover_uri(covers, drawn),
         "sections": sections,
+        # How long each section is, in the minutes the library already says a text is.
+        # A targum finishes at the end of a chapter now (targum-internal#173), so the
+        # figure that decides whether to start one more is the section's and not the
+        # book's — and a reader had to guess it from a count of sentences.
+        "minutes": section_minutes(sections, by_id),
         "source_language": segmented.language,
         "source_direction": source_direction,
         "target_language": translations[0].target_language,
@@ -2067,6 +2098,18 @@ def render(
                     # Which text this is. Lists are kept per document, not per
                     # language, so reading two articles does not pool their words.
                     "document": segmented.document_hash,
+                    # Which part of it this file is. A targum finishes at the end of a
+                    # chapter rather than at the end of a book (targum-internal#173), so
+                    # what the reader marks finished is (document, section) — and the
+                    # section number is the identity every other part of the build
+                    # already uses for a section: the filename, the contents page's rows
+                    # and the pager all name it, and a second notion of which part this
+                    # is would be one more thing that can disagree.
+                    "section": section.number,
+                    # How many there are, which is what tells the page whether a
+                    # finished section is a finished document. A single-section text
+                    # keeps the meaning its pre-2026-09-04 record had.
+                    "sections": len(sections),
                     "title": document.title or "",
                     # For naming an export of the language's words, which the reader
                     # otherwise only knows by its tag.

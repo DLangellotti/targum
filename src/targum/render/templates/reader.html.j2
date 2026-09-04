@@ -497,17 +497,37 @@
   <button type="button" id="rest-undo" hidden>Undo</button>
 </div>
 {% endif %}
-{#- Finished with the text: one press at the foot of its last part, and a line that says
-    when. Pressing again takes it back, so however often it is pressed the text is
-    finished once. Counted on the progress page. -#}
-{% if not following %}
+{#- Finished with the section: one press at its foot, and a line that says when. Pressing
+    again takes it back, so however often it is pressed the section is finished once.
+    Counted on the progress page.
+
+    At the foot of every section rather than only the last. Genesis is one document, so
+    this used to stand fifty chapters in: a reader who read three chapters had finished
+    nothing, and the ledger agreed with them. That is most of what "feels like work"
+    means (targum-internal#173, and #167–#171). A chapter is a chapter however short —
+    the structure decides and there is no floor. -#}
 <div class="finished" id="finished" dir="ltr">
   <span id="done-said" hidden></span>
   <button type="button" id="done-mark">Done</button>
 </div>
-{#- And where to go next. Hidden until the script says the page is being served: the
-    address is the library's, and a reader opened from a disk has no library to go to. -#}
-{% if suggested %}
+{#- And where to go next. The next section first, by name and by how long it is: a reader
+    who has just finished something should not have to shop, and the library is a shop.
+
+    Shown once this section is finished, and not before. The pager at the foot already
+    carries the next section's name, and two controls a hand's width apart saying the
+    same thing is the shape this file calls one control nobody presses. Finished, it is
+    not the same thing: it is the answer to what a reader does now.
+
+    A relative address, so it works off a disk — unlike the suggestion below it, which is
+    the library's and stays hidden until the script says the page arrived over a
+    connection. -#}
+{% if following %}
+<aside class="next-up here" id="next-up" dir="ltr" hidden>
+  <span class="next-up-lead">Read next</span>
+  <a class="next-up-link" href="{{ following.filename }}">{{ following.title|isolate(source_direction) }}</a>
+  <span class="next-up-why">{{ minutes[following.number] }} min</span>
+</aside>
+{% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">Read next{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
   {#- `/library#id`, which is where Learn sends a reader for the same reason: the library
@@ -517,7 +537,6 @@
   <a class="next-up-link" href="/library#{{ suggested.id }}">{{ suggested.title }}{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
   {% if suggested.blurb %}<span class="next-up-why">{{ suggested.blurb }}</span>{% endif %}
 </aside>
-{% endif %}
 {% endif %}
 
 {% if not standalone %}

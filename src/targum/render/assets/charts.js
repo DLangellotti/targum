@@ -484,12 +484,30 @@
       var code = about(hash).language;
       if (code && byLanguage[code]) byLanguage[code].texts += 1;
     });
-    // And how many the reader said they had finished. One record per text, so a text
-    // finished twice is finished once.
+    /* And how many targums the reader said they had finished. A targum finishes at the
+       end of a chapter rather than at the end of a book (targum-internal#173), so a
+       document is worth the greater of its old whole-document record and the number of
+       its sections finished since sections existed. Never their sum.
+
+       The alternative was back-filling every chapter of an already-finished book, and it
+       was rejected: with no floor that turns one finished Genesis into fifty overnight,
+       and every reader's count leaps without them having read anything that morning.
+       This page's credibility rests on every number being a real count of a real thing
+       — see the note under the rungs below, "counting a point is inventing a currency"
+       — and a number that jumps fifty overnight is the one that teaches a reader not to
+       trust the rest. A section finished twice is finished once. */
     Object.keys(docs).forEach(function (hash) {
       var record = docs[hash] || {};
       var where = about(hash).language;
-      if (record.done && where && byLanguage[where]) byLanguage[where].finished += 1;
+      if (!where || !byLanguage[where]) return;
+      var parts = 0;
+      var sections = record.sections;
+      if (sections && typeof sections === "object") {
+        Object.keys(sections).forEach(function (id) {
+          if (sections[id]) parts += 1;
+        });
+      }
+      byLanguage[where].finished += Math.max(record.done ? 1 : 0, parts);
     });
 
     Object.keys(byLanguage).forEach(function (code) {

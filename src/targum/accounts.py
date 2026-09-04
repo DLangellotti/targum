@@ -84,7 +84,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -311,6 +311,28 @@ CREATE TABLE IF NOT EXISTS day (
   PRIMARY KEY (person, day)
 );
 
+-- One row per part of a text the reader has finished. A targum finishes at the end of a
+-- chapter rather than at the end of a book (targum-internal#173): Genesis is one
+-- document, so `doc.done` is one timestamp fifty chapters in, and a reader who read
+-- three chapters had finished nothing.
+--
+-- A row rather than a column on `doc` holding a map of them, and that is the whole
+-- design. The merge in `_merge` keeps whichever version of a *record* is newer, so a
+-- map of chapters pushed from a phone that had not heard about the laptop's would
+-- replace the laptop's wholesale and take a morning's reading with it. Chapters merge
+-- like saved words merge: one row each, independently, and a chapter un-finished
+-- travels as a `gone` row the way a dropped word does.
+CREATE TABLE IF NOT EXISTS section (
+  person   INTEGER NOT NULL,
+  hash     TEXT    NOT NULL,
+  section  TEXT    NOT NULL,
+  at       INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  gone     INTEGER NOT NULL DEFAULT 0,
+  revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, hash, section)
+);
+
 -- The work queue. Builds used to live in a dictionary on the server and money spent
 -- in a float beside it, so a restart lost every running build and handed the budget
 -- back to whoever asked next. Both belong on disk, and `claimed` is the whole spend
@@ -495,6 +517,10 @@ KINDS: dict[str, Kind] = {
     # A set, written as a table. The day string is the whole record; see the `day` table
     # above for why the count beside it is always 1.
     "days": Kind(table="day", key=("day",), fields=("count",)),
+    # Which parts of a text the reader has finished. Keyed by the document and the
+    # section number the build gave that part, which is the identity its filename, its
+    # row on the contents page and its pager all already use.
+    "sections": Kind(table="section", key=("hash", "section"), fields=("at",)),
 }
 
 
