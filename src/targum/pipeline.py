@@ -1146,6 +1146,8 @@ class Build:
                         found_probe.model_dump_json(indent=2) + "\n",
                     )
             self._fetch_episode_transcript(workspace)
+            if watching:
+                self._fetch_youtube_transcript(workspace, address)
         source = Path(self.source)
 
         target = workspace / f"source{source.suffix.lower()}"
@@ -1167,6 +1169,39 @@ class Build:
 
         if self.transcript is not None:
             self._write_subtitle_refinements(workspace, drafted)
+
+    def _fetch_youtube_transcript(self, workspace: Path, address: str) -> None:
+        """The subtitle track somebody wrote for this video, if there is one.
+
+        Free, and it is the difference between twenty cents and two dollars on a
+        ten-minute lesson: with a written track nothing is transcribed at all, and the
+        import costs only its English. The twenty curated videos were all built this way
+        from the command line, where the operator passed `--transcript` by hand; a reader
+        pasting an address cannot, so the door looks for it on their behalf.
+
+        Manual only. `fetch_subtitles` does not pass `--write-auto-subs`, because a track
+        YouTube guessed is not a transcript anybody checked — and one that is wrong in
+        the way a guess is wrong would be paired to the Hebrew line by line, which is
+        worse than paying to hear it properly.
+
+        Quiet on failure. A video with no written track is the ordinary case, not an
+        error, and the build carries on to transcribe it.
+        """
+        if self.transcript is not None:
+            return
+        from .video import youtube as youtube_module
+
+        # Hebrew in both spellings YouTube files it under, and the language the reader
+        # named if they named a different one — this reader is a Hebrew one, but nothing
+        # here needs to assume it.
+        wanted: tuple[str, ...] = ("he", "iw")
+        asked = (self.source_language or "").split("-")[0].lower()
+        if asked and asked not in wanted:
+            wanted = (asked, *wanted)
+        try:
+            self.transcript = youtube_module.fetch_subtitles(address, workspace, wanted)
+        except Exception:  # noqa: BLE001 - no track is the ordinary case
+            self.transcript = None
 
     def _fetch_episode_transcript(self, workspace: Path) -> None:
         """The transcript the feed pointed at, saved beside the recording.

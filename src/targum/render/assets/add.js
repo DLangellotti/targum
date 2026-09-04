@@ -63,67 +63,6 @@
     return p;
   }
 
-  /* --- a YouTube address, recognised at the paste ---------------------------
-   *
-   * targum's box does not fetch from YouTube. `serve.py` refuses the address by name,
-   * and would go on refusing it a stage after a job was created — a failure a reader
-   * met only after pressing the button and waiting. Said here instead, the moment the
-   * address lands, with the two doors that do open: the file itself, or targum on the
-   * reader's own machine, where the fetch is their act and not ours. The hosts are
-   * `video/youtube.HOSTS`, and a test keeps the two lists the same.
-   */
-  var YOUTUBE = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"];
-
-  function youtubeAddress(text) {
-    var url;
-    try {
-      url = new URL(text.trim());
-    } catch (error) {
-      return "";
-    }
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-    return YOUTUBE.indexOf(url.hostname.toLowerCase()) >= 0 ? url.href : "";
-  }
-
-  // The command as it would be typed, ready to copy. Quoted, because a watch address
-  // carries an ampersand and an unquoted one is two commands to a shell.
-  function elsewhere(address) {
-    var box = document.createDocumentFragment();
-    box.appendChild(
-      line("YouTube links are not fetched here. Upload the video file, or run targum on your own computer:")
-    );
-    var command = 'targum build "' + address + '"';
-    var code = document.createElement("code");
-    code.className = "cmd";
-    code.textContent = command;
-    box.appendChild(code);
-    var row = document.createElement("div");
-    row.className = "row";
-    var copy = document.createElement("button");
-    copy.type = "button";
-    copy.textContent = "Copy";
-    copy.onclick = function () {
-      if (!navigator.clipboard || !navigator.clipboard.writeText) return;
-      navigator.clipboard.writeText(command).then(
-        function () {
-          copy.textContent = "Copied.";
-        },
-        function () {}
-      );
-    };
-    row.appendChild(copy);
-    box.appendChild(row);
-    return box;
-  }
-  //: Whether the notice is what the status box is showing, so editing the address
-  //: into something else takes it down again.
-  var toldElsewhere = false;
-
-  function sayElsewhere(address) {
-    say(elsewhere(address));
-    toldElsewhere = true;
-  }
-
   /* --- choosing something -------------------------------------------------- */
 
   document.getElementById("choose").onclick = function () {
@@ -185,12 +124,6 @@
   // on screen while something else is what gets used left no way to tell which would win.
   sourceInput.addEventListener("input", function () {
     if (sourceInput.value.trim() && chosen) forget();
-    var tube = youtubeAddress(sourceInput.value);
-    if (tube) sayElsewhere(tube);
-    else if (toldElsewhere) {
-      status.hidden = true;
-      toldElsewhere = false;
-    }
   });
   if (pasted) {
     pasted.addEventListener("input", function () {
@@ -663,13 +596,9 @@
         say(line("Paste a link, drop a file, paste the text, or give an id."), true);
         return;
       }
-      // Before any request: the server would refuse it a stage later, and by name.
-      var tube = youtubeAddress(payload.source);
-      if (tube) {
-        go.disabled = false;
-        sayElsewhere(tube);
-        return;
-      }
+      // A YouTube address goes to /prepare like any other link. It was turned away
+      // here while the box would not fetch one; now it does, and a page that still
+      // refused would be refusing something that works.
       prepared = withTranslation(payload).then(function (body) {
         return ask("/prepare", body);
       });

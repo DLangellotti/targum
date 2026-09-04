@@ -1407,17 +1407,11 @@ class Library:
                 from .video import youtube as youtube_module
 
                 if (urlparse(job.source).hostname or "").lower() in youtube_module.HOSTS:
-                    # Deferred, deliberately: YouTube throttles datacenter addresses
-                    # and yt-dlp needs updating on YouTube's schedule — a hosted door
-                    # would be a pager. The command line is where it works. Refused by
-                    # name, or the fallback below reads the watch page's show notes as
-                    # the text.
-                    job.error = (
-                        "YouTube imports run on the command line for now. "
-                        "Upload the video file itself here instead."
-                    )
-                    job.stage = "failed"
-                    return
+                    # By name, and to its own door — never falling through to the line
+                    # below. The generic ingester would read the watch page and import
+                    # the show notes as the text, which is the reason this branch has
+                    # always existed and the one thing that must not change.
+                    return self._prepare_youtube(job)
                 if episode_module.sounds_like_audio(job.source):
                     # A recording on the other end of a link is not downloaded inside
                     # the request — that is a gigabyte on a click that only asked for a
@@ -1480,6 +1474,108 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    #: Manual subtitle tracks worth looking for before paying to transcribe. Hebrew in
+    #: both spellings YouTube uses — `iw` is the old ISO code and half the Israeli
+    #: catalogue is still filed under it, which is why `fetch_subtitles` asks for both.
+    SUBTITLES = ("he", "iw")
+
+    def _prepare_youtube(self, job: Job) -> None:
+        """Price a video from what yt-dlp can say about it, before a byte of it moves.
+
+        The reader's act, not ours: they paste the address and press the button, the
+        fetch is charged against their own hours, and what comes back is their private
+        import and never the catalogue (targum-internal#126). That is the distinction
+        #136 turned on, and it is the whole of what makes this door different from a
+        harvest — so nothing here may be reached except by a reader who asked for it.
+
+        Metadata only, for the reason `_prepare_episode` records: a click that asked for
+        a price must not download a video. `yt-dlp -J` is a few hundred kilobytes of
+        JSON, and the duration in it is what the estimate and the hours both lean on.
+        """
+        from .screen import from_ytdlp
+        from .video import MAX_VIDEO_DURATION_S, ytdlp_available
+        from .video import youtube as youtube_module
+
+        usable, hint = ytdlp_available()
+        if not usable:
+            # Said as a fact about this box rather than as the reader's mistake, and it
+            # names the path that still works on their own machine.
+            job.error = f"This targum cannot fetch from YouTube. {hint}"
+            job.stage = "failed"
+            return
+        try:
+            found = from_ytdlp(youtube_module.describe(job.source))
+        except TargumError as refusal:
+            # An age gate, a private video, a region block — yt-dlp's own sentence is
+            # better than anything written here, and a refusal travels on the job the
+            # way every prepare failure does.
+            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.stage = "failed"
+            return
+        if not found.duration:
+            # A live stream has no duration, and neither has a premiere that has not
+            # started. Both would price at nothing and then run until the disk filled.
+            job.error = "That video has no length yet. A live stream cannot be imported."
+            job.stage = "failed"
+            return
+        if found.duration > MAX_VIDEO_DURATION_S:
+            hours = MAX_VIDEO_DURATION_S / 3600
+            job.error = (
+                f"That video is longer than {hours:g} hours, which is more than targum "
+                "imports at once."
+            )
+            job.stage = "failed"
+            return
+
+        job.title = found.title or job.source
+        # Charged against the hours, like every other recording: `claim` spends
+        # `job.seconds` against the month's allowance when `job.audio` is set, so the
+        # rate limit this needed is the one the pricing page already promised rather
+        # than a second one invented here.
+        job.audio = True
+        job.seconds = found.duration
+        job.parts = max(1, round(job.seconds / 720))
+
+        # A track somebody wrote is a transcript; one YouTube guessed is not, and
+        # `from_ytdlp` counts only the first. Where there is one the hearing is free and
+        # the whole import is the price of the English — which is the difference between
+        # twenty cents and two dollars on a ten-minute lesson.
+        written = [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
+        job.options["youtube"] = True
+        job.options["subtitles"] = bool(written)
+        self._price_recording(job, transcribed=not written)
+
+    def _price_recording(self, job: Job, *, transcribed: bool) -> None:
+        """What a recording of `job.seconds` costs to hear and to render into English.
+
+        The arithmetic `_prepare_episode` does, lifted out so the two doors quote the
+        same coin. Both buy a part at a time, so both price a part.
+        """
+        import math
+
+        from .audio import SPEECH_WORDS_PER_MINUTE, TOKENS_PER_SPOKEN_WORD, WORDS_PER_SENTENCE
+        from .transcribe import PRICES, default_name
+        from .transcribe import build as build_transcriber
+        from .translate.anthropic_provider import AnthropicProvider
+
+        rate = 0.0
+        if transcribed:
+            try:
+                rate = float(build_transcriber(default_name()).price_per_minute())
+            except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
+                rate = max(PRICES.values()) if PRICES else 0.0
+        first = job.seconds / max(1, job.parts) / 60
+        transcription = first * rate
+        words = first * SPEECH_WORDS_PER_MINUTE
+        batches = max(1, math.ceil(words / WORDS_PER_SENTENCE / 20))
+        translating = AnthropicProvider(model=HOSTED_MODEL).estimate_from_counts(
+            words * TOKENS_PER_SPOKEN_WORD, batches
+        )
+        job.transcription = round(transcription, 4)
+        job.estimate = round(transcription + translating, 4)
+        job.blocked = self.why_blocked(job.estimate)
+        job.stage = "blocked" if job.blocked else "ready"
 
     def _prepare_episode(self, job: Job, found: Any) -> None:
         """Price an episode from the feed's own claims, before a byte of audio moves.

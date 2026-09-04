@@ -168,24 +168,19 @@ def check_ffmpeg() -> Check:
 
 
 def check_ytdlp() -> Check:
-    """Whether a YouTube address can be fetched. A warning like ffmpeg's, and quieter:
-    the CLI is the only door this opens — the hosted box never fetches from YouTube, by
-    decision rather than by oversight (`Library.prepare` refuses the paste by name), so
-    on the box the check passes with a note. A warning that is always wrong is a warning
-    nobody reads, and it would take the real one beside it down with it."""
+    """Whether a YouTube address can be fetched, which a box now needs as much as a
+    laptop: `Library.prepare` opens the paste to a hosted fetch, so a box without yt-dlp
+    is one where every YouTube import fails at the button. A warning like ffmpeg's, and
+    never fatal — nothing else about the server depends on it."""
     from .video import ytdlp_available
 
-    if _hosted():
-        return Check(
-            "yt-dlp",
-            True,
-            "not a hosted door; YouTube is fetched on the command line",
-            fatal=False,
-        )
     usable, fix = ytdlp_available()
     if usable:
         return Check("yt-dlp", True, "YouTube imports are on")
-    return Check("yt-dlp", False, "yt-dlp is not installed.", fix, fatal=False)
+    # Not fatal on a box either: a reader pasting a YouTube address is told this box
+    # cannot fetch one, and every other door — files, links, text, the library — is
+    # untouched. A server without it is diminished, not broken.
+    return Check("yt-dlp", False, "YouTube imports are off without yt-dlp.", fix, fatal=False)
 
 
 def check_scripture() -> Check:
