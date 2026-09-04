@@ -148,11 +148,36 @@ def test_the_server_answers_to_that_name() -> None:
     assert "targum.page" in admitted
 
 
-def test_no_route_on_the_product_is_named_after_it() -> None:
-    """The point of a separate name: nothing on targum.page reaches the back office, so
-    a mistyped path cannot land on it and a change to the product's routing cannot
-    expose it."""
+def test_the_door_is_an_admin_session_and_not_a_password() -> None:
+    """The cookie is host-only — `Path=/`, no `Domain` — so a session made on
+    targum.page is never sent to bo.targum.page. Widening it would hand every future
+    subdomain every reader's session, so the page is served from the origin the session
+    already belongs to and the `bo.` name forwards there.
+
+    Read off the source because the alternative is a live browser with two accounts and
+    a cookie jar, and what is being pinned here is one line of policy."""
     served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
     text = served.read_text(encoding="utf-8")
-    assert '"/back-office"' not in text and '"/bo"' not in text
-    assert 'route == "/admin"' not in text
+
+    # The cookie must stay host-only. A `Domain=` on it is the change this design exists
+    # to avoid, and it would not otherwise fail anything.
+    assert "Domain=" not in text, "the session cookie has been widened to subdomains"
+
+    # A signed-in reader who is not an admin is told there is nothing here, not that
+    # they may not have it. 403 is an answer.
+    back = text[text.index("def _back_office") : text.index("def do_GET")]
+    assert "if not person.admin:" in back
+    assert 'self._send(404, b"not found"' in back
+    # The call, not the number: the comment above it explains why 403 is the wrong
+    # answer, and a test that greps for the digits fails on the explanation.
+    assert "_send(403" not in back
+
+    # The directive, not the word: the comment above the vhost explains why there is no
+    # password there, and a test that greps for the name fails on the explanation.
+    caddyfile = (Path(__file__).resolve().parent.parent / "deploy" / "Caddyfile").read_text()
+    directives = [
+        line.strip() for line in caddyfile.splitlines() if not line.strip().startswith("#")
+    ]
+    assert not [line for line in directives if line.startswith("basic_auth")], (
+        "two passwords for one page"
+    )

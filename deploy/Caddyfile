@@ -52,37 +52,27 @@ targum.page {
 	}
 }
 
-# The back office. Its own name, so that no path on targum.page reaches it however the
-# product's routing changes, and so the door can be a password on the vhost rather than
-# a second kind of session inside the app.
+# The back office. A front door: it forwards everything to targum.page/back-office,
+# which is where the page is actually served.
 #
-# The hash goes here and the password goes nowhere: generate it with
+# There is no password here, and that is the design rather than an omission. The door is
+# an admin session in the app, and the session cookie is host-only — `Path=/`, no
+# `Domain` — so a session made on targum.page is never sent to a subdomain. Putting a
+# `basic_auth` here as well would have meant two passwords for one page; widening the
+# cookie to `.targum.page` would hand every future subdomain every reader's session.
+# Serving the page from the origin the session already belongs to is the cheap answer,
+# and this name stays as the thing a person types.
 #
-#   caddy hash-password
-#
-# and paste the output below. bcrypt, so the file is not worth much to anybody who reads
-# it — but this file is on the box and not in the repository for the same reason
-# /etc/targum/targum.env is not.
-#
-# One prerequisite beyond the certificate: bo.targum.page needs its own A record, or an
-# ALIAS/CNAME to targum.page. Caddy will not get a certificate for a name that does not
-# resolve to it, and the failure is a timeout rather than a message.
+# It still needs its own A record, or an ALIAS/CNAME to targum.page. Caddy will not get
+# a certificate for a name that does not resolve to it, and the failure is a timeout
+# rather than a message.
 bo.targum.page {
-	encode zstd gzip
-
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options nosniff
-		# Nothing here should ever be framed, linked out of, or indexed. The page says
-		# noindex itself; this says it to anything that never reads the page.
-		X-Frame-Options DENY
 		X-Robots-Tag "noindex, nofollow, noarchive"
 		Referrer-Policy no-referrer
 		-Server
-	}
-
-	basic_auth {
-		# david <bcrypt hash from `caddy hash-password`>
 	}
 
 	reverse_proxy 127.0.0.1:8420
