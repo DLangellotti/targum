@@ -6483,6 +6483,13 @@ var targumReader = function () {
     } catch (why) {
       return refused("This recording will not play in this browser.", why);
     }
+    /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
+       that tick, and the strip is anchored to the foot of the window — so when its text
+       arrived the strip grew a line and the whole thing jumped ten pixels upward under
+       whatever the reader had just pressed. Painting here makes it its final size in the
+       frame the play button changes, which is also what stops a test measuring the bar
+       and then pressing where it used to be. */
+    paint();
     var done = audio.play();
     if (done && done.catch) {
       done.catch(function (why) {
