@@ -154,15 +154,18 @@ def test_a_local_machine_is_not_asked_about_a_guest_list(
     assert check_invitations(tmp_path / "nothing.db").ok
 
 
-def test_the_box_is_not_asked_to_install_ytdlp(
+def test_the_box_is_told_when_it_cannot_fetch_from_youtube(
     hosted_env: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The hosted box never fetches from YouTube — the paste is refused by name — so a
-    standing warning there would be one nobody reads, and the real one beside it goes
-    unread with it."""
+    """It used to pass with a note, because the box never fetched from YouTube and a
+    standing warning nobody reads takes the real one beside it down with it. The paste
+    is a hosted door now, so a box without yt-dlp is a box where every YouTube import
+    fails at the button — which is worth saying, and still not fatal."""
     monkeypatch.setattr("shutil.which", lambda name: None)
     check = check_ytdlp()
-    assert check.ok and "command line" in check.detail
+    assert not check.ok
+    assert not check.fatal, "nothing else about the server depends on it"
+    assert "YouTube imports are off" in check.detail
 
 
 def test_a_laptop_without_ytdlp_is_still_told(monkeypatch: pytest.MonkeyPatch) -> None:

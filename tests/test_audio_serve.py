@@ -243,14 +243,140 @@ def test_sound_alone_in_a_video_container_keeps_the_audio_ceiling(
     assert "over 1 GB" in answer["error"]
 
 
-def test_a_pasted_youtube_link_is_refused_by_name(tmp_path: Path) -> None:
-    """The one guard between a pasted watch page and the fallback that would read its
-    show notes as the text. Refused before any fetch — no network in this test."""
+#: What `yt-dlp -J` says about a ten-minute lesson with a written Hebrew track.
+WATCHED = {
+    "webpage_url": "https://www.youtube.com/watch?v=abc123",
+    "title": "A lesson",
+    "duration": 600.0,
+    "formats": [{"acodec": "opus", "language": "he", "language_preference": 10}],
+    "subtitles": {"iw": [{"ext": "vtt"}]},
+    "license": "Creative Commons Attribution license (reuse allowed)",
+}
+
+
+def described(monkeypatch, answer: object) -> list[str]:
+    """Stand in for `yt-dlp -J`, and record that nothing else was ever run.
+
+    The point of the door is that a click asking for a price does not download a video,
+    so a test of it has to be able to say that no fetch happened.
+    """
+    from targum.video import youtube as youtube_module
+
+    asked: list[str] = []
+
+    def pretend(url: str) -> object:
+        asked.append(url)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(youtube_module, "describe", pretend)
+    monkeypatch.setattr(
+        youtube_module, "fetch", lambda *a, **k: pytest.fail("a price must not download")
+    )
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    return asked
+
+
+def test_a_pasted_youtube_link_is_priced_from_its_metadata(tmp_path: Path, monkeypatch) -> None:
+    """The door #136 left shut, opened. It is the reader's act — they paste the address
+    and press the button — and it is priced the way a podcast episode is: from what can
+    be said about the recording, before a byte of it moves."""
+    asked = described(monkeypatch, WATCHED)
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+
+    assert job.error == ""
+    assert job.stage in ("ready", "blocked")
+    assert job.title == "A lesson"
+    assert asked == ["https://www.youtube.com/watch?v=abc123"], "metadata, once"
+    # Charged against the hours, which is the rate limit this needed and already had.
+    assert job.audio and job.seconds == 600.0
+    # A track somebody wrote means nothing is transcribed, and the import is the price
+    # of its English alone.
+    assert job.options["subtitles"] is True
+    assert job.transcription == 0.0
+    assert job.estimate > 0
+
+
+def test_a_video_with_no_written_track_is_priced_for_hearing_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`from_ytdlp` counts only tracks somebody wrote — a guess YouTube made is not a
+    transcript — so a video without one is quoted the transcription as well."""
+    described(monkeypatch, {**WATCHED, "subtitles": {}})
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+    assert job.options["subtitles"] is False
+    assert job.transcription > 0
+
+
+def test_a_live_stream_is_refused_before_it_can_fill_a_disk(tmp_path: Path, monkeypatch) -> None:
+    """No duration is a stream that has not ended or a premiere that has not started.
+    Priced at nothing, it would run until the disk did."""
+    described(monkeypatch, {**WATCHED, "duration": 0})
     library = Library(tmp_path)
     job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
     library.prepare(job)
     assert job.stage == "failed"
-    assert "command line" in job.error
+    assert "live stream" in job.error
+
+
+def test_a_video_longer_than_the_ceiling_is_refused(tmp_path: Path, monkeypatch) -> None:
+    from targum.video import MAX_VIDEO_DURATION_S
+
+    described(monkeypatch, {**WATCHED, "duration": MAX_VIDEO_DURATION_S + 1})
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "longer than" in job.error
+
+
+def test_ytdlps_own_sentence_is_what_the_reader_is_told(tmp_path: Path, monkeypatch) -> None:
+    """An age gate, a private video, a region block. yt-dlp's last line is better than
+    anything written here, and a refusal travels on the job like every other."""
+    from targum.errors import TargumError
+
+    described(monkeypatch, TargumError("Sign in to confirm your age."))
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "confirm your age" in job.error
+
+
+def test_a_box_without_ytdlp_says_so_rather_than_failing_later(tmp_path: Path, monkeypatch) -> None:
+    """A fact about this box, not the reader's mistake."""
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (False, "install yt-dlp."))
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "cannot fetch from YouTube" in job.error
+
+
+def test_a_watch_page_never_reaches_the_generic_ingester(tmp_path: Path, monkeypatch) -> None:
+    """The reason the branch existed before it fetched anything, and the one thing that
+    must not change: the fallback below it reads the watch page and imports the show
+    notes as the text."""
+    from targum.audio import episode as episode_module
+
+    described(monkeypatch, WATCHED)
+    monkeypatch.setattr(
+        episode_module, "find", lambda *a, **k: pytest.fail("the watch page was read as a feed")
+    )
+    library = Library(tmp_path)
+    for address in (
+        "https://www.youtube.com/watch?v=abc123",
+        "https://youtu.be/abc123",
+        "https://m.youtube.com/watch?v=abc123",
+    ):
+        job = Job(id="a", source=address)
+        library.prepare(job)
+        assert job.error == "", address
 
 
 def test_a_protected_audiobook_is_refused_at_the_door(served) -> None:
@@ -371,3 +497,31 @@ def test_the_shelf_says_video_where_the_import_kept_its_pictures(tmp_path: Path)
     )
     seen = library._shape(lecture, "lecture.mp4", "en", 100)
     assert seen["spoken"] and seen["video"], "a video can be listened to as well"
+
+
+def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path, monkeypatch) -> None:
+    """The harvest guard, and the reason this door can be opened at all.
+
+    What makes a hosted fetch defensible is that it is the reader's act: they paste one
+    address and press one button. A door that accepted a channel or a playlist would be
+    a harvest with a person's name on it, which is the thing #136 weighed and refused.
+    `is_youtube` already draws that line; this pins that the paste cannot get round it.
+
+    No stub and no network: the address is turned away before yt-dlp is reached — and
+    with the binary taken away, because a guard that depends on what is installed is not
+    one. CI has no yt-dlp and caught exactly that: the box's own "cannot fetch" answered
+    first, and a reader asking for a channel was told to install something instead.
+    """
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (False, "install yt-dlp."))
+    library = Library(tmp_path)
+    for address in (
+        "https://www.youtube.com/playlist?list=PLabc",
+        "https://www.youtube.com/@KhanAcademyHebrew",
+        "https://www.youtube.com/c/KhanAcademyHebrew/videos",
+        "https://www.youtube.com/channel/UCabc/videos",
+        "https://www.youtube.com/feed/subscriptions",
+    ):
+        job = Job(id="a", source=address)
+        library.prepare(job)
+        assert job.stage == "failed", address
+        assert "one video at a time" in job.error, address
