@@ -66,6 +66,7 @@ def test_fetch_pins_the_arguments_that_guard_it(monkeypatch, tmp_path: Path) -> 
     assert "--max-filesize" in argv
     assert "--merge-output-format" in argv and "mp4" in argv
     assert any("height<=480" in part for part in argv), "the format is chosen at the download"
+    assert "--embed-metadata" in argv, "without the tags a video is titled after its id"
 
 
 def test_a_stranger_address_never_reaches_the_binary(monkeypatch, tmp_path: Path) -> None:

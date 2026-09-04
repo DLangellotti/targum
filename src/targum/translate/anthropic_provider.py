@@ -66,7 +66,18 @@ DEFAULT_CHARS_PER_TOKEN = 2.5
 
 
 class _Blocked(Exception):
-    """A batch the safety filter refused, which a smaller batch often survives."""
+    """A batch that came back untranslated, which a smaller batch often survives.
+
+    Two things arrive here and they are not the same refusal. The safety filter reads a
+    whole batch and answers 400; the model reads the same batch and stops with
+    `refusal`. Both object to the batch rather than to any one sentence in it, and both
+    are answered the same way — halve it — so they share an exception and differ only
+    in what is said when a single segment is refused alone.
+    """
+
+    def __init__(self, message: str, *, by_filter: bool = True) -> None:
+        super().__init__(message)
+        self.by_filter = by_filter
 
 
 class _Line(BaseModel):
@@ -216,15 +227,17 @@ class AnthropicProvider:
         try:
             response = self._call(system, self._user_message(batch, before, after, target_language))
         except _Blocked as blocked:
-            # The filter reads a whole batch at once, so it occasionally objects to a
-            # combination no single sentence would trigger. Halve and try again.
+            # Whichever of the two said no, it read a whole batch at once, so it
+            # occasionally objects to a combination no single sentence would trigger.
+            # Halve and try again.
             if len(batch) > 1:
                 middle = len(batch) // 2
                 return self._translate_batch(
                     batch[:middle], all_segments, system, target_language
                 ) | self._translate_batch(batch[middle:], all_segments, system, target_language)
+            said = "The safety filter blocked" if blocked.by_filter else "The model declined"
             raise ProviderError(
-                f"The safety filter blocked segment {batch[0].id} on its own.",
+                f"{said} segment {batch[0].id} on its own.",
                 f"Text: {batch[0].text[:60]}",
             ) from blocked
         return {
@@ -293,10 +306,12 @@ class AnthropicProvider:
         self._record(response)
 
         if response.stop_reason == "refusal":
-            raise ProviderError(
-                "The model declined to translate a passage.",
-                "Rerun to try it again on its own; finished work is cached.",
-            )
+            # Not fatal, and it used to be: a whole build died here on one batch, and
+            # rerunning could not help because the refusal is what the model says about
+            # that batch every time. It is the filter's objection wearing another name,
+            # so it takes the filter's answer — halve, and only give up on a sentence
+            # refused entirely alone.
+            raise _Blocked("the model declined this batch", by_filter=False)
         parsed: Any = response.parsed_output
         if not isinstance(parsed, _Batch):
             raise ProviderError("The model returned no structured output for a batch.")
