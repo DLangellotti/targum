@@ -4501,6 +4501,54 @@ def test_a_docked_picture_keeps_the_panel_and_the_foot(browser, tmp_path) -> Non
         context.close()
 
 
+def test_the_glyph_goes_while_the_film_plays_on_a_touch_screen(browser, tmp_path) -> None:
+    """A phone keeps `:hover` on whatever it last tapped until something else is tapped,
+    so tapping the film to play left the glyph lit over a playing film — a stop square in
+    the middle of the picture with no way to make it go. The hover rule is behind
+    `@media (hover: hover)` now, and only the keyboard brings it back on a touch screen.
+
+    The keys are checked here too: absolutely positioned to the panel they were measured
+    to its padding box and overhung the film by 12px above and 16px along, a pale block
+    on the corner of a black film.
+    """
+    built = video_reader(tmp_path, spans=[[0.1, 0.4], [0.4, 0.8]])
+    context = browser.new_context(
+        viewport=PHONE_TALL, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        assert not page.evaluate("() => matchMedia('(hover: hover)').matches"), (
+            "the emulated device cannot hover, or this test proves nothing"
+        )
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+
+        fit = page.evaluate(
+            """() => {
+              const film = document.querySelector('.video-el').getBoundingClientRect();
+              const keys = document.querySelector('.video-keys').getBoundingClientRect();
+              return [Math.round(film.top - keys.top), Math.round(keys.right - film.right)];
+            }"""
+        )
+        assert fit == [0, 0], f"the keys sit on the film's corner, not the panel's: {fit}"
+
+        page.locator(".video-tap").tap()
+        page.wait_for_timeout(600)
+        assert page.evaluate("() => !document.querySelector('.video-el').paused"), "it plays"
+        # The tap is what leaves a phone hovering; the mouse hover is the same state
+        # arriving the other way, and neither may light the glyph here.
+        page.hover(".video-tap")
+        page.wait_for_timeout(250)
+        opacity = page.evaluate(
+            "() => getComputedStyle(document.querySelector('.video-tap-glyph')).opacity"
+        )
+        assert opacity == "0", f"the glyph goes while the film plays, got opacity {opacity}"
+    finally:
+        context.close()
+
+
 def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
     """The note asked for a draggable player and the reason was real: a picture parked
     over the sentence being read. §12 answers it with a corner the layout keeps room
