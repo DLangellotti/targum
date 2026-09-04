@@ -16,14 +16,29 @@ import pytest
 
 from targum.audio import manifest as manifest_module
 from targum.errors import TargumError
-from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
 from targum.video import store
 
-SAID = "the heart has four chambers. blood crosses it twice. the left side works harder."
+#: Real Hebrew, because the shelf's whole promise is that a document carried onto it and
+#: re-segmented on the box comes back with the segment ids it was built with. Hebrew is
+#: drawn by rule rather than by a model (targum#71), so segmenting here is fast, offline
+#: and exactly what the box will do.
+SAID = "ללב יש ארבעה חדרים. הדם חוצה אותו פעמיים. הצד השמאלי עובד קשה יותר."
+
+
+def segments_of(document: Document) -> list[Segment]:
+    from targum.segment import HebrewSegmenter, segment_document
+
+    return list(segment_document(document, HebrewSegmenter()).segments)
 
 
 def shelve(root: Path, identifier: str = "abc123", **record: object) -> Path:
-    """One curated video on a shelf, complete enough to build from."""
+    """One curated video on a shelf, complete enough to build from.
+
+    The English and the spans are keyed to the ids the segmenter actually produces, not
+    to ids chosen here — which is the thing the shelf is betting on, so a fixture that
+    faked it would test nothing.
+    """
     folder = root / identifier
     (folder / "audio" / "parts").mkdir(parents=True, exist_ok=True)
     (folder / "audio" / "parts" / "part-001.mp3").write_bytes(b"ID3sound")
@@ -32,18 +47,19 @@ def shelve(root: Path, identifier: str = "abc123", **record: object) -> Path:
     document = Document(
         source=f"video:{identifier}",
         title="A Talk",
-        language="en",
-        blocks=[],
-        content_hash="h",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=SAID)],
     )
+    document.content_hash = document.recompute_hash()
     document.write(folder / store.DOCUMENT)
+    lines = segments_of(document)
     Translation(
         name="English (machine, natural)",
-        document_hash="h",
+        document_hash=document.content_hash,
         source_language="he",
         target_language="en",
         provider="anthropic",
-        segments={"0000.000-aaa": "peace"},
+        segments={line.id: f"line {n}" for n, line in enumerate(lines)},
     ).write(folder / store.ENGLISH)
     manifest_module.write(
         folder,
@@ -60,7 +76,7 @@ def shelve(root: Path, identifier: str = "abc123", **record: object) -> Path:
                     end=10.0,
                     audio="audio/parts/part-001.mp3",
                     video="audio/parts/part-001.mp4",
-                    spans={"0000.000-aaa": [0.0, 10.0]},
+                    spans={line.id: [0.0, 10.0] for line in lines},
                 )
             ],
         ),
@@ -150,16 +166,9 @@ def test_the_page_states_the_licence_the_import_path_will_not(shelf: Path) -> No
     from targum.render.builder import speech
 
     shelve(shelf)
-    document = Document(source="video:abc123", title="A Talk", language="he", blocks=[])
-    segment = Segment(
-        id="0000.000-aaa",
-        block_id="b0",
-        block_index=0,
-        index=0,
-        text="שלום",
-        kind=BlockKind.paragraph,
-    )
-    spoken = speech(document, [segment])
+    document = store.document("abc123")
+    assert document is not None
+    spoken = speech(document, segments_of(document))
     assert spoken.credit == "Khan Academy Hebrew"
     assert spoken.licence == "CC BY 3.0"
     assert spoken.licence_url.startswith("https://creativecommons.org/licenses/")
@@ -177,16 +186,9 @@ def test_a_video_whose_record_is_gone_is_silent_rather_than_uncredited(shelf: Pa
 
     folder = shelve(shelf)
     (folder / store.CURATED).unlink()
-    document = Document(source="video:abc123", title="A Talk", language="he", blocks=[])
-    segment = Segment(
-        id="0000.000-aaa",
-        block_id="b0",
-        block_index=0,
-        index=0,
-        text="שלום",
-        kind=BlockKind.paragraph,
-    )
-    assert speech(document, [segment]).audio == ""
+    document = store.document("abc123")
+    assert document is not None
+    assert speech(document, segments_of(document)).audio == ""
 
 
 def test_the_english_arrives_with_the_video_and_still_says_it_is_machine(shelf: Path) -> None:
@@ -197,27 +199,17 @@ def test_the_english_arrives_with_the_video_and_still_says_it_is_machine(shelf: 
 
     shelve(shelf)
     build = Build(source="video:abc123", target_language="en", provider_name="null")
-    document = Document(source="video:abc123", title="A Talk", language="he", blocks=[])
+    document = store.document("abc123")
+    assert document is not None
+    lines = segments_of(document)
     segmented = SegmentedDocument(
-        document_hash="h2",
-        language="he",
-        segmenter="t/1",
-        segments=[
-            Segment(
-                id="0000.000-aaa",
-                block_id="b0",
-                block_index=0,
-                index=0,
-                text="שלום",
-                kind=BlockKind.paragraph,
-            )
-        ],
+        document_hash="h2", language="he", segmenter="t/1", segments=lines
     )
     carried = build.authored(document, segmented)
     assert carried is not None
     assert carried.kind == "machine"
     assert carried.provider == "anthropic"
-    assert carried.segments["0000.000-aaa"] == "peace"
+    assert carried.segments[lines[0].id] == "line 0"
     # Re-stamped to the document it is being served against, or the reader would refuse
     # a translation that fits it perfectly well.
     assert carried.document_hash == "h2"
@@ -355,3 +347,27 @@ def test_curation_carries_the_text_the_english_and_the_files(tmp_path: Path) -> 
     # outbound address is the prefix `test_render.OUTBOUND` pins.
     assert held["home"] == "https://www.youtube.com/watch?v=abc123"
     assert held["credit"] == "Khan Academy Hebrew"
+
+
+def test_the_server_prices_a_curated_video_at_nothing_with_no_key(
+    shelf: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same gate the command line has, in the place a reader actually meets it.
+
+    Without a key the estimate falls back to a character count, so the page would quote a
+    plausible price, take the click and only then fail — which is why the block exists.
+    It must not fire for a text whose English shipped with it: a box that has lost its
+    key should still hand a reader the whole shelf that costs nothing.
+    """
+    from targum.serve import Job, Library
+
+    shelve(shelf)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    library = Library(tmp_path / "out")
+    job = Job(id="t1", source="video:abc123")
+    library.prepare(job)
+
+    assert job.error == ""
+    assert job.blocked == ""
+    assert job.stage == "ready"
+    assert job.estimate == 0.0

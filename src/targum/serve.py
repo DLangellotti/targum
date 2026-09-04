@@ -1452,10 +1452,15 @@ class Library:
             # The progress bar counts what is being translated now, not the whole book.
             job.total = plan.buying or job.segments
             usable, _ = builder.provider.available()
-            if builder.machine and not usable:
+            if builder.machine and plan.carried is None and not usable:
                 # Checked here, not at the first API call. The estimate falls back to a
                 # character count when there is no key, so without this the page quotes
                 # a plausible price, takes the click, and only then fails.
+                #
+                # And never for a text that brought its own English. A dialogue's was
+                # written with the scene and a curated video's was bought before it
+                # shipped, so neither needs a key — and a box that has lost its key
+                # should still hand a reader the whole shelf that costs nothing.
                 job.blocked = NO_KEY
             else:
                 job.blocked = self.why_blocked(job.estimate)
