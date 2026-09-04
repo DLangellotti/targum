@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+{#- Its own head rather than `_public_head.html.j2`. That one is written for the pages a
+    search engine sees — canonical, og:title, JSON-LD — and every one of those is wrong
+    here. This page wants the opposite: no index, no follow, no archive, and nothing
+    that would put an account address in a preview card if the address were ever
+    pasted. -#}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>back office</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+{#- Carried because a `name` on an account is whatever the person typed, and on this box
+    that is as likely to be Hebrew as not. Without it the page falls back to whatever the
+    machine has, which for Hebrew on a stock Mac is a font with no accents in it. -#}
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+<style>
+  .bo { max-inline-size: 60rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  .bo h1 { font-size: 1.75rem; margin: 0 0 0.25rem; }
+  .bo .taken { font-size: 0.8125rem; color: var(--ink-soft); margin: 0 0 2rem; }
+  .bo h2 { font-size: 1.0625rem; margin: 2rem 0 0.75rem; }
+  .bo table { inline-size: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+  .bo th, .bo td { text-align: start; padding: 0.4rem 0.6rem; border-block-end: 1px solid var(--rule); }
+  .bo th { font-size: 0.8125rem; color: var(--ink-soft); font-weight: 600; }
+  /* Every number on this page is a count of a real thing, so they are set the way the
+     ledger sets its counts: serif, tabular, still as they change (design.md §5). */
+  .bo .n { font-variant-numeric: tabular-nums; text-align: end; }
+  .bo .quiet { color: var(--ink-soft); }
+  /* A day somebody read on. A mark rather than a word, and drawn rather than typed:
+     §7 wants no emoji anywhere, and a tick pasted into a cell is one. */
+  .bo .read { display: inline-block; inline-size: 0.5rem; block-size: 0.5rem;
+              border-radius: 50%; background: var(--leaf); }
+  .bo .nothing { color: var(--ink-soft); }
+  .bo tr.empty td { color: var(--ink-soft); }
+  .bo .note { font-size: 0.8125rem; color: var(--ink-soft); margin-block-start: 2rem; }
+</style>
+</head>
+<body class="public">
+<main class="bo">
+  <h1>back office</h1>
+  <p class="taken">{{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
+    {{ survey.active() }} active in the last {{ days }} days &middot; taken {{ survey.taken }}</p>
+
+  <h2>Accounts</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Account</th><th>Joined</th><th>Last active</th>
+        <th class="n">Words</th><th class="n">Learned</th><th class="n">Phrases</th>
+        <th class="n">Texts</th><th class="n">Finished</th><th class="n">Days</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for who in survey.accounts %}
+      <tr>
+        <td>{{ who.email }}{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}
+          {%- if who.leaving %} <span class="quiet">leaving {{ who.leaving }}</span>{% endif %}</td>
+        <td class="quiet">{{ who.joined }}</td>
+        <td class="quiet">{{ who.last_active or '—' }}</td>
+        <td class="n">{{ who.words }}</td>
+        <td class="n">{{ who.learned }}</td>
+        <td class="n">{{ who.phrases }}</td>
+        <td class="n">{{ who.texts_opened }}</td>
+        <td class="n">{{ who.targums_finished }}</td>
+        <td class="n">{{ who.days_read }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>The last {{ days }} days</h2>
+  {#- Words saved and texts opened, per account per day, with a mark for a day the
+      reader's own record says they read on — which is the only one that knows about an
+      evening that saved nothing. -#}
+  <table>
+    <thead>
+      <tr>
+        <th>Day</th>
+        {% for who in survey.accounts %}<th class="n">{{ who.email.split('@')[0] }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for day in survey.days %}
+      <tr{% if not day.busy() %} class="empty"{% endif %}>
+        <td>{{ day.day }}</td>
+        {% for who in survey.accounts %}
+        <td class="n">
+          {%- set words = day.words.get(who.id, 0) -%}
+          {%- set opened = day.opened.get(who.id, 0) -%}
+          {%- if words or opened or who.id in day.read -%}
+            {% if words %}{{ words }} word{{ '' if words == 1 else 's' }}{% endif %}
+            {%- if words and opened %} &middot; {% endif -%}
+            {% if opened %}{{ opened }} text{{ '' if opened == 1 else 's' }}{% endif %}
+            {%- if who.id in day.read %} <span class="read" title="read on this day"></span>{% endif -%}
+          {%- else -%}
+            <span class="nothing">&middot;</span>
+          {%- endif -%}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="note">Counts only. This page holds no words, no texts and no notes — see
+    <code>backoffice.py</code> for why that is a rule rather than a first version.</p>
+</main>
+</body>
+</html>

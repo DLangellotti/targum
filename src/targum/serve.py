@@ -43,6 +43,7 @@ from .pipeline import Build, Result
 from .render.builder import (
     LEGAL,
     about_page,
+    back_office_page,
     daily_page,
     holding_page,
     legal_is_public,
@@ -88,6 +89,21 @@ UPLOAD_TTL_MS = 24 * 60 * 60 * 1000
 SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 
 
+#: The operator's own name, in front of the public one. Its own host rather than a path
+#: on the product, so the door is a vhost in Caddy with a password on it and no route on
+#: `targum.page` reaches the back office at all — a mistyped path cannot land on it, and
+#: a bug in the product's routing cannot expose it.
+BACK_OFFICE = "bo."
+
+
+def back_office_host(public_address: str) -> str:
+    """`bo.<domain>`, or "" where there is no public name to put it in front of."""
+    host = urlparse(public_address).hostname if public_address else ""
+    if not host or host.replace(".", "").isdigit():
+        return ""
+    return BACK_OFFICE + (host[4:] if host.startswith("www.") else host)
+
+
 def hosts_for(public_address: str) -> frozenset[str]:
     """The names this server will answer to."""
     allowed = set(SAFE_HOSTS)
@@ -97,6 +113,9 @@ def hosts_for(public_address: str) -> frozenset[str]:
         # A name, not an address: `www.` means nothing in front of an IP.
         if not host.replace(".", "").isdigit():
             allowed.add(host[4:] if host.startswith("www.") else f"www.{host}")
+    behind = back_office_host(public_address)
+    if behind:
+        allowed.add(behind)
     return frozenset(allowed)
 
 
@@ -3013,12 +3032,50 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "store": False}, 503)
         self._json({"ok": True, "store": True, "queue": len(self.library.jobs)})
 
+    def _asked_for_the_back_office(self) -> bool:
+        """Whether this request arrived on the operator's own name."""
+        wanted = getattr(self, "back_office", "")
+        if not wanted:
+            return False
+        return (self.headers.get("Host") or "").rsplit(":", 1)[0] == wanted
+
+    def _back_office(self) -> None:
+        """Who has an account and what they did, for the person who runs the box.
+
+        The password is Caddy's, not this server's: a `basic_auth` on the `bo.` vhost,
+        with a hash in the Caddyfile and nothing in the repository. That is the whole
+        door, and it is enough because the origin listens on loopback only — the sole
+        way to arrive here with this Host is through the vhost that asked for the
+        password. Adding a second, weaker check in Python would be a second thing to
+        keep right, and it is the kind that gets waved through in a hurry.
+
+        What this must never become is a route on `targum.page` behind a flag. It is a
+        separate name so that no path on the product reaches it, however the product's
+        routing changes.
+        """
+        from .backoffice import DAYS, survey_store
+
+        if self.store is None:
+            return self._send(503, b"no store", "text/plain")
+        # Read-only, and off the same file the service is writing to. `_send` already
+        # answers `no-store`, which is what a page listing accounts wants: not in a
+        # proxy, and not in the back button after the laptop is shut.
+        found = survey_store(self.store.path)
+        self._send(200, back_office_page(found, DAYS).encode("utf-8"), HTML)
+
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
         # No key, no account, no cookie: a monitor asks this every minute from off the
         # box, and A6 is "I find out it broke before she tells me".
         if route == "/health":
             return self._health()
+        # The operator's own name answers one page and nothing else. Ahead of every
+        # other route so that nothing on the product is reachable through it either:
+        # the two names are disjoint in both directions.
+        if self._asked_for_the_back_office():
+            if route in ("/", "/index.html"):
+                return self._back_office()
+            return self._send(404, b"not found", "text/plain")
         # The browser asks for this on every page load without being told to, and it
         # carries no key, so it would otherwise answer the stale-session page and put a
         # failed request in the console each time. Answered before the key check and
@@ -4242,6 +4299,10 @@ def start(
             "library": library,
             "require_account": require_account,
             "hosts": hosts_for(public_address),
+            # The operator's own name, or "" where there is no public one — on a machine
+            # somebody runs themselves there is no back office and no vhost in front of
+            # it, so the route simply does not exist.
+            "back_office": back_office_host(public_address) if require_account else "",
             "token": token,
             "store": keeping,
             "mailer": delivering,
