@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Put the recordings and the dialogue shelf on the box.
+# Put the recordings, the dialogue shelf and the curated videos on the box.
 #
 #   TARGUM_HOST=root@targum.page ./deploy/ship-audio.sh
 #
@@ -25,11 +25,30 @@ cd "$ROOT"
 
 RECORDINGS="${TARGUM_RECORDING_DIR:-$ROOT/targum-out/recordings}"
 DIALOGUES="${TARGUM_DIALOGUE_DIR:-$ROOT/targum-out/dialogues}"
+# The third shelf, and the newest. A curated video is here rather than in a `Recording`
+# because the box cannot fetch one for itself: `Library.prepare` refuses a YouTube
+# address by name, so `video:<id>` is resolved against this folder or not at all.
+VIDEOS="${TARGUM_VIDEO_DIR:-$ROOT/targum-out/videos}"
 REMOTE_RECORDINGS="${TARGUM_REMOTE_RECORDINGS:-/var/lib/targum/recordings}"
 REMOTE_DIALOGUES="${TARGUM_REMOTE_DIALOGUES:-/var/lib/targum/dialogues}"
+REMOTE_VIDEOS="${TARGUM_REMOTE_VIDEOS:-/var/lib/targum/videos}"
 
 [ -d "$RECORDINGS" ] || { echo "no recordings at $RECORDINGS" >&2; exit 1; }
 [ -d "$DIALOGUES" ] || { echo "no dialogues at $DIALOGUES" >&2; exit 1; }
+# Not fatal: a machine that has curated no video still ships its recordings.
+[ -d "$VIDEOS" ] || { echo "note: no curated videos at $VIDEOS"; VIDEOS=""; }
+
+# A curated video without its record is one nothing may be said about, and the shelf
+# refuses to claim it — so it would arrive on the box and be invisible there, which is
+# worse than not arriving. Caught here rather than at a reader's first tap.
+if [ -n "$VIDEOS" ]; then
+  BAD_VIDEO="$(find "$VIDEOS" -mindepth 1 -maxdepth 1 -type d ! -exec test -f '{}/video.json' \; -print | head -5)"
+  if [ -n "$BAD_VIDEO" ]; then
+    echo "these videos have no video.json, so nothing may be said about them:" >&2
+    echo "$BAD_VIDEO" >&2
+    exit 1
+  fi
+fi
 
 # Every recording is a folder with a manifest. A folder without one is half-cut, and
 # shipping it would put a book on the box whose spans nothing can read.
@@ -41,8 +60,8 @@ if [ -n "$BAD" ]; then
 fi
 
 echo "== what would go =="
-du -sh "$RECORDINGS" "$DIALOGUES" | sed 's/^/   /'
-echo "   $(find "$RECORDINGS" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ') books, $(ls "$DIALOGUES"/*.json 2>/dev/null | wc -l | tr -d ' ') scenes"
+du -sh "$RECORDINGS" "$DIALOGUES" ${VIDEOS:+"$VIDEOS"} | sed 's/^/   /'
+echo "   $(find "$RECORDINGS" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ') books, $(ls "$DIALOGUES"/*.json 2>/dev/null | wc -l | tr -d ' ') scenes, $([ -n "$VIDEOS" ] && find "$VIDEOS" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ' || echo 0) videos"
 
 echo "== ship =="
 # rsync rather than scp: this is a gigabyte the first time and almost nothing after it.
@@ -53,15 +72,19 @@ echo "== ship =="
 # `--info=stats1` cost a deploy, because rsync answered with a usage message, the
 # script stopped on it, and the box was left looking for a shelf that never arrived.
 command -v rsync >/dev/null || { echo "rsync is not installed here" >&2; exit 1; }
-ssh "$HOST" "install -d -o targum -g targum -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES'"
+ssh "$HOST" "install -d -o targum -g targum -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'"
 rsync -a --delete --delay-updates --stats \
   "$RECORDINGS/" "$HOST:$REMOTE_RECORDINGS/" | sed 's/^/   /'
 rsync -a --delete --delay-updates --stats \
   "$DIALOGUES/" "$HOST:$REMOTE_DIALOGUES/" | sed 's/^/   /'
+if [ -n "$VIDEOS" ]; then
+  rsync -a --delete --delay-updates --stats \
+    "$VIDEOS/" "$HOST:$REMOTE_VIDEOS/" | sed 's/^/   /'
+fi
 
 echo "== point the service at it =="
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
-  chown -R targum:targum '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES'
+  chown -R targum:targum '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'
   # Appended only when absent, and existing lines are never rewritten: this file holds
   # every secret the box has, and a script that edits it in place is one bad sed from
   # locking everybody out. These two are paths rather than secrets, which is the only
@@ -71,6 +94,8 @@ ssh "$HOST" "bash -euo pipefail -s" <<EOF
     || echo 'TARGUM_RECORDING_DIR=$REMOTE_RECORDINGS' >> /etc/targum/targum.env
   grep -q '^TARGUM_DIALOGUE_DIR=' /etc/targum/targum.env \
     || echo 'TARGUM_DIALOGUE_DIR=$REMOTE_DIALOGUES' >> /etc/targum/targum.env
+  grep -q '^TARGUM_VIDEO_DIR=' /etc/targum/targum.env \
+    || echo 'TARGUM_VIDEO_DIR=$REMOTE_VIDEOS' >> /etc/targum/targum.env
   systemctl restart targum
 EOF
 
@@ -89,8 +114,9 @@ echo "== verify =="
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
   books=\$(find '$REMOTE_RECORDINGS' -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
   scenes=\$(ls '$REMOTE_DIALOGUES'/*.json 2>/dev/null | wc -l | tr -d ' ')
-  echo "   \$books books, \$scenes scenes on the box"
-  grep -E '^TARGUM_(RECORDING|DIALOGUE)_DIR=' /etc/targum/targum.env | sed 's/^/   /'
+  videos=\$(find '$REMOTE_VIDEOS' -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+  echo "   \$books books, \$scenes scenes, \$videos videos on the box"
+  grep -E '^TARGUM_(RECORDING|DIALOGUE|VIDEO)_DIR=' /etc/targum/targum.env | sed 's/^/   /'
 EOF
 
 cat <<'NOTE'
