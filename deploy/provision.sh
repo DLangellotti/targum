@@ -62,10 +62,25 @@ echo "== nightly backup =="
 # stderr is deliberately not swallowed. A copy that did not leave is exactly the night
 # somebody needs to hear about, and `>/dev/null 2>&1` is how a backup quietly stops
 # working for four months.
+# --store, named. Without it `targum backup` falls back to ~/.targum/targum.db, the
+# HOME default, which on this box is an empty leftover: from the day the box went up
+# until 2026-09-04 every nightly copy was a database holding 0 accounts and 0 words
+# while the real one at /var/lib/targum held 3,069. It said "checked" and exited 0 each
+# time, because it had faithfully copied the wrong file.
+#
+# Through systemd-run with the service's own EnvironmentFile, so the copy sees
+# TARGUM_CACHE_DIR and the cache is copied too — the paid inventory this module calls
+# the second thing that cannot be rebuilt. Run directly as targum it saw an empty cache
+# and archived nothing, silently, the same way.
+#
+# Hence root rather than targum: only root may systemd-run --uid. And no redirect at
+# all — there is no MTA, so cron discards whatever it is handed and two failed nights
+# left no trace anywhere on the box. systemd-run puts it in the journal instead:
+# `journalctl -u targum-backup`.
 cat > /etc/cron.d/targum-backup <<'CRON'
 MAILTO=root
 TARGUM_BACKUP_TO=
-0 4 * * * targum /usr/local/bin/targum backup --keep 14 --out /var/lib/targum/backups >/dev/null
+0 4 * * * root systemd-run --quiet --wait --collect --unit=targum-backup --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum backup --keep 14 --store /var/lib/targum/targum.db --out /var/lib/targum/backups
 CRON
 chmod 0644 /etc/cron.d/targum-backup
 
