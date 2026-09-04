@@ -387,6 +387,18 @@ def _cut_from_the_pair(
     return parts
 
 
+def downloads_root() -> Path:
+    """Where the collection's own mp3s are kept between runs.
+
+    Beside the recordings, never inside them. These are somebody else's files, held so a
+    re-run does not fetch thirty-two hours again — a download cache, not a reading
+    attached to anything. Inside the shelf it was a folder with no `recording.json`, and
+    `ship-audio.sh` refuses the whole shelf on one of those, because half-cut is exactly
+    what it cannot tell this apart from. That cost a deploy on 2026-09-04.
+    """
+    return recording_index.root().parent / "leyning" / "pockettorah"
+
+
 def attach(
     reading: Reading,
     portion: Portion,
@@ -400,7 +412,7 @@ def attach(
     the same verses divided somewhere else. See the two helpers above.
     """
     into = recording_index.folder(portion.document.source)
-    keep = downloads or (into.parent / "pockettorah")
+    keep = downloads or downloads_root()
     wanted = files_for(reading)
     pair = [] if wanted else halves_of(reading)
     if not wanted and not pair:

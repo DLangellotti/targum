@@ -174,3 +174,24 @@ def test_both_kinds_of_reading_reach_the_attacher(corpus: Path) -> None:
     assert festival is not None and festival.kind is cal.ReadingKind.festival
     assert not reaches(festival)
     assert not reaches(single), "V'Zot HaBerachah is not in this fixture collection"
+
+
+def test_the_download_cache_is_not_inside_the_recordings_shelf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PocketTorah's own mp3s are held between runs, and they are not a recording.
+
+    They used to be held at `<recordings>/pockettorah`, which is a folder in the shelf
+    with no `recording.json` in it. `ship-audio.sh` refuses the whole shelf on one of
+    those — rightly, because a half-cut book and a bag of source files look identical
+    from outside — so the first ship after somebody ran `parasha leyning` stopped dead
+    and carried nothing. It cost a deploy on 2026-09-04.
+    """
+    from targum.parasha.leyning import downloads_root
+    from targum.recording import index as recording_index
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "targum-out" / "recordings"))
+    shelf = recording_index.root()
+    cache = downloads_root()
+    assert shelf not in cache.parents, f"{cache} is inside the shelf at {shelf}"
+    assert cache.name == "pockettorah"
