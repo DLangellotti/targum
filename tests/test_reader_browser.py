@@ -2031,15 +2031,52 @@ ALONG = """
 def pressed_along(page, part: float) -> None:
     """Press the bar `part` of the way along it, left to right on the glass.
 
-    Waits for the recording to know how long it is, first. The bar is drawn the moment
-    the player is playing, and a media element does not know its own duration until its
-    metadata has loaded — so on a slow runner the press landed on a bar with nothing
-    behind it and the seek was correctly refused. It failed as "the bar does not seek",
-    which is the wrong end entirely (CI, 2026-09-04).
+    Two waits, both of them earned on CI.
+
+    The recording has to know how long it is: the bar is drawn the moment the player is
+    playing, and a media element does not know its own duration until its metadata has
+    loaded, so a press in that gap was refused — correctly, there being no length to
+    seek within — and read as "the bar does not seek".
+
+    And the bar has to have stopped moving. The clock beside it is empty until the first
+    `timeupdate`, which is after the `playing` class this waits on; when its text
+    arrives the strip gains a line, and the strip is anchored to the foot of the window,
+    so it grows *upward* and takes the bar with it. Measured before that and pressed
+    after it, the press landed a line below the bar and nothing happened. `locator.click`
+    is the fix rather than a third wait for the clock: it holds until the box is the same
+    across two frames and hit-tests the point, so it is right about anything that moves
+    or covers the bar, including whatever moves it next.
     """
     page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
-    box = page.locator(".player-track").bounding_box()
-    page.mouse.click(box["x"] + box["width"] * part, box["y"] + box["height"] / 2)
+    bar = page.locator(".player-track")
+    box = bar.bounding_box()
+    bar.click(position={"x": box["width"] * part, "y": box["height"] / 2})
+
+
+def test_the_clock_is_drawn_in_the_frame_the_button_changes(scene) -> None:
+    """The strip is anchored to the foot of the window, so a line arriving inside it
+    moves the whole thing upward — and the clock used to be empty until the first
+    `timeupdate`, a quarter of a second after the play button had already changed. The
+    strip jumped ten pixels under whatever the reader had just pressed. Measured at 9.6
+    on this fixture, which is more than the half-height of the bar beside it, so a press
+    on the bar landed below it and the seek did not happen. That reads as "the bar does
+    not seek", and it cost two red CI runs before it was recognised (2026-09-04).
+
+    Asked in one synchronous pass — press, then read, no frame in between — because the
+    thing being pinned is that no frame is needed. Waiting for the clock and then looking
+    would pass either way on a fast machine, which is how this hid.
+    """
+    seen = scene.evaluate(
+        """() => {
+          document.querySelector(".player-play").click();
+          return {
+            playing: document.getElementById("player").classList.contains("playing"),
+            clock: document.querySelector(".player-clock").textContent,
+          };
+        }"""
+    )
+    assert seen["playing"] is True, "it is playing"
+    assert "/" in seen["clock"], f"and its clock is already drawn: {seen['clock']!r}"
 
 
 def test_the_bar_seeks_where_it_is_pressed(scene) -> None:
