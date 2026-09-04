@@ -365,6 +365,12 @@ class Spoken(NamedTuple):
     #: are into the part's own cut, and a link home has to say where in the whole
     #: video a line is — so the two are added at the click. Only meaningful with a home.
     offset: float = 0.0
+    #: How the credit line names what was done: "Read by" for a reading, "Video by" for
+    #: a lecture somebody filmed. The same argument `label` makes about the control —
+    #: a chapter of Ruth is not a scene, and a Khan Academy lecture was not read aloud
+    #: by anybody. Only ever seen where `credit` is set, so a dialogue keeps its default
+    #: and shows nothing.
+    credited: str = "Read by"
 
 
 SILENT = Spoken({}, {}, "")
@@ -522,12 +528,23 @@ def _read_through(document: Document) -> Spoken:
     )
 
 
-def _imported(folder: Path, segments: list[Segment]) -> Spoken:
-    """A recording somebody brought, found by the manifest beside the reader.
+def _from_manifest(
+    folder: Path,
+    segments: list[Segment],
+    *,
+    credit: str = "",
+    licence: str = "",
+    licence_url: str = "",
+    credited: str = "Read by",
+    label: str = "the recording",
+) -> Spoken:
+    """One section's sound, read off an import manifest and the parts it names.
 
-    No credit line and no licence link: the file is the reader's own, and a licence
-    targum cannot verify is one it must not print. The artist tag became the byline at
-    ingest, which is where a name a page can stand behind belongs.
+    Shared by the two things that keep one: a reader's own upload, which is credited to
+    nobody because nobody verified it, and a curated video, where the operator checked
+    the licence by hand before the fetch and the page therefore states it. The reading
+    of the manifest is identical — the difference is entirely what may be said about it,
+    which is why that arrives as arguments rather than being worked out here.
     """
     from ..audio import PAD
     from ..audio import manifest as manifest_module
@@ -560,10 +577,10 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
         speakers,
         spans,
         audio,
-        "",
-        "",
-        "",
-        "the recording",
+        credit,
+        licence,
+        licence_url,
+        label,
         word_clocks,
         str(reel) if reel is not None and reel.is_file() else "",
         # One shape whatever the reader pasted, or nothing: a podcast episode's address
@@ -574,6 +591,50 @@ def _imported(folder: Path, segments: list[Segment]) -> Spoken:
         # used to make it, and the one figure that turns a span into a place in the
         # whole video.
         max(0.0, part.start - PAD),
+        credited,
+    )
+
+
+def _imported(folder: Path, segments: list[Segment]) -> Spoken:
+    """A recording somebody brought, found by the manifest beside the reader.
+
+    No credit line and no licence link: the file is the reader's own, and a licence
+    targum cannot verify is one it must not print. The artist tag became the byline at
+    ingest, which is where a name a page can stand behind belongs.
+    """
+    return _from_manifest(folder, segments)
+
+
+def _curated(document: Document, segments: list[Segment]) -> Spoken:
+    """A video the operator chose, found in the shelf rather than beside the reader.
+
+    The same manifest an import keeps, in a folder every reader on the box shares — so
+    one copy of the parts serves everybody, the way one copy of a recording does, and a
+    reader's own folder holds only the page.
+
+    And it is credited, which is the whole reason this is a branch rather than a path
+    argument. `_imported` prints no licence because it cannot check one. Here the licence
+    was read off the video and written down before it was fetched, so the page states it
+    and links it — which is not politeness but the condition on which a CC BY video may
+    be published at all.
+    """
+    from ..video import store as video_store
+
+    identifier = document.source.split(":", 1)[1]
+    held = video_store.load(identifier)
+    if held is None:
+        return SILENT
+    return _from_manifest(
+        video_store.folder(identifier),
+        segments,
+        credit=held.credit,
+        licence=held.licence,
+        licence_url=held.licence_url,
+        # Nobody read this aloud. A lecture is spoken to a camera, and "Read by Khan
+        # Academy Hebrew" is the kind of wrong word a reader notices and nothing else
+        # does — the same argument `label` records one field up.
+        credited="Video by",
+        label="the video",
     )
 
 
@@ -595,6 +656,11 @@ def speech(document: Document, segments: list[Segment], folder: Path | None = No
 
     if folder is not None and (folder / manifest_module.MANIFEST).is_file():
         return _imported(folder, segments)
+    # A curated video keeps its manifest on the shelf rather than beside the reader, so
+    # the branch above never answers for one: a reader's copy of a catalogue video holds
+    # the page and nothing else, and one folder of parts serves everybody on the box.
+    if document.source.startswith("video:"):
+        return _curated(document, segments)
     if document.source.startswith("dialogue:"):
         return _scene(document, segments)
     if is_biblical(document.source):
@@ -1936,6 +2002,7 @@ def render(
             spoken_home=spoken.home,
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
+            speech_credited=spoken.credited,
             speech_licence=spoken.licence,
             speech_licence_url=spoken.licence_url,
             primary=translations[0].segments,
