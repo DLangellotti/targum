@@ -10,17 +10,22 @@ Nothing here spends money or sends mail. It resolves and connects, and stops the
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import socket
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 # Stanza and LaBSE are the bulk of it, and a box that fills up mid-build leaves a
 # half-written reader behind. Five gigabytes is room for the models plus working space.
 LEAST_DISK_GB = 5.0
 SMTP_TIMEOUT = 5.0
+# The minter is on the loopback and answers a ping out of memory. A second is
+# generous; anything slower is a provider that is not going to serve a fetch either.
+POT_TIMEOUT = 2.0
 
 
 @dataclass(frozen=True)
@@ -181,6 +186,92 @@ def check_ytdlp() -> Check:
     # cannot fetch one, and every other door — files, links, text, the library — is
     # untouched. A server without it is diminished, not broken.
     return Check("yt-dlp", False, "YouTube imports are off without yt-dlp.", fix, fatal=False)
+
+
+def check_ytdlp_proxy(connect: bool = True) -> Check:
+    """Whether the egress YouTube is fetched through is listening.
+
+    On a datacenter box this is the whole of whether YouTube works: the address itself
+    is flagged, and nothing installed on the box answers that. So an unset proxy is
+    worth saying on a hosted box — it means every YouTube paste will fail — while on a
+    laptop it means the ordinary thing and is silent.
+
+    Set and not listening is the one that must be loud, and it is the shape a tunnel
+    fails in: the machine at the other end closed its lid, and the door that worked
+    yesterday now refuses every reader.
+    """
+    from .video import youtube as youtube_module
+
+    where = youtube_module.proxy()
+    if not where:
+        if not _hosted():
+            return Check("YouTube egress", True, "fetched from here", fatal=False)
+        return Check(
+            "YouTube egress",
+            False,
+            "no proxy, and a datacenter address is flagged by YouTube.",
+            f"Every YouTube paste fails at the button. Set {youtube_module.YTDLP_PROXY_ENV} "
+            "to an egress YouTube trusts, or the /add page should stop offering the door.",
+            fatal=False,
+        )
+    parsed = urlparse(where)
+    if not parsed.hostname:
+        return Check("YouTube egress", False, "the proxy names no host.", "Use scheme://host:port.")
+    # Never the address as given. A residential proxy is bought with a username and a
+    # password in the URL, and this line is printed by the deploy over SSH and again
+    # into the journal — which is how a credential ends up somewhere nobody thinks to
+    # look for one. The host and port are the whole of what a reader of this check needs.
+    port = parsed.port or (1080 if "socks" in (parsed.scheme or "") else 8080)
+    named = f"{parsed.hostname}:{port}"
+    if not connect:
+        return Check("YouTube egress", True, f"{named}, not knocked on", fatal=False)
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=POT_TIMEOUT):
+            pass
+    except OSError as error:
+        return Check(
+            "YouTube egress",
+            False,
+            f"{named} did not answer — {error}",
+            "Until it does, every YouTube import fails. A tunnel's far end is usually "
+            "the machine that went to sleep.",
+            fatal=False,
+        )
+    return Check("YouTube egress", True, f"{named} answers")
+
+
+def check_pot(connect: bool = True) -> Check:
+    """Whether the token minter is answering, which on a box is what makes yt-dlp work.
+
+    YouTube asks an unfamiliar address to prove it is a browser, and a datacenter IP is
+    the definition of unfamiliar. Without a minter every YouTube paste on the box fails
+    at the button — and it fails late, after the spinner, which is the shape of failure
+    this check exists to move to deploy time.
+
+    Unset is a laptop, where the home IP is proof enough and nothing needs minting. Set
+    and silent is the one that has to be said out loud: somebody meant to run the
+    provider and it is not there.
+    """
+    from .video import youtube as youtube_module
+
+    provider = youtube_module.pot_provider()
+    if not provider:
+        return Check("YouTube tokens", True, "no minter, so YouTube is asked directly", fatal=False)
+    fix = (
+        "start the provider — systemctl start bgutil-pot — or unset "
+        f"{youtube_module.POT_PROVIDER_ENV}."
+    )
+    if not connect:
+        return Check("YouTube tokens", True, f"{provider}, not knocked on", fatal=False)
+    try:
+        with urlopen(f"{provider.rstrip('/')}/ping", timeout=POT_TIMEOUT) as answer:
+            version = json.loads(answer.read().decode("utf-8", "replace")).get("version", "")
+    except (OSError, ValueError) as error:
+        # Never fatal, for `check_ytdlp`'s reason: every other door is untouched, and a
+        # box that cannot fetch YouTube is diminished rather than broken.
+        return Check("YouTube tokens", False, f"{provider} did not answer — {error}", fix, False)
+    named = f"{provider} ({version})" if version else provider
+    return Check("YouTube tokens", True, f"{named} is minting")
 
 
 def check_scripture() -> Check:
@@ -376,6 +467,8 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_covers())
     checks.append(check_ffmpeg())
     checks.append(check_ytdlp())
+    checks.append(check_ytdlp_proxy(connect=connect))
+    checks.append(check_pot(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_backups_leave())

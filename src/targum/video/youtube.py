@@ -19,6 +19,7 @@ authorized to publish. That line is policy, not code — deliberately (2026-08-3
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,83 @@ WATCH = "https://www.youtube.com/watch?v="
 #: Never more than the sidecar needs. The format is chosen at the download, because
 #: fetching 1080p to throw three quarters of it away is paying twice.
 FORMAT = f"bv*[height<={VIDEO_HEIGHT}]+ba/b[height<={VIDEO_HEIGHT}]/b"
+
+#: Where YouTube is fetched *from*, and on a datacenter box the only thing that works.
+#:
+#: What was measured on 2026-09-04, in order, all on targum.page (Hetzner AS24940,
+#: Falkenstein):
+#:
+#: * The same video answered `yt-dlp -J` on a laptop and came back "Sign in to confirm
+#:   you're not a bot" on the box. So it is the address, not the video and not the binary.
+#: * A JavaScript runtime and a proof-of-origin minter were both installed. Neither
+#:   helped, together or apart.
+#: * Every player client — tv, tv_simply, web_safari, mweb, web_embedded, android, ios —
+#:   failed, and so did `jNQXAC9IVRw` ("Me at the zoo", 2005, no restrictions), which is
+#:   the control that rules out anything about the video.
+#: * `-4` and `-6` both failed, so it is the whole address and not one family of it.
+#:
+#: YouTube has flagged the range, which is what Hetzner is known for. Nothing that runs
+#: *on* the box can answer that; the fetch has to leave from somewhere else. So this is
+#: the knob that matters, and every remaining option — a residential proxy, a tunnel to a
+#: home line, a SOCKS exit on a machine that already works — is the same one line here.
+#:
+#: Not cookies. That would be a Google session living on the box, refreshed by hand,
+#: fetching on behalf of strangers, with a ban as the failure mode. A proxy is an egress
+#: and nothing else: no account, no identity, nothing to suspend. That is the whole
+#: difference, and it is why this door is open and that one is not.
+#:
+#: Empty is a laptop, whose own address YouTube trusts. Anything yt-dlp understands
+#: works: `socks5://127.0.0.1:1080`, `http://user:pass@host:port`.
+YTDLP_PROXY_ENV = "TARGUM_YTDLP_PROXY"
+
+#: The proof-of-origin token minter, kept because it is installed, correct, and free.
+#:
+#: It does not answer the block above and was never going to: a PO token answers "PO
+#: token required" — missing formats, a 403 on a media URL — and the extractor never
+#: reaches that stage on a flagged address. It is left wired because it costs nothing,
+#: because it is the right thing to have once a working egress exists, and because
+#: `preflight` can then say which of the two halves is missing.
+#:
+#: `bgutil-ytdlp-pot-provider` runs beside targum on the loopback and yt-dlp reaches it
+#: through its own plugin. Named here rather than left to the plugin's default so that
+#: the box's setting sits in `targum.env` with every other knob, and so `preflight` has
+#: an address to knock on.
+POT_PROVIDER_ENV = "TARGUM_POT_PROVIDER"
+
+#: What a sentence has to be free of before a reader is shown it. yt-dlp's last line is
+#: usually a fact about the video — "Private video.", "Video unavailable" — and better
+#: than anything written here. Sometimes it is a note to whoever runs the binary, naming
+#: flags to pass and wiki pages to read, and that is addressed to the operator: a reader
+#: cannot pass `--cookies` to anything and design.md §6 does not answer questions nobody
+#: asked. The tell is cheap and does not need a list of YouTube's refusals kept current.
+_TO_THE_OPERATOR = (" --", "http://", "https://")
+
+#: What still works when YouTube will not answer, in the reader's terms. A video file
+#: uploads through the same door a recording does, hosted included — so "YouTube links
+#: are CLI-only" would be the wrong sentence here, and so would silence.
+OTHER_DOOR = "A video file uploads."
+
+
+def proxy() -> str:
+    """Where YouTube is fetched from, or "" for from here."""
+    return os.environ.get(YTDLP_PROXY_ENV, "").strip()
+
+
+def pot_provider() -> str:
+    """The token minter's address, or "" where there is none."""
+    return os.environ.get(POT_PROVIDER_ENV, "").strip()
+
+
+def _extra_args() -> list[str]:
+    """Everything this box has to add to a yt-dlp command line, and nothing where it
+    has to add nothing — an unset knob must not become a flag, because a flag naming a
+    proxy that is not listening is a fetch that fails on a machine where it worked."""
+    args = []
+    if where := proxy():
+        args += ["--proxy", where]
+    if provider := pot_provider():
+        args += ["--extractor-args", f"youtubepot-bgutilhttp:base_url={provider}"]
+    return args
 
 
 def is_youtube(url: str) -> bool:
@@ -125,6 +203,7 @@ def fetch(url: str, into: Path) -> Path:
                 "--embed-metadata",
                 "-o",
                 str(into / "source.%(ext)s"),
+                *_extra_args(),
                 url,
             ],
             capture_output=True,
@@ -141,10 +220,7 @@ def fetch(url: str, into: Path) -> Path:
             "yt-dlp ran for two hours without finishing, so it was stopped."
         ) from error
     except subprocess.CalledProcessError as error:
-        # yt-dlp's own last line is usually the honest sentence — an age gate, a
-        # private video, a region block — and better than anything written here.
-        said = (error.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-        raise TargumError(said[-1] if said else "yt-dlp could not fetch that video.") from error
+        raise _refusal(error, "YouTube would not hand targum that video.") from error
     if not target.is_file():
         raise TargumError("yt-dlp fetched nothing it could merge to mp4.")
     if target.stat().st_size > MAX_VIDEO_BYTES:
@@ -153,11 +229,37 @@ def fetch(url: str, into: Path) -> Path:
     return target
 
 
-def _said(error: subprocess.CalledProcessError, fallback: str) -> str:
-    # yt-dlp's own last line is usually the honest sentence — an age gate, a private
-    # video, a region block — and better than anything written here.
+def _said(error: subprocess.CalledProcessError) -> str:
+    """yt-dlp's own sentence, where it is one a reader can be shown. Otherwise "".
+
+    The binary's last line is usually the honest one — an age gate, a private video, a
+    region block — and better than anything written here, so it is carried where it is
+    a fact about the video. Where it is a note to whoever runs the binary it is dropped,
+    because the alternative is what a reader was shown on 2026-09-04: a paragraph naming
+    `--cookies-from-browser` and two GitHub wiki pages, on a page whose only other words
+    are "Drop a book, an article, or a recording".
+    """
     said = (error.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-    return said[-1] if said else fallback
+    for line in reversed(said):
+        # Only what yt-dlp itself called an error. Reading past it to the line above
+        # would hand a reader a WARNING as the reason the import stopped, which is a
+        # different untruth from the one being fixed.
+        if not line.startswith("ERROR:"):
+            continue
+        sentence = line.removeprefix("ERROR:").strip()
+        return sentence if not any(tell in sentence for tell in _TO_THE_OPERATOR) else ""
+    return ""
+
+
+def _refusal(error: subprocess.CalledProcessError, fallback: str) -> TargumError:
+    """What the reader is told when yt-dlp stopped.
+
+    The hint rides only targum's own sentence. "Private video." is already the whole
+    answer and naming a second door after it answers a question nobody asked; a reader
+    who has just been told something vague is the one who needs to know what else works.
+    """
+    sentence = _said(error)
+    return TargumError(sentence) if sentence else TargumError(fallback, OTHER_DOOR)
 
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
@@ -166,6 +268,9 @@ def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]
     usable, hint = ytdlp_available()
     if not usable:
         raise TargumError("yt-dlp is not installed.", hint)
+    # Ahead of the address, which `is_youtube` above read off the end and which yt-dlp
+    # wants last of all.
+    argv = [*argv[:-1], *_extra_args(), argv[-1]]
     try:
         return subprocess.run(argv, capture_output=True, check=True, timeout=timeout)
     except OSError as error:
@@ -173,7 +278,7 @@ def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]
     except subprocess.TimeoutExpired as error:
         raise TargumError("yt-dlp did not answer in time, so it was stopped.") from error
     except subprocess.CalledProcessError as error:
-        raise TargumError(_said(error, "yt-dlp could not read that video.")) from error
+        raise _refusal(error, "YouTube would not tell targum about that video.") from error
 
 
 def describe(url: str) -> dict[str, Any]:

@@ -38,6 +38,109 @@ if [ ! -x /usr/local/bin/uv ]; then
   curl -fsSL https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 fi
 
+echo "== yt-dlp, and the token minter that makes it work here =="
+# Two halves of one thing, so they are provisioned together and pinned together.
+#
+# yt-dlp is a subprocess rather than a dependency (see video/youtube.py), and the box
+# needs it as much as a laptop does: Library.prepare opens a YouTube paste to a hosted
+# fetch, so without it every one of those fails at the button. The distribution's package
+# is old enough to be broken by YouTube on arrival; uv is already here, so it installs
+# the binary and the plugin into one environment where yt-dlp finds the plugin itself and
+# nothing has to pass --plugin-dirs.
+#
+# As `targum`, not as root, because that is where the tool already lives — the box's
+# /usr/local/bin/yt-dlp is a symlink into /srv/targum/.local, put there beside the targum
+# tool itself. Installed as root it would be a second copy in root's uv directory,
+# shadowed by the symlink, and the plugin would go to the copy nobody runs. That is the
+# shape of "preflight says the minter is fine and imports still fail".
+# A JavaScript runtime, which YouTube extraction now requires and which is a separate
+# thing from the token minter below — the box needed both, and having only one of them
+# fails exactly like having neither. yt-dlp says `JS runtimes: none` and then reports the
+# bot check, so the runtime is easy to mistake for the minter not working.
+#
+# deno rather than the node installed below, because deno is the one yt-dlp enables by
+# default: with it on the PATH nothing has to pass --js-runtimes, and targum's argv stays
+# a description of what it wants rather than of how this box is furnished.
+if ! command -v deno >/dev/null; then
+  apt-get install -y -qq unzip
+  curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s -- -y --no-modify-path
+fi
+# Somewhere to write. The unit runs with ProtectHome=true and /var/lib/targum as its only
+# writable tree, so a runtime that caches under $HOME would fail there and nowhere else —
+# in a build, on a reader's import, rather than here.
+install -d -o targum -g targum -m 0750 /var/lib/targum/cache/deno
+
+YTDLP_PY=/srv/targum/.local/share/uv/tools/yt-dlp/bin/python
+has_plugin() {
+  [ -x "$YTDLP_PY" ] && "$YTDLP_PY" -c \
+    'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("yt_dlp_plugins") else 1)' \
+    2>/dev/null
+}
+if ! has_plugin; then
+  # --force because the tool is usually already installed without the plugin, and `uv
+  # tool install` is otherwise a no-op that would leave it that way.
+  sudo -u targum -H env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+    /usr/local/bin/uv tool install --quiet --force yt-dlp --with bgutil-ytdlp-pot-provider
+  ln -sfn /srv/targum/.local/bin/yt-dlp /usr/local/bin/yt-dlp
+  has_plugin || { echo "   the yt-dlp plugin did not install" >&2; exit 1; }
+fi
+
+# The other half. YouTube asks an unfamiliar address to prove it is a browser and a
+# datacenter IP is the definition of unfamiliar; measured 2026-09-04, the same video
+# answered on a laptop and came back "Sign in to confirm you're not a bot" here. The
+# documented alternative is a cookie file, which is a Google session living on the box
+# with a ban as its failure mode. This mints a token instead: no account, nothing to ban.
+#
+# Pinned. The provider tracks YouTube's changes, so a floating clone is a box whose
+# YouTube door breaks on somebody else's merge; bumping this is a decision with a
+# deploy behind it.
+BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
+id -u bgutil >/dev/null 2>&1 || useradd --system --shell /usr/sbin/nologin --home-dir /srv/bgutil bgutil
+install -d -o bgutil -g bgutil -m 0755 /srv/bgutil
+if ! command -v node >/dev/null || [ "$(node --version | cut -c2- | cut -d. -f1)" -lt 20 ]; then
+  # The distribution's own, wherever it is new enough — Ubuntu 26.04 offers Node 22, and
+  # a third apt source on a box that has two is a cost with nothing bought. NodeSource
+  # only where the archive is genuinely too old, which is Debian 12 and its Node 18.
+  apt-get install -y -qq nodejs npm
+  if ! command -v node >/dev/null || [ "$(node --version | cut -c2- | cut -d. -f1)" -lt 20 ]; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    apt-get install -y -qq nodejs
+  fi
+fi
+if [ ! -f /srv/bgutil/server/build/main.js ] \
+  || [ "$(cat /srv/bgutil/.version 2>/dev/null || true)" != "$BGUTIL_VERSION" ]; then
+  apt-get install -y -qq git
+  rm -rf /srv/bgutil/src
+  git clone --quiet --single-branch --branch "$BGUTIL_VERSION" \
+    https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /srv/bgutil/src
+  rm -rf /srv/bgutil/server
+  mv /srv/bgutil/src/server /srv/bgutil/server
+  rm -rf /srv/bgutil/src
+  (cd /srv/bgutil/server && npm ci --silent && npx --yes tsc)
+  echo "$BGUTIL_VERSION" > /srv/bgutil/.version
+  chown -R bgutil:bgutil /srv/bgutil
+fi
+# The minter listens on every interface and cannot be told not to — see the file this
+# installs. So the port is closed to everything but this machine before the service that
+# opens it is ever started, and in that order.
+install -o root -g root -m 0644 "$HERE/nftables-targum.conf" /etc/nftables-targum.conf
+grep -q 'nftables-targum.conf' /etc/nftables.conf \
+  || printf '\ninclude "/etc/nftables-targum.conf"\n' >> /etc/nftables.conf
+systemctl enable --now nftables
+systemctl reload nftables 2>/dev/null || systemctl restart nftables
+nft list table inet targum >/dev/null || { echo "   the 4416 guard is not loaded" >&2; exit 1; }
+
+install -o root -g root -m 0644 "$HERE/bgutil-pot.service" /etc/systemd/system/bgutil-pot.service
+systemctl daemon-reload
+systemctl enable --now bgutil-pot
+# Proof rather than a hope. `targum preflight` knocks on the same door at deploy, but a
+# provision that leaves this dead is one whose next symptom is a reader's failed import.
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  curl -fsS --max-time 2 http://127.0.0.1:4416/ping >/dev/null && break || sleep 2
+done
+curl -fsS --max-time 2 http://127.0.0.1:4416/ping \
+  || echo "   WARNING: the minter is not answering — journalctl -u bgutil-pot"
+
 echo "== configuration =="
 if [ ! -f /etc/targum/targum.env ]; then
   install -o root -g root -m 0600 "$HERE/targum.env.example" /etc/targum/targum.env

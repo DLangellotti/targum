@@ -17,8 +17,10 @@ from targum.preflight import (
     check_disk,
     check_mail,
     check_paths,
+    check_pot,
     check_scripture,
     check_ytdlp,
+    check_ytdlp_proxy,
     fatal,
     preflight,
 )
@@ -299,3 +301,134 @@ def test_scripture_passes_when_the_tagging_is_on_disk(monkeypatch: pytest.Monkey
     monkeypatch.setattr("targum.annotate.oshb.available", lambda: True)
     check = check_scripture()
     assert check.ok and check.state == "ok"
+
+
+def test_no_minter_named_is_a_laptop_and_is_fine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A home IP is proof enough for YouTube. Nothing to knock on, nothing to warn about
+    — a standing warning nobody can act on takes the real one beside it down with it."""
+    monkeypatch.delenv("TARGUM_POT_PROVIDER", raising=False)
+    check = check_pot()
+    assert check.ok and not check.fatal
+
+
+def test_a_named_minter_that_does_not_answer_is_said_out_loud(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Somebody meant to run the provider and it is not there. Without this the next
+    symptom is a reader's YouTube import failing after the spinner, and the box's
+    journal saying nothing about why."""
+    monkeypatch.setenv("TARGUM_POT_PROVIDER", "http://127.0.0.1:4416")
+
+    def refuse(url, timeout=0):
+        raise OSError("Connection refused")
+
+    monkeypatch.setattr("targum.preflight.urlopen", refuse)
+    check = check_pot()
+    assert not check.ok
+    # Not fatal, for check_ytdlp's reason: every other door is untouched.
+    assert not check.fatal
+    assert "bgutil-pot" in check.fix
+
+
+def test_the_unit_does_not_knock_on_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`targum.service` runs preflight --no-connect as ExecStartPre. A minter that is
+    slow to come up must not be what stops targum from starting at all."""
+    monkeypatch.setenv("TARGUM_POT_PROVIDER", "http://127.0.0.1:4416")
+
+    def never(url, timeout=0):
+        raise AssertionError("--no-connect knocked anyway")
+
+    monkeypatch.setattr("targum.preflight.urlopen", never)
+    assert check_pot(connect=False).ok
+
+
+def test_a_minter_that_answers_says_which_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TARGUM_POT_PROVIDER", "http://127.0.0.1:4416")
+
+    class Answer:
+        def read(self) -> bytes:
+            return b'{"server_uptime": 12, "version": "1.3.2"}'
+
+        def __enter__(self) -> Answer:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    monkeypatch.setattr("targum.preflight.urlopen", lambda url, timeout=0: Answer())
+    check = check_pot()
+    assert check.ok
+    assert "1.3.2" in check.detail
+
+
+def test_a_hosted_box_with_no_egress_is_told_the_door_cannot_open(
+    hosted_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Measured 2026-09-04: the box's Hetzner address is flagged by YouTube, and neither
+    a JS runtime nor a token minter changes that. Without an egress every YouTube paste
+    fails at the button, so the deploy is where that should be said."""
+    monkeypatch.delenv("TARGUM_YTDLP_PROXY", raising=False)
+    check = check_ytdlp_proxy()
+    assert not check.ok and not check.fatal
+    assert "flagged" in check.detail
+
+
+def test_a_laptop_fetches_from_itself_and_is_not_nagged(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A home address is one YouTube trusts, so there is nothing to configure and a
+    standing warning would only teach somebody to ignore the ones beside it."""
+    monkeypatch.delenv("TARGUM_REQUIRE_ACCOUNT", raising=False)
+    monkeypatch.delenv("TARGUM_YTDLP_PROXY", raising=False)
+    assert check_ytdlp_proxy().ok
+
+
+def test_an_egress_that_stopped_answering_is_loud(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shape a tunnel fails in: the machine at the far end closed its lid."""
+    monkeypatch.setenv("TARGUM_YTDLP_PROXY", "socks5://127.0.0.1:1080")
+
+    def refuse(address, timeout=0):
+        raise OSError("Connection refused")
+
+    monkeypatch.setattr("socket.create_connection", refuse)
+    check = check_ytdlp_proxy()
+    assert not check.ok
+    assert "did not answer" in check.detail
+
+
+def test_the_unit_does_not_knock_on_the_egress_either(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ExecStartPre runs --no-connect. A sleeping laptop must not stop targum starting."""
+    monkeypatch.setenv("TARGUM_YTDLP_PROXY", "socks5://127.0.0.1:1080")
+
+    def never(address, timeout=0):
+        raise AssertionError("--no-connect knocked anyway")
+
+    monkeypatch.setattr("socket.create_connection", never)
+    assert check_ytdlp_proxy(connect=False).ok
+
+
+def test_the_egress_password_never_reaches_the_deploy_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A residential proxy is bought with a username and a password in the URL, and this
+    check is printed by the deploy over SSH and again into the journal. The host and the
+    port are the whole of what a reader of it needs."""
+    monkeypatch.setenv("TARGUM_YTDLP_PROXY", "http://buyer:s3cret@proxy.example.com:8080")
+    monkeypatch.setattr("socket.create_connection", lambda address, timeout=0: _Nothing())
+    answered = check_ytdlp_proxy()
+    refused = check_ytdlp_proxy(connect=False)
+
+    def broken(address, timeout=0):
+        raise OSError("Connection refused")
+
+    monkeypatch.setattr("socket.create_connection", broken)
+    dead = check_ytdlp_proxy()
+    for check in (answered, refused, dead):
+        said = f"{check.detail} {check.fix}"
+        assert "s3cret" not in said, f"the proxy password is in {said!r}"
+        assert "buyer" not in said
+        assert "proxy.example.com:8080" in said, "and the host is still named"
+
+
+class _Nothing:
+    def __enter__(self) -> _Nothing:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None

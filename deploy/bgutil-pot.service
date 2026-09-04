@@ -1,0 +1,63 @@
+# /etc/systemd/system/bgutil-pot.service
+#
+# The proof-of-origin token minter that lets yt-dlp fetch YouTube from this box.
+#
+# YouTube asks an unfamiliar address to prove it is a browser, and a datacenter IP is
+# the definition of unfamiliar: without this the same video that imports from a laptop
+# comes back "Sign in to confirm you're not a bot" — after the spinner, at the reader.
+# The other documented answer is a cookie file, which is a Google session living on the
+# box, refreshed by hand, fetching on behalf of strangers, with a ban as the failure
+# mode. This mints a token instead: no account, nothing to ban.
+#
+#   systemctl daemon-reload && systemctl enable --now bgutil-pot
+#   curl -s localhost:4416/ping
+#   journalctl -u bgutil-pot -f
+
+[Unit]
+Description=bgutil POT provider, for yt-dlp
+Documentation=https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=bgutil
+Group=bgutil
+WorkingDirectory=/srv/bgutil/server
+# 1.3.2 takes a port and nothing else: --host arrived after it, and passing it is how
+# this unit failed to start the first time. The binding is the provider's own default,
+# which is the loopback — checked with `ss -lntp` after every version bump, because a
+# release that changed it would put a token minter on the public internet and say
+# nothing. Caddy never learns the port exists.
+#
+# Egress is deliberately not restricted: minting a token means talking to YouTube, so
+# an IPAddressAllow=localhost here would be a unit that starts and cannot work.
+ExecStart=/usr/bin/node /srv/bgutil/server/build/main.js --port 4416
+
+Restart=always
+RestartSec=10
+
+# --- hardening -------------------------------------------------------------
+# A Node process that talks to YouTube on a schedule of its own. It owns nothing here.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+# Nothing to write. The minter holds its cache in memory and loses it on a restart,
+# which costs one slow fetch and is the right trade for a directory it cannot corrupt.
+ReadWritePaths=
+
+[Install]
+WantedBy=multi-user.target
