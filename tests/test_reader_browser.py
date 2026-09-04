@@ -2029,7 +2029,15 @@ ALONG = """
 
 
 def pressed_along(page, part: float) -> None:
-    """Press the bar `part` of the way along it, left to right on the glass."""
+    """Press the bar `part` of the way along it, left to right on the glass.
+
+    Waits for the recording to know how long it is, first. The bar is drawn the moment
+    the player is playing, and a media element does not know its own duration until its
+    metadata has loaded — so on a slow runner the press landed on a bar with nothing
+    behind it and the seek was correctly refused. It failed as "the bar does not seek",
+    which is the wrong end entirely (CI, 2026-09-04).
+    """
+    page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
     box = page.locator(".player-track").bounding_box()
     page.mouse.click(box["x"] + box["width"] * part, box["y"] + box["height"] / 2)
 
@@ -2039,6 +2047,7 @@ def test_the_bar_seeks_where_it_is_pressed(scene) -> None:
     way at all on an hour of prose read straight through."""
     scene.click(".player-play")
     scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    scene.wait_for_function("() => window.TargumPlayer.length() > 0")
     length = scene.evaluate(ALONG)["length"]
     assert length and length > 0
 
@@ -2075,6 +2084,8 @@ def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
     paged_scene.wait_for_function(
         "() => document.getElementById('player').classList.contains('playing')"
     )
+    # As in `pressed_along`: nothing can be sought until the recording knows its length.
+    paged_scene.wait_for_function("() => window.TargumPlayer.length() > 0")
     paged_scene.locator(".player-track").focus()
     paged_scene.keyboard.press("End")
     ended = paged_scene.evaluate(ALONG)
