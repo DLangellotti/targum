@@ -2029,7 +2029,15 @@ ALONG = """
 
 
 def pressed_along(page, part: float) -> None:
-    """Press the bar `part` of the way along it, left to right on the glass."""
+    """Press the bar `part` of the way along it, left to right on the glass.
+
+    Waits for the recording to know how long it is, first. The bar is drawn the moment
+    the player is playing, and a media element does not know its own duration until its
+    metadata has loaded — so on a slow runner the press landed on a bar with nothing
+    behind it and the seek was correctly refused. It failed as "the bar does not seek",
+    which is the wrong end entirely (CI, 2026-09-04).
+    """
+    page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
     box = page.locator(".player-track").bounding_box()
     page.mouse.click(box["x"] + box["width"] * part, box["y"] + box["height"] / 2)
 
@@ -2039,6 +2047,7 @@ def test_the_bar_seeks_where_it_is_pressed(scene) -> None:
     way at all on an hour of prose read straight through."""
     scene.click(".player-play")
     scene.wait_for_function("() => document.getElementById('player').classList.contains('playing')")
+    scene.wait_for_function("() => window.TargumPlayer.length() > 0")
     length = scene.evaluate(ALONG)["length"]
     assert length and length > 0
 
@@ -2075,6 +2084,8 @@ def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
     paged_scene.wait_for_function(
         "() => document.getElementById('player').classList.contains('playing')"
     )
+    # As in `pressed_along`: nothing can be sought until the recording knows its length.
+    paged_scene.wait_for_function("() => window.TargumPlayer.length() > 0")
     paged_scene.locator(".player-track").focus()
     paged_scene.keyboard.press("End")
     ended = paged_scene.evaluate(ALONG)
@@ -4198,7 +4209,7 @@ def test_a_text_with_a_picture_opens_with_the_picture_on(browser, tmp_path) -> N
     try:
         page.wait_for_selector("#video:not([hidden])")
         assert page.is_visible("#video"), "the picture is on when the text opens"
-        assert page.get_attribute("[data-video]", "aria-pressed") == "true"
+        assert page.get_attribute(".group [data-video]", "aria-pressed") == "true"
         # Nothing plays until pressed: the half of the withdrawn sentence that survived.
         assert page.evaluate(
             "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
@@ -4217,15 +4228,15 @@ def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
         page.wait_for_selector("#video:not([hidden])")
         page.click(".video-close")
         page.wait_for_selector("#video[hidden]", state="attached")
-        assert page.get_attribute("[data-video]", "aria-pressed") == "false"
+        assert page.get_attribute(".group [data-video]", "aria-pressed") == "false"
 
         page.reload()
         page.wait_for_selector(".pair")
         assert page.get_attribute("#video", "hidden") is not None, "it stayed away"
-        assert page.get_attribute("[data-video]", "aria-pressed") == "false"
+        assert page.get_attribute(".group [data-video]", "aria-pressed") == "false"
 
         # And the toggle brings it back, which is what "the toggle stays" means.
-        page.click("[data-video]")
+        page.click(".group [data-video]")
         page.wait_for_selector("#video:not([hidden])")
     finally:
         context.close()
@@ -4477,3 +4488,94 @@ def test_a_text_with_no_picture_is_untouched_by_the_modes(scene) -> None:
     # And its own transport is where it always was, with the gaps the note found closed.
     assert scene.locator("#player .player-track").get_attribute("role") == "slider"
     assert scene.locator("#player .player-back").count() == 1
+
+
+# -- the picture and the transport do not stand on each other ---------------------------
+#
+# Both were reported from a phone on 2026-09-04, off a live reader: the strip drawn across
+# the top of the docked picture, and no way back once the picture was closed.
+
+BOXES = """
+() => {
+  const v = document.getElementById("video"), p = document.getElementById("player");
+  const r = (e) => { const b = e.getBoundingClientRect();
+    return {top: Math.round(b.top), bottom: Math.round(b.bottom),
+            left: Math.round(b.left), right: Math.round(b.right)}; };
+  return {video: v.hidden ? null : r(v), player: p.hidden ? null : r(p),
+          inside: v.contains(p)};
+}
+"""
+
+
+def overlapping(a: dict, b: dict) -> bool:
+    across = min(a["right"], b["right"]) - max(a["left"], b["left"])
+    down = min(a["bottom"], b["bottom"]) - max(a["top"], b["top"])
+    return across > 0 and down > 0
+
+
+@pytest.mark.parametrize(("width", "height"), [(412, 915), (1440, 900)], ids=["phone", "desktop"])
+def test_the_docked_picture_and_the_strip_never_cover_each_other(
+    browser, tmp_path, width: int, height: int
+) -> None:
+    """They each made room for the other, so both moved and they met in the middle.
+
+    The strip rose by the picture's height — a docked picture is a band occupant and
+    `--occupant` is what the foot obeys — while the picture rose by the strip's, and the
+    result was the transport drawn across the top of the film with the room saved under
+    it standing empty. On a wide window the same sum came apart differently: the paged
+    reader lifts the strip over the turning arrows to `5.5rem` and the dock was still
+    adding `1.25rem`, so the picture's foot came down 68px inside it.
+
+    One number drives both now, which is the property worth pinning: whatever moves the
+    strip moves the picture with it.
+    """
+    built = video_reader(tmp_path, lines=40)
+    context = opened(browser)
+    page = context.new_page()
+    page.set_viewport_size({"width": width, "height": height})
+    try:
+        page.goto(built.as_uri())
+        page.wait_for_selector("#video:not([hidden])")
+        # Reading alongside, which is the mode with two things at the foot. Watching puts
+        # the strip inside the picture on purpose — one transport, moved rather than
+        # copied — and boxes that contain one another are not boxes that collide.
+        page.click(".video-mode")
+        page.wait_for_selector("#video:not(.watching)")
+        page.wait_for_timeout(300)
+        where = page.evaluate(BOXES)
+        assert where["video"] and where["player"]
+        assert not where["inside"], "docked, the strip stands on its own again"
+        assert not overlapping(where["video"], where["player"]), (
+            f"the strip and the picture cover each other at {width}x{height}: {where}"
+        )
+    finally:
+        context.close()
+
+
+def test_a_closed_picture_can_be_brought_back_from_the_strip(browser, tmp_path) -> None:
+    """The bar's copy of the toggle folds into the `···` menu on a phone, so closing the
+    picture with its own × left a reader nothing on screen to undo it with — the way back
+    was two taps into a menu they had no reason to open. A control that can be turned off
+    has to be turnable on from where it was turned off."""
+    built = video_reader(tmp_path)
+    context = opened(browser)
+    page = context.new_page()
+    page.set_viewport_size({"width": 412, "height": 915})
+    try:
+        page.goto(built.as_uri())
+        page.wait_for_selector("#video:not([hidden])")
+        # The bar's copy is behind the menu at this width, and that is the whole point.
+        assert not page.locator(".group [data-video]").is_visible()
+
+        page.click(".video-close")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert page.locator(".player-video").is_visible(), "nothing on screen brings it back"
+        assert page.get_attribute(".player-video", "aria-pressed") == "false"
+
+        page.click(".player-video")
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.get_attribute(".player-video", "aria-pressed") == "true"
+        # Both copies say the same thing, or the page shows a state it is not in.
+        assert page.get_attribute(".group [data-video]", "aria-pressed") == "true"
+    finally:
+        context.close()

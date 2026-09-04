@@ -328,6 +328,22 @@
     <button type="button" class="player-rate-now" dir="ltr" aria-label="Speed" title="Speed">1×</button>
     <button type="button" class="player-faster" aria-label="Faster">+</button>
   </span>
+  {#- The picture, from the transport that is always on screen. The same control as the
+      one in the bar — same `data-video`, so `showVideo` presses both and neither can
+      show a state the other does not — and here as well because the bar's copy folds
+      into the `···` menu on a phone. Closing the picture with its own × then left a
+      reader who had put it away with nothing on screen to bring it back: the way back
+      was two taps into a menu they had no reason to open. A control that can be turned
+      off has to be turnable on from where it was turned off. -#}
+  {% if spoken_video %}
+  <button type="button" class="player-video" data-video aria-pressed="false"
+          aria-label="The video" title="The video">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect x="2" y="3.5" width="12" height="9" rx="1"/>
+      <path d="M6.5 6 10 8 6.5 10Z"/>
+    </svg>
+  </button>
+  {% endif %}
   {#- A real file, carried in the page already, so saving it costs no request. -#}
   <a class="player-get" download aria-label="Download the audio" title="Download the audio">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">

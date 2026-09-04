@@ -2151,7 +2151,12 @@ body.has-player .next-up { margin-block-end: 9rem; }
  * window it reaches the corner the player is in. */
 .player {
   position: fixed;
-  inset-block-end: 1.25rem;
+  /* How far off the foot the strip stands, as one number rather than two. The paged
+     reader lifts it over the turning arrows and the picture docks above it, and while
+     those were separate figures they disagreed: the dock added `1.25rem` to the strip's
+     height while the strip itself had moved to `5.5rem`, so the picture's foot came down
+     68px inside the strip. Whatever moves the strip has to move the picture with it. */
+  inset-block-end: var(--player-foot, 1.25rem);
   inset-inline-end: 1.25rem;
   z-index: 26;
   display: flex;
@@ -2197,6 +2202,31 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .player-play[aria-pressed="true"] .play { display: none; }
 .player-play[aria-pressed="true"] .stop { display: block; }
 .player-play:focus-visible { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--focus); }
+
+/* The picture's own control in the transport, drawn like the step and speed buttons
+   beside it rather than like the play button, which is the one accent-filled thing. */
+.player-video {
+  flex: none;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.player-video svg {
+  display: block;
+  inline-size: 1rem;
+  block-size: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.player-video[aria-pressed="true"] { color: var(--ink); }
+.player-video:hover { color: var(--ink); }
+.player-video:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
 /* The middle column: what it is before it plays, where it has got to once it does. */
 .player-body {
@@ -2439,8 +2469,8 @@ body.has-player .next-up { margin-block-end: 9rem; }
    reader has been in before — is taller than that, and the picture sat on it. The
    script keeps `--player-tall` measured; the fallback is the old figure, for the frame
    before the first measurement and for a browser without a ResizeObserver. */
-.video.dock-bottom-end { inset-block: auto calc(var(--player-tall, 3.5rem) + 1.25rem); inset-inline: auto 1.25rem; }
-.video.dock-bottom-start { inset-block: auto calc(var(--player-tall, 3.5rem) + 1.25rem); inset-inline: 1.25rem auto; }
+.video.dock-bottom-end { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: auto 1.25rem; }
+.video.dock-bottom-start { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: 1.25rem auto; }
 .video.dock-top-end { inset-block: 4.5rem auto; inset-inline: auto 1.25rem; }
 .video.dock-top-start { inset-block: 4.5rem auto; inset-inline: 1.25rem auto; }
 
@@ -2602,7 +2632,7 @@ body.watching { overflow: hidden; }
    on a phone with a player out, where the row is not wide enough for both and the tab
    stands above the player instead; that rule is with the other narrow ones. */
 @media (min-width: 60rem) {
-  body.paged .player { inset-block-end: 5.5rem; }
+  body.paged { --player-foot: 5.5rem; }
   body.paged .list-tab { inset-block-end: 5.5rem; }
 }
 
@@ -2802,6 +2832,21 @@ html:fullscreen { background: var(--paper); }
   .bar-more.open .group select,
   .bar-more.open .group .home,
   .bar-more.open .group .level { border-color: var(--rule); }
+
+  /* --- the docked picture, which is a band occupant here and not in the margin ---
+     On a wide window the picture stands in a corner and lifts itself over the strip by
+     `--player-tall`, because `room()` cuts the pages around it and nothing else moves.
+     Here it is a resident: `seatFoot` measures it into `--occupant` and the strip stands
+     on its top edge, the way it stands on the sheet and the menu. Keeping the wide
+     window's lift as well made the two of them each make room for the other — the strip
+     rose by the picture's height and the picture rose by the strip's, so the strip came
+     down inside the picture and the room saved under it was empty paper. One of the two
+     offsets has to go, and it is this one: the band is what the rest of the foot obeys. */
+  .video.dock-bottom-end,
+  .video.dock-bottom-start {
+    inset-block: auto 0;
+    inset-inline: 0;
+  }
 
   /* --- the strip --- */
   body .player,
