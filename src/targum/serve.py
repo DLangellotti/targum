@@ -95,6 +95,10 @@ SAFE_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 #: a bug in the product's routing cannot expose it.
 BACK_OFFICE = "bo."
 
+#: Where the page actually lives. On the product's own origin, because that is where the
+#: session cookie is: host-only, so nothing made on `targum.page` reaches a subdomain.
+BACK_OFFICE_ROUTE = "/back-office"
+
 
 def back_office_host(public_address: str) -> str:
     """`bo.<domain>`, or "" where there is no public name to put it in front of."""
@@ -2473,6 +2477,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
 
+    def _sent_on(self, where: str) -> None:
+        """Temporarily, for a name that is a front door rather than an address.
+
+        302 and not 301: `bo.targum.page` points at where the back office happens to be
+        served from today, and a browser that has cached a permanent redirect keeps
+        following it long after that stops being true — including to an origin that no
+        longer answers. A door is allowed to change what it opens onto.
+        """
+        self.send_response(302)
+        self.send_header("Location", where)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
     @staticmethod
     def _session_cookie(token: str, days: int) -> str:
         # HttpOnly so a script on the page cannot read it, SameSite=Lax so another site
@@ -3040,21 +3058,31 @@ class Handler(BaseHTTPRequestHandler):
         return (self.headers.get("Host") or "").rsplit(":", 1)[0] == wanted
 
     def _back_office(self) -> None:
-        """Who has an account and what they did, for the person who runs the box.
+        """Who has an account and what they did, for whoever runs the box.
 
-        The password is Caddy's, not this server's: a `basic_auth` on the `bo.` vhost,
-        with a hash in the Caddyfile and nothing in the repository. That is the whole
-        door, and it is enough because the origin listens on loopback only — the sole
-        way to arrive here with this Host is through the vhost that asked for the
-        password. Adding a second, weaker check in Python would be a second thing to
-        keep right, and it is the kind that gets waved through in a hurry.
+        **An admin session is the door.** Not a password on the vhost, which is what
+        this was for a day: the session cookie is host-only — `Path=/`, no `Domain` — so
+        a session made on `targum.page` is never sent to `bo.targum.page`, and the only
+        ways to change that are to widen the cookie to `.targum.page`, which hands every
+        future subdomain every reader's session, or to serve this from the origin the
+        session already belongs to. The second is the cheap one. `bo.targum.page` stays
+        as the address a person types and redirects here.
 
-        What this must never become is a route on `targum.page` behind a flag. It is a
-        separate name so that no path on the product reaches it, however the product's
-        routing changes.
+        A signed-in reader who is not an admin gets 404 rather than 403. 403 is an
+        answer: it says there is something here. There are two accounts on this box and
+        one of them is not the operator, and "you may not" is a thing to tell a stranger,
+        not the person you live with.
         """
         from .backoffice import DAYS, survey_store
 
+        person = self._person()
+        if person is None:
+            # Signed out. The holding page rather than the sign-in form, for the reason
+            # `_needs_account` gives: a door shown to somebody with no key is a wall that
+            # looks like a mistake. The door is one click away, in the corner.
+            return self._send(200, holding_page().encode("utf-8"), HTML)
+        if not person.admin:
+            return self._send(404, b"not found", "text/plain")
         if self.store is None:
             return self._send(503, b"no store", "text/plain")
         # Read-only, and off the same file the service is writing to. `_send` already
@@ -3072,10 +3100,13 @@ class Handler(BaseHTTPRequestHandler):
         # The operator's own name answers one page and nothing else. Ahead of every
         # other route so that nothing on the product is reachable through it either:
         # the two names are disjoint in both directions.
+        # The operator's name is a front door and nothing else: it sends everything to
+        # the product's own origin, which is where the session cookie lives. Ahead of
+        # every other route, so nothing on the product is reachable through that name.
         if self._asked_for_the_back_office():
-            if route in ("/", "/index.html"):
-                return self._back_office()
-            return self._send(404, b"not found", "text/plain")
+            return self._sent_on(f"{self.address}{BACK_OFFICE_ROUTE}")
+        if route == BACK_OFFICE_ROUTE:
+            return self._back_office()
         # The browser asks for this on every page load without being told to, and it
         # carries no key, so it would otherwise answer the stale-session page and put a
         # failed request in the console each time. Answered before the key check and
