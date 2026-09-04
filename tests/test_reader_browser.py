@@ -4616,3 +4616,84 @@ def test_a_closed_picture_can_be_brought_back_from_the_strip(browser, tmp_path) 
         assert page.get_attribute(".group [data-video]", "aria-pressed") == "true"
     finally:
         context.close()
+
+
+# -- a sheet under a thumb ---------------------------------------------------------
+#
+# targum-internal: the card at the foot of a phone glitched when it was pulled.
+# Everything else in this file runs with `reduced_motion="reduce"`, which switches
+# `rise` off — so the animated path, which is the one every reader is on, had no
+# test at all and this was invisible to the suite.
+
+
+def touched(page, cdp, x: float, y: float, steps: list[float], gap: int = 25) -> list[float]:
+    """A real finger: down at (x, y), then to each offset in `steps`, then up.
+
+    Through CDP rather than `page.mouse` or a dispatched event, because what is being
+    asked is what the *browser* does with the gesture — whether it hands the moves over,
+    and what it draws while an animation is also running. A synthetic event answers a
+    different question.
+    """
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
+    drawn = []
+    for down in steps:
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": "touchMove", "touchPoints": [{"x": x, "y": y + down}]},
+        )
+        page.wait_for_timeout(gap)
+        drawn.append(
+            page.evaluate(
+                "() => { const m = new DOMMatrix(getComputedStyle("
+                "document.getElementById('gloss-card')).transform); return m.m42; }"
+            )
+        )
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+    return drawn
+
+
+def test_a_sheet_caught_on_its_way_up_follows_the_finger(browser, built: Path) -> None:
+    """A word's card rises over 220ms. A thumb that lands on it while it is still coming
+    up used to be ignored for the rest of that animation and then jumped to catch up:
+    measured, the card went 13.5 → 3.1 → 0.2 (upward, against the finger) and then leapt
+    to 60 in one frame.
+
+    A CSS animation is a higher cascade origin than an inline style, so the transform the
+    drag writes could not be seen while `rise` ran. The fix takes the sheet off its
+    animation at the moment of touch and pins it where the finger found it, which is what
+    every sheet on a phone does: you can catch one and throw it back down.
+
+    Motion is left on here, unlike everywhere else in this file. With
+    `prefers-reduced-motion` the animation does not exist and there is nothing to catch.
+    """
+    context = browser.new_context(viewport=PHONE, has_touch=True, is_mobile=True)
+    context.add_init_script(SCROLLING)
+    page = context.new_page()
+    cdp = context.new_cdp_session(page)
+    try:
+        page.goto(address(built))
+        page.wait_for_selector(".pair .src .w")
+        page.click(".pair:not([hidden]) .src .w")
+        page.wait_for_timeout(700)
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(500)
+
+        # Open it and take hold 60ms in, while `rise` is still running.
+        page.click(".pair:not([hidden]) .src .w")
+        page.wait_for_timeout(60)
+        card = page.locator("#gloss-card").bounding_box()
+        assert card is not None, "the card is up"
+        drawn = touched(
+            page, cdp, card["x"] + card["width"] / 2, card["y"] + 10, [20, 40, 60, 80, 100]
+        )
+
+        # It never goes back up. Against the finger is the whole complaint.
+        for before, after in zip(drawn, drawn[1:], strict=False):
+            assert after >= before - SLACK, f"the card rose while the finger pulled down: {drawn}"
+        # And it goes down by what the finger went down by, rather than leaping to catch
+        # up once the animation lets go of it.
+        for n in range(1, len(drawn)):
+            step = drawn[n] - drawn[n - 1]
+            assert abs(step - 20) <= 2, f"a jump of {step:.0f}px where the finger moved 20: {drawn}"
+    finally:
+        context.close()
