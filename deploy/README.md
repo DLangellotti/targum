@@ -10,6 +10,10 @@ scp -r deploy root@box:/tmp/ && ssh root@box bash /tmp/deploy/provision.sh
 
 Then fill in `/etc/targum/targum.env` and point the A record at the box.
 
+Coming back the other way — the box is gone and there is a backup — is
+[`RESTORE.md`](RESTORE.md). It was run once on 2026-09-04 rather than written from
+imagination, and it says what came back.
+
 Every time after that, from here:
 
 ```
