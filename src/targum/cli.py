@@ -375,6 +375,47 @@ def measures(
 
 
 @app.command()
+def evals(
+    record: Annotated[
+        Path | None,
+        typer.Option("--record", help="A scorecard.json from scripts/score_annotation.py."),
+    ] = None,
+    stage: Annotated[
+        str, typer.Option("--stage", help="Which stage the scorecard measured.")
+    ] = "lemma",
+    ledger: Annotated[Path | None, typer.Option("--ledger", help="Which ledger file.")] = None,
+    note: Annotated[str, typer.Option("--note", help="What was different about this run.")] = "",
+) -> None:
+    """Where each stage stands, and what its last change did to it.
+
+    With no arguments, the ledger as a table: the newest score for every measurement and
+    how far it moved from the last *different* version, so a re-run reports nothing and a
+    change reports how much.
+
+    `--record scorecard.json` adds the numbers a scoring run produced.
+    `scripts/score_annotation.py` already writes that file; this reads it rather than
+    re-running anything, because scoring loads a BERT model and takes minutes, and
+    recording a number should not need one.
+
+    The ledger is a file in the repository, appended to and never rewritten. A score is a
+    number about content rather than content, so it is public, and keeping it in git
+    means the commit that moved a number sits beside the number.
+    """
+    from . import evals as ledger_module
+
+    path = ledger or ledger_module.DEFAULT
+    if record is not None:
+        payload = json.loads(record.read_text())
+        rows = ledger_module.rows_from_scorecard(payload, stage=stage, note=note)
+        if not rows:
+            console.print("[yellow]Nothing to record[/yellow] — no scored rates in that file.")
+            return
+        written = ledger_module.append(rows, path)
+        console.print(f"[green]Recorded[/green] {written} rows to {path}")
+    typer.echo(ledger_module.table(ledger_module.read(path)))
+
+
+@app.command()
 def usage(
     days: Annotated[
         int | None,
