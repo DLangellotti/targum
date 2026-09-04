@@ -266,8 +266,35 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Fifteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
+Sixteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired.
+
+### A thing that moves under a thumb belongs to the thumb — 2026-09-04
+
+A reader on a phone holds the page in one hand and works it with that thumb. They pull
+sheets down, they slide them back up, they catch them halfway — not because targum
+taught them to, but because every app they have ever used did. The sheets here answer to
+that or they read as broken, and "a little bit of a glitch" is all it takes: the reader
+does not think *this animation and this gesture disagree about who owns the transform*,
+they think *this is not working properly*, and they are right.
+
+The rule: **while a finger is on something, that thing follows the finger and nothing
+else does.** Not the animation that was playing when the finger landed, not a relayout,
+not the browser's own idea of what the gesture was for. A sheet caught on its way up
+stops where it was caught and goes where it is taken.
+
+What this cost, so nobody re-introduces it: a word's card rises over 220ms, and a CSS
+animation outranks an inline style, so the transform the drag wrote could not be seen
+while `rise` was running. A thumb landing on a rising card was ignored for the rest of
+the animation and the card then jumped to catch up — measured on a phone viewport, the
+card went 13.5px → 3.1px → 0.2px, *upward, against a finger pulling down*, and then
+leapt 60px in one frame. The fix takes the sheet off its animation at the moment of
+touch and pins it where the finger found it.
+
+`test_a_sheet_caught_on_its_way_up_follows_the_finger` holds it, and it is the one
+browser test that runs with motion **on**: the rest of the suite sets
+`prefers-reduced-motion`, which switches `rise` off, so the path every reader is
+actually on had no test and this was invisible.
 
 ### A video text opens as video, and the picture never floats — 2026-09-03
 

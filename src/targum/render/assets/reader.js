@@ -5084,21 +5084,57 @@ var targumReader = function () {
     return element.scrollTop > 0;
   }
 
+  /* Where the sheet is drawn at this instant, animation and all. Read off the computed
+     transform rather than off the inline style, because while `rise` is running the
+     inline style is not what anybody can see: the animation is a higher cascade origin
+     than an inline declaration, and it wins. */
+  function drawnAt(element) {
+    var shown = getComputedStyle(element).transform;
+    if (!shown || shown === "none") return 0;
+    var inside = shown.slice(shown.indexOf("(") + 1, -1).split(",");
+    // `matrix(a, b, c, d, tx, ty)`, or `matrix3d` with sixteen where ty is the
+    // fourteenth. Anything else is a shape this does not need to understand.
+    var down = Number(inside.length === 16 ? inside[13] : inside[5]);
+    return isFinite(down) ? down : 0;
+  }
+
   function dismissible(element, close) {
     if (!element) return;
     var startY = null;
+    /* Where the sheet already was when the finger landed. Nought for a sheet standing
+       still, and part way down for one still on its way up — a sheet can be caught. */
+    var base = 0;
+    var moved = 0;
     var pulled = 0;
     element.addEventListener(
       "touchstart",
       function (event) {
         startY = null;
+        base = 0;
+        moved = 0;
         pulled = 0;
         if (roomy.matches || event.touches.length !== 1) return;
         var at = event.target;
         if (at && /^(INPUT|TEXTAREA|SELECT)$/.test(at.tagName || "")) return;
         if (scrolledInside(at, element)) return;
         startY = event.touches[0].clientY;
+        /* Take the sheet off its animation and pin it where the finger found it.
+           `rise` outranks the inline transform this drag writes, so a sheet grabbed on
+           its way up ignored the finger for the whole 220ms and then jumped to catch up
+           — measured at 31.7px, which is a third of a thumb. Cancelled, the inline
+           transform is what is drawn, and the sheet is the finger's from the first
+           frame. Catching a rising sheet and throwing it back down is what every sheet
+           on a phone does. */
+        base = drawnAt(element);
+        if (element.getAnimations) {
+          element.getAnimations().forEach(function (running) {
+            try {
+              running.cancel();
+            } catch (e) {}
+          });
+        }
         element.classList.add("pulling");
+        if (base) element.style.transform = "translateY(" + base + "px)";
       },
       { passive: true }
     );
@@ -5106,15 +5142,22 @@ var targumReader = function () {
       "touchmove",
       function (event) {
         if (startY === null) return;
-        pulled = event.touches[0].clientY - startY;
-        element.style.transform = pulled > 0 ? "translateY(" + pulled + "px)" : "";
+        moved = event.touches[0].clientY - startY;
+        pulled = Math.max(0, base + moved);
+        element.style.transform = pulled ? "translateY(" + pulled + "px)" : "";
       },
       { passive: true }
     );
     function letGoOf() {
       if (startY === null) return;
-      var far = pulled > PULLED;
+      /* How far the finger drew, not how far down the sheet ended up. A sheet caught
+         low on its way up is a sheet the reader wants: they reached for it. Letting go
+         of it should settle it open, and it did not when this asked where the sheet
+         was rather than what the hand did. */
+      var far = moved > PULLED;
       startY = null;
+      base = 0;
+      moved = 0;
       pulled = 0;
       element.classList.remove("pulling");
       if (!far) {
@@ -5131,8 +5174,11 @@ var targumReader = function () {
       }
       element.style.transform = "translateY(100%)";
       setTimeout(function () {
-        element.style.transform = "";
+        // Shut first, then the transform: cleared first, the sheet is back at the foot
+        // of the window for however long the closing takes, which is a flash of a thing
+        // the reader has just thrown away.
         close();
+        element.style.transform = "";
       }, 200);
     }
     element.addEventListener("touchend", letGoOf);
