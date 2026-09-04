@@ -1497,6 +1497,18 @@ class Library:
         from .video import MAX_VIDEO_DURATION_S, ytdlp_available
         from .video import youtube as youtube_module
 
+        # What the address is, before what this box has. A playlist is a playlist on a
+        # machine with no yt-dlp at all, and telling a reader to install something before
+        # telling them targum takes one video at a time answers a question they did not
+        # ask. It is also the harvest guard, and a guard that depends on what is
+        # installed is not one.
+        try:
+            youtube_module.is_youtube(job.source)
+        except TargumError as refusal:
+            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.stage = "failed"
+            return
+
         usable, hint = ytdlp_available()
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it

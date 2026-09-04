@@ -499,7 +499,7 @@ def test_the_shelf_says_video_where_the_import_kept_its_pictures(tmp_path: Path)
     assert seen["spoken"] and seen["video"], "a video can be listened to as well"
 
 
-def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path) -> None:
+def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path, monkeypatch) -> None:
     """The harvest guard, and the reason this door can be opened at all.
 
     What makes a hosted fetch defensible is that it is the reader's act: they paste one
@@ -507,8 +507,12 @@ def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path) -> 
     a harvest with a person's name on it, which is the thing #136 weighed and refused.
     `is_youtube` already draws that line; this pins that the paste cannot get round it.
 
-    No stub and no network: the address is turned away before yt-dlp is reached.
+    No stub and no network: the address is turned away before yt-dlp is reached — and
+    with the binary taken away, because a guard that depends on what is installed is not
+    one. CI has no yt-dlp and caught exactly that: the box's own "cannot fetch" answered
+    first, and a reader asking for a channel was told to install something instead.
     """
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (False, "install yt-dlp."))
     library = Library(tmp_path)
     for address in (
         "https://www.youtube.com/playlist?list=PLabc",
