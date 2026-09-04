@@ -2545,11 +2545,16 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .video-tap .stop { display: none; }
 .video-tap[aria-pressed="true"] .play { display: none; }
 .video-tap[aria-pressed="true"] .stop { display: block; }
-/* Playing, the glyph goes. It comes back for a pointer that can hover and for the
-   keyboard, so it is never a control nobody can find. */
+/* Playing, the glyph goes. It comes back for the keyboard, and for a pointer that can
+   really hover — `@media (hover: hover)` and not a bare `:hover`, because a phone keeps
+   `:hover` on whatever it last tapped until something else is tapped. Tapping the film to
+   play therefore left the glyph lit over a playing film, showing a stop square in the
+   middle of the picture with no way to make it go. */
 .video-tap[aria-pressed="true"] .video-tap-glyph { opacity: 0; }
-.video-tap:hover .video-tap-glyph,
 .video-tap:focus-visible .video-tap-glyph { opacity: 1; }
+@media (hover: hover) {
+  .video-tap:hover .video-tap-glyph { opacity: 1; }
+}
 .video-tap:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
 @media (prefers-reduced-motion: reduce) {
   .video-tap-glyph { transition: none; }
@@ -2997,8 +3002,13 @@ html:fullscreen { background: var(--paper); }
      the flow — it did, and the picture landed among the paragraphs. */
   .video-keys {
     position: absolute;
-    inset-block-start: 0;
-    inset-inline-start: 0;
+    /* The panel's own padding, so the keys sit on the film's corner rather than the
+       panel's. An absolute inset is measured to the padding box, so `0` put them 12px
+       above the film and 16px past its edge — a pale block overhanging a black film,
+       which is what it looked like. These two match the band sheet's
+       `padding: 0.75rem 1rem 1rem` on the occupants above. */
+    inset-block-start: 0.75rem;
+    inset-inline-start: 1rem;
     z-index: 3;
     flex-direction: row;
     gap: 0.25rem;
