@@ -1415,14 +1415,26 @@ table.rows tr:hover .copy,
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button, .video-close
+    .list-close, .list-foot button, .video-close,
+    /* The four that had no reach anywhere. The block further down already carries the
+       play button, both steps, the download and the ×; these were simply never added to
+       either. The speed and the picture toggle draw at 24-38px in the strip, and the
+       picture's own mode and corner keys at 24px beside a `.video-close` that had its
+       44px already — so the × was comfortable and the two keys next to it were not. */
+    .player-rate-now, .player-video, .video-mode, .video-corner
   ) {
     position: relative;
   }
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button, .video-close
+    .list-close, .list-foot button, .video-close,
+    /* The four that had no reach anywhere. The block further down already carries the
+       play button, both steps, the download and the ×; these were simply never added to
+       either. The speed and the picture toggle draw at 24-38px in the strip, and the
+       picture's own mode and corner keys at 24px beside a `.video-close` that had its
+       44px already — so the × was comfortable and the two keys next to it were not. */
+    .player-rate-now, .player-video, .video-mode, .video-corner
   )::after {
     content: "";
     position: absolute;
@@ -2225,6 +2237,50 @@ body.has-player .next-up { margin-block-end: 9rem; }
   stroke-linejoin: round;
 }
 .player-video[aria-pressed="true"] { color: var(--ink); }
+
+/* --- the strip's picture toggle, while the picture is already on screen ---
+
+   A docked picture carries its own keys: watch, move, close. The strip's copy of the
+   toggle is then a fourth control acting on a thing already under three, in the row
+   where width is scarcest. So on a phone it stands down while the picture is out.
+
+   It is not a one-way door and it does not have to be remembered. `showVideo` holds
+   `aria-pressed` in step on every `[data-video]` there is, so this keys off state that
+   is already correct: the picture goes away, the toggle presses out, and the control
+   comes back in the same place it left — the strip's end, never moved, never renamed.
+   Nothing here is stored, so nothing here can be stored wrongly.
+
+   It moves rather than pops. A control that vanishes under a thumb mid-press is the
+   unpleasant version of this, so the width and the fade are carried over 180ms and the
+   row closes up behind it. Motion is optional, as everything in §8 is. */
+@media (max-width: 60rem) {
+  /* No `overflow: hidden` while it is out: this button carries a 44px `::after` for the
+     thumb, and clipping the box clips the reach with it. The clip belongs to the state
+     that is collapsing, where there is nothing left to reach for. */
+  .player-video {
+    transition: inline-size 180ms ease, opacity 120ms ease, margin-inline 180ms ease;
+  }
+  .player-video[aria-pressed="true"] {
+    inline-size: 0;
+    min-inline-size: 0;
+    padding-inline: 0;
+    border-inline-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    /* The flex gap goes with it, or the row keeps a hole where the button was. */
+    margin-inline-start: -0.5rem;
+    /* Out of the tab order as well as out of the way: a control nobody can see is not a
+       control a keyboard should land on. Delayed so it does not cut the fade short. */
+    visibility: hidden;
+    transition:
+      inline-size 180ms ease, opacity 120ms ease, margin-inline 180ms ease,
+      visibility 0s linear 180ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .player-video { transition: none; }
+  .player-video[aria-pressed="true"] { transition: none; }
+}
 .player-video:hover { color: var(--ink); }
 .player-video:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
@@ -2343,6 +2399,41 @@ body.has-player .next-up { margin-block-end: 9rem; }
   stroke-linejoin: round;
 }
 
+/* --- the strip's one-off actions, in the `···` menu on a phone ---
+
+   Saving the audio and closing the player are pressed once. The strip's row carries
+   play, the clock, the step, the speed and the picture, and on a phone there is no
+   width left for two more: the clock was wrapping onto three lines to make room, which
+   is a strip three lines tall.
+
+   The menu's copies carry their own classes rather than the strip's. Sharing a class
+   made `.player-get` match two elements, which is ambiguous to a browser test and to a
+   reader of this file alike; the script wires both selectors to one handler instead, so
+   neither copy can become a second, disagreeing idea of the same action — the rule the
+   picture's own button already follows by sharing an attribute rather than a class.
+   Exactly one copy of each is shown at any width. */
+.more-player { display: none; }
+.more-player .more-get,
+.more-player .more-close {
+  display: block;
+  inline-size: auto;
+  block-size: auto;
+  padding: 0.4rem 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+}
+.more-player .more-get:focus-visible,
+.more-player .more-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 60rem) {
+  .more-player { display: block; }
+  .player > .player-get,
+  .player > .player-close { display: none; }
+}
+
 /* A step either side of the voice. Beside the speed and before it, because a reader
    reaching into the card is far likelier to want the last word again than a different
    pace, and the order in the card is the order of how often it is pressed. */
@@ -2414,6 +2505,54 @@ body.has-player .next-up { margin-block-end: 9rem; }
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
+}
+
+/* Tap the picture to play or pause. Placed here, with the panel's other parts and
+   before the `.video.watching` and `.video.dock-*` blocks, because those are
+   single-class rules of equal weight where source order alone decides: this one styles
+   a child and must not be written after a state rule that repositions the panel. */
+.video-tap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The keys sit beside the picture rather than over it, so they are lifted out of the
+   tap layer: the overlay spans the panel and a close button that cannot be pressed is
+   worse than a picture that cannot be tapped. */
+.video-keys { position: relative; z-index: 2; }
+/* The subtitle is decoration copied out of the page and is `aria-hidden` already; it
+   must not swallow a tap meant for the picture underneath it. */
+.video-titles { pointer-events: none; }
+.video-tap-glyph {
+  display: grid;
+  place-items: center;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: 50%;
+  color: var(--paper);
+  background: rgb(0 0 0 / 45%);
+  transition: opacity 180ms ease;
+}
+.video-tap svg { inline-size: 1.375rem; block-size: 1.375rem; fill: currentColor; }
+.video-tap .stop { display: none; }
+.video-tap[aria-pressed="true"] .play { display: none; }
+.video-tap[aria-pressed="true"] .stop { display: block; }
+/* Playing, the glyph goes. It comes back for a pointer that can hover and for the
+   keyboard, so it is never a control nobody can find. */
+.video-tap[aria-pressed="true"] .video-tap-glyph { opacity: 0; }
+.video-tap:hover .video-tap-glyph,
+.video-tap:focus-visible .video-tap-glyph { opacity: 1; }
+.video-tap:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+@media (prefers-reduced-motion: reduce) {
+  .video-tap-glyph { transition: none; }
 }
 
 .video-close,
@@ -2842,6 +2981,25 @@ html:fullscreen { background: var(--paper); }
      rose by the picture's height and the picture rose by the strip's, so the strip came
      down inside the picture and the room saved under it was empty paper. One of the two
      offsets has to go, and it is this one: the band is what the rest of the foot obeys. */
+  /* --- the picture's keys, across rather than down ---
+
+     Three 24px buttons in a column cannot each answer a 44px tap: that wants 132px and
+     the column has about 74, so the reach of each one ran into its neighbours and the
+     middle key answered over 34px. On a phone the panel is full-bleed, so there is
+     360px across and room for all three at full size with the picture still visible
+     behind them. */
+  .video-keys {
+    flex-direction: row;
+    gap: 0.25rem;
+    align-self: flex-start;
+  }
+  .video-close,
+  .video-mode,
+  .video-corner {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+  }
+
   .video.dock-bottom-end,
   .video.dock-bottom-start {
     inset-block: auto 0;

@@ -86,6 +86,20 @@
     {% endif %}
     <div class="bar-more" id="more">
       <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
+    {% if spoken_audio %}
+    {#- The strip's one-off actions, on a phone. The row carries play, the clock, the
+        step, the speed and the picture, and on a narrow screen there is no width left
+        for two things a reader presses once — the clock was wrapping onto three lines
+        to make space for them. Their OWN classes, not the strip's: sharing a class made
+        `.player-get` match two elements and four browser tests failed strict mode on the
+        ambiguity. The script wires both selectors to one handler, so neither copy can
+        become a second, disagreeing idea of the same action. -#}
+    <div class="group more-player">
+      <span class="label">The recording</span>
+      <a class="more-get" download>Save the audio</a>
+      <button type="button" class="more-close">Close the player</button>
+    </div>
+    {% endif %}
     {% if translations|length > 1 %}
     <label class="group">
       <span class="label">Translation</span>
@@ -368,6 +382,26 @@
     when there is one and nothing off a disk. -#}
 <div class="video" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}">
   <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
+  {#- Tap the picture to play or pause it. The strip's button is 2rem in a row that is
+      already crowded on a phone, and the picture is the biggest target on the page and
+      already under the reader's thumb. `data-play-scene` is the whole wiring: the
+      script collects every one of them as a scene button, so this gets the same click
+      handler and the same `aria-pressed` as the strip's play, and there is no second
+      idea of whether the film is running. The glyph shows while paused and goes while
+      playing — a control that sits permanently over the picture would cover the thing
+      the reader came for, to say what they can already see.
+
+      Named for where it is rather than for what it plays: the strip's button already
+      says "Play <the text>", and two controls answering to the same name is one name
+      too many for anybody listening to the page rather than looking at it. -#}
+  <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="Play or pause the picture">
+    <span class="video-tap-glyph" aria-hidden="true">
+      <svg viewBox="0 0 16 16" focusable="false">
+        <path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path>
+        <rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect>
+      </svg>
+    </span>
+  </button>
   {#- The line being said, over the picture, while the picture is the page. The text is
       the page's own — copied out of the pair the clock is inside rather than carried a
       second time — so a subtitle is never a translation the reader cannot also read in

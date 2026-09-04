@@ -193,6 +193,21 @@ elsewhere: ← → per reading direction, × to close and after a number as a mu
   honours `prefers-reduced-motion`.
 - **RTL is structural, not cosmetic:** logical CSS properties throughout, so every layout
   mirrors itself. Never `left`/`right`.
+- **A control a thumb presses answers a tap over 44px.** Where a coarse pointer is the
+  input — `(hover: none) and (pointer: coarse)` — every control in the chrome reaches at
+  least 44px, drawn at that size or given the reach with a centred `::after`. The icon
+  itself may stay small; what must be 44px is what answers the tap.
+
+  **The reach may cross a margin; it may not cross the text.** The per-line play button
+  takes its 44px and is safe doing so because it stands in the gutter, outside the pair —
+  a reach that grew over the words instead would take taps meant for them, and tapping a
+  word is what the reader came to do.
+
+  The rule lived in `reader.css` as two selector lists nobody had written down, and it
+  drifted: the picture's × had its 44px while the mode and corner keys beside it did not,
+  and neither did the speed or the picture toggle in the strip. `test_brand.py` pins it
+  now, and the list in that test is the registry — a new control belongs in it the day it
+  is drawn.
 
 ## 9 · Building screens
 
