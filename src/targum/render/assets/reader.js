@@ -6971,7 +6971,12 @@ var targumReader = function () {
   /* Saving the audio. The file is already in the page, so this asks the network for
      nothing — the same reason the fonts and the icons ride inside it. */
   if (player) {
-    var get = player.querySelector(".player-get");
+    /* Both copies: the strip's, and the one the `···` menu carries on a phone, where
+       the strip's row has no width for a one-off action. Distinct classes on purpose —
+       reusing `.player-get` made the selector match two elements and broke four browser
+       tests on strict mode — collected here so one handler drives both. */
+    var gets = Array.prototype.slice.call(document.querySelectorAll(".player-get, .more-get"));
+    var get = gets[0];
     if (get) {
       var named = (document.title || "dialogue").replace(/[\\/:*?"<>|]/g, "").trim();
       /* Named for what it actually is. The build inlines whatever the scene was voiced
@@ -6988,8 +6993,10 @@ var targumReader = function () {
         "audio/flac": "flac",
       };
       var kind = speech.audio.slice(5).split(";")[0].split(",")[0];
-      get.setAttribute("href", speech.audio);
-      get.setAttribute("download", (named || "dialogue") + "." + (ENDS[kind] || "mp3"));
+      gets.forEach(function (one) {
+        one.setAttribute("href", speech.audio);
+        one.setAttribute("download", (named || "dialogue") + "." + (ENDS[kind] || "mp3"));
+      });
     }
 
     /* Put away, and stays away. A reader who has met the player once does not need to be
@@ -7023,16 +7030,20 @@ var targumReader = function () {
     } catch (e) {}
     standing(!player.hidden);
 
-    var shut = player.querySelector(".player-close");
-    if (shut) {
-      shut.addEventListener("click", function () {
-        halt();
-        player.hidden = true;
-        try { targumKeep(STORE, "1"); } catch (e) {}
-        standing(false);
-        remeasure();
-      });
-    }
+    /* Both copies, for the reason above. The bar's play button brings the strip back,
+       so a reader who closes it from the menu still has the way back the §12 rule asks
+       for: a control that can be turned off has to be turnable on from where it was. */
+    Array.prototype.slice.call(document.querySelectorAll(".player-close, .more-close")).forEach(
+      function (shut) {
+        shut.addEventListener("click", function () {
+          halt();
+          player.hidden = true;
+          try { targumKeep(STORE, "1"); } catch (e) {}
+          standing(false);
+          remeasure();
+        });
+      }
+    );
 
     /* Coming back through the bar's button unhides it, so the two are never out of step. */
     if (scenes.length > 1) {

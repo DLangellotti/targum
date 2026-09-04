@@ -2169,8 +2169,14 @@ def test_the_places_kept_do_not_grow_without_end(scene) -> None:
 
 def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> None:
     """On a phone the player is a strip the width of the window, not a pill in a corner:
-    play, the line being said, one speed control, the download, and the ×. The speed's
-    two arrows are gone — the figure itself steps on when pressed."""
+    play, the line being said, and one speed control. The speed's two arrows are gone —
+    the figure itself steps on when pressed.
+
+    The download and the × are gone from the row as well, and that is the change this
+    docstring was rewritten for: they are pressed once, the row carries play, the clock,
+    the step, the speed and the picture, and the clock was wrapping onto three lines to
+    make room for them — a strip three lines tall. They stand in the `···` menu instead,
+    under their own classes so `.player-get` still names exactly one element."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     built = dialogue(tmp_path / "dialogues", tmp_path / "reader")
     context = opened(browser, viewport=PHONE)
@@ -2180,10 +2186,19 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
     box = page.locator("#player").bounding_box()
     assert box["x"] == 0 and box["width"] == PHONE["width"], box
     assert box["height"] <= 56, "a strip, not a card"
-    for control in (".player-play", ".player-rate-now", ".player-get", ".player-close"):
+    for control in (".player-play", ".player-rate-now"):
         assert page.locator(control).is_visible(), control
-    for control in (".player-slower", ".player-faster"):
+    for control in (".player-slower", ".player-faster", ".player-get", ".player-close"):
         assert not page.locator(control).is_visible(), control
+    # Shed from the row, not from the reader. The menu is shut until it is asked for,
+    # so open it: the point is that the two actions are still reachable, not that they
+    # are on screen beside the play button.
+    page.click(".bar .more")
+    page.wait_for_selector(".bar-more.open")
+    for control in (".more-get", ".more-close"):
+        assert page.locator(control).is_visible(), control
+    # The audio's own address reached the menu's copy too, or "save" would save nothing.
+    assert page.get_attribute(".more-get", "href"), "the menu's copy knows the audio"
     page.click(".player-rate-now")
     assert page.evaluate(SPEED)["rate"] == "1.25×", "the figure steps the speed on"
     context.close()
