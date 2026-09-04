@@ -2116,6 +2116,11 @@ var targumReader = function () {
      turning a tablet does not find the state half-kept. */
   var occupant = null;
   var sheetWas = false;
+  /* The same bookkeeping as `sheetWas`, for the picture. A reader on a phone taps a word
+     and the card takes the band, which puts the film away — and the film is the reason
+     they are on the page. Sending them to the strip's toggle to fetch it back turns one
+     tap into three, so the band gives back what it took. */
+  var pictureWas = false;
   var restoring = 0;
 
   function occupy(which) {
@@ -2148,6 +2153,9 @@ var targumReader = function () {
       showMore(false);
     } else if (was === "video") {
       // Put away through its own closure, which holds the button state and the store.
+      // Remembered, because the reader did not put it away: the band took it, and what
+      // the band takes it gives back — see `vacate`.
+      pictureWas = true;
       if (window.TargumVideo) window.TargumVideo.hide();
     }
     if (which === "list") sheetWas = false;
@@ -2161,12 +2169,22 @@ var targumReader = function () {
     // An overlay that leaves a sheet standing hands the band back to the sheet.
     occupant = overlay(which) && listBox && !listBox.hidden ? "list" : null;
     if (which === "list") sheetWas = false;
-    if (!sheetWas || roomy.matches) return;
+    if (which === "video") pictureWas = false;
+    if ((!sheetWas && !pictureWas) || roomy.matches) return;
     restoring = requestAnimationFrame(function () {
       restoring = 0;
-      if (occupant !== null || !sheetWas) return;
-      sheetWas = false;
-      showList(true, false);
+      if (occupant !== null) return;
+      /* At most one of these is ever set: the band holds one occupant at a time, so a
+         sheet that was folded and a picture that was put away cannot both be waiting.
+         The sheet first anyway, so its behaviour is exactly what it was. */
+      if (sheetWas) {
+        sheetWas = false;
+        pictureWas = false;
+        showList(true, false);
+        return;
+      }
+      pictureWas = false;
+      if (window.TargumVideo) window.TargumVideo.show();
     });
   }
 
@@ -7396,6 +7414,20 @@ var targumReader = function () {
        the `v` key reaches a mode that lives inside this closure. */
     window.TargumVideo = {
       hide: function () { showVideo(false, false); },
+      /* The mirror of `hide`, for the band to give the picture back with. `chosen` is
+         false in both, so neither writes the store: a picture the band moved aside was
+         never a picture the reader closed, and it must not come back looking like one.
+         Refused if the film is dead or the reader really did shut it — `VIDEO_STORE`
+         holds that, and it outranks anything the band remembers. */
+      show: function () {
+        if (videoDead) return;
+        try {
+          /* Read the way the page reads it at load — there is no `targumRead`, and a
+             helper invented for one call is a helper nobody else will find. */
+          if (localStorage.getItem(VIDEO_STORE) === "1") return;
+        } catch (e) {}
+        showVideo(true, false);
+      },
       /* Between the two modes. On a page whose picture is put away this brings it back
          and watches — pressing "watch" and being told the picture is closed would be
          the page refusing a thing it just offered. */

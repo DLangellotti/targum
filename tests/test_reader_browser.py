@@ -4549,6 +4549,52 @@ def test_the_glyph_goes_while_the_film_plays_on_a_touch_screen(browser, tmp_path
         context.close()
 
 
+def test_the_band_gives_the_picture_back_after_a_word(browser, tmp_path) -> None:
+    """A reader on a phone taps a word and the card takes the band, which puts the film
+    away — and the film is why they are on the page. The band already remembers a sheet
+    it folded and unfolds it again; it now remembers a picture the same way, so saving a
+    word and getting back to the film is one tap rather than a trip to the strip.
+
+    The guard is the second half: the band gives back only what the band took. A picture
+    the reader closed themselves is recorded in `targum:video-shut:` and stays shut
+    through as many word cards as they like.
+
+    Driven through `occupy`/`vacate` rather than by tapping a word, because the video
+    fixture builds no word spans. That is the same entry point a card uses; the tap into
+    it is covered by the card tests.
+    """
+    built = video_reader(tmp_path, lines=40)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    page = context.new_page()
+    showing = "() => !document.getElementById('video').hidden"
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+        assert page.evaluate(showing), "the picture is docked"
+
+        page.evaluate("() => window.TargumReader.occupy('card')")
+        page.wait_for_timeout(300)
+        assert not page.evaluate(showing), "a word card takes the band"
+
+        page.evaluate("() => window.TargumReader.vacate('card')")
+        page.wait_for_timeout(400)
+        assert page.evaluate(showing), "and the band gives the picture back"
+
+        page.click(".video-close")
+        page.wait_for_timeout(350)
+        page.evaluate("() => window.TargumReader.occupy('card')")
+        page.wait_for_timeout(250)
+        page.evaluate("() => window.TargumReader.vacate('card')")
+        page.wait_for_timeout(400)
+        assert not page.evaluate(showing), (
+            "a picture the reader closed stays closed through a word card"
+        )
+    finally:
+        context.close()
+
+
 def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
     """The note asked for a draggable player and the reason was real: a picture parked
     over the sentence being read. §12 answers it with a corner the layout keeps room
