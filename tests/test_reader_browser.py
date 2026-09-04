@@ -4540,11 +4540,29 @@ def test_the_glyph_goes_while_the_film_plays_on_a_touch_screen(browser, tmp_path
         # The tap is what leaves a phone hovering; the mouse hover is the same state
         # arriving the other way, and neither may light the glyph here.
         page.hover(".video-tap")
-        page.wait_for_timeout(250)
-        opacity = page.evaluate(
-            "() => getComputedStyle(document.querySelector('.video-tap-glyph')).opacity"
-        )
-        assert opacity == "0", f"the glyph goes while the film plays, got opacity {opacity}"
+        # Waited for rather than slept on. A fixed pause passed alone and in this file and
+        # failed inside the full suite, where the machine is busy and a frame is late; the
+        # assertion is the same, it just stops racing the paint. If it never arrives the
+        # state that decides it is reported, because "got opacity 1" says nothing about
+        # which of the three inputs was wrong.
+        try:
+            page.wait_for_function(
+                "() => getComputedStyle(document.querySelector('.video-tap-glyph'))"
+                ".opacity === '0'",
+                timeout=4000,
+            )
+        # Through the module the file already imported under `importorskip`, so a
+        # machine without Playwright still skips rather than failing to import.
+        except playwright_api.TimeoutError:  # pragma: no cover - only on a failure
+            state = page.evaluate(
+                """() => ({
+                  opacity: getComputedStyle(document.querySelector('.video-tap-glyph')).opacity,
+                  pressed: document.querySelector('.video-tap').getAttribute('aria-pressed'),
+                  paused: document.querySelector('.video-el').paused,
+                  canHover: matchMedia('(hover: hover)').matches,
+                })"""
+            )
+            raise AssertionError(f"the glyph stayed over a playing film: {state}") from None
     finally:
         context.close()
 
