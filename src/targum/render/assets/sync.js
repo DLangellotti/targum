@@ -251,6 +251,59 @@
     return out;
   }
 
+  /* Which parts of which texts have been finished. They live inside the document's own
+     record — `record.sections`, a map of section number to when — and travel as one row
+     each, because that is the only shape the merge cannot lose: see the `section` table
+     in accounts.py for why a map in a column would take a morning's reading with it.
+
+     A section un-finished is a tombstone under `s:<hash>:<section>`, gathered above with
+     the dropped words and phrases. */
+  function localSections(since) {
+    var docs = read(DOCS, "{}");
+    var out = [];
+    Object.keys(docs).forEach(function (hash) {
+      var mine = docs[hash] && docs[hash].sections;
+      if (!mine || typeof mine !== "object") return;
+      Object.keys(mine).forEach(function (id) {
+        var when = Number(mine[id]) || 0;
+        if (when <= since) return;
+        out.push({ hash: hash, section: String(id), at: when, seen: when });
+      });
+    });
+    return out;
+  }
+
+  function applySections(rows) {
+    var docs = read(DOCS, "{}");
+    var touched = false;
+    rows.forEach(function (row) {
+      if (!row.hash || !row.section) return;
+      var here = docs[row.hash];
+      // A finished section for a document this browser has never met still counts, and
+      // the ledger reads the record rather than the page — so the record is made. It is
+      // nameless until a `docs` row arrives with the title, which the same exchange
+      // carries; `applyDocs` fills it in without touching what is here.
+      if (!here) here = docs[row.hash] = { title: "", language: "", updated: 0 };
+      if (!here.sections || typeof here.sections !== "object") here.sections = {};
+      var mine = Number(here.sections[row.section] || 0);
+      if (row.gone) {
+        // Later wins, as everywhere: an un-finish older than the finish it would undo
+        // is a press this browser has already moved past.
+        if (mine && Number(row.seen || 0) > mine) {
+          delete here.sections[row.section];
+          touched = true;
+        }
+        return;
+      }
+      if (Number(row.at || 0) > mine) {
+        here.sections[row.section] = Number(row.at);
+        touched = true;
+      }
+    });
+    if (touched) write(DOCS, docs);
+    return touched;
+  }
+
   // Every day this browser knows about, or just today.
   //
   // The other collectors filter on `since` by comparing each record's own `seen` stamp
@@ -282,6 +335,7 @@
     var words = [];
     var phrases = [];
     var meanings = [];
+    var sections = [];
     Object.keys(gone).forEach(function (name) {
       var when = Number(gone[name]) || 0;
       if (when <= since) return;
@@ -311,9 +365,22 @@
         }
       } else if (name.indexOf("p:") === 0) {
         phrases.push({ id: name.slice(2), gone: 1, seen: when });
+      } else if (name.indexOf("s:") === 0) {
+        // A section un-finished. Two parts and the document hash has no colon in it,
+        // so this splits from the left once and takes the rest whole.
+        var mine = name.slice(2);
+        var split = mine.indexOf(":");
+        if (split > 0) {
+          sections.push({
+            hash: mine.slice(0, split),
+            section: mine.slice(split + 1),
+            gone: 1,
+            seen: when,
+          });
+        }
       }
     });
-    return { words: words, phrases: phrases, meanings: meanings };
+    return { words: words, phrases: phrases, meanings: meanings, sections: sections };
   }
 
   /* --- taking what the account has ------------------------------------------ */
@@ -504,6 +571,11 @@
         language: row.language || "",
         updated: row.updated || 0,
         done: row.done || 0,
+        // Carried across rather than rebuilt. This row is the document's own columns and
+        // says nothing about which of its chapters are finished; writing the record
+        // fresh without them threw away every finished chapter the moment a title
+        // arrived from another device. Sections merge on their own, one row each.
+        sections: (here && here.sections) || {},
       };
       if (Number(row.opened || 0) > Number(opened[row.hash] || 0)) opened[row.hash] = row.opened;
     });
@@ -607,6 +679,7 @@
       phrases: localPhrases(since).concat(dead.phrases),
       docs: localDocs(since),
       days: localDays(since),
+      sections: localSections(since).concat(dead.sections),
     };
     busy = true;
     return ask("/sync", body)
@@ -621,6 +694,10 @@
         changed = applyMeanings(answer.meanings || []) || changed;
         changed = applyPhrases(answer.phrases || []) || changed;
         changed = applyDocs(answer.docs || []) || changed;
+        // After the documents: `applyDocs` rewrites a record wholesale when the row it
+        // has is newer, and it writes no `sections` key — so folding the sections in
+        // afterwards is what keeps a chapter from being dropped by a title arriving.
+        changed = applySections(answer.sections || []) || changed;
         changed = applyDays(answer.days || []) || changed;
         write(STATE, { email: was.email, revision: answer.revision, pushed: mark });
         if (again) {
@@ -707,6 +784,12 @@
     },
     forgetPhrase: function (id) {
       if (id) remember("p:" + id, Date.now());
+    },
+
+    // A section un-finished at its own foot. Recorded the way a dropped word is, so that
+    // another device does not push the finish back and un-do the undo.
+    forgetSection: function (hash, section) {
+      if (hash && section) remember("s:" + hash + ":" + section, Date.now());
     },
 
     // A word's meanings, in every language they were written in, taken off with the

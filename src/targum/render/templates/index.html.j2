@@ -65,7 +65,7 @@
      it — for נח that is the chapter-6 file, listed under בראשית — and a chapter is
      listed once, under the portion it starts in. Everything else is one group with no
      portion, and the list is the flat one it always was. #}
-  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }}</span></li>{% endmacro %}
+  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }} &middot; {{ minutes[section.number] }} min</span></li>{% endmacro %}
   <ol class="toc" dir="{{ source_direction }}" data-document="{{ document.content_hash }}">
     {% for group in groups %}
     {% if group.portion %}

@@ -365,6 +365,13 @@ var targumReader = function () {
   var language = (root.getAttribute("lang") || "und").split("-")[0].toLowerCase();
   var documentId = data.document || location.pathname;
   var documentTitle = data.title || document.title || "";
+  // Which part of the document this file is, and how many parts there are. A targum
+  // finishes at the end of a chapter rather than at the end of a book, so what gets
+  // marked finished is a section (targum-internal#173). A page built before this
+  // carries neither, and is its own single section — which is the shape the record it
+  // wrote already had.
+  var sectionId = String(data.section || 1);
+  var sectionCount = Number(data.sections || 1);
 
   // Words are kept per language and shared by every text in it. Meeting a word again
   // in the next article, already marked, is the whole point of having kept it — which
@@ -600,9 +607,24 @@ var targumReader = function () {
   var finishedMark = document.getElementById("done-mark");
   var finishedSaid = document.getElementById("done-said");
 
+  /* When this section was finished.
+   *
+   * `record.sections` is the map this page writes; `record.done` is the one timestamp a
+   * page written before 2026-09-04 wrote for the whole document. The old field is read
+   * and never written: it stands, worth one finished targum, and `finishedTally` below
+   * says how the two are added up without ever counting the same reading twice.
+   *
+   * A single-section document is the one place the old record unambiguously means *this*
+   * unit, so it shows as finished here. On a book it means the book, and a chapter of it
+   * starts unmarked — which is the migration decided in #173: sections are not
+   * back-filled, and re-reading fills them in.
+   */
   function finishedAt() {
     var record = read(DOCS, "{}")[documentId];
-    return record ? Number(record.done || 0) : 0;
+    if (!record) return 0;
+    var mine = record.sections && record.sections[sectionId];
+    if (mine) return Number(mine);
+    return sectionCount === 1 ? Number(record.done || 0) : 0;
   }
 
   function setFinished(on) {
@@ -615,24 +637,84 @@ var targumReader = function () {
     // it is; the record is told so whenever it is touched.
     record.title = documentTitle || record.title || "";
     record.language = language || record.language || "";
-    record.done = on ? Date.now() : 0;
+    if (!record.sections || typeof record.sections !== "object") record.sections = {};
+    if (on) record.sections[sectionId] = Date.now();
+    else delete record.sections[sectionId];
+    /* `done` goes on meaning what it has always meant: this whole text is finished. It
+       is set when the last of its parts is, and it is what the library row, the next
+       unread scene and the monthly measures all read — none of which is asking about a
+       chapter. A one-part text sets it on the same press as before, so a scene and an
+       article behave exactly as they did.
+
+       Cleared only where this section *is* the whole document, which is the same test
+       `finishedAt` uses to read it, and for the same reason: there and only there do the
+       two fields mean one thing, so an undo has to move both or the page says finished
+       to a reader who has just said it is not.
+
+       On a book it is never cleared. A chapter undone is a chapter, and the record it
+       would be taking back is either a finish of the whole book or a record written
+       before sections existed — neither of which one chapter is in a position to deny.
+       A book left one chapter short of finished still shows finished in the library:
+       they did finish it, once, and the ledger's count is right either way because it
+       takes the greater of the two and not their sum. */
+    var whole = 0;
+    for (var part = 1; part <= sectionCount; part++) {
+      if (record.sections[String(part)]) whole += 1;
+    }
+    if (on && whole >= sectionCount) record.done = record.done || Date.now();
+    if (!on && sectionCount === 1) record.done = 0;
     record.updated = Date.now();
     all[documentId] = record;
     try {
       targumKeep(DOCS, JSON.stringify(all));
     } catch (e) {}
+    // The un-finish has to travel, or the next exchange with another device pushes the
+    // finish back and undoes the undo. The same shape a dropped word uses.
+    if (!on && window.TargumSync && window.TargumSync.forgetSection) {
+      window.TargumSync.forgetSection(documentId, sectionId);
+    }
     if (window.TargumSync) window.TargumSync.touched();
     renderFinished();
     say(on ? "Finished. It counts on your progress page." : "Not finished.");
   }
 
-  // How many texts this reader has finished, in every language: the number the
-  // celebration brags with. One record per text, so one at most each.
+  /* What one document is worth to the count: the greater of its old whole-document
+   * record and the number of its sections finished since sections existed. Never their
+   * sum — that is the rule stated once in #173 so nothing has to re-derive it.
+   *
+   * The alternative was back-filling every section of an already-finished document, and
+   * it was rejected: with no floor it turns one finished Genesis into fifty overnight,
+   * and every reader's count leaps without them having read anything that morning. The
+   * ledger's credibility rests on every number being a real count of a real thing, and a
+   * number that jumps fifty overnight is precisely the one that teaches a reader not to
+   * trust the rest.
+   *
+   * So a document with an old record sits at 1; finishing its first chapter leaves it at
+   * 1, because the old record already claimed that much; its second takes it to 2, and
+   * from there it rises per chapter. A reader who genuinely read all of Genesis before
+   * the change is under-counted against one who reads it after, and their first re-read
+   * chapter appears not to register. Accepted: the record says what was recorded, and
+   * re-reading is the honest way to close the gap.
+   */
+  function finishedTally(record) {
+    if (!record) return 0;
+    var sections = record.sections;
+    var mine = 0;
+    if (sections && typeof sections === "object") {
+      Object.keys(sections).forEach(function (id) {
+        if (sections[id]) mine += 1;
+      });
+    }
+    return Math.max(record.done ? 1 : 0, mine);
+  }
+
+  // How many targums this reader has finished, in every language: the number the
+  // celebration brags with. A section finished twice is finished once.
   function finishedCount() {
     var all = read(DOCS, "{}");
     var count = 0;
     Object.keys(all).forEach(function (hash) {
-      if (all[hash] && all[hash].done) count += 1;
+      count += finishedTally(all[hash]);
     });
     return count;
   }
@@ -682,6 +764,14 @@ var targumReader = function () {
     finishedBox.classList.toggle("is-done", !!when);
     // The inverted block is a ledger, and `.ledger` is what licenses the bright set.
     finishedBox.classList.toggle("ledger", !!when);
+    /* And the next section, offered once this one is finished. Not before: the pager at
+       the foot already carries its name, and two controls a hand's width apart saying
+       the same thing is one control nobody presses. Finished, it is a different thing —
+       the answer to what a reader does now, which is the whole of why a targum finishes
+       at the end of a chapter (targum-internal#173). The library's own suggestion is a
+       different element with a different rule; this only ever touches the near one. */
+    var onward = document.getElementById("next-up");
+    if (onward && onward.classList.contains("here")) onward.hidden = !when;
   }
   renderFinished();
 
@@ -6043,6 +6133,9 @@ var targumReader = function () {
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
+    // What the ledger would count from what is stored, by the rule that never adds an
+    // old whole-document record to the sections it did not record.
+    finishedCount: finishedCount,
     // The card's grammar line, for tests with no card to open: the plain words a
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
@@ -6082,7 +6175,10 @@ var targumReader = function () {
   "use strict";
   if (location.protocol === "file:") return;
   var next = document.getElementById("next-up");
-  if (next) next.hidden = false;
+  // The near one is the next section of this same folder, on a relative address that
+  // works off a disk — it is not waiting to find out how the page was opened, and it is
+  // waiting for something else entirely: the section being finished.
+  if (next && !next.classList.contains("here")) next.hidden = false;
 })();
 
 /* --- the next chapter, bought before it is needed ---------------------------
