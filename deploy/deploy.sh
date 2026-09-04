@@ -9,6 +9,18 @@ set -euo pipefail
 
 HOST="${TARGUM_HOST:?set TARGUM_HOST=user@box}"
 DOMAIN="${DOMAIN:-targum.page}"
+
+# Keep the connection talking while the box is silent. The rebuild below runs inside one
+# heredoc with its output on /dev/null, so an annotator rename — which re-annotates every
+# text by design — leaves this connection idle for two hours and something between here
+# and the box drops it. It is not sshd: the box reports `clientaliveinterval 0`. It is a
+# plain TCP idle drop, and the failure it produces is the nastiest shape available, because
+# the rebuild is a transient systemd unit owned by PID 1 and finishes regardless. What dies
+# with the connection is the tail of the heredoc — `seed` and `systemctl restart` — so the
+# expensive work succeeds, the deploy reports 255, and the box goes on serving the old
+# process. Two hours at sixty seconds is 120 unanswered probes before the client gives up,
+# which is longer than any rebuild measured here. targum-internal#177.
+SSH_OPTS=(-o ServerAliveInterval=60 -o ServerAliveCountMax=120)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -58,7 +70,7 @@ scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
 
-ssh "$HOST" "bash -euo pipefail -s" <<EOF
+ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # Installed as the service account so the tool and its virtualenv are owned by the
   # user that runs it. --force because the version usually has not changed.
   # The covers extra is Pillow, which shrinks a drawn cover to the 320px tile that is
@@ -133,7 +145,7 @@ for attempt in $(seq 1 30); do
     # With the service's environment, or it reports every secret as missing. Through
     # systemd, because targum.env is in systemd's format, not the shell's: a value with
     # a space or an angle bracket in it is fine there and a syntax error here.
-    ssh "$HOST" "systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+    ssh "${SSH_OPTS[@]}" "$HOST" "systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
       --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
       /usr/local/bin/targum preflight \
       --store /var/lib/targum/targum.db --out /var/lib/targum/targums" || true
@@ -145,5 +157,5 @@ for attempt in $(seq 1 30); do
 done
 
 echo "   health check never passed" >&2
-ssh "$HOST" "journalctl -u targum -n 40 --no-pager" >&2
+ssh "${SSH_OPTS[@]}" "$HOST" "journalctl -u targum -n 40 --no-pager" >&2
 exit 1
