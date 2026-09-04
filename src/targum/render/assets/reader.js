@@ -7022,6 +7022,19 @@ var targumReader = function () {
     at: function () { return audio.currentTime; },
     length: function () { return span(); },
     seek: seek,
+    /* Whether the transport will actually take a seek. A media element reports its
+       duration as soon as the metadata is in and can still refuse every write to
+       `currentTime` — a response without `Accept-Ranges`, or a decode that has not
+       reached the end of the first cluster — and it refuses silently, leaving the fill,
+       the clock and `aria-valuenow` at nought, because `paint` reads all three off
+       `currentTime`. Nothing in the page needs to ask: `seek` already gives up quietly
+       and the reader presses again. A test does, because knowing the length is not
+       knowing the seek will land, and the two are far enough apart on a cold runner to
+       be the whole of a flake. */
+    seekable: function () {
+      var ranges = audio.seekable;
+      return !!(ranges && ranges.length && ranges.end(ranges.length - 1) > 0);
+    },
   };
 
   /* How tall the strip is, for the things that stand above it. The picture's dock used

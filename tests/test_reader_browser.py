@@ -2048,6 +2048,16 @@ def pressed_along(page, part: float) -> None:
     or covers the bar, including whatever moves it next.
     """
     page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
+    # And it has to be willing to be sought, which is not the same fact and does not
+    # arrive with it. `Ranged` above exists because a media element that cannot ask for a
+    # slice reports an empty `seekable` and refuses every write to `currentTime` in
+    # silence; the same silence turns up on a cold runner between the metadata landing
+    # and the first cluster decoding. `seek` swallows the refusal, so nothing moves and
+    # nothing says why: `paint` reads the fill, the clock and `aria-valuenow` off
+    # `currentTime`, so all three sit at nought together and the failure reads as "the
+    # bar does not seek". targum-internal#204, where the two CI transcripts both carry
+    # `placed: False` — the one state only the throwing path leaves behind.
+    page.wait_for_function("() => window.TargumPlayer.seekable()")
     bar = page.locator(".player-track")
     box = bar.bounding_box()
     bar.click(position={"x": box["width"] * part, "y": box["height"] / 2})
@@ -2121,8 +2131,11 @@ def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
     paged_scene.wait_for_function(
         "() => document.getElementById('player').classList.contains('playing')"
     )
-    # As in `pressed_along`: nothing can be sought until the recording knows its length.
+    # As in `pressed_along`: nothing can be sought until the recording knows its length,
+    # and knowing it is not the same as being willing to be sought. `End` writes
+    # `currentTime` by the same path a press does and is refused in the same silence.
     paged_scene.wait_for_function("() => window.TargumPlayer.length() > 0")
+    paged_scene.wait_for_function("() => window.TargumPlayer.seekable()")
     paged_scene.locator(".player-track").focus()
     paged_scene.keyboard.press("End")
     ended = paged_scene.evaluate(ALONG)
