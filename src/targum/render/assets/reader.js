@@ -2199,7 +2199,9 @@ var targumReader = function () {
     if (!roomy.matches) {
       var occ = 0;
       residents().forEach(function (thing) {
-        if (standing(thing)) occ = Math.max(occ, thing.getBoundingClientRect().height);
+        if (standing(thing) && atFoot(thing)) {
+          occ = Math.max(occ, thing.getBoundingClientRect().height);
+        }
       });
       said["--occupant"] = occ ? Math.round(occ) + "px" : null;
       tell("--occupant");
@@ -2219,7 +2221,7 @@ var targumReader = function () {
         if (standing(thing)) top = Math.min(top, settledTop(thing, false));
       });
       residents().forEach(function (thing) {
-        if (standing(thing)) top = Math.min(top, settledTop(thing, true));
+        if (standing(thing) && atFoot(thing)) top = Math.min(top, settledTop(thing, true));
       });
       var foot = window.innerHeight - top;
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
@@ -2257,6 +2259,20 @@ var targumReader = function () {
 
   function residents() {
     return [listBox, keysCard, more, videoPanel];
+  }
+
+  /* Whether a resident stands at the foot, which is what the band is made of. All of
+     them do except one: the picture can be docked at the top, and then its height is
+     nothing to do with the foot. Measured into `--occupant` anyway, it lifted the strip
+     by the height of a picture that was nowhere near it — the strip floated a third of
+     the way up a phone with empty paper beneath it and the text running behind it. The
+     wide window already asks this question in `room`; the narrow one did not. */
+  function atFoot(thing) {
+    return !(
+      thing === videoPanel &&
+      thing.classList &&
+      (thing.classList.contains("dock-top-start") || thing.classList.contains("dock-top-end"))
+    );
   }
 
   function overlays() {
@@ -4647,7 +4663,13 @@ var targumReader = function () {
       residents().forEach(function (thing) {
         if (!thing || thing.hidden) return;
         var box = thing.getBoundingClientRect();
-        if (box.height) foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
+        if (!box.height) return;
+        /* A picture docked at the top takes its room from the top, not the foot. */
+        if (!atFoot(thing)) {
+          top = Math.max(top, box.bottom + 12);
+          return;
+        }
+        foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
       });
     } else if (videoPanel && !videoPanel.hidden && !videoPanel.classList.contains("watching")) {
       /* The dock, on a wide window, where the panel is not in the band. The note asked
@@ -4870,6 +4892,13 @@ var targumReader = function () {
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
   function relayout() {
+    /* The band first, and before any early return: a scrolling reader has a band too.
+       Moving the picture from the foot to the top changes what stands there without
+       changing any size, so no observer fires — and the only other way in returns early
+       when the reader is not paged. The strip stayed lifted by a picture that had gone
+       to the top, a third of the way up the window with the text running behind it.
+       `seatFoot` is idempotent: called again with nothing moved it reports no change. */
+    seatFoot();
     /* A picture docking, closing or going full-screen changes whether paging is
        possible at all, and it arrives here rather than through the setting. Re-apply
        before the early return, or pages put away under a picture never come back. */
