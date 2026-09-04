@@ -155,6 +155,57 @@ def test_the_focus_ring_does_not_change_with_the_theme() -> None:
     assert rings == {"#b8935e"}, f"focus ring should be #b8935e everywhere, found {rings}"
 
 
+#: §8. Every control a thumb presses. This list IS the rule: a new control in the strip,
+#: the picture's keys or the bar belongs here the day it is drawn.
+#:
+#: `.pair.voiced .say` is here and is safe: it stands in the gutter at
+#: `inset-inline-end: -1.9rem`, outside the pair, so its reach crosses a margin and never
+#: the words. A control that sat among them could not take this.
+THUMBED = (
+    ".player-play",
+    ".player-back",
+    ".player-on",
+    ".player-rate-now",
+    ".player-video",
+    ".player-get",
+    ".player-close",
+    ".video-mode",
+    ".video-corner",
+    ".video-close",
+    ".pair.voiced .say",
+)
+
+
+def test_every_thumbed_control_reaches_44px() -> None:
+    """§8: a control a thumb presses answers a tap over 44px.
+
+    The rule lived as two coarse-pointer selector lists that nobody had written down, and
+    it drifted: the picture's × had its 44px while the mode and corner keys beside it did
+    not, and neither did the speed or the picture toggle. Both lists count, because the
+    reach is given in either — what matters is that no control is in neither.
+
+    Read at the source because this is what the stylesheet promises;
+    `test_reader_browser.py` measures what a tap actually reaches, which is the half a
+    stylesheet cannot prove — a box with `overflow: hidden` promises 44px and clips it.
+    """
+    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    blocks = []
+    at = text.find("@media (hover: none) and (pointer: coarse)")
+    while at != -1:
+        close = text.find("\n}\n", at)
+        block = text[at : close if close != -1 else len(text)]
+        if "44px" in block:
+            blocks.append(re.sub(r"/\*.*?\*/", "", block, flags=re.S))
+        at = text.find("@media (hover: none) and (pointer: coarse)", at + 1)
+    assert blocks, "§8's 44px reach is given in a coarse-pointer block, and there is none"
+
+    reach = "\n".join(blocks)
+    missing = [sel for sel in THUMBED if sel not in reach]
+    assert not missing, "§8: these answer a tap under a thumb and are given no reach: " + ", ".join(
+        missing
+    )
+
+
 @pytest.mark.parametrize("path", STYLESHEETS + SCRIPTS + PAGES, ids=lambda p: p.name)
 def test_no_emoji(path: Path) -> None:
     """§6 and §7. No emoji, anywhere — not in copy, not standing in for an icon."""

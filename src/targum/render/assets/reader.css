@@ -1416,15 +1416,12 @@ table.rows tr:hover .copy,
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
     .list-close, .list-foot button, .video-close,
-    /* The transport and the picture's other keys. They were left out, and they are the
-       controls a listening reader presses most: play, a step either way, the speed, the
-       picture. Each draws at 24-32px, beside a `.video-close` that was already given the
-       44px this block exists to give — so the × was comfortable and the play button next
-       to it was not. `.say` is deliberately NOT here: it sits inline in the text at 22px
-       and a 44px box would reach into the lines above and below and take taps meant for
-       the words, which are what the reader is actually aiming at. */
-    .player-play, .player-back, .player-on, .player-rate-now, .player-video,
-    .video-mode, .video-corner
+    /* The four that had no reach anywhere. The block further down already carries the
+       play button, both steps, the download and the ×; these were simply never added to
+       either. The speed and the picture toggle draw at 24-38px in the strip, and the
+       picture's own mode and corner keys at 24px beside a `.video-close` that had its
+       44px already — so the × was comfortable and the two keys next to it were not. */
+    .player-rate-now, .player-video, .video-mode, .video-corner
   ) {
     position: relative;
   }
@@ -1432,15 +1429,12 @@ table.rows tr:hover .copy,
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
     .list-close, .list-foot button, .video-close,
-    /* The transport and the picture's other keys. They were left out, and they are the
-       controls a listening reader presses most: play, a step either way, the speed, the
-       picture. Each draws at 24-32px, beside a `.video-close` that was already given the
-       44px this block exists to give — so the × was comfortable and the play button next
-       to it was not. `.say` is deliberately NOT here: it sits inline in the text at 22px
-       and a 44px box would reach into the lines above and below and take taps meant for
-       the words, which are what the reader is actually aiming at. */
-    .player-play, .player-back, .player-on, .player-rate-now, .player-video,
-    .video-mode, .video-corner
+    /* The four that had no reach anywhere. The block further down already carries the
+       play button, both steps, the download and the ×; these were simply never added to
+       either. The speed and the picture toggle draw at 24-38px in the strip, and the
+       picture's own mode and corner keys at 24px beside a `.video-close` that had its
+       44px already — so the × was comfortable and the two keys next to it were not. */
+    .player-rate-now, .player-video, .video-mode, .video-corner
   )::after {
     content: "";
     position: absolute;
