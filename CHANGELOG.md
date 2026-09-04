@@ -151,6 +151,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- yt-dlp no longer speaks to readers in its own voice, and where YouTube is fetched from
+  is a setting rather than an assumption. A reader who pasted a YouTube address on the box
+  was shown, in the red box on /add, a paragraph naming `--cookies-from-browser` and two
+  GitHub wiki pages: `video/youtube.py` carried the binary's last stderr line verbatim
+  into `job.error`, which is right for "Private video." and wrong for a note addressed to
+  whoever runs the binary. The line is now carried only where it is a fact about the
+  video; a sentence holding a flag or a URL is dropped for targum's own, which names the
+  door that does open — a video file uploads. `fetch` and `describe` had two copies of
+  that logic and only one was ever read; they share one now.
+  Behind it, why the fetch failed at all. Measured on the box: the same video answered on
+  a laptop and came back "Sign in to confirm you're not a bot" on targum.page, and so did
+  a 2005 video with no restrictions of any kind, which is the control that rules out
+  anything about the video. Every player client failed, `-4` and `-6` both failed, and
+  neither a JavaScript runtime nor a proof-of-origin minter helped: YouTube has flagged
+  the Hetzner range, and nothing that runs *on* the box answers that. So the fetch has to
+  leave from somewhere else, and `TARGUM_YTDLP_PROXY` is where that somewhere is named —
+  a tunnel to a machine YouTube already trusts, or a residential proxy. Not a cookie file,
+  which would be a Google session living on the box, refreshed by hand, fetching on behalf
+  of strangers, with a ban as the failure mode; a proxy is an egress and carries no
+  account. `targum preflight` now says which half is missing, warns a hosted box that has
+  no egress at all, and names a dead one by host and port only, because a proxy is bought
+  with a password in its URL and that line is printed by the deploy and again into the
+  journal. `deploy/provision.sh` installs deno, the minter (`bgutil-pot.service`) and the
+  yt-dlp plugin into the tool environment that actually runs; `deploy/nftables-targum.conf`
+  closes port 4416 to everything but the loopback, because the minter binds every
+  interface at 1.3.2 whatever its README says, and the box ran no firewall at all.
 - On a phone, a word's card no longer moves the page (targum-internal#155). The card was
   an occupant of the band at the foot, and the pages were cut again around it: a tap on a
   word turned 60 pages into 80 with the card up and 60 again as it closed, so one look at
