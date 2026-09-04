@@ -4454,8 +4454,32 @@ var targumReader = function () {
   var current = 0;
   var paging = false;
 
+  /* Whether a docked picture is standing in the way of paging.
+
+     Paging cuts a page to what is left under the band, and on a phone a docked picture
+     takes about a third of the window. What would not fit goes to the next page, so the
+     text stopped short and left up to a full pair of empty paper under it — 182px
+     measured in every dock corner on an 844px window, and it moves with the window
+     height rather than staying still. Scrolling has no remainder, so there is nothing
+     to leave behind.
+
+     Watching is not suspended: the picture is the whole window then and there is no
+     reading column under it to cut. And the reader's own setting is never written to —
+     this reads it, so pages come back the moment the picture is closed or watched. */
+  function pagingSuspended() {
+    return (
+      !roomy.matches &&
+      !!videoPanel &&
+      !videoPanel.hidden &&
+      !videoPanel.classList.contains("watching")
+    );
+  }
+
+  /* What the last layout was told, so a picture docking or closing can be noticed. */
+  var wasSuspended = null;
+
   function paged() {
-    return !!prefs.paged && pairs.length > 0;
+    return !!prefs.paged && !pagingSuspended() && pairs.length > 0;
   }
 
   // Which pairs share a page, from where each one starts and how tall it is. Pure: the
@@ -4756,6 +4780,13 @@ var targumReader = function () {
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
   function relayout() {
+    /* A picture docking, closing or going full-screen changes whether paging is
+       possible at all, and it arrives here rather than through the setting. Re-apply
+       before the early return, or pages put away under a picture never come back. */
+    if (paging && pagingSuspended() !== wasSuspended) {
+      applyPaged();
+      return;
+    }
     if (!paging || !paged()) return;
     var held = pages.length ? pairs[pages[current][0]] : null;
     var here = anchor();
@@ -4781,12 +4812,19 @@ var targumReader = function () {
   }
 
   function applyPaged() {
-    body.classList.toggle("paged", !!prefs.paged);
+    /* The setting, and what the window is currently able to do with it. They differ
+       only while a picture is docked on a narrow window — see `pagingSuspended`. */
+    var on = !!prefs.paged && !pagingSuspended();
+    wasSuspended = pagingSuspended();
+    body.classList.toggle("paged", on);
+    /* The button says what the SETTING is, not what the window is doing with it: a
+       reader who turned pages on has not turned them off by opening a picture, and a
+       control that unpresses itself for reasons of its own is a control nobody trusts. */
     Array.prototype.forEach.call(document.querySelectorAll("[data-paged]"), function (button) {
       button.classList.toggle("on", !!prefs.paged);
       button.setAttribute("aria-pressed", prefs.paged ? "true" : "false");
     });
-    if (turn) turn.hidden = !prefs.paged;
+    if (turn) turn.hidden = !on;
     paging = true;
     if (!paged()) {
       pairs.forEach(function (pair) {
@@ -7209,8 +7247,20 @@ var targumReader = function () {
     }
     if (cornerKey) {
       cornerKey.addEventListener("click", function () {
-        var next = CORNERS[(CORNERS.indexOf(cornerKey.getAttribute("data-corner")) + 1) % CORNERS.length];
-        setCorner(next, true);
+        /* Four corners on a window that has four. A phone has two: the panel is
+           full-bleed there, so `bottom-end` and `bottom-start` draw in exactly the same
+           place, and so do the two at the top — every second press moved nothing and the
+           button looked broken. Cycling only what the window can actually show means
+           every press does something the reader can see, which is the whole promise of a
+           toggle. The stored corner is untouched: a phone that becomes a wide window
+           again finds the corner it left. */
+        var ring = window.matchMedia("(min-width: 60rem)").matches
+          ? CORNERS
+          : ["bottom-end", "top-start"];
+        var at = ring.indexOf(cornerKey.getAttribute("data-corner"));
+        /* A corner the ring does not hold — a wide window's `top-end` met on a phone —
+           steps to the first rather than nowhere: `indexOf` gives -1, and -1 + 1 is 0. */
+        setCorner(ring[(at + 1) % ring.length], true);
       });
     }
 

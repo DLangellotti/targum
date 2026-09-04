@@ -4369,6 +4369,34 @@ def test_the_picture_docks_in_a_corner_the_reader_picks(browser, tmp_path) -> No
         context.close()
 
 
+def test_every_press_of_the_corner_moves_the_picture_on_a_phone(browser, tmp_path) -> None:
+    """On a phone the panel is full-bleed, so `bottom-end` and `bottom-start` draw in
+    exactly the same place and so do the two at the top: four corners are two positions.
+    Cycling all four meant every second press moved nothing, which reads as a broken
+    button rather than a corner the reader chose. The ring is cut to what the window can
+    actually show, so every press does something visible."""
+    built = video_reader(tmp_path)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(400)
+        top = "() => Math.round(document.getElementById('video').getBoundingClientRect().top)"
+        seen = []
+        for _ in range(4):
+            seen.append(page.evaluate(top))
+            page.click(".video-corner")
+            page.wait_for_timeout(350)
+        after = seen[1:] + [page.evaluate(top)]
+        moves = [a != b for a, b in zip(seen, after, strict=True)]
+        assert all(moves), f"a press that moved nothing: {seen}"
+        assert len(set(seen)) == 2, f"a phone has two positions, saw {sorted(set(seen))}"
+    finally:
+        context.close()
+
+
 def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
     """The note asked for a draggable player and the reason was real: a picture parked
     over the sentence being read. §12 answers it with a corner the layout keeps room
@@ -4433,6 +4461,168 @@ def test_the_docked_picture_takes_its_room_out_of_the_layout(browser, tmp_path) 
         assert shown, "the page is showing something"
         assert max(shown) <= picture["y"] + SLACK, (
             f"a line runs to {max(shown):.0f}, under a picture that starts at {picture['y']:.0f}"
+        )
+    finally:
+        context.close()
+
+
+PHONE_TALL = {"width": 360, "height": 780}
+
+DOCKED_STATE = """() => {
+  const vis = [...document.querySelectorAll('.pair:not([hidden])')];
+  const turn = document.querySelector('.turn');
+  return {
+    paged: document.body.classList.contains('paged'),
+    setting: document.querySelector('[data-paged]')
+      ? document.querySelector('[data-paged]').getAttribute('aria-pressed') : null,
+    arrowsHidden: turn.hidden,
+    shown: vis.length,
+    total: document.querySelectorAll('.pair').length,
+  };
+}"""
+
+
+def test_a_docked_picture_reads_as_one_scroll_on_a_phone(browser, tmp_path) -> None:
+    """The room a docked picture takes is reserved whether or not the page can fill it,
+    and on a phone it takes about a third of the window — so the pair that would not fit
+    went to the next page and left up to its own height of empty paper under the text.
+    182px, measured in every dock corner. Scrolling has no remainder.
+
+    The reader's own setting is never written to: pages come back when the picture is
+    closed, and the toggle goes on saying what the reader chose throughout. Watching is
+    not suspended — the picture is the whole window then, with no column under it."""
+    built = video_reader(tmp_path, lines=60)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+        docked = page.evaluate(DOCKED_STATE)
+        assert docked["paged"] is False, "a docked picture reads as one scroll"
+        assert docked["arrowsHidden"] is True, "the arrows leave the band with the pages"
+        assert docked["shown"] == docked["total"], "every pair is shown"
+        assert docked["setting"] == "true", "and the reader's own setting is untouched"
+
+        page.click(".video-close")
+        page.wait_for_timeout(450)
+        back = page.evaluate(DOCKED_STATE)
+        assert back["paged"] is True, "pages come back when the picture goes"
+        assert back["arrowsHidden"] is False, "and so do the arrows"
+        assert back["shown"] < back["total"], "cut into pages again"
+    finally:
+        context.close()
+
+
+REACH = """(sels) => {
+  // What actually answers a tap, not what the stylesheet says it should: a box with
+  // `overflow: hidden` reports a 44px `::after` and clips it away, which is the bug
+  // this helper was written after.
+  const out = {};
+  for (const sel of sels) {
+    const el = document.querySelector(sel);
+    if (!el) { out[sel] = 'absent'; continue; }
+    const b = el.getBoundingClientRect();
+    if (!b.width || !b.height) { out[sel] = 'hidden'; continue; }
+    const x = Math.round(b.left + b.width / 2);
+    let top = Math.round(b.top), bottom = Math.round(b.bottom);
+    for (let y = Math.round(b.top); y > b.top - 24; y--) {
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || !(hit === el || el.contains(hit))) break;
+      top = y;
+    }
+    for (let y = Math.round(b.bottom); y < b.bottom + 24; y++) {
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || !(hit === el || el.contains(hit))) break;
+      bottom = y;
+    }
+    // Both ends are pixels that answered, so the span includes them both.
+    out[sel] = bottom - top + 1;
+  }
+  return out;
+}"""
+
+
+def test_the_transport_is_thumb_sized_on_a_touch_screen(browser, tmp_path) -> None:
+    """Every control a listening reader presses answers a tap over 44px.
+
+    They were left out of that block and `.video-close` was not, so the × was
+    comfortable and the play button beside it was not, on the device where it matters.
+
+    `.say` stays out on purpose: it is inline in the text at 22px, and a 44px box would
+    reach into the lines above and below and take taps meant for the words, which are
+    what the reader is actually aiming at. Each control is measured in the state where
+    it is meant to be reachable — the strip's picture toggle stands down while the
+    picture is out, so it is measured once the picture has gone."""
+    built = video_reader(tmp_path, lines=20)
+    context = browser.new_context(
+        viewport=PHONE_TALL, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches"), (
+            "the emulated device is a touch screen, or this test proves nothing"
+        )
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+        # The picture's own keys, while there is a picture to press them on.
+        keys = page.evaluate(REACH, [".video-mode", ".video-corner", ".video-close"])
+        for sel, block in keys.items():
+            assert block != "absent", sel
+            assert block >= 44, f"{sel} answers a tap over only {block}px, not 44"
+
+        page.click(".video-close")
+        page.wait_for_timeout(450)
+        # The transport, and the picture toggle now that it is back on the row.
+        strip = page.evaluate(
+            REACH,
+            [".player-play", ".player-back", ".player-on", ".player-rate-now", ".player-video"],
+        )
+        for sel, block in strip.items():
+            assert block != "absent", sel
+            assert block >= 44, f"{sel} answers a tap over only {block}px, not 44"
+    finally:
+        context.close()
+
+
+def test_the_strip_stands_its_toggle_down_while_the_picture_is_out(browser, tmp_path) -> None:
+    """A docked picture carries watch, move and close of its own, so the strip's copy of
+    the toggle is a fourth control on a thing already under three. It stands down — and
+    comes back in the same place the moment the picture goes, because `showVideo` holds
+    `aria-pressed` in step on every `[data-video]`. Nothing is stored, so nothing about
+    it can be remembered wrongly, and the way back is never further than one press."""
+    built = video_reader(tmp_path, lines=20)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+        seen = """() => {
+          const el = document.querySelector('.player-video');
+          const b = el.getBoundingClientRect();
+          return { w: Math.round(b.width), vis: getComputedStyle(el).visibility,
+                   pressed: el.getAttribute('aria-pressed'),
+                   right: Math.round(b.right) };
+        }"""
+        out = page.evaluate(seen)
+        assert out["pressed"] == "true", "the picture is out"
+        assert out["w"] == 0 and out["vis"] == "hidden", "so the strip's copy stands down"
+
+        page.click(".video-close")
+        page.wait_for_timeout(450)
+        back = page.evaluate(seen)
+        assert back["pressed"] == "false", "the picture is away"
+        assert back["w"] > 0 and back["vis"] == "visible", "and the toggle is back"
+        # Reversible, and one press each way: pressing it returns the picture.
+        page.click(".player-video")
+        page.wait_for_timeout(450)
+        assert page.evaluate("() => !document.getElementById('video').hidden"), (
+            "one press brings the picture back"
         )
     finally:
         context.close()
