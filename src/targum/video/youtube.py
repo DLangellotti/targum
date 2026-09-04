@@ -117,6 +117,12 @@ def fetch(url: str, into: Path) -> Path:
                 # it into the one container the pipeline looks for.
                 "--remux-video",
                 "mp4",
+                # The video's own title and channel, written into the container's tags.
+                # `ingest/audio.py` reads exactly those two and nothing else: without
+                # them a fetched video is titled after its file, which is its id, and
+                # arrives with no byline at all. A curated import under CC BY has to
+                # name who made it, and this is where the name is available.
+                "--embed-metadata",
                 "-o",
                 str(into / "source.%(ext)s"),
                 url,

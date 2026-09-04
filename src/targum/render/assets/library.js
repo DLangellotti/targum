@@ -58,6 +58,7 @@
     ["article", "News"],
     ["novel", "Novels"],
     ["essay", "Essays"],
+    ["talk", "Talks"],
     ["prose", "Bible narrative"],
     ["poetry", "Poetry"],
     ["document", "Documents"],
@@ -130,6 +131,7 @@
     kind: {
       dialogue: "Scenes — numbered conversations with audio. Start at 1.",
       prose: "Bible narrative — the Bible's story books.",
+      talk: "Talks — lectures and explainers, with the video beside them.",
       article: "News — the Israeli press, in the week it was written.",
       play: "Plays — a speaker, then a line.",
     },

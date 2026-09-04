@@ -67,6 +67,12 @@ class Plan:
     document: Document
     segmented: SegmentedDocument | None = None
     cached_translation: Translation | None = None
+    #: English the text brings with it — a dialogue's, written line by line against the
+    #: Hebrew, or a curated video's, bought once by the operator and shipped beside it.
+    #: Decided here rather than at the moment of writing, because everything downstream
+    #: turns on it: nothing is estimated, nothing is bought, and no provider has to be
+    #: ready. A build of one of these works with no key at all.
+    carried: Translation | None = None
     estimated_cost: float = 0.0
     # How the text divides, and how much of it this estimate covers. A book is priced a
     # chapter at a time, so the two differ and the page needs both to say anything true.
@@ -383,6 +389,11 @@ class Build:
         # A dialogue likewise, and more simply: its English is written with the scene,
         # so there is nothing to buy at all.
         "dialogue:",
+        # And a curated video, which is a dialogue's arrangement with a different
+        # author: the operator bought the English once, on a laptop, and shipped it
+        # beside the video. Public here so the key is the key everybody arrives at —
+        # the same text under an owner's key would be a second copy nobody can reach.
+        "video:",
     )
 
     def shared_source(self) -> bool:
@@ -730,15 +741,35 @@ class Build:
         return named_in(source, segmented)
 
     def authored(self, source: Document, segmented: SegmentedDocument) -> Translation | None:
-        """A dialogue's English, which arrives with it and is never bought.
+        """English that arrives with the text and is never bought.
 
-        The catalogue's rule, applied to a text targum wrote itself: where a translation
-        already exists, no model is asked for one. A dialogue goes further than a
-        catalogue pair — there is nothing to align either, because the English was
-        written line by line against the Hebrew and the correspondence is a fact of the
-        file rather than something to infer from shapes. One turn is one block is one
-        segment, which is what `UNSPLIT` guarantees.
+        The catalogue's rule, applied to two texts targum carries rather than fetches:
+        where a translation already exists, no model is asked for one.
+
+        A dialogue goes further than a catalogue pair — there is nothing to align
+        either, because the English was written line by line against the Hebrew and the
+        correspondence is a fact of the file rather than something to infer from shapes.
+        One turn is one block is one segment, which is what `UNSPLIT` guarantees.
+
+        A curated video's English was not written by hand; it was bought once, by the
+        operator, before the video was shipped. So it arrives as it was made — provider,
+        model and `kind: machine` all kept, because a machine translation that stops
+        saying so at the shelf is the one thing this must not do. What it saves is the
+        box buying, per video, an English that has already been paid for.
         """
+        if source.source.startswith("video:"):
+            from .video import store as video_store
+
+            held = video_store.english(source.source.split(":", 1)[1])
+            # Keyed by segment id, and the ids are the ones this document segments to —
+            # deterministic and blind to the source, which is what lets an English cut
+            # on a laptop go on fitting a document re-segmented on the box. A store
+            # whose text has moved under its translation fits nothing, and says so by
+            # matching no segment rather than by mispairing.
+            if held is None or not (set(held.segments) & {s.id for s in segmented.segments}):
+                return None
+            held.document_hash = segmented.document_hash
+            return held
         if not source.source.startswith("dialogue:"):
             return None
         from .dialogue import index as dialogue_index
@@ -1619,8 +1650,16 @@ class Build:
         document = self.ingest()
         plan = Plan(document=document)
         plan.segmented = self.segment(document)
-        plan.cached_translation = self.cached(plan.segmented) if self.machine else None
-        if self.machine and plan.cached_translation is None and hasattr(self.provider, "estimate"):
+        plan.carried = self.authored(document, plan.segmented)
+        plan.cached_translation = (
+            self.cached(plan.segmented) if self.machine and plan.carried is None else None
+        )
+        if (
+            self.machine
+            and plan.carried is None
+            and plan.cached_translation is None
+            and hasattr(self.provider, "estimate")
+        ):
             from .render.builder import split_sections
 
             buying = (
@@ -1719,9 +1758,21 @@ class Build:
         translations: list[Translation] = []
         # Before anything is bought: a dialogue carries its own English, so a build of one
         # spends nothing and needs no network.
-        written = self.authored(plan.document, segmented)
+        written = (
+            plan.carried if plan.carried is not None else self.authored(plan.document, segmented)
+        )
         if written is not None:
-            written.write(self.resolved_out / "translations" / "authored.en.json")
+            # Named for what it is. A dialogue's English was written by hand and lands as
+            # `authored.en.json`; a curated video's was bought from a model and lands
+            # under that model's name, the way a translation bought here would — so the
+            # file on disk does not claim a person wrote it, and `warm` and `rebuild`,
+            # which both read this directory and sort by provider, go on being right.
+            name = (
+                "authored.en.json"
+                if written.kind == "authored"
+                else f"{written.provider}.{written.style.value}.{written.target_language}.json"
+            )
+            written.write(self.resolved_out / "translations" / name)
             translations.append(written)
         if self.machine and written is None:
             translations.append(

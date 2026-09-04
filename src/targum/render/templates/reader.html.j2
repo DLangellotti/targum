@@ -587,7 +587,7 @@
       naming them. The text's own credit is on the library page; this one travels with
       the audio, because the audio is what can be saved and carried off. -#}
   {% if speech_credit %}
-  <p class="keys-credit">Read by {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
+  <p class="keys-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
   {% endif %}
   {#- Said once, here, rather than left for a reader to work out from a wrong card.
       The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is

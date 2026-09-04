@@ -196,6 +196,52 @@ def test_a_single_blocked_segment_is_named(monkeypatch: pytest.MonkeyPatch) -> N
         provider.translate(segments, "he", "en", Style.natural)
 
 
+def _refused() -> object:
+    return type("R", (), {"stop_reason": "refusal", "parsed_output": None})()
+
+
+def test_a_refused_batch_is_split_the_way_a_blocked_one_is() -> None:
+    """The model's own refusal is the filter's objection wearing another name.
+
+    It used to end the build and tell the reader to run it again, which could not help:
+    a refusal is what the model says about that batch every time. Twenty Khan Academy
+    videos went through this path and the twentieth died on one sentence about influenza.
+    """
+    segments = make_segments(4)
+    provider = AnthropicProvider(batch_size=4)
+    calls: list[int] = []
+
+    def parse(**kwargs: object) -> object:
+        body = str(kwargs.get("messages"))
+        asked = [s for s in segments if s.id in body]
+        calls.append(len(asked))
+        if len(asked) > 2:
+            return _refused()
+        return _ok({s.id: f"tr {s.text}" for s in asked})
+
+    install(provider, type("C", (), {"messages_parse": staticmethod(parse)})())
+    out = provider.translate(segments, "he", "en", Style.natural)
+
+    assert set(out) == {s.id for s in segments}
+    assert max(calls) == 4 and min(calls) == 2  # tried whole, then halves
+
+
+def test_a_single_refused_segment_is_named_and_says_who_refused() -> None:
+    """Named, so the sentence can be looked at — and distinguished from the filter's
+    refusal, because the two are answered by different people."""
+    segments = make_segments(1)
+    provider = AnthropicProvider(batch_size=1)
+
+    install(
+        provider,
+        type("C", (), {"messages_parse": staticmethod(lambda **kwargs: _refused())})(),
+    )
+    with pytest.raises(ProviderError) as caught:
+        provider.translate(segments, "he", "en", Style.natural)
+    assert segments[0].id in caught.value.message
+    assert "model declined" in caught.value.message
+
+
 # --- what a run will cost, before it is spent --------------------------------
 
 
