@@ -4445,6 +4445,62 @@ def test_every_press_of_the_corner_moves_the_picture_on_a_phone(browser, tmp_pat
         context.close()
 
 
+DOCK_GEOMETRY = """() => {
+  const panel = document.getElementById('video').getBoundingClientRect();
+  const film = document.querySelector('.video-el').getBoundingClientRect();
+  const glyph = document.querySelector('.video-tap-glyph').getBoundingClientRect();
+  const strip = document.getElementById('player').getBoundingClientRect();
+  return {
+    panelW: Math.round(panel.width),
+    filmW: Math.round(film.width),
+    glyphOff: Math.round((glyph.left + glyph.width / 2) - (film.left + film.width / 2)),
+    gapBelowStrip: Math.round(window.innerHeight - strip.bottom),
+    pictureTop: Math.round(panel.top),
+  };
+}"""
+
+
+def test_a_docked_picture_keeps_the_panel_and_the_foot(browser, tmp_path) -> None:
+    """Three things a phone found the hard way, in both docks.
+
+    The keys stand ON the picture, not beside it: as a flex item they took 140px of a
+    360px panel and the film was left 184px wide, 64px at the top. The tap glyph centres
+    on the film rather than on the panel, or it sits half the keys' width off. And a
+    picture docked at the TOP is not a foot occupant — its height went into `--occupant`
+    anyway and lifted the strip a third of the way up the window, with empty paper under
+    it and the text running behind.
+
+    Both docks, because the phone stylesheet had re-stated the two at the bottom and
+    forgotten the two at the top, which kept the wide window's 96px corner box on
+    specificity.
+    """
+    built = video_reader(tmp_path, lines=40)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        page.wait_for_selector("#video.watching")
+        page.click(".video-mode")
+        page.wait_for_timeout(450)
+        seen = []
+        for _ in range(2):
+            m = page.evaluate(DOCK_GEOMETRY)
+            seen.append(m)
+            assert m["panelW"] >= 320, f"the panel is full-bleed on a phone: {m}"
+            assert m["filmW"] >= m["panelW"] - 40, (
+                f"the keys stand on the picture, not beside it: {m}"
+            )
+            assert abs(m["glyphOff"]) <= 2, f"the tap glyph centres on the film: {m}"
+            page.click(".video-corner")
+            page.wait_for_timeout(450)
+        top_dock = min(seen, key=lambda m: m["pictureTop"])
+        assert top_dock["gapBelowStrip"] == 0, (
+            "a picture at the top does not lift the strip off the foot: " + str(top_dock)
+        )
+    finally:
+        context.close()
+
+
 def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
     """The note asked for a draggable player and the reason was real: a picture parked
     over the sentence being read. §12 answers it with a corner the layout keeps room

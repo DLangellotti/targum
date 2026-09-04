@@ -2981,17 +2981,33 @@ html:fullscreen { background: var(--paper); }
      rose by the picture's height and the picture rose by the strip's, so the strip came
      down inside the picture and the room saved under it was empty paper. One of the two
      offsets has to go, and it is this one: the band is what the rest of the foot obeys. */
-  /* --- the picture's keys, across rather than down ---
+  /* --- the picture's keys, over the picture rather than beside it ---
 
      Three 24px buttons in a column cannot each answer a 44px tap: that wants 132px and
-     the column has about 74, so the reach of each one ran into its neighbours and the
-     middle key answered over 34px. On a phone the panel is full-bleed, so there is
-     360px across and room for all three at full size with the picture still visible
-     behind them. */
+     the column has about 74, so each one's reach ran into its neighbours and the middle
+     key answered over 34px.
+
+     Laid across they fit, but as a flex item beside the picture they took 140px of a
+     360px panel and the picture was left 184px wide — 64px when docked at the top. So
+     they come out of the flow and stand ON the picture, which is where a picture's own
+     controls belong: the panel keeps its whole width for the film, and the keys are a
+     row in its corner at full size. */
+  /* No `position: relative` on the panel here: it is already `position: fixed`, which is
+     a containing block of its own, and relative would drop it out of the dock and into
+     the flow — it did, and the picture landed among the paragraphs. */
   .video-keys {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    z-index: 3;
     flex-direction: row;
     gap: 0.25rem;
-    align-self: flex-start;
+    padding: 0.25rem;
+    border-end-end-radius: 8px;
+    /* Over a film that may be bright or dark in the same second, so the keys carry
+       their own ground rather than trusting the frame behind them. */
+    background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
+    backdrop-filter: blur(4px);
   }
   .video-close,
   .video-mode,
@@ -3003,6 +3019,16 @@ html:fullscreen { background: var(--paper); }
   .video.dock-bottom-end,
   .video.dock-bottom-start {
     inset-block: auto 0;
+    inset-inline: 0;
+  }
+  /* And the two at the top, which this block had forgotten. `.video.dock-top-*` carries
+     two classes and the band sheet's `.video` carries one, so the wide window's narrow
+     corner box won on specificity however late the sheet was written — a picture docked
+     at the top of a phone drew 96px wide with a 64px film in it. Full-bleed, like the
+     two below. */
+  .video.dock-top-end,
+  .video.dock-top-start {
+    inset-block: 0 auto;
     inset-inline: 0;
   }
 
