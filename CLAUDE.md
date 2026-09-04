@@ -30,6 +30,20 @@ correct them back.
 — all four, as CI runs them. Note `.venv/bin/*` shebangs are stale on this machine, so
 `.venv/bin/python -m pytest` works where `uv run pytest` may not.
 
+**From a git worktree, point `PYTHONPATH` at that worktree's `src`.** `.venv` holds an
+editable install addressing the main checkout, so a run started in a worktree imports
+`targum` from the main checkout and tests code you did not edit — a browser test there
+serves the unedited JS and CSS, and the dangerous version is the run that passes.
+`tests/conftest.py` now refuses to start on it and prints the command, so it cannot
+happen by accident; the command is
+
+```
+PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
+```
+
+which also drops the gitignored private half from the import path, so the skips match
+what CI's public checkout sees.
+
 ## The API key is in `.env`, and nothing loads it for you
 
 `ANTHROPIC_API_KEY` lives in `.env` (gitignored, never committed). Neither `uv run` nor

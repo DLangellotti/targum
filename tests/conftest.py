@@ -19,7 +19,67 @@ FIXTURES = Path(__file__).parent / "fixtures"
 DECLARATION = FIXTURES / "texts" / "il-declaration-1948.he.md"
 
 
+#: This checkout — the tree these tests are part of. Read off conftest's own address
+#: rather than off pytest's rootdir, because what the guard below asks is whether the
+#: package and the tests came out of the same tree, and this file is unambiguously in one.
+CHECKOUT = Path(__file__).resolve().parent.parent
+
+#: Run against whatever `targum` the environment hands over, deliberately. Nothing in the
+#: repository sets it; it is here so the guard is a loud wrong answer to argue with rather
+#: than a wall to take apart.
+ANY_PACKAGE = "TARGUM_TEST_ANY_PACKAGE"
+
+
+def _the_package_under_test_is_this_checkout() -> None:
+    """Fail loudly when the tests and the package they import come from different trees.
+
+    `.venv` holds an editable install pointing at the main checkout, so a pytest run
+    started inside a git worktree imports `targum` from the main checkout and not from
+    the worktree. Nothing warned. Anything read by path is unaffected — a `scripts/`
+    module loaded with `importlib` reads the worktree's copy — but everything that goes
+    through the package is not, and a reader page is built from
+    `src/targum/render/assets/`, so a browser test in a worktree serves the unedited JS
+    and CSS.
+
+    It cost about six rounds of debugging on targum#76: an edit to `reader.js` looked
+    like dead code, and every observation about it was true of the file the browser had
+    actually loaded. That is the mild version. The dangerous one is the inverse — a
+    worktree run that *passes* because it tested the main checkout's unmodified code,
+    and the change ships untested. Nothing else in the repository would catch that.
+
+    The failure this replaces pointed the wrong way: it looked like a bug in the change
+    rather than in the run. This one names both trees and what to type
+    (targum-internal#181).
+    """
+    if os.environ.get(ANY_PACKAGE):
+        return
+    import targum
+
+    where = Path(targum.__file__ or "").resolve()
+    if CHECKOUT in where.parents:
+        return
+    raise pytest.UsageError(
+        f"the tests are in {CHECKOUT}, but `targum` was imported from {where}.\n"
+        "\n"
+        "A run started inside a git worktree picks up the editable install, which points\n"
+        "at the main checkout — so the package under test is not the one you edited, and\n"
+        "a browser test serves the unedited JS and CSS. The run then passes or fails for\n"
+        "reasons that have nothing to do with the change, and the dangerous case is the\n"
+        "one that passes.\n"
+        "\n"
+        "Run it against this checkout:\n"
+        "\n"
+        f"    PYTHONPATH={CHECKOUT / 'src'} .venv/bin/python -m pytest ...\n"
+        "\n"
+        "That also drops the gitignored private half from the import path, so the skips\n"
+        "match what CI's public checkout sees.\n"
+        "\n"
+        f"Set {ANY_PACKAGE}=1 to run against the imported package on purpose."
+    )
+
+
 def pytest_configure(config: pytest.Config) -> None:
+    _the_package_under_test_is_this_checkout()
     config.addinivalue_line("markers", "stanza: needs a downloaded Stanza model")
     config.addinivalue_line("markers", "network: reaches a real site; off unless asked")
     config.addinivalue_line("markers", "benchmark: scores the aligner; off unless asked")
