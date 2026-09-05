@@ -1399,12 +1399,16 @@ def test_a_rebuild_asked_to_buy_fills_what_the_cache_lacks(tmp_path) -> None:  #
 
 class ReadsAramaic(FakeLemmatizer):
     """A lemmatizer that can read one language other than the document's, the way the
-    scripture path reads the Aramaic of Daniel and Ezra."""
+    scripture path reads the Aramaic of Daniel and Ezra.
+
+    Asked about the block rather than its language, because that is the question: the
+    scripture path can read Daniel's Aramaic and not Onkelos's, and both are `arc`.
+    """
 
     name = "reads-arc/1"
 
-    def reads(self, language: str) -> bool:
-        return language.split("-")[0].lower() == "arc"
+    def reads(self, segment: Segment) -> bool:
+        return (segment.language or "").split("-")[0].lower() == "arc"
 
 
 def test_a_block_in_another_language_is_read_where_something_can_read_it() -> None:

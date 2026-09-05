@@ -325,19 +325,24 @@ class ScriptureLemmatizer:
         """
         return f"oshb/5+{self.fallback.name}"
 
-    def reads(self, language: str) -> bool:
-        """Whether a block in this language can be looked up rather than guessed at.
+    def reads(self, segment: Segment) -> bool:
+        """Whether this block can be looked up here rather than guessed at.
 
-        Aramaic, and only where the tagging is on disk. Daniel and Ezra switch into it
-        mid-book, and Open Scriptures tags those chapters exactly as it tags the Hebrew
-        around them — every word of Daniel's Aramaic carries a lexeme number, and Strong's
-        numbers the two registers apart, `4430` being the Aramaic king against the Hebrew
-        `4428`. So `unread` can let it through to here (targum-internal#64, #195).
+        Aramaic, and only where the tagging actually covers the verse. Daniel and Ezra
+        switch into it mid-book and Open Scriptures tags those chapters exactly as it
+        tags the Hebrew around them — every word of Daniel's Aramaic carries a lexeme
+        number, and Strong's numbers the registers apart, `4430` being the Aramaic king
+        against the Hebrew `4428`. So `unread` can let those through (#64, #195).
 
-        A box without the tagging says no, and gets the blank page it had before, which
-        is the honest answer when nothing can read the words.
+        The reference is checked and not just the language, because most Aramaic is not
+        in the Hebrew Bible. Targum Onkelos is Aramaic and this file knows nothing about
+        it; answering "yes, Aramaic" would let a whole book through to a lookup that
+        cannot place a word of it, and it would come out blank with nothing saying why.
+        Its register is the Talmudic one and its dictionary is Jastrow (#65, #67).
         """
-        return language.split("-")[0].lower() == "arc" and oshb.available()
+        if (segment.language or "").split("-")[0].lower() != "arc":
+            return False
+        return bool(oshb.available() and oshb.osis(segment.ref))
 
     def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
         looked_up: dict[str, list[Token]] = {}
@@ -346,12 +351,17 @@ class ScriptureLemmatizer:
             found = self._verse(segment) if language.split("-")[0].lower() == "he" else None
             if found is not None:
                 looked_up[segment.id] = found
-            elif self.reads(segment.language or ""):
+            elif (segment.language or "").split("-")[0].lower() == "arc":
                 # Aramaic the tagging could not line up — a different edition's verse
                 # numbering, which is 14 of Daniel's 200. It does not go to the fallback:
                 # that is a Hebrew model, and handing it Aramaic is the exact harm
                 # `unread` was written to stop. Better a gap in a page that is otherwise
                 # right than a card that lies.
+                #
+                # The language and not `reads` here: `reads` asks whether this block can
+                # be *looked up*, and the answer for these is no, which is how they got
+                # here. The question at this point is the other one — whether the
+                # fallback would be reading a language it does not know.
                 continue
             else:
                 left.append(segment)

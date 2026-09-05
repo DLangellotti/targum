@@ -81,17 +81,23 @@ NO_METHOD = "none"
 LANGUAGES = "languages/2"
 
 
-def reads(lemmatizer: object | None, language: str) -> bool:
-    """Whether this lemmatizer says it can read a language that is not the document's.
+def reads(lemmatizer: object | None, segment: Segment) -> bool:
+    """Whether this lemmatizer says it can read this particular block.
 
     Asked of the object rather than declared on the protocol, because it is true of one
     implementation and false of every other: `ScriptureLemmatizer` can read the Aramaic
     of Daniel and Ezra because the Open Scriptures tagging covers it word for word, and
     nothing else here can read anything but the language it was built for. A lemmatizer
     that does not answer is one that cannot.
+
+    Asked about the *block* and not merely its language, because the two are different
+    questions and answering the easier one is how a text goes silently blank. Targum
+    Onkelos is Aramaic and the tagging does not cover a word of it: a lemmatizer that
+    said "yes, Aramaic" would be let through and would then produce nothing at all, for
+    a whole book, with nothing anywhere saying why.
     """
     ask = getattr(lemmatizer, "reads", None)
-    return bool(ask(language)) if callable(ask) else False
+    return bool(ask(segment)) if callable(ask) else False
 
 
 def unread(segment: Segment, document_language: str, lemmatizer: object | None = None) -> bool:
@@ -111,10 +117,9 @@ def unread(segment: Segment, document_language: str, lemmatizer: object | None =
     rather than guessed at, and a blank page is now the worse answer of the two. A
     lemmatizer that cannot read the block still gets nothing, which is every other case.
     """
-    other = segment.language_in(document_language)
-    if other == document_language:
+    if segment.language_in(document_language) == document_language:
         return False
-    return not reads(lemmatizer, other)
+    return not reads(lemmatizer, segment)
 
 
 def highlight_levels() -> list[dict[str, object]]:

@@ -376,10 +376,28 @@ def test_the_scripture_path_says_which_other_language_it_can_read(tagged: Path) 
     Scriptures tagging covers those chapters word for word, so `unread` can let it
     through to here rather than leaving the page blank (targum-internal#64, #195)."""
     lemmatizer = ScriptureLemmatizer(Stub())
-    assert lemmatizer.reads("arc") is True
-    assert lemmatizer.reads("arc-Hebr") is True, "a script subtag is still Aramaic"
+
+    def block(language: str, ref: str = "Daniel 2:4") -> Segment:
+        return Segment(
+            id="s1",
+            text="מלכא",
+            ref=ref,
+            kind="paragraph",
+            block_id="b1",
+            block_index=1,
+            index=0,
+            language=language,
+        )
+
+    assert lemmatizer.reads(block("arc")) is True
+    assert lemmatizer.reads(block("arc-Hebr")) is True, "a script subtag is still Aramaic"
     for other in ("ru", "en", "yi", "he"):
-        assert lemmatizer.reads(other) is False, other
+        assert lemmatizer.reads(block(other)) is False, other
+
+    assert lemmatizer.reads(block("arc", "Onkelos Genesis 1:1")) is False, (
+        "Aramaic the tagging does not cover at all — answering yes would let a whole "
+        "book through to a lookup that cannot place a word of it"
+    )
 
 
 def test_without_the_tagging_it_offers_to_read_nothing(
@@ -390,7 +408,17 @@ def test_without_the_tagging_it_offers_to_read_nothing(
     Hebrew model, which is the whole harm `unread` exists to prevent."""
     monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
     oshb.forget()
-    assert ScriptureLemmatizer(Stub()).reads("arc") is False
+    blank = Segment(
+        id="s1",
+        text="מלכא",
+        ref="Daniel 2:4",
+        kind="paragraph",
+        block_id="b1",
+        block_index=1,
+        index=0,
+        language="arc",
+    )
+    assert ScriptureLemmatizer(Stub()).reads(blank) is False
     oshb.forget()
 
 
