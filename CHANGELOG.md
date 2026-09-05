@@ -74,6 +74,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   turn's seconds land in the same monthly sum a recording's do, the refusal at the cap
   names audio and conversation together and the date they return, and the chat page shows
   the hours used beside the list before the cap is met.
+- And a conversation can be read back as a targum. Ask to keep it and the chat writes it
+  down in your own home as a `.chat` file — always Hebrew on both sides, because every
+  reply now opens with your own line recast into Hebrew (as you wrote it if it was right,
+  corrected if not, translated if you wrote in English) with your words as its English —
+  and prices reading it back on the same card a build gets. The English is carried, so
+  nothing is bought for translation; the words are glossed like any text's and land on
+  your ledger. It is addressed by path, never a scheme: `dialogue:` and every public
+  prefix share a cache with no owner on the key, and a conversation filed under one would
+  have been reachable from another account. The shelf files it as a dialogue, and a
+  conversation is never proposed for the catalogue.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
