@@ -307,3 +307,51 @@ def test_a_quote_reaches_the_page_as_its_own_event(tmp_path: Path, monkeypatch: 
     quotes = [json.loads(data) for kind, data in feed.events if kind == "quote"]
     assert len(quotes) == 1 and quotes[0]["segments"] == 12 and quotes[0]["stage"] == "ready"
     assert store.committed(0) == 0.0, "quoting spends nothing"
+
+
+def test_web_search_rides_along_only_when_asked_and_is_counted(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The API runs the search, not us: a `server_tool_use` block is never dispatched as a
+    tool of ours, and it is counted on its own axis so the turn settles for what it cost."""
+    library, store = world(tmp_path)
+    plain = tools.anthropic_tools()
+    assert all("type" not in tool for tool in plain)
+    searching = tools.anthropic_tools(web_search=True)
+    assert searching[-1]["type"] == "web_search_20260209" and searching[-1]["allowed_domains"]
+    assert searching[-1]["max_uses"] == tools.WEB_SEARCH_USES
+
+    client = Script(
+        [
+            reply(
+                [
+                    {
+                        "type": "server_tool_use",
+                        "id": "s1",
+                        "name": "web_search",
+                        "input": {"query": "kan"},
+                    },
+                    {"type": "web_search_tool_result", "tool_use_id": "s1", "content": []},
+                    {"type": "text", "text": "Found two."},
+                ]
+            )
+        ]
+    )
+    feed = session_module.Feed()
+    usage = session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "x"}],
+        feed,
+        lambda *_: None,
+        web_search=True,
+    )
+    assert usage.searches == 1 and usage.cost() > 0
+    assert len(client.requests) == 1, "a server tool needs no round trip of ours"
+    assert client.requests[0]["tools"][-1]["name"] == "web_search"
+    assert [kind for kind, _ in feed.events if kind == "tool"] == ["tool"]
+
+    monkeypatch.delenv("TARGUM_WEB_SEARCH", raising=False)
+    assert session_module.Chats(library, store, client_factory=lambda: client).web_search is False
+    monkeypatch.setenv("TARGUM_WEB_SEARCH", "1")
+    assert session_module.Chats(library, store, client_factory=lambda: client).web_search is True

@@ -519,3 +519,15 @@ def test_a_reader_may_upload_text_all_month_without_a_ceiling(tmp_path: Path) ->
             )
 
     assert not hasattr(library, "month_budget"), "no per-reader monthly ceiling exists"
+
+
+def test_a_search_is_bought_per_search_and_counted() -> None:
+    from targum.translate.anthropic_provider import SEARCH_PRICE
+
+    spent = Usage()
+    spent.add_search()
+    spent.add_search()
+    assert spent.searches == 2 and abs(spent.cost() - 2 * SEARCH_PRICE) < 1e-9
+    assert spent.state()["searches"] == 2
+    assert (spent + Usage()).searches == 2
+    assert "searches" not in Usage().state(), "absent rather than zero"

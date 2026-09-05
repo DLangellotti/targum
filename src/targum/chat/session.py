@@ -15,6 +15,7 @@ tab that reconnects and a restart that lost the feed both find the same answer.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import threading
 from collections.abc import Callable
@@ -97,6 +98,8 @@ def run_turn(
     history: list[dict[str, Any]],
     feed: Feed,
     keep: Callable[[str, list[dict[str, Any]], str], None],
+    *,
+    web_search: bool = False,
 ) -> Usage:
     """Answer the last user message in `history`, streaming into `feed`.
 
@@ -117,7 +120,7 @@ def run_turn(
                 {"type": "text", "text": prompts.ledger(ctx.level)},
             ],
             output_config={"effort": EFFORT},
-            tools=tools_module.anthropic_tools(),
+            tools=tools_module.anthropic_tools(web_search=web_search),
             messages=messages,
         ) as stream:
             for event in stream:
@@ -134,6 +137,12 @@ def run_turn(
                 int(getattr(got, "output_tokens", 0) or 0),
             )
         blocks = _content(reply)
+        # A search the API ran on the turn's behalf is billed per search, not per token,
+        # so it is counted on its own axis and priced with the rest of the receipt.
+        for block in blocks:
+            if block.get("type") == "server_tool_use" and block.get("name") == "web_search":
+                usage.add_search()
+                feed.put("tool", {"name": "web_search"})
         messages.append({"role": "assistant", "content": blocks})
         keep("assistant", blocks, _said(blocks))
         stop = getattr(reply, "stop_reason", "end_turn")
@@ -192,9 +201,18 @@ class Chats:
         *,
         usable: bool = True,
         client_factory: ClientFactory | None = None,
+        web_search: bool | None = None,
     ) -> None:
         self.library = library
         self.store = store
+        #: Whether the server-side search rides along. Off unless the box says so: a
+        #: search is a purchase the reader did not ask for by name, and a box with no
+        #: publishers registered has nowhere for it to look.
+        self.web_search = (
+            web_search
+            if web_search is not None
+            else os.environ.get("TARGUM_WEB_SEARCH", "").strip().lower() in ("1", "true", "yes")
+        )
         #: Whether anything can be asked at all — false with no API key, and the page is
         #: told so before it tries rather than after.
         self.usable = usable
@@ -320,7 +338,7 @@ class Chats:
             store.chat_say(asked.chat_id, role, content, said, stage="done")
 
         try:
-            spent = run_turn(self.client(), ctx, history, feed, keep)
+            spent = run_turn(self.client(), ctx, history, feed, keep, web_search=self.web_search)
             job.spent = spent.cost()
             job.stage = "done"
             self.library.settle(job)

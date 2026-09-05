@@ -33,6 +33,10 @@ PRICES: dict[str, tuple[float, float]] = {
     "claude-haiku-4-5": (1.0, 5.0),
 }
 
+#: USD per web search, when the chat is allowed one. Billed per search on top of the
+#: tokens the results cost, which is why `Usage` counts searches on their own axis.
+SEARCH_PRICE = 0.01
+
 MAX_ATTEMPTS = 3
 
 

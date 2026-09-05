@@ -325,3 +325,199 @@ def now_ms() -> int:
     from targum.accounts import now
 
     return now()
+
+
+# -- finding things out there ----------------------------------------------------------
+
+
+def test_a_video_is_described_from_metadata_and_never_refused_on_licence(
+    world, monkeypatch
+) -> None:
+    from targum.video import youtube
+
+    monkeypatch.setattr(
+        youtube,
+        "describe",
+        lambda url: {
+            "title": "שיעור על הלב",
+            "duration": 1500,
+            "webpage_url": url,
+            "license": "Creative Commons Attribution license (reuse allowed)",
+            "formats": [{"acodec": "mp4a", "language": "he", "language_preference": 10}],
+            "subtitles": {"he": []},
+        },
+    )
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.describe_source(ctx, {"url": "https://www.youtube.com/watch?v=abc123"})
+    assert got["kind"] == "video" and got["title"] == "שיעור על הלב"
+    assert got["hebrew_subtitles"] is True and got["audio_language"] == "he"
+    assert got["hours"] == 0.42 and got["quote_with"] == "https://www.youtube.com/watch?v=abc123"
+    assert got["licence_standing"] == "owed" and got["corpus_exportable"] is True
+    assert "never here" in got["licence_note"]
+
+
+def test_a_video_without_hebrew_subtitles_is_advised_not_refused(world, monkeypatch) -> None:
+    from targum.video import youtube
+
+    monkeypatch.setattr(
+        youtube,
+        "describe",
+        lambda url: {
+            "title": "x",
+            "duration": 600,
+            "formats": [{"acodec": "a", "language": "en"}],
+            "subtitles": {},
+        },
+    )
+    library, store, person, home = world
+    got = tools.describe_source(
+        context(library, store, person, home), {"url": "https://youtu.be/abc123"}
+    )
+    assert "error" not in got
+    assert any("transcribed" in line for line in got["advice"])
+    assert any("tagged en" in line for line in got["advice"])
+    assert got["licence_standing"] == "unknown", "recorded as unknown, and still described"
+
+
+def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
+    from targum.audio import episode
+    from targum.ingest import url as url_module
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    monkeypatch.setattr(
+        episode,
+        "find",
+        lambda url: episode.Episode(
+            audio_url=url, title="פרק 3", seconds=1800, transcript_url="https://x/t.srt"
+        ),
+    )
+    got = tools.describe_source(ctx, {"url": "https://podcast.example/ep3"})
+    assert got["kind"] == "recording" and got["hours"] == 0.5 and got["has_transcript"] is True
+    assert "nothing is transcribed" in got["advice"][0]
+
+    monkeypatch.setattr(episode, "find", lambda url: None)
+    page = (
+        "<html><title> מאמר  על הים </title><body>"
+        + "<p>"
+        + " ".join(["שלום"] * 200)
+        + "</p></body></html>"
+    )
+    monkeypatch.setattr(
+        url_module, "fetch", lambda url: url_module.Fetched(text=page, content_type="text/html")
+    )
+    got = tools.describe_source(ctx, {"url": "https://news.example/a"})
+    assert got["kind"] == "article" and got["title"] == "מאמר על הים"
+    # The extractor keeps the page's title as a paragraph too, so a few over two hundred.
+    assert 200 <= got["words"] <= 210 and got["minutes"] == 2 and got["hebrew_share"] == 1.0
+    assert got["advice"] == []
+
+
+def test_what_describe_refuses_is_the_door_not_the_licence(world, monkeypatch) -> None:
+    from targum.audio import episode
+    from targum.errors import UnsupportedSource
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    assert "link" in tools.describe_source(ctx, {"url": "just words"})["error"]
+    assert "Give a link" in tools.describe_source(ctx, {})["error"]
+    assert tools.describe_source(ctx, {"url": "gutenberg:1234"})["kind"] == "fetcher"
+
+    def spotify(url: str) -> None:
+        raise UnsupportedSource("Spotify does not hand out its audio.", "Find the show's own feed.")
+
+    monkeypatch.setattr(episode, "find", spotify)
+    got = tools.describe_source(ctx, {"url": "https://open.spotify.com/episode/x"})
+    assert got["error"].startswith("Spotify") and "feed" in got["error"]
+
+
+def test_a_private_address_is_refused_by_the_fetch_door(world) -> None:
+    """The SSRF guard is the one control a model choosing addresses makes primary."""
+    library, store, person, home = world
+    got = tools.describe_source(
+        context(library, store, person, home), {"url": "http://127.0.0.1:8420/health"}
+    )
+    assert "private network" in got["error"], "the fetch door's own refusal, in its words"
+
+
+def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path) -> None:
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {
+                        "key": "kan",
+                        "name": "כאן",
+                        "publisher": "Kan",
+                        "feed": "https://kan.example/rss",
+                        "kind": "news",
+                    },
+                    {
+                        "key": "pod",
+                        "name": "Pod",
+                        "feed": "https://pod.example/rss",
+                        "kind": "podcast",
+                    },
+                    {
+                        "key": "dead",
+                        "name": "Dead",
+                        "feed": "https://dead.example/rss",
+                        "kind": "news",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        from targum.errors import TargumError
+
+        if "dead" in url:
+            raise TargumError("Could not fetch")
+        if "pod" in url:
+            return [
+                feeds.Item(
+                    title="על הים",
+                    link="https://pod.example/3",
+                    published=datetime(2026, 9, 1, tzinfo=UTC),
+                    enclosure="https://pod.example/3.mp3",
+                    seconds=1800,
+                    transcript="https://pod.example/3.srt",
+                )
+            ]
+        return [
+            feeds.Item(
+                title="חדשות הים",
+                link="https://kan.example/1",
+                published=datetime(2026, 9, 4, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="ספורט",
+                link="https://kan.example/2",
+                published=datetime(2026, 9, 5, tzinfo=UTC),
+            ),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.search_sources(ctx, {"query": "הים"})
+    assert [row["link"] for row in got["items"]] == [
+        "https://kan.example/1",
+        "https://pod.example/3",
+    ], "newest first"
+    assert got["items"][1]["has_transcript"] is True and got["items"][1]["seconds"] == 1800
+    assert got["unreachable"] == ["dead"]
+    assert tools.search_sources(ctx, {"kind": "podcast"})["count"] == 1
+
+    monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
+    assert "No publishers" in tools.search_sources(ctx, {})["note"]

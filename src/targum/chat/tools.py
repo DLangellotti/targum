@@ -23,6 +23,7 @@ is drawn before the first tool needs it.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -34,6 +35,7 @@ from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from ..level import Level
 from ..usage import Usage
+from . import sources as sources_module
 
 if TYPE_CHECKING:
     from ..accounts import Person, Store
@@ -447,6 +449,215 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# -- finding things out there -----------------------------------------------------------
+
+#: Hebrew letters, for saying how much of a page is Hebrew before anybody pays to read it.
+_HEBREW = frozenset(chr(code) for code in range(0x05D0, 0x05EB))
+
+#: How many searches one turn may make. Three is a question answered; more is browsing.
+WEB_SEARCH_USES = 3
+
+
+def _hebrew_share(text: str) -> float:
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(1 for ch in letters if ch in _HEBREW) / len(letters)
+
+
+def _licence_row(licence: str) -> dict[str, Any]:
+    """The licence as stated, and what it means — recorded, never a refusal here."""
+    from ..licensing import verdict
+
+    call = verdict(licence)
+    return {
+        "licence": licence,
+        "licence_standing": call.standing.value,
+        "corpus_exportable": call.exportable,
+        "licence_note": (
+            "Fine for the reader's own shelf; whether it may ever join the library is a "
+            "separate question, decided at promotion and never here."
+        ),
+    }
+
+
+def describe_source(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """What is at the other end of a link, before anything is priced or fetched whole.
+
+    Metadata only: a video is asked what yt-dlp knows without fetching it, a podcast
+    page is read for its episode, an article is read once through the same door with
+    the same size cap and SSRF guard every fetch here passes. The licence is recorded
+    and the screen's flags are advice in the quote — neither refuses a reader their own
+    import (targum-internal#126). What refuses is the fetch door itself: a private
+    address, a page over the cap, a source the ingester does not read.
+    """
+    from ..audio import episode as episode_module
+    from ..errors import TargumError, UnsupportedSource
+    from ..ingest import fetch as fetchers
+    from ..ingest import url as url_module
+    from ..video import youtube as youtube_module
+
+    url = str(args.get("url") or "").strip()
+    if not url:
+        return {"error": "Give a link."}
+    if fetchers.is_identifier(url):
+        scheme = url.partition(":")[0].lower()
+        return {
+            "kind": "fetcher",
+            "scheme": scheme,
+            "note": f"A {scheme} identifier — a public-domain source targum reads directly. "
+            "Quote it as it is.",
+            "quote_with": url,
+        }
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return {"error": "That is not a link targum can follow."}
+
+    if youtube_module.is_youtube(url):
+        from .. import screen as screen_module
+
+        try:
+            info = youtube_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": error.message}
+        media = screen_module.from_ytdlp(info)
+        heard = media.audio[0] if media.audio else ""
+        subtitled = any(screen_module.same_language(tag, "he") for tag in media.subtitles)
+        advice: list[str] = []
+        if not subtitled:
+            advice.append(
+                "No written Hebrew subtitles: the recording would be transcribed, and the "
+                "hours count against the audio allowance."
+            )
+        else:
+            advice.append("Has Hebrew subtitles somebody wrote, so nothing is transcribed.")
+        if media.audio and not any(screen_module.same_language(t, "he") for t in media.audio):
+            advice.append(f"The audio track is tagged {heard}, not Hebrew.")
+        elif not media.audio:
+            advice.append("The audio track carries no language tag.")
+        return {
+            "kind": "video",
+            "title": media.title,
+            "seconds": round(media.duration),
+            "hours": round(media.duration / 3600, 2),
+            "audio_language": heard,
+            "hebrew_subtitles": subtitled,
+            "advice": advice,
+            "quote_with": youtube_module.watch_url(url) or url,
+            **_licence_row(media.licence),
+        }
+
+    try:
+        found = episode_module.find(url)
+    except UnsupportedSource as refusal:
+        return {"error": f"{refusal.message} {refusal.hint or ''}".strip()}
+    except TargumError as error:
+        return {"error": error.message}
+    if found is not None:
+        return {
+            "kind": "recording",
+            "title": found.title,
+            "seconds": round(found.seconds),
+            "hours": round(found.seconds / 3600, 2) if found.seconds else None,
+            "has_transcript": bool(found.transcript_url),
+            "advice": [
+                "Its own transcript comes with it, so nothing is transcribed."
+                if found.transcript_url
+                else "It would be transcribed; the hours count against the audio allowance."
+            ],
+            "quote_with": url,
+            **_licence_row(""),
+        }
+
+    try:
+        got = url_module.fetch(url)
+    except TargumError as error:
+        return {"error": error.message}
+    if not got.is_html:
+        return {
+            "kind": "file",
+            "content_type": got.content_type,
+            "note": "Not a page. If it is a text or a recording, quote the link and the "
+            "ingester will say whether it reads it.",
+            "quote_with": url,
+        }
+    from ..ingest.htmltext import paragraphs_from_html
+
+    # A paragraph here is `(kind, level, text)`, the ingester's own shape.
+    body = "\n".join(text for _, _, text in paragraphs_from_html(got.text))
+    words = len(body.split())
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", got.text, re.S | re.I)
+    title = re.sub(r"\s+", " ", title_match.group(1)).strip() if title_match else ""
+    share = _hebrew_share(body)
+    advice = []
+    if share < 0.5:
+        advice.append(f"Only {round(share * 100)}% of the letters on the page are Hebrew.")
+    if words < 80:
+        advice.append("Very little text was found on the page.")
+    return {
+        "kind": "article",
+        "title": title,
+        "words": words,
+        "minutes": max(1, round(words / 130)),
+        "hebrew_share": round(share, 2),
+        "advice": advice,
+        "quote_with": url,
+        **_licence_row(""),
+    }
+
+
+def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """What the publishers this box knows have published lately, matched to a query.
+
+    Feeds are pulled through the one outbound door and read by `weekly/feeds.py`; a
+    feed that will not answer is noted and skipped rather than failing the search.
+    """
+    from ..errors import TargumError
+    from ..weekly import feeds
+
+    query = str(args.get("query") or "").lower().split()
+    kind = str(args.get("kind") or "")
+    limit = max(1, min(int(args.get("limit") or 10), 30))
+    publishers = [
+        one for one in sources_module.load() if one.feed and (not kind or one.kind == kind)
+    ]
+    if not publishers:
+        return {
+            "count": 0,
+            "items": [],
+            "note": "No publishers with feeds are registered on this box.",
+        }
+    items: list[dict[str, Any]] = []
+    skipped: list[str] = []
+    for publisher in publishers:
+        try:
+            pulled = feeds.pull(publisher.feed, limit=15)
+        except TargumError:
+            skipped.append(publisher.key)
+            continue
+        for item in pulled:
+            haystack = f"{item.title} {item.summary}".lower()
+            if query and not all(word in haystack for word in query):
+                continue
+            items.append(
+                {
+                    "title": item.title,
+                    "link": item.link,
+                    "publisher": publisher.publisher or publisher.name,
+                    "kind": publisher.kind,
+                    "published": item.published.isoformat() if item.published else "",
+                    "seconds": round(item.seconds) if item.seconds else 0,
+                    "has_transcript": bool(item.transcript),
+                    "licence": publisher.licence,
+                }
+            )
+    items.sort(key=lambda row: str(row["published"]), reverse=True)
+    out: dict[str, Any] = {"count": len(items), "items": items[:limit]}
+    if skipped:
+        out["unreachable"] = skipped
+    return out
+
+
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
@@ -547,6 +758,29 @@ REGISTRY: tuple[Tool, ...] = (
         quote_build,
     ),
     Tool(
+        "describe_source",
+        "What is at a link before it is quoted: a YouTube video (length, audio language, "
+        "whether it has Hebrew subtitles somebody wrote), a podcast episode (length, whether "
+        "a transcript comes with it), or an article (words, minutes, how much is Hebrew). "
+        "The licence is recorded, never a refusal. Metadata only; nothing is fetched whole.",
+        _schema({"url": {"type": "string"}}, ("url",)),
+        describe_source,
+    ),
+    Tool(
+        "search_sources",
+        "What the Hebrew publishers this box knows have published lately, matched to words "
+        "in the title or summary. News, podcasts and videos, newest first, each with its "
+        "link to describe or quote.",
+        _schema(
+            {
+                "query": {"type": "string"},
+                "kind": {"type": "string", "enum": list(sources_module.KINDS)},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 30},
+            }
+        ),
+        search_sources,
+    ),
+    Tool(
         "my_hours",
         "How much of this month's audio allowance the reader has used, in hours, and when "
         "it returns. Never money.",
@@ -564,12 +798,28 @@ REGISTRY: tuple[Tool, ...] = (
 BY_NAME: dict[str, Tool] = {tool.name: tool for tool in REGISTRY}
 
 
-def anthropic_tools() -> list[dict[str, Any]]:
-    """The registry in the shape the Messages API takes."""
-    return [
+def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
+    """The registry in the shape the Messages API takes.
+
+    With `web_search`, Anthropic's server-side search rides along, held to the hosts in
+    `sources.allowed_domains()`. The model does not run it and neither do we: the API
+    does, and what it finds comes back as blocks in the reply. Anything it surfaces is
+    still described and quoted through the same doors as a pasted link.
+    """
+    tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
         for tool in REGISTRY
     ]
+    if web_search:
+        tools.append(
+            {
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": WEB_SEARCH_USES,
+                "allowed_domains": sources_module.allowed_domains(),
+            }
+        )
+    return tools
 
 
 def run(name: str, args: dict[str, Any], ctx: Ctx) -> tuple[str, bool]:
