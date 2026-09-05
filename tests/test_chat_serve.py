@@ -13,6 +13,7 @@ from collections.abc import Iterator
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -70,8 +71,9 @@ def call(
     connection.close()
     try:
         return response.status, json.loads(raw), response
-    except json.JSONDecodeError:
-        return response.status, raw.decode("utf-8", "replace"), response
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        # A page, or a clip: not JSON, and a clip is not text either.
+        return response.status, raw, response
 
 
 def test_the_page_and_the_list_answer_behind_the_key(chatting) -> None:
@@ -218,3 +220,143 @@ def test_the_list_carries_the_hours_and_a_line_can_switch_the_mode(chatting) -> 
     )
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "find", "an unknown mode changes nothing"
+
+
+# -- push-to-talk ------------------------------------------------------------------
+
+
+class Heard:
+    """A transcriber that hears what the test says it should."""
+
+    name = "test/ears"
+    model = "ears"
+    needs_key = False
+
+    def __init__(self, text: str = "שלום לך") -> None:
+        from targum.usage import Usage
+
+        self.text = text
+        self.spent = Usage()
+        self.heard: list[Path] = []
+
+    def available(self) -> tuple[bool, str]:
+        return True, self.model
+
+    def price_per_minute(self) -> float:
+        return 0.006
+
+    def transcribe(self, audio: Path, language: str = "", on_progress: Any = None) -> Any:
+        self.heard.append(audio)
+        self.spent.add_seconds(self.name, 4.0)
+        return SimpleNamespace(words=[SimpleNamespace(text=w) for w in self.text.split()])
+
+
+def test_a_spoken_line_is_written_down_metered_once_and_asked(chatting, monkeypatch: Any) -> None:
+    from targum import transcribe
+    from targum.audio import probe
+
+    port, key, store, chats = chatting
+    ears = Heard()
+    monkeypatch.setattr(transcribe, "build", lambda name, **options: ears)
+    monkeypatch.setattr(
+        probe, "examine", lambda path, allow_video=False: SimpleNamespace(duration=4.0)
+    )
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request(
+        "POST",
+        f"/chat/hear?chat=&mode=talk&k={key}",
+        body=b"\x1aE\xdf\xa3 fake webm",
+        headers={"Content-Type": "audio/webm"},
+    )
+    response = connection.getresponse()
+    answer = json.loads(response.read())
+    connection.close()
+    assert response.status == 200 and answer["heard"] == "שלום לך" and answer["turn"] == 1
+    assert ears.heard and ears.heard[0].suffix == ".webm"
+    assert store.chat_owned(None, answer["chat"])["mode"] == "talk"  # type: ignore[index]
+    assert store.hours_used(None, 0) == pytest.approx(4.0), "the clip's seconds, once"
+
+    chats.answer(chats.queue.get())
+    turn = chats.library.jobs[f"chat-{answer['chat']}-1"]
+    from targum.chat import hebrew
+
+    assert turn.seconds == pytest.approx(
+        hebrew.seconds_for(hebrew.words_in("Read Ruth at /reader/ruth-he/reader/index.html"))
+    )
+    assert store.hours_used(None, 0) == pytest.approx(4.0 + turn.seconds), (
+        "reply alone, on top of the clip"
+    )
+
+
+def test_hearing_refuses_what_cannot_be_heard(chatting, monkeypatch: Any) -> None:
+    from targum import transcribe
+    from targum.audio import probe
+    from targum.errors import TargumError
+
+    port, key, store, chats = chatting
+
+    def cannot(path: Path, allow_video: bool = False) -> Any:
+        raise TargumError("That is not a recording.")
+
+    monkeypatch.setattr(probe, "examine", cannot)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request(
+        "POST", f"/chat/hear?k={key}", body=b"junk", headers={"Content-Type": "audio/webm"}
+    )
+    response = connection.getresponse()
+    assert response.status == 400 and "recording" in json.loads(response.read())["error"]
+    connection.close()
+
+    monkeypatch.setattr(
+        probe, "examine", lambda path, allow_video=False: SimpleNamespace(duration=2.0)
+    )
+    deaf = Heard()
+    deaf.available = lambda: (False, "set ELEVENLABS_API_KEY")  # type: ignore[method-assign]
+    monkeypatch.setattr(transcribe, "build", lambda name, **options: deaf)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request(
+        "POST", f"/chat/hear?k={key}", body=b"clip", headers={"Content-Type": "audio/webm"}
+    )
+    response = connection.getresponse()
+    assert response.status == 402 and "ELEVENLABS_API_KEY" in json.loads(response.read())["error"]
+    connection.close()
+    assert store.hours_used(None, 0) == 0.0
+
+
+def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_path: Path) -> None:
+    from targum import speech
+
+    port, key, store, chats = chatting
+    _, asked, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "mode": "talk"}
+    )
+    chats.answer(chats.queue.get())
+    rendered: list[str] = []
+
+    def render(text: str, into: Path, voice: str = speech.VOICE) -> speech.Clip:
+        rendered.append(text)
+        into.parent.mkdir(parents=True, exist_ok=True)
+        target = into.with_suffix(".wav")
+        target.write_bytes(speech.wav(b"\x00" * speech.BYTES_PER_SECOND * 3))
+        return speech.Clip(target, "audio/wav", 3.0)
+
+    monkeypatch.setattr(speech, "render", render)
+    monkeypatch.setenv(speech.KEY, "k")
+    status, body, response = call(port, "GET", f"/chat/audio/{asked['chat']}/1?k={key}")
+    assert status == 200 and response.getheader("Content-Type") == "audio/wav"
+    assert rendered == ["Read Ruth at /reader/ruth-he/reader/index.html"], "the answer's text, once"
+    assert store.hours_used(None, 0) == pytest.approx(
+        3.0 + chats.library.jobs[f"chat-{asked['chat']}-1"].seconds
+    )
+    call(port, "GET", f"/chat/audio/{asked['chat']}/1?k={key}")
+    assert len(rendered) == 1, "kept, not made again"
+
+    monkeypatch.delenv(speech.KEY, raising=False)
+    _, asked2, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more", "mode": "talk"}
+    )
+    chats.answer(chats.queue.get())
+    status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")
+    assert status == 402 and "No voice" in body["error"]
+    assert call(port, "GET", f"/chat/audio/{store.chat_open(42)}/1?k={key}")[0] == 404

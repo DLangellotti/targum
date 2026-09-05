@@ -44,6 +44,10 @@
     </div>
     <textarea id="say" rows="2" placeholder="Ask targum" spellcheck="true"
               aria-label="Your message"></textarea>
+    {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
+        as a line — seconds, not a conversation. Shown only in Hebrew mode, and only
+        where the browser can record. -#}
+    <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
     <button type="submit" class="chat-send" id="chat-send">Send</button>
   </form>
 </main>

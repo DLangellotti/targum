@@ -40,6 +40,31 @@ class EventSource {
 global.EventSource = EventSource;
 
 const strip = { asked: 0 };
+const plays = [];
+// A browser that can record, when the payload says so: getUserMedia hands back a stream
+// with one track, and MediaRecorder fires ondataavailable once and onstop on stop().
+if (payload.record) {
+  global.navigator = {
+    mediaDevices: {
+      getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }),
+    },
+  };
+  global.MediaRecorder = class {
+    constructor() {
+      this.mimeType = "audio/webm";
+    }
+    start() {}
+    stop() {
+      this.ondataavailable({ data: { size: 3 } });
+      this.onstop();
+    }
+  };
+  global.Blob = class {
+    constructor(parts, options) {
+      this.type = (options && options.type) || "";
+    }
+  };
+}
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
   TargumBuilding: { ask: () => strip.asked++ },
@@ -59,12 +84,31 @@ const segments = ["find", "talk"].map((m) => {
 });
 modeGroup.querySelectorAll = (sel) => (sel === ".segment" ? segments : []);
 
+// An <audio> element that records what it was asked to play rather than playing it.
+const madeElement = global.document.createElement;
+global.document.createElement = (tag) => {
+  const node = madeElement(tag);
+  if (tag === "audio") {
+    node.play = () => {
+      plays.push(node.src);
+      return Promise.resolve();
+    };
+  }
+  return node;
+};
+
 const answers = payload.answers || {};
 global.fetch = (url, options) => {
   const at = String(url).split("?")[0];
   opened.push(String(url));
   if (options && options.method === "POST") {
-    posted.push({ path: at, body: JSON.parse(options.body || "{}") });
+    posted.push({
+      path: at,
+      body:
+        options.body && options.body.type
+          ? "<blob " + options.body.type + ">"
+          : JSON.parse(options.body || "{}"),
+    });
   }
   return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
 };
@@ -140,6 +184,12 @@ function drawn() {
       const button = segments.find((b) => b.attrs["data-mode"] === step.mode);
       modeGroup.fire("click", { target: button });
     }
+    if (step.type === "record") {
+      // Two presses: start, then stop — which is when the clip goes up.
+      byId["chat-mic"].onclick();
+      await new Promise((resolve) => setImmediate(resolve));
+      byId["chat-mic"].onclick();
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -164,6 +214,12 @@ function drawn() {
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
       mode: segments.find((b) => b.attrs["aria-pressed"] === "true").attrs["data-mode"],
       stripAsked: strip.asked,
+      mic: {
+        hidden: byId["chat-mic"].hidden,
+        pressed: byId["chat-mic"].attrs["aria-pressed"],
+        text: byId["chat-mic"].textContent,
+      },
+      plays,
       list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

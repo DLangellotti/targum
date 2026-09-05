@@ -43,6 +43,14 @@
   var mode = "find";
   var modes = document.getElementById("chat-mode");
   var hoursLine = document.getElementById("chat-hours");
+  var mic = document.getElementById("chat-mic");
+  // Push-to-talk needs a browser that records. Without one the button never appears,
+  // and nothing on the page says a thing it cannot do.
+  var canRecord =
+    typeof navigator !== "undefined" &&
+    navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getUserMedia === "function" &&
+    typeof MediaRecorder === "function";
 
   function setMode(next) {
     mode = next === "talk" ? "talk" : "find";
@@ -51,6 +59,7 @@
       button.setAttribute("aria-pressed", button.getAttribute("data-mode") === mode ? "true" : "false");
     });
     if (field) field.placeholder = mode === "talk" ? "Write in Hebrew, or in English" : "Ask targum";
+    if (mic) mic.hidden = !(mode === "talk" && canRecord);
   }
   if (modes) {
     modes.addEventListener("click", function (event) {
@@ -275,6 +284,108 @@
     return card;
   }
 
+  /* --- speaking and hearing -------------------------------------------------- */
+
+  var recorder = null;
+  var recorded = [];
+
+  // One press starts, the next stops. The clip goes up as itself, is written down by
+  // the same transcriber a recording gets, and comes back as the reader's line.
+  function toggleRecording() {
+    if (!canRecord || busy) return;
+    if (recorder) {
+      recorder.stop();
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(
+      function (stream) {
+        recorded = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = function (event) {
+          if (event.data && event.data.size) recorded.push(event.data);
+        };
+        recorder.onstop = function () {
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+          var clip = new Blob(recorded, { type: recorder.mimeType || "audio/webm" });
+          recorder = null;
+          mic.setAttribute("aria-pressed", "false");
+          mic.textContent = "Speak";
+          hear(clip);
+        };
+        recorder.start();
+        mic.setAttribute("aria-pressed", "true");
+        mic.textContent = "Stop";
+      },
+      function () {
+        tell("The microphone could not be opened.");
+      }
+    );
+  }
+
+  function hear(clip) {
+    busy = true;
+    send.disabled = true;
+    var pending = turn("user", "…", "working");
+    var path = "/chat/hear?chat=" + encodeURIComponent(current) + "&mode=" + mode;
+    fetch(keyed(path), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": clip.type || "audio/webm" }),
+      body: clip,
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .catch(function () {
+        return UNREACHED;
+      })
+      .then(function (got) {
+        if (got.error) {
+          pending.className = "turn me bad";
+          render(pending.querySelector(".line"), got.error);
+          busy = false;
+          send.disabled = false;
+          return;
+        }
+        pending.className = "turn me";
+        render(pending.querySelector(".line"), got.heard);
+        var answer = turn("assistant", "", "working");
+        var wasNew = !current;
+        current = got.chat;
+        follow(got.chat, got.turn, answer);
+        if (wasNew) load();
+      });
+  }
+
+  // Hear an answer. The clip is made on the first press and kept, and its seconds come
+  // out of the same hours a recording does — the press is the spend.
+  function playButton(li, chat, n) {
+    if (mode !== "talk" || li.querySelector(".chat-play")) return;
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "chat-play";
+    button.textContent = "Hear";
+    button.onclick = function () {
+      button.disabled = true;
+      var audio = document.createElement("audio");
+      audio.src = keyed("/chat/audio/" + encodeURIComponent(chat) + "/" + n);
+      audio.onended = function () {
+        button.disabled = false;
+      };
+      audio.onerror = function () {
+        // A refusal comes back as JSON the element cannot play; ask for it in words.
+        ask("/chat/audio/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
+          button.disabled = false;
+          if (state && state.error) tell(state.error);
+        });
+      };
+      var playing = audio.play();
+      if (playing && playing.catch) playing.catch(function () {});
+    };
+    li.appendChild(button);
+  }
+
   function turn(role, text, state) {
     var li = document.createElement("li");
     li.className = "turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
@@ -332,13 +443,15 @@
       if (answer.error) return tell(answer.error);
       setMode(answer.chat && answer.chat.mode);
       var pending = null;
+      var lastAsked = 0;
       (answer.turns || []).forEach(function (t) {
         if (t.role === "user") {
           turn("user", t.said);
+          lastAsked = t.n;
           pending = t.stage === "working" ? t.n : null;
           if (t.stage === "failed" && t.error) turn("assistant", t.error, "bad");
         } else if (t.said) {
-          turn("assistant", t.said);
+          playButton(turn("assistant", t.said), id, lastAsked);
         }
       });
       if (empty) empty.hidden = true;
@@ -386,6 +499,7 @@
     function finish(kind, payload) {
       li.className = "turn them" + (kind === "error" ? " bad" : "");
       render(line, kind === "error" ? payload.message : payload.text || text);
+      if (kind !== "error") playButton(li, chat, n);
       busy = false;
       send.disabled = false;
       // The title is the first thing said, so the list learns it on the first answer.
@@ -455,8 +569,12 @@
     }
   });
   if (fresh) fresh.onclick = startNew;
+  if (mic) mic.onclick = toggleRecording;
 
+  // The page opens finding, with the microphone put away: said by the script and not
+  // left to the template, so the two cannot disagree about what a fresh page shows.
+  setMode("find");
   load();
 
-  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard, pairs: pairs };
+  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard, pairs: pairs, hear: hear };
 })();

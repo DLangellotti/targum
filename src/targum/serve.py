@@ -56,6 +56,7 @@ from .render.builder import (
     weekly_page,
 )
 from .segment.stanza_segmenter import telling
+from .usage import Usage
 from .video import MAX_VIDEO_BYTES
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
@@ -3443,6 +3444,9 @@ class Handler(BaseHTTPRequestHandler):
         # holding it to the JSON ceiling would refuse the very uploads it exists for.
         if route.startswith("/upload/"):
             return self._upload(route)
+        # A spoken line: raw audio, not JSON, so it is read before the JSON parse too.
+        if route == "/chat/hear":
+            return self._chat_hear(parse_qs(urlparse(self.path).query))
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_UPLOAD:
             return self._json(
@@ -3522,12 +3526,14 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         pieces = rest.split("/")
-        if pieces[0] in ("turn", "stream") and len(pieces) == 3 and pieces[2].isdigit():
+        if pieces[0] in ("turn", "stream", "audio") and len(pieces) == 3 and pieces[2].isdigit():
             chat_id, n = pieces[1], int(pieces[2])
             if store.chat_owned(person_id, chat_id) is None:
                 return self._json({"error": "not found"}, 404)
             if pieces[0] == "turn":
                 return self._json(self._chat_turn_state(chat_id, n))
+            if pieces[0] == "audio":
+                return self._chat_audio(chat_id, n, person)
             return self._chat_stream(chat_id, n)
         if len(pieces) == 1:
             chat = store.chat_owned(person_id, pieces[0])
@@ -3628,6 +3634,165 @@ class Handler(BaseHTTPRequestHandler):
         lines = "".join(f"data: {line}\n" for line in data.split("\n"))
         self.wfile.write(f"id: {index}\nevent: {kind}\n{lines}\n".encode())
         self.wfile.flush()
+
+    def _chat_audio(self, chat_id: str, n: int, person: Person | None) -> None:
+        """The answer to turn `n`, read aloud. Push-to-talk out: a clip, not a stream.
+
+        Made once and kept beside the transcript, then served like any media file. The
+        press is the spend — a reader who did not press hears nothing and pays nothing —
+        and the clip's seconds come out of the same eight hours a recording does, read
+        off the clip and never off the text. The voice's own price is not yet in any
+        table, so the money side is counted and not charged; see `speech`.
+        """
+        from . import speech
+        from .chat import hebrew as hebrew_module
+
+        store = self.chats.store
+        home = self._home()
+        where = home / "chats" / "audio"
+        kept = (
+            next((p for p in where.glob(f"{chat_id}-{n}.*") if p.is_file()), None)
+            if where.is_dir()
+            else None
+        )
+        if kept is not None:
+            return self._send_file(kept, "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav")
+        usable, why = speech.available()
+        if not usable:
+            return self._json({"error": f"No voice on this box: {why}."}, 402)
+        turns = store.chat_turns(chat_id)
+        said = "".join(
+            str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
+        )
+        found = hebrew_module.pairs(said)
+        text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
+        if not text:
+            return self._json({"error": "Nothing to read aloud yet."}, 404)
+        job = Job(
+            id=f"speak-{chat_id}-{n}",
+            source=f"chat:{chat_id}",
+            estimate=0.0,
+            seconds=hebrew_module.seconds_for(hebrew_module.words_in(text)),
+            stage="working",
+            owner=person.id if person else None,
+            home=home,
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="chat",
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            return self._json({"error": refused}, 402)
+        try:
+            clip = speech.render(text, where / f"{chat_id}-{n}")
+        except TargumError as error:
+            job.stage = "failed"
+            self.library.release(job)
+            self.library.remember(job)
+            return self._json({"error": error.message}, 502)
+        job.seconds = clip.seconds
+        job.stage = "done"
+        spent = Usage()
+        spent.add_seconds(speech.NAME, clip.seconds)
+        job.spent = spent.cost()
+        self.library.settle(job)
+        self.library.remember(job)
+        self._send_file(clip.path, clip.kind)
+
+    def _chat_hear(self, query: dict[str, list[str]]) -> None:
+        """A line spoken into the microphone, written down and asked. Push-to-talk in.
+
+        The clip's seconds are metered as the reader's words — the same allowance, the
+        same sum — and the turn it becomes counts the reply alone, so nothing is charged
+        twice. The transcriber the recording pipeline uses is the one used here.
+        """
+        from . import transcribe as transcribe_module
+        from .audio import probe as probe_module
+
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        if not self.chats.usable:
+            return self._json({"error": NO_KEY}, 402)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = query.get("chat", [""])[0]
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return self._json({"error": "Nothing was heard."}, 400)
+        if length > MAX_UPLOAD:
+            return self._json({"error": "That is long for one line. Try a shorter one."}, 413)
+        body = self.rfile.read(length)
+        kind = (self.headers.get("Content-Type") or "audio/webm").split(";")[0].strip()
+        suffixes = {
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".m4a",
+            "audio/mpeg": ".mp3",
+            "audio/wav": ".wav",
+        }
+        home = self._home()
+        clips = home / "chats" / "clips"
+        clips.mkdir(parents=True, exist_ok=True)
+        clip = clips / f"{secrets.token_hex(8)}{suffixes.get(kind, '.webm')}"
+        clip.write_bytes(body)
+        try:
+            heard = probe_module.examine(clip).duration
+        except TargumError as error:
+            clip.unlink(missing_ok=True)
+            return self._json({"error": error.message}, 400)
+        transcriber = transcribe_module.build(transcribe_module.default_name())
+        usable, why = transcriber.available()
+        if not usable:
+            clip.unlink(missing_ok=True)
+            return self._json({"error": f"Nothing here can write speech down: {why}."}, 402)
+        admin = bool(person and self.store.is_admin(person.email))
+        job = Job(
+            id=f"hear-{secrets.token_hex(6)}",
+            source=f"chat:{chat_id or 'new'}",
+            estimate=heard / 60 * transcriber.price_per_minute(),
+            seconds=heard,
+            stage="working",
+            owner=person_id,
+            home=home,
+            admin=admin,
+            kind="chat",
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            clip.unlink(missing_ok=True)
+            return self._json({"error": refused}, 402)
+        try:
+            transcript = transcriber.transcribe(clip, "he")
+        except TargumError as error:
+            job.stage = "failed"
+            self.library.release(job)
+            self.library.remember(job)
+            return self._json({"error": error.message}, 502)
+        job.spent = transcriber.spent.cost()
+        job.stage = "done"
+        self.library.settle(job)
+        self.library.remember(job)
+        text = " ".join(
+            str(getattr(word, "text", "")) for word in getattr(transcript, "words", [])
+        ).strip()
+        if not text:
+            return self._json({"error": "Nothing was heard. Try again, a little closer."}, 400)
+        mode = query.get("mode", [""])[0]
+        asked = self.chats.say(
+            person, home, chat_id, text, admin=admin, mode=mode, heard_seconds=heard
+        )
+        self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
 
     def _chat_say(self, payload: dict[str, Any]) -> None:
         """The reader's line. Written down and handed to a worker; the answer streams."""

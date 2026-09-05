@@ -132,14 +132,35 @@ body.chat > .chat-main {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "mode mode"
-    "say send";
+    "mode mode mode"
+    "say mic send";
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.6rem;
   align-items: end;
 }
 .composer .chat-mode { grid-area: mode; justify-self: start; }
 .composer textarea { grid-area: say; }
+.composer .chat-mic { grid-area: mic; }
 .composer .chat-send { grid-area: send; }
+/* Speak and Hear are working actions, so they take the working treatment: ink border,
+   not the accent the one send button holds (§4: one accent, rationed). Recording is a
+   state said in words as well as in ink, never in a colour alone (§6). */
+.chat-mic,
+.chat-play {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-mic:hover,
+.chat-play:hover { background: var(--paper-raised); }
+.chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chat-play { padding: 0.25rem 0.6rem; justify-self: start; }
+.chat-play:disabled { opacity: 0.5; cursor: default; }
 .chat-hours {
   margin: 0.25rem 0 0;
   font-family: ui-monospace, monospace;
@@ -255,7 +276,9 @@ body.chat > .chat-main {
   .chat-new,
   .chat-list button,
   .quote-go,
-  .chat-mode .segment {
+  .chat-mode .segment,
+  .chat-mic,
+  .chat-play {
     min-height: 44px;
   }
 }

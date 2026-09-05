@@ -195,6 +195,9 @@ class Asked:
     person: Person | None
     home: Path
     admin: bool
+    #: Seconds of the reader's own voice this turn came from, already metered by the
+    #: request that heard it. Zero for a typed line.
+    heard_seconds: float = 0.0
 
 
 class Chats:
@@ -268,6 +271,7 @@ class Chats:
         *,
         admin: bool,
         mode: str = "",
+        heard_seconds: float = 0.0,
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -284,7 +288,7 @@ class Chats:
         n = self.store.chat_say(chat_id, "user", text, text, stage="working")
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
-        asked = Asked(chat_id, n, person, home, admin)
+        asked = Asked(chat_id, n, person, home, admin, heard_seconds)
         self.queue.put(asked)
         return asked
 
@@ -337,8 +341,11 @@ class Chats:
             source=f"chat:{asked.chat_id}",
             title="",
             estimate=TURN_RESERVE,
+            # A spoken line was metered by the request that heard it, so a turn that
+            # came from the microphone counts the reply alone.
             seconds=hebrew_module.seconds_for(
-                hebrew_module.words_in(asked_text) + hebrew_module.ASSUMED_REPLY_WORDS
+                (0 if asked.heard_seconds else hebrew_module.words_in(asked_text))
+                + hebrew_module.ASSUMED_REPLY_WORDS
             ),
             stage="working",
             owner=person_id,
@@ -389,7 +396,11 @@ class Chats:
                 ledger=ledger,
             )
             job.spent = spent.cost()
-            job.seconds = hebrew_module.seconds_for(hebrew_module.words_in(asked_text, feed.text()))
+            job.seconds = hebrew_module.seconds_for(
+                hebrew_module.words_in(feed.text())
+                if asked.heard_seconds
+                else hebrew_module.words_in(asked_text, feed.text())
+            )
             job.stage = "done"
             self.library.settle(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="done", spent=job.spent)

@@ -17,10 +17,14 @@ pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is no
 
 
 def run(
-    do: list[dict[str, Any]] | None = None, answers: dict[str, Any] | None = None, key: str = "k"
+    do: list[dict[str, Any]] | None = None,
+    answers: dict[str, Any] | None = None,
+    key: str = "k",
+    record: bool = False,
 ) -> dict[str, Any]:
     payload = {
         "key": key,
+        "record": record,
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
     }
@@ -249,3 +253,45 @@ def test_a_plain_answer_is_still_a_line() -> None:
     )
     assert page["posted"][0]["body"]["mode"] == "find"
     assert page["pairs"] == [] and page["turns"][1]["text"] == "Try Ruth."
+
+
+def test_the_microphone_appears_only_in_hebrew_mode_where_the_browser_records() -> None:
+    page = run(do=[{"type": "mode", "mode": "talk"}], record=True)
+    assert page["mic"]["hidden"] is False
+    page = run(do=[{"type": "mode", "mode": "talk"}], record=False)
+    assert page["mic"]["hidden"] is True, "a page never offers what the browser cannot do"
+    page = run(record=True)
+    assert page["mic"]["hidden"] is True, "find mode has no microphone"
+
+
+def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> None:
+    page = run(
+        do=[{"type": "mode", "mode": "talk"}, {"type": "record"}],
+        answers={"/chat/hear": {"chat": "abc", "turn": 1, "heard": "שלום לך"}},
+        record=True,
+    )
+    assert page["posted"] == [{"path": "/chat/hear", "body": "<blob audio/webm>"}]
+    assert page["streams"] == ["/chat/stream/abc/1?k=k"]
+    assert [t["text"] for t in page["turns"]] == ["שלום לך", ""]
+    assert page["mic"]["pressed"] == "false" and page["mic"]["text"] == "Speak"
+
+
+def test_an_answer_in_hebrew_mode_can_be_heard() -> None:
+    page = run(
+        do=[
+            {"type": "mode", "mode": "talk"},
+            {"type": "say", "text": "hi"},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": "שָׁלוֹם\n= hello"}, ensure_ascii=False),
+            },
+            {"type": "press", "selector": "chat-play"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+        record=True,
+    )
+    assert page["plays"] == ["/chat/audio/abc/1?k=k"], (
+        "the press asks for the clip and nothing else is posted"
+    )
+    assert [p["path"] for p in page["posted"]] == ["/chat/say"]
