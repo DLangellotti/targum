@@ -25,6 +25,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one fixture, so the chat can grade what it writes — and is told in as many words never to
   quote the rung as a placement. `design.md` §12 records the reversal this is
   ("targum speaks back"), and the roadmap's "Not building" line carries the decision.
+- And the chat can price a text. `quote_build` is `/prepare` reached by a sentence — a
+  link, a podcast episode, a YouTube address, a Gutenberg or Wikisource id, or a library
+  text by id — refused on exactly the grounds the Add page refuses, and it costs nothing:
+  `Library.prepare` is the free half of the quote-then-consent seam. The quote reaches the
+  page as its own event and is drawn as a card from the job's state, never from what the
+  model said about it: title, sentences or chapters or hours of audio, how long it will
+  take in the reader's time and never in money, and one ink button. The button posts to
+  `/build`, the same door the Add page's button posts to, so `Handler._build` stays the
+  only path to `Library.claim` and the model holds no tool that could press. `my_hours`
+  says how much of the month's audio allowance is used and when it returns, in hours.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
