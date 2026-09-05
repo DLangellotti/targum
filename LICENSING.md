@@ -189,6 +189,19 @@ carry their own licence, held per source and shown to the reader: the foot of a 
 credits whoever read it and links the licence it came under. Library content is not in
 this repository and is not covered by the AGPL.
 
+**A reader's own import is theirs, and it is not gated on licence.** What a reader
+brings to their own shelf — a link, a file, a recording, and since 2026-09-05 anything
+the chat finds for them — is their act on content they had lawful access to. It is
+refused only on what is not about permission: an address the fetch door will not open,
+a format the ingester does not read, the money and hours rails. The licence is
+**recorded** on every import (`licensing.verdict`, `screen.licence_flags`) and never
+enforced against the reader; it is read later, at the one moment a private thing might
+become public, which is promotion into the catalogue and the corpus — and there
+`Standing.unknown` stays private for ever. The chat's server-side search is held to a
+list of hosts (`chat/sources.py`) for relevance, not permission; whatever it surfaces
+passes the same doors as a pasted link.
+
+
 The bar for a recording is that no-derivatives terms are refused outright — segmenting,
 transcribing and aligning are adaptations, and no access policy cures an ND term.
 ShareAlike is accepted, which means the segments cut from such a recording carry

@@ -35,6 +35,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `/build`, the same door the Add page's button posts to, so `Handler._build` stays the
   only path to `Library.claim` and the model holds no tool that could press. `my_hours`
   says how much of the month's audio allowance is used and when it returns, in hours.
+- And it can find things. `describe_source` says what is at a link before it is quoted —
+  a video's length, its audio language and whether it has Hebrew subtitles somebody wrote
+  (from `yt-dlp -J`, never the video); an episode's length and whether a transcript comes
+  with it; an article's words and how much of it is Hebrew — with the licence recorded and
+  the screen's flags as advice, never as a refusal: a reader's own import is refused only
+  at the fetch door, on format, or on the rails. `search_sources` reads what the publishers
+  this box knows have published lately, from a private `sources.json` the way the
+  catalogue is a private file, and a box with none simply has nowhere to look. Where
+  `TARGUM_WEB_SEARCH` is on, Anthropic's server-side search rides along, held to those
+  publishers' hosts and the public-domain fetchers' for relevance; a search is bought per
+  search and `Usage` now counts it, so a turn that searched settles for what it cost.
+  `LICENSING.md` says the private-import posture in one paragraph.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
