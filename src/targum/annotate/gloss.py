@@ -21,7 +21,7 @@ from ..cache import Cache
 from ..errors import ProviderError, TargumError
 from ..models import Annotation, Glossary
 from ..translate.prompts import language_name
-from . import oshb
+from . import closed, oshb
 
 BATCH_SIZE = 40
 # Glosses are short, so a batch is cheap. Tokens per lemma, in and out, for the estimate
@@ -244,12 +244,16 @@ def from_the_tagging(annotation: Annotation) -> dict[str, Sense]:
     found: dict[str, Sense] = {}
     for tokens in annotation.tokens.values():
         for token in tokens:
-            if token.pos not in CONTENT_WORDS or not token.lexeme:
-                continue
             key = token.glossed_as
             if key in found:
                 continue
-            said = oshb.sense(token.lexeme)
+            if token.pos in CONTENT_WORDS and token.lexeme:
+                said = oshb.sense(token.lexeme)
+            else:
+                # The closed class, written by hand because the lexicon is worst exactly
+                # where a reader taps most. Asked for every word the lexicon is not asked
+                # for, including the pronominal suffixes the tagging gives no number.
+                said = closed.gloss_for(token.lexeme, key)
             if said:
                 found[key] = Sense(gloss=said, part=_SAID_AS.get(token.pos or "", ""))
     return found

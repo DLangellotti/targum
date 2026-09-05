@@ -1479,16 +1479,19 @@ def test_the_tagging_glosses_a_content_word_for_nothing(tmp_path, monkeypatch) -
     assert found["מלך"].part == "noun"
 
 
-def test_the_tagging_leaves_the_function_words_alone(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_a_function_word_gets_the_written_gloss_not_the_lexicon_prose(  # type: ignore[no-untyped-def]
+    tmp_path, monkeypatch
+) -> None:
     """Strong's is at its best on a noun and its worst on a particle, where the entry is
-    the King James word list rather than a definition. `דִּי` occurs 344 times in Daniel;
-    a reader tapping it learns what it is from the grammar line, and a paragraph of
-    renderings under that is noise where the card should be an answer."""
+    the King James word list rather than a definition — its `דִּי` runs to a paragraph.
+    So the closed class is written by hand instead, and this is where the two meet."""
     from targum.annotate.gloss import from_the_tagging
 
     _tagged_senses(tmp_path, monkeypatch)
     which = Token(start=0, end=3, surface="די", lemma="די", band=0, pos="PART", lexeme="1768")
-    assert from_the_tagging(_annotation([which])) == {}
+    found = from_the_tagging(_annotation([which]))
+    assert found["די"].gloss == "that; which; who; of", "the written one"
+    assert "relative conjunction" not in found["די"].gloss, "not the lexicon's prose"
 
 
 def test_a_token_with_no_lexeme_is_not_guessed_at(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
