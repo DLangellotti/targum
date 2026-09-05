@@ -113,3 +113,95 @@ def test_hosted_there_is_no_key_in_the_address() -> None:
         key="",
     )
     assert page["streams"] == ["/chat/stream/abc/1"]
+
+
+QUOTE = {
+    "id": "j1",
+    "title": "מאמר על הים",
+    "english": "An article about the sea",
+    "language": "he",
+    "segments": 40,
+    "total": 40,
+    "chapters": 1,
+    "estimate": 0.12,
+    "stage": "ready",
+    "blocked": "",
+    "error": "",
+    "audio": False,
+    "seconds": 0,
+    "parts": 0,
+}
+
+
+def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
+    """The card is drawn from the quote the server sent, not from the model's words, and
+    the button posts to the same door the Add page's button posts to."""
+    page = run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(QUOTE, ensure_ascii=False)},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "Forty sentences."})},
+            {"type": "press", "selector": "quote-go"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}, "/build": {**QUOTE, "stage": "queued"}},
+    )
+    card = page["cards"][0]
+    assert card["title"] == "מאמר על הים" and card["english"] == "An article about the sea"
+    assert card["meta"] == "40 sentences · A couple of minutes."
+    assert "$" not in json.dumps(card), "never money"
+    assert card["button"] == "Read this"
+    assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
+    assert page["posted"][1]["body"] == {"id": "j1"}
+    assert card["note"].startswith("Building.") and card["cls"] == "quote started"
+    assert page["stripAsked"] == 1, "the strip is told to look again"
+
+
+def test_a_blocked_quote_has_no_button() -> None:
+    blocked = {
+        **QUOTE,
+        "stage": "blocked",
+        "blocked": "Too long. Try a chapter, or something from the library.",
+    }
+    page = run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(blocked, ensure_ascii=False)},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    card = page["cards"][0]
+    assert card["button"] == "" and card["note"].startswith("Too long")
+    assert card["cls"] == "quote refused"
+
+
+def test_a_recording_is_quoted_in_hours() -> None:
+    spoken = {**QUOTE, "audio": True, "seconds": 5400, "parts": 3, "total": 60}
+    page = run(
+        do=[
+            {"type": "say", "text": "this podcast"},
+            {"type": "stream", "event": "quote", "data": json.dumps(spoken, ensure_ascii=False)},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["cards"][0]["meta"].startswith("1.5 hours of audio · First part in")
+
+
+def test_a_refused_press_says_why_on_the_card() -> None:
+    page = run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(QUOTE, ensure_ascii=False)},
+            {"type": "press", "selector": "quote-go"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/build": {
+                **QUOTE,
+                "stage": "blocked",
+                "blocked": "Building a lot at once. Try again in 24 hours.",
+            },
+        },
+    )
+    card = page["cards"][0]
+    assert card["note"].startswith("Building a lot") and card["cls"] == "quote refused"
+    assert page["stripAsked"] == 0

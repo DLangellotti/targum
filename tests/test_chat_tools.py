@@ -212,3 +212,116 @@ def test_run_answers_a_broken_tool_as_an_error_the_model_can_read(world) -> None
     assert failed and json.loads(text)["error"]
     text, failed = tools.run("my_progress", {}, ctx)
     assert not failed and json.loads(text)["known"] == 2
+
+
+# -- quoting -----------------------------------------------------------------------
+
+
+def priced(job) -> None:  # type: ignore[no-untyped-def]
+    """What `Library.prepare` leaves on a job it could price, without the pipeline."""
+    job.title = "מאמר"
+    job.language = "he"
+    job.segments = 40
+    job.total = 40
+    job.estimate = 0.12
+    job.stage = "ready"
+
+
+def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
+    """The seam: `prepare` is the free half, and nothing here reaches the paid half.
+    The card's button posts `/build`; the model has no tool that could."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+
+    def forbidden(*_: object) -> str:
+        raise AssertionError("a quote must not spend")
+
+    monkeypatch.setattr(library, "claim", forbidden)
+    monkeypatch.setattr(library, "enqueue", forbidden)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    got = tools.quote_build(ctx, {"source": "https://example.com/article"})
+    quote = got["quote"]
+    assert quote["stage"] == "ready" and quote["segments"] == 40
+    assert "$" not in got["note"] and "never in money" in got["note"]
+    job = library.jobs[quote["id"]]
+    assert job.owner == person.id and job.home == home and job.options["to"] == "en"
+    assert job.kind == "build", "a quoted job is a build the strip will follow"
+    assert store.committed(0) == 0.0, "nothing was claimed"
+    assert not [tool for tool in tools.REGISTRY if tool.spends or tool.needs_consent]
+
+
+def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    unbuilt = next(
+        row
+        for row in tools.search_library(ctx, {"limit": 20})["texts"]
+        if not row["on_shelf"] and row["has_published_translation"]
+    )
+    got = tools.quote_build(ctx, {"catalogue_id": unbuilt["id"]})
+    job = library.jobs[got["quote"]["id"]]
+    assert job.options["translations"], "the published English rides on the job — nothing is bought"
+    assert job.options["from"] == "he"
+    already = tools.quote_build(ctx, {"catalogue_id": "ruth"})
+    assert already["already_built"] is True and already["reader"].startswith("/reader/ruth-he/")
+    assert "error" in tools.quote_build(ctx, {"catalogue_id": "nope"})
+
+
+def test_a_quote_is_refused_on_the_add_page_s_grounds(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    assert "profile" in tools.quote_build(ctx, {"source": "https://x.org/a", "to": "ru"})["error"]
+    assert (
+        "translates into"
+        in tools.quote_build(ctx, {"source": "https://x.org/a", "to": "fr"})["error"]
+    )
+    assert "link" in tools.quote_build(ctx, {"source": "just some words"})["error"]
+    assert "Say what" in tools.quote_build(ctx, {})["error"]
+    assert library.jobs == {}, "a refused quote leaves no job behind"
+
+
+def test_a_link_that_is_in_the_library_is_pointed_there(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    got = tools.quote_build(ctx, {"source": "test:esther"})
+    assert got["in_library"]["id"] == "esther" and "catalogue_id" in got["in_library"]["note"]
+    assert library.jobs == {}
+
+
+def test_a_quote_that_cannot_be_built_says_why(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    def blocked(job) -> None:  # type: ignore[no-untyped-def]
+        job.stage = "blocked"
+        job.blocked = "Too long. Try a chapter, or something from the library."
+
+    monkeypatch.setattr(library, "prepare", blocked)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    got = tools.quote_build(ctx, {"source": "https://example.com/novel"})
+    assert got["quote"]["blocked"].startswith("Too long") and "cannot be built" in got["note"]
+
+
+def test_hours_are_hours(world) -> None:
+    library, store, person, home = world
+    store.save_job(
+        {"id": "r1", "owner": person.id, "home": str(home), "source": "x", "made": now_ms()}
+    )
+    store.claim("r1", 0.5, 40.0, 0, owner=person.id, length=2 * 3600.0)
+    ctx = context(library, store, person, home)
+    got = tools.my_hours(ctx, {})
+    assert got["used_hours"] == 2.0 and got["allowed_hours"] == 8.0 and got["left_hours"] == 6.0
+    assert "$" not in json.dumps(got) and got["month_ends"]
+
+
+def now_ms() -> int:
+    from targum.accounts import now
+
+    return now()

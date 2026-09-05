@@ -105,6 +105,98 @@
     if (at < text.length) target.appendChild(document.createTextNode(text.slice(at)));
   }
 
+  /* --- a quote ------------------------------------------------------------- */
+
+  // What a build will take, in the only currency the reader spends: their time. The
+  // same arithmetic as the Add page's, because two answers to one question would
+  // disagree. What it costs us is our business and never theirs.
+  function wait(job) {
+    if (job.audio && job.parts > 0) {
+      var spoken = job.seconds / job.parts / 60;
+      var listening = Math.max(1, Math.round(spoken / 6));
+      var translating = Math.max(1, Math.round((job.total || 25) / 25));
+      var minutes = listening + translating;
+      var opener = job.parts > 1 ? "First part in " : "Ready in ";
+      if (minutes <= 1) return opener + "about a minute.";
+      if (minutes <= 4) return opener + "a few minutes.";
+      return opener + "about " + minutes + " minutes.";
+    }
+    if (!job.estimate) return "Ready in a moment.";
+    var mins = Math.max(1, Math.round((job.total || job.segments) / 25));
+    var start = job.chapters > 1 ? "First chapter in " : "";
+    if (mins <= 1) return start ? start + "about a minute." : "About a minute.";
+    if (mins <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
+    return start + "about " + mins + " minutes.";
+  }
+
+  function hours(seconds) {
+    var h = seconds / 3600;
+    if (h < 1) return Math.max(1, Math.round(seconds / 60)) + " minutes of audio";
+    return (Math.round(h * 10) / 10) + " hours of audio";
+  }
+
+  // The card the reader presses. Drawn from the quote itself — the server's state of
+  // the job — never from what the model wrote about it. The button posts to /build,
+  // the same door the Add page's button posts to: the press is the spend, and nothing
+  // the model holds can make it.
+  function quoteCard(li, job) {
+    var card = document.createElement("div");
+    card.className = "quote";
+    card.setAttribute("data-job", job.id);
+    var title = document.createElement("p");
+    title.className = "quote-title";
+    var he = document.createElement("bdi");
+    var language = job.language || "he";
+    he.setAttribute("lang", language);
+    he.setAttribute("dir", language === "he" ? "rtl" : "ltr");
+    he.textContent = job.title || "";
+    title.appendChild(he);
+    if (job.english) {
+      var en = document.createElement("span");
+      en.className = "quote-english";
+      en.textContent = job.english;
+      title.appendChild(en);
+    }
+    card.appendChild(title);
+    var meta = document.createElement("p");
+    meta.className = "quote-meta";
+    var facts = [];
+    if (job.audio) facts.push(hours(job.seconds || 0));
+    else if (job.chapters > 1) facts.push(job.chapters + " chapters");
+    else if (job.segments) facts.push(job.segments + " sentences");
+    if (job.stage === "ready") facts.push(wait(job));
+    meta.textContent = facts.join(" · ");
+    card.appendChild(meta);
+    var note = document.createElement("p");
+    note.className = "quote-note";
+    if (job.stage === "ready") {
+      var go = document.createElement("button");
+      go.type = "button";
+      go.className = "quote-go";
+      go.textContent = "Read this";
+      go.onclick = function () {
+        go.disabled = true;
+        ask("/build", { id: job.id }).then(function (state) {
+          if (state.error || state.blocked) {
+            note.textContent = state.error || state.blocked;
+            card.classList.add("refused");
+            return;
+          }
+          note.textContent = "Building. It will appear above when it is ready.";
+          card.classList.add("started");
+          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+        });
+      };
+      card.appendChild(go);
+    } else {
+      note.textContent = job.blocked || job.error || "This cannot be built now.";
+      card.classList.add("refused");
+    }
+    card.appendChild(note);
+    li.appendChild(card);
+    return card;
+  }
+
   function turn(role, text, state) {
     var li = document.createElement("li");
     li.className = "turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
@@ -230,6 +322,9 @@
         // A lookup in progress. Said in the reader's words, not the tool's name.
         if (!text) line.textContent = "looking…";
       });
+      source.addEventListener("quote", function (event) {
+        quoteCard(li, JSON.parse(event.data || "{}"));
+      });
       source.addEventListener("done", function (event) {
         source.close();
         finish("done", JSON.parse(event.data || "{}"));
@@ -253,6 +348,9 @@
         if (state.error && state.done) return finish("error", { message: state.error });
         text = state.text || "";
         render(line, text);
+        (state.quotes || []).forEach(function (job) {
+          if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
+        });
         if (state.done) return finish("done", { text: text });
         setTimeout(poll, 800);
       });
@@ -280,5 +378,5 @@
 
   load();
 
-  window.TargumChat = { say: say, open: open, render: render };
+  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard };
 })();

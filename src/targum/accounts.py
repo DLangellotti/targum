@@ -1466,6 +1466,16 @@ class Store:
         ).fetchone()
         return {"days": days, "sections": int(sections["n"]), "texts": int(texts["n"])}
 
+    def hours_used(self, owner: int | None, month_from: int) -> float:
+        """Seconds of recording this person's builds have spent since a moment — the
+        same sum `claim` holds them to, read without claiming anything."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+            "WHERE length > 0 AND made >= ? AND owner IS ?",
+            (month_from, owner),
+        ).fetchone()
+        return float(row["used"])
+
     # -- conversations ----------------------------------------------------------
 
     def chat_open(self, person_id: int | None, language: str = "he") -> str:

@@ -39,7 +39,11 @@ class EventSource {
 }
 global.EventSource = EventSource;
 
-install({ TARGUM_KEY: payload.key === undefined ? "k" : payload.key });
+const strip = { asked: 0 };
+install({
+  TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
+  TargumBuilding: { ask: () => strip.asked++ },
+});
 
 const answers = payload.answers || {};
 global.fetch = (url, options) => {
@@ -57,6 +61,28 @@ const turns = byId["turns"];
 
 function lineOf(li) {
   return li.children.find((child) => child.className === "line");
+}
+
+function cards() {
+  const out = [];
+  const walk = (node) => {
+    if (String(node.className).split(" ")[0] === "quote") {
+      const by = (cls) => node.children.find((c) => String(c.className).split(" ").includes(cls));
+      const title = by("quote-title");
+      out.push({
+        // The stub keeps classList apart from className; a card is named by both.
+        cls: [node.className, ...node.classList._names].join(" "),
+        title: title ? title.children[0].textContent : "",
+        english: title && title.children[1] ? title.children[1].textContent : "",
+        meta: by("quote-meta") ? by("quote-meta").textContent : "",
+        note: by("quote-note") ? by("quote-note").textContent : "",
+        button: by("quote-go") ? by("quote-go").textContent : "",
+      });
+    }
+    (node.children || []).forEach(walk);
+  };
+  walk(turns);
+  return out;
 }
 
 function drawn() {
@@ -80,6 +106,16 @@ function drawn() {
     if (step.type === "stream") {
       sources[sources.length - 1].fire(step.event, step.data || "");
     }
+    if (step.type === "press") {
+      // The newest control with that class, anywhere in the thread.
+      const found = [];
+      const walk = (node) => {
+        if (String(node.className).split(" ").includes(step.selector)) found.push(node);
+        (node.children || []).forEach(walk);
+      };
+      walk(turns);
+      found[found.length - 1].onclick();
+    }
     // Let the promises settle between steps.
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
@@ -89,6 +125,8 @@ function drawn() {
       posted,
       streams: sources.map((s) => s.url),
       turns: drawn(),
+      cards: cards(),
+      stripAsked: strip.asked,
       list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

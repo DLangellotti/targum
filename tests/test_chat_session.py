@@ -267,3 +267,43 @@ def test_a_feed_tail_waits_rather_than_polls() -> None:
     feed.close()
     fresh, closed = feed.wait(0, 1.0)
     assert fresh == [(0, "text", "hi")] and closed
+
+
+def test_a_quote_reaches_the_page_as_its_own_event(tmp_path: Path, monkeypatch: Any) -> None:
+    """The card is drawn from the quote, not from what the model says about it."""
+    library, store = world(tmp_path)
+
+    def priced(job: Any) -> None:
+        job.title = "מאמר"
+        job.segments = 12
+        job.total = 12
+        job.stage = "ready"
+
+    monkeypatch.setattr(library, "prepare", priced)
+    client = Script(
+        [
+            reply(
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "q1",
+                        "name": "quote_build",
+                        "input": {"source": "https://example.com/a"},
+                    }
+                ],
+                stop="tool_use",
+            ),
+            reply([{"type": "text", "text": "Twelve sentences, about a minute."}]),
+        ]
+    )
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "bring this in"}],
+        feed,
+        lambda *_: None,
+    )
+    quotes = [json.loads(data) for kind, data in feed.events if kind == "quote"]
+    assert len(quotes) == 1 and quotes[0]["segments"] == 12 and quotes[0]["stage"] == "ready"
+    assert store.committed(0) == 0.0, "quoting spends nothing"

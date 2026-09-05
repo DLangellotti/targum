@@ -150,6 +150,12 @@ def run_turn(
             name = str(block.get("name") or "")
             feed.put("tool", {"name": name})
             text, failed = tools_module.run(name, dict(block.get("input") or {}), ctx)
+            if name == "quote_build" and not failed:
+                # The page draws the card from the quote itself, not from what the
+                # model says about it: the number of sentences, the hours, the button.
+                quoted = json.loads(text).get("quote")
+                if quoted:
+                    feed.put("quote", quoted)
             results.append(
                 {
                     "type": "tool_result",
@@ -258,9 +264,15 @@ class Chats:
         if store is None:
             feed.close()
             return
+        from ..translate.prompts import INTO, READING
+
         person_id = asked.person.id if asked.person else None
         language = next(iter(sorted(store.learning(person_id))), "he") if person_id else "he"
         level = level_module.snapshot(store, person_id, language)
+        # The same sets `Handler._reads` and `_learning` compute: everything where there
+        # is nobody to ask, the account's own answer where there is.
+        into = {code for code, _ in INTO}
+        reading = {code for code, _ in READING}
         ctx = tools_module.Ctx(
             person=asked.person,
             home=asked.home,
@@ -268,6 +280,9 @@ class Chats:
             store=store,
             chat_id=asked.chat_id,
             level=level,
+            reads=(store.reads(person_id) & into) if asked.person else into,
+            learning=(store.learning(person_id) & reading) if asked.person else reading,
+            admin=asked.admin,
         )
         # The turn's place on the money rails: a job row of its own kind, claimed before
         # the first token and settled to the receipt after the last. Never enqueued —

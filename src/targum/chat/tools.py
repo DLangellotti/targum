@@ -11,19 +11,24 @@ whose words and whose builds from the context the server built out of the sessio
 argument naming an owner is not a thing that exists. That is what makes the registry
 safe to expose to a client the server does not control.
 
-**Only a person spends.** A tool with `spends=True` refuses to run without a consent row
-the reader pressed for. There are none in this slice; the flag is here so the seam is
-drawn before the first tool needs it.
+**Only a person spends.** No tool here spends money. `quote_build` prices a text for
+nothing — `Library.prepare` is the free half of the quote-then-consent seam — and hands
+the page a card; the card's button posts to `/build`, the same route the Add page's
+button posts to, and `Handler._build` is then the only path to `Library.claim`. The
+model never holds a tool that could press. `spends` and `needs_consent` stay on `Tool`
+for a surface where that is not so (a client the server does not control), so the seam
+is drawn before the first tool needs it.
 """
 
 from __future__ import annotations
 
 import json
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
@@ -46,6 +51,14 @@ class Ctx:
     chat_id: str
     level: Level
     usage: Usage = field(default_factory=Usage)
+    #: Which languages this account reads into and is learning — the same sets
+    #: `Handler._reads` and `_learning` hand `/prepare`, so a quote made here is refused
+    #: on exactly the grounds the Add page would refuse it.
+    reads: set[str] = field(default_factory=set)
+    learning: set[str] = field(default_factory=set)
+    #: Whether the per-account rails apply. Read once from the session, carried on the
+    #: job the quote makes, never taken from an argument.
+    admin: bool = False
 
     @property
     def person_id(self) -> int | None:
@@ -224,8 +237,8 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row["how_to_open"] = (
         "Give the reader the link in `reader`."
         if built
-        else "Not built for this reader yet. Say so; a build has to be asked for and "
-        "priced on the Library page, and you cannot start one."
+        else "Not built for this reader yet. Call quote_build with this id: the page shows "
+        "a card with a button, and the reader presses it. You cannot start one."
     )
     return row
 
@@ -328,6 +341,112 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"suggestions": [row for _, row in candidates[:limit]]}
 
 
+def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Price a text for nothing, and leave a job the reader can press to start.
+
+    The same door `/prepare` opens for the Add page, with the same refusals in the same
+    words: the pair of languages has to be one an upload has been taken end to end in,
+    and one this account said it reads. What comes back is `Job.state()` verbatim —
+    the page draws its card from that, and the card's button posts `/build`.
+    """
+    from ..serve import Job
+    from ..translate.prompts import INTO, language_name
+
+    offered = {code for code, _ in INTO}
+    reads = (ctx.reads & offered) or offered
+    wanted = str(args.get("to") or ("en" if "en" in reads else sorted(reads)[0]))
+    if wanted not in offered:
+        names = ", ".join(language_name(code) for code in sorted(offered))
+        return {"error": f"targum translates into {names}."}
+    if wanted not in reads:
+        return {"error": f"{language_name(wanted)} is not in the reader's profile."}
+
+    payload: dict[str, Any] = {"to": wanted}
+    catalogue_id = str(args.get("catalogue_id") or "").strip()
+    source = str(args.get("source") or "").strip()
+    if catalogue_id:
+        entry = catalogue_module.by_id(catalogue_id)
+        if entry is None:
+            return {"error": "No text in the library has that id."}
+        mine, shared = _shelf(ctx)
+        built = _by_source([*mine, *shared]).get(catalogue_module._key(entry.source))
+        if built is not None:
+            return {
+                "already_built": True,
+                "reader": built["reader"],
+                "note": "Nothing to build. Give the reader the link.",
+            }
+        source = entry.source
+        payload.update(
+            {
+                "source": source,
+                "from": entry.language,
+                "translations": [rendering.source for rendering in entry.translations],
+            }
+        )
+    elif source:
+        # A link or a fetcher's identifier (`gutenberg:…`, `wikisource:…`). A bare word
+        # is neither, and would be read as a file on the server.
+        if "://" not in source and ":" not in source:
+            return {"error": "Give a link, or a library text's id."}
+        if urlparse(source).scheme in ("http", "https") and not urlparse(source).hostname:
+            return {"error": "That link has no address in it."}
+        already = catalogue_module.matching(source)
+        if already is not None and already.translations:
+            mine, shared = _shelf(ctx)
+            built = _by_source([*mine, *shared]).get(catalogue_module._key(already.source))
+            row = _entry_row(already, built)
+            row["note"] = (
+                "In the library already, with a translation somebody published — better "
+                "than a machine one. Quote it by catalogue_id instead."
+            )
+            return {"in_library": row}
+        payload["source"] = source
+    else:
+        return {"error": "Say what to build: a link, or a library text's id."}
+
+    job = Job(
+        id=secrets.token_hex(8),
+        source=source,
+        options=payload,
+        owner=ctx.person_id,
+        admin=ctx.admin,
+        home=ctx.home,
+    )
+    ctx.library.jobs[job.id] = job
+    ctx.library.remember(job)
+    ctx.library.prepare(job)
+    ctx.library.remember(job)
+    state = job.state()
+    return {
+        "quote": state,
+        "note": (
+            "The page shows the reader a card from this with a button that starts the "
+            "build; you cannot press it. Say what the text is and how long it will take "
+            "in their time — sentences, chapters, minutes, hours of audio — never in money."
+            if state["stage"] == "ready"
+            else "This cannot be built now; the card says why. Tell the reader plainly."
+        ),
+    }
+
+
+def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """The audio allowance, in the only unit a reader is ever told about."""
+    allowed = ctx.library.upload_seconds
+    used = (
+        ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
+        if ctx.store is not None
+        else 0.0
+    )
+    return {
+        "used_hours": round(used / 3600, 2),
+        "allowed_hours": None if allowed is None else round(allowed / 3600, 2),
+        "left_hours": None if allowed is None else round(max(0.0, allowed - used) / 3600, 2),
+        "month_ends": ctx.library._month_ends(),
+        "note": "Hours, never money. Text is unlimited; only recordings and video count.",
+    }
+
+
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
@@ -410,6 +529,29 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         suggest_next,
+    ),
+    Tool(
+        "quote_build",
+        "Price a text for the reader, for nothing: a link (an article, a podcast episode, "
+        "a YouTube address, a Gutenberg or Wikisource id) or a library text by id. Returns "
+        "the quote the page draws a card from — title, language, sentences or chapters, "
+        "audio length — or why it cannot be built. The reader presses the card to start it; "
+        "you cannot.",
+        _schema(
+            {
+                "source": {"type": "string", "description": "A link or fetcher id."},
+                "catalogue_id": {"type": "string", "description": "A library text's id."},
+                "to": {"type": "string", "description": "Language to translate into."},
+            }
+        ),
+        quote_build,
+    ),
+    Tool(
+        "my_hours",
+        "How much of this month's audio allowance the reader has used, in hours, and when "
+        "it returns. Never money.",
+        _schema({}),
+        my_hours,
     ),
     Tool(
         "check_job",

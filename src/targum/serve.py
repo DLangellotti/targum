@@ -3473,6 +3473,8 @@ class Handler(BaseHTTPRequestHandler):
                 "text": feed.text(),
                 "done": feed.closed,
                 "error": errors[-1]["message"] if errors else "",
+                # The cards this turn quoted, for a page polling rather than streaming.
+                "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
             }
         turns = self.chats.store.chat_turns(chat_id)
         asked = next((turn for turn in turns if turn["n"] == n), None)

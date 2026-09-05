@@ -178,6 +178,8 @@ THUMBED = (
     ".chat-send",
     ".chat-new",
     ".chat-list button",
+    # And the button on a quote that starts a build — the one press that spends.
+    ".quote-go",
 )
 
 
