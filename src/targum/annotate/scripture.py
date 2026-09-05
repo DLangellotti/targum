@@ -308,13 +308,17 @@ class ScriptureLemmatizer:
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
 
+        `oshb/4` (2026-09-05): a token carries the Strong's number of its lexeme, so a
+        meaning can be looked up by the one identity that is neither a guess nor a
+        spelling — `בַּיִת` is three entries under one pointed form.
+
         `oshb/3` (2026-09-05): an Aramaic noun is no longer read as its own definite
         article. Aramaic suffixes the article where Hebrew prefixes it, so the last piece
         of `מַלְכָּא` is the א and the word was coming back a `PART` — 18.8% of the Aramaic
         in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
         never trails a Hebrew word.
         """
-        return f"oshb/3+{self.fallback.name}"
+        return f"oshb/4+{self.fallback.name}"
 
     def reads(self, language: str) -> bool:
         """Whether a block in this language can be looked up rather than guessed at.
@@ -396,6 +400,7 @@ class ScriptureLemmatizer:
                     band=0,
                     split=len(word.pieces) > 1,
                     pos=part_of(code),
+                    lexeme=word.lexeme or None,
                     binyan=binyan_of(code) if verb else None,
                     root=root_of(dictionary) if verb else None,
                     feats=features(code),

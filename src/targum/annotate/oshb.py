@@ -290,6 +290,46 @@ def contested(spelling: str) -> bool:
     return len(_SPELLED.get(bare(spelling), ())) > 1
 
 
+_BY_FORM: dict[str, set[str]] | None = None
+
+
+def _by_form() -> dict[str, set[str]]:
+    """Every way a headword is written, pointed and bare, into the numbers spelled that
+    way. Both, because a meaning is filed under the pointed headword where a spelling is
+    shared and under the bare lemma everywhere else — `Token.glossed_as`."""
+    global _BY_FORM
+    if _BY_FORM is None:
+        found: dict[str, set[str]] = {}
+        for number, head in _lexicon().items():
+            pointed = unicodedata.normalize("NFC", head)
+            found.setdefault(pointed, set()).add(number)
+            found.setdefault(bare(pointed), set()).add(number)
+        _BY_FORM = found
+    return _BY_FORM
+
+
+def sense_for(form: str) -> str:
+    """What a written form means, where the lexicon is not of two minds about it.
+
+    `form` is what a meaning is filed under: the pointed headword where two words share
+    a spelling, the bare lemma everywhere else.
+
+    One *sense* rather than one number, because the two are not the same question.
+    `מֶלֶךְ` is both `4428` and `4430` — the Hebrew king and the Aramaic one — and they
+    mean the same thing, so there is nothing ambiguous to a reader about being told "a
+    king". Where the candidates disagree this says nothing, which is the honest answer
+    and the one `contested` was written for.
+    """
+    if not form:
+        return ""
+    numbers = _by_form().get(unicodedata.normalize("NFC", form)) or _by_form().get(bare(form))
+    if not numbers:
+        return ""
+    said = {sense(number) for number in numbers}
+    said.discard("")
+    return said.pop() if len(said) == 1 else ""
+
+
 def parse_lexicon(xml: str) -> dict[str, str]:
     """Strong's numbers into headwords, from the lexicon file."""
     out: dict[str, str] = {}
@@ -470,11 +510,12 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
-    global _HEADWORDS, _SPELLED, _MEANINGS
+    global _HEADWORDS, _SPELLED, _MEANINGS, _BY_FORM
     _loaded.clear()
     _HEADWORDS = None
     _SPELLED = None
     _MEANINGS = None
+    _BY_FORM = None
 
 
 _REF = re.compile(r"^(?P<book>.+?)\s+(?P<chapter>\d+)[:.](?P<verse>\d+)\s*$")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -1437,3 +1438,64 @@ def test_a_block_in_another_language_is_read_but_never_rated() -> None:
 
     hebrew = annotation.tokens[segmented.segments[0].id]
     assert any(token.band for token in hebrew), "the document's own language still is rated"
+
+
+def _tagged_senses(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """A model directory holding two Strong's entries, the way a fetch leaves them."""
+    from targum.annotate import oshb
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    oshb.forget()
+    home = tmp_path / "oshb"
+    home.mkdir(parents=True, exist_ok=True)
+    (home / oshb.SENSES_FILE).write_text(
+        json.dumps({"4430": "a king", "1768": "that, used as relative conjunction"}),
+        encoding="utf-8",
+    )
+
+
+def _annotation(tokens: list[Token]) -> Annotation:
+    return Annotation(
+        document_hash="h",
+        language="he",
+        annotator="oshb/4+stub",
+        method="curated:tanakh",
+        method_note="",
+        band_count=6,
+        tokens={"0000.000-aaaaaa": tokens},
+    )
+
+
+def test_the_tagging_glosses_a_content_word_for_nothing(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Every word of the Hebrew Bible carries the number of its lexeme and the lexicon
+    carries a definition, so a meaning is a lookup rather than a purchase — and exact,
+    because a number is not a spelling (targum-internal#64)."""
+    from targum.annotate.gloss import from_the_tagging
+
+    _tagged_senses(tmp_path, monkeypatch)
+    king = Token(start=0, end=5, surface="מלכא", lemma="מלך", band=0, pos="NOUN", lexeme="4430")
+    found = from_the_tagging(_annotation([king]))
+    assert found["מלך"].gloss == "a king"
+    assert found["מלך"].part == "noun"
+
+
+def test_the_tagging_leaves_the_function_words_alone(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Strong's is at its best on a noun and its worst on a particle, where the entry is
+    the King James word list rather than a definition. `דִּי` occurs 344 times in Daniel;
+    a reader tapping it learns what it is from the grammar line, and a paragraph of
+    renderings under that is noise where the card should be an answer."""
+    from targum.annotate.gloss import from_the_tagging
+
+    _tagged_senses(tmp_path, monkeypatch)
+    which = Token(start=0, end=3, surface="די", lemma="די", band=0, pos="PART", lexeme="1768")
+    assert from_the_tagging(_annotation([which])) == {}
+
+
+def test_a_token_with_no_lexeme_is_not_guessed_at(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Only the scripture path records a lexeme, so this gates itself on the data: a
+    modern text cannot be handed a biblical sense for a word that has since moved on."""
+    from targum.annotate.gloss import from_the_tagging
+
+    _tagged_senses(tmp_path, monkeypatch)
+    modern = Token(start=0, end=4, surface="מקרר", lemma="מקרר", band=3, pos="NOUN")
+    assert from_the_tagging(_annotation([modern])) == {}

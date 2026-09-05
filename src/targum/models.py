@@ -286,6 +286,14 @@ class Token(Artifact):
     # the scripture path knows it, from the lexicon; absent everywhere else, and on
     # annotations written before it existed.
     headword: str | None = None
+    # Which lexeme this is, as Strong numbered it. The one identity in the pipeline that
+    # is neither guessed nor a spelling: the hand tagging says it outright, and it tells
+    # apart what no spelling can. `בַּיִת` is three entries under one pointed form — a
+    # house, its Aramaic twin, and a place in Palestine — so a meaning looked up by
+    # spelling refuses to answer for the commonest nouns in the book. By number it is
+    # exact. Only the scripture path knows it; absent everywhere else, and on annotations
+    # written before it existed (targum-internal#64).
+    lexeme: str | None = None
 
     @property
     def glossed_as(self) -> str:
