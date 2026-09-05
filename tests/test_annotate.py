@@ -1394,3 +1394,46 @@ def test_a_rebuild_asked_to_buy_fills_what_the_cache_lacks(tmp_path) -> None:  #
 
     again = fill_from_cache(annotation, grown, ["en"], cache=cache, provider=provider)
     assert again == {} and provider.asked == [["שלום"]], "bought once, free after"
+
+
+class ReadsAramaic(FakeLemmatizer):
+    """A lemmatizer that can read one language other than the document's, the way the
+    scripture path reads the Aramaic of Daniel and Ezra."""
+
+    name = "reads-arc/1"
+
+    def reads(self, language: str) -> bool:
+        return language.split("-")[0].lower() == "arc"
+
+
+def test_a_block_in_another_language_is_read_where_something_can_read_it() -> None:
+    """`unread` leaves a foreign block alone unless the lemmatizer says otherwise. The
+    scripture path can look Aramaic up word for word, so leaving Daniel blank became the
+    worse of the two answers (targum-internal#64, #195)."""
+    segmented = document(["שלום עולם", "מלכא לעלמין חיי"])
+    segmented.segments[1].language = "arc"
+
+    blind = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands()).annotate(segmented)
+    assert segmented.segments[1].id not in blind.tokens, "nothing could read it"
+
+    seeing = Annotator(lemmatizer=ReadsAramaic(), bands=FakeBands()).annotate(segmented)
+    assert seeing.tokens[segmented.segments[1].id], "something could, so it was read"
+
+
+def test_a_block_in_another_language_is_read_but_never_rated() -> None:
+    """The band table and the register are the document language's. Asked about Aramaic
+    they call ordinary words rare — `חֱיִי`, Aramaic for "live", came out "very hard",
+    and 19.2% of Daniel's Aramaic landed in the top two bands. Unrated is the honest
+    answer, and the reader already has words for it.
+    """
+    segmented = document(["שלום עולם", "מלכא לעלמין חיי"])
+    segmented.segments[1].language = "arc"
+    annotation = Annotator(lemmatizer=ReadsAramaic(), bands=FakeBands()).annotate(segmented)
+
+    aramaic = annotation.tokens[segmented.segments[1].id]
+    assert aramaic, "it was read"
+    assert all(token.band == 0 for token in aramaic), "and rated by nothing"
+    assert all(token.word_register is None for token in aramaic), "nor placed in a register"
+
+    hebrew = annotation.tokens[segmented.segments[0].id]
+    assert any(token.band for token in hebrew), "the document's own language still is rated"

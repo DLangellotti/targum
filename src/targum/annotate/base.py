@@ -73,10 +73,11 @@ NO_METHOD = "none"
 #: it. A new component in the name is what makes them be read again, and reading again
 #: is free — nothing here is fetched or bought.
 #:
-#: `languages/2` (2026-09-05): left unread *unless the lemmatizer can read it*. The
-#: scripture path can read the Aramaic of Daniel and Ezra, so it is looked up rather
-#: than skipped, and the blank page those books had is now the worse of the two answers
-#: (targum-internal#64, #195).
+#: `languages/2` (2026-09-05): left unread *unless the lemmatizer can read it*, and where
+#: it is read, left unrated. The scripture path can read the Aramaic of Daniel and Ezra,
+#: so it is looked up rather than skipped and the blank page those books had is now the
+#: worse of the two answers — but the band table and the register are Hebrew, and asked
+#: about Aramaic they call ordinary words rare (targum-internal#64, #195).
 LANGUAGES = "languages/2"
 
 

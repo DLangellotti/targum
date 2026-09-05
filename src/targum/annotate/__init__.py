@@ -157,11 +157,29 @@ class Annotator:
         # lemmas than tokens, and both questions are asked of the dictionary form.
         registers: dict[str, str | None] = {}
 
+        # Which blocks are in a language of their own, so their words are not rated
+        # against a table built for the document's. The Tanakh band table and the
+        # register are Hebrew: asked about Aramaic they answer that ordinary words are
+        # rare, because they are rare *in Hebrew*. Before this, `חֱיִי` — Aramaic for
+        # "live", in the sentence every reader of Daniel meets first — came out "very
+        # hard", and 19.2% of the Aramaic landed in the top two bands. Unrated is the
+        # honest answer, and the reader already has words for it: `Bands.supports`
+        # false says "not rated, since this language has no frequency data".
+        elsewhere = {
+            segment.id
+            for segment in segmented.segments
+            if segment.language_in(segmented.language) != segmented.language
+        }
+
         for segment_id, tokens in by_segment.items():
             positions = to_source.get(segment_id)
             marked: list[Token] = []
             for token in tokens:
-                if token.pos in NOT_VOCABULARY:
+                if segment_id in elsewhere:
+                    # Read, and deliberately not rated. See `elsewhere` above.
+                    band = UNRATED
+                    in_register = None
+                elif token.pos in NOT_VOCABULARY:
                     # A name is rare in any corpus, and rating it would call every name
                     # in a chronicle "extremely hard". It has no difficulty: it is a
                     # token the reader can tap, not a word they have to learn. The same
