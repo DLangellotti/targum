@@ -27,8 +27,9 @@ def test_tokens_add_up_across_calls_and_models() -> None:
     assert spent.input_tokens == 3200
     assert spent.output_tokens == 1600
     # Priced per model, because a build can span two and an average is a price for
-    # neither: 3000 in and 1500 out on Sonnet, 200 and 100 on Haiku.
-    expected = (3000 * 3.0 + 1500 * 15.0) / 1e6 + (200 * 1.0 + 100 * 5.0) / 1e6
+    # neither: 3000 in and 1500 out on Sonnet, 200 and 100 on Haiku. Sonnet 5 is 2/10;
+    # this said 3/15 — Sonnet 4.6's rate — until 2026-09-05, and so did `PRICES`.
+    expected = (3000 * 2.0 + 1500 * 10.0) / 1e6 + (200 * 1.0 + 100 * 5.0) / 1e6
     assert abs(spent.cost() - expected) < 1e-9
 
 
