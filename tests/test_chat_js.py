@@ -46,7 +46,7 @@ def test_a_line_is_posted_and_the_stream_is_followed() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert page["posted"] == [
-        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read"}}
+        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read", "mode": "find"}}
     ]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"], "the key rides in the address"
     assert [t["text"] for t in page["turns"]] == ["what should I read", ""]
@@ -205,3 +205,47 @@ def test_a_refused_press_says_why_on_the_card() -> None:
     card = page["cards"][0]
     assert card["note"].startswith("Building a lot") and card["cls"] == "quote refused"
     assert page["stripAsked"] == 0
+
+
+def test_the_mode_rides_with_the_line_and_hebrew_is_drawn_in_pairs() -> None:
+    page = run(
+        do=[
+            {"type": "mode", "mode": "talk"},
+            {"type": "say", "text": "hello"},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps(
+                    {"text": "> שָׁלוֹם\n= hello\nמַה שְּׁלוֹמְךָ?\n= How are you?"}, ensure_ascii=False
+                ),
+            },
+        ],
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 1.5, "allowed": 8, "ends": "1 October"},
+            },
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert page["posted"][0]["body"]["mode"] == "talk"
+    assert page["hours"] == "1.5 of 8 hours this month"
+    pairs = page["pairs"]
+    assert pairs == [
+        {"he": "שָׁלוֹם", "en": "hello", "recast": True},
+        {"he": "מַה שְּׁלוֹמְךָ?", "en": "How are you?", "recast": False},
+    ]
+    assert page["mode"] == "talk"
+
+
+def test_a_plain_answer_is_still_a_line() -> None:
+    page = run(
+        do=[
+            {"type": "say", "text": "hi"},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "Try Ruth."})},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["posted"][0]["body"]["mode"] == "find"
+    assert page["pairs"] == [] and page["turns"][1]["text"] == "Try Ruth."

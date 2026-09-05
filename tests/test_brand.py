@@ -180,6 +180,8 @@ THUMBED = (
     ".chat-list button",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
+    # And the switch between finding and talking.
+    ".chat-mode .segment",
 )
 
 

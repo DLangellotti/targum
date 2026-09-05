@@ -15,6 +15,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from targum import level
 from targum.accounts import Store
 from targum.chat import MAX_STEPS, TURN_RESERVE, tools
@@ -355,3 +357,62 @@ def test_web_search_rides_along_only_when_asked_and_is_counted(
     assert session_module.Chats(library, store, client_factory=lambda: client).web_search is False
     monkeypatch.setenv("TARGUM_WEB_SEARCH", "1")
     assert session_module.Chats(library, store, client_factory=lambda: client).web_search is True
+
+
+def test_a_hebrew_turn_carries_the_contract_and_the_words_and_is_metered_in_seconds(
+    tmp_path: Path,
+) -> None:
+    """Talk mode: the contract rides in the cached block, the reader's words after the
+    breakpoint, and the turn's words land in the same seconds sum a recording's do."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": "שלום", "status": 9, "band": "easy", "at": 1, "seen": 1}
+            ]
+        },
+    )
+    reply_text = "שָׁלוֹם, מַה שְּׁלוֹמְךָ?\n= Hello, how are you?"
+    client = Script([reply([{"type": "text", "text": reply_text}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    home = library.home(person)
+    asked = chats.say(person, home, "", "hello there friend", admin=False, mode="talk")
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"  # type: ignore[index]
+    chats.answer(asked)
+
+    sent = client.requests[0]
+    assert hebrew.CONTRACT.splitlines()[0] in sent["system"][0]["text"], (
+        "the contract is in the cached block"
+    )
+    assert "known words (1): שלום" in sent["system"][1]["text"], "the ledger after the breakpoint"
+    job = library.jobs[f"chat-{asked.chat_id}-1"]
+    words = hebrew.words_in("hello there friend", reply_text)
+    assert job.seconds == pytest.approx(hebrew.seconds_for(words))
+    assert store.hours_used(person.id, 0) == pytest.approx(job.seconds), (
+        "in the recordings' own sum"
+    )
+
+    # And a find-mode conversation carries neither. Answered directly: `say` also queued
+    # it for the workers this test never started, and the queue's head is the first turn.
+    chats.answer(chats.say(person, home, "", "what to read", admin=False))
+    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[1]["system"][0]["text"]
+
+
+def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    library.upload_seconds = 30.0
+    client = Script([reply([{"type": "text", "text": "a"}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    long_line = " ".join(["מילה"] * 200)  # 280 words with the assumed reply: 140 seconds
+    asked = chats.say(None, library.home(None), "", long_line, admin=False, mode="talk")
+    chats.answer(asked)
+    feed = chats.feed_for(asked.chat_id, asked.n)
+    assert feed is not None
+    said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
+    assert "hours of audio and conversation" in said and "library is always free" in said
+    assert "$" not in said
+    assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"

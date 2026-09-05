@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from .. import level as level_module
 from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
+from . import hebrew as hebrew_module
 from . import tools as tools_module
 
 if TYPE_CHECKING:
@@ -100,15 +101,20 @@ def run_turn(
     keep: Callable[[str, list[dict[str, Any]], str], None],
     *,
     web_search: bool = False,
+    contract: str = "",
+    ledger: str = "",
 ) -> Usage:
     """Answer the last user message in `history`, streaming into `feed`.
 
     `keep(role, content, said)` is called for every API message this turn produces, in
     order, so the store holds the conversation as the API will need to see it again.
-    Returns what the turn cost.
+    `contract` is a stable block added to the system prompt (the Hebrew mode's rules);
+    `ledger` is the per-reader block, or the plain one where none is given. Returns what
+    the turn cost.
     """
     usage = ctx.usage
     messages = list(history)
+    stable = prompts.SYSTEM + ("\n\n" + contract if contract else "")
     for _ in range(MAX_STEPS):
         with client.messages.stream(
             model=CHAT_MODEL,
@@ -116,8 +122,8 @@ def run_turn(
             system=[
                 # The stable half first and cached; the ledger after the breakpoint, so a
                 # reader marking one word does not throw the whole prefix away.
-                {"type": "text", "text": prompts.SYSTEM, "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": prompts.ledger(ctx.level)},
+                {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": ledger or prompts.ledger(ctx.level)},
             ],
             output_config={"effort": EFFORT},
             tools=tools_module.anthropic_tools(web_search=web_search),
@@ -254,14 +260,27 @@ class Chats:
     # -- asking -----------------------------------------------------------------
 
     def say(
-        self, person: Person | None, home: Path, chat_id: str, text: str, *, admin: bool
+        self,
+        person: Person | None,
+        home: Path,
+        chat_id: str,
+        text: str,
+        *,
+        admin: bool,
+        mode: str = "",
     ) -> Asked:
-        """Write the reader's turn down and hand it to a worker. Returns at once."""
+        """Write the reader's turn down and hand it to a worker. Returns at once.
+
+        `mode` switches the conversation — `find` or `talk` — where the reader asked;
+        a new conversation opens in the mode asked for, or `find`.
+        """
         if self.store is None:
             raise RuntimeError("a chat needs a store")
         person_id = person.id if person else None
         if not chat_id:
-            chat_id = self.store.chat_open(person_id)
+            chat_id = self.store.chat_open(person_id, mode=mode or "find")
+        elif mode:
+            self.store.chat_mode(chat_id, mode)
         n = self.store.chat_say(chat_id, "user", text, text, stage="working")
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
@@ -302,14 +321,25 @@ class Chats:
             learning=(store.learning(person_id) & reading) if asked.person else reading,
             admin=asked.admin,
         )
-        # The turn's place on the money rails: a job row of its own kind, claimed before
-        # the first token and settled to the receipt after the last. Never enqueued —
-        # `Library.queue` is the build queue.
+        chat = store.chat_owned(person_id, asked.chat_id) or {}
+        talking = str(chat.get("mode") or "find") == "talk"
+        asked_text = next(
+            (str(row["said"]) for row in store.chat_turns(asked.chat_id) if row["n"] == asked.n),
+            "",
+        )
+        # The turn's place on the rails: a job row of its own kind, claimed before the
+        # first token and settled to the receipt after the last. Never enqueued —
+        # `Library.queue` is the build queue. Its seconds are the words asked plus a
+        # reply's worth at the conversational rate, settled to the words said: the same
+        # allowance a recording's hour comes out of, in the same sum.
         job = Job(
             id=f"chat-{asked.chat_id}-{asked.n}",
             source=f"chat:{asked.chat_id}",
             title="",
             estimate=TURN_RESERVE,
+            seconds=hebrew_module.seconds_for(
+                hebrew_module.words_in(asked_text) + hebrew_module.ASSUMED_REPLY_WORDS
+            ),
             stage="working",
             owner=person_id,
             home=asked.home,
@@ -337,9 +367,29 @@ class Chats:
         def keep(role: str, content: list[dict[str, Any]], said: str) -> None:
             store.chat_say(asked.chat_id, role, content, said, stage="done")
 
+        contract = hebrew_module.CONTRACT if talking else ""
+        ledger = (
+            hebrew_module.ledger_block(
+                level,
+                hebrew_module.known_words(store, person_id, language),
+                hebrew_module.common_words(language=language),
+            )
+            if talking
+            else ""
+        )
         try:
-            spent = run_turn(self.client(), ctx, history, feed, keep, web_search=self.web_search)
+            spent = run_turn(
+                self.client(),
+                ctx,
+                history,
+                feed,
+                keep,
+                web_search=self.web_search,
+                contract=contract,
+                ledger=ledger,
+            )
             job.spent = spent.cost()
+            job.seconds = hebrew_module.seconds_for(hebrew_module.words_in(asked_text, feed.text()))
             job.stage = "done"
             self.library.settle(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="done", spent=job.spent)

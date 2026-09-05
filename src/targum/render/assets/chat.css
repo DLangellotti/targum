@@ -131,8 +131,44 @@ body.chat > .chat-main {
   grid-area: compose;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mode mode"
+    "say send";
   gap: 0.6rem;
   align-items: end;
+}
+.composer .chat-mode { grid-area: mode; justify-self: start; }
+.composer textarea { grid-area: say; }
+.composer .chat-send { grid-area: send; }
+.chat-hours {
+  margin: 0.25rem 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+/* --- Hebrew, with the English under every line ------------------------------
+   The record's own shape: a Hebrew line in the reading face at its own leading, its
+   English beneath in the muted tone a translation rests in (§4). A recast of the
+   reader's words is marked in type, not colour. */
+.turn .pair { display: grid; gap: 0.1rem; margin-block-end: 0.5rem; }
+.turn .pair .he {
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.95;
+  color: var(--ink);
+}
+.turn .pair .en {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.turn .pair.recast .en::before {
+  content: "you said";
+  margin-inline-end: 0.5em;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .composer textarea {
   font: inherit;
@@ -218,7 +254,8 @@ body.chat > .chat-main {
   .chat-send,
   .chat-new,
   .chat-list button,
-  .quote-go {
+  .quote-go,
+  .chat-mode .segment {
     min-height: 44px;
   }
 }

@@ -38,6 +38,36 @@
   var chats = [];
   var busy = false;
   var usable = true;
+  // What this conversation is for: "find" (the shelf) or "talk" (Hebrew). Sent with
+  // every line, so a switch mid-conversation takes from the next line.
+  var mode = "find";
+  var modes = document.getElementById("chat-mode");
+  var hoursLine = document.getElementById("chat-hours");
+
+  function setMode(next) {
+    mode = next === "talk" ? "talk" : "find";
+    if (!modes) return;
+    Array.prototype.forEach.call(modes.querySelectorAll(".segment"), function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-mode") === mode ? "true" : "false");
+    });
+    if (field) field.placeholder = mode === "talk" ? "Write in Hebrew, or in English" : "Ask targum";
+  }
+  if (modes) {
+    modes.addEventListener("click", function (event) {
+      var button = event.target && event.target.closest ? event.target.closest(".segment") : null;
+      if (button) setMode(button.getAttribute("data-mode"));
+    });
+  }
+
+  function drawHours(got) {
+    if (!hoursLine || !got) return;
+    if (got.allowed === null || got.allowed === undefined) {
+      hoursLine.hidden = true;
+      return;
+    }
+    hoursLine.textContent = got.used + " of " + got.allowed + " hours this month";
+    hoursLine.hidden = false;
+  }
 
   // A failed request is an answer with an error in it, never a rejection left to the
   // console: opened off the disk, or with the server gone, every fetch here fails, and
@@ -71,8 +101,56 @@
   // A path the server returned, standing on its own. Nothing else becomes a link.
   var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
 
+  // The Hebrew mode's own shape: a Hebrew line, then "= " and its English; "> " marks a
+  // recast of the reader's words. Read here by the same rule `chat/hebrew.py` reads it.
+  function pairs(text) {
+    var out = [];
+    var pending = null;
+    String(text || "").split("\n").forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      if (line.indexOf("= ") === 0) {
+        if (pending) {
+          pending.en = line.slice(2).trim();
+          out.push(pending);
+          pending = null;
+        }
+        return;
+      }
+      if (pending) {
+        out.push(pending);
+        pending = null;
+      }
+      var recast = line.indexOf("> ") === 0;
+      var body = recast ? line.slice(2).trim() : line;
+      if (/[\u05d0-\u05ea]/.test(body)) pending = { he: body, en: "", recast: recast };
+    });
+    if (pending) out.push(pending);
+    return out;
+  }
+
   function render(target, text) {
     target.textContent = "";
+    var found = pairs(text);
+    // A turn written by the contract is drawn as pairs; anything else as a line.
+    if (found.length && found.some(function (p) { return p.en; })) {
+      found.forEach(function (p) {
+        var pair = document.createElement("div");
+        pair.className = "pair" + (p.recast ? " recast" : "");
+        var he = document.createElement("span");
+        he.className = "he";
+        he.setAttribute("lang", "he");
+        he.setAttribute("dir", "rtl");
+        he.textContent = p.he;
+        var en = document.createElement("span");
+        en.className = "en";
+        en.textContent = p.en;
+        pair.appendChild(he);
+        pair.appendChild(en);
+        target.appendChild(pair);
+      });
+      return;
+    }
     var pieces = String(text || "").split(PATH);
     // split with two groups yields [before, sep, path, before, sep, path, ...]
     for (var i = 0; i < pieces.length; i++) {
@@ -237,6 +315,7 @@
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
       usable = answer.usable !== false;
+      drawHours(answer.hours);
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
       if (!current && chats.length) return open(chats[0].id);
@@ -251,6 +330,7 @@
     tell("");
     return ask("/chat/" + encodeURIComponent(id)).then(function (answer) {
       if (answer.error) return tell(answer.error);
+      setMode(answer.chat && answer.chat.mode);
       var pending = null;
       (answer.turns || []).forEach(function (t) {
         if (t.role === "user") {
@@ -285,7 +365,7 @@
     send.disabled = true;
     turn("user", text);
     var answer = turn("assistant", "", "working");
-    ask("/chat/say", { chat: current, text: text }).then(function (got) {
+    ask("/chat/say", { chat: current, text: text, mode: mode }).then(function (got) {
       if (got.error) {
         answer.className = "turn them bad";
         render(answer.querySelector(".line"), got.error);
@@ -378,5 +458,5 @@
 
   load();
 
-  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard };
+  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard, pairs: pairs };
 })();

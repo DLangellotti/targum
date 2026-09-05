@@ -91,6 +91,9 @@ SESSION_DAYS = 90
 # the sqlite file behind an account and costs a column.
 SCHEMA_VERSION = 12
 
+#: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
+MODES = ("find", "talk")
+
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
 # by hand or the first query naming it fails against every database but a brand new one
@@ -166,14 +169,18 @@ MIGRATIONS: tuple[str, ...] = (
     # last part; pressing again takes it back, so a text is finished once however often
     # the button is pressed. Synced and exported with the rest of what they did.
     "ALTER TABLE doc ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
-    # Seconds of recording a build consumed from the monthly allowance. Set only for an
-    # uploaded audio or video file, which is the one thing metered by time; text uploads
-    # and everything in the library are zero. See `serve.UPLOAD_SECONDS`.
+    # Seconds a job consumed from the monthly allowance. Two things are metered by time:
+    # an uploaded audio or video file, and since 2026-09-05 a turn of conversation, typed
+    # or spoken (`chat/hebrew.py` says how a typed one becomes seconds). Text uploads and
+    # everything in the library are zero. See `serve.UPLOAD_SECONDS`.
     "ALTER TABLE job ADD COLUMN length REAL NOT NULL DEFAULT 0",
     # What kind of work the row is. `build` is every row written before 2026-09-05; a
     # `chat` row is one turn of conversation, claimed and settled the same way so the
     # rails see it, and never queued — see `chat/session.py`.
     "ALTER TABLE job ADD COLUMN kind TEXT NOT NULL DEFAULT 'build'",
+    # What a conversation is for: `find` (things to read) or `talk` (in Hebrew). The
+    # reader switches it; the mode decides which contract the model is given.
+    "ALTER TABLE chat ADD COLUMN mode TEXT NOT NULL DEFAULT 'find'",
 )
 
 SCHEMA = """
@@ -430,7 +437,8 @@ CREATE TABLE IF NOT EXISTS chat (
   seen     INTEGER NOT NULL DEFAULT 0,
   spent    REAL    NOT NULL DEFAULT 0,
   saved    TEXT    NOT NULL DEFAULT '',
-  gone     INTEGER NOT NULL DEFAULT 0
+  gone     INTEGER NOT NULL DEFAULT 0,
+  mode     TEXT    NOT NULL DEFAULT 'find'
 );
 -- One row per API message, in order: the reader's line, the model's answer, and the
 -- tool calls and results between them. `content` is the content-block array verbatim,
@@ -1517,22 +1525,29 @@ class Store:
 
     # -- conversations ----------------------------------------------------------
 
-    def chat_open(self, person_id: int | None, language: str = "he") -> str:
+    def chat_open(self, person_id: int | None, language: str = "he", mode: str = "find") -> str:
         """Start a conversation. Its id is a bearer token in the sense a job's is:
         unguessable, and still checked against the asker on every read."""
         chat_id = secrets.token_urlsafe(9)
         with self.write() as db:
             db.execute(
-                "INSERT INTO chat (id, person, language, made, seen) VALUES (?, ?, ?, ?, ?)",
-                (chat_id, person_id, language, now(), now()),
+                "INSERT INTO chat (id, person, language, made, seen, mode)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, person_id, language, now(), now(), mode if mode in MODES else "find"),
             )
         return chat_id
+
+    def chat_mode(self, chat_id: str, mode: str) -> None:
+        if mode not in MODES:
+            return
+        with self.write() as db:
+            db.execute("UPDATE chat SET mode = ? WHERE id = ?", (mode, chat_id))
 
     def chats(self, person_id: int | None) -> list[dict[str, Any]]:
         """Somebody's conversations, most recent first."""
         rows = self.db.execute(
             "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
-            "       chat.saved,"
+            "       chat.saved, chat.mode,"
             "       (SELECT COUNT(*) FROM chat_turn"
             "         WHERE chat_turn.chat = chat.id AND said != '') AS turns"
             " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC",
@@ -1543,7 +1558,7 @@ class Store:
     def chat_owned(self, person_id: int | None, chat_id: str) -> dict[str, Any] | None:
         """One conversation, but only if it is the asker's."""
         row = self.db.execute(
-            "SELECT id, person, title, language, made, seen, spent, saved FROM chat"
+            "SELECT id, person, title, language, made, seen, spent, saved, mode FROM chat"
             " WHERE id = ? AND person IS ? AND gone = 0",
             (chat_id, person_id),
         ).fetchone()
@@ -1834,16 +1849,25 @@ class Store:
             )
             return ""
 
-    def settle(self, job_id: str, spent: float) -> None:
+    def settle(self, job_id: str, spent: float, length: float | None = None) -> None:
         """Replace what a build reserved with what it really cost.
 
         Claiming takes the estimate up front, because the decision to allow a build has
         to be made before it runs. Settling is the other half: once the API has said
         what it charged, the ledger holds that instead of a guess, and the budget stops
-        being an approximation of itself.
+        being an approximation of itself. A turn of conversation settles its seconds the
+        same way — reserved from the words asked, held at the words said.
         """
         with self.write() as db:
-            db.execute("UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id))
+            if length is None:
+                db.execute(
+                    "UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id)
+                )
+            else:
+                db.execute(
+                    "UPDATE job SET claimed = ?, spent = ?, length = ? WHERE id = ?",
+                    (spent, spent, length, job_id),
+                )
 
     def unclaim(self, job_id: str) -> None:
         """Give back what a failed build never spent — the money and the hours both.

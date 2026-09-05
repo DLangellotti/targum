@@ -985,9 +985,10 @@ class Library:
         return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
 
     def settle(self, job: Job) -> None:
-        """Swap what a build reserved for what it spent."""
+        """Swap what a build reserved for what it spent — and, for a turn of
+        conversation, the seconds it was reserved at for the seconds it ran to."""
         if self.store is not None:
-            self.store.settle(job.id, job.spent)
+            self.store.settle(job.id, job.spent, length=job.seconds if job.kind == "chat" else None)
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
@@ -1046,6 +1047,15 @@ class Library:
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
             return f"Building a lot at once. Try again {when}. The library is always free."
+        if whose == "talk-hours":
+            # The allowance, reached by talking rather than by uploading. The same number
+            # the pricing page names, and the same promise that reading carries on.
+            allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
+            return (
+                f"That is your {allowed / 3600:g} hours of audio and conversation for this "
+                f"month. More on {self._month_ends()}. Reading carries on, and the library "
+                "is always free."
+            )
         if whose == "chat":
             # The same rule for the conversation's own rail: a lot of talking is not a
             # lot of reading, and the shelf is still open.
@@ -1741,9 +1751,16 @@ class Library:
             owner=job.owner,
             per_account=None if admin else self.chat_budget,
             kind="chat",
+            # Conversation comes out of the eight hours (decided 2026-09-05): the same
+            # sum a recording's seconds land in, so there is one ledger and not two.
+            month_from=self._month_from(),
+            length=job.seconds,
+            per_month_length=None if admin else self.upload_seconds,
         )
         if not refused:
             return ""
+        if refused == "hours":
+            return self._out_of("talk-hours")
         return self._out_of("chat" if refused == "account" else refused)
 
     @staticmethod
@@ -3486,7 +3503,21 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
-            return self._json({"chats": store.chats(person_id), "usable": self.chats.usable})
+            # The hours beside the list, so the clock is on the page before the cap is
+            # met: the one limit a reader is told about, in the unit they were told.
+            allowed = self.library.upload_seconds
+            used = store.hours_used(person_id, self.library._month_from())
+            return self._json(
+                {
+                    "chats": store.chats(person_id),
+                    "usable": self.chats.usable,
+                    "hours": {
+                        "used": round(used / 3600, 2),
+                        "allowed": None if allowed is None else round(allowed / 3600, 2),
+                        "ends": self.library._month_ends(),
+                    },
+                }
+            )
         pieces = rest.split("/")
         if pieces[0] in ("turn", "stream") and len(pieces) == 3 and pieces[2].isdigit():
             chat_id, n = pieces[1], int(pieces[2])
@@ -3612,7 +3643,8 @@ class Handler(BaseHTTPRequestHandler):
         if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
             return self._json({"error": "not found"}, 404)
         admin = bool(person and self.store.is_admin(person.email))
-        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin)
+        mode = str(payload.get("mode") or "")
+        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, mode=mode)
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     # -- accounts -----------------------------------------------------------

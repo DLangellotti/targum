@@ -44,6 +44,20 @@ install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
   TargumBuilding: { ask: () => strip.asked++ },
 });
+// The segmented mode control is the template's markup, so it is built here: two
+// buttons the script reads and presses through the group's one click listener.
+const { element } = require("./dom.js");
+const modeGroup = byId["chat-mode"] || (byId["chat-mode"] = element("div"));
+const segments = ["find", "talk"].map((m) => {
+  const b = element("button");
+  b.className = "segment";
+  b.attrs["data-mode"] = m;
+  b.attrs["aria-pressed"] = m === "find" ? "true" : "false";
+  b.closest = (sel) => (sel === ".segment" ? b : null);
+  modeGroup.children.push(b);
+  return b;
+});
+modeGroup.querySelectorAll = (sel) => (sel === ".segment" ? segments : []);
 
 const answers = payload.answers || {};
 global.fetch = (url, options) => {
@@ -85,6 +99,22 @@ function cards() {
   return out;
 }
 
+function pairsDrawn() {
+  const out = [];
+  const walk = (node) => {
+    if (String(node.className).split(" ")[0] === "pair") {
+      out.push({
+        he: node.children[0].textContent,
+        en: node.children[1].textContent,
+        recast: String(node.className).split(" ").includes("recast"),
+      });
+    }
+    (node.children || []).forEach(walk);
+  };
+  walk(turns);
+  return out;
+}
+
 function drawn() {
   return (turns.children || []).map((li) => {
     const line = lineOf(li);
@@ -106,6 +136,10 @@ function drawn() {
     if (step.type === "stream") {
       sources[sources.length - 1].fire(step.event, step.data || "");
     }
+    if (step.type === "mode") {
+      const button = segments.find((b) => b.attrs["data-mode"] === step.mode);
+      modeGroup.fire("click", { target: button });
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -126,6 +160,9 @@ function drawn() {
       streams: sources.map((s) => s.url),
       turns: drawn(),
       cards: cards(),
+      pairs: pairsDrawn(),
+      hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
+      mode: segments.find((b) => b.attrs["aria-pressed"] === "true").attrs["data-mode"],
       stripAsked: strip.asked,
       list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },

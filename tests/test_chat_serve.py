@@ -78,7 +78,8 @@ def test_the_page_and_the_list_answer_behind_the_key(chatting) -> None:
     port, key, _, _ = chatting
     assert call(port, "GET", f"/chat?k={key}")[0] == 200
     status, answer, _ = call(port, "GET", f"/chat/list?k={key}")
-    assert status == 200 and answer == {"chats": [], "usable": True}
+    assert status == 200 and answer["chats"] == [] and answer["usable"] is True
+    assert set(answer["hours"]) == {"used", "allowed", "ends"}
     assert call(port, "GET", "/chat/list")[0] == 403, "no key, no list"
 
 
@@ -191,3 +192,29 @@ def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:
     store.forget(person)
     store.purge(days=-1)
     assert store.chats(person.id) == [] and store.chat_turns(chat) == []
+
+
+def test_the_list_carries_the_hours_and_a_line_can_switch_the_mode(chatting) -> None:
+    port, key, store, chats = chatting
+    status, answer, _ = call(port, "GET", f"/chat/list?k={key}")
+    assert answer["hours"] == {"used": 0.0, "allowed": 8.0, "ends": answer["hours"]["ends"]}
+    assert answer["hours"]["ends"]
+    status, asked, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום", "mode": "talk"}
+    )
+    assert status == 200
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "talk"
+    call(
+        port,
+        "POST",
+        f"/chat/say?k={key}",
+        {"chat": asked["chat"], "text": "find me a book", "mode": "find"},
+    )
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "find", "switched mid-conversation"
+    call(
+        port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "x", "mode": "nonsense"}
+    )
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "find", "an unknown mode changes nothing"
