@@ -6,6 +6,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- targum has a chat. `/chat` is a door on the rooms that already exist: ask what to read
+  next and it answers from the library measured against your own words; ask what you have
+  read and it answers from your ledger; ask about a build and it reports where it has got
+  to. Seven read-only tools behind it — the catalogue, your shelf, your vocabulary, your
+  progress, a ranked suggestion, a build's state — declared once (`chat/tools.py`) so the
+  same list can be served over MCP later, and every one reads whose shelf and whose words
+  from the session, never from an argument. The model may not spend: no tool in this slice
+  buys anything, and the seam for the ones that will is drawn (`spends`, `needs_consent`).
+  Answers stream as server-sent events on the same origin under the same policy every
+  page takes — `connect-src 'self'` did the work it was written for, and nothing in
+  `POLICY` moved. A conversation is the server's, unlike words and reading position, and
+  it travels in the account export and leaves with the account. Every turn is a `job` row
+  of kind `chat`, so the rails see it: a chat rail of its own (`CHAT_BUDGET`, a dollar a
+  day, a rate limit like the account's) and the account rail both count it, and the refusal
+  names when it lifts and never implies reading is used up. The ulpan ladder the progress
+  page draws is now in Python too (`level.py`), pinned against the browser's `charts.js` by
+  one fixture, so the chat can grade what it writes — and is told in as many words never to
+  quote the rung as a placement. `design.md` §12 records the reversal this is
+  ("targum speaks back"), and the roadmap's "Not building" line carries the decision.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
@@ -151,6 +170,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- Sonnet 5 was priced at 3/15 per million tokens in `PRICES`, which is Sonnet 4.6's rate;
+  it is 2/10. `Usage.cost()` reads that table to settle the ledger, so every hosted build
+  since the model arrived was recorded at half again what it cost, and `targum usage`
+  could not have agreed with the bill.
 - yt-dlp no longer speaks to readers in its own voice, and where YouTube is fetched from
   is a setting rather than an assumption. A reader who pasted a YouTube address on the box
   was shown, in the red box on /add, a paragraph naming `--cookies-from-browser` and two
