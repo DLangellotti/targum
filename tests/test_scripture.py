@@ -145,7 +145,7 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     suffixed definite article (targum-internal#64). Each is free to re-run: the lookup
     happens on this machine and `SCHEMA_VERSION` never moves.
     """
-    assert ScriptureLemmatizer(Stub()).name == "oshb/4+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/5+stub/1"
 
 
 @pytest.mark.parametrize(

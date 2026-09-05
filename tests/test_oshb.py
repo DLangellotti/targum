@@ -73,9 +73,10 @@ def test_a_word_with_no_prefix_is_one_piece(tagged: Path) -> None:
     assert created.morph == ("Vqp3ms",), "qal perfect third masculine singular"
 
 
-def test_the_content_piece_is_the_last_one(tagged: Path) -> None:
-    """A claim about Hebrew rather than about this file: the language builds a word by
-    putting function letters in front of it, so what is left at the end is the word."""
+def test_the_content_piece_is_the_one_with_a_number(tagged: Path) -> None:
+    """A claim about the tagging rather than about this file: a piece that is a word gets
+    a lexeme number and a piece that is stuck to one gets a letter, so the numbers say
+    which piece the word is."""
     first = oshb.words("Genesis 1:1")[0]  # type: ignore[index]
     assert first.pieces[first.content] == unicodedata.normalize("NFC", "רֵאשִׁ֖ית")
     assert first.lexemes[first.content] == "7225"
@@ -87,10 +88,10 @@ def test_the_content_piece_is_the_last_one(tagged: Path) -> None:
 
 
 def test_an_aramaic_noun_is_not_its_own_article() -> None:
-    """The one place the last-piece rule bends. Aramaic marks a definite noun by adding
-    א to the end of it rather than ה to the front, and the tagging cuts that א off as a
-    piece of its own coded `Td` — so the last piece of `מַלְכָּא`, one of the commonest
-    words in Daniel, was the article and not the king (targum-internal#64, #195).
+    """Aramaic marks a definite noun by adding א to the end of it rather than ה to the
+    front, and the tagging cuts that א off as a piece of its own — so under the old
+    "last piece" rule `מַלְכָּא`, one of the commonest words in Daniel, was the article and
+    not the king (targum-internal#64, #195).
 
     The word here is Daniel 2:4 as the tagging holds it, written out rather than read
     from a fixture, because the fixture is Genesis and this claim is about Aramaic.
@@ -101,26 +102,37 @@ def test_an_aramaic_noun_is_not_its_own_article() -> None:
         lexemes=("4430",),
         morph=("Ncmsd", "Td"),
     )
-    assert king.morph[-1] == oshb.EMPHATIC, "the article, cut off as its own piece"
-    assert king.content == 0, "so the word is the piece before it"
+    assert king.content == 0, "the piece with a lexeme number is the word"
     assert king.pieces[king.content] == "מַלְכָּ"
     assert king.lexeme == "4430", "the Aramaic king, not the Hebrew 4428"
     assert king.code == "Ncmsd", "a noun, where it used to answer with the article's code"
 
 
 def test_a_trailing_particle_that_is_the_word_stays_the_word() -> None:
-    """The bend must not reach Hebrew, where a trailing particle is the word itself with
-    a conjunction on its front. `Td` is safe to key on because it is the one particle
-    code that never trails a Hebrew word: measured over the tagging it ends 644 of
-    Daniel's 3,603 Aramaic words and none of its 2,316 Hebrew ones, none of Genesis's
-    20,612 and none of Isaiah's 16,930. `To`, `Tn`, `Tm`, `Ti`, `Tr` and `Ta` trail both
-    at about 2% and are correct as they stand.
+    """A particle at the end of a word is often the word itself, carrying a conjunction
+    on its front. Nothing about its position says otherwise; what decides is that the
+    particle is the piece holding the lexeme number.
     """
     for code in ("To", "Tn", "Tm", "Ti", "Tr", "Ta"):
-        word = oshb.Word(
-            text="ו" + "נא", pieces=("וְ", "נָא"), lexemes=("c", "4994"), morph=("C", code)
-        )
-        assert word.content == 1, f"{code} trailing is the word, not an article"
+        word = oshb.Word(text="ונא", pieces=("וְ", "נָא"), lexemes=("c", "4994"), morph=("C", code))
+        assert word.content == 1, f"{code} trailing carries the number, so it is the word"
+
+
+def test_a_hebrew_noun_is_not_its_own_pronoun_suffix() -> None:
+    """The same rule at the other end of the word. `זַרְעוֹ` is `זַרְע` + `וֹ`, "his seed",
+    and the last piece is the suffix — so a noun came back a `PRON`. 17.2% of the words
+    in Genesis carry a pronominal suffix (targum-internal#64)."""
+    seed = oshb.Word(text="זַרְעוֹ", pieces=("זַרְע", "וֹ"), lexemes=("2233",), morph=("Ncmsc", "Sp3ms"))
+    assert seed.content == 0
+    assert seed.lexeme == "2233"
+    assert seed.code == "Ncmsc", "a noun, where it used to answer with the suffix's code"
+
+
+def test_where_no_piece_is_numbered_the_last_one_is_the_word() -> None:
+    """`בּוֹ` is a preposition and a suffix with no noun between them, and there the
+    suffix really is the word."""
+    in_it = oshb.Word(text="בּוֹ", pieces=("בְּ", "וֹ"), lexemes=("b",), morph=("R", "Sp3ms"))
+    assert in_it.content == 1
 
 
 def test_a_word_with_no_pieces_to_spare_keeps_its_only_one() -> None:
