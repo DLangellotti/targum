@@ -1358,6 +1358,9 @@ class Library:
             if source.startswith(prefix):
                 kind = named
                 break
+        if source.endswith(".chat"):
+            # A conversation read back: shaped like a scene, filed like one.
+            kind = "dialogue"
         annotation = folder / "annotation.json"
         difficulty = (
             self._own_difficulty(str(annotation), annotation.stat().st_mtime, language)

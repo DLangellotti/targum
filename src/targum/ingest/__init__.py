@@ -18,6 +18,7 @@ from .epub import EpubIngester
 from .markdown import MarkdownIngester
 from .plaintext import PlainTextIngester
 from .subtitles import SubtitleIngester
+from .transcript import TranscriptIngester
 from .url import UrlIngester
 
 __all__ = [
@@ -38,6 +39,8 @@ _BY_SUFFIX: dict[str, Ingester] = {
     ".epub": EpubIngester(),
     ".srt": SubtitleIngester(),
     ".vtt": SubtitleIngester(),
+    # A conversation written down by the chat, in the reader's own home.
+    ".chat": TranscriptIngester(),
 }
 
 

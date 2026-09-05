@@ -165,7 +165,7 @@ def run_turn(
             name = str(block.get("name") or "")
             feed.put("tool", {"name": name})
             text, failed = tools_module.run(name, dict(block.get("input") or {}), ctx)
-            if name == "quote_build" and not failed:
+            if name in ("quote_build", "quote_conversation") and not failed:
                 # The page draws the card from the quote itself, not from what the
                 # model says about it: the number of sentences, the hours, the button.
                 quoted = json.loads(text).get("quote")

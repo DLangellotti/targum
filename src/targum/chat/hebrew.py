@@ -68,11 +68,12 @@ CONTRACT = f"""The reader has switched this conversation to Hebrew. From here:
 - Write in Hebrew, with vowel points (nikkud) on every word.
 - Every Hebrew sentence goes on its own line. Directly under it, on the next line, its
   English, beginning with "{ENGLISH}". Never a Hebrew line without its English line.
-- If the reader wrote in English or any language other than Hebrew, begin your reply by
-  giving them their own words in Hebrew: a line beginning "{RECAST}" with the Hebrew they
-  could have said, then a "{ENGLISH}" line with what they wrote, as they wrote it. Then
-  answer. If their Hebrew had a mistake, do the same with the corrected form; do not
-  lecture about the mistake.
+- Begin every reply with the reader's own line, in Hebrew: a line beginning "{RECAST}"
+  with their sentence — as they wrote it if their Hebrew was right, corrected if it was
+  not, and translated into Hebrew if they wrote in English or any other language — then
+  a "{ENGLISH}" line with its English, which for a line they wrote in English is what
+  they wrote, as they wrote it. Then answer. Do not lecture about a mistake; the
+  corrected line is the whole correction.
 - Stay inside the reader's known words and the common words listed below. At most one
   word outside them in a sentence, and its English is on the "{ENGLISH}" line like every
   other word's.

@@ -122,12 +122,12 @@ def test_an_upload_and_a_conversation_are_never_proposed(world, shelf) -> None:
         )
         is None
     )
-    built(home, "talk-he", str(home / "chats" / "abc.chat.json"), licence="CC0")
+    built(home, "talk-he", str(home / "chats" / "abc.chat"), licence="CC0")
     assert (
         promote.candidate(
             library,
             store,
-            finished(library, home, "talk-he", str(home / "chats" / "abc.chat.json")),
+            finished(library, home, "talk-he", str(home / "chats" / "abc.chat")),
         )
         is None
     )

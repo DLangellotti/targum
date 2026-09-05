@@ -435,6 +435,56 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Write this conversation down and price reading it back — the same card as a build.
+
+    Always this conversation, from `ctx`, never one named in an argument. The file lands
+    in the reader's own home under `chats/`, addressed by path so its cache key carries
+    the owner (`chat/transcript.py` says why that matters), and the quote is `Library.
+    prepare` on it like any other text: the English is carried, so nothing is bought
+    for translation; the words are glossed like any text's. The reader presses.
+    """
+    from ..serve import Job
+    from . import transcript
+
+    if ctx.store is None:
+        return {"error": "No store to read the conversation from."}
+    reader = "you"
+    if ctx.person is not None:
+        reader = str(ctx.store.profile(ctx.person).get("name") or "") or "you"
+    path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader)
+    if kept < 2:
+        return {
+            "error": "Nothing to read back yet. Talk a little first, in Hebrew.",
+            "lines": kept,
+        }
+    job = Job(
+        id=secrets.token_hex(8),
+        source=str(path),
+        options={"to": "en", "from": "he"},
+        owner=ctx.person_id,
+        admin=ctx.admin,
+        home=ctx.home,
+    )
+    ctx.library.jobs[job.id] = job
+    ctx.library.remember(job)
+    ctx.library.prepare(job)
+    ctx.library.remember(job)
+    ctx.store.chat_saved(ctx.chat_id, job.id)
+    state = job.state()
+    note = (
+        f"The page shows the reader a card for {kept} lines; the reader presses it, and the "
+        "conversation opens on their shelf as a text with every word tappable. Say so in "
+        "their time, never in money."
+    )
+    if dropped:
+        note += (
+            f" {dropped} of their turns had no Hebrew recast and are not in the record; "
+            "say so plainly."
+        )
+    return {"quote": state, "lines": kept, "dropped": dropped, "note": note}
+
+
 def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """The audio allowance, in the only unit a reader is ever told about."""
     allowed = ctx.library.upload_seconds
@@ -792,6 +842,14 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         search_sources,
+    ),
+    Tool(
+        "quote_conversation",
+        "Write this conversation down as a Hebrew text with its English and price reading "
+        "it back, for nothing. The page shows a card; the reader presses it and the "
+        "conversation opens on their shelf with every word tappable and on their ledger.",
+        _schema({}),
+        quote_conversation,
     ),
     Tool(
         "my_hours",

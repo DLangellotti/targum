@@ -1634,6 +1634,15 @@ class Store:
                 (*values, chat_id, n),
             )
 
+    def chat_title(self, chat_id: str) -> str:
+        row = self.db.execute("SELECT title FROM chat WHERE id = ?", (chat_id,)).fetchone()
+        return str(row["title"]) if row else ""
+
+    def chat_saved(self, chat_id: str, saved: str) -> None:
+        """Which build this conversation was written down as, once it has been."""
+        with self.write() as db:
+            db.execute("UPDATE chat SET saved = ? WHERE id = ?", (saved, chat_id))
+
     def chat_add_spent(self, chat_id: str, spent: float) -> None:
         with self.write() as db:
             db.execute("UPDATE chat SET spent = spent + ? WHERE id = ?", (spent, chat_id))

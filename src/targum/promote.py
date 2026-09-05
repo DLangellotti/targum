@@ -124,7 +124,7 @@ def candidate(library: Library, store: Store | None, job: Job) -> Proposal | Non
     # A conversation is half the reader's own words; #161's fourth layer is a grant a
     # person gives, not a thing a build earns. And a file on the server is an upload,
     # whose terms nobody recorded.
-    if source.endswith(".chat.json") or not (
+    if source.endswith(".chat") or not (
         source.startswith(PUBLIC_DOMAIN_FETCHERS) or "://" in source
     ):
         return None
