@@ -60,6 +60,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   file with the model named so the next reader's build is free. `Entry` gains `licence`
   and `credit`. The back office also lists what was wanted — a library search that found
   nothing, a link a reader had described — as counts, never who.
+- targum talks. A conversation can be switched to Hebrew, and then the model writes in
+  pointed Hebrew with the English under every line and recasts whatever the reader said in
+  another language into Hebrew first — the shape a targum has, so the record can be read
+  back (that reading-back is the next slice). It is handed the reader's own known words
+  from their ledger and, under them, the commonest words of the language at the first two
+  bands, and asked to stay inside them with one new word a sentence; the contract is
+  `chat/hebrew.py`, and whether a model can hold to a list is measured by
+  `scripts/eval_grading.py` before any page says "at your level" — no page does yet.
+  Conversation comes out of the eight hours: a typed turn is converted to seconds at
+  120 words a minute (the measured conversational rate, reconciled against the 89 of
+  read-aloud literature and the 150 the cost estimate deliberately sits high at), a
+  turn's seconds land in the same monthly sum a recording's do, the refusal at the cap
+  names audio and conversation together and the date they return, and the chat page shows
+  the hours used beside the list before the cap is met.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
