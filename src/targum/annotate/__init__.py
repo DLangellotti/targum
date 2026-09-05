@@ -136,9 +136,12 @@ class Annotator:
         plain: list[Segment] = []
         to_source: dict[str, list[int]] = {}
         for segment in segmented.segments:
-            if unread(segment, segmented.language):
-                # Not the document's language, so nothing here can read it honestly.
-                # Left without tokens rather than read as Hebrew — see `unread`.
+            if unread(segment, segmented.language, self.lemmatizer):
+                # Not the document's language, and this lemmatizer cannot read it, so
+                # nothing here can do it honestly. Left without tokens rather than read
+                # as Hebrew — see `unread`. Where the lemmatizer *can* read it, which is
+                # the scripture path on Daniel's and Ezra's Aramaic, it falls through and
+                # is looked up like the Hebrew around it.
                 continue
             text, _ = strip_nikkud(segment.text)
             if text != segment.text:

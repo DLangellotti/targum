@@ -369,3 +369,76 @@ def test_a_shared_spelling_keeps_its_points_beside_the_lemma(tagged: Path) -> No
     heavens = got[4]
     assert heavens.headword is None, "a spelling with one word to its name carries nothing"
     assert heavens.glossed_as == "שמים"
+
+
+def test_the_scripture_path_says_which_other_language_it_can_read(tagged: Path) -> None:
+    """Aramaic, and nothing else. Daniel and Ezra switch into it mid-book and the Open
+    Scriptures tagging covers those chapters word for word, so `unread` can let it
+    through to here rather than leaving the page blank (targum-internal#64, #195)."""
+    lemmatizer = ScriptureLemmatizer(Stub())
+    assert lemmatizer.reads("arc") is True
+    assert lemmatizer.reads("arc-Hebr") is True, "a script subtag is still Aramaic"
+    for other in ("ru", "en", "yi", "he"):
+        assert lemmatizer.reads(other) is False, other
+
+
+def test_without_the_tagging_it_offers_to_read_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A box that never fetched the morphology cannot look anything up, so it says so and
+    the Aramaic keeps the blank page it had. Saying yes here would hand Aramaic to a
+    Hebrew model, which is the whole harm `unread` exists to prevent."""
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    oshb.forget()
+    assert ScriptureLemmatizer(Stub()).reads("arc") is False
+    oshb.forget()
+
+
+def test_a_block_the_lemmatizer_reads_is_not_left_unread(tagged: Path) -> None:
+    """The rule `unread` states, exercised through both answers."""
+    from targum.annotate.base import unread
+
+    aramaic = Segment(
+        id="s9",
+        text="מלכא לעלמין חיי",
+        ref="Daniel 2:4",
+        kind="paragraph",
+        block_id="b1",
+        block_index=1,
+        index=0,
+        language="arc",
+    )
+    assert unread(aramaic, "he", ScriptureLemmatizer(Stub())) is False, "it can be looked up"
+    assert unread(aramaic, "he", Stub()) is True, "a plain lemmatizer cannot read it"
+    assert unread(aramaic, "he") is True, "and neither can nothing at all"
+
+
+def test_aramaic_the_tagging_cannot_place_is_not_handed_to_a_hebrew_model(
+    tagged: Path,
+) -> None:
+    """14 of Daniel's 200 Aramaic verses do not line up, because editions number them
+    differently. Those keep the blank page: passing them to the fallback would be a
+    Hebrew model reading Aramaic, which is the thing this whole rule is against."""
+    stub = Stub()
+    aramaic = Segment(
+        id="s9",
+        text="מלכא לעלמין חיי",
+        ref="Daniel 2:4",
+        kind="paragraph",
+        block_id="b1",
+        block_index=1,
+        index=0,
+        language="arc",
+    )
+    got = ScriptureLemmatizer(stub).lemmas([aramaic], "he")
+    assert stub.asked == [], "the Hebrew fallback was never asked"
+    assert got == {}, "and nothing was invented for it"
+
+
+def test_hebrew_the_tagging_cannot_place_still_goes_to_the_model(tagged: Path) -> None:
+    """The refusal above is about Aramaic only. Most of the shelf is Hebrew the tagging
+    does not cover, and that has always been the fallback's job."""
+    stub = Stub()
+    hebrew = verse("Isaiah 53:1", "מי האמין לשמעתנו")
+    ScriptureLemmatizer(stub).lemmas([hebrew], "he")
+    assert stub.asked == ["s1"], "the fallback is still what reads it"

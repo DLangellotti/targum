@@ -72,10 +72,28 @@ NO_METHOD = "none"
 #: annotated before a block could say it was Aramaic, and carries a Hebrew reading of
 #: it. A new component in the name is what makes them be read again, and reading again
 #: is free — nothing here is fetched or bought.
-LANGUAGES = "languages/1"
+#:
+#: `languages/2` (2026-09-05): left unread *unless the lemmatizer can read it*. The
+#: scripture path can read the Aramaic of Daniel and Ezra, so it is looked up rather
+#: than skipped, and the blank page those books had is now the worse of the two answers
+#: (targum-internal#64, #195).
+LANGUAGES = "languages/2"
 
 
-def unread(segment: Segment, document_language: str) -> bool:
+def reads(lemmatizer: object | None, language: str) -> bool:
+    """Whether this lemmatizer says it can read a language that is not the document's.
+
+    Asked of the object rather than declared on the protocol, because it is true of one
+    implementation and false of every other: `ScriptureLemmatizer` can read the Aramaic
+    of Daniel and Ezra because the Open Scriptures tagging covers it word for word, and
+    nothing else here can read anything but the language it was built for. A lemmatizer
+    that does not answer is one that cannot.
+    """
+    ask = getattr(lemmatizer, "reads", None)
+    return bool(ask(language)) if callable(ask) else False
+
+
+def unread(segment: Segment, document_language: str, lemmatizer: object | None = None) -> bool:
     """Whether the annotator leaves this segment's words alone.
 
     A block in a language other than its document's is left without tokens rather than
@@ -84,10 +102,18 @@ def unread(segment: Segment, document_language: str) -> bool:
     answers confidently about a word in another: on Aramaic read as Hebrew, Stanza tagged
     half the tokens as names and gave יָת — the object marker — the lemma of the Hebrew
     verb נתן. No token is a word the reader can still read, and cannot tap; a wrong
-    token is a card that lies. Routing such a block to a lemmatizer of its own is the
-    step after this one (targum-internal#65, #67), and this is where it will go.
+    token is a card that lies.
+
+    Unless something here can actually read it. That was the step this rule promised to
+    the one after it (targum-internal#65, #67), and for biblical Aramaic it has arrived:
+    the tagging covers Daniel and Ezra at 100% of words, so their Aramaic is looked up
+    rather than guessed at, and a blank page is now the worse answer of the two. A
+    lemmatizer that cannot read the block still gets nothing, which is every other case.
     """
-    return segment.language_in(document_language) != document_language
+    other = segment.language_in(document_language)
+    if other == document_language:
+        return False
+    return not reads(lemmatizer, other)
 
 
 def highlight_levels() -> list[dict[str, object]]:
