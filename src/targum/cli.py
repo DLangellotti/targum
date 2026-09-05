@@ -2539,6 +2539,39 @@ def main() -> None:
         sys.exit(130)
 
 
+@app.command()
+def mcp(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    store: Annotated[
+        Path | None,
+        typer.Option("--store", help="The account database. Default: ~/.targum/targum.db"),
+    ] = None,
+    list_tools: Annotated[
+        bool, typer.Option("--list", help="Say which tools are offered, and stop.")
+    ] = False,
+) -> None:
+    """Offer targum's tools to Claude Desktop or Claude Code, over stdio.
+
+    The same tools the chat runs on, served to a client you already talk to: the library
+    measured against your words, your shelf, your ledger, a suggestion, a build's state, a
+    link described, a text priced. Nothing here spends — a quote is information, and the
+    press that starts a build stays on targum's own page. Point the client at
+    `targum mcp` as a stdio server; needs `uv sync --extra mcp` once.
+    """
+    from .connector import describe, serve
+
+    if list_tools:
+        console.print(describe())
+        return
+    try:
+        serve(out or Path.cwd() / "targum-out", store)
+    except TargumError as error:
+        fail(error)
+
+
 @parasha_app.command("build")
 def parasha_build(
     years: Annotated[

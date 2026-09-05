@@ -35,7 +35,7 @@ jobs:
       # ImportError. It went unnoticed because the extra is installed in every working
       # copy, so the gap only ever showed up on a clean machine — which is what CI is for.
       # `align` stays out: it pulls torch, and the aligner tests skip themselves without it.
-      - run: uv sync --extra difficulty --extra phonetics --extra covers
+      - run: uv sync --extra difficulty --extra phonetics --extra covers --extra mcp
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
