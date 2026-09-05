@@ -998,7 +998,13 @@ def legal_is_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_LEGAL", "").strip().lower() in {"1", "true", "yes"}
 
 
-def back_office_page(found: object, days: int) -> str:
+def back_office_page(
+    found: object,
+    days: int,
+    proposed: list[dict[str, Any]] | None = None,
+    wanted: list[dict[str, Any]] | None = None,
+    said: str = "",
+) -> str:
     """The operator's own page, at `bo.<domain>`.
 
     Rendered here with everything else rather than in `backoffice.py`, so the one place
@@ -1006,7 +1012,21 @@ def back_office_page(found: object, days: int) -> str:
     `backoffice.Survey`; it is typed loosely to keep the import one way, since nothing
     in the renderer should need the store.
     """
-    return _environment().get_template("backoffice.html.j2").render(survey=found, days=days)
+    from ..catalogue import Kind, Register
+
+    return (
+        _environment()
+        .get_template("backoffice.html.j2")
+        .render(
+            survey=found,
+            days=days,
+            proposed=proposed or [],
+            wanted=wanted or [],
+            said=said,
+            registers=[r.value for r in Register if r is not Register.none],
+            kinds=[k.value for k in Kind],
+        )
+    )
 
 
 def legal_page(which: str, address: str = "") -> str:

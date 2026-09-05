@@ -47,6 +47,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   publishers' hosts and the public-domain fetchers' for relevance; a search is bought per
   search and `Usage` now counts it, so a turn that searched settles for what it cost.
   `LICENSING.md` says the private-import posture in one paragraph.
+- What a reader asks for feeds the shelf. Import is not gated on licence; promotion is,
+  and `promote.py` is the one place the licence recorded at ingest is read. After every
+  build the queue finishes, a private text whose source stands `free` or `owed` is
+  proposed for the catalogue — `unknown`, which is most of the web, stays private for ever
+  — and a person accepts or declines it in the back office, which gains the list with the
+  register and kind to correct and a credit an `owed` licence must carry before the merge
+  will take it. The public-domain fetchers promote themselves on completion, because their
+  licence is certain by construction. Accepting moves nothing: the reader's folder stays
+  theirs, the translation they paid for is re-keyed into the shared cache the way `targum
+  warm` does it (the two now share one body), and an entry is merged into the catalogue
+  file with the model named so the next reader's build is free. `Entry` gains `licence`
+  and `credit`. The back office also lists what was wanted — a library search that found
+  nothing, a link a reader had described — as counts, never who.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and

@@ -450,6 +450,45 @@ CREATE TABLE IF NOT EXISTS chat_turn (
   PRIMARY KEY (chat, n)
 );
 CREATE INDEX IF NOT EXISTS chat_person ON chat (person, seen);
+
+-- A reader's build proposed for the shelf, and what became of it. Written by
+-- `promote.candidate` after a build finishes; decided in the back office, or by the
+-- machine where the licence is certain by construction. See `promote.py`.
+CREATE TABLE IF NOT EXISTS proposed (
+  id           TEXT    PRIMARY KEY,
+  job          TEXT    NOT NULL DEFAULT '',
+  owner        INTEGER,
+  home         TEXT    NOT NULL DEFAULT '',
+  folder       TEXT    NOT NULL DEFAULT '',
+  source       TEXT    NOT NULL DEFAULT '',
+  title        TEXT    NOT NULL DEFAULT '',
+  author       TEXT    NOT NULL DEFAULT '',
+  language     TEXT    NOT NULL DEFAULT '',
+  words        INTEGER NOT NULL DEFAULT 0,
+  difficulty   INTEGER NOT NULL DEFAULT 0,
+  register     TEXT    NOT NULL DEFAULT '',
+  kind         TEXT    NOT NULL DEFAULT '',
+  licence      TEXT    NOT NULL DEFAULT '',
+  standing     TEXT    NOT NULL DEFAULT '',
+  catalogue_ok INTEGER NOT NULL DEFAULT 0,
+  corpus_ok    INTEGER NOT NULL DEFAULT 0,
+  because      TEXT    NOT NULL DEFAULT '',
+  state        TEXT    NOT NULL DEFAULT 'proposed',
+  by           TEXT    NOT NULL DEFAULT '',
+  made         INTEGER NOT NULL DEFAULT 0
+);
+-- What readers asked for that the shelf could not answer: a query with no library
+-- match, a link somebody had described. Counts, so the operator can see that eleven
+-- readers wanted a text one licence email away. No reader is named on a row.
+CREATE TABLE IF NOT EXISTS wanted (
+  query    TEXT    NOT NULL DEFAULT '',
+  source   TEXT    NOT NULL DEFAULT '',
+  standing TEXT    NOT NULL DEFAULT '',
+  count    INTEGER NOT NULL DEFAULT 0,
+  first    INTEGER NOT NULL DEFAULT 0,
+  last     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (query, source)
+);
 """
 
 
@@ -1583,6 +1622,56 @@ class Store:
     def chat_add_spent(self, chat_id: str, spent: float) -> None:
         with self.write() as db:
             db.execute("UPDATE chat SET spent = spent + ? WHERE id = ?", (spent, chat_id))
+
+    # -- the shelf's door ---------------------------------------------------------
+
+    def propose(self, fields: dict[str, Any]) -> None:
+        columns = ", ".join(fields)
+        holes = ", ".join("?" for _ in fields)
+        with self.write() as db:
+            db.execute(f"INSERT INTO proposed ({columns}) VALUES ({holes})", tuple(fields.values()))
+
+    def proposals(self, state: str = "proposed") -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            "SELECT * FROM proposed WHERE state = ? ORDER BY made DESC", (state,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        row = self.db.execute("SELECT * FROM proposed WHERE id = ?", (proposal_id,)).fetchone()
+        return dict(row) if row else None
+
+    def proposal_state(self, proposal_id: str, state: str, by: str) -> None:
+        with self.write() as db:
+            db.execute(
+                "UPDATE proposed SET state = ?, by = ? WHERE id = ?", (state, by, proposal_id)
+            )
+
+    def want(self, query: str, source: str, standing: str = "") -> None:
+        """Count one ask the shelf could not answer. Keyed on the words and the link,
+        never on who asked."""
+        query = query.strip()[:200]
+        source = source.strip()[:500]
+        if not query and not source:
+            return
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO wanted (query, source, standing, count, first, last)"
+                " VALUES (?, ?, ?, 1, ?, ?)"
+                " ON CONFLICT(query, source) DO UPDATE SET"
+                "   count = count + 1, last = excluded.last,"
+                "   standing = CASE WHEN excluded.standing != '' THEN excluded.standing"
+                "                   ELSE wanted.standing END",
+                (query, source, standing, now(), now()),
+            )
+
+    def wanted(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            "SELECT query, source, standing, count, first, last FROM wanted"
+            " ORDER BY count DESC, last DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     # -- housekeeping -----------------------------------------------------------
 

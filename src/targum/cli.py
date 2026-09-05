@@ -699,54 +699,26 @@ def warm(
     fetched and nothing is spent: the English is the English that was bought.
     """
     from .cache import Cache
-    from .catalogue import BOUGHT_WITH
-    from .models import Document, SegmentedDocument, Translation, read_artifact
-    from .pipeline import Build
+    from .models import Document, read_artifact
+    from .promote import warm_folder
 
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
 
     cache = Cache()
-    folders = [f for f in sorted(root.rglob("document.json"))]
     warmed = runs = 0
-    for document_path in folders:
+    for document_path in sorted(root.rglob("document.json")):
         folder = document_path.parent
-        document = read_artifact(Document, document_path)
-        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-        if document is None or segmented is None:
-            continue
-        machine = [
-            t
-            for path in sorted((folder / "translations").glob("*.json"))
-            if (t := read_artifact(Translation, path)) is not None and t.provider != "aligned"
-        ]
-        if not machine:
-            continue
-        translation = machine[0]
-        builder = Build(
-            document.source,
-            target_language=translation.target_language,
-            source_language=segmented.language,
-            style=Style.natural,
-            provider_name=translation.provider,
-            model=model or translation.model or BOUGHT_WITH,
-            owner="",
-        )
-        here = 0
-        for number in range(1, 500):
-            run = builder.chapter_segments(segmented, number)
-            if not run:
-                break
-            have = {s.id: translation.segments[s.id] for s in run if translation.segments.get(s.id)}
-            if len(have) != len(run):
-                continue  # a chapter that was never finished is not one to promise
-            cache.put("translate", builder.cache_key(segmented, run), {"segments": have})
-            here += 1
+        # The body is `promote.warm_folder`, so accepting a reader's text for the shelf
+        # and warming a whole shelf are one rule rather than two that drift.
+        here = warm_folder(folder, cache, model=model)
         if here:
+            document = read_artifact(Document, document_path)
             warmed += 1
             runs += here
-            console.print(f"[dim]  {document.title or folder.name} ({here} chapters)[/dim]")
+            title = document.title if document is not None and document.title else folder.name
+            console.print(f"[dim]  {title} ({here} chapters)[/dim]")
     console.print(
         f"[green]Seeded {runs} chapter{'' if runs == 1 else 's'} from {warmed} "
         f"targum{'' if warmed == 1 else 's'}.[/green] "

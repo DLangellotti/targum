@@ -1846,6 +1846,7 @@ class Library:
             job.spent = result.spent.cost()
             self.settle(job)
             self.remember(job)
+            self.propose(job)
         except TargumError as error:
             self._blame(job, error.message)
         except Exception:
@@ -1856,6 +1857,20 @@ class Library:
                 job,
                 "Something went wrong. The Terminal has the detail.",
             )
+
+    def propose(self, job: Job) -> None:
+        """Offer a finished build to the shelf, if its licence allows a public copy.
+
+        Never a reason for the build to fail: the reader has their text whatever the
+        shelf decides, so whatever goes wrong here is printed for the operator and the
+        job stays done.
+        """
+        from . import promote as promote_module
+
+        try:
+            promote_module.candidate(self, self.store, job)
+        except Exception:  # noqa: BLE001 - the shelf's business, not the reader's build
+            traceback.print_exc()
 
     def cover_plan(self, folder: Path, chapters: bool) -> tuple[Any, list[tuple[str, str]]]:
         """What this text is, and every image worth drawing for it.
@@ -3145,7 +3160,43 @@ class Handler(BaseHTTPRequestHandler):
         # answers `no-store`, which is what a page listing accounts wants: not in a
         # proxy, and not in the back button after the laptop is shut.
         found = survey_store(self.store.path)
-        self._send(200, back_office_page(found, DAYS).encode("utf-8"), HTML)
+        said = parse_qs(urlparse(self.path).query).get("said", [""])[0][:300]
+        page = back_office_page(
+            found, DAYS, proposed=self.store.proposals(), wanted=self.store.wanted(), said=said
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
+    def _promote(self, form: dict[str, str]) -> None:
+        """Accept or decline a proposal, from the back office's own form.
+
+        The same door the page is: an admin session, and 404 for anyone else. A plain
+        form post rather than JSON, because the back office carries no script and
+        `form-action 'self'` is already what the policy allows.
+        """
+        from . import promote as promote_module
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        proposal_id = form.get("id", "")
+        try:
+            if form.get("action") == "accept":
+                promote_module.accept(
+                    self.library,
+                    self.store,
+                    proposal_id,
+                    register=form.get("register", ""),
+                    kind=form.get("kind", ""),
+                    credit=form.get("credit", "").strip(),
+                )
+            elif form.get("action") == "decline":
+                promote_module.decline(self.store, proposal_id)
+            else:
+                return self._send(400, b"bad request", "text/plain")
+        except TargumError as error:
+            said = f"{error.message} {error.hint or ''}".strip()
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+        self._go(BACK_OFFICE_ROUTE)
 
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
@@ -3352,6 +3403,9 @@ class Handler(BaseHTTPRequestHandler):
         # to an address the asker typed themselves.
         if route == "/account/enter":
             return self._enter(self._form().get("t", ""))
+        # The back office's one action, a form post from the page an admin is on.
+        if route == BACK_OFFICE_ROUTE + "/promote":
+            return self._promote(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the

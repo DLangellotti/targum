@@ -225,6 +225,9 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Gentlest first, which is the order the register ramp is meant to be climbed in;
     # unmeasured texts sort after measured ones rather than pretending to be easy.
     found.sort(key=lambda row: (row["looked_up_percent"] or 999, row["minutes"]))
+    if not found and query and ctx.store is not None:
+        # What the shelf could not answer is what the operator most wants to know.
+        ctx.store.want(query, "")
     return {"count": len(found), "texts": found[:limit]}
 
 
@@ -473,6 +476,7 @@ def _licence_row(licence: str) -> dict[str, Any]:
     return {
         "licence": licence,
         "licence_standing": call.standing.value,
+        "standing": call.standing.value,
         "corpus_exportable": call.exportable,
         "licence_note": (
             "Fine for the reader's own shelf; whether it may ever join the library is a "
@@ -482,6 +486,15 @@ def _licence_row(licence: str) -> dict[str, Any]:
 
 
 def describe_source(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    described = _describe(ctx, args)
+    if "error" not in described and ctx.store is not None and described.get("kind") != "fetcher":
+        # A link a reader looked at is a text the shelf did not have. Counted, with the
+        # standing its licence has, so the back office can see what is one email away.
+        ctx.store.want("", str(args.get("url") or ""), str(described.get("standing") or ""))
+    return described
+
+
+def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What is at the other end of a link, before anything is priced or fetched whole.
 
     Metadata only: a video is asked what yt-dlp knows without fetching it, a podcast
