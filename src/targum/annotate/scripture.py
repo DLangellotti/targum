@@ -307,8 +307,14 @@ class ScriptureLemmatizer:
 
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
+
+        `oshb/3` (2026-09-05): an Aramaic noun is no longer read as its own definite
+        article. Aramaic suffixes the article where Hebrew prefixes it, so the last piece
+        of `מַלְכָּא` is the א and the word was coming back a `PART` — 18.8% of the Aramaic
+        in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
+        never trails a Hebrew word.
         """
-        return f"oshb/2+{self.fallback.name}"
+        return f"oshb/3+{self.fallback.name}"
 
     def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
         looked_up: dict[str, list[Token]] = {}

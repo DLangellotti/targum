@@ -140,13 +140,12 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     at, and on most of the shelf the fallback is what ran — so the name carries both, and
     changing it is what makes existing texts read again.
 
-    `oshb/2` is the version that keeps a contested headword's points and reads the binyan
-    and the root off the tagging instead of dropping them. Both arrived unreleased and
-    share the one rename, so the shelf is re-annotated once on the next `rebuild --words`
-    rather than twice — and that much is free: the lookup runs on this machine and
-    `SCHEMA_VERSION` never moves.
+    `oshb/2` kept a contested headword's points and read the binyan and the root off the
+    tagging instead of dropping them. `oshb/3` stops an Aramaic noun being read as its own
+    suffixed definite article (targum-internal#64). Each is free to re-run: the lookup
+    happens on this machine and `SCHEMA_VERSION` never moves.
     """
-    assert ScriptureLemmatizer(Stub()).name == "oshb/2+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/3+stub/1"
 
 
 @pytest.mark.parametrize(

@@ -103,6 +103,21 @@ BOOKS: dict[str, str] = {
 }
 
 
+#: The definite article as a *suffix*, which is the one place `Word.content` bends.
+#: Aramaic marks a definite noun by adding א to the end of it — the emphatic state,
+#: `מַלְכָּא` for "the king" — where Hebrew would put ה on the front. The tagging cuts that
+#: א off as a piece of its own and codes it `Td`, so the last piece of an Aramaic noun is
+#: an article rather than the noun.
+#:
+#: Safe to key on, because it is the one particle code that never trails a Hebrew word.
+#: Counted over the tagging: `Td` ends 644 of Daniel's 3,603 Aramaic words and 0 of its
+#: 2,316 Hebrew ones, 0 of Genesis's 20,612 and 0 of Isaiah's 16,930. The other trailing
+#: particles — `To`, `Tn`, `Tm`, `Ti`, `Tr`, `Ta` — appear in both at about 2% and are
+#: correct as they stand: there the particle *is* the word, carrying a conjunction on
+#: its front.
+EMPHATIC = "Td"
+
+
 class Word(NamedTuple):
     """One orthographic word of the Hebrew Bible, as it was tagged.
 
@@ -131,14 +146,23 @@ class Word(NamedTuple):
 
     @property
     def content(self) -> int:
-        """Which piece is the word itself rather than something stuck to the front.
+        """Which piece is the word itself rather than something stuck to it.
 
-        The last piece, always: Hebrew builds a word by putting function letters before
-        it, so whatever is left at the end is what the word is. Said as a property rather
-        than assumed at each call site, because it is a claim about the language and
-        deserves somewhere to be written down and tested.
+        The last piece, nearly always: Hebrew builds a word by putting function letters
+        before it, so whatever is left at the end is what the word is. Said as a property
+        rather than assumed at each call site, because it is a claim about the language
+        and deserves somewhere to be written down and tested.
+
+        The exception is Aramaic's emphatic state, where the article is suffixed rather
+        than prefixed and the last piece is the article. Before this, `מַלְכָּא` — "the
+        king", and one of the commonest words in Daniel — came back as a `PART`, because
+        the piece asked about was the א (targum-internal#64, #195). 18.8% of the Aramaic
+        in Daniel and Ezra is shaped this way.
         """
-        return len(self.pieces) - 1
+        last = len(self.pieces) - 1
+        if last > 0 and self.morph and self.morph[-1] == EMPHATIC:
+            return last - 1
+        return last
 
     @property
     def lexeme(self) -> str:

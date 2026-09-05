@@ -86,6 +86,49 @@ def test_the_content_piece_is_the_last_one(tagged: Path) -> None:
     )
 
 
+def test_an_aramaic_noun_is_not_its_own_article() -> None:
+    """The one place the last-piece rule bends. Aramaic marks a definite noun by adding
+    א to the end of it rather than ה to the front, and the tagging cuts that א off as a
+    piece of its own coded `Td` — so the last piece of `מַלְכָּא`, one of the commonest
+    words in Daniel, was the article and not the king (targum-internal#64, #195).
+
+    The word here is Daniel 2:4 as the tagging holds it, written out rather than read
+    from a fixture, because the fixture is Genesis and this claim is about Aramaic.
+    """
+    king = oshb.Word(
+        text="מַלְכָּא֙",
+        pieces=("מַלְכָּ", "א֙"),
+        lexemes=("4430",),
+        morph=("Ncmsd", "Td"),
+    )
+    assert king.morph[-1] == oshb.EMPHATIC, "the article, cut off as its own piece"
+    assert king.content == 0, "so the word is the piece before it"
+    assert king.pieces[king.content] == "מַלְכָּ"
+    assert king.lexeme == "4430", "the Aramaic king, not the Hebrew 4428"
+    assert king.code == "Ncmsd", "a noun, where it used to answer with the article's code"
+
+
+def test_a_trailing_particle_that_is_the_word_stays_the_word() -> None:
+    """The bend must not reach Hebrew, where a trailing particle is the word itself with
+    a conjunction on its front. `Td` is safe to key on because it is the one particle
+    code that never trails a Hebrew word: measured over the tagging it ends 644 of
+    Daniel's 3,603 Aramaic words and none of its 2,316 Hebrew ones, none of Genesis's
+    20,612 and none of Isaiah's 16,930. `To`, `Tn`, `Tm`, `Ti`, `Tr` and `Ta` trail both
+    at about 2% and are correct as they stand.
+    """
+    for code in ("To", "Tn", "Tm", "Ti", "Tr", "Ta"):
+        word = oshb.Word(
+            text="ו" + "נא", pieces=("וְ", "נָא"), lexemes=("c", "4994"), morph=("C", code)
+        )
+        assert word.content == 1, f"{code} trailing is the word, not an article"
+
+
+def test_a_word_with_no_pieces_to_spare_keeps_its_only_one() -> None:
+    """A one-piece word cannot give its content away to the piece before it."""
+    alone = oshb.Word(text="א", pieces=("א",), lexemes=("4430",), morph=("Td",))
+    assert alone.content == 0
+
+
 def test_the_lexeme_number_says_which_word_this_is(tagged: Path) -> None:
     """What no spelling can. A number distinguishes the senses a bare string collapses,
     and it is the only sense information in the pipeline that is not guessed."""
