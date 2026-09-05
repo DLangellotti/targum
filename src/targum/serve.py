@@ -237,6 +237,16 @@ ACCOUNT_BUDGET = 10.00
 UPLOAD_HOURS = 8
 UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
 
+# What one reader's conversation may spend in a day. **A rate limit, like the account
+# rail above, and a narrower one**: a turn is uncacheable and the reader controls the
+# volume, so the rail that was sized for builds — where a novel is the unit — is the
+# wrong size for a sentence. A dollar is on the order of fifty turns at the effort the
+# chat runs at, which is an afternoon of asking; a script asking every second is what
+# this stops. Counted on rows of kind `chat` alone, and the same rows count against the
+# account rail too, so neither can be used to get round the other. The refusal names
+# when it lifts and never implies that reading is used up.
+CHAT_BUDGET = 1.00
+
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
 # to put a build that belongs to nobody. On a machine somebody runs themselves the
@@ -566,6 +576,9 @@ class Job:
     parts: int = 0
     transcription: float = 0.0
     made: int = field(default_factory=now)
+    #: `build` for everything the queue runs; `chat` for one turn of conversation, which
+    #: takes a row here so the rails see it and is never queued. See `chat/session.py`.
+    kind: str = "build"
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -661,8 +674,10 @@ class Library:
         upload_seconds: float | None = UPLOAD_SECONDS,
         mailer: Mailer | None = None,
         address: str = "",
+        chat_budget: float | None = CHAT_BUDGET,
     ) -> None:
         self.out = out
+        self.chat_budget = chat_budget
         # How to reach somebody whose build finished while they were away, and where
         # the reader is. Neither is needed on a machine somebody runs themselves.
         self.mailer = mailer
@@ -732,6 +747,7 @@ class Library:
                 options=json.loads(row["options"] or "{}"),
                 owner=row["owner"],
                 home=Path(str(row["home"])),
+                kind=str(row["kind"] or "build"),
             )
             self.jobs[job.id] = job
 
@@ -762,6 +778,7 @@ class Library:
                 "blocked": job.blocked,
                 "spent": job.spent,
                 "made": job.made,
+                "kind": job.kind,
             }
         )
 
@@ -796,14 +813,15 @@ class Library:
         — which with one worker is exact. The reader's page can then say "waiting
         behind one other build" rather than leaving a second build to look stuck.
         """
-        working = any(job.stage == "working" for job in self.jobs.values())
-        waiting = sorted(
-            (job for job in self.jobs.values() if job.stage == "queued"), key=lambda j: j.made
-        )
+        # Builds only, on both counts: a chat turn is never in this line, so one that is
+        # working must not put every waiting build one place further back.
+        builds = [job for job in self.jobs.values() if job.kind == "build"]
+        working = any(job.stage == "working" for job in builds)
+        waiting = sorted((job for job in builds if job.stage == "queued"), key=lambda j: j.made)
         position = {job.id: index + (1 if working else 0) for index, job in enumerate(waiting)}
         cutoff = now() - self.RECENT_MS
         out: list[dict[str, Any]] = []
-        for job in sorted(self.jobs.values(), key=lambda j: j.made, reverse=True):
+        for job in sorted(builds, key=lambda j: j.made, reverse=True):
             if job.owner != owner:
                 continue
             if job.stage in ("done", "failed", "blocked") and job.made < cutoff:
@@ -1028,6 +1046,12 @@ class Library:
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
             return f"Building a lot at once. Try again {when}. The library is always free."
+        if whose == "chat":
+            # The same rule for the conversation's own rail: a lot of talking is not a
+            # lot of reading, and the shelf is still open.
+            return (
+                f"A lot of conversation for one day. Try again {when}. The library is always free."
+            )
         return f"targum is at its limit. Try again {when}, or read from the library."
 
     def why_blocked(self, estimate: float) -> str:
@@ -1694,6 +1718,34 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
+    def claim_turn(self, job: Job) -> str:
+        """Reserve one turn of conversation against the rails, or say which refused.
+
+        The same transaction a build takes, narrowed: the per-account ceiling is the
+        chat's own (`CHAT_BUDGET`, over rows of kind `chat`), and the box ceiling is the
+        one every kind of work shares. Admins pass the account rail as they do for
+        builds, and never the box one.
+        """
+        if self.store is None:
+            with self.lock:
+                if job.estimate > self.remaining():
+                    return self._out_of("everyone")
+                self._committed += job.estimate
+                return ""
+        admin = bool(job.admin)
+        refused = self.store.claim(
+            job.id,
+            job.estimate,
+            self.budget,
+            self._since(),
+            owner=job.owner,
+            per_account=None if admin else self.chat_budget,
+            kind="chat",
+        )
+        if not refused:
+            return ""
+        return self._out_of("chat" if refused == "account" else refused)
+
     @staticmethod
     def _gloss_cost(
         builder: Build, segmented: SegmentedDocument, buying: list[Segment]
@@ -2154,6 +2206,10 @@ class Handler(BaseHTTPRequestHandler):
     progress: str
     catalogue: str
     you: str
+    #: The conversation page, and the workers that answer it. Empty and None on a
+    #: handler built by hand, which is how the tests build one that has no chat.
+    chatting: str = ""
+    chats: Any = None
     #: The three list pages, by route name: everything Learn shows the top of. Empty by
     #: default so a handler built with only the pages it needs — which is what the tests
     #: build — serves no list pages rather than failing on the way past them.
@@ -3174,7 +3230,9 @@ class Handler(BaseHTTPRequestHandler):
             # page rather than a 401 — and not the sign-in page either, because a door
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
-            if route.startswith(("/readers", "/job/", "/jobs", "/glossary/", "/account/export")):
+            if route.startswith(
+                ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
+            ):
                 return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
@@ -3207,6 +3265,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/chat":
+            if not self.chatting:
+                return self._send(404, b"not found", "text/plain")
+            return self._send(200, self.chatting.encode("utf-8"), "text/html; charset=utf-8")
+        if route.startswith("/chat/"):
+            return self._chat_get(route[len("/chat/") :])
         if route == "/progress":
             return self._send(200, self.progress.encode("utf-8"), "text/html; charset=utf-8")
         # Learn holds the top of each of these; this is the rest. `/words` was a redirect
@@ -3315,6 +3379,8 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._json({"error": "bad request"}, 400)
 
+        if route == "/chat/say":
+            return self._chat_say(payload)
         if route == "/weekly/follow":
             # Takes no address at all: it reads the session's own. With nothing to
             # supply there is no way to sign somebody else's inbox up and nothing to
@@ -3351,6 +3417,147 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/account/languages":
             return self._languages(payload)
         self._json({"error": "not found"}, 404)
+
+    # -- the conversation ---------------------------------------------------
+
+    def _chat_get(self, rest: str) -> None:
+        """`/chat/list`, `/chat/<id>`, `/chat/turn/<id>/<n>` and `/chat/stream/<id>/<n>`.
+
+        Every one checks the conversation is the asker's before it says anything, the
+        way `_own_job` does for a build: an id is unguessable and is still not a key.
+        """
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        store = self.chats.store
+        person = self._person()
+        person_id = person.id if person else None
+        if rest == "list":
+            return self._json({"chats": store.chats(person_id), "usable": self.chats.usable})
+        pieces = rest.split("/")
+        if pieces[0] in ("turn", "stream") and len(pieces) == 3 and pieces[2].isdigit():
+            chat_id, n = pieces[1], int(pieces[2])
+            if store.chat_owned(person_id, chat_id) is None:
+                return self._json({"error": "not found"}, 404)
+            if pieces[0] == "turn":
+                return self._json(self._chat_turn_state(chat_id, n))
+            return self._chat_stream(chat_id, n)
+        if len(pieces) == 1:
+            chat = store.chat_owned(person_id, pieces[0])
+            if chat is None:
+                return self._json({"error": "not found"}, 404)
+            turns = [
+                {
+                    "n": turn["n"],
+                    "role": turn["role"],
+                    "said": turn["said"],
+                    "stage": turn["stage"],
+                    "error": turn["error"],
+                    "made": turn["made"],
+                }
+                for turn in store.chat_turns(chat["id"])
+                if turn["said"] or turn["role"] == "user"
+            ]
+            return self._json({"chat": chat, "turns": turns})
+        return self._json({"error": "not found"}, 404)
+
+    def _chat_turn_state(self, chat_id: str, n: int) -> dict[str, Any]:
+        """What became of the answer to turn `n`, from the live feed or the store.
+
+        The feed is the live copy and dies with the process; the store is what a tab
+        that reconnects after a restart finds. Both say the same thing.
+        """
+        feed = self.chats.feed_for(chat_id, n)
+        if feed is not None:
+            errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
+            return {
+                "text": feed.text(),
+                "done": feed.closed,
+                "error": errors[-1]["message"] if errors else "",
+            }
+        turns = self.chats.store.chat_turns(chat_id)
+        asked = next((turn for turn in turns if turn["n"] == n), None)
+        answered = "".join(
+            str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
+        )
+        stage = str(asked["stage"]) if asked else "done"
+        return {
+            "text": answered,
+            "done": stage != "working",
+            "error": str(asked["error"]) if asked else "",
+        }
+
+    #: How long a tail waits for the next event before it says it is still here.
+    STREAM_PATIENCE_S = 15.0
+
+    def _chat_stream(self, chat_id: str, n: int) -> None:
+        """Tail one turn as server-sent events.
+
+        Written past `_send` on purpose: that sets a `Content-Length` and gzips, and a
+        stream has neither. Caddy sits in front on the box and buffers what it is not
+        told not to, hence `X-Accel-Buffering`. A tab that reconnects sends the last id
+        it saw and gets what it missed; a tab that closed is a broken pipe, which ends
+        this thread and nothing else.
+        """
+        feed = self.chats.feed_for(chat_id, n)
+        after = 0
+        held = self.headers.get("Last-Event-ID", "")
+        if held.isdigit():
+            after = int(held) + 1
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            if feed is None:
+                # After a restart there is no live copy; the store's answer is the whole
+                # stream, sent as the one closing event.
+                state = self._chat_turn_state(chat_id, n)
+                kind = "error" if state["error"] else "done"
+                payload = {"message": state["error"]} if state["error"] else {"text": state["text"]}
+                self._chat_event(0, kind, json.dumps(payload, ensure_ascii=False))
+                return
+            while True:
+                fresh, closed = feed.wait(after, self.STREAM_PATIENCE_S)
+                for index, kind, data in fresh:
+                    self._chat_event(index, kind, data)
+                    after = index + 1
+                if closed and after >= len(feed.events):
+                    return
+                if not fresh:
+                    self.wfile.write(b": still here\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def _chat_event(self, index: int, kind: str, data: str) -> None:
+        lines = "".join(f"data: {line}\n" for line in data.split("\n"))
+        self.wfile.write(f"id: {index}\nevent: {kind}\n{lines}\n".encode())
+        self.wfile.flush()
+
+    def _chat_say(self, payload: dict[str, Any]) -> None:
+        """The reader's line. Written down and handed to a worker; the answer streams."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        if not self.chats.usable:
+            return self._json({"error": NO_KEY}, 402)
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            return self._json({"error": "Say something first."}, 400)
+        if len(text) > 4000:
+            return self._json({"error": "That is long for one turn. Try a shorter one."}, 413)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        admin = bool(person and self.store.is_admin(person.email))
+        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin)
+        return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     # -- accounts -----------------------------------------------------------
 
@@ -4283,10 +4490,12 @@ def start(
     public_address: str = "",
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
+    from .chat.session import Chats
     from .mail import from_environment
     from .render.builder import (
         LISTS,
         add_page,
+        chat_page,
         learn_page,
         library_page,
         list_page,
@@ -4322,6 +4531,9 @@ def start(
         address=public if require_account else "",
     )
     library.start_workers()
+    # The conversation's own workers, beside the build queue and never in it.
+    chats = Chats(library, keeping, usable=usable)
+    chats.start_workers()
 
     handler = type(
         "TargumHandler",
@@ -4345,6 +4557,8 @@ def start(
             "you": you_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
+            "chatting": chat_page(token),
+            "chats": chats,
             "progress": progress_page(token),
             "catalogue": library_page(token),
         },

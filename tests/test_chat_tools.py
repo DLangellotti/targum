@@ -1,0 +1,214 @@
+"""The chat's tools, run against a real store and a real shelf.
+
+Ownership is the headline: every tool reads whose shelf and whose words from the context
+the server built, and nothing a model passes as an argument can name somebody else.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from targum import level
+from targum.accounts import Person, Store
+from targum.chat import tools
+from targum.serve import Job, Library
+
+
+def signed_in(store: Store, email: str) -> Person:
+    token = store.start_sign_in(email)
+    signed = store.finish_sign_in(token)
+    assert signed is not None
+    return signed[0]
+
+
+def built(home: Path, name: str, source: str, lemmas: list[str], title: str = "A text") -> None:
+    """Enough of a targum on disk for the shelf to list it and coverage to measure it."""
+    folder = home / name
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {
+                "title": title,
+                "language": "he",
+                "source": source,
+                "content_hash": "h",
+                "blocks": [{"text": " ".join(lemmas)}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "annotation.json").write_text(
+        json.dumps(
+            {"tokens": {"0001.001-a": [{"lemma": lemma, "pos": "NOUN"} for lemma in lemmas]}},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.fixture
+def world(tmp_path: Path) -> tuple[Library, Store, Person, Path]:
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    person = signed_in(store, "reader@example.com")
+    home = library.home(person)
+    built(home, "ruth-he", "test:ruth", ["שלום", "בית", "מלך", "ספר"], "רות")
+    built(library.shared, "esther-he", "test:esther", ["שלום", "רעב"], "אסתר")
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שלום",
+                    "status": 9,
+                    "band": "easy",
+                    "at": 2,
+                    "seen": 2,
+                },
+                {"language": "he", "lemma": "בית", "status": 9, "band": "easy", "at": 3, "seen": 3},
+                {
+                    "language": "he",
+                    "lemma": "מלך",
+                    "status": 2,
+                    "band": "moderate",
+                    "at": 4,
+                    "seen": 4,
+                },
+            ]
+        },
+    )
+    return library, store, person, home
+
+
+def context(library: Library, store: Store, person: Person | None, home: Path) -> tools.Ctx:
+    return tools.Ctx(
+        person=person,
+        home=home,
+        library=library,
+        store=store,
+        chat_id="c1",
+        level=level.snapshot(store, person.id if person else None, "he"),
+    )
+
+
+def test_every_tool_has_a_closed_schema_and_a_distinct_name() -> None:
+    names = [tool.name for tool in tools.REGISTRY]
+    assert len(names) == len(set(names))
+    for tool in tools.REGISTRY:
+        assert tool.schema["additionalProperties"] is False, tool.name
+        assert tool.description, tool.name
+    for shape in tools.anthropic_tools():
+        assert set(shape) == {"name", "description", "input_schema"}
+
+
+def test_search_library_measures_what_is_on_the_shelf(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.search_library(ctx, {"register": "biblical"})
+    by_id = {row["id"]: row for row in got["texts"]}
+    assert set(by_id) >= {"ruth", "esther"}, "the fixture catalogue's biblical shelf"
+    assert by_id["ruth"]["on_shelf"] is True
+    assert by_id["ruth"]["reader"] == "/reader/ruth-he/reader/index.html"
+    assert by_id["ruth"]["known_share"] == pytest.approx(0.5), "two of four lemmas known"
+    assert by_id["esther"]["on_shelf"] is True, "the shared shelf counts as built"
+    assert by_id["esther"]["known_share"] == pytest.approx(0.5)
+    assert all(row["register"] == "biblical" for row in got["texts"])
+
+
+def test_search_library_filters_and_says_how_many(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    everything = tools.search_library(ctx, {"limit": 20})
+    modern = tools.search_library(ctx, {"register": "modern"})
+    assert 0 < modern["count"] < everything["count"]
+    assert tools.search_library(ctx, {"query": "no such text anywhere"})["count"] == 0
+    assert tools.search_library(ctx, {"query": "Declaration"})["count"] >= 1
+
+
+def test_open_library_text_says_how(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ruth = tools.open_library_text(ctx, {"id": "ruth"})
+    assert ruth["reader"] and "link" in ruth["how_to_open"]
+    unbuilt = next(
+        row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
+    )
+    told = tools.open_library_text(ctx, {"id": unbuilt["id"]})
+    assert told["reader"] == "" and "cannot start one" in told["how_to_open"]
+    assert "error" in tools.open_library_text(ctx, {"id": "nope"})
+
+
+def test_my_shelf_is_mine_and_the_shared_one(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.search_my_shelf(ctx, {})
+    names = {row["name"]: row for row in got["texts"]}
+    assert set(names) == {"ruth-he", "esther-he"}
+    assert names["ruth-he"]["shared"] is False and names["esther-he"]["shared"] is True
+    assert names["ruth-he"]["known_share"] == pytest.approx(0.5)
+    assert tools.search_my_shelf(ctx, {"query": "רות"})["count"] == 1
+
+
+def test_another_reader_sees_neither_my_shelf_nor_my_words(world) -> None:
+    library, store, person, home = world
+    other = signed_in(store, "other@example.com")
+    ctx = context(library, store, other, library.home(other))
+    mine = tools.search_my_shelf(ctx, {})
+    assert [row["name"] for row in mine["texts"]] == ["esther-he"], "the shared shelf only"
+    assert mine["texts"][0]["known_share"] == pytest.approx(0.0)
+    assert tools.my_vocabulary(ctx, {})["known"] == 0
+    assert tools.my_progress(ctx, {})["known"] == 0
+
+
+def test_vocabulary_and_progress_are_counts(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    words = tools.my_vocabulary(ctx, {"limit": 2})
+    assert (words["known"], words["learning"]) == (2, 1)
+    assert [w["lemma"] for w in words["recent"]] == ["מלך", "בית"], "newest first"
+    progress = tools.my_progress(ctx, {})
+    assert progress["known"] == 2
+    assert progress["ladder"]["note"] == "A guide, not a placement."
+
+
+def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.suggest_next(ctx, {"limit": 10})
+    ids = [row["id"] for row in got["suggestions"]]
+    assert "ruth" not in ids, "already on the reader's own shelf"
+    assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
+    assert all(row["because"] for row in got["suggestions"])
+    assert got["suggestions"][0]["because"].startswith("50%")
+
+
+def test_check_job_answers_only_for_the_owner(world) -> None:
+    library, store, person, home = world
+    theirs = Job(id="j-theirs", source="x", owner=person.id + 1, stage="working")
+    mine = Job(
+        id="j-mine", source="x", owner=person.id, stage="done", reader="ruth-he/reader/index.html"
+    )
+    library.jobs.update({theirs.id: theirs, mine.id: mine})
+    ctx = context(library, store, person, home)
+    assert "error" in tools.check_job(ctx, {"id": "j-theirs"})
+    got = tools.check_job(ctx, {"id": "j-mine"})
+    assert got["stage"] == "done" and got["open"] == "/reader/ruth-he/reader/index.html"
+
+
+def test_run_answers_a_broken_tool_as_an_error_the_model_can_read(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    text, failed = tools.run("no_such_tool", {}, ctx)
+    assert failed and "No tool" in text
+    text, failed = tools.run("check_job", {"id": "nope"}, ctx)
+    assert failed and json.loads(text)["error"]
+    text, failed = tools.run("my_progress", {}, ctx)
+    assert not failed and json.loads(text)["known"] == 2

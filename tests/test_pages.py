@@ -20,6 +20,7 @@ import pytest
 
 from targum.render.builder import (
     add_page,
+    chat_page,
     learn_page,
     library_page,
     list_page,
@@ -36,6 +37,7 @@ PAGES = {
     "words": list_page("k", "words"),
     "phrases": list_page("k", "phrases"),
     "add": add_page("k"),
+    "chat": chat_page("k"),
 }
 
 
@@ -116,12 +118,12 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_four_places() -> None:
+def test_every_page_carries_the_same_five_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
-    once already."""
+    once already. Five since 2026-09-05: the chat sits second, after Learn."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress", "add"], name
+        assert found == ["learn", "chat", "library", "progress", "add"], name
 
 
 #: Reached from the corner rather than from the nav — a profile is not one of the places

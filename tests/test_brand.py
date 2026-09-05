@@ -173,6 +173,11 @@ THUMBED = (
     ".video-corner",
     ".video-close",
     ".pair.voiced .say",
+    # The chat's controls (2026-09-05): the button that sends, the door to a fresh
+    # conversation, and the rows that open an old one.
+    ".chat-send",
+    ".chat-new",
+    ".chat-list button",
 )
 
 
@@ -188,7 +193,9 @@ def test_every_thumbed_control_reaches_44px() -> None:
     `test_reader_browser.py` measures what a tap actually reaches, which is the half a
     stylesheet cannot prove — a box with `overflow: hidden` promises 44px and clips it.
     """
-    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    # Every stylesheet, not the reader's alone: the chat page draws controls of its own
+    # in `chat.css`, and a registry that only read one file would let a second drift.
+    text = "\n".join(sheet.read_text(encoding="utf-8") for sheet in STYLESHEETS)
     blocks = []
     at = text.find("@media (hover: none) and (pointer: coarse)")
     while at != -1:

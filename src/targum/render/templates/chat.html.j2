@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('chat.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="chat">
+{% set here = 'chat' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="chat-main">
+  {#- The conversations you have had, newest first, and one door to a fresh one. A
+      hairline list rather than a raised panel: §9, one raised layer per view, and the
+      thread is the one. -#}
+  <aside class="chat-side">
+    <button type="button" id="chat-new" class="chat-new">New</button>
+    <ul class="chat-list" id="chat-list"></ul>
+  </aside>
+
+  <section class="chat-thread" aria-live="polite">
+    {#- What this is, said once to a reader with no conversations yet. The copy is the
+        product's register: precise, unpatronising, no selling. -#}
+    <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.
+      targum answers from the library and your own shelf.</p>
+    <ol class="turns" id="turns"></ol>
+    <p class="chat-said" id="chat-said" role="status" hidden></p>
+  </section>
+
+  <form class="composer" id="composer">
+    <textarea id="say" rows="2" placeholder="Ask targum" spellcheck="true"
+              aria-label="Your message"></textarea>
+    <button type="submit" class="chat-send" id="chat-send">Send</button>
+  </form>
+</main>
+{% include '_foot.html.j2' %}
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('chat.js') }}</script>
+</body>
+</html>

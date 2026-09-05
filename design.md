@@ -172,6 +172,12 @@ Two registers, and which one applies depends on who is reading.
 - **And short.** Buttons and links are one or two words: "Send a link", not "Email me a
   link"; "Delete", not "Move to the trash". State what happened without justifying it,
   softening it, or answering the question nobody asked — see §12.
+- **What the chat writes is chrome when it is English and content when it is Hebrew.**
+  Every English sentence the assistant produces obeys this section in full; the Hebrew
+  it writes for a learner is a text, and the English rules do not reach it. A model's
+  output is in no stylesheet or template, so `test_brand.py` cannot see it: the rules
+  live in `chat/prompts.py`, and `test_chat_prompts.py` asserts over that file that each
+  is still said. Added 2026-09-05; see §12.
 
 ## 7 · Iconography
 
@@ -239,6 +245,11 @@ acts.
   weight 600; on an inverted block it flips to paper with ink text. The accent keeps the
   product's working actions (play, Save, Send it) and links, where its calm is the
   point — as a call to action on warm paper it whispered. Added 2026-08-31; see §12.
+- **The chat page is one more surface, not a widget.** `/chat` takes the rules of any
+  page inside the product: the thread is its one raised layer; the reader's lines and
+  targum's are the same ink under a quiet label, never two colours of bubble; sending is
+  a working action and takes the accent; the send button, the new-conversation door and
+  the rows of the list are in `test_brand.py`'s thumb registry. Added 2026-09-05.
 - **Numbers at display sizes are ink or leaf.** Gold is the record colour inside charts, not
   a headline colour; gold display type on cream is the sleepy publisher look this brand
   exists to avoid.
@@ -281,8 +292,37 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Sixteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
-the code back to a rule that was already retired.
+Seventeen places. Each was a deliberate decision with a date, kept here so nobody
+"corrects" the code back to a rule that was already retired.
+
+### targum speaks back — 2026-09-05
+
+Until now every surface here was a page a reader looked at. From a handwritten note of
+2026-09-05, targum gains a conversation: a reader asks for something to read, asks what
+they know, and — in the slices that follow — asks targum to bring a text in, talks to it
+in Hebrew graded to their own ledger, and reads that conversation back as a targum. The
+roadmap's "not building" line named conversation and tutoring, and the reason it did is
+recorded there with the reversal; this section is only about what it does to the paint.
+
+- **The chat page is chrome, not a reader.** *Readers must fetch nothing* governs the
+  self-contained files a build writes, and `test_render.py` holds it there unchanged. The
+  chat page talks to its own origin — `POST /chat/say`, an event stream back — under the
+  same `POLICY` every served page already takes, with `connect-src 'self'` doing exactly
+  the work it was written for. Nothing in that policy moved to make this possible, and
+  `test_serve.py` pins that it did not.
+- **A conversation is the server's.** Words, reading position and days stay the
+  browser's, as `sync.js` has always said. A conversation is written server-side because
+  the same one has to be resumable from a client that is not this browser, and because a
+  chat is not a reader. The asymmetry is written beside the rule it departs from.
+- **A chat that knows your words still may not say a level.** The ledger goes to the
+  model so the Hebrew it writes can be graded; what the model says to the reader is the
+  counts — §6's "12 days reading", "500 words known" — and never "you are at bet". The
+  progress page's "A guide, not a placement" is now a rule the prompt carries too.
+- **The English is chrome, the Hebrew is content** — see §6.
+
+What this does not overturn: engagement yes and arcade no, the ledger in serif tabular
+numbers, no invented currency, the hue budget, one raised layer per view. A conversation
+that starts congratulating people has gone wrong in exactly the way §1 describes.
 
 ### A thing that moves under a thumb belongs to the thumb — 2026-09-04
 

@@ -893,6 +893,26 @@ def add_page(token: str, no_key: str = "") -> str:
     )
 
 
+def chat_page(token: str) -> str:
+    """Talking to targum: find something to read, and ask what you have.
+
+    Nothing about the reader is baked in, for the reason `learn_page` gives: the
+    conversations come from `/chat/list` and the answers stream in, so one rendered page
+    serves everybody. The page is chrome, not a reader — it talks to its own origin and
+    nothing else, and `design.md` §12 records what that means for the fetch-nothing rule.
+    """
+    from ..translate.prompts import OFFERED, language_name
+
+    return (
+        _environment()
+        .get_template("chat.html.j2")
+        .render(
+            token=token,
+            languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
 def _staged(pairs: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
     """A language list with its stage beside each, for a page to draw a picker from."""
     from ..translate.prompts import language_name, stage_label

@@ -57,7 +57,7 @@ Without it the failure is `Could not resolve authentication method`, which reads
 missing key rather than an unloaded one — and the honest conclusion "there is no key" is
 wrong. There is; it is just not in the environment of a fresh shell.
 
-## Two things that are easy to get wrong
+## Things that are easy to get wrong
 
 - **Do not bump `SCHEMA_VERSION`** to invalidate one stage. It feeds the cache key for
   every stage, so it forces paid re-translation of every text. To make a new word-level
@@ -70,6 +70,11 @@ wrong. There is; it is just not in the environment of a fresh shell.
   inside `deploy.sh`, which OOM-killed twice before the box had a swapfile. Treat a rename
   as a scheduled operation rather than a side effect of a deploy, and do not rename twice
   in one release: the second rename only re-does the first one's work.
+- **A chat turn never spends without a quoted, consented job**, and never routes around
+  `Library.claim`. The chat is a door on rooms that exist; the model may ask
+  (`quote_*`), a person presses, and only then does `start_build` run. A tool that
+  spends on a model's decision makes the pricing page a lie. Every turn is a `job` row
+  of kind `chat`, so the rails see it — do not invent a second counter.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

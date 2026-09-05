@@ -21,6 +21,11 @@
  * that a removal happened and when, which is the difference between "I deleted this"
  * and "I have not heard of this yet" — and without it every delete comes back on the
  * next sync from the other device.
+ *
+ * One thing the account holds that the browser never does: a conversation. The chat's
+ * turns are the server's, because the same conversation has to be resumable from a
+ * client that is not this browser, and because a chat is not a reader. Reading
+ * position, words and days stay here; see `chat/session.py`.
  */
 
 (function () {

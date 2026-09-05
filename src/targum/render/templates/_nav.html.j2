@@ -11,7 +11,7 @@
     rather than a list of what they had kept. It is the only two-word label here, which
     is why the row wraps rather than scrolls under a narrow window.
 
-    Set `here` to "learn", "library", "progress" or "add" before including this. -#}
+    Set `here` to "learn", "chat", "library", "progress" or "add" before including this. -#}
 <header class="site-head">
   <div class="site-head-row">
     {#- The lockup, assembled live rather than dropped in as lockup.svg: the name is
@@ -27,6 +27,9 @@
     </a>
     <nav class="site-nav" aria-label="Pages">
       <a href="/" data-nav="learn"{% if here == 'learn' %} class="on" aria-current="page"{% endif %}>Learn</a>
+      {#- Second, not first: Learn is where a returning reader picks up, and the chat is
+          where they go when they do not know what to pick up. Added 2026-09-05. -#}
+      <a href="/chat" data-nav="chat"{% if here == 'chat' %} class="on" aria-current="page"{% endif %}>Chat</a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
     </nav>

@@ -32,6 +32,7 @@ import pytest
 from targum.render.builder import (
     LISTS,
     add_page,
+    chat_page,
     learn_page,
     library_page,
     list_page,
@@ -50,6 +51,7 @@ def pages() -> dict[str, str]:
     """Every page the server renders at start-up, as it renders them."""
     built = {
         "add": add_page(TOKEN),
+        "chat": chat_page(TOKEN),
         "learn": learn_page(TOKEN),
         "library": library_page(TOKEN),
         "progress": progress_page(TOKEN),

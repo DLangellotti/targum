@@ -1,0 +1,173 @@
+/* Talking to targum.
+
+   The same paper, ink and type as every other page: a conversation is one more surface
+   of the product, not a widget on it. One raised layer (§9) — the thread — and the
+   list of conversations beside it is type and a hairline. The reader's own lines are
+   ink; targum's are the same ink under a quiet label, because this is not a messaging
+   app and the two sides are not bubbles of two colours. */
+
+body.chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-height: 100svh;
+}
+body.chat > .site-head { justify-self: stretch; }
+body.chat > .chat-main {
+  justify-self: start;
+  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+}
+
+.chat-main {
+  width: min(62rem, 100%);
+  padding: 1.5rem 1.25rem 2rem;
+  font-family: system-ui, sans-serif;
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-areas:
+    "side thread"
+    "side compose";
+  gap: 1rem 2rem;
+  align-items: start;
+}
+@media (max-width: 48rem) {
+  .chat-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "thread"
+      "compose"
+      "side";
+  }
+}
+
+/* --- the list ------------------------------------------------------------- */
+
+.chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; }
+.chat-new {
+  justify-self: start;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-new:hover { background: var(--paper-raised); }
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block-start: 1px solid var(--rule);
+}
+.chat-list li { border-block-end: 1px solid var(--rule); }
+.chat-list button {
+  display: block;
+  width: 100%;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: start;
+  padding: 0.55rem 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
+.chat-list button.on { color: var(--ink); font-weight: 600; }
+
+/* --- the thread ----------------------------------------------------------- */
+
+.chat-thread {
+  grid-area: thread;
+  min-height: 14rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+}
+.chat-empty {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.turn { display: grid; gap: 0.2rem; }
+.turn .who {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.turn .line {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Hebrew inside a line keeps its own leading (§5: parity comes from leading). */
+.turn .line [lang|="he"] { line-height: 1.95; }
+.turn .line a { color: var(--accent); }
+.turn .note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.turn.bad .line { color: var(--clay); }
+.turn.working .line:empty::after { content: "…"; color: var(--ink-soft); }
+.chat-said { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--clay); }
+
+/* --- the composer ---------------------------------------------------------- */
+
+.composer {
+  grid-area: compose;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: end;
+}
+.composer textarea {
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 2.75rem;
+}
+.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+/* The working button takes the accent (§9): sending is the product's action here, not
+   a call to action at a door. */
+.chat-send {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-send:hover { filter: brightness(1.08); }
+.chat-send:disabled { opacity: 0.5; cursor: default; }
+
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-send,
+  .chat-new,
+  .chat-list button {
+    min-height: 44px;
+  }
+}
