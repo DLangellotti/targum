@@ -46,6 +46,10 @@ SOURCE = "https://raw.githubusercontent.com/openscriptures/morphhb/master/wlc/{b
 #: licence, and the dictionary underneath is public domain.
 LEXICON = "https://raw.githubusercontent.com/openscriptures/HebrewLexicon/master/HebrewStrong.xml"
 LEXICON_FILE = "strongs.json"
+#: What each of those lexemes means, from the same file and the same download. Kept
+#: beside the headwords rather than inside them so a box that fetched before this existed
+#: still reads its headwords and simply has no senses.
+SENSES_FILE = "senses.json"
 
 #: Named where the licence requires it, and here as well because a file that carries
 #: somebody's work should say whose it is at the top of the thing that reads it.
@@ -212,6 +216,22 @@ def _lexicon() -> dict[str, str]:
     return _HEADWORDS
 
 
+_MEANINGS: dict[str, str] | None = None
+
+
+def _senses() -> dict[str, str]:
+    global _MEANINGS
+    if _MEANINGS is None:
+        path = root() / SENSES_FILE
+        try:
+            _MEANINGS = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # A box that fetched before senses were kept. Nothing is broken by their
+            # absence: every word still carries its dictionary form and its morphology.
+            _MEANINGS = {}
+    return _MEANINGS
+
+
 def headword(lexeme: str) -> str:
     """The Hebrew word a Strong's number names, pointed, or "" where it names none.
 
@@ -225,6 +245,23 @@ def headword(lexeme: str) -> str:
     if not number.isdigit():
         return ""
     return _lexicon().get(number, "")
+
+
+def sense(lexeme: str) -> str:
+    """What a Strong's number means in English, or "" where nothing was recorded.
+
+    The same number the morphology already writes against every word of the Hebrew Bible,
+    which is why this needs no lookup and cannot be wrong about which word it is: the
+    tagging says the lexeme and this says what that lexeme means. Free, offline, and
+    public domain (targum-internal#64).
+
+    Empty on a box that fetched the lexicon before senses were kept, which is the honest
+    answer and the same one a missing entry gives.
+    """
+    number = (lexeme or "").strip().split(" ")[0].lstrip("H")
+    if not number.isdigit():
+        return ""
+    return _senses().get(number, "")
 
 
 def bare(text: str) -> str:
@@ -264,6 +301,41 @@ def parse_lexicon(xml: str) -> dict[str, str]:
         written = (word.text or "").strip() if word is not None else ""
         if name.isdigit() and written:
             out[name] = unicodedata.normalize("NFC", written)
+    return out
+
+
+def _prose(element: ET.Element | None) -> str:
+    """One field of an entry as running text, with its inline markup dropped."""
+    if element is None:
+        return ""
+    return re.sub(r"\s+", " ", "".join(element.itertext())).strip()
+
+
+def parse_senses(xml: str) -> dict[str, str]:
+    """Strong's numbers into what the word means, from the same file as the headwords.
+
+    Read out of the lexicon already being fetched rather than from a dictionary of its
+    own: the entries carry a definition beside the headword and it was being thrown away.
+    Public domain, same project, same download.
+
+    `meaning` where there is one and `usage` otherwise. `meaning` is the lexicographer's
+    prose — "a king", "to live", "a word, command, discourse, or subject" — and `usage`
+    is the list of words the King James translators reached for, which reads as a gloss
+    for a content word and as a thicket for a function word. Neither is trimmed here.
+    Whether a card should show all of it is a question for the surface that shows it,
+    and one this file has no business answering (targum-internal#64).
+    """
+    out: dict[str, str] = {}
+    for entry in ET.fromstring(xml).iter():
+        if entry.tag.split("}")[-1] != "entry":
+            continue
+        name = (entry.get("id") or "").lstrip("H")
+        if not name.isdigit():
+            continue
+        fields = {child.tag.split("}")[-1]: child for child in entry}
+        said = _prose(fields.get("meaning")) or _prose(fields.get("usage"))
+        if said:
+            out[name] = said
     return out
 
 
@@ -369,9 +441,12 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
             answer = httpx.get(LEXICON, timeout=180.0, follow_redirects=True)
             answer.raise_for_status()
             headwords = parse_lexicon(answer.text)
+            senses = parse_senses(answer.text)
         except Exception as bad:  # noqa: BLE001 - network, XML and HTTP all land here
             raise TargumError("Could not fetch the Hebrew lexicon.", str(bad)) from bad
         write_atomic(root() / LEXICON_FILE, json.dumps(headwords, ensure_ascii=False))
+        # From the same download, parsed a second time rather than fetched again.
+        write_atomic(root() / SENSES_FILE, json.dumps(senses, ensure_ascii=False))
     return got
 
 
@@ -395,10 +470,11 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
-    global _HEADWORDS, _SPELLED
+    global _HEADWORDS, _SPELLED, _MEANINGS
     _loaded.clear()
     _HEADWORDS = None
     _SPELLED = None
+    _MEANINGS = None
 
 
 _REF = re.compile(r"^(?P<book>.+?)\s+(?P<chapter>\d+)[:.](?P<verse>\d+)\s*$")

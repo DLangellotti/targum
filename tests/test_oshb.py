@@ -201,3 +201,75 @@ def test_the_lexicon_says_which_spellings_are_shared(tagged: Path) -> None:
     assert not oshb.contested("בית")
     assert not oshb.contested("בית לחם"), "a two-word headword is its own spelling"
     assert not oshb.contested(""), "nothing is not a shared spelling"
+
+
+#: Three entries in the real file's shape, including the inline `<def>` markup the prose
+#: has to be read through and an entry whose meaning is empty.
+LEXICON_XML = """<?xml version="1.0" encoding="utf-8"?>
+<lexicon xmlns="http://openscriptures.github.com/morphhb/namespace">
+  <entry id="H4430">
+    <w pos="n-m" xlit="melek" xml:lang="arc">מֶלֶךְ</w>
+    <source>(Aramaic) corresponding to <w src="H4428">4428</w>;</source>
+    <meaning>a <def>king</def></meaning>
+    <usage>king, royal.</usage>
+  </entry>
+  <entry id="H2418">
+    <w xml:lang="arc">חֲיָא</w>
+    <meaning>to <def>live</def></meaning>
+    <usage>live, keep alive.</usage>
+  </entry>
+  <entry id="H4481">
+    <w xml:lang="arc">מִן</w>
+    <meaning></meaning>
+    <usage>according, after, because, before.</usage>
+  </entry>
+</lexicon>
+"""
+
+
+def test_a_lexeme_number_carries_what_the_word_means() -> None:
+    """The definition was in the lexicon all along and was being dropped on the floor:
+    `parse_lexicon` kept the headword and threw the rest away. Same file, same download,
+    same public-domain licence (targum-internal#64)."""
+    senses = oshb.parse_senses(LEXICON_XML)
+    assert senses["4430"] == "a king", "read through the inline <def> markup"
+    assert senses["2418"] == "to live"
+
+
+def test_where_there_is_no_meaning_the_usage_stands_in() -> None:
+    """Strong's leaves `meaning` empty on some function words — `מִן` is one, and it is
+    the third commonest word in Daniel's Aramaic. The King James translators' word list
+    is a poorer gloss than a definition and a better one than nothing."""
+    assert oshb.parse_senses(LEXICON_XML)["4481"] == "according, after, because, before."
+
+
+def test_a_sense_is_found_however_the_number_is_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The morphology writes `4430`, and a reference may write `H4430` or `1254 a` where
+    a lexeme was split into senses after Strong numbered it."""
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    oshb.forget()
+    home = tmp_path / "oshb"
+    home.mkdir(parents=True)
+    (home / oshb.SENSES_FILE).write_text(
+        json.dumps(oshb.parse_senses(LEXICON_XML), ensure_ascii=False), encoding="utf-8"
+    )
+    assert oshb.sense("4430") == "a king"
+    assert oshb.sense("H4430") == "a king", "the H prefix is not part of the number"
+    assert oshb.sense("4430 a") == "a king", "nor is the sense letter"
+    assert oshb.sense("9999") == "", "a number with no entry says nothing"
+    assert oshb.sense("") == "" and oshb.sense("b") == "", "and neither does a prefix"
+    oshb.forget()
+
+
+def test_a_box_that_fetched_before_senses_existed_simply_has_none(
+    tagged: Path,
+) -> None:
+    """`tagged` writes no senses file, which is the shape of every box that fetched
+    before this existed. Nothing is broken by their absence: the words still come back
+    with their pieces, their lexeme numbers and their morphology, and only the meaning
+    is missing."""
+    assert oshb.sense("4430") == ""
+    words = oshb.words("Genesis 1:1")
+    assert words and words[0].lexemes[words[0].content] == "7225", "the tagging still reads"
