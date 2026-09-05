@@ -84,6 +84,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   prefix share a cache with no owner on the key, and a conversation filed under one would
   have been reachable from another account. The shelf files it as a dialogue, and a
   conversation is never proposed for the catalogue.
+- Push-to-talk, and called that. In Hebrew mode a Speak button records a line, sends the
+  clip up as itself, and the same transcriber a recording gets writes it down and asks it;
+  a Hear button on each answer reads it aloud, made once and kept. The clip's seconds come
+  out of the eight hours in both directions — the microphone's off the recording, the
+  voice's off the WAV the API returned, never off the text — and a spoken line is metered
+  once: the turn it becomes counts the reply alone. The Gemini client moved out of the
+  gitignored weekly into a public `speech` module so the box and CI can run it; its price
+  is in no table yet, so its seconds are counted and not charged, and the module says so.
+  Seconds to first sound, not a conversation, and nothing on the page pretends otherwise.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
