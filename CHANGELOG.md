@@ -93,6 +93,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   gitignored weekly into a public `speech` module so the box and CI can run it; its price
   is in no table yet, so its seconds are counted and not charged, and the module says so.
   Seconds to first sound, not a conversation, and nothing on the page pretends otherwise.
+- `targum mcp` adds the same tools to Claude Desktop or Claude Code over stdio. The one
+  registry the chat runs on is served as it stands — the library measured against your
+  words, your shelf, your ledger, a suggestion, a build's state, a link described, a text
+  priced — and nothing that spends: a quote over MCP is information, and the press that
+  starts a build stays on the page where the card is. The `mcp` SDK is an optional extra,
+  so a plain install carries nothing for it.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
