@@ -44,11 +44,17 @@ const plays = [];
 // A browser that can record, when the payload says so: getUserMedia hands back a stream
 // with one track, and MediaRecorder fires ondataavailable once and onstop on stop().
 if (payload.record) {
-  global.navigator = {
-    mediaDevices: {
-      getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }),
+  // Newer Node has a `navigator` of its own, as a getter-only global; defining the
+  // property replaces it where assignment throws.
+  Object.defineProperty(globalThis, "navigator", {
+    value: {
+      mediaDevices: {
+        getUserMedia: () => Promise.resolve({ getTracks: () => [{ stop() {} }] }),
+      },
     },
-  };
+    configurable: true,
+    writable: true,
+  });
   global.MediaRecorder = class {
     constructor() {
       this.mimeType = "audio/webm";
