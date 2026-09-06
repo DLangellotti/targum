@@ -32,6 +32,14 @@ def test_the_prompt_says_it_cannot_spend() -> None:
     assert "cannot spend" in prompts.SYSTEM and "start a build" in prompts.SYSTEM
 
 
+def test_the_prompt_says_it_cannot_open_a_text_and_must_give_its_path() -> None:
+    """A reader asked to read a text and was told it was open and ready, with no way in."""
+    assert "cannot open a text" in prompts.SYSTEM
+    assert "on a line of its own" in prompts.SYSTEM
+    assert "draws that line as a door" in prompts.SYSTEM
+    assert "Never say a text is open" in prompts.SYSTEM
+
+
 def test_hebrew_is_content_and_graded() -> None:
     assert "Hebrew is content" in prompts.SYSTEM
     assert "one new word at most" in prompts.SYSTEM

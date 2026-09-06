@@ -165,6 +165,18 @@ function pairsDrawn() {
   return out;
 }
 
+function doors() {
+  const out = [];
+  const walk = (node) => {
+    if (String(node.className).split(" ")[0] === "chat-door") {
+      out.push({ href: node.href, text: node.textContent });
+    }
+    (node.children || []).forEach(walk);
+  };
+  walk(turns);
+  return out;
+}
+
 function drawn() {
   return (turns.children || []).map((li) => {
     const line = lineOf(li);
@@ -217,6 +229,7 @@ function drawn() {
       turns: drawn(),
       cards: cards(),
       pairs: pairsDrawn(),
+      doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
       mode: segments.find((b) => b.attrs["aria-pressed"] === "true").attrs["data-mode"],
       stripAsked: strip.asked,

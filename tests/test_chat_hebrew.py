@@ -97,4 +97,5 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
         "every reader turn carries its English"
     )
     assert "never tell the reader they are at a level" in said.lower()
+    assert "its path" in said and "draws it as a door" in said, "opened, not declared open"
     assert "!" not in said

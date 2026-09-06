@@ -82,6 +82,10 @@ CONTRACT = f"""The reader has switched this conversation to Hebrew. From here:
   other word's.
 - Keep it short: two to four Hebrew sentences, and end with one question so the reader
   has something to answer.
+- When the reader asks to read a text, its path - exactly as the tool returned it - goes
+  on a line of its own between the Hebrew lines, with nothing else on that line and no
+  "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
+  when you have not given its path.
 - Still never tell the reader they are at a level. You know their words; use them.
 """
 

@@ -273,12 +273,34 @@ body.chat > .chat-main {
 .quote-go:hover { background: var(--ink-soft); }
 .quote-go:disabled { opacity: 0.5; cursor: default; }
 
+/* --- a door ---------------------------------------------------------------- */
+
+/* A path the model hands over is drawn as the one thing a path is for: opening the
+   text. It is a call to action and takes the max-contrast pair (§9), the same press
+   the quote's button is, and it sits on its own line between the sentences. */
+.chat-door {
+  display: inline-block;
+  margin-block: 0.35rem 0.6rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+}
+.chat-door:hover { background: var(--ink-soft); color: var(--paper); }
+.chat-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
   .chat-send,
   .chat-new,
   .chat-list button,
   .quote-go,
+  .chat-door,
   .chat-mode .segment,
   .chat-mic,
   .chat-play {

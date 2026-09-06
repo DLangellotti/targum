@@ -73,8 +73,11 @@ def test_text_arrives_in_pieces_and_a_path_becomes_a_keyed_link() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     answer = page["turns"][1]
-    assert answer["text"] == "Try רות at /reader/ruth-he/reader/index.html"
+    assert answer["text"] == "Try רות at Open ruth", "the path is drawn as a door, not read"
     assert answer["links"] == ["/reader/ruth-he/reader/index.html?k=k"]
+    assert page["doors"] == [
+        {"href": "/reader/ruth-he/reader/index.html?k=k", "text": "Open ruth"}
+    ], "a path is a door the reader presses, named by its folder"
     assert answer["hebrew"] == 1, "the Hebrew run is marked as Hebrew"
     assert "working" not in answer["cls"]
     assert page["sendDisabled"] is False
@@ -241,6 +244,35 @@ def test_the_mode_rides_with_the_line_and_hebrew_is_drawn_in_pairs() -> None:
         {"he": "מַה שְּׁלוֹמְךָ?", "en": "How are you?", "recast": False},
     ]
     assert page["mode"] == "talk"
+
+
+def test_in_hebrew_a_path_on_its_own_line_is_a_door_between_the_pairs() -> None:
+    """The bug this guards: the pair parser dropped every line without Hebrew in it,
+    so a reader who asked to read a text was told it was open and given no way in.
+    """
+    page = run(
+        do=[
+            {"type": "mode", "mode": "talk"},
+            {"type": "say", "text": "let's read the small lie"},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps(
+                    {
+                        "text": "> בּוֹא נִקְרָא\n= Let's read\n"
+                        "/reader/%D7%94%D7%A9%D7%A7%D7%A8-he/reader/index.html\n"
+                        "מָה הָיָה קָשֶׁה?\n= What was hard?"
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert [p["he"] for p in page["pairs"]] == ["בּוֹא נִקְרָא", "מָה הָיָה קָשֶׁה?"]
+    assert page["doors"] == [
+        {"href": "/reader/%D7%94%D7%A9%D7%A7%D7%A8-he/reader/index.html?k=k", "text": "Open השקר"}
+    ]
 
 
 def test_a_plain_answer_is_still_a_line() -> None:

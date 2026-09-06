@@ -109,6 +109,29 @@
   var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'־׀׃-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
   var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
+  var ONLY_PATH = /^\/(?:reader|library)\/\S+$/;
+
+  // A path is drawn as a door: the model can say where a text is, and only the reader
+  // opens it (design.md §9: the door-opening action is the ink call to action). The
+  // door names the text by its folder, since a path is not something a person reads.
+  function door(path) {
+    var a = document.createElement("a");
+    a.className = "chat-door";
+    a.href = keyed(path);
+    var name = path;
+    try {
+      name = decodeURIComponent(path);
+    } catch (e) {
+      /* a path that is not valid UTF-8 is still a door */
+    }
+    var folder = name.replace(/^\/(?:reader|library)\//, "").split("/")[0];
+    folder = folder.replace(/-[a-z]{2}$/, "").replace(/-/g, " ");
+    a.appendChild(document.createTextNode("Open "));
+    var who = document.createElement("bdi");
+    who.textContent = folder;
+    a.appendChild(who);
+    return a;
+  }
 
   // The Hebrew mode's own shape: a Hebrew line, then "= " and its English; "> " marks a
   // recast of the reader's words. Read here by the same rule `chat/hebrew.py` reads it.
@@ -130,6 +153,10 @@
         out.push(pending);
         pending = null;
       }
+      if (ONLY_PATH.test(line)) {
+        out.push({ path: line });
+        return;
+      }
       var recast = line.indexOf("> ") === 0;
       var body = recast ? line.slice(2).trim() : line;
       if (/[\u05d0-\u05ea]/.test(body)) pending = { he: body, en: "", recast: recast };
@@ -144,6 +171,10 @@
     // A turn written by the contract is drawn as pairs; anything else as a line.
     if (found.length && found.some(function (p) { return p.en; })) {
       found.forEach(function (p) {
+        if (p.path) {
+          target.appendChild(door(p.path));
+          return;
+        }
         var pair = document.createElement("div");
         pair.className = "chat-pair" + (p.recast ? " recast" : "");
         var he = document.createElement("span");
@@ -166,14 +197,7 @@
       var piece = pieces[i];
       if (piece === undefined) continue;
       if (i % 3 === 2) {
-        var a = document.createElement("a");
-        a.href = keyed(piece);
-        try {
-          a.textContent = decodeURIComponent(piece);
-        } catch (e) {
-          a.textContent = piece;
-        }
-        target.appendChild(a);
+        target.appendChild(door(piece));
       } else {
         hebrewed(target, piece);
       }
