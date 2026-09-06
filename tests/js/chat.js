@@ -124,7 +124,7 @@ require(path.join(assets, "chat.js"));
 const turns = byId["turns"];
 
 function lineOf(li) {
-  return li.children.find((child) => child.className === "line");
+  return li.children.find((child) => child.className === "chat-line");
 }
 
 function cards() {
@@ -152,7 +152,7 @@ function cards() {
 function pairsDrawn() {
   const out = [];
   const walk = (node) => {
-    if (String(node.className).split(" ")[0] === "pair") {
+    if (String(node.className).split(" ")[0] === "chat-pair") {
       out.push({
         he: node.children[0].textContent,
         en: node.children[1].textContent,

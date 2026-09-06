@@ -94,7 +94,7 @@ def test_a_refusal_is_drawn_as_the_answer_and_nothing_is_stuck() -> None:
         ],
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
-    assert page["turns"][1]["cls"] == "turn them bad"
+    assert page["turns"][1]["cls"] == "chat-turn them bad"
     assert page["turns"][1]["text"].startswith("A lot of conversation")
     assert page["sendDisabled"] is False
 

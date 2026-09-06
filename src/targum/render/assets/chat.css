@@ -80,7 +80,10 @@ body.chat > .chat-main {
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
 .chat-list button.on { color: var(--ink); font-weight: 600; }
 
-/* --- the thread ----------------------------------------------------------- */
+/* --- the thread -----------------------------------------------------------
+   Every class here is prefixed: this page carries `reader.css` for its tokens, and the
+   reader owns `.pair`, `.turn`, `.line` and `.who` — a thread drawn in those names was
+   laid out by the reader's rules, across the page. */
 
 .chat-thread {
   grid-area: thread;
@@ -97,14 +100,14 @@ body.chat > .chat-main {
   line-height: 1.6;
 }
 .turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
-.turn { display: grid; gap: 0.2rem; }
-.turn .who {
+.chat-turn { display: grid; gap: 0.2rem; }
+.chat-turn .chat-who {
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-soft);
 }
-.turn .line {
+.chat-turn .chat-line {
   margin: 0;
   font-family: var(--reading);
   font-size: 1.0625rem;
@@ -114,15 +117,15 @@ body.chat > .chat-main {
   overflow-wrap: anywhere;
 }
 /* Hebrew inside a line keeps its own leading (§5: parity comes from leading). */
-.turn .line [lang|="he"] { line-height: 1.95; }
-.turn .line a { color: var(--accent); }
-.turn .note {
+.chat-turn .chat-line [lang|="he"] { line-height: 1.95; }
+.chat-turn .chat-line a { color: var(--accent); }
+.chat-turn .note {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.turn.bad .line { color: var(--clay); }
-.turn.working .line:empty::after { content: "…"; color: var(--ink-soft); }
+.chat-turn.bad .chat-line { color: var(--clay); }
+.chat-turn.working .chat-line:empty::after { content: "…"; color: var(--ink-soft); }
 .chat-said { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--clay); }
 
 /* --- the composer ---------------------------------------------------------- */
@@ -172,19 +175,19 @@ body.chat > .chat-main {
    The record's own shape: a Hebrew line in the reading face at its own leading, its
    English beneath in the muted tone a translation rests in (§4). A recast of the
    reader's words is marked in type, not colour. */
-.turn .pair { display: grid; gap: 0.1rem; margin-block-end: 0.5rem; }
-.turn .pair .he {
+.chat-turn .chat-pair { display: grid; gap: 0.1rem; margin-block-end: 0.5rem; }
+.chat-turn .chat-pair .chat-he {
   font-family: var(--reading);
   font-size: 1.0625rem;
   line-height: 1.95;
   color: var(--ink);
 }
-.turn .pair .en {
+.chat-turn .chat-pair .chat-en {
   font-size: 0.9375rem;
   line-height: 1.6;
   color: var(--ink-soft);
 }
-.turn .pair.recast .en::before {
+.chat-turn .chat-pair.recast .chat-en::before {
   content: "you said";
   margin-inline-end: 0.5em;
   font-size: 0.6875rem;

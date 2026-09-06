@@ -18,6 +18,7 @@ def test_the_voice_rules_are_in_the_prompt() -> None:
     assert "No emoji" in said and "No exclamation marks" in said
     assert "No invented currency" in said and "not a placement" in said
     assert "Short." in said
+    assert "Plain text only" in said and "no markdown" in said
     assert "Second person" in said
 
 

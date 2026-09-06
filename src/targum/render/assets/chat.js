@@ -145,14 +145,14 @@
     if (found.length && found.some(function (p) { return p.en; })) {
       found.forEach(function (p) {
         var pair = document.createElement("div");
-        pair.className = "pair" + (p.recast ? " recast" : "");
+        pair.className = "chat-pair" + (p.recast ? " recast" : "");
         var he = document.createElement("span");
-        he.className = "he";
+        he.className = "chat-he";
         he.setAttribute("lang", "he");
         he.setAttribute("dir", "rtl");
         he.textContent = p.he;
         var en = document.createElement("span");
-        en.className = "en";
+        en.className = "chat-en";
         en.textContent = p.en;
         pair.appendChild(he);
         pair.appendChild(en);
@@ -168,7 +168,11 @@
       if (i % 3 === 2) {
         var a = document.createElement("a");
         a.href = keyed(piece);
-        a.textContent = piece;
+        try {
+          a.textContent = decodeURIComponent(piece);
+        } catch (e) {
+          a.textContent = piece;
+        }
         target.appendChild(a);
       } else {
         hebrewed(target, piece);
@@ -342,14 +346,14 @@
       })
       .then(function (got) {
         if (got.error) {
-          pending.className = "turn me bad";
-          render(pending.querySelector(".line"), got.error);
+          pending.className = "chat-turn me bad";
+          render(pending.querySelector(".chat-line"), got.error);
           busy = false;
           send.disabled = false;
           return;
         }
-        pending.className = "turn me";
-        render(pending.querySelector(".line"), got.heard);
+        pending.className = "chat-turn me";
+        render(pending.querySelector(".chat-line"), got.heard);
         var answer = turn("assistant", "", "working");
         var wasNew = !current;
         current = got.chat;
@@ -388,12 +392,12 @@
 
   function turn(role, text, state) {
     var li = document.createElement("li");
-    li.className = "turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
+    li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
     var who = document.createElement("span");
-    who.className = "who";
+    who.className = "chat-who";
     who.textContent = role === "user" ? "You" : "targum";
     var line = document.createElement("p");
-    line.className = "line";
+    line.className = "chat-line";
     render(line, text);
     li.appendChild(who);
     li.appendChild(line);
@@ -480,8 +484,8 @@
     var answer = turn("assistant", "", "working");
     ask("/chat/say", { chat: current, text: text, mode: mode }).then(function (got) {
       if (got.error) {
-        answer.className = "turn them bad";
-        render(answer.querySelector(".line"), got.error);
+        answer.className = "chat-turn them bad";
+        render(answer.querySelector(".chat-line"), got.error);
         busy = false;
         send.disabled = false;
         return;
@@ -494,10 +498,10 @@
   }
 
   function follow(chat, n, li) {
-    var line = li.querySelector(".line");
+    var line = li.querySelector(".chat-line");
     var text = "";
     function finish(kind, payload) {
-      li.className = "turn them" + (kind === "error" ? " bad" : "");
+      li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
       render(line, kind === "error" ? payload.message : payload.text || text);
       if (kind !== "error") playButton(li, chat, n);
       busy = false;
