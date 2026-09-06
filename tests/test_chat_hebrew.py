@@ -86,12 +86,18 @@ def test_the_ledger_block_carries_the_words_and_never_a_level(tmp_path: Path) ->
     assert "not a placement" in block
     empty = hebrew.ledger_block(level.EMPTY, [], [])
     assert "no words known yet" in empty
+    assert "ask what they have read" in empty and "never what level" in empty, (
+        "a first day has no ledger: the way to one is a text"
+    )
 
 
 def test_the_contract_says_the_shape_and_the_rule() -> None:
     said = " ".join(hebrew.CONTRACT.split())  # the prose is wrapped; the words are what count
     assert '"= "' in said and '"> "' in said
-    assert "vowel points" in said and "At most one word outside" in said
+    assert "vowel points" in said and "Natural first" in said
+    assert "never bend a sentence" in said and "two or three in" in said, (
+        "naturalness before the list; new words on purpose, and not many"
+    )
     assert "ktiv male" in said and "לִקְרוֹא" in said, "the full spelling a modern reader meets"
     assert "Begin every reply with the reader's own line" in said, (
         "every reader turn carries its English"

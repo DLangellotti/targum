@@ -274,6 +274,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   box could not look. Three searches a turn at most, each counted, inside the same
   rails every turn is; what it may look at is still the publishers' hosts and the
   public ones.
+- Natural Hebrew before the list. The contract asked the chat to stay inside the
+  reader's words with at most one word outside per sentence, and a wall like that bends
+  sentences. It now says: prefer the reader's words wherever a natural sentence allows,
+  never bend a sentence to avoid a word, and bring new words in on purpose — two or
+  three a reply, chosen to be met again, each with its English, and used again a few
+  lines later. Comprehensible, natural, one step at a time; the outside share is still
+  recorded on every turn for the eval.
+- A first day has no ledger. A reader who has marked nothing is not written to at 800
+  common words and left there: the chat is told to keep to the commonest of them, keep
+  every sentence short, ask what they have read in Hebrew so far — never what level
+  they are — and offer one short text to start with, because words are marked while
+  reading and that is how a ledger begins. And the foot of the record no longer tells
+  them they knew 0% of it: it says how many words there were and that none are marked
+  yet.
 - The Hebrew the chat writes is written as Hebrew. The recast of a reader's English
   was carrying their grammar mistakes and their English word order into the line of
   record, and the model's own lines read as translated English ("זה ישר" for

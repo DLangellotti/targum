@@ -16,9 +16,12 @@ in the contract, so `pairs()` can read a turn back with no model in the loop.
 
 **The vocabulary.** The reader's known lemmas from their ledger, and under them a floor
 of the commonest words of the language — bands 1 and 2 of the reader's own six-band
-scale, which is Zipf 4.8 and up in `annotate/frequency.py`. One new word per sentence at
-most, with its English beside it. Whether a model can hold to a list is the open
-question; until the eval answers it, no page says "at your level".
+scale, which is Zipf 4.8 and up in `annotate/frequency.py`. Natural Hebrew first
+(decided 2026-09-06, on the first live conversations): the lists are what to prefer, not
+a wall, and a sentence is never bent to stay inside them; two or three new words a
+reply, brought in on purpose and used again, with their English beside them. Whether a
+model can hold near a list is the open question; every turn records how far outside it
+fell (`record.outside_share`), and until the eval answers, no page says "at your level".
 """
 
 from __future__ import annotations
@@ -101,9 +104,14 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   "זה ישר" for "plainly", no English rhythm. The "{ENGLISH}" line under each of your
   lines is the English for the Hebrew you wrote, and may read a little differently from
   how you would have put it in English; that is right.
-- Stay inside the reader's known words and the common words listed below. At most one
-  word outside them in a sentence, and its English is on the "{ENGLISH}" line like every
-  other word's.
+- Natural first. Prefer the reader's known words and the common words listed below
+  wherever a natural sentence allows, so that most of what you write is theirs already —
+  but never bend a sentence to avoid a word: a stilted line inside the list is worse
+  than a natural one a little outside it. Bring new words in on purpose, two or three in
+  a reply and not more, chosen because the reader will meet them again — each is on its
+  "{ENGLISH}" line like every other word — and use a word you brought in again a few
+  lines later. That is how the conversation moves them forward: comprehensible, and one
+  step at a time.
 - Keep it short: a few Hebrew sentences, and end with one question so the reader has
   something to answer. When you offer texts, one Hebrew line per text with its English,
   and the text's door under it.
@@ -218,7 +226,16 @@ def ledger_block(
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
     else:
-        parts.append("The reader has marked no words known yet; stand on the common words.")
+        # Nobody has a ledger on their first day. Words are marked while reading, so
+        # the way to a ledger is a text, and the first question is the one the research
+        # notes give: what they have read, never what level they are.
+        parts.append(
+            "The reader has marked no words known yet. Stand on the commonest of the common "
+            "words, keep every sentence short, and in your first reply ask what they have "
+            "read in Hebrew so far - never what level they are - and offer them one short "
+            "text to start with (suggest_next), because words are marked while reading and "
+            "that is how their ledger begins."
+        )
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
     if lately:

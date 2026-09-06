@@ -519,9 +519,17 @@
     counts.className = "chat-counts";
     var minutes = Math.max(1, Math.round(footSeconds / 60));
     var parts = [];
-    if (footSeconds > 0) parts.push(minutes + (minutes === 1 ? " min" : " min"));
-    parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
-    if (vocabulary) parts.push("you knew " + Math.round((known / vocabulary) * 100) + "% of this");
+    if (footSeconds > 0) parts.push(minutes + " min");
+    // A reader with nothing marked yet is not told they knew 0%: that is a score of
+    // zero, which the brand rules keep out. They are told how many words there were,
+    // and that marking begins in a text.
+    var marked = Object.keys(ledger()).length > 0;
+    if (!marked) {
+      parts.push(vocabulary + (vocabulary === 1 ? " word" : " words") + " · none marked yet");
+    } else {
+      parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
+      if (vocabulary) parts.push("you knew " + Math.round((known / vocabulary) * 100) + "% of this");
+    }
     counts.textContent = parts.join(" · ");
     li.appendChild(counts);
     var save = document.createElement("button");

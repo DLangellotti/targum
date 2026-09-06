@@ -555,3 +555,29 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
     assert page["posted"][-1]["body"]["upload"] == "u1"
     (card,) = page["cards"]
     assert card["meta"].startswith("10 minutes of audio")
+
+
+def test_a_reader_with_nothing_marked_is_not_told_they_knew_nothing() -> None:
+    """ "You knew 0% of this" is a score of zero, which the brand rules keep out. On a
+    first day the foot says how many words there were and that marking begins in a
+    text."""
+    page = run(
+        do=[
+            {"type": "say", "text": "hi"},
+            {"type": "stream", "event": "text", "data": RECORD_TEXT},
+            {
+                "type": "stream",
+                "event": "words",
+                "data": json.dumps(RECORD_WORDS, ensure_ascii=False),
+            },
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": RECORD_TEXT, "seconds": 70}),
+            },
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+        ledger={},
+    )
+    assert page["foot"]["counts"] == "1 min · 4 words · none marked yet"
+    assert "%" not in page["foot"]["counts"] and "not met" not in page["foot"]["counts"]
