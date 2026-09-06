@@ -50,7 +50,7 @@ def test_a_line_is_posted_and_the_stream_is_followed() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert page["posted"] == [
-        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read", "mode": "find"}}
+        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read"}}
     ]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"], "the key rides in the address"
     assert [t["text"] for t in page["turns"]] == ["what should I read", ""]
@@ -214,10 +214,9 @@ def test_a_refused_press_says_why_on_the_card() -> None:
     assert page["stripAsked"] == 0
 
 
-def test_the_mode_rides_with_the_line_and_hebrew_is_drawn_in_pairs() -> None:
+def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
     page = run(
         do=[
-            {"type": "mode", "mode": "talk"},
             {"type": "say", "text": "hello"},
             {
                 "type": "stream",
@@ -236,14 +235,12 @@ def test_the_mode_rides_with_the_line_and_hebrew_is_drawn_in_pairs() -> None:
             "/chat/say": {"chat": "abc", "turn": 1},
         },
     )
-    assert page["posted"][0]["body"]["mode"] == "talk"
     assert page["hours"] == "1.5 of 8 hours this month"
     pairs = page["pairs"]
     assert pairs == [
         {"he": "שָׁלוֹם", "en": "hello", "recast": True},
         {"he": "מַה שְּׁלוֹמְךָ?", "en": "How are you?", "recast": False},
     ]
-    assert page["mode"] == "talk"
 
 
 def test_in_hebrew_a_path_on_its_own_line_is_a_door_between_the_pairs() -> None:
@@ -252,7 +249,6 @@ def test_in_hebrew_a_path_on_its_own_line_is_a_door_between_the_pairs() -> None:
     """
     page = run(
         do=[
-            {"type": "mode", "mode": "talk"},
             {"type": "say", "text": "let's read the small lie"},
             {
                 "type": "stream",
@@ -283,22 +279,19 @@ def test_a_plain_answer_is_still_a_line() -> None:
         ],
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
-    assert page["posted"][0]["body"]["mode"] == "find"
     assert page["pairs"] == [] and page["turns"][1]["text"] == "Try Ruth."
 
 
-def test_the_microphone_appears_only_in_hebrew_mode_where_the_browser_records() -> None:
-    page = run(do=[{"type": "mode", "mode": "talk"}], record=True)
+def test_the_microphone_appears_where_the_browser_records() -> None:
+    page = run(do=[], record=True)
     assert page["mic"]["hidden"] is False
-    page = run(do=[{"type": "mode", "mode": "talk"}], record=False)
+    page = run(do=[], record=False)
     assert page["mic"]["hidden"] is True, "a page never offers what the browser cannot do"
-    page = run(record=True)
-    assert page["mic"]["hidden"] is True, "find mode has no microphone"
 
 
 def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> None:
     page = run(
-        do=[{"type": "mode", "mode": "talk"}, {"type": "record"}],
+        do=[{"type": "record"}],
         answers={"/chat/hear": {"chat": "abc", "turn": 1, "heard": "שלום לך"}},
         record=True,
     )
@@ -311,7 +304,6 @@ def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> 
 def test_an_answer_in_hebrew_mode_can_be_heard() -> None:
     page = run(
         do=[
-            {"type": "mode", "mode": "talk"},
             {"type": "say", "text": "hi"},
             {
                 "type": "stream",

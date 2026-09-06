@@ -3788,10 +3788,7 @@ class Handler(BaseHTTPRequestHandler):
         ).strip()
         if not text:
             return self._json({"error": "Nothing was heard. Try again, a little closer."}, 400)
-        mode = query.get("mode", [""])[0]
-        asked = self.chats.say(
-            person, home, chat_id, text, admin=admin, mode=mode, heard_seconds=heard
-        )
+        asked = self.chats.say(person, home, chat_id, text, admin=admin, heard_seconds=heard)
         self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
 
     def _chat_say(self, payload: dict[str, Any]) -> None:
@@ -3811,8 +3808,7 @@ class Handler(BaseHTTPRequestHandler):
         if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
             return self._json({"error": "not found"}, 404)
         admin = bool(person and self.store.is_admin(person.email))
-        mode = str(payload.get("mode") or "")
-        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, mode=mode)
+        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin)
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     # -- accounts -----------------------------------------------------------

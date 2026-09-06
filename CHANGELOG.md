@@ -60,10 +60,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   file with the model named so the next reader's build is free. `Entry` gains `licence`
   and `credit`. The back office also lists what was wanted — a library search that found
   nothing, a link a reader had described — as counts, never who.
-- targum talks. A conversation can be switched to Hebrew, and then the model writes in
-  pointed Hebrew with the English under every line and recasts whatever the reader said in
-  another language into Hebrew first — the shape a targum has, so the record can be read
-  back (that reading-back is the next slice). It is handed the reader's own known words
+- targum talks. Every conversation is in Hebrew, whatever the reader writes in: the
+  model writes in pointed Hebrew with the English under every line and recasts whatever
+  the reader said in another language into Hebrew first — the shape a targum has, so the
+  record can be read back (that reading-back is the next slice). It opened with two
+  modes, Find and Hebrew, and lost the first on 2026-09-06 after a reader who asked in
+  English for something to read was answered in English: there is one conversation, and
+  it is in the language being learnt. A text the model finds is handed over as its path
+  on a line of its own, which the page draws as an ink door the reader presses — the
+  model cannot open anything, and no longer says it has. It is handed the reader's own known words
   from their ledger and, under them, the commonest words of the language at the first two
   bands, and asked to stay inside them with one new word a sentence; the contract is
   `chat/hebrew.py`, and whether a model can hold to a list is measured by
@@ -84,7 +89,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   prefix share a cache with no owner on the key, and a conversation filed under one would
   have been reachable from another account. The shelf files it as a dialogue, and a
   conversation is never proposed for the catalogue.
-- Push-to-talk, and called that. In Hebrew mode a Speak button records a line, sends the
+- Push-to-talk, and called that. A Speak button records a line, sends the
   clip up as itself, and the same transcriber a recording gets writes it down and asks it;
   a Hear button on each answer reads it aloud, made once and kept. The clip's seconds come
   out of the eight hours in both directions — the microphone's off the recording, the

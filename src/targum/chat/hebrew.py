@@ -63,7 +63,8 @@ ASSUMED_REPLY_WORDS = 80
 RECAST = "> "
 ENGLISH = "= "
 
-CONTRACT = f"""The reader has switched this conversation to Hebrew. From here:
+CONTRACT = f"""This conversation is in Hebrew, whatever language the reader writes in.
+Every reply, including one that finds, offers or quotes a text, keeps to this:
 
 - Write in Hebrew, with vowel points (nikkud) on every word — on the full spelling the
   reader meets in a newspaper (ktiv male), not the defective spelling pointed text once
@@ -80,8 +81,9 @@ CONTRACT = f"""The reader has switched this conversation to Hebrew. From here:
 - Stay inside the reader's known words and the common words listed below. At most one
   word outside them in a sentence, and its English is on the "{ENGLISH}" line like every
   other word's.
-- Keep it short: two to four Hebrew sentences, and end with one question so the reader
-  has something to answer.
+- Keep it short: a few Hebrew sentences, and end with one question so the reader has
+  something to answer. When you offer texts, one Hebrew line per text with its English,
+  and the text's door under it.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -164,7 +166,7 @@ def known_words(
 
 
 def ledger_block(level: Level, known: list[str], common: list[str]) -> str:
-    """The per-reader block for the Hebrew mode: the ledger, then the word lists."""
+    """The per-reader block: the ledger, then the word lists."""
     parts = [describe(level)]
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))

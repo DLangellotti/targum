@@ -92,6 +92,8 @@ SESSION_DAYS = 90
 SCHEMA_VERSION = 12
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
+#: `talk` since 2026-09-06, when the two modes became one: every conversation is in
+#: Hebrew. `find` survives on rows written before that and means the same thing now.
 MODES = ("find", "talk")
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
@@ -1525,7 +1527,7 @@ class Store:
 
     # -- conversations ----------------------------------------------------------
 
-    def chat_open(self, person_id: int | None, language: str = "he", mode: str = "find") -> str:
+    def chat_open(self, person_id: int | None, language: str = "he", mode: str = "talk") -> str:
         """Start a conversation. Its id is a bearer token in the sense a job's is:
         unguessable, and still checked against the asker on every read."""
         chat_id = secrets.token_urlsafe(9)
@@ -1536,12 +1538,6 @@ class Store:
                 (chat_id, person_id, language, now(), now(), mode if mode in MODES else "find"),
             )
         return chat_id
-
-    def chat_mode(self, chat_id: str, mode: str) -> None:
-        if mode not in MODES:
-            return
-        with self.write() as db:
-            db.execute("UPDATE chat SET mode = ? WHERE id = ?", (mode, chat_id))
 
     def chats(self, person_id: int | None) -> list[dict[str, Any]]:
         """Somebody's conversations, most recent first."""

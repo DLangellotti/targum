@@ -362,8 +362,9 @@ def test_web_search_rides_along_only_when_asked_and_is_counted(
 def test_a_hebrew_turn_carries_the_contract_and_the_words_and_is_metered_in_seconds(
     tmp_path: Path,
 ) -> None:
-    """Talk mode: the contract rides in the cached block, the reader's words after the
-    breakpoint, and the turn's words land in the same seconds sum a recording's do."""
+    """The contract rides in the cached block, the reader's words after the breakpoint,
+    and the turn's words land in the same seconds sum a recording's do — for every
+    conversation, since the two modes became one on 2026-09-06."""
     from targum.chat import hebrew
 
     library, store = world(tmp_path)
@@ -380,8 +381,7 @@ def test_a_hebrew_turn_carries_the_contract_and_the_words_and_is_metered_in_seco
     client = Script([reply([{"type": "text", "text": reply_text}])])
     chats = session_module.Chats(library, store, client_factory=lambda: client)
     home = library.home(person)
-    asked = chats.say(person, home, "", "hello there friend", admin=False, mode="talk")
-    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"  # type: ignore[index]
+    asked = chats.say(person, home, "", "hello there friend", admin=False)
     chats.answer(asked)
 
     sent = client.requests[0]
@@ -396,10 +396,10 @@ def test_a_hebrew_turn_carries_the_contract_and_the_words_and_is_metered_in_seco
         "in the recordings' own sum"
     )
 
-    # And a find-mode conversation carries neither. Answered directly: `say` also queued
-    # it for the workers this test never started, and the queue's head is the first turn.
+    # A line in English asking for something to read is the same conversation, under the
+    # same contract: the reply is Hebrew, with the door under it, whatever was asked in.
     chats.answer(chats.say(person, home, "", "what to read", admin=False))
-    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[1]["system"][0]["text"]
+    assert hebrew.CONTRACT.splitlines()[0] in client.requests[1]["system"][0]["text"]
 
 
 def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
@@ -408,7 +408,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     client = Script([reply([{"type": "text", "text": "a"}])])
     chats = session_module.Chats(library, store, client_factory=lambda: client)
     long_line = " ".join(["מילה"] * 200)  # 280 words with the assumed reply: 140 seconds
-    asked = chats.say(None, library.home(None), "", long_line, admin=False, mode="talk")
+    asked = chats.say(None, library.home(None), "", long_line, admin=False)
     chats.answer(asked)
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None

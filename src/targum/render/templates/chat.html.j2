@@ -35,18 +35,13 @@
   </section>
 
   <form class="composer" id="composer">
-    {#- What this conversation is for. Find is the door onto the shelf; Hebrew is
-        talking, graded to the reader's own words, with the English under every line.
-        A segmented control like the Add page's: quiet ink, never the accent. -#}
-    <div class="segmented chat-mode" id="chat-mode" role="group" aria-label="What this conversation is for">
-      <button type="button" class="segment" data-mode="find" aria-pressed="true">Find</button>
-      <button type="button" class="segment" data-mode="talk" aria-pressed="false">Hebrew</button>
-    </div>
-    <textarea id="say" rows="2" placeholder="Ask targum" spellcheck="true"
+    {#- One conversation, always in Hebrew, graded to the reader's own words, with the
+        English under every line — whatever language they write in. -#}
+    <textarea id="say" rows="2" placeholder="Write in Hebrew, or in English" spellcheck="true"
               aria-label="Your message"></textarea>
     {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
-        as a line — seconds, not a conversation. Shown only in Hebrew mode, and only
-        where the browser can record. -#}
+        as a line — seconds, not a conversation. Shown only where the browser can
+        record. -#}
     <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
     <button type="submit" class="chat-send" id="chat-send">Send</button>
   </form>

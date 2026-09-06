@@ -196,30 +196,22 @@ def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:
     assert store.chats(person.id) == [] and store.chat_turns(chat) == []
 
 
-def test_the_list_carries_the_hours_and_a_line_can_switch_the_mode(chatting) -> None:
+def test_the_list_carries_the_hours_and_every_conversation_is_in_hebrew(chatting) -> None:
     port, key, store, chats = chatting
     status, answer, _ = call(port, "GET", f"/chat/list?k={key}")
     assert answer["hours"] == {"used": 0.0, "allowed": 8.0, "ends": answer["hours"]["ends"]}
     assert answer["hours"]["ends"]
-    status, asked, _ = call(
-        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום", "mode": "talk"}
+    status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום"})
+    assert status == 200
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "talk", "there is one kind of conversation"
+    # A line that asks for a mode is asking for something that no longer exists.
+    status, _, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "x", "mode": "find"}
     )
     assert status == 200
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "talk"
-    call(
-        port,
-        "POST",
-        f"/chat/say?k={key}",
-        {"chat": asked["chat"], "text": "find me a book", "mode": "find"},
-    )
-    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
-    assert whole["chat"]["mode"] == "find", "switched mid-conversation"
-    call(
-        port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "x", "mode": "nonsense"}
-    )
-    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
-    assert whole["chat"]["mode"] == "find", "an unknown mode changes nothing"
 
 
 # -- push-to-talk ------------------------------------------------------------------
@@ -265,7 +257,7 @@ def test_a_spoken_line_is_written_down_metered_once_and_asked(chatting, monkeypa
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     connection.request(
         "POST",
-        f"/chat/hear?chat=&mode=talk&k={key}",
+        f"/chat/hear?chat=&k={key}",
         body=b"\x1aE\xdf\xa3 fake webm",
         headers={"Content-Type": "audio/webm"},
     )
@@ -328,9 +320,7 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     from targum import speech
 
     port, key, store, chats = chatting
-    _, asked, _ = call(
-        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "mode": "talk"}
-    )
+    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi"})
     chats.answer(chats.queue.get())
     rendered: list[str] = []
 
@@ -353,9 +343,7 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     assert len(rendered) == 1, "kept, not made again"
 
     monkeypatch.delenv(speech.KEY, raising=False)
-    _, asked2, _ = call(
-        port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more", "mode": "talk"}
-    )
+    _, asked2, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more"})
     chats.answer(chats.queue.get())
     status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")
     assert status == 402 and "No voice" in body["error"]

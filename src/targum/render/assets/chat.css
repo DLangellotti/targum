@@ -133,15 +133,11 @@ body.chat > .chat-main {
 .composer {
   grid-area: compose;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "mode mode mode"
-    "say mic send";
+  grid-template-areas: "say mic send";
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.6rem;
   align-items: end;
 }
-.composer .chat-mode { grid-area: mode; justify-self: start; }
 .composer textarea { grid-area: say; }
 .composer .chat-mic { grid-area: mic; }
 .composer .chat-send { grid-area: send; }
@@ -301,7 +297,6 @@ body.chat > .chat-main {
   .chat-list button,
   .quote-go,
   .chat-door,
-  .chat-mode .segment,
   .chat-mic,
   .chat-play {
     min-height: 44px;

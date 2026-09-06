@@ -299,21 +299,14 @@ class Chats:
         text: str,
         *,
         admin: bool,
-        mode: str = "",
         heard_seconds: float = 0.0,
     ) -> Asked:
-        """Write the reader's turn down and hand it to a worker. Returns at once.
-
-        `mode` switches the conversation — `find` or `talk` — where the reader asked;
-        a new conversation opens in the mode asked for, or `find`.
-        """
+        """Write the reader's turn down and hand it to a worker. Returns at once."""
         if self.store is None:
             raise RuntimeError("a chat needs a store")
         person_id = person.id if person else None
         if not chat_id:
-            chat_id = self.store.chat_open(person_id, mode=mode or "find")
-        elif mode:
-            self.store.chat_mode(chat_id, mode)
+            chat_id = self.store.chat_open(person_id)
         n = self.store.chat_say(chat_id, "user", text, text, stage="working")
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
@@ -354,8 +347,6 @@ class Chats:
             learning=(store.learning(person_id) & reading) if asked.person else reading,
             admin=asked.admin,
         )
-        chat = store.chat_owned(person_id, asked.chat_id) or {}
-        talking = str(chat.get("mode") or "find") == "talk"
         asked_text = next(
             (str(row["said"]) for row in store.chat_turns(asked.chat_id) if row["n"] == asked.n),
             "",
@@ -410,15 +401,15 @@ class Chats:
         def keep(role: str, content: list[dict[str, Any]], said: str) -> None:
             store.chat_say(asked.chat_id, role, content, said, stage="done")
 
-        contract = hebrew_module.CONTRACT if talking else ""
-        ledger = (
-            hebrew_module.ledger_block(
-                level,
-                hebrew_module.known_words(store, person_id, language),
-                hebrew_module.common_words(language=language),
-            )
-            if talking
-            else ""
+        # Every conversation is in Hebrew, whatever the reader writes in (decided
+        # 2026-09-06: a reader who asked in English was answered in English, and a
+        # conversation that is not in Hebrew leaves no record worth keeping). The
+        # contract rides in the cached block, the reader's own words after it.
+        contract = hebrew_module.CONTRACT
+        ledger = hebrew_module.ledger_block(
+            level,
+            hebrew_module.known_words(store, person_id, language),
+            hebrew_module.common_words(language=language),
         )
         try:
             spent = run_turn(

@@ -183,7 +183,6 @@ THUMBED = (
     # And the door a path becomes: the reader opens a text, never the model.
     ".chat-door",
     # And the switch between finding and talking.
-    ".chat-mode .segment",
     # And the two voice controls: speak a line, hear an answer.
     ".chat-mic",
     ".chat-play",

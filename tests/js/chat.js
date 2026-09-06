@@ -75,20 +75,6 @@ install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
   TargumBuilding: { ask: () => strip.asked++ },
 });
-// The segmented mode control is the template's markup, so it is built here: two
-// buttons the script reads and presses through the group's one click listener.
-const { element } = require("./dom.js");
-const modeGroup = byId["chat-mode"] || (byId["chat-mode"] = element("div"));
-const segments = ["find", "talk"].map((m) => {
-  const b = element("button");
-  b.className = "segment";
-  b.attrs["data-mode"] = m;
-  b.attrs["aria-pressed"] = m === "find" ? "true" : "false";
-  b.closest = (sel) => (sel === ".segment" ? b : null);
-  modeGroup.children.push(b);
-  return b;
-});
-modeGroup.querySelectorAll = (sel) => (sel === ".segment" ? segments : []);
 
 // An <audio> element that records what it was asked to play rather than playing it.
 const madeElement = global.document.createElement;
@@ -198,10 +184,6 @@ function drawn() {
     if (step.type === "stream") {
       sources[sources.length - 1].fire(step.event, step.data || "");
     }
-    if (step.type === "mode") {
-      const button = segments.find((b) => b.attrs["data-mode"] === step.mode);
-      modeGroup.fire("click", { target: button });
-    }
     if (step.type === "record") {
       // Two presses: start, then stop — which is when the clip goes up.
       byId["chat-mic"].onclick();
@@ -231,7 +213,6 @@ function drawn() {
       pairs: pairsDrawn(),
       doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
-      mode: segments.find((b) => b.attrs["aria-pressed"] === "true").attrs["data-mode"],
       stripAsked: strip.asked,
       mic: {
         hidden: byId["chat-mic"].hidden,

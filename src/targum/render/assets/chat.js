@@ -38,10 +38,6 @@
   var chats = [];
   var busy = false;
   var usable = true;
-  // What this conversation is for: "find" (the shelf) or "talk" (Hebrew). Sent with
-  // every line, so a switch mid-conversation takes from the next line.
-  var mode = "find";
-  var modes = document.getElementById("chat-mode");
   var hoursLine = document.getElementById("chat-hours");
   var mic = document.getElementById("chat-mic");
   // Push-to-talk needs a browser that records. Without one the button never appears,
@@ -52,21 +48,9 @@
     typeof navigator.mediaDevices.getUserMedia === "function" &&
     typeof MediaRecorder === "function";
 
-  function setMode(next) {
-    mode = next === "talk" ? "talk" : "find";
-    if (!modes) return;
-    Array.prototype.forEach.call(modes.querySelectorAll(".segment"), function (button) {
-      button.setAttribute("aria-pressed", button.getAttribute("data-mode") === mode ? "true" : "false");
-    });
-    if (field) field.placeholder = mode === "talk" ? "Write in Hebrew, or in English" : "Ask targum";
-    if (mic) mic.hidden = !(mode === "talk" && canRecord);
-  }
-  if (modes) {
-    modes.addEventListener("click", function (event) {
-      var button = event.target && event.target.closest ? event.target.closest(".segment") : null;
-      if (button) setMode(button.getAttribute("data-mode"));
-    });
-  }
+  // Said by the script and not left to the template, so the two cannot disagree about
+  // what a page shows on a browser that cannot record.
+  if (mic) mic.hidden = !canRecord;
 
   function drawHours(got) {
     if (!hoursLine || !got) return;
@@ -133,7 +117,7 @@
     return a;
   }
 
-  // The Hebrew mode's own shape: a Hebrew line, then "= " and its English; "> " marks a
+  // The conversation's shape: a Hebrew line, then "= " and its English; "> " marks a
   // recast of the reader's words. Read here by the same rule `chat/hebrew.py` reads it.
   function pairs(text) {
     var out = [];
@@ -356,7 +340,7 @@
     busy = true;
     send.disabled = true;
     var pending = turn("user", "…", "working");
-    var path = "/chat/hear?chat=" + encodeURIComponent(current) + "&mode=" + mode;
+    var path = "/chat/hear?chat=" + encodeURIComponent(current);
     fetch(keyed(path), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": clip.type || "audio/webm" }),
@@ -389,7 +373,7 @@
   // Hear an answer. The clip is made on the first press and kept, and its seconds come
   // out of the same hours a recording does — the press is the spend.
   function playButton(li, chat, n) {
-    if (mode !== "talk" || li.querySelector(".chat-play")) return;
+    if (li.querySelector(".chat-play")) return;
     var button = document.createElement("button");
     button.type = "button";
     button.className = "chat-play";
@@ -469,7 +453,6 @@
     tell("");
     return ask("/chat/" + encodeURIComponent(id)).then(function (answer) {
       if (answer.error) return tell(answer.error);
-      setMode(answer.chat && answer.chat.mode);
       var pending = null;
       var lastAsked = 0;
       (answer.turns || []).forEach(function (t) {
@@ -506,7 +489,7 @@
     send.disabled = true;
     turn("user", text);
     var answer = turn("assistant", "", "working");
-    ask("/chat/say", { chat: current, text: text, mode: mode }).then(function (got) {
+    ask("/chat/say", { chat: current, text: text }).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";
         render(answer.querySelector(".chat-line"), got.error);
@@ -599,9 +582,6 @@
   if (fresh) fresh.onclick = startNew;
   if (mic) mic.onclick = toggleRecording;
 
-  // The page opens finding, with the microphone put away: said by the script and not
-  // left to the template, so the two cannot disagree about what a fresh page shows.
-  setMode("find");
   load();
 
   window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard, pairs: pairs, hear: hear };
