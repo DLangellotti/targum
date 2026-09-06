@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chat — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('chat.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
@@ -31,20 +31,13 @@
     <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.
       targum answers from the library and your own shelf.</p>
     <ol class="turns" id="turns"></ol>
-    <p class="chat-said" id="chat-said" role="status" hidden></p>
   </section>
 
-  <form class="composer" id="composer">
-    {#- One conversation, always in Hebrew, graded to the reader's own words, with the
-        English under every line — whatever language they write in. -#}
-    <textarea id="say" rows="2" placeholder="Write in Hebrew, or in English" spellcheck="true"
-              aria-label="Your message"></textarea>
-    {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
-        as a line — seconds, not a conversation. Shown only where the browser can
-        record. -#}
-    <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
-    <button type="submit" class="chat-send" id="chat-send">Send</button>
-  </form>
+  {#- The box, shared with the front door (`_composer.html.j2`). One conversation,
+      always in Hebrew, graded to the reader's own words, with the English under every
+      line — whatever language they write in. -#}
+  {% set placeholder = 'Write in Hebrew, or in English' %}
+  {% include '_composer.html.j2' %}
 </main>
 {% include '_foot.html.j2' %}
 <script>
@@ -54,6 +47,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
+<script>{{ asset('speak.js') }}</script>
 <script>{{ asset('chat.js') }}</script>
 </body>
 </html>

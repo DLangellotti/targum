@@ -1,0 +1,98 @@
+/* The box — `_composer.html.j2` — on the two pages that carry it.
+
+   One field and the ways out of it, drawn the same on Learn and on the conversation
+   page. It is not a raised layer: a field with a hairline on paper (§9 allows one raised
+   layer per view, and on both pages something else has it). The one send button takes
+   the accent because sending is the product's working action here, not a call to
+   action at a door; Speak and the door for a file are ink-bordered working controls. */
+
+.composer {
+  display: grid;
+  grid-template-areas:
+    "say say say"
+    "bring mic send";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+.composer textarea { grid-area: say; }
+.composer .chat-bring { grid-area: bring; }
+.composer .chat-mic { grid-area: mic; justify-self: end; }
+.composer .chat-send { grid-area: send; }
+
+.composer textarea {
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 2.75rem;
+  width: 100%;
+}
+.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* A file, a link or a recording: the Add page, reached from the box rather than from a
+   corner of the nav (2026-09-06). A typed `+` as itself (§7), in a ring the size of the
+   buttons beside it. */
+.chat-bring {
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  font-size: 1.0625rem;
+  line-height: 1;
+  color: var(--ink);
+  text-decoration: none;
+}
+.chat-bring:hover { background: var(--paper-raised); }
+.chat-bring:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Speak is a working action, so it takes the working treatment: ink border, not the
+   accent the one send button holds (§4: one accent, rationed). Recording is a state
+   said in words as well as in ink, never in a colour alone (§6). */
+.chat-mic {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-mic:hover { background: var(--paper-raised); }
+.chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chat-mic[hidden] { display: none; }
+
+.chat-send {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-send:hover { filter: brightness(1.08); }
+.chat-send:disabled { opacity: 0.5; cursor: default; }
+
+.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-said[hidden] { display: none; }
+
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-send,
+  .chat-mic,
+  .chat-bring {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

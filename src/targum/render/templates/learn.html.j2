@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('composer.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
@@ -22,6 +22,14 @@
   {#- How much of the language you have. First thing on the page, and a real count of a
       real thing rather than a score — §6: no invented currency. -#}
   <p class="known-line" id="known-line"></p>
+
+  {#- The box, under the ledger's own sentence: the front door since 2026-09-06
+      (design.md §12). A request, a link, a file by the `+`, a word you are stuck on. A
+      line typed here opens a conversation and goes to it; nothing is answered on this
+      page. It is not a raised layer — the cards below have this page's one — and it is
+      the same box the conversation page carries, from the same file. -#}
+  {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
+  {% include '_composer.html.j2' %}
 
   {#- What you were in the middle of, and beside it what to do when you are not. The
       card carries the accent because it is the one primary action here; the list beside
@@ -93,17 +101,14 @@
     </button>
   </div>
 
-  {#- Under both cards rather than beside one of them: these three are the same weight as
+  {#- Under both cards rather than beside one of them: these are the same weight as
       each other and a lighter weight than either card, and a column of them next to a
-      card left the page with one long side and one short one. -#}
+      card left the page with one long side and one short one. Two since 2026-09-06:
+      bringing a text is the `+` on the box above, not a place. -#}
   <nav class="next" aria-label="What next">
     <a class="step" href="/library" data-door="library">
       <span class="step-what">Library</span>
       <span class="step-why">Scenes, the Bible, novels, news.</span>
-    </a>
-    <a class="step" href="/add" data-door="add">
-      <span class="step-what">Upload Text</span>
-      <span class="step-why">Paste anything in Hebrew and read it.</span>
     </a>
     <a class="step" href="/progress" data-door="progress">
       <span class="step-what">Your Progress</span>
@@ -229,5 +234,7 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
+<script>{{ asset('speak.js') }}</script>
+<script>{{ asset('box.js') }}</script>
 </body>
 </html>

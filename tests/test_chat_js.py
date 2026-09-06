@@ -21,10 +21,12 @@ def run(
     answers: dict[str, Any] | None = None,
     key: str = "k",
     record: bool = False,
+    hash: str = "",
 ) -> dict[str, Any]:
     payload = {
         "key": key,
         "record": record,
+        "hash": hash,
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
     }
@@ -287,6 +289,48 @@ def test_the_microphone_appears_where_the_browser_records() -> None:
     assert page["mic"]["hidden"] is False
     page = run(do=[], record=False)
     assert page["mic"]["hidden"] is True, "a page never offers what the browser cannot do"
+
+
+def test_the_microphone_is_kept_from_a_reader_with_no_modern_hebrew() -> None:
+    """`talk` on `/chat/list` is the server's word on whether a conversation in Hebrew
+    is offered — a reader whose every text is scripture is answered in English about
+    the text, and is not offered a microphone to speak Hebrew into."""
+    page = run(
+        do=[], record=True, answers={"/chat/list": {"chats": [], "usable": True, "talk": False}}
+    )
+    assert page["mic"]["hidden"] is True
+    page = run(
+        do=[], record=True, answers={"/chat/list": {"chats": [], "usable": True, "talk": True}}
+    )
+    assert page["mic"]["hidden"] is False
+
+
+def test_a_conversation_named_in_the_hash_is_the_one_opened() -> None:
+    """The front door's box posts a line and lands here with the new conversation's id
+    in the hash; the page opens that one, not the newest on the list."""
+    chats = [{"id": "new", "title": "newest"}, {"id": "abc", "title": "from the door"}]
+    page = run(
+        do=[],
+        answers={
+            "/chat/list": {"chats": chats, "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [{"n": 1, "role": "user", "said": "hi", "stage": "done"}],
+            },
+            "/chat/new": {"chat": {"id": "new"}, "turns": []},
+        },
+        hash="#abc",
+    )
+    assert [t["text"] for t in page["turns"]] == ["hi"], "the door's conversation, not the newest"
+    page = run(
+        do=[],
+        answers={
+            "/chat/list": {"chats": chats, "usable": True},
+            "/chat/new": {"chat": {"id": "new"}, "turns": []},
+        },
+        hash="#nowhere",
+    )
+    assert page["turns"] == [], "a hash naming no conversation of theirs opens the newest"
 
 
 def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> None:

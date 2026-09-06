@@ -894,12 +894,14 @@ def add_page(token: str, no_key: str = "") -> str:
 
 
 def chat_page(token: str) -> str:
-    """Talking to targum: find something to read, and ask what you have.
+    """The conversation page: one conversation, in Hebrew, and the box under it.
 
-    Nothing about the reader is baked in, for the reason `learn_page` gives: the
-    conversations come from `/chat/list` and the answers stream in, so one rendered page
-    serves everybody. The page is chrome, not a reader — it talks to its own origin and
-    nothing else, and `design.md` §12 records what that means for the fetch-nothing rule.
+    Reached from the box on Learn, which is the front door (2026-09-06): a line typed
+    there opens a conversation and lands here with its id in the hash. Nothing about the
+    reader is baked in, for the reason `learn_page` gives: the conversations come from
+    `/chat/list` and the answers stream in, so one rendered page serves everybody. The
+    page is chrome, not a reader — it talks to its own origin and nothing else, and
+    `design.md` §12 records what that means for the fetch-nothing rule.
     """
     from ..translate.prompts import OFFERED, language_name
 

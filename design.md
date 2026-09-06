@@ -250,6 +250,11 @@ acts.
   targum's are the same ink under a quiet label, never two colours of bubble; sending is
   a working action and takes the accent; the send button, the new-conversation door and
   the rows of the list are in `test_brand.py`'s thumb registry. Added 2026-09-05.
+- **The box is the front door, and it is not a raised layer.** The same field stands
+  on Learn, under the ledger's own sentence, and on the conversation page, from one file
+  (`_composer.html.j2`): a hairline field on paper, Send in the accent, Speak and the
+  `+` for a file as ink-bordered working controls. On both pages something else has the
+  view's one raised layer. Added 2026-09-06; see §12.
 - **Numbers at display sizes are ink or leaf.** Gold is the record colour inside charts, not
   a headline colour; gold display type on cream is the sleepy publisher look this brand
   exists to avoid.
@@ -294,6 +299,49 @@ In *this* repository: tokens are the `:root` block of
 
 Seventeen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
+
+### The front door is a question — 2026-09-06
+
+Learn opened with two cards and a list: the text you were in, and everything else. From
+the note of 2026-09-05 that asked for "the Lovable of language learning", and from a day
+of looking at that product — one box on the front page that makes the thing, then a
+conversation beside it — Learn now carries one box under the ledger's own sentence, and
+nothing else on the page moves. The box takes a request, a link, a file by its `+`, or a
+word, and Speak where the browser records. A line typed there opens a conversation and
+goes to it; nothing is answered on Learn. Chat is no longer a place in the nav and Upload
+is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
+the conversation page marks Learn, the way Learn's own lists do.
+
+What was tried first, and cut the same day, so it is not tried again: a board of three
+doors under the box (the text to read, a conversation to have, the week's words) that
+drew the day as a task list, on a product two strangers had already called work; a
+two-column workspace with the reader framed beside the thread; a strip and a sheet on the
+phone; a switch between finding and talking ("I do not intuitively understand what this
+switcher means"). The research the doors were built on still stands — a saved word needs
+eight to twelve more encounters, using a word is worth more than looking it up — and is
+served invisibly: the next text is chosen for the words just saved, the week's words are
+delivered at the foot of a section, and the words come back inside the conversation from
+the ledger block, with no door and no label.
+
+One conversation, always in Hebrew, was decided the same morning. The one exception,
+decided the same afternoon: a reader whose every text is scripture is not written Hebrew
+at. Nobody converses in the Hebrew of Judges, and a model writing it graded to a ledger
+of biblical words would be pastiche on the one shelf where every line must be right. That
+reader's box finds and answers in English, about the text, and is not offered a
+microphone. Decided from the shelf (`Library.talks`), because the ledger is one bucket
+per language and cannot say which Hebrew a word came from.
+
+What it reverses: the `_nav.html.j2` note of 2026-09-05 that put Chat second because
+"Learn is where a returning reader picks up, and the chat is where they go when they do
+not know what to pick up". A day later the two are one page, and the gate stands: at
+thirty days, does the alpha reader open something she found by asking, unprompted? If she
+goes to the library instead, the door was not the problem and the box goes back to a page.
+
+What it does not overturn: one raised layer per view (on Learn, the cards; on the
+conversation page, the thread — the box is a hairline field on both); ink for the door
+that asks somebody to act and accent for Send; no invented currency; counts, never a
+level; a text that carries media opens as its media; the reader is a full page and
+fetches nothing.
 
 ### targum speaks back — 2026-09-05
 

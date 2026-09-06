@@ -252,10 +252,11 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     """Under 46rem the header is two lines: the name at one corner and the account and
     the light switch at the other, then the places under them, flush with the name.
 
-    The places used to sit indented under the name with Upload cut off at the edge: the
-    rule that reset their auto margin stood above the rule that set it, at the same
-    specificity, and lost. A cascade bug is invisible in the file and obvious on a
-    phone, which is why this is measured rather than read."""
+    The places used to sit indented under the name with Upload (then a corner, now the
+    `+` on the box) cut off at the edge: the rule that reset their auto margin stood
+    above the rule that set it, at the same specificity, and lost. A cascade bug is
+    invisible in the file and obvious on a phone, which is why this is measured rather
+    than read."""
     page_file = tmp_path / "learn.html"
     page_file.write_text(learn_page(TOKEN), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -265,7 +266,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     measured = open_page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
-          const brand = box('.brand'), nav = box('.site-nav'), upload = box('.upload');
+          const brand = box('.brand'), nav = box('.site-nav');
           const toggle = box('[data-theme-toggle]'), account = box('.account');
           return {
             navFlush: Math.abs(nav.left - brand.left) <= 1,
@@ -273,7 +274,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
             toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
-            uploadInside: upload.right <= document.documentElement.clientWidth,
+            noUpload: document.querySelector('.upload') === null,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -284,7 +285,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["navBelow"], "and sit on the line under it"
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
-    assert measured["uploadInside"], "Upload is whole"
+    assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
     assert measured["width"] <= width, "and the page does not scroll sideways"
 
 

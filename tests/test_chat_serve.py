@@ -201,6 +201,9 @@ def test_the_list_carries_the_hours_and_every_conversation_is_in_hebrew(chatting
     status, answer, _ = call(port, "GET", f"/chat/list?k={key}")
     assert answer["hours"] == {"used": 0.0, "allowed": 8.0, "ends": answer["hours"]["ends"]}
     assert answer["hours"]["ends"]
+    assert answer["talk"] is True, "the page is told whether to offer Speak"
+    status, shelf, _ = call(port, "GET", f"/readers?k={key}")
+    assert shelf["talk"] is True, "and the front door is told the same"
     status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום"})
     assert status == 200
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")

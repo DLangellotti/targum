@@ -369,7 +369,9 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     top = page[page.index('<div class="doors">') : page.index('id="shelf-panel"')]
     assert top.count('<a class="door') == 1, "carrying on is a link: it goes to a reader"
     assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
-    assert top.count('<a class="step"') == 3, "the library, the upload and the progress"
+    assert top.count('<a class="step"') == 2, (
+        "the library and the progress; uploading is the + on the box"
+    )
     assert 'id="suggest"' in top, "and the suggestion is only there when there is one"
     assert "<h2><a " not in top, "no heading is a link; the box around it is"
     assert "<h2><button" not in top

@@ -41,12 +41,12 @@ body.learn main[hidden] {
 }
 
 /* --- what to do next -------------------------------------------------------
-   Three of them, across the width under the cards, divided by hairlines. Each one is a
+   Two of them, across the width under the cards, divided by a hairline. Each one is a
    whole target. Flat: §9 allows one raised layer per view and the cards above have it. */
 
 .next {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
 }
 .step {
@@ -59,9 +59,7 @@ body.learn main[hidden] {
 .step + .step {
   border-inline-start: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
 }
-/* Three or one, never two and a stray: a rule down the middle of a row of two with a
-   third underneath reads as a mistake. Stacked, the rule belongs on top rather than at
-   the side. */
+/* Stacked on a narrow window, where the rule belongs on top rather than at the side. */
 @media (max-width: 40rem) {
   .next {
     grid-template-columns: 1fr;

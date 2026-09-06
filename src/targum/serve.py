@@ -1386,6 +1386,35 @@ class Library:
             "drawn": False,
         }
 
+    def talks(self, home: Path, person_id: int | None) -> bool:
+        """Whether this reader is offered a conversation in Hebrew.
+
+        One conversation, always in Hebrew (2026-09-06) — for a reader who has modern
+        Hebrew to hold it in. A reader whose every text is scripture is not offered one:
+        nobody converses in the Hebrew of Judges, and a model writing it graded to a
+        ledger of biblical words would be pastiche on the one shelf where every line must
+        be right. That reader's box finds and answers in English, about the text.
+
+        Decided from the shelf, because the ledger is one bucket per language and cannot
+        say which Hebrew a word came from: modern if any text of their own is modern, or
+        any modern text on the shared shelf has been opened; scripture-only if what they
+        have is scripture and nothing else; and a reader with nothing yet is offered the
+        conversation, since nothing says otherwise.
+        """
+        registers: set[str] = set()
+        for reader in self.readers(home):
+            registers.add(str(reader.get("register") or ""))
+        if "modern" in registers:
+            return True
+        if self.store is not None and person_id is not None:
+            opened = self.store.opened_documents(person_id)
+            for reader in self.readers(self.shared):
+                if reader.get("document") in opened:
+                    registers.add(str(reader.get("register") or ""))
+        if "modern" in registers:
+            return True
+        return "biblical" not in registers
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -3367,11 +3396,15 @@ class Handler(BaseHTTPRequestHandler):
             for reader in shared:
                 reader["shared"] = True
             self._measure(self.library.shared, shared)
+            person = self._person()
             return self._json(
                 {
                     "readers": mine,
                     "shared": shared,
                     "trash": self.library.readers(home, trashed=True),
+                    # Whether this reader is offered a conversation in Hebrew — the same
+                    # word `/chat/list` gives, decided the same way (`Library.talks`).
+                    "talk": self.library.talks(home, person.id if person else None),
                     # Whether this deployment can draw a cover at all. A page with no
                     # image key offers nothing rather than offering and failing.
                     "covers": self.library.can_draw(),
@@ -3518,6 +3551,10 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "chats": store.chats(person_id),
                     "usable": self.chats.usable,
+                    # Whether Speak is offered and the Hebrew contract rides: a reader
+                    # with modern Hebrew to speak. Scripture-only readers are answered
+                    # in English, about the text (`Library.talks`).
+                    "talk": self.library.talks(self._home(), person_id),
                     "hours": {
                         "used": round(used / 3600, 2),
                         "allowed": None if allowed is None else round(allowed / 3600, 2),

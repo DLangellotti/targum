@@ -6,6 +6,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The box is the front door. Learn carries one field under the ledger's own sentence —
+  a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
+  records — and a line typed there opens a conversation and goes to it, with the new
+  conversation's id in the hash so the page opens that one. Nothing is answered on
+  Learn. Chat leaves the nav, a day after it joined it; Upload leaves the corner and is
+  the `+` on the box, on both pages that carry one. The box is one file
+  (`_composer.html.j2`) and push-to-talk is one script (`speak.js`), shared by Learn and
+  the conversation page, because two copies of a box drift the way two copies of a nav
+  bar did. A reader whose every text is scripture is not written Hebrew at: their
+  conversation is opened in English, about the text, and no microphone is offered —
+  `Library.talks` decides it from the shelf, and `/readers` and `/chat/list` both say
+  it as `talk`. `design.md` §12 records the day's decisions and what was cut ("The front
+  door is a question").
 - targum has a chat. `/chat` is a door on the rooms that already exist: ask what to read
   next and it answers from the library measured against your own words; ask what you have
   read and it answers from your ledger; ask about a build and it reports where it has got

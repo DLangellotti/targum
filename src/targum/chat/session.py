@@ -306,7 +306,11 @@ class Chats:
             raise RuntimeError("a chat needs a store")
         person_id = person.id if person else None
         if not chat_id:
-            chat_id = self.store.chat_open(person_id)
+            # One conversation, in Hebrew, for a reader with modern Hebrew to hold it in;
+            # a scripture-only reader is answered in English, about the text. The same
+            # question the page asks (`talk` on `/chat/list`), answered the same way.
+            mode = "talk" if self.library.talks(home, person_id) else "find"
+            chat_id = self.store.chat_open(person_id, mode=mode)
         n = self.store.chat_say(chat_id, "user", text, text, stage="working")
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
@@ -404,8 +408,12 @@ class Chats:
         # Every conversation is in Hebrew, whatever the reader writes in (decided
         # 2026-09-06: a reader who asked in English was answered in English, and a
         # conversation that is not in Hebrew leaves no record worth keeping). The
-        # contract rides in the cached block, the reader's own words after it.
-        contract = hebrew_module.CONTRACT
+        # contract rides in the cached block, the reader's own words after it. The one
+        # exception, decided the same day: a reader whose every text is scripture is
+        # not written Hebrew at — the conversation was opened as "find", and it stays in
+        # English, about the text (`Library.talks`).
+        opened = store.chat_owned(person_id, asked.chat_id) or {}
+        contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
         ledger = hebrew_module.ledger_block(
             level,
             hebrew_module.known_words(store, person_id, language),

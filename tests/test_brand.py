@@ -186,6 +186,8 @@ THUMBED = (
     # And the two voice controls: speak a line, hear an answer.
     ".chat-mic",
     ".chat-play",
+    # And the `+` on the box (2026-09-06): bring a file, a link or a recording.
+    ".chat-bring",
 )
 
 

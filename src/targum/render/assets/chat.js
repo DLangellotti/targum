@@ -40,17 +40,20 @@
   var usable = true;
   var hoursLine = document.getElementById("chat-hours");
   var mic = document.getElementById("chat-mic");
-  // Push-to-talk needs a browser that records. Without one the button never appears,
+  // Push-to-talk needs a browser that records (`speak.js` says whether this one does)
+  // and a reader with modern Hebrew to speak — `/chat/list` says which, as `talk`, and
+  // the front door's box reads the same word. Without either the button never appears,
   // and nothing on the page says a thing it cannot do.
-  var canRecord =
-    typeof navigator !== "undefined" &&
-    navigator.mediaDevices &&
-    typeof navigator.mediaDevices.getUserMedia === "function" &&
-    typeof MediaRecorder === "function";
+  var speak = window.TargumSpeak;
+  var canRecord = !!(speak && speak.can);
+  var talk = true;
 
   // Said by the script and not left to the template, so the two cannot disagree about
   // what a page shows on a browser that cannot record.
-  if (mic) mic.hidden = !canRecord;
+  function showMic() {
+    if (mic) mic.hidden = !canRecord || !talk;
+  }
+  showMic();
 
   function drawHours(got) {
     if (!hoursLine || !got) return;
@@ -298,42 +301,11 @@
 
   /* --- speaking and hearing -------------------------------------------------- */
 
-  var recorder = null;
-  var recorded = [];
-
   // One press starts, the next stops. The clip goes up as itself, is written down by
   // the same transcriber a recording gets, and comes back as the reader's line.
   function toggleRecording() {
     if (!canRecord || busy) return;
-    if (recorder) {
-      recorder.stop();
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(
-      function (stream) {
-        recorded = [];
-        recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = function (event) {
-          if (event.data && event.data.size) recorded.push(event.data);
-        };
-        recorder.onstop = function () {
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
-          var clip = new Blob(recorded, { type: recorder.mimeType || "audio/webm" });
-          recorder = null;
-          mic.setAttribute("aria-pressed", "false");
-          mic.textContent = "Speak";
-          hear(clip);
-        };
-        recorder.start();
-        mic.setAttribute("aria-pressed", "true");
-        mic.textContent = "Stop";
-      },
-      function () {
-        tell("The microphone could not be opened.");
-      }
-    );
+    speak.toggle(mic, hear, tell);
   }
 
   function hear(clip) {
@@ -438,9 +410,22 @@
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
       usable = answer.usable !== false;
+      talk = answer.talk !== false;
+      showMic();
       drawHours(answer.hours);
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
+      // Arrived from the front door with a conversation named in the hash: that one,
+      // whose first answer is still streaming; otherwise the newest.
+      var wanted = "";
+      try {
+        wanted = decodeURIComponent(String(window.location.hash || "").slice(1));
+      } catch (e) {
+        wanted = "";
+      }
+      if (!current && wanted && chats.some(function (chat) { return chat.id === wanted; })) {
+        return open(wanted);
+      }
       if (!current && chats.length) return open(chats[0].id);
       if (empty) empty.hidden = !!current;
     });

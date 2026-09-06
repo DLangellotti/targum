@@ -105,6 +105,10 @@ global.fetch = (url, options) => {
   return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
 };
 
+// Arrived from the front door with a conversation in the hash, when the payload says so.
+if (payload.hash) global.location.hash = global.window.location.hash = payload.hash;
+
+require(path.join(assets, "speak.js"));
 require(path.join(assets, "chat.js"));
 
 const turns = byId["turns"];
@@ -176,6 +180,9 @@ function drawn() {
 }
 
 (async () => {
+  // Let `/chat/list` answer before anything is pressed or read back.
+  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
   for (const step of payload.do || []) {
     if (step.type === "say") {
       byId["say"].value = step.text;

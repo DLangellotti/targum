@@ -26,7 +26,8 @@ body.chat > .chat-main {
   grid-template-columns: 14rem minmax(0, 1fr);
   grid-template-areas:
     "side thread"
-    "side compose";
+    "side compose"
+    "side said";
   gap: 1rem 2rem;
   align-items: start;
 }
@@ -36,6 +37,7 @@ body.chat > .chat-main {
     grid-template-areas:
       "thread"
       "compose"
+      "said"
       "side";
   }
 }
@@ -126,39 +128,23 @@ body.chat > .chat-main {
 }
 .chat-turn.bad .chat-line { color: var(--clay); }
 .chat-turn.working .chat-line:empty::after { content: "…"; color: var(--ink-soft); }
-.chat-said { margin: 0.75rem 0 0; font-size: 0.8125rem; color: var(--clay); }
 
-/* --- the composer ---------------------------------------------------------- */
+/* --- hearing an answer ----------------------------------------------------- */
 
-.composer {
-  grid-area: compose;
-  display: grid;
-  grid-template-areas: "say mic send";
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 0.6rem;
-  align-items: end;
-}
-.composer textarea { grid-area: say; }
-.composer .chat-mic { grid-area: mic; }
-.composer .chat-send { grid-area: send; }
-/* Speak and Hear are working actions, so they take the working treatment: ink border,
-   not the accent the one send button holds (§4: one accent, rationed). Recording is a
-   state said in words as well as in ink, never in a colour alone (§6). */
-.chat-mic,
+/* Hear is a working action like Speak, so it takes the same treatment: ink border, not
+   the accent the send button holds (§4: one accent, rationed). */
 .chat-play {
   font: inherit;
   font-size: 0.8125rem;
-  padding: 0.6rem 0.9rem;
+  padding: 0.25rem 0.6rem;
   border: 1px solid var(--ink-soft);
   border-radius: 6px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  justify-self: start;
 }
-.chat-mic:hover,
 .chat-play:hover { background: var(--paper-raised); }
-.chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.chat-play { padding: 0.25rem 0.6rem; justify-self: start; }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
 .chat-hours {
   margin: 0.25rem 0 0;
@@ -190,35 +176,6 @@ body.chat > .chat-main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-.composer textarea {
-  font: inherit;
-  font-size: 0.9375rem;
-  line-height: 1.5;
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: var(--paper);
-  color: var(--ink);
-  resize: vertical;
-  min-height: 2.75rem;
-}
-.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
-/* The working button takes the accent (§9): sending is the product's action here, not
-   a call to action at a door. */
-.chat-send {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.6rem 1rem;
-  border: 0;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--paper);
-  cursor: pointer;
-}
-.chat-send:hover { filter: brightness(1.08); }
-.chat-send:disabled { opacity: 0.5; cursor: default; }
-
 /* --- a quote --------------------------------------------------------------- */
 
 /* Inside the thread, which is the one raised layer: §9, if a card needs a card, use a
@@ -290,14 +247,17 @@ body.chat > .chat-main {
 .chat-door:hover { background: var(--ink-soft); color: var(--paper); }
 .chat-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-/* §8: a control a thumb presses answers a tap over 44px. */
+/* The box sits in its own area of this page's grid; its own rules are composer.css's. */
+.composer { grid-area: compose; }
+.chat-said { grid-area: said; }
+
+/* §8: a control a thumb presses answers a tap over 44px. The box's own controls are
+   given theirs in composer.css. */
 @media (hover: none) and (pointer: coarse) {
-  .chat-send,
   .chat-new,
   .chat-list button,
   .quote-go,
   .chat-door,
-  .chat-mic,
   .chat-play {
     min-height: 44px;
   }

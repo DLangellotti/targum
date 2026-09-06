@@ -1515,6 +1515,21 @@ class Store:
         ).fetchone()
         return {"days": days, "sections": int(sections["n"]), "texts": int(texts["n"])}
 
+    def opened_documents(self, person_id: int | None) -> set[str]:
+        """The hashes of every text this person has had open, on any device.
+
+        `doc` is written by the reader's own sync, so this is the one place the server
+        can tell which of the shared shelf a reader has actually read — the shelf itself
+        is the same folder for everybody.
+        """
+        if person_id is None:
+            return set()
+        rows = self.db.execute(
+            "SELECT hash FROM doc WHERE person = ? AND gone = 0 AND opened > 0",
+            (person_id,),
+        ).fetchall()
+        return {str(row["hash"]) for row in rows}
+
     def hours_used(self, owner: int | None, month_from: int) -> float:
         """Seconds of recording this person's builds have spent since a moment — the
         same sum `claim` holds them to, read without claiming anything."""

@@ -1,0 +1,27 @@
+{#- The box: one field for anything a reader wants to say to targum, and the four ways
+    out of it. It is one file because it stands on two pages — Learn, where it is the
+    front door (2026-09-06, design.md §12), and the conversation page, where it is the
+    composer — and two copies of a box drift the way two copies of a nav bar did.
+
+    Left to right: the door for a file, a link or a recording, which is the Add page
+    under a `+` (it used to be a corner of the nav; it is a thing you do while asking,
+    not a place); the field; Speak, shown only where the browser records and the reader
+    has modern Hebrew to speak (the page's script decides both); and Send, the working
+    action, in the accent.
+
+    Set `placeholder` before including. Every id here is what `chat.js` and `box.js`
+    look for. -#}
+<form class="composer" id="composer">
+  <textarea id="say" rows="2" placeholder="{{ placeholder }}" spellcheck="true"
+            aria-label="Your message"></textarea>
+  <a class="chat-bring" id="chat-bring" href="/add"
+     aria-label="Bring a file, a link or a recording"
+     title="Bring a file, a link or a recording">+</a>
+  {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
+      as a line — seconds, not a conversation. -#}
+  <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
+  <button type="submit" class="chat-send" id="chat-send">Send</button>
+</form>
+{#- What went wrong with a line, said under the box in words (§6), never in colour
+    alone. -#}
+<p class="chat-said" id="chat-said" role="status" hidden></p>

@@ -402,6 +402,43 @@ def test_a_hebrew_turn_carries_the_contract_and_the_words_and_is_metered_in_seco
     assert hebrew.CONTRACT.splitlines()[0] in client.requests[1]["system"][0]["text"]
 
 
+def test_a_scripture_only_reader_is_answered_in_english_about_the_text(tmp_path: Path) -> None:
+    """Nobody converses in the Hebrew of Judges (2026-09-06). A reader whose every text
+    is scripture opens a "find" conversation: no contract in the cached block, and the
+    page is told not to offer a microphone. A reader with a modern text, or with nothing
+    yet, is written Hebrew at."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+
+    def shelve(name: str, source: str) -> None:
+        folder = home / name
+        (folder / "reader").mkdir(parents=True)
+        (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+        (folder / "document.json").write_text(
+            json.dumps({"title": name, "language": "he", "source": source, "blocks": []}),
+            encoding="utf-8",
+        )
+
+    assert library.talks(home, person.id), "nothing yet: the conversation is offered"
+    shelve("judges-he", "sefaria:Judges")
+    assert not library.talks(home, person.id), "scripture and nothing else"
+
+    client = Script([reply([{"type": "text", "text": "Judges 1 is twelve verses from the end."}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    asked = chats.say(person, home, "", "where was I", admin=False)
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "find"
+    chats.answer(asked)
+    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[0]["system"][0]["text"], (
+        "no Hebrew contract for a reader with no modern Hebrew"
+    )
+
+    shelve("article-he", "https://example.org/story")
+    assert library.talks(home, person.id), "one modern text of their own, and it is offered"
+
+
 def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     library, store = world(tmp_path)
     library.upload_seconds = 30.0
