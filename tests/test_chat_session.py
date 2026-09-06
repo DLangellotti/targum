@@ -383,7 +383,11 @@ def test_web_search_rides_along_only_when_asked_and_is_counted(
     assert client.requests[0]["tools"][-1]["name"] == "web_search"
     assert [kind for kind, _ in feed.events if kind == "tool"] == ["tool"]
 
+    # On unless the box says not (2026-09-06): a reader who asks for something online
+    # and is told the box cannot look is being told the product is smaller than it is.
     monkeypatch.delenv("TARGUM_WEB_SEARCH", raising=False)
+    assert session_module.Chats(library, store, client_factory=lambda: client).web_search is True
+    monkeypatch.setenv("TARGUM_WEB_SEARCH", "0")
     assert session_module.Chats(library, store, client_factory=lambda: client).web_search is False
     monkeypatch.setenv("TARGUM_WEB_SEARCH", "1")
     assert session_module.Chats(library, store, client_factory=lambda: client).web_search is True

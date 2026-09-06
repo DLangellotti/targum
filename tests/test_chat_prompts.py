@@ -59,3 +59,18 @@ def test_a_question_from_a_word_s_card_is_answered_in_english_about_the_text() -
     assert "the word they tapped" in said
     assert "answered in English, about the text" in said
     assert "on scripture write no Hebrew of" in said
+
+
+def test_the_ladder_a_reader_may_name_is_in_the_prompt_from_the_one_table() -> None:
+    """A reader asked for "a bet plus level" and was not understood (2026-09-06). The
+    rungs are written into the prompt from `level.ULPAN`, with what each is reckoned to
+    want, so the model can turn a name into a search — and is still told never to hand
+    the reader's own rung back as a placement."""
+    from targum import level
+
+    said = prompts.SYSTEM
+    for rung in level.ULPAN:
+        assert f"{rung.name} ({rung.letter}, about {rung.at:,} words)" in said
+    assert "bet plus" in said and "RUNGS" not in said
+    assert "max_looked_up_percent" in said
+    assert "Never tell them which rung they are at" in said

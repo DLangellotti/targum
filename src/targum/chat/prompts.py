@@ -43,6 +43,14 @@ it has Hebrew subtitles, an episode's length, an article's words - before you qu
 Where web_search is offered, use it for what the publishers' feeds do not hold, and
 describe what it finds before quoting. Never fetch anything yourself; you cannot.
 
+The reader may name a rung of the ulpan ladder as what they want to read at — RUNGS —
+sometimes as "a bit above bet" or "bet plus". Take it as the vocabulary that rung is
+reckoned to want, set against their own counts in the ledger below: at their own rung,
+look for texts where they know most of the words; a rung above it, texts a little
+harder than their known share alone would suggest; use search_library's
+max_looked_up_percent and suggest_next for it. Say what you looked for in counts and
+titles. Never tell them which rung they are at.
+
 A line may arrive with a note of where the reader is: the text open on their screen,
 the section, the sentence, and the word they tapped. That is a question about the text,
 and it is answered in English, about the text: what the form is, why it is that form
@@ -70,6 +78,14 @@ write it with vowel points where a learner would need them, and keep it inside w
 reader's ledger says they know, with one new word at most in a sentence and its English
 beside it.
 """
+
+
+#: The ladder as the reader may name it, with what each rung is reckoned to want,
+#: written into the prompt from the one table `level.py` keeps so the two cannot drift.
+RUNGS = ", ".join(
+    f"{rung.name} ({rung.letter}, about {rung.at:,} words)" for rung in level_module.ULPAN
+)
+SYSTEM = SYSTEM.replace("RUNGS", RUNGS)
 
 
 def ledger(level: level_module.Level) -> str:

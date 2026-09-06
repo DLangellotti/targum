@@ -273,13 +273,17 @@ class Chats:
         #: What reads a turn's Hebrew as a text is read, so the page can draw the record
         #: as it forms (`chat/record.py`). Its model is warmed when the workers start.
         self.recorder = recorder or Recorder()
-        #: Whether the server-side search rides along. Off unless the box says so: a
-        #: search is a purchase the reader did not ask for by name, and a box with no
-        #: publishers registered has nowhere for it to look.
+        #: Whether the server-side search rides along. On unless the box says not
+        #: (`TARGUM_WEB_SEARCH=0`): a reader who asks for something online and is told
+        #: the box cannot look is being told the product is smaller than it is
+        #: (2026-09-06). What it may look at is still the publishers' hosts and the
+        #: public ones (`chat/sources.py`), three searches a turn at most, each counted
+        #: (`Usage.searches`) and inside the same rails every turn is.
         self.web_search = (
             web_search
             if web_search is not None
-            else os.environ.get("TARGUM_WEB_SEARCH", "").strip().lower() in ("1", "true", "yes")
+            else os.environ.get("TARGUM_WEB_SEARCH", "").strip().lower()
+            not in ("0", "false", "no", "off")
         )
         #: Whether anything can be asked at all — false with no API key, and the page is
         #: told so before it tries rather than after.

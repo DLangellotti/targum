@@ -44,7 +44,11 @@ body.chat > .chat-main {
 
 /* --- the list ------------------------------------------------------------- */
 
-.chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; }
+/* `min-width: 0` on the rail and on the list: a grid item's default minimum is its
+   content, and a conversation titled with a long first line pushed the rail out under
+   the thread, where its titles were cut off behind the raised paper. The column is
+   14rem; what does not fit in it is cut short with an ellipsis, on the button. */
+.chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
 .chat-new {
   justify-self: start;
   font: inherit;
@@ -61,12 +65,15 @@ body.chat > .chat-main {
   list-style: none;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  overflow: hidden;
   border-block-start: 1px solid var(--rule);
 }
 .chat-list li { border-block-end: 1px solid var(--rule); }
 .chat-list button {
   display: block;
   width: 100%;
+  max-width: 100%;
   font: inherit;
   font-size: 0.8125rem;
   text-align: start;

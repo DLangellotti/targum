@@ -269,6 +269,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Web search rides along unless the box says not (`TARGUM_WEB_SEARCH=0`). It was off
+  unless asked for, and a reader who asked for something to read online was told the
+  box could not look. Three searches a turn at most, each counted, inside the same
+  rails every turn is; what it may look at is still the publishers' hosts and the
+  public ones.
+- The chat knows the ladder a reader may name. Asked for "a bet plus level", it did not
+  know what that was: the rungs and what each is reckoned to want are written into the
+  prompt from the one table `level.py` keeps, and it is still told never to hand the
+  reader's own rung back.
 - A sense bought bare is grounded by the first sentence that meets it. The catalogue holds
   glosses bought without a sentence, and asking again without one returns the same answer:
   the held gloss for עם is "people; nation", with the preposition not there at all. So the
@@ -299,6 +308,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- A conversation titled with a long first line pushed the rail out under the thread,
+  where every title was cut off behind the raised paper: a grid item's minimum width is
+  its content unless told otherwise. Measured in Chromium now.
 - Sonnet 5 was priced at 3/15 per million tokens in `PRICES`, which is Sonnet 4.6's rate;
   it is 2/10. `Usage.cost()` reads that table to settle the ledger, so every hosted build
   since the model arrived was recorded at half again what it cost, and `targum usage`

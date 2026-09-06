@@ -306,3 +306,66 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     )
     context.close()
     assert one_line
+
+
+def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
+    """A conversation is titled with its first line, and a first line can be long. The
+    rail's column is 14rem; a grid item's minimum width is its content unless told
+    otherwise, so a long title widened the rail out under the raised thread, where every
+    title was cut off behind it (2026-09-06). Measured, because a cascade rule is
+    invisible in the file."""
+    import json
+
+    html = chat_page(TOKEN)
+    long_title = "Can you find for me something interesting to read at about a bet plus level"
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {
+                "chats": [
+                    {"id": "a", "title": long_title},
+                    {"id": "b", "title": "שלום בוקר טוב אני רוצה משהו מעניין תקחו"},
+                ],
+                "usable": True,
+                "talk": True,
+                "hours": {"used": 0.14, "allowed": 8, "ends": "1 October"},
+            }
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": []}
+        elif "/account/me" in request.url:
+            body = {
+                "signedIn": True,
+                "email": "r@example.org",
+                "counts": {},
+                "learning": ["he"],
+                "reads": ["en"],
+            }
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}")
+    page.wait_for_selector(".chat-list button")
+    page.wait_for_timeout(200)
+    measured = page.evaluate(
+        """() => {
+          const rail = document.querySelector('.chat-side').getBoundingClientRect();
+          const thread = document.querySelector('.chat-thread').getBoundingClientRect();
+          const buttons = [...document.querySelectorAll('.chat-list button')]
+            .map((b) => b.getBoundingClientRect().right);
+          return {
+            railRight: rail.right,
+            threadLeft: thread.left,
+            buttonsRight: Math.max(...buttons),
+          };
+        }"""
+    )
+    context.close()
+    assert measured["railRight"] <= measured["threadLeft"] + 1, "the rail keeps to its column"
+    assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
