@@ -416,3 +416,38 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     assert "hours of audio and conversation" in said and "library is always free" in said
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
+
+
+def test_a_stored_reply_is_replayed_without_what_the_api_refuses(tmp_path: Path) -> None:
+    """The SDK's blocks carry `parsed_output` and `citations: None`; replayed, the API
+    answers 400 — on the second turn of every conversation, which is how it was found."""
+    library, store = world(tmp_path)
+
+    class Dumped:
+        content = []
+
+        def model_dump(self) -> dict[str, Any]:
+            return {
+                "content": [
+                    {"type": "thinking", "thinking": "", "signature": "sig"},
+                    {"type": "text", "text": "hi", "citations": None, "parsed_output": None},
+                ]
+            }
+
+        stop_reason = "end_turn"
+        usage = SimpleNamespace(input_tokens=1, output_tokens=1)
+
+    kept: list[list[dict[str, Any]]] = []
+    session_module.run_turn(
+        Script([Dumped()]),
+        context(library, store),
+        [{"role": "user", "content": "x"}],
+        session_module.Feed(),
+        lambda role, content, said: kept.append(content),
+    )
+    assert kept[0] == [
+        {"type": "thinking", "thinking": "", "signature": "sig"},
+        {"type": "text", "text": "hi"},
+    ]
+    old = [{"type": "text", "text": "hi", "citations": None, "parsed_output": None}]
+    assert session_module.replayable(old) == [{"type": "text", "text": "hi"}]

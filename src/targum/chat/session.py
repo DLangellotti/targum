@@ -18,6 +18,7 @@ import json
 import os
 import queue
 import threading
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,20 +71,48 @@ class Feed:
         return "".join(data for kind, data in self.events if kind == "text")
 
 
+#: What the API takes back for each kind of block it sent. The SDK's objects carry more —
+#: `parsed_output` on a text block, `citations: None` — and a block replayed with a field
+#: the API does not know is a 400 on the second turn of every conversation, which is
+#: exactly how the first one was found.
+_REPLAYABLE: dict[str, tuple[str, ...]] = {
+    "text": ("type", "text", "citations"),
+    "thinking": ("type", "thinking", "signature"),
+    "redacted_thinking": ("type", "data"),
+    "tool_use": ("type", "id", "name", "input"),
+    "server_tool_use": ("type", "id", "name", "input"),
+}
+
+
+def replayable(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Content blocks trimmed to what the API accepts back, and nothing set to null."""
+    out: list[dict[str, Any]] = []
+    for block in blocks:
+        kind = str(block.get("type") or "")
+        keep = _REPLAYABLE.get(kind)
+        kept = {
+            key: value
+            for key, value in block.items()
+            if value is not None and (keep is None or key in keep)
+        }
+        out.append(kept)
+    return out
+
+
 def _content(reply: Any) -> list[dict[str, Any]]:
     """A reply's content blocks as plain dicts, exactly as they must be replayed.
 
-    Verbatim rather than the text pulled out of them: tool-use and tool-result blocks
-    have to go back as they came, and a thinking block passed back changed is a 400.
+    Verbatim in what matters — tool-use blocks have to go back as they came, and a
+    thinking block passed back changed is a 400 — and trimmed of what the SDK adds for
+    its own use, which the API refuses.
     """
     dump = getattr(reply, "model_dump", None)
     if callable(dump):
-        blocks = dump()["content"]
-        return [dict(block) for block in blocks]
+        return replayable([dict(block) for block in dump()["content"]])
     out: list[dict[str, Any]] = []
     for block in reply.content:
         out.append(dict(block) if isinstance(block, dict) else dict(vars(block)))
-    return out
+    return replayable(out)
 
 
 def _said(blocks: list[dict[str, Any]]) -> str:
@@ -366,8 +395,15 @@ class Chats:
             return
         # The whole conversation so far, as the API needs to see it again: the reader's
         # lines, the answers, and the tool traffic between them, in order.
+        # Trimmed on the way out as well as on the way in, so a conversation written
+        # down before the trim existed still replays.
         history = [
-            {"role": row["role"], "content": row["content"]}
+            {
+                "role": row["role"],
+                "content": replayable(row["content"])
+                if isinstance(row["content"], list)
+                else row["content"],
+            }
             for row in store.chat_turns(asked.chat_id)
         ]
 
@@ -407,6 +443,10 @@ class Chats:
             store.chat_add_spent(asked.chat_id, job.spent)
             feed.put("done", {"text": feed.text(), "spent": round(job.spent, 4)})
         except Exception as error:  # noqa: BLE001 - said to the reader, not raised at them
+            # The reader gets one sentence; the operator gets the traceback, in the
+            # terminal, the way a build's failure is printed. Swallowing it silently is
+            # how a 400 on every second turn looked like a shrug.
+            traceback.print_exc()
             job.stage = "failed"
             job.error = "The conversation could not continue. Try again."
             self.library.release(job)
