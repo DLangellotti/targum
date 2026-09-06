@@ -10,10 +10,12 @@ from __future__ import annotations
 import shutil
 import threading
 from collections.abc import Iterator
+from datetime import datetime
 from html import unescape
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from test_parasha_cut import a_book
@@ -34,6 +36,12 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Index:
     """A corpus with one week's reading really built into a reader."""
     monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
     monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    # The corpus here is one week — Deuteronomy 29–31, Nitzavim-Vayeilech, read on
+    # 2026-09-05 — and the routes ask the clock which week it is. Pin the clock inside
+    # that week, or these tests pass for seven days and 404 on the eighth, which is what
+    # happened on 2026-09-06.
+    a_wednesday = datetime(2026, 9, 2, 12, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: a_wednesday)
     (tmp_path / "parasha" / "calendar").mkdir(parents=True)
     for one in FIXTURES.glob("*.json"):
         shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
