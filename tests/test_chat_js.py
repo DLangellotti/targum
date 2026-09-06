@@ -22,11 +22,13 @@ def run(
     key: str = "k",
     record: bool = False,
     hash: str = "",
+    ledger: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "key": key,
         "record": record,
         "hash": hash,
+        "ledger": ledger,
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
     }
@@ -238,7 +240,7 @@ def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
         },
     )
     assert page["hours"] == "1.5 of 8 hours this month"
-    pairs = page["pairs"]
+    pairs = [{k: p[k] for k in ("he", "en", "recast")} for p in page["pairs"]]
     assert pairs == [
         {"he": "שָׁלוֹם", "en": "hello", "recast": True},
         {"he": "מַה שְּׁלוֹמְךָ?", "en": "How are you?", "recast": False},
@@ -363,3 +365,155 @@ def test_an_answer_in_hebrew_mode_can_be_heard() -> None:
         "the press asks for the clip and nothing else is posted"
     )
     assert [p["path"] for p in page["posted"]] == ["/chat/say"]
+
+
+#: A reply in Hebrew, and its words as the server reads them.
+RECORD_TEXT = (
+    "> נָסַעְתִּי לַנֶּגֶב.\n= I went to the Negev.\nהָיָה חַם בְּמִצְפֵּה רָמוֹן?\n= Was it hot at Mitzpe Ramon?"
+)
+
+
+def spans(line: str) -> list[tuple[int, int]]:
+    """Where each word sits in a pointed line: what the server's reader reports."""
+    out = []
+    at = 0
+    for piece in line.split(" "):
+        start = line.index(piece, at)
+        at = start + len(piece)
+        word = piece.rstrip("?.,!")
+        out.append((start, start + len(word)))
+    return out
+
+
+def read(line: str, forms: list[tuple[str, str, int, str]]) -> dict[str, Any]:
+    return {
+        "he": line,
+        "words": [
+            {
+                "start": start,
+                "end": end,
+                "lemma": lemma,
+                "pos": pos,
+                "band": band,
+                "meaning": meaning,
+            }
+            for (start, end), (lemma, pos, band, meaning) in zip(spans(line), forms, strict=True)
+        ],
+    }
+
+
+RECORD_WORDS = {
+    "lines": [
+        read("נָסַעְתִּי לַנֶּגֶב.", [("נסע", "VERB", 3, ""), ("נגב", "PROPN", 0, "")]),
+        read(
+            "הָיָה חַם בְּמִצְפֵּה רָמוֹן?",
+            [
+                ("היה", "VERB", 1, "was"),
+                ("חם", "ADJ", 2, "hot"),
+                ("מצפה", "NOUN", 5, ""),
+                ("רמון", "PROPN", 0, ""),
+            ],
+        ),
+    ],
+    "outside": 0.25,
+}
+LEDGER = {"היה": {"status": 9}, "חם": {"status": 2}, "נסע": {"status": 9}}
+
+
+def record_page(extra: list[dict[str, Any]] | None = None, **answers: Any) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": "I went to the Negev"},
+            {"type": "stream", "event": "text", "data": RECORD_TEXT},
+            {
+                "type": "stream",
+                "event": "words",
+                "data": json.dumps(RECORD_WORDS, ensure_ascii=False),
+            },
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": RECORD_TEXT, "seconds": 250}, ensure_ascii=False),
+            },
+        ]
+        + (extra or []),
+        answers={"/chat/say": {"chat": "abc", "turn": 1}, **answers},
+        ledger=LEDGER,
+    )
+
+
+def test_the_words_take_their_state_from_the_reader_s_ledger() -> None:
+    """The record forming: each word of a Hebrew line is drawn on the page with what
+    the ledger says of it — known bare, learning underlined, not met marked and
+    counted — and a name is left alone."""
+    page = record_page()
+    first, second = page["pairs"]
+    assert [w["text"] for w in second["words"]] == ["הָיָה", "חַם", "בְּמִצְפֵּה", "רָמוֹן"], (
+        "each word spans its own pointed text, in order"
+    )
+    assert [w["state"] for w in second["words"]] == ["known", "learning", "new", ""], (
+        "known, learning, not met, and a name that is neither"
+    )
+    assert [w["state"] for w in first["words"]] == ["known", ""]
+    assert second["he"] == "הָיָה חַם בְּמִצְפֵּה רָמוֹן?", "the line reads whole"
+
+
+def test_the_foot_counts_what_was_not_met_and_never_names_a_level() -> None:
+    page = record_page()
+    foot = page["foot"]
+    assert foot is not None and foot["save"]
+    assert foot["counts"] == "4 min · 1 word you have not met · you knew 50% of this", (
+        "four minutes off the clock; מצפה not met; two of four vocabulary words known"
+    )
+    assert "level" not in foot["counts"] and "%" in foot["counts"]
+
+
+def test_a_word_tapped_shows_what_is_held_and_offers_to_look_the_rest_up() -> None:
+    page = record_page(
+        extra=[{"type": "press", "selector": "chat-w"}],
+    )
+    # The newest `.chat-w` is רמון, a name with nothing held: the press opens the line
+    # with the dictionary form and a look-it-up button, and nothing is posted for it.
+    assert page["pairs"][1]["gloss"] == "רמוןlook it up"
+    assert [p["path"] for p in page["posted"]] == ["/chat/say"], "nothing bought by a tap"
+
+
+def test_save_as_targum_is_the_reader_s_press_and_draws_the_quote() -> None:
+    page = record_page(
+        extra=[{"type": "press", "selector": "chat-save"}],
+        **{"/chat/save": {"quote": QUOTE, "lines": 2}},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/chat/say", "/chat/save"]
+    assert page["posted"][1]["body"] == {"chat": "abc"}
+    (card,) = page["cards"]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this", (
+        "the same card the model's own save hands the page; the button is the spend"
+    )
+    assert page["foot"]["save"] is False, "one press; the card stands where it was"
+
+
+def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
+    """The words kept on the reader's turn draw the answer that follows it."""
+    page = run(
+        do=[],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "t"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc", "mode": "talk"},
+                "seconds": 130,
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hi", "stage": "done", "words": RECORD_WORDS},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": RECORD_TEXT,
+                        "stage": "done",
+                        "words": None,
+                    },
+                ],
+            },
+        },
+        ledger=LEDGER,
+    )
+    assert [w["state"] for w in page["pairs"][1]["words"]] == ["known", "learning", "new", ""]
+    assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")

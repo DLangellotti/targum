@@ -19,6 +19,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Library.talks` decides it from the shelf, and `/readers` and `/chat/list` both say
   it as `talk`. `design.md` §12 records the day's decisions and what was cut ("The front
   door is a question").
+- The thread is drawn as the text it becomes. In Hebrew, every line the model writes is
+  read the way a text is read the moment the reply is whole — the same lemmatizer a
+  build uses, warmed when the chat's workers start (`chat/record.py`; measured first:
+  a line in about sixty milliseconds, a turn in a fifth of a second, on a laptop) — and
+  each word comes back to the page with its dictionary form, its band and whatever
+  meaning the glossary already holds, as a `words` event before `done` and kept on the
+  reader's turn for the page that comes back. On the page a word takes its state from
+  the reader's own ledger: known bare, learning underlined, not met marked and counted,
+  a name left alone; a tap says the form and the meaning or offers to look it up, the
+  reader's own press and spend. The foot of the thread says how long the conversation
+  has run, how many words the reader has not met and what share they knew, and carries
+  Save as targum — `POST /chat/save`, the reader's press on the same quote the model's
+  own save hands the page, and only a quote. Every turn records what share of its
+  vocabulary lay outside the words the model was given, for the eval (#213), and the
+  page claims nothing from it yet. What the reader saved lately — words a newspaper
+  would use, and phrases — rides in the ledger block, and the model is asked to bring
+  them back and, once, to ask the reader to use two, never as an exercise.
 - A word tapped is a question half-asked. The gloss card gains one more working action,
   Ask: a question typed there goes up with a note of where the reader is — the text, the
   section, the sentence, the word — and the answer streams back into the card the way

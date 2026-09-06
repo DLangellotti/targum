@@ -29,6 +29,7 @@ from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
 from . import hebrew as hebrew_module
 from . import tools as tools_module
+from .record import Recorder, outside_share
 
 if TYPE_CHECKING:
     from ..accounts import Person, Store
@@ -265,9 +266,13 @@ class Chats:
         usable: bool = True,
         client_factory: ClientFactory | None = None,
         web_search: bool | None = None,
+        recorder: Recorder | None = None,
     ) -> None:
         self.library = library
         self.store = store
+        #: What reads a turn's Hebrew as a text is read, so the page can draw the record
+        #: as it forms (`chat/record.py`). Its model is warmed when the workers start.
+        self.recorder = recorder or Recorder()
         #: Whether the server-side search rides along. Off unless the box says so: a
         #: search is a purchase the reader did not ask for by name, and a box with no
         #: publishers registered has nowhere for it to look.
@@ -298,11 +303,42 @@ class Chats:
                 self._client = self._client_factory()
             return self._client
 
+    def context(
+        self, person: Person | None, home: Path, chat_id: str, admin: bool
+    ) -> tools_module.Ctx:
+        """Who is asking and what the server knows about them — the same `Ctx` a turn
+        runs its tools against, for anything else that reads a conversation as its
+        owner (the save door, for one)."""
+        if self.store is None:
+            raise RuntimeError("a chat needs a store")
+        from ..translate.prompts import INTO, READING
+
+        store = self.store
+        person_id = person.id if person else None
+        language = next(iter(sorted(store.learning(person_id))), "he") if person_id else "he"
+        # The same sets `Handler._reads` and `_learning` compute: everything where there
+        # is nobody to ask, the account's own answer where there is.
+        into = {code for code, _ in INTO}
+        reading = {code for code, _ in READING}
+        return tools_module.Ctx(
+            person=person,
+            home=home,
+            library=self.library,
+            store=store,
+            chat_id=chat_id,
+            level=level_module.snapshot(store, person_id, language),
+            reads=(store.reads(person_id) & into) if person else into,
+            learning=(store.learning(person_id) & reading) if person else reading,
+            admin=admin,
+        )
+
     def start_workers(self, count: int = CHAT_WORKERS) -> None:
         for _ in range(count):
             worker = threading.Thread(target=self._drain, daemon=True)
             worker.start()
             self._workers.append(worker)
+        # The record's model, loaded now rather than under the first reader's turn.
+        threading.Thread(target=self.recorder.warm, daemon=True).start()
 
     def _drain(self) -> None:
         # A pool thread lives as long as the process, so its one store connection is
@@ -364,26 +400,10 @@ class Chats:
         if store is None:
             feed.close()
             return
-        from ..translate.prompts import INTO, READING
-
         person_id = asked.person.id if asked.person else None
-        language = next(iter(sorted(store.learning(person_id))), "he") if person_id else "he"
-        level = level_module.snapshot(store, person_id, language)
-        # The same sets `Handler._reads` and `_learning` compute: everything where there
-        # is nobody to ask, the account's own answer where there is.
-        into = {code for code, _ in INTO}
-        reading = {code for code, _ in READING}
-        ctx = tools_module.Ctx(
-            person=asked.person,
-            home=asked.home,
-            library=self.library,
-            store=store,
-            chat_id=asked.chat_id,
-            level=level,
-            reads=(store.reads(person_id) & into) if asked.person else into,
-            learning=(store.learning(person_id) & reading) if asked.person else reading,
-            admin=asked.admin,
-        )
+        ctx = self.context(asked.person, asked.home, asked.chat_id, asked.admin)
+        level = ctx.level
+        language = level.language
         asked_text = next(
             (str(row["said"]) for row in store.chat_turns(asked.chat_id) if row["n"] == asked.n),
             "",
@@ -447,11 +467,14 @@ class Chats:
         # English, about the text (`Library.talks`).
         opened = store.chat_owned(person_id, asked.chat_id) or {}
         contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
-        ledger = hebrew_module.ledger_block(
-            level,
-            hebrew_module.known_words(store, person_id, language),
-            hebrew_module.common_words(language=language),
+        known = hebrew_module.known_words(store, person_id, language)
+        common = hebrew_module.common_words(language=language)
+        # What the reader saved lately comes back into a conversation in Hebrew, and
+        # only there: a question about a text is answered about the text.
+        lately, phrases = (
+            hebrew_module.bring_back(store, person_id, language) if contract else ([], [])
         )
+        ledger = hebrew_module.ledger_block(level, known, common, lately, phrases)
         try:
             spent = run_turn(
                 self.client(),
@@ -473,7 +496,20 @@ class Chats:
             self.library.settle(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="done", spent=job.spent)
             store.chat_add_spent(asked.chat_id, job.spent)
-            feed.put("done", {"text": feed.text(), "spent": round(job.spent, 4)})
+            if contract:
+                # The record forming: the reply's Hebrew read as a text is read, before
+                # the page is told the turn is done, so the words land with the lines.
+                self._record(asked, feed, language, set(known) | set(common) | set(lately))
+            feed.put(
+                "done",
+                {
+                    "text": feed.text(),
+                    "spent": round(job.spent, 4),
+                    # How long this conversation has run, in the seconds it is metered
+                    # in — the clock the page shows at the foot.
+                    "seconds": round(store.chat_seconds(asked.chat_id), 1),
+                },
+            )
         except Exception as error:  # noqa: BLE001 - said to the reader, not raised at them
             # The reader gets one sentence; the operator gets the traceback, in the
             # terminal, the way a build's failure is printed. Swallowing it silently is
@@ -487,3 +523,27 @@ class Chats:
         finally:
             self.library.remember(job)
             feed.close()
+
+    def _record(self, asked: Asked, feed: Feed, language: str, allowed: set[str]) -> None:
+        """Read the answer's Hebrew lines and hand the page their words.
+
+        Kept on the reader's turn, as the words of its answer, and put on the feed as
+        its own event. A failure here is the operator's to read and costs the reader
+        nothing but the states: the turn is already done and the lines already drawn.
+        """
+        if self.store is None:
+            return
+        try:
+            said = hebrew_module.pairs(feed.text())
+            lines = [pair.hebrew for pair in said]
+            words = self.recorder.annotate(lines, language)
+            payload = {
+                "lines": [{"he": he, "words": read} for he, read in zip(lines, words, strict=True)],
+                "outside": round(outside_share(words, allowed), 3),
+            }
+            self.store.chat_turn_update(
+                asked.chat_id, asked.n, words=json.dumps(payload, ensure_ascii=False)
+            )
+            feed.put("words", payload)
+        except Exception:  # noqa: BLE001 - the states are a courtesy; the turn stands
+            traceback.print_exc()

@@ -89,6 +89,115 @@
     said.hidden = !text;
   }
 
+  /* --- the record ------------------------------------------------------------
+   *
+   * In Hebrew the thread is drawn as the text it becomes (design.md §12, 2026-09-06):
+   * each line's words arrive from the server read as a text is read, and take their
+   * state from the reader's own ledger — the same `targum:vocab:he` the reader writes,
+   * read here and never written. A word on the ledger is bare; a word not met is
+   * marked and counted at the foot.
+   */
+
+  function ledger() {
+    try {
+      return JSON.parse(localStorage.getItem("targum:vocab:he") || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // What the reader's ledger says about one dictionary form: "known", "learning", or
+  // "new" — and nothing for a name or a number, which are not vocabulary.
+  function stateOf(word, kept) {
+    if (!word.lemma || word.pos === "PROPN" || word.pos === "NUM") return "";
+    var row = kept[word.lemma];
+    if (!row) return "new";
+    if (row.status === 9) return "known";
+    if (row.status === 0) return "";
+    return "learning";
+  }
+
+  // The meanings looked up on this page, by dictionary form, on top of what the server
+  // already held.
+  var meanings = {};
+
+  function glossLine(pair, word, sentence) {
+    var open = pair.querySelector(".chat-gloss");
+    if (open) {
+      pair.removeChild(open);
+      if (open.getAttribute("data-lemma") === word.lemma) return;
+    }
+    var line = document.createElement("span");
+    line.className = "chat-gloss";
+    line.setAttribute("data-lemma", word.lemma);
+    var form = document.createElement("bdi");
+    form.setAttribute("lang", "he");
+    form.textContent = word.lemma;
+    line.appendChild(form);
+    var meaning = meanings[word.lemma] || word.meaning || "";
+    if (meaning) {
+      line.appendChild(document.createTextNode(" · " + meaning));
+    } else {
+      // Not held. Looking it up is the reader's own press and the reader's own spend,
+      // the same door the word card in a text opens.
+      var look = document.createElement("button");
+      look.type = "button";
+      look.className = "chat-look";
+      look.textContent = "look it up";
+      look.onclick = function () {
+        look.disabled = true;
+        look.textContent = "looking…";
+        ask("/gloss", { lemma: word.lemma, source: "he", target: "en", sentence: sentence }).then(
+          function (got) {
+            if (got && got.meaning) {
+              meanings[word.lemma] = got.meaning;
+              line.removeChild(look);
+              line.appendChild(document.createTextNode(" · " + got.meaning));
+            } else {
+              look.textContent = (got && got.error) || "nothing found";
+            }
+          }
+        );
+      };
+      line.appendChild(look);
+    }
+    pair.appendChild(line);
+  }
+
+  // A Hebrew line with its words marked, where the server has read it; the bare line
+  // where it has not (yet).
+  function drawHebrew(he, text, read, pair) {
+    he.textContent = "";
+    if (!read || !read.length) {
+      he.textContent = text;
+      return;
+    }
+    var kept = ledger();
+    var at = 0;
+    read.forEach(function (word) {
+      if (word.start > at) he.appendChild(document.createTextNode(text.slice(at, word.start)));
+      var span = document.createElement("span");
+      var state = stateOf(word, kept);
+      span.className = "chat-w" + (state ? " " + state : "");
+      span.setAttribute("data-lemma", word.lemma);
+      span.textContent = text.slice(word.start, word.end);
+      span.onclick = function () {
+        glossLine(pair, word, text);
+      };
+      he.appendChild(span);
+      at = word.end;
+    });
+    if (at < text.length) he.appendChild(document.createTextNode(text.slice(at)));
+  }
+
+  function wordsFor(words, text) {
+    if (!words || !words.lines) return null;
+    for (var i = 0; i < words.lines.length; i++) {
+      if (words.lines[i].he === text) return words.lines[i].words;
+    }
+    return null;
+  }
+
   /* --- drawing ------------------------------------------------------------- */
 
   // A Hebrew run is marked as one, so the stylesheet can give it its own leading and
@@ -152,7 +261,7 @@
     return out;
   }
 
-  function render(target, text) {
+  function render(target, text, words) {
     target.textContent = "";
     var found = pairs(text);
     // A turn written by the contract is drawn as pairs; anything else as a line.
@@ -168,7 +277,7 @@
         he.className = "chat-he";
         he.setAttribute("lang", "he");
         he.setAttribute("dir", "rtl");
-        he.textContent = p.he;
+        drawHebrew(he, p.he, wordsFor(words, p.he), pair);
         var en = document.createElement("span");
         en.className = "chat-en";
         en.textContent = p.en;
@@ -370,7 +479,7 @@
     li.appendChild(button);
   }
 
-  function turn(role, text, state) {
+  function turn(role, text, state, words) {
     var li = document.createElement("li");
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
     var who = document.createElement("span");
@@ -378,7 +487,7 @@
     who.textContent = role === "user" ? "You" : "targum";
     var line = document.createElement("p");
     line.className = "chat-line";
-    render(line, text);
+    render(line, text, words);
     li.appendChild(who);
     li.appendChild(line);
     turns.appendChild(li);
@@ -401,6 +510,70 @@
       li.appendChild(button);
       list.appendChild(li);
     });
+  }
+
+  /* --- the foot of the record -------------------------------------------------
+   *
+   * Under the last turn of a conversation in Hebrew: how long it has run, what the
+   * reader has not met, what share they knew — measured off the words on the page and
+   * the reader's own ledger, never a level — and the door out, Save as targum, which
+   * is the quote the model's own save hands the page, reached by the reader's press.
+   */
+
+  var footSeconds = 0;
+
+  function drawFoot(seconds) {
+    if (seconds !== undefined && seconds !== null) footSeconds = Number(seconds) || 0;
+    var old = turns.querySelector(".chat-sum");
+    if (old) turns.removeChild(old);
+    var marked = turns.querySelectorAll(".chat-w");
+    if (!marked.length) return;
+    var seen = {};
+    var fresh = {};
+    var known = 0;
+    var vocabulary = 0;
+    Array.prototype.forEach.call(marked, function (span) {
+      var lemma = span.getAttribute("data-lemma");
+      var state = span.className.replace("chat-w", "").trim();
+      if (!state) return;
+      vocabulary += 1;
+      if (state === "known") known += 1;
+      if (state === "new" && !seen[lemma]) fresh[lemma] = true;
+      seen[lemma] = true;
+    });
+    var count = Object.keys(fresh).length;
+    var li = document.createElement("li");
+    li.className = "chat-sum";
+    var counts = document.createElement("p");
+    counts.className = "chat-counts";
+    var minutes = Math.max(1, Math.round(footSeconds / 60));
+    var parts = [];
+    if (footSeconds > 0) parts.push(minutes + (minutes === 1 ? " min" : " min"));
+    parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
+    if (vocabulary) parts.push("you knew " + Math.round((known / vocabulary) * 100) + "% of this");
+    counts.textContent = parts.join(" · ");
+    li.appendChild(counts);
+    var save = document.createElement("button");
+    save.type = "button";
+    save.className = "chat-save";
+    save.textContent = "Save as targum";
+    var note = document.createElement("p");
+    note.className = "note";
+    save.onclick = function () {
+      save.disabled = true;
+      ask("/chat/save", { chat: current }).then(function (got) {
+        if (got.error) {
+          note.textContent = got.error;
+          save.disabled = false;
+          return;
+        }
+        li.removeChild(save);
+        quoteCard(li, got.quote);
+      });
+    };
+    li.appendChild(save);
+    li.appendChild(note);
+    turns.appendChild(li);
   }
 
   /* --- loading ------------------------------------------------------------- */
@@ -440,17 +613,20 @@
       if (answer.error) return tell(answer.error);
       var pending = null;
       var lastAsked = 0;
+      var lastWords = null;
       (answer.turns || []).forEach(function (t) {
         if (t.role === "user") {
           turn("user", t.said);
           lastAsked = t.n;
+          lastWords = t.words || null;
           pending = t.stage === "working" ? t.n : null;
           if (t.stage === "failed" && t.error) turn("assistant", t.error, "bad");
         } else if (t.said) {
-          playButton(turn("assistant", t.said), id, lastAsked);
+          playButton(turn("assistant", t.said, "", lastWords), id, lastAsked);
         }
       });
       if (empty) empty.hidden = true;
+      drawFoot(answer.seconds || 0);
       // Came back to an answer still being written: pick the stream up where it is.
       if (pending !== null) follow(id, pending, turn("assistant", "", "working"));
     });
@@ -492,10 +668,12 @@
   function follow(chat, n, li) {
     var line = li.querySelector(".chat-line");
     var text = "";
+    var words = null;
     function finish(kind, payload) {
       li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
-      render(line, kind === "error" ? payload.message : payload.text || text);
+      render(line, kind === "error" ? payload.message : payload.text || text, words);
       if (kind !== "error") playButton(li, chat, n);
+      if (kind !== "error") drawFoot(payload.seconds);
       busy = false;
       send.disabled = false;
       // The title is the first thing said, so the list learns it on the first answer.
@@ -514,6 +692,11 @@
       });
       source.addEventListener("quote", function (event) {
         quoteCard(li, JSON.parse(event.data || "{}"));
+      });
+      source.addEventListener("words", function (event) {
+        // The lines read as a text is read: drawn again with their words marked.
+        words = JSON.parse(event.data || "{}");
+        render(line, text, words);
       });
       source.addEventListener("done", function (event) {
         source.close();
@@ -537,7 +720,8 @@
       ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
         if (state.error && state.done) return finish("error", { message: state.error });
         text = state.text || "";
-        render(line, text);
+        if (state.words) words = state.words;
+        render(line, text, words);
         (state.quotes || []).forEach(function (job) {
           if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
         });
@@ -569,5 +753,14 @@
 
   load();
 
-  window.TargumChat = { say: say, open: open, render: render, quoteCard: quoteCard, pairs: pairs, hear: hear };
+  window.TargumChat = {
+    say: say,
+    open: open,
+    render: render,
+    quoteCard: quoteCard,
+    pairs: pairs,
+    hear: hear,
+    stateOf: stateOf,
+    drawFoot: drawFoot,
+  };
 })();

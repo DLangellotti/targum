@@ -25,6 +25,36 @@ from targum.mail import ConsoleMailer
 from targum.serve import POLICY, Handler, Library
 
 
+@pytest.fixture(autouse=True)
+def _record_by_spaces(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No DICTA in a unit test: the record reads a turn's words by whitespace, and holds
+    no meanings. `tests/test_chat_record.py` is where the reader itself is tested."""
+    from test_chat_record import Spaces
+
+    from targum.chat import record
+
+    monkeypatch.setattr(record.Recorder, "lemmatizer", lambda self: Spaces())
+    monkeypatch.setattr(
+        record.Recorder,
+        "gloss",
+        lambda self, lemma, language="he", target="en": (
+            self._glosses(lemma, language, target) if self._glosses else ""
+        ),
+    )
+    monkeypatch.setattr(record.Recorder, "__init__", _stub_init)
+
+
+def _stub_init(self: Any, lemmatizer: Any = None, glosses: Any = None, bands: Any = None) -> None:
+    import threading
+
+    from test_chat_record import Bands, Spaces
+
+    self._lemmatizer = lemmatizer or Spaces()
+    self._glosses = glosses
+    self.bands = bands or Bands()
+    self.lock = threading.Lock()
+
+
 @pytest.fixture
 def chatting(tmp_path: Path) -> Iterator[tuple[int, str, Store, session_module.Chats]]:
     out = tmp_path / "out"
@@ -389,3 +419,25 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
     assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "no word, no sentence: no note"
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "talk"
+
+
+def test_the_conversation_carries_its_clock_and_its_words_and_can_be_saved(chatting) -> None:
+    """`/chat/<id>` says how long it has run and hands each answer's words back with
+    the reader's turn; `/chat/save` is the foot's press — the same quote the model's
+    own save hands the page, and only a quote."""
+    port, key, store, chats = chatting
+    status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום"})
+    assert status == 200
+    chats.answer(chats.queue.get())
+    status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert state["done"] is True
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert status == 200
+    assert isinstance(whole["seconds"], float) and whole["seconds"] >= 0
+    assert "words" in whole["turns"][0], "the reader's turn carries the answer's words"
+
+    status, answer, _ = call(port, "POST", f"/chat/save?k={key}", {"chat": asked["chat"]})
+    assert status == 409 and "Talk a little first" in answer["error"], (
+        "one line is not a conversation to read back"
+    )
+    assert call(port, "POST", f"/chat/save?k={key}", {"chat": "nobody"})[0] == 404

@@ -66,6 +66,10 @@ function element(tag) {
       this.children.push(child);
       return child;
     },
+    removeChild(child) {
+      this.children = this.children.filter((c) => c !== child);
+      return child;
+    },
     setAttribute(name, value) {
       this.attrs[name] = value;
     },
@@ -105,8 +109,19 @@ function element(tag) {
       const find = (node) => (hit(node) ? node : node.children.map(find).find(Boolean));
       return find(this) || null;
     },
-    querySelectorAll() {
-      return [];
+    /* Every descendant carrying the class, in document order — the record's foot counts
+       the words drawn above it this way. Class selectors only, like querySelector. */
+    querySelectorAll(selector) {
+      const wanted = String(selector).replace(".", "");
+      const out = [];
+      const walk = (node) => {
+        (node.children || []).forEach((child) => {
+          if (String(child.className || "").split(" ").includes(wanted)) out.push(child);
+          walk(child);
+        });
+      };
+      walk(this);
+      return out;
     },
   };
 }

@@ -300,6 +300,47 @@ In *this* repository: tokens are the `:root` block of
 Seventeen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
 
+### A conversation is drawn as the text it becomes — 2026-09-06
+
+`/chat` drew a thread: the reader's lines and targum's, the same ink under a quiet label.
+In Hebrew it now draws each line as the pair it will be on the shelf, and reads it the
+way a text is read: the moment a reply is whole, its Hebrew lines go through the same
+lemmatizer a build uses (`chat/record.py`), and each word comes back to the page with its
+dictionary form, its band, and whatever meaning the glossary already holds — never one
+bought for the purpose. On the page a word takes its state from the reader's own ledger,
+read where the reader keeps it: a word marked known is bare; a word still being learned
+carries the reader's own dotted line; a word never met is marked in iris, the hue §4
+keeps for what is new, and is counted. A name is not vocabulary and is left alone. A tap
+on any of them says its dictionary form and its meaning, or offers to look it up, which
+is the reader's press and the reader's spend, the same door a word card in a text opens.
+
+The foot of the thread is the record's summary: how long the conversation has run, in the
+minutes it is metered in; how many words the reader has not met; what share of the words
+they knew. Real counts off the page and the ledger, never a level. Under them, Save as
+targum: the reader's own press on the quote the model's save already hands the page, and
+still only a quote — the card's button is the spend, as it is everywhere.
+
+Two things were measured before this was built, so nothing here is a hope. A line costs
+the annotator about sixty milliseconds warm and a turn about a fifth of a second, against
+a nine-second load paid once and warmed when the workers start
+(`scripts/measure_line_annotation.py`; the box's own numbers are still owed). And every
+turn now records what share of its vocabulary lay outside the words the model was given
+(`outside` on the turn): the number the grading claim rests on, kept where the eval can
+read it, and not yet a claim anywhere on the page.
+
+What comes back: the words and phrases the reader saved lately ride in the ledger block,
+and the model is asked to bring them back where they fit and, once, to ask the reader to
+use two — never as a list, never named as an exercise. The research this rests on says a
+saved word wants eight to twelve more meetings; the chat-first products the survey looked
+at never return one. Only words a newspaper would use come back: a word saved in Judges
+that no newspaper uses stays in Judges.
+
+The reason is the chat plan's sentence: where a choice is between a better conversation
+and a better record, take the record. Drawing the thread as the text is the record made
+visible while it is being made, and it costs no second surface. If the thread ever becomes
+the thing people look at and the shelf an afterthought, the design has gone wrong in the
+way §1 describes.
+
 ### The front door is a question — 2026-09-06
 
 Learn opened with two cards and a list: the text you were in, and everything else. From

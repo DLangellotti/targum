@@ -23,6 +23,7 @@ question; until the eval answers it, no page says "at your level".
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -59,6 +60,18 @@ CONVERSATION_WORDS_PER_MINUTE = 120
 #: What a reply is assumed to run to before it exists, for the reservation the rails
 #: take before the first token. Settled to the real count after the last.
 ASSUMED_REPLY_WORDS = 80
+
+#: How far back "lately" reaches for the words brought back into a conversation, in
+#: the milliseconds the ledger keeps `at` in. A week: the research this rests on says a
+#: saved word wants eight to twelve more meetings, spread out, and a week is spread out.
+LATELY_MS = 7 * 24 * 3600 * 1000
+
+#: How many of those to carry, and how common a word has to be to count as one a modern
+#: conversation can carry back. Band 4 is Zipf 3.4 and up in `annotate/frequency.py`: a
+#: word a newspaper uses. A word saved in Judges that no newspaper uses stays in Judges.
+BRING_BACK = 12
+BRING_BACK_PHRASES = 6
+MODERN_BAND = 4
 
 RECAST = "> "
 ENGLISH = "= "
@@ -165,8 +178,32 @@ def known_words(
     return [lemma for _, lemma in known[:limit]]
 
 
-def ledger_block(level: Level, known: list[str], common: list[str]) -> str:
-    """The per-reader block: the ledger, then the word lists."""
+def bring_back(
+    store: Store, person_id: int | None, language: str, now_ms: int | None = None
+) -> tuple[list[str], list[str]]:
+    """The words and phrases the reader saved lately, for the conversation to carry
+    back — the one thing the chat-first products never do, and the thing the research
+    says a saved word needs. Words are kept to the ones a modern conversation can
+    carry: a word saved in Judges returns only if a newspaper would use it.
+    """
+    from ..annotate.frequency import FrequencyBands
+
+    since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
+    words = store.recent_words(person_id, language, since, limit=BRING_BACK * 3)
+    bands = FrequencyBands()
+    if bands.supports(language):
+        words = [word for word in words if bands.band(word, language) <= MODERN_BAND]
+    return words[:BRING_BACK], store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES)
+
+
+def ledger_block(
+    level: Level,
+    known: list[str],
+    common: list[str],
+    lately: list[str] | None = None,
+    phrases: list[str] | None = None,
+) -> str:
+    """The per-reader block: the ledger, then the word lists, then what came back."""
     parts = [describe(level)]
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
@@ -174,6 +211,16 @@ def ledger_block(level: Level, known: list[str], common: list[str]) -> str:
         parts.append("The reader has marked no words known yet; stand on the common words.")
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
+    if lately:
+        parts.append(
+            f"Words the reader saved lately ({len(lately)}): "
+            + " ".join(lately)
+            + ". Bring them back into your Hebrew where they fit naturally, and once in the "
+            "conversation ask the reader to use two of them. Never list them or name this "
+            "as an exercise."
+        )
+    if phrases:
+        parts.append(f"Phrases they kept lately ({len(phrases)}): " + " | ".join(phrases))
     return "\n\n".join(parts)
 
 

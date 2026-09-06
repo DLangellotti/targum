@@ -3496,6 +3496,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/chat/say":
             return self._chat_say(payload)
+        if route == "/chat/save":
+            return self._chat_save(payload)
         if route == "/weekly/follow":
             # Takes no address at all: it reads the session's own. With nothing to
             # supply there is no way to sign somebody else's inbox up and nothing to
@@ -3588,11 +3590,21 @@ class Handler(BaseHTTPRequestHandler):
                     "stage": turn["stage"],
                     "error": turn["error"],
                     "made": turn["made"],
+                    # The words of the answer to a reader's turn, read as a text is
+                    # read (`chat/record.py`); None where none were.
+                    "words": turn.get("words"),
                 }
                 for turn in store.chat_turns(chat["id"])
                 if turn["said"] or turn["role"] == "user"
             ]
-            return self._json({"chat": chat, "turns": turns})
+            return self._json(
+                {
+                    "chat": chat,
+                    "turns": turns,
+                    # How long it has run, in the seconds it is metered in.
+                    "seconds": round(store.chat_seconds(chat["id"]), 1),
+                }
+            )
         return self._json({"error": "not found"}, 404)
 
     def _chat_turn_state(self, chat_id: str, n: int) -> dict[str, Any]:
@@ -3604,12 +3616,14 @@ class Handler(BaseHTTPRequestHandler):
         feed = self.chats.feed_for(chat_id, n)
         if feed is not None:
             errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
+            read = [json.loads(data) for kind, data in feed.events if kind == "words"]
             return {
                 "text": feed.text(),
                 "done": feed.closed,
                 "error": errors[-1]["message"] if errors else "",
                 # The cards this turn quoted, for a page polling rather than streaming.
                 "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
+                "words": read[-1] if read else None,
             }
         turns = self.chats.store.chat_turns(chat_id)
         asked = next((turn for turn in turns if turn["n"] == n), None)
@@ -3621,6 +3635,7 @@ class Handler(BaseHTTPRequestHandler):
             "text": answered,
             "done": stage != "working",
             "error": str(asked["error"]) if asked else "",
+            "words": asked.get("words") if asked else None,
         }
 
     #: How long a tail waits for the next event before it says it is still here.
@@ -3865,6 +3880,28 @@ class Handler(BaseHTTPRequestHandler):
                 about = None
         asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, about=about)
         return self._json({"chat": asked.chat_id, "turn": asked.n})
+
+    def _chat_save(self, payload: dict[str, Any]) -> None:
+        """Save as targum, pressed at the foot of the record: the conversation written
+        down and priced, the same card the model's `quote_conversation` hands the page.
+        The reader's own press, no model turn, and still only a quote — the card's
+        button is the spend, as it is everywhere.
+        """
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        from .chat import tools as chat_tools
+
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if not chat_id or self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        admin = bool(person and self.store.is_admin(person.email))
+        ctx = self.chats.context(person, self._home(), chat_id, admin)
+        answer = chat_tools.quote_conversation(ctx, {})
+        if answer.get("error"):
+            return self._json({"error": answer["error"]}, 409)
+        return self._json({"quote": answer["quote"], "lines": answer.get("lines", 0)})
 
     # -- accounts -----------------------------------------------------------
 

@@ -191,6 +191,9 @@ THUMBED = (
     # And Ask, on a word's card (2026-09-06), with the field the question is typed in.
     ".gloss-card .ask-go",
     ".gloss-card .ask-field",
+    # And the record's two presses (2026-09-06): look a word up, save the conversation.
+    ".chat-look",
+    ".chat-save",
 )
 
 

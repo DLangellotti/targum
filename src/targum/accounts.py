@@ -89,7 +89,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -183,6 +183,10 @@ MIGRATIONS: tuple[str, ...] = (
     # What a conversation is for: `find` (things to read) or `talk` (in Hebrew). The
     # reader switches it; the mode decides which contract the model is given.
     "ALTER TABLE chat ADD COLUMN mode TEXT NOT NULL DEFAULT 'find'",
+    # The words of the answer to a turn, read the way a text is read (2026-09-06): JSON
+    # on the reader's row, so a page that comes back to the conversation draws every
+    # word with its state without reading the lines again. See `chat/record.py`.
+    "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -457,6 +461,7 @@ CREATE TABLE IF NOT EXISTS chat_turn (
   error    TEXT    NOT NULL DEFAULT '',
   spent    REAL    NOT NULL DEFAULT 0,
   made     INTEGER NOT NULL DEFAULT 0,
+  words    TEXT    NOT NULL DEFAULT '',
   PRIMARY KEY (chat, n)
 );
 CREATE INDEX IF NOT EXISTS chat_person ON chat (person, seen);
@@ -1542,6 +1547,42 @@ class Store:
 
     # -- conversations ----------------------------------------------------------
 
+    def chat_seconds(self, chat_id: str) -> float:
+        """How long one conversation has run, in the seconds its turns were metered in:
+        the same `length` the allowance is kept in, summed over this conversation's
+        rows and nobody else's."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job WHERE source = ? AND kind = 'chat'",
+            (f"chat:{chat_id}",),
+        ).fetchone()
+        return float(row["used"])
+
+    def recent_words(
+        self, person_id: int | None, language: str, since: int, limit: int = 12
+    ) -> list[str]:
+        """The lemmas this person marked most recently — met, learning or known — newest
+        first, names and numbers left out. `since` is in the milliseconds `at` is kept in."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT lemma FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND at >= ? AND status IN (1, 2, 3, 9) AND band NOT IN ('name', 'number')"
+            " ORDER BY at DESC LIMIT ?",
+            (person_id, language.split("-")[0].lower(), since, limit),
+        ).fetchall()
+        return [str(row["lemma"]) for row in rows if row["lemma"]]
+
+    def recent_phrases(self, person_id: int | None, since: int, limit: int = 6) -> list[str]:
+        """The phrases this person kept most recently, newest first."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT text FROM phrase WHERE person = ? AND gone = 0 AND at >= ? AND text != ''"
+            " ORDER BY at DESC LIMIT ?",
+            (person_id, since, limit),
+        ).fetchall()
+        return [str(row["text"]) for row in rows]
+
     def chat_open(self, person_id: int | None, language: str = "he", mode: str = "talk") -> str:
         """Start a conversation. Its id is a bearer token in the sense a job's is:
         unguessable, and still checked against the asker on every read."""
@@ -1578,7 +1619,7 @@ class Store:
     def chat_turns(self, chat_id: str) -> list[dict[str, Any]]:
         """Every API message in a conversation, in order, content decoded."""
         rows = self.db.execute(
-            "SELECT n, role, content, said, stage, error, spent, made FROM chat_turn"
+            "SELECT n, role, content, said, stage, error, spent, made, words FROM chat_turn"
             " WHERE chat = ? ORDER BY n",
             (chat_id,),
         ).fetchall()
@@ -1589,6 +1630,11 @@ class Store:
                 turn["content"] = json.loads(str(row["content"]))
             except json.JSONDecodeError:
                 turn["content"] = str(row["content"])
+            # The words of the answer to this turn, or None where none were read.
+            try:
+                turn["words"] = json.loads(str(row["words"])) if row["words"] else None
+            except json.JSONDecodeError:
+                turn["words"] = None
             out.append(turn)
         return out
 
@@ -1630,10 +1676,16 @@ class Store:
         stage: str | None = None,
         error: str | None = None,
         spent: float | None = None,
+        words: str | None = None,
     ) -> None:
         sets = []
         values: list[Any] = []
-        for column, value in (("stage", stage), ("error", error), ("spent", spent)):
+        for column, value in (
+            ("stage", stage),
+            ("error", error),
+            ("spent", spent),
+            ("words", words),
+        ):
             if value is not None:
                 sets.append(f"{column} = ?")
                 values.append(value)

@@ -169,6 +169,66 @@ body.chat > .chat-main {
   line-height: 1.6;
   color: var(--ink-soft);
 }
+/* The record's words (2026-09-06). A word on the ledger is bare; one still being
+   learned carries the reader's own dotted line; one not met is marked in the discovery
+   hue (§4: iris for what is new) and counted at the foot. A name is not vocabulary and
+   is left alone. */
+.chat-w { cursor: pointer; }
+.chat-w:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.chat-w.new { text-decoration: underline dotted var(--iris); text-underline-offset: 0.18em; }
+.chat-w.learning { text-decoration: underline dotted var(--ink-soft); text-underline-offset: 0.18em; }
+.chat-gloss {
+  display: block;
+  margin-block-start: 0.15rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.chat-gloss bdi { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); }
+.chat-look {
+  margin-inline-start: 0.5em;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-look:disabled { opacity: 0.6; cursor: default; }
+
+/* The foot: the counts in the reading face, real numbers and never a level; the door
+   out is a call to action and takes the max-contrast pair (§9). */
+.chat-sum {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--rule);
+}
+.chat-counts {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.chat-save {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-save:hover { background: var(--ink-soft); }
+.chat-save:disabled { opacity: 0.5; cursor: default; }
+.chat-sum .note { margin: 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-sum .note:empty { display: none; }
+
 .chat-turn .chat-pair.recast .chat-en::before {
   content: "you said";
   margin-inline-end: 0.5em;
@@ -258,7 +318,9 @@ body.chat > .chat-main {
   .chat-list button,
   .quote-go,
   .chat-door,
-  .chat-play {
+  .chat-play,
+  .chat-save,
+  .chat-look {
     min-height: 44px;
   }
 }

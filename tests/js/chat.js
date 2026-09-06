@@ -74,6 +74,8 @@ if (payload.record) {
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
   TargumBuilding: { ask: () => strip.asked++ },
+  // The reader's own ledger, as the reader writes it, when the payload gives one.
+  stored: payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
 });
 
 // An <audio> element that records what it was asked to play rather than playing it.
@@ -143,16 +145,34 @@ function pairsDrawn() {
   const out = [];
   const walk = (node) => {
     if (String(node.className).split(" ")[0] === "chat-pair") {
+      const he = node.children[0];
+      const gloss = node.children.find((c) => String(c.className).split(" ")[0] === "chat-gloss");
       out.push({
-        he: node.children[0].textContent,
+        he: he.textContent,
         en: node.children[1].textContent,
         recast: String(node.className).split(" ").includes("recast"),
+        // The words the line was drawn with, each with its state on the ledger.
+        words: he.children
+          .filter((c) => String(c.className).split(" ")[0] === "chat-w")
+          .map((c) => ({ text: c.textContent, lemma: c.attrs["data-lemma"], state: String(c.className).replace("chat-w", "").trim() })),
+        gloss: gloss ? gloss.textContent : null,
       });
     }
     (node.children || []).forEach(walk);
   };
   walk(turns);
   return out;
+}
+
+function foot() {
+  const li = (turns.children || []).find((c) => String(c.className).split(" ")[0] === "chat-sum");
+  if (!li) return null;
+  const by = (cls) => li.children.find((c) => String(c.className).split(" ").includes(cls));
+  return {
+    counts: by("chat-counts") ? by("chat-counts").textContent : "",
+    save: !!by("chat-save"),
+    note: by("note") ? by("note").textContent : "",
+  };
 }
 
 function doors() {
@@ -218,6 +238,7 @@ function drawn() {
       turns: drawn(),
       cards: cards(),
       pairs: pairsDrawn(),
+      foot: foot(),
       doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
       stripAsked: strip.asked,

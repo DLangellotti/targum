@@ -99,3 +99,84 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
     assert "never tell the reader they are at a level" in said.lower()
     assert "its path" in said and "draws it as a door" in said, "opened, not declared open"
     assert "!" not in said
+
+
+def test_what_was_saved_lately_comes_back_if_a_newspaper_would_use_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one thing the chat-first products never do: a saved word returns. Filtered to
+    words a modern conversation can carry — a word saved in Judges that no newspaper
+    uses stays in Judges — and never named as an exercise."""
+    from targum.annotate import frequency
+
+    store = Store(tmp_path / "db")
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = 10 * hebrew.LATELY_MS
+    old = now - 2 * hebrew.LATELY_MS
+    fresh = now - hebrew.LATELY_MS // 2
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "מצפה",
+                    "status": 1,
+                    "band": "hard",
+                    "at": fresh,
+                    "seen": fresh,
+                },
+                {
+                    "language": "he",
+                    "lemma": "לחץ",
+                    "status": 9,
+                    "band": "easy",
+                    "at": fresh,
+                    "seen": fresh,
+                },
+                {
+                    "language": "he",
+                    "lemma": "ויכום",
+                    "status": 1,
+                    "band": "hard",
+                    "at": fresh,
+                    "seen": fresh,
+                },
+                {
+                    "language": "he",
+                    "lemma": "רמון",
+                    "status": 1,
+                    "band": "name",
+                    "at": fresh,
+                    "seen": fresh,
+                },
+                {
+                    "language": "he",
+                    "lemma": "בית",
+                    "status": 9,
+                    "band": "easy",
+                    "at": old,
+                    "seen": old,
+                },
+            ],
+            "phrases": [
+                {"id": "p1", "text": "בשבוע שעבר", "at": fresh, "seen": fresh},
+                {"id": "p2", "text": "מזמן", "at": old, "seen": old},
+            ],
+        },
+    )
+
+    # A newspaper's words are the common ones here; ויכום is nobody's.
+    monkeypatch.setattr(
+        frequency.FrequencyBands, "band", lambda self, lemma, language: 6 if lemma == "ויכום" else 3
+    )
+    words, phrases = hebrew.bring_back(store, person.id, "he", now_ms=now)
+    assert sorted(words) == ["לחץ", "מצפה"], (
+        "this week's, a name left out, the biblical form left out"
+    )
+    assert phrases == ["בשבוע שעבר"], "this week's phrases"
+    block = hebrew.ledger_block(level.EMPTY, [], [], ["מצפה", "לחץ"], phrases)
+    assert "saved lately (2): מצפה לחץ" in block
+    assert "ask the reader to use two of them" in block and "Never" in block
+    assert "Phrases they kept lately (1): בשבוע שעבר" in block
+    assert "lately" not in hebrew.ledger_block(level.EMPTY, [], [])

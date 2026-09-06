@@ -49,6 +49,36 @@ class Stream:
         return self.reply
 
 
+@pytest.fixture(autouse=True)
+def _record_by_spaces(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No DICTA in a unit test: the record reads a turn's words by whitespace, and holds
+    no meanings. `tests/test_chat_record.py` is where the reader itself is tested."""
+    from test_chat_record import Spaces
+
+    from targum.chat import record
+
+    monkeypatch.setattr(record.Recorder, "lemmatizer", lambda self: Spaces())
+    monkeypatch.setattr(
+        record.Recorder,
+        "gloss",
+        lambda self, lemma, language="he", target="en": (
+            self._glosses(lemma, language, target) if self._glosses else ""
+        ),
+    )
+    monkeypatch.setattr(record.Recorder, "__init__", _stub_init)
+
+
+def _stub_init(self: Any, lemmatizer: Any = None, glosses: Any = None, bands: Any = None) -> None:
+    import threading
+
+    from test_chat_record import Bands, Spaces
+
+    self._lemmatizer = lemmatizer or Spaces()
+    self._glosses = glosses
+    self.bands = bands or Bands()
+    self.lock = threading.Lock()
+
+
 def reply(content: list[dict[str, Any]], stop: str = "end_turn") -> Any:
     return SimpleNamespace(
         content=content,
@@ -524,3 +554,68 @@ def test_a_stored_reply_is_replayed_without_what_the_api_refuses(tmp_path: Path)
     ]
     old = [{"type": "text", "text": "hi", "citations": None, "parsed_output": None}]
     assert session_module.replayable(old) == [{"type": "text", "text": "hi"}]
+
+
+def test_a_hebrew_reply_is_read_as_a_text_and_its_words_reach_the_page(tmp_path: Path) -> None:
+    """The record forming (2026-09-06): after a reply in Hebrew, its lines are read the
+    way a text is read, the words are kept on the reader's turn and put on the feed as
+    their own event before "done", the share outside the model's list is measured, and
+    what the reader saved lately rides in the ledger block."""
+    from test_chat_record import Bands, Spaces
+
+    from targum.chat import record
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "חם",
+                    "status": 9,
+                    "band": "easy",
+                    "at": now,
+                    "seen": now,
+                },
+                {
+                    "language": "he",
+                    "lemma": "מצפה",
+                    "status": 1,
+                    "band": "hard",
+                    "at": now,
+                    "seen": now,
+                },
+            ]
+        },
+    )
+    reply_text = "> נָסַעְתִּי לַנֶּגֶב.\n= I went to the Negev.\nהָיָה חַם?\n= Was it hot?"
+    client = Script([reply([{"type": "text", "text": reply_text}])])
+    recorder = record.Recorder(
+        lemmatizer=Spaces(), glosses=lambda lemma, s, t: {"חם": "hot"}.get(lemma, ""), bands=Bands()
+    )
+    chats = session_module.Chats(library, store, client_factory=lambda: client, recorder=recorder)
+    home = library.home(person)
+    asked = chats.say(person, home, "", "I went to the Negev", admin=False)
+    chats.answer(asked)
+
+    feed = chats.feed_for(asked.chat_id, asked.n)
+    assert feed is not None
+    kinds = [kind for kind, _ in feed.events]
+    assert "words" in kinds and kinds.index("words") < kinds.index("done"), (
+        "the words land before the page is told the turn is done"
+    )
+    payload = json.loads(next(data for kind, data in feed.events if kind == "words"))
+    assert [line["he"] for line in payload["lines"]] == ["נָסַעְתִּי לַנֶּגֶב.", "הָיָה חַם?"]
+    hot = next(w for w in payload["lines"][1]["words"] if w["lemma"] == "חם")
+    assert hot["surface"] == "חַם" and hot["meaning"] == "hot"
+    assert 0.0 <= payload["outside"] <= 1.0
+    done = json.loads(next(data for kind, data in feed.events if kind == "done"))
+    assert done["seconds"] > 0, "the clock at the foot"
+
+    kept = next(turn for turn in store.chat_turns(asked.chat_id) if turn["n"] == asked.n)
+    assert kept["words"] == payload, "kept on the reader's turn, for the page that comes back"
+    assert "saved lately" in client.requests[0]["system"][1]["text"]
+    assert "מצפה" in client.requests[0]["system"][1]["text"]
