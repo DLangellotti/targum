@@ -329,6 +329,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- On a machine somebody runs themselves the chat's dollar-a-day rail is off: the reader
+  is the operator, whose `--budget` is the ceiling. An evening of testing was told to
+  come back tomorrow by its own laptop. Hosted, the rail stands.
+- A browser that moved on before a JSON answer landed printed a traceback in the
+  terminal for every dropped request; the stream already treated a broken pipe as the
+  reader leaving, and the plain answers do now too.
 - A conversation titled with a long first line pushed the rail out under the thread,
   where every title was cut off behind the raised paper: a grid item's minimum width is
   its content unless told otherwise. Measured in Chromium now.

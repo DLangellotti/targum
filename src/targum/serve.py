@@ -2470,7 +2470,13 @@ class Handler(BaseHTTPRequestHandler):
         if policy is not None:
             self.send_header("Content-Security-Policy", policy)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # The browser moved on before the answer landed — a page that navigated
+            # away with a fetch in flight. Not an error of ours, and the stream already
+            # treats it so; without this each one printed a traceback in the terminal.
+            self.close_connection = True
 
     # The sidecar video parts beside a reader. A closed table rather than `mimetypes`:
     # these are the only files a build writes that a page addresses by name, and a table
@@ -4873,6 +4879,11 @@ def start(
         # bearer token in a mailbox, so on a machine somebody runs themselves the
         # library is told no address and says nothing.
         address=public if require_account else "",
+        # The chat's daily rail is a hosted account's (2026-09-06): on a machine
+        # somebody runs themselves the reader is the operator, who set `--budget` at
+        # the prompt and is the ceiling. An evening of testing hit a dollar a day and
+        # was told to come back tomorrow by their own laptop.
+        chat_budget=CHAT_BUDGET if require_account else None,
     )
     library.start_workers()
     # The conversation's own workers, beside the build queue and never in it.

@@ -623,3 +623,23 @@ def test_a_hebrew_reply_is_read_as_a_text_and_its_words_reach_the_page(tmp_path:
     assert kept["words"] == payload, "kept on the reader's turn, for the page that comes back"
     assert "saved lately" in client.requests[0]["system"][1]["text"]
     assert "מצפה" in client.requests[0]["system"][1]["text"]
+
+
+def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Path) -> None:
+    """The dollar-a-day chat rail is a hosted account's. Locally the reader is the
+    operator, whose `--budget` is the ceiling; `serve.start` passes no chat rail there
+    (2026-09-06), and a `Library` told none lets a day of turns through."""
+    from targum.serve import Job, Library
+
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store, chat_budget=None)
+    for n in range(40):
+        job = Job(id=f"chat-c-{n}", source="chat:c", title="", estimate=0.05, kind="chat")
+        assert library.claim_turn(job) == "", n
+        library.settle(job)
+    source = (Path(__file__).resolve().parents[1] / "src/targum/serve.py").read_text(
+        encoding="utf-8"
+    )
+    assert "chat_budget=CHAT_BUDGET if require_account else None" in source
