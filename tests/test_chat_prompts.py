@@ -49,3 +49,13 @@ def test_no_tool_in_this_slice_spends() -> None:
     """The seam is drawn before the first tool needs it: every tool that spends will need
     a consent row, and nothing here has one to give."""
     assert not [tool.name for tool in REGISTRY if tool.spends or tool.needs_consent]
+
+
+def test_a_question_from_a_word_s_card_is_answered_in_english_about_the_text() -> None:
+    """A word tapped is a question half-asked (2026-09-06): the card's Ask sends the
+    text, the sentence and the word along, and the model is told what to do with them —
+    and told that on scripture it writes no Hebrew of its own."""
+    said = prompts.SYSTEM
+    assert "the word they tapped" in said
+    assert "answered in English, about the text" in said
+    assert "on scripture write no Hebrew of" in said

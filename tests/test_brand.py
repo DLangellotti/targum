@@ -188,6 +188,9 @@ THUMBED = (
     ".chat-play",
     # And the `+` on the box (2026-09-06): bring a file, a link or a recording.
     ".chat-bring",
+    # And Ask, on a word's card (2026-09-06), with the field the question is typed in.
+    ".gloss-card .ask-go",
+    ".gloss-card .ask-field",
 )
 
 

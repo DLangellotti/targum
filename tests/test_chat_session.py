@@ -439,6 +439,42 @@ def test_a_scripture_only_reader_is_answered_in_english_about_the_text(tmp_path:
     assert library.talks(home, person.id), "one modern text of their own, and it is offered"
 
 
+def test_a_question_from_a_card_carries_where_the_reader_is_and_is_answered_in_english(
+    tmp_path: Path,
+) -> None:
+    """The reader's note — text, section, sentence, word — rides in the turn the model
+    sees and not in what the page shows back; and the conversation it opens is in
+    English, about the text, whatever the shelf would otherwise have offered."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    assert library.talks(home, person.id), "this reader would otherwise be written Hebrew at"
+
+    client = Script(
+        [reply([{"type": "text", "text": "Plural past: the Amorites are the subject."}])]
+    )
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    about = {
+        "document": "שופטים",
+        "section": "1",
+        "sentence": "וַיִּלְחֲצוּ הָאֱמֹרִי אֶת־בְּנֵי־דָן הָהָרָה",
+        "surface": "וַיִּלְחֲצוּ",
+        "lemma": "לחץ",
+    }
+    asked = chats.say(person, home, "", "why לחצו and not לחץ?", admin=False, about=about)
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "find"
+    turns = store.chat_turns(asked.chat_id)
+    assert turns[0]["said"] == "why לחצו and not לחץ?", "the page shows what was asked"
+    assert "The reader is reading the text שופטים, section 1." in turns[0]["content"]
+    assert "They tapped the word וַיִּלְחֲצוּ (dictionary form לחץ)." in turns[0]["content"]
+    assert about["sentence"] in turns[0]["content"]
+    chats.answer(asked)
+    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[0]["system"][0]["text"]
+    assert "the word they tapped" in client.requests[0]["system"][0]["text"]
+
+
 def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     library, store = world(tmp_path)
     library.upload_seconds = 30.0

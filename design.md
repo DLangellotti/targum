@@ -337,6 +337,13 @@ not know what to pick up". A day later the two are one page, and the gate stands
 thirty days, does the alpha reader open something she found by asking, unprompted? If she
 goes to the library instead, the door was not the problem and the box goes back to a page.
 
+One more door on a page that is not this one: the gloss card in the reader gains Ask,
+and the answer lives in the card, two turns at most, in English, about the text — what
+the form is, why it is that form here — with "Continue in chat" as the way on. The reader
+stays a reader: full page, nothing beside it, and still fetching nothing — the card talks
+to its own origin the way a gloss does today, on the reader's press. Ask is a working
+action and takes the accent; the field and the button are in the thumb registry.
+
 What it does not overturn: one raised layer per view (on Learn, the cards; on the
 conversation page, the thread — the box is a hairline field on both); ink for the door
 that asks somebody to act and accent for Send; no invented currency; counts, never a

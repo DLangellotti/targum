@@ -3042,9 +3042,194 @@ var targumReader = function () {
       card.appendChild(caveat);
     }
 
+    // A word tapped is a question half-asked (2026-09-06). The card's one more working
+    // action: ask targum about this word, here, in this sentence, and read the answer
+    // in the card. Two turns at most; the conversation page is the way on from there.
+    if (canAsk()) card.appendChild(askRow(index, word, shown, lemma));
+
     card.hidden = false;
     seatNear(card, word.getBoundingClientRect());
     lift(word);
+  }
+
+  /* --- asking about a word ---------------------------------------------------
+   *
+   * The question goes up as `POST /chat/say` with a note of where the reader is — the
+   * text, the section, the sentence, the word — and opens a conversation the server
+   * answers in English, about the text. The answer streams back the way the
+   * conversation page's do, into the card. What is kept here is per word, for as long
+   * as the page is open: the card is rebuilt on every tap, and a half-read answer must
+   * not vanish because the reader tapped the word again.
+   */
+
+  //: How many questions a card takes before it hands over to the conversation page.
+  var ASK_TURNS = 2;
+  var asks = {};
+
+  function askState(index) {
+    return asks[index] || (asks[index] = { chat: "", turns: [], busy: false });
+  }
+
+  function askRow(index, word, shown, lemma) {
+    var state = askState(index);
+    var row = document.createElement("div");
+    row.className = "ask";
+    // Clicks and keys inside the row are the row's: a click elsewhere closes the card.
+    row.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+
+    state.turns.forEach(function (turn) {
+      var q = document.createElement("p");
+      q.className = "ask-q";
+      q.textContent = turn.asked;
+      row.appendChild(q);
+      var a = document.createElement("p");
+      a.className = "ask-a" + (turn.error ? " bad" : "") + (turn.done ? "" : " working");
+      a.textContent = turn.text;
+      turn.node = a;
+      row.appendChild(a);
+    });
+
+    if (state.turns.length < ASK_TURNS && !state.busy) {
+      var form = document.createElement("form");
+      form.className = "ask-form";
+      var field = document.createElement("input");
+      field.type = "text";
+      field.className = "ask-field";
+      field.setAttribute("aria-label", "Ask about this word");
+      field.placeholder = state.turns.length ? "One more" : "Ask about this word";
+      field.autocomplete = "off";
+      var go = document.createElement("button");
+      go.type = "submit";
+      go.className = "ask-go";
+      go.textContent = "Ask";
+      form.appendChild(field);
+      form.appendChild(go);
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var text = field.value.trim();
+        if (!text) return;
+        askAbout(index, word, shown, lemma, text);
+      });
+      row.appendChild(form);
+    }
+
+    if (state.chat) {
+      var on = document.createElement("a");
+      on.className = "ask-on";
+      on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
+      on.textContent = "Continue in chat";
+      row.appendChild(on);
+    }
+    return row;
+  }
+
+  function askAbout(index, word, shown, lemma, text) {
+    var state = askState(index);
+    if (state.busy) return;
+    state.busy = true;
+    var turn = { asked: text, text: "", done: false, error: false, node: null };
+    state.turns.push(turn);
+    if (lookedUp === word) showCard(word);
+
+    function settle(said, failed) {
+      turn.text = said;
+      turn.done = true;
+      turn.error = !!failed;
+      state.busy = false;
+      if (lookedUp === word) showCard(word);
+    }
+    function draw(said) {
+      turn.text = said;
+      if (turn.node) turn.node.textContent = said;
+    }
+
+    fetch(keyed("/chat/say"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        chat: state.chat,
+        text: text,
+        about: {
+          document: documentId,
+          section: sectionId,
+          sentence: sentenceOf(word),
+          surface: shown,
+          lemma: lemma,
+        },
+      }),
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .catch(function () {
+        return { error: "Cannot reach targum." };
+      })
+      .then(function (got) {
+        if (!got || got.error) return settle((got && got.error) || "Cannot reach targum.", true);
+        state.chat = got.chat;
+        followAsk(got.chat, got.turn, draw, settle);
+      });
+  }
+
+  // The answer as it streams: the same events the conversation page follows, and the
+  // same fallback where a browser has no EventSource.
+  function followAsk(chat, n, draw, settle) {
+    var text = "";
+    var path = "/chat/stream/" + encodeURIComponent(chat) + "/" + n;
+    if (typeof EventSource === "function") {
+      var source = new EventSource(keyed(path));
+      source.addEventListener("text", function (event) {
+        text += event.data;
+        draw(text);
+      });
+      source.addEventListener("done", function (event) {
+        source.close();
+        var payload = {};
+        try {
+          payload = JSON.parse(event.data || "{}");
+        } catch (e) {
+          payload = {};
+        }
+        settle(payload.text || text, false);
+      });
+      source.addEventListener("error", function (event) {
+        if (event.data) {
+          source.close();
+          var why = {};
+          try {
+            why = JSON.parse(event.data);
+          } catch (e) {
+            why = {};
+          }
+          settle(why.message || "The conversation could not continue.", true);
+        } else if (source.readyState === 2) {
+          poll();
+        }
+      });
+      return;
+    }
+    poll();
+
+    function poll() {
+      fetch(keyed("/chat/turn/" + encodeURIComponent(chat) + "/" + n), {
+        headers: keyHeaders({}),
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .catch(function () {
+          return { error: "Cannot reach targum.", done: true };
+        })
+        .then(function (state) {
+          if (state.error && state.done) return settle(state.error, true);
+          text = state.text || "";
+          draw(text);
+          if (state.done) return settle(text, false);
+          setTimeout(poll, 800);
+        });
+    }
   }
 
   /* --- keeping a phrase ---------------------------------------------------- */

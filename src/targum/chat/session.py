@@ -229,6 +229,31 @@ class Asked:
     heard_seconds: float = 0.0
 
 
+def framed(text: str, about: dict[str, str] | None) -> str:
+    """The reader's line as the model sees it: their note of where they are, then what
+    they asked. The page shows only what they asked (`said`); this is `content`."""
+    if not about:
+        return text
+    where = []
+    if about.get("document"):
+        where.append(f"the text {about['document']}")
+    if about.get("section"):
+        where.append(f"section {about['section']}")
+    lines = [
+        "The reader is reading " + ", ".join(where) + "." if where else "The reader is reading."
+    ]
+    if about.get("surface"):
+        word = f"They tapped the word {about['surface']}"
+        if about.get("lemma") and about["lemma"] != about["surface"]:
+            word += f" (dictionary form {about['lemma']})"
+        lines.append(word + ".")
+    if about.get("sentence"):
+        lines.append(f"The sentence: {about['sentence']}")
+    lines.append("Their question:")
+    lines.append(text)
+    return "\n".join(lines)
+
+
 class Chats:
     """The workers that answer turns, and the feeds their answers stream through."""
 
@@ -300,8 +325,15 @@ class Chats:
         *,
         admin: bool,
         heard_seconds: float = 0.0,
+        about: dict[str, str] | None = None,
     ) -> Asked:
-        """Write the reader's turn down and hand it to a worker. Returns at once."""
+        """Write the reader's turn down and hand it to a worker. Returns at once.
+
+        `about` is where the reader is when the line came from a word's card — the
+        text, the section, the sentence, the word. It rides in the turn the model sees
+        and not in what the page shows back, and it opens the conversation in English:
+        a question about a form is answered about the form, whatever the reader's shelf.
+        """
         if self.store is None:
             raise RuntimeError("a chat needs a store")
         person_id = person.id if person else None
@@ -309,9 +341,10 @@ class Chats:
             # One conversation, in Hebrew, for a reader with modern Hebrew to hold it in;
             # a scripture-only reader is answered in English, about the text. The same
             # question the page asks (`talk` on `/chat/list`), answered the same way.
-            mode = "talk" if self.library.talks(home, person_id) else "find"
+            # A question from a word's card is about the text, in English, for everyone.
+            mode = "talk" if self.library.talks(home, person_id) and not about else "find"
             chat_id = self.store.chat_open(person_id, mode=mode)
-        n = self.store.chat_say(chat_id, "user", text, text, stage="working")
+        n = self.store.chat_say(chat_id, "user", framed(text, about), text, stage="working")
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
         asked = Asked(chat_id, n, person, home, admin, heard_seconds)

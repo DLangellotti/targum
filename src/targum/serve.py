@@ -165,6 +165,10 @@ TRASHED = "trashed"
 # a disk with no server. Rather than `unsafe-inline`, which would allow anything a
 # defect managed to inject, each block is named by the hash of its own contents, so only
 # the code targum wrote will run.
+#: What a word's card may say about where the reader is, and how much of each. The
+#: sentence is the long one; the rest name things.
+ABOUT_FIELDS = {"document": 200, "section": 20, "sentence": 1000, "surface": 80, "lemma": 80}
+
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
@@ -3845,7 +3849,21 @@ class Handler(BaseHTTPRequestHandler):
         if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
             return self._json({"error": "not found"}, 404)
         admin = bool(person and self.store.is_admin(person.email))
-        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin)
+        # Where the reader is, when the line came from a word's card: the text, the
+        # section, the sentence and the word. Strings, capped, and nothing else — a
+        # page can say anything here and the model reads it, so it is quoted as the
+        # reader's note and never trusted as a fact about the shelf.
+        about = None
+        raw = payload.get("about")
+        if isinstance(raw, dict):
+            about = {
+                key: str(raw.get(key) or "")[:limit]
+                for key, limit in ABOUT_FIELDS.items()
+                if raw.get(key)
+            }
+            if not about.get("surface") and not about.get("sentence"):
+                about = None
+        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, about=about)
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     # -- accounts -----------------------------------------------------------

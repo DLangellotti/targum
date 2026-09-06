@@ -351,3 +351,41 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")
     assert status == 402 and "No voice" in body["error"]
     assert call(port, "GET", f"/chat/audio/{store.chat_open(42)}/1?k={key}")[0] == 404
+
+
+def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -> None:
+    """`about` is strings, capped, and only the fields the card sends; a note with no
+    word and no sentence is no note. The conversation it opens is the English kind."""
+    port, key, store, chats = chatting
+    status, asked, _ = call(
+        port,
+        "POST",
+        f"/chat/say?k={key}",
+        {
+            "chat": "",
+            "text": "why this form?",
+            "about": {
+                "document": "judges-he",
+                "section": "1",
+                "sentence": "s" * 2000,
+                "surface": "וַיִּלְחֲצוּ",
+                "lemma": "לחץ",
+                "colour": "not a field",
+            },
+        },
+    )
+    assert status == 200
+    turn = store.chat_turns(asked["chat"])[0]
+    assert turn["said"] == "why this form?"
+    assert "judges-he" in turn["content"] and "not a field" not in turn["content"]
+    assert "s" * 1000 in turn["content"] and "s" * 1001 not in turn["content"], "capped"
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "find"
+
+    status, asked, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "about": {"colour": "x"}}
+    )
+    assert status == 200
+    assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "no word, no sentence: no note"
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "talk"

@@ -19,6 +19,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Library.talks` decides it from the shelf, and `/readers` and `/chat/list` both say
   it as `talk`. `design.md` §12 records the day's decisions and what was cut ("The front
   door is a question").
+- A word tapped is a question half-asked. The gloss card gains one more working action,
+  Ask: a question typed there goes up with a note of where the reader is — the text, the
+  section, the sentence, the word — and the answer streams back into the card the way
+  the conversation page's do, in English, about the text: what the form is, why it is
+  that form here, where they have met it before. Two questions, then "Continue in chat"
+  carries the conversation on. The note rides in the turn the model sees and not in
+  what the page shows back, it is strings and capped, and it opens the conversation in
+  English whatever the shelf would have offered; on scripture the model is told to
+  write no Hebrew of its own beyond what the text says. The reader still fetches
+  nothing it did not already: the card talks to its own origin the way a gloss does.
 - targum has a chat. `/chat` is a door on the rooms that already exist: ask what to read
   next and it answers from the library measured against your own words; ask what you have
   read and it answers from your ledger; ask about a build and it reports where it has got
