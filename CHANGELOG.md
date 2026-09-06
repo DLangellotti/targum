@@ -19,6 +19,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Library.talks` decides it from the shelf, and `/readers` and `/chat/list` both say
   it as `talk`. `design.md` §12 records the day's decisions and what was cut ("The front
   door is a question").
+- Bringing a text is one press. The `+` on the box — on Learn and on the conversation
+  page — takes a file or a recording, sends it up the way the Add page does (a
+  recording in pieces, anything else whole), prices it with `/prepare`, and draws the
+  same card the model's quote draws, under the box or as a turn in the thread, with no
+  model in the loop; the card's button is the spend, and its "More options" is the Add
+  page, kept for the two things only its form can say — a translation of your own, a
+  transcript of your own. A link goes in the field like anything else said to targum.
+  The upload, the price in the reader's time, the plain words for a build's progress
+  and the card are one script now (`bring.js`), shared by the Add page, the box and the
+  conversation page, because two answers to one question drift.
 - The thread is drawn as the text it becomes. In Hebrew, every line the model writes is
   read the way a text is read the moment the reply is whole — the same lemmatizer a
   build uses, warmed when the chat's workers start (`chat/record.py`; measured first:

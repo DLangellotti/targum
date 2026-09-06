@@ -30,13 +30,13 @@
   var send = document.getElementById("chat-send");
   var mic = document.getElementById("chat-mic");
   var bring = document.getElementById("chat-bring");
+  var file = document.getElementById("chat-file");
+  var brought = document.getElementById("chat-brought");
   var said = document.getElementById("chat-said");
   if (!form || !field || !send) return;
   // The conversation page carries the same box and its own script for it; this one
   // stands down there rather than answering the same press twice.
   if (window.TargumChat) return;
-
-  if (bring) bring.href = keyed(bring.getAttribute("href"));
 
   var speak = window.TargumSpeak;
   var busy = false;
@@ -137,6 +137,52 @@
     };
   }
 
+  // A file chosen by the +: up, priced, and the card drawn under the box — the Add
+  // page's whole job in one press, with "More options" on the card for the two things
+  // only its form can say. The card's button is the spend; the strip in the header
+  // carries the build and its door when it is done.
+  var bringing = window.TargumBring;
+  function bringFile(chosen) {
+    if (!chosen || !bringing || !brought) return;
+    busy = true;
+    send.disabled = true;
+    brought.textContent = "";
+    tell("Uploading…");
+    var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
+    bringing
+      .bring(chosen, { to: into }, function (share) {
+        tell("Uploading… " + share + "%");
+      })
+      .then(function (job) {
+        tell("");
+        if (job.reader) {
+          // The same bytes were already brought: the text is the answer.
+          window.location.href = keyed(
+            "/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/")
+          );
+          return;
+        }
+        if (job.error) return tell(job.error);
+        bringing.quoteCard(brought, job);
+      })
+      .catch(function (why) {
+        tell(String(why || "That did not go through. Try again."));
+      })
+      .then(function () {
+        busy = false;
+        send.disabled = false;
+        if (file) file.value = "";
+      });
+  }
+  if (bring && file) {
+    bring.onclick = function () {
+      if (!busy) file.click();
+    };
+    file.onchange = function () {
+      bringFile(file.files && file.files[0]);
+    };
+  }
+
   showMic();
   ask("/chat/list").then(function (answer) {
     if (answer.error) return;
@@ -145,5 +191,5 @@
     showMic();
   });
 
-  window.TargumBox = { say: say, hear: hear };
+  window.TargumBox = { say: say, hear: hear, bring: bringFile };
 })();

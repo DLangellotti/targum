@@ -101,7 +101,9 @@ global.fetch = (url, options) => {
       body:
         options.body && options.body.type
           ? "<blob " + options.body.type + ">"
-          : JSON.parse(options.body || "{}"),
+          : typeof options.body === "string" || !options.body
+            ? JSON.parse(options.body || "{}")
+            : "<chunk>",
     });
   }
   return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
@@ -110,6 +112,25 @@ global.fetch = (url, options) => {
 // Arrived from the front door with a conversation in the hash, when the payload says so.
 if (payload.hash) global.location.hash = global.window.location.hash = payload.hash;
 
+
+// A file the reader chose, and the two things a script does with one: read it whole
+// (`FileReader`, answering base64 of what the payload gave), or cut it into pieces.
+function fakeFile(spec) {
+  return {
+    name: spec.name,
+    size: spec.size || 12,
+    slice: () => ({ piece: true }),
+    _content: spec.content || "text",
+  };
+}
+global.FileReader = class {
+  readAsDataURL(file) {
+    this.result = "data:text/plain;base64," + Buffer.from(file._content).toString("base64");
+    setImmediate(() => this.onload());
+  }
+};
+
+require(path.join(assets, "bring.js"));
 require(path.join(assets, "speak.js"));
 require(path.join(assets, "chat.js"));
 
@@ -122,7 +143,7 @@ function lineOf(li) {
 function cards() {
   const out = [];
   const walk = (node) => {
-    if (String(node.className).split(" ")[0] === "quote") {
+    if (String(node.className).split(" ")[0] === "quote-card") {
       const by = (cls) => node.children.find((c) => String(c.className).split(" ").includes(cls));
       const title = by("quote-title");
       out.push({
@@ -133,6 +154,7 @@ function cards() {
         meta: by("quote-meta") ? by("quote-meta").textContent : "",
         note: by("quote-note") ? by("quote-note").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
+        more: by("quote-more") ? by("quote-more").href : "",
       });
     }
     (node.children || []).forEach(walk);
@@ -210,6 +232,12 @@ function drawn() {
     }
     if (step.type === "stream") {
       sources[sources.length - 1].fire(step.event, step.data || "");
+    }
+    if (step.type === "file") {
+      byId["chat-file"].files = [fakeFile(step.file)];
+      byId["chat-file"].onchange();
+      // An upload is several round trips; let them all settle.
+      for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     if (step.type === "record") {
       // Two presses: start, then stop — which is when the clip goes up.

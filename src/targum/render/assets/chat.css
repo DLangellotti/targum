@@ -236,56 +236,6 @@ body.chat > .chat-main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
-/* --- a quote --------------------------------------------------------------- */
-
-/* Inside the thread, which is the one raised layer: §9, if a card needs a card, use a
-   hairline. The title is ink, the facts are muted, the button that starts a build is a
-   call to action and takes the max-contrast pair (§9: calls to action are ink). */
-.quote {
-  margin-block-start: 0.5rem;
-  padding: 0.75rem 0.9rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  display: grid;
-  gap: 0.35rem;
-  justify-items: start;
-}
-.quote-title {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.0625rem;
-  line-height: 1.75;
-  color: var(--ink);
-}
-.quote-title bdi { line-height: 1.95; }
-.quote-english {
-  margin-inline-start: 0.6em;
-  font-family: system-ui, sans-serif;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
-.quote-meta {
-  margin: 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
-.quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
-.quote.refused .quote-note { color: var(--clay); }
-.quote-go {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.55rem 1rem;
-  border: 0;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--paper);
-  cursor: pointer;
-}
-.quote-go:hover { background: var(--ink-soft); }
-.quote-go:disabled { opacity: 0.5; cursor: default; }
-
 /* --- a door ---------------------------------------------------------------- */
 
 /* A path the model hands over is drawn as the one thing a path is for: opening the
@@ -316,7 +266,6 @@ body.chat > .chat-main {
 @media (hover: none) and (pointer: coarse) {
   .chat-new,
   .chat-list button,
-  .quote-go,
   .chat-door,
   .chat-play,
   .chat-save,

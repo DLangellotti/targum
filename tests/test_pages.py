@@ -60,12 +60,18 @@ def test_add_still_does_everything_only_it_could() -> None:
     assert 'id="status"' in add, "the price-before-you-commit surface"
 
 
-def test_only_add_builds_anything() -> None:
-    """The front door stopped being a form, which is the whole point of the change."""
-    for name in ("learn", "library", "progress"):
+def test_the_library_and_the_progress_page_build_nothing() -> None:
+    """The front door stopped being a form, which was the whole point of the change;
+    since 2026-09-06 it carries one press instead, the `+` on the box, which prices a
+    file in place and is not a form either. The library and the progress page take
+    nothing at all."""
+    for name in ("library", "progress"):
         page = PAGES[name]
         assert 'type="file"' not in page, f"{name} should not take uploads"
         assert 'id="source"' not in page, f"{name} should not take a source"
+    learn = PAGES["learn"]
+    assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
+    assert learn.count('type="file"') == 1, "one hidden input behind the +"
 
 
 def test_the_library_carries_nothing_personal() -> None:
@@ -155,8 +161,10 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     on the box, on both pages that carry one, and nothing in the nav points at it."""
     for name in ("learn", "chat"):
         page = PAGES[name]
-        assert 'id="chat-bring"' in page and 'href="/add"' in page, name
+        assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
+    bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
+    assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
     assert order.index("learn") == 0
 

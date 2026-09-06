@@ -163,7 +163,7 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["button"] == "Read this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
-    assert card["note"].startswith("Building.") and card["cls"] == "quote started"
+    assert card["note"].startswith("Building.") and card["cls"] == "quote-card started"
     assert page["stripAsked"] == 1, "the strip is told to look again"
 
 
@@ -182,7 +182,7 @@ def test_a_blocked_quote_has_no_button() -> None:
     )
     card = page["cards"][0]
     assert card["button"] == "" and card["note"].startswith("Too long")
-    assert card["cls"] == "quote refused"
+    assert card["cls"] == "quote-card refused"
 
 
 def test_a_recording_is_quoted_in_hours() -> None:
@@ -214,7 +214,7 @@ def test_a_refused_press_says_why_on_the_card() -> None:
         },
     )
     card = page["cards"][0]
-    assert card["note"].startswith("Building a lot") and card["cls"] == "quote refused"
+    assert card["note"].startswith("Building a lot") and card["cls"] == "quote-card refused"
     assert page["stripAsked"] == 0
 
 
@@ -517,3 +517,41 @@ def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
     )
     assert [w["state"] for w in page["pairs"][1]["words"]] == ["known", "learning", "new", ""]
     assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")
+
+
+def test_a_file_chosen_by_the_plus_is_priced_in_the_thread() -> None:
+    """The + on the conversation page: the file goes up, is priced, and the card is a
+    turn of its own — no model in the loop, and the same card the model's quote is."""
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
+        answers={"/prepare": QUOTE},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare"], "no line was said"
+    (card,) = page["cards"]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["more"] == "/add?k=k"
+    assert page["turns"][-1]["cls"] == "chat-turn them"
+    assert page["sendDisabled"] is False
+
+
+def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
+        answers={
+            "/upload/begin": {"upload": "u1", "chunk": 5},
+            "/upload/u1/0": {},
+            "/upload/u1/1": {},
+            "/upload/u1/end": {"upload": "u1"},
+            "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1),
+        },
+    )
+    assert [p["path"] for p in page["posted"]] == [
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/1",
+        "/upload/u1/end",
+        "/prepare",
+    ]
+    assert page["posted"][-1]["body"]["upload"] == "u1"
+    (card,) = page["cards"]
+    assert card["meta"].startswith("10 minutes of audio")

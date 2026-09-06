@@ -349,7 +349,10 @@ of looking at that product — one box on the front page that makes the thing, t
 conversation beside it — Learn now carries one box under the ledger's own sentence, and
 nothing else on the page moves. The box takes a request, a link, a file by its `+`, or a
 word, and Speak where the browser records. A line typed there opens a conversation and
-goes to it; nothing is answered on Learn. Chat is no longer a place in the nav and Upload
+goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in one
+press: a file or a recording goes up as it did there, is priced in place, and the card
+the model's quote draws stands under the box, its button the only spend and its "More
+options" the Add page, kept for a translation or a transcript of the reader's own. Chat is no longer a place in the nav and Upload
 is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
 the conversation page marks Learn, the way Learn's own lists do.
 

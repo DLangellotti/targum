@@ -322,35 +322,12 @@
     };
   })();
 
-  /* A recording goes up in pieces: the JSON door reads its whole body into memory as
-     base64, which for an audiobook is the wrong door. Sequential on purpose — the
-     server is one worker and the reader's uplink is the bottleneck either way. */
+  // The upload, the price and the plain words for a build are bring.js's now: the same
+  // three the box on Learn and the conversation page use, so no page answers the one
+  // question differently.
+  var bringing = window.TargumBring;
   function uploadInChunks(file, tell) {
-    return ask("/upload/begin", { name: file.name, size: file.size }).then(function (opened) {
-      if (opened.error) throw opened.error;
-      var piece = opened.chunk;
-      var count = Math.ceil(file.size / piece);
-
-      function send(n) {
-        if (n >= count) {
-          return ask("/upload/" + opened.upload + "/end", {});
-        }
-        return fetch(keyed("/upload/" + opened.upload + "/" + n), {
-          method: "POST",
-          headers: keyHeaders({ "Content-Type": "application/octet-stream" }),
-          body: file.slice(n * piece, (n + 1) * piece),
-        })
-          .then(function (response) {
-            return response.json();
-          })
-          .then(function (state) {
-            if (state.error) throw state.error;
-            tell(Math.round(((n + 1) / count) * 100));
-            return send(n + 1);
-          });
-      }
-      return send(0);
-    });
+    return bringing.uploadInChunks(file, tell);
   }
 
   /* --- building ------------------------------------------------------------ */
@@ -650,28 +627,8 @@
     return document.createTextNode(named(job.language) + " · " + what);
   }
 
-  // What it will take, in the only currency the reader is spending: their time. What
-  // it costs us is our business and never theirs — they pay by the month.
   function price(job) {
-    if (job.audio && job.parts > 0) {
-      // The wait is the first part's: hearing it, then translating it.
-      var spoken = job.seconds / job.parts / 60;
-      var listening = Math.max(1, Math.round(spoken / 6));
-      var translating = Math.max(1, Math.round((job.total || 25) / 25));
-      var wait = listening + translating;
-      var opener = job.parts > 1 ? "First part in " : "Ready in ";
-      if (wait <= 1) return opener + "about a minute.";
-      if (wait <= 4) return opener + "a few minutes.";
-      return opener + "about " + wait + " minutes.";
-    }
-    if (!job.estimate) return "Ready in a moment.";
-    // A book opens on its first chapter, so the wait is that chapter's — not the
-    // novel's. `total` is what is being translated now.
-    var minutes = Math.max(1, Math.round((job.total || job.segments) / 25));
-    var start = job.chapters > 1 ? "First chapter in " : "";
-    if (minutes <= 1) return start ? start + "about a minute." : "About a minute.";
-    if (minutes <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
-    return start + "about " + minutes + " minutes.";
+    return bringing.wait(job);
   }
 
   // This text is already in the library with a translation somebody published, which is
@@ -792,20 +749,8 @@
     say(box);
   }
 
-  var PLAIN = {
-    "Finding each word's dictionary form…": "Reading the words…",
-    "Adding vowel points…": "Adding vowel points…",
-    "Building the reader…": "Setting the page…",
-  };
-
   function plain(message) {
-    if (!message) return "Getting it ready…";
-    if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining up…";
-    if (message.indexOf("Transcribing") === 0) return "Writing down what is said…";
-    if (message.indexOf("Finding the pauses") === 0) return "Finding the pauses…";
-    if (message.indexOf("Looking up") === 0) return "Looking words up…";
-    return "Getting it ready…";
+    return bringing.plain(message);
   }
 
   function watch(job) {

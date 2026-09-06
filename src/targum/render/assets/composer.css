@@ -35,23 +35,88 @@
 }
 .composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
 
-/* A file, a link or a recording: the Add page, reached from the box rather than from a
-   corner of the nav (2026-09-06). A typed `+` as itself (§7), in a ring the size of the
-   buttons beside it. */
+/* A file or a recording, brought and priced in place (2026-09-06): the Add page's job
+   in one press, where Upload was a corner of the nav. A typed `+` as itself (§7), in a
+   ring the size of the buttons beside it; a working control, so ink-bordered. */
 .chat-bring {
   display: inline-grid;
   place-items: center;
   width: 2.4rem;
   height: 2.4rem;
+  padding: 0;
   border: 1px solid var(--ink-soft);
   border-radius: 999px;
+  background: transparent;
+  font: inherit;
   font-size: 1.0625rem;
   line-height: 1;
   color: var(--ink);
-  text-decoration: none;
+  cursor: pointer;
 }
 .chat-bring:hover { background: var(--paper-raised); }
 .chat-bring:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.chat-brought:empty { display: none; }
+.chat-brought { margin-block-start: 0.75rem; }
+
+/* --- a quote --------------------------------------------------------------- */
+
+/* The card a brought or quoted text is: inside the thread, which is that page's one
+   raised layer, or under the box on Learn — §9, if a card needs a card, use a
+   hairline. The title is ink, the facts are muted, the button that starts a build is a
+   call to action and takes the max-contrast pair (§9: calls to action are ink). */
+.quote-card {
+  margin-block-start: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.quote-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.quote-title bdi { line-height: 1.95; }
+.quote-english {
+  margin-inline-start: 0.6em;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.quote-meta {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.quote-card.refused .quote-note { color: var(--clay); }
+.quote-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.quote-go:hover { background: var(--ink-soft); }
+.quote-go:disabled { opacity: 0.5; cursor: default; }
+
+.quote-more {
+  font-size: 0.8125rem;
+  color: var(--accent);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.quote-more:hover { border-block-end-color: var(--accent); }
+
 
 /* Speak is a working action, so it takes the working treatment: ink border, not the
    accent the one send button holds (§4: one accent, rationed). Recording is a state
@@ -91,7 +156,8 @@
 @media (hover: none) and (pointer: coarse) {
   .chat-send,
   .chat-mic,
-  .chat-bring {
+  .chat-bring,
+  .quote-go {
     min-height: 44px;
     min-width: 44px;
   }

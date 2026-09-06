@@ -43,6 +43,24 @@ def run(
     return json.loads(done.stdout)
 
 
+QUOTE = {
+    "id": "j1",
+    "title": "סיפור קצר",
+    "english": "A short story",
+    "language": "he",
+    "segments": 40,
+    "total": 40,
+    "chapters": 1,
+    "estimate": 0.12,
+    "stage": "ready",
+    "blocked": "",
+    "error": "",
+    "audio": False,
+    "seconds": 0,
+    "parts": 0,
+}
+
+
 def test_a_line_opens_a_conversation_and_goes_to_it() -> None:
     page = run(
         do=[{"type": "say", "text": "something short for tonight"}],
@@ -103,5 +121,65 @@ def test_a_spoken_line_opens_a_conversation_too() -> None:
     assert page["went"] == "/chat?k=k#abc"
 
 
-def test_the_plus_is_the_add_page_with_the_key_on_it() -> None:
-    assert run()["bring"] == "/add?k=k"
+UPLOAD = {
+    "/upload/begin": {"upload": "u1", "chunk": 4},
+    "/upload/u1/0": {},
+    "/upload/u1/1": {},
+    "/upload/u1/2": {},
+    "/upload/u1/end": {"upload": "u1"},
+}
+
+
+def test_a_file_chosen_by_the_plus_is_priced_under_the_box() -> None:
+    """The Add page's job in one press: a text read whole, `/prepare` asked, the card
+    drawn under the box with the same button the model's quote has, and the Add page
+    one link away for the two things only its form can say."""
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
+        answers={"/prepare": QUOTE},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare"]
+    sent = page["posted"][0]["body"]
+    assert sent["name"] == "story.txt" and sent["content"], "read whole, as base64"
+    assert sent["words"] is True and sent["gloss"] is False and sent["to"] == "en"
+    (card,) = page["brought"]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["more"] == "/add?k=k", "the Add page, for a translation of your own"
+    assert page["went"] == "", "nowhere: the card is the answer"
+    assert page["sendDisabled"] is False
+
+
+def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
+        answers={**UPLOAD, "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1)},
+    )
+    paths = [p["path"] for p in page["posted"]]
+    assert paths == [
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/1",
+        "/upload/u1/2",
+        "/upload/u1/end",
+        "/prepare",
+    ]
+    assert page["posted"][-1]["body"]["upload"] == "u1", "priced by its upload, not its bytes"
+    (card,) = page["brought"]
+    assert "minutes of audio" in card["title"] or card["button"] == "Read this"
+
+
+def test_the_same_bytes_already_brought_open_the_text() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
+        answers={**UPLOAD, "/upload/u1/end": {"reader": "שיחה-he/reader/index.html"}},
+    )
+    assert page["went"] == "/reader/%D7%A9%D7%99%D7%97%D7%94-he/reader/index.html?k=k"
+    assert "/prepare" not in [p["path"] for p in page["posted"]]
+
+
+def test_a_refused_file_is_said_under_the_box() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "x"}}],
+        answers={"/prepare": {"error": "Nothing new can be built now."}},
+    )
+    assert page["brought"] == [] and page["said"]["text"] == "Nothing new can be built now."
