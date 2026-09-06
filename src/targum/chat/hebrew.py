@@ -65,7 +65,10 @@ ENGLISH = "= "
 
 CONTRACT = f"""The reader has switched this conversation to Hebrew. From here:
 
-- Write in Hebrew, with vowel points (nikkud) on every word.
+- Write in Hebrew, with vowel points (nikkud) on every word — on the full spelling the
+  reader meets in a newspaper (ktiv male), not the defective spelling pointed text once
+  used: לִקְרוֹא and not לִקְרֹא, שׁוּלְחָן and not שֻׁלְחָן. The word should look like the
+  one on their ledger, with its vowels added.
 - Every Hebrew sentence goes on its own line. Directly under it, on the next line, its
   English, beginning with "{ENGLISH}". Never a Hebrew line without its English line.
 - Begin every reply with the reader's own line, in Hebrew: a line beginning "{RECAST}"

@@ -92,6 +92,7 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
     said = " ".join(hebrew.CONTRACT.split())  # the prose is wrapped; the words are what count
     assert '"= "' in said and '"> "' in said
     assert "vowel points" in said and "At most one word outside" in said
+    assert "ktiv male" in said and "לִקְרוֹא" in said, "the full spelling a modern reader meets"
     assert "Begin every reply with the reader's own line" in said, (
         "every reader turn carries its English"
     )
