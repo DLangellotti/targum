@@ -274,6 +274,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   box could not look. Three searches a turn at most, each counted, inside the same
   rails every turn is; what it may look at is still the publishers' hosts and the
   public ones.
+- The Hebrew the chat writes is written as Hebrew. The recast of a reader's English
+  was carrying their grammar mistakes and their English word order into the line of
+  record, and the model's own lines read as translated English ("זה ישר" for
+  "plainly"). The contract now says the recast is what they meant, said the way a
+  Hebrew speaker says it, and that its own lines are written in Hebrew first, the
+  English under each being the English for the Hebrew and not the sentence it started
+  from.
 - The chat knows the ladder a reader may name. Asked for "a bet plus level", it did not
   know what that was: the rungs and what each is reckoned to want are written into the
   prompt from the one table `level.py` keeps, and it is still told never to hand the

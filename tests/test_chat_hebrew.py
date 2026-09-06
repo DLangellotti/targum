@@ -96,6 +96,11 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
     assert "Begin every reply with the reader's own line" in said, (
         "every reader turn carries its English"
     )
+    # Literal Hebrew, 2026-09-06: a recast that carried the reader's English grammar
+    # mistakes and word order, and the model's own lines read as translated English.
+    assert "Never carry their grammar mistakes" in said
+    assert "Write your own lines in Hebrew first" in said and "no calques" in said
+    assert "the English for the Hebrew you wrote" in said
     assert "never tell the reader they are at a level" in said.lower()
     assert "its path" in said and "draws it as a door" in said, "opened, not declared open"
     assert "!" not in said
