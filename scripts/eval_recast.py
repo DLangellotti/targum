@@ -191,8 +191,23 @@ def main() -> None:
 
     client = anthropic.Anthropic()
     usage = Usage()
+    # Every recast is written to --save the moment it exists, and a run that starts
+    # with that file already there reuses them: a run that died at 180 of 200 (the API
+    # account ran out of credit, 2026-09-07) had bought the recasts and kept none.
+    earlier: dict[int, str] = {}
+    if args.save and args.save.is_file():
+        for line in args.save.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                kept = json.loads(line)
+                if kept.get("got"):
+                    earlier[int(kept["id"])] = str(kept["got"])
+    if earlier:
+        print(f"  {len(earlier)} recasts kept from an earlier run", flush=True)
     candidates: list[str] = []
     for n, row in enumerate(chosen):
+        if int(row["id"]) in earlier:
+            candidates.append(earlier[int(row["id"])])
+            continue
         block = ledger
         if args.exemplars:
             picked = exemplars.pick(pool, allowed, seed=args.seed * 1000 + n)
@@ -203,6 +218,16 @@ def main() -> None:
             {"type": "text", "text": block},
         ]
         candidates.append(recast(client, system, str(row["en"]), usage))
+        if args.save:
+            args.save.parent.mkdir(parents=True, exist_ok=True)
+            with args.save.open("a", encoding="utf-8") as out:
+                out.write(
+                    json.dumps(
+                        {"id": row["id"], "en": row["en"], "ref": row["he"], "got": candidates[-1]},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
         if (n + 1) % 20 == 0:
             print(f"  {n + 1}/{len(chosen)} recast", flush=True)
 
