@@ -3910,9 +3910,30 @@ def test_a_reader_opened_from_disk_keeps_what_it_was_told(browser, built: Path) 
     page.wait_for_selector(".pair")
     page.add_style_tag(content="* { overflow-anchor: none !important; }")
     page.wait_for_function("() => !!document.querySelector('.w')")
+    # Did the browser still have what the reader wrote? Asked of the shelf, which is the
+    # copy that commits, and asked *after* the navigation rather than before it — the
+    # check above ran in the previous document and cannot answer for this one.
+    #
+    # This is the test's precondition, not its subject. A reader cannot put back a place
+    # the browser threw away, so a page that comes back to an empty store is not evidence
+    # about the reader at all. Chromium discards a `file://` origin's storage between
+    # navigations on a loaded runner, which is what four of the failures in
+    # targum-internal#204 were: reproduced exactly — `words: 280`, `here: False`,
+    # `kept: {}`, the same 3271px — by giving the second load a fresh partition, and
+    # reproduced by nothing else. A lost `localStorage` write and a recovery three times
+    # past `durable.js`'s patience were both tried, in this test's own shape, and the
+    # reader put the place back in both.
+    survived = page.evaluate(KEPT, before["id"])
     after = page.evaluate(AT, before["id"])
     held = page.evaluate(RESTORED)
     context.close()
+
+    if not survived:
+        pytest.skip(
+            "the browser dropped this file:// origin's storage across the navigation, so "
+            f"there was no place for the reader to come back to (held {held}). Not a "
+            "reader failure: see targum-internal#204."
+        )
 
     assert after is not None, (
         f"the sentence is not on the page the reader came back to. left at {before}, "
