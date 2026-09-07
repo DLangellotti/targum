@@ -101,6 +101,22 @@ def replayable(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+#: A byte-level tokenizer can emit a byte that is not a character, and the API hands it
+#: back decoded as U+FFFD. It happens rarely and it happened in pointed Hebrew: one turn
+#: on 2026-09-07 wrote מָסָךְ שֶ�ל, the shin dot dropped and a black diamond left in its
+#: place. Nothing downstream survives it — the annotator lemmatised the word as `[unk]`
+#: and banded it 6, so it entered the reader's ledger as a word nobody knows, and the
+#: transcript would have carried the diamond into any targum built from the conversation.
+#: The mark is dropped rather than guessed: `שֶל` is a real word missing a point, and
+#: putting the point back would be inventing what the model did not write.
+BROKEN = "�"
+
+
+def written(text: str) -> str:
+    """Model-written text, with what is not a character taken out."""
+    return text.replace(BROKEN, "") if BROKEN in text else text
+
+
 def _content(reply: Any) -> list[dict[str, Any]]:
     """A reply's content blocks as plain dicts, exactly as they must be replayed.
 
@@ -110,11 +126,18 @@ def _content(reply: Any) -> list[dict[str, Any]]:
     """
     dump = getattr(reply, "model_dump", None)
     if callable(dump):
-        return replayable([dict(block) for block in dump()["content"]])
-    out: list[dict[str, Any]] = []
-    for block in reply.content:
-        out.append(dict(block) if isinstance(block, dict) else dict(vars(block)))
-    return replayable(out)
+        blocks = replayable([dict(block) for block in dump()["content"]])
+    else:
+        out: list[dict[str, Any]] = []
+        for block in reply.content:
+            out.append(dict(block) if isinstance(block, dict) else dict(vars(block)))
+        blocks = replayable(out)
+    for block in blocks:
+        # Only a text block. A thinking block is signed and a tool-use block is replayed
+        # as it came; neither is ours to touch.
+        if block.get("type") == "text" and isinstance(block.get("text"), str):
+            block["text"] = written(block["text"])
+    return blocks
 
 
 def _said(blocks: list[dict[str, Any]]) -> str:
@@ -164,7 +187,7 @@ def run_turn(
                 if getattr(event, "type", "") == "content_block_delta":
                     delta = getattr(event, "delta", None)
                     if getattr(delta, "type", "") == "text_delta":
-                        feed.put("text", str(getattr(delta, "text", "")))
+                        feed.put("text", written(str(getattr(delta, "text", ""))))
             reply = stream.get_final_message()
         got = getattr(reply, "usage", None)
         if got is not None:

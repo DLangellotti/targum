@@ -732,3 +732,42 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     assert "sent a recording" in session_module.framed(
         "?", None, {"title": "t", "from": "recording"}
     )
+
+
+def test_a_byte_the_model_could_not_write_never_reaches_the_reader(tmp_path: Path) -> None:
+    """A byte-level tokenizer emits a byte that is not a character and the API hands it
+    back as U+FFFD. It happened in pointed Hebrew on 2026-09-07 — מָסָךְ שֶ�ל, the shin
+    dot gone and a black diamond in its place, which the annotator then lemmatised as
+    `[unk]` and put on the reader's ledger. Dropped on the way in, in the stream and in
+    what is kept, so nothing downstream ever sees one."""
+    library, store = world(tmp_path)
+    broken = "מָסָךְ שֶ�ל וָואטְסְאַפּ."
+    client = Script([reply([{"type": "text", "text": broken}])])
+    feed = session_module.Feed()
+    kept: list[tuple[str, list[dict[str, Any]], str]] = []
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "מה זה"}],
+        feed,
+        lambda role, content, said: kept.append((role, content, said)),
+    )
+    assert "�" not in feed.text(), "the live stream shows no diamond"
+    assert kept[0][2] == "מָסָךְ שֶל וָואטְסְאַפּ.", "the point is not guessed back, only the byte goes"
+    assert "�" not in kept[0][1][0]["text"], "nor does what is replayed to the API"
+
+
+def test_a_thinking_block_is_never_touched_on_the_way_through(tmp_path: Path) -> None:
+    """Its signature is over what the model wrote; a block changed by us is a 400."""
+    library, store = world(tmp_path)
+    signed = {"type": "thinking", "thinking": "a�b", "signature": "sig"}
+    client = Script([reply([signed, {"type": "text", "text": "ok"}])])
+    kept: list[list[dict[str, Any]]] = []
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "hi"}],
+        session_module.Feed(),
+        lambda role, content, said: kept.append(content),
+    )
+    assert kept[0][0]["thinking"] == "a�b"
