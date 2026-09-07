@@ -18,6 +18,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   built is seen before the press. Every block carries its page as `ref`, and a line
   with no Hebrew in it is marked English so the lemmatizer leaves it alone. New
   `bring` extra: `pillow`, `pillow-heif`, `pypdf`.
+- A chat photographed off a phone is a dialogue. A screenshot of WhatsApp, Telegram,
+  SMS or the like is read as turns — the model writes `[conversation]` and one
+  `name: message` a paragraph — and drawn the way the shelf's own scenes are: the
+  speaker beside the line, out of the text, never pointed, counted or read aloud.
+  The chat is named on the shelf for the other side. A turn's speaker now reaches the
+  reader from its block, so a saved conversation shows who said what without a
+  recording too.
 - The box is the front door. Learn carries one field under the ledger's own sentence —
   a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
   records — and a line typed there opens a conversation and goes to it, with the new

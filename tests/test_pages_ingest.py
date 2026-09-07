@@ -167,7 +167,7 @@ def test_a_folder_of_pictures_is_one_text_in_name_order(tmp_path: Path, read_by_
     (folder / "notes.txt").write_text("ignored", encoding="utf-8")
 
     document = ingest.load(str(folder))
-    assert document.ingester == "picture/1"
+    assert document.ingester == "picture/2"
     assert [block.ref for block in document.blocks] == ["p1", "p1", "p2", "p2", "p3", "p3"]
     expected = [
         f"page for {len(vision.prepared(folder / f'{n:02d}-photo.png')[0])}" for n in (1, 2, 3)
@@ -178,7 +178,7 @@ def test_a_folder_of_pictures_is_one_text_in_name_order(tmp_path: Path, read_by_
 
 def test_one_picture_is_a_text_too(read_by_name) -> None:
     document = ingest.load(str(FIXTURES / "screenshot.png"))
-    assert document.ingester == "picture/1"
+    assert document.ingester == "picture/2"
     assert document.blocks and document.blocks[0].ref == "p1"
 
 
@@ -204,3 +204,75 @@ def test_a_picture_with_no_words_is_said_so(monkeypatch: pytest.MonkeyPatch) -> 
 def test_pdf_and_pictures_are_sources_the_dispatcher_names() -> None:
     named = ingest.sources()
     assert ".pdf" in named and ".png" in named and ".heic" in named
+
+
+# --- a chat photographed off a phone ------------------------------------------------
+
+
+def test_a_conversation_is_turns_with_the_speaker_beside_the_line() -> None:
+    """A WhatsApp screenshot is a dialogue, and drawn like the shelf's own: the name on
+    the block and out of the text, so it is never pointed, counted or read aloud."""
+    document = pages_module.document_from_pages(
+        "set",
+        [["אמא: מה שלומך?", "", "me: הכל טוב, ואת?", "", "אמא: בסדר גמור.", "נתראה מחר"]],
+        ingester="picture/2",
+        source_hash="x",
+        conversation=True,
+    )
+    assert [block.kind for block in document.blocks] == [BlockKind.turn] * 3
+    assert [block.speaker for block in document.blocks] == ["אמא", "me", "אמא"]
+    assert [block.text for block in document.blocks] == [
+        "מה שלומך?",
+        "הכל טוב, ואת?",
+        "בסדר גמור. נתראה מחר",
+    ]
+    assert document.title == "אמא", "the other side names the chat on the shelf"
+
+
+def test_a_message_with_no_name_is_the_same_person_still_talking() -> None:
+    document = pages_module.document_from_pages(
+        "set",
+        [["דני: היי", "", "אתה בא?", "", "me: כן"]],
+        ingester="picture/2",
+        source_hash="x",
+        conversation=True,
+    )
+    assert [(b.speaker, b.text) for b in document.blocks] == [
+        ("דני", "היי"),
+        ("דני", "אתה בא?"),
+        ("me", "כן"),
+    ]
+
+
+def test_without_the_mark_a_colon_is_just_a_colon() -> None:
+    document = pages_module.document_from_pages(
+        "set", [["הערה: זה משפט."]], ingester="picture/2", source_hash="x"
+    )
+    assert document.blocks[0].kind is BlockKind.paragraph and document.blocks[0].speaker is None
+    assert pages_module.turn_of("22:15 שחרית") is None, "a time is not a speaker"
+    assert pages_module.turn_of("Note that this is prose.") is None
+
+
+def test_a_conversation_photographed_over_two_screens_is_one_dialogue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    folder = tmp_path / "chat"
+    folder.mkdir()
+    for n in (1, 2):
+        Image.new("RGB", (10 + n, 10), "white").save(folder / f"{n:02d}-screen.png")
+    answers = iter(["[conversation]\nאמא: שלום\n\nme: שלום אמא", "[conversation]\nאמא: מה נשמע?"])
+
+    def pretend(image, media_type, *, model, usage, client):  # noqa: ANN001
+        return vision.parse(next(answers))
+
+    monkeypatch.setattr(vision, "read_one", pretend)
+    document = ingest.load(str(folder))
+    assert document.ingester == "picture/2"
+    assert [(b.ref, b.speaker, b.text) for b in document.blocks] == [
+        ("p1", "אמא", "שלום"),
+        ("p1", "me", "שלום אמא"),
+        ("p2", "אמא", "מה נשמע?"),
+    ]

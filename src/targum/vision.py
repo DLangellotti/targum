@@ -50,7 +50,12 @@ LONGEST_SIDE = 1568
 
 #: Part of the cache key, bumped when the prompt changes so nothing already read is
 #: served from a reading a different prompt made.
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
+
+#: The first line of a reading of a messaging conversation. The model writes it, and
+#: `parse` takes it off and remembers it, so the pages become turns with a speaker
+#: beside each line rather than prose with names inside it.
+CONVERSATION = "[conversation]"
 
 PROMPT = (
     "Transcribe every word of text in this picture exactly as printed.\n"
@@ -63,6 +68,12 @@ PROMPT = (
     "furniture, watermarks.\n"
     "- If you cannot read a line with confidence, start that line with a ? and your "
     "best reading. If there is no readable text at all, answer with a single line: ?\n"
+    "- If the picture is a messaging conversation (WhatsApp, Telegram, SMS, iMessage or "
+    "the like), write [conversation] as the very first line, then each message as "
+    "`name: message` in a paragraph of its own, in order. Use the name the app shows "
+    "for each side; for bubbles that belong to the phone's owner (the right-hand, "
+    "tinted side) use the name shown or, if none is shown, me. Leave out timestamps, "
+    "dates, read receipts, the header and the keyboard.\n"
     "Answer with the text only, no commentary."
 )
 
@@ -71,10 +82,12 @@ MISSING = "Reading pictures needs the `bring` extra: uv sync --extra bring"
 
 @dataclass(frozen=True)
 class PageRead:
-    """What one picture said, and how many of its lines were doubtful."""
+    """What one picture said, how many of its lines were doubtful, and whether it was
+    a messaging conversation — in which case each paragraph is `name: message`."""
 
     text: str
     doubtful: int
+    conversation: bool = False
 
     @property
     def lines(self) -> list[str]:
@@ -150,18 +163,22 @@ def parse(answer: str) -> PageRead:
     """The model's answer as lines, with the doubtful marks counted and removed."""
     lines: list[str] = []
     doubtful = 0
+    conversation = False
     for raw in answer.replace("\r\n", "\n").split("\n"):
         line = raw.rstrip()
         if line.startswith("?"):
             doubtful += 1
             line = line[1:].strip()
+        if not conversation and not lines and line.strip().lower() == CONVERSATION:
+            conversation = True
+            continue
         lines.append(line)
     # A picture with no text at all answers "?" alone: one doubtful line, no words.
     while lines and not lines[-1]:
         lines.pop()
     while lines and not lines[0]:
         lines.pop(0)
-    return PageRead("\n".join(lines), doubtful)
+    return PageRead("\n".join(lines), doubtful, conversation)
 
 
 def reserve(pages: int) -> float:
@@ -181,7 +198,13 @@ def cached(paths: list[Path], model: str) -> list[PageRead | None]:
     for path in paths:
         held = cache.get("reading", _key(path, model))
         if isinstance(held, dict) and isinstance(held.get("text"), str):
-            out.append(PageRead(str(held["text"]), int(held.get("doubtful") or 0)))
+            out.append(
+                PageRead(
+                    str(held["text"]),
+                    int(held.get("doubtful") or 0),
+                    bool(held.get("conversation")),
+                )
+            )
         else:
             out.append(None)
     return out
@@ -262,7 +285,11 @@ def read_pages(
                 cache.put(
                     "reading",
                     _key(paths[index], chosen),
-                    {"text": read.text, "doubtful": read.doubtful},
+                    {
+                        "text": read.text,
+                        "doubtful": read.doubtful,
+                        "conversation": read.conversation,
+                    },
                 )
     return [read for read in held if read is not None]
 

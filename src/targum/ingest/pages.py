@@ -6,7 +6,11 @@ screenshot and a handout come out the same shape.
 
 A page's lines are grouped into paragraphs at blank lines, and the lines of one
 paragraph are joined with a space — a printed page wraps its paragraphs, and a
-segmenter given one line per wrapped line would cut every sentence at the margin.
+segmenter given one line per wrapped line would cut every sentence at the margin. A
+messaging conversation — WhatsApp, Telegram, SMS, photographed off a phone — is turns
+instead (2026-09-07): each `name: message` paragraph becomes a `turn` block with the
+name on the block and out of the text, which is how the shelf's own dialogues are
+drawn — the speaker beside the line, never pointed, never counted, never read aloud.
 Each block carries the page it came from as its `ref` ("p3"), which is what a
 facsimile could stand on later and what the reader can show now. A block with no
 Hebrew letters and some Latin ones is marked English, so the Hebrew lemmatizer leaves
@@ -19,11 +23,14 @@ import re
 from pathlib import Path
 
 from ..ids import block_id
-from ..models import Block, Document
+from ..models import Block, BlockKind, Document
 from .base import build_document, classify_plain_paragraph, detect_language, normalize
 
 _HEBREW = re.compile(r"[א-ת]")
 _LATIN = re.compile(r"[A-Za-z]")
+#: `name: message`. A name is short and has no sentence punctuation before the colon,
+#: so a line of prose with a colon in its middle stays prose.
+_TURN = re.compile(r"^([^:：\n.!?،؛]{1,40}?)\s*[:：]\s*(.+)$", re.S)
 
 #: How much of a title is a title. The first line of a page names it well enough for a
 #: shelf; a whole first paragraph does not.
@@ -47,6 +54,27 @@ def paragraphs_of(lines: list[str]) -> list[str]:
 def mixed(line: str) -> bool:
     """Whether a line carries both scripts, which is where a text layer scrambles."""
     return bool(_HEBREW.search(line)) and bool(_LATIN.search(line))
+
+
+def turn_of(paragraph: str) -> tuple[str, str] | None:
+    """The speaker and what they said, or None for a paragraph that names nobody."""
+    found = _TURN.match(paragraph.strip())
+    if found is None:
+        return None
+    speaker, said = found.group(1).strip(), found.group(2).strip()
+    if not speaker or not said or speaker.split()[0][:1].isdigit():
+        return None
+    return speaker, said
+
+
+def conversation_title(speakers: list[str]) -> str:
+    """The other side's name, for the shelf: a chat with אמא is called אמא."""
+    others = []
+    for name in speakers:
+        if name.lower() in ("me", "אני", "you") or name in others:
+            continue
+        others.append(name)
+    return ", ".join(others[:3])
 
 
 def title_of(pages: list[list[str]]) -> str:
@@ -75,13 +103,26 @@ def document_from_pages(
     source_hash: str,
     title: str | None = None,
     language: str | None = None,
+    conversation: bool = False,
 ) -> Document:
     """One Document from pages of lines. Raises nothing; an empty text is the caller's
-    to refuse, since what to say about it depends on where it came from."""
+    to refuse, since what to say about it depends on where it came from. With
+    `conversation`, a `name: message` paragraph is a turn said by that name."""
     blocks: list[Block] = []
+    speakers: list[str] = []
+    last = ""
     for number, lines in enumerate(pages, start=1):
         for text in paragraphs_of([normalize(line) for line in lines]):
-            kind, level, line = classify_plain_paragraph(text)
+            said = turn_of(text) if conversation else None
+            if said is not None:
+                last, text = said
+                if last not in speakers:
+                    speakers.append(last)
+            if conversation and last:
+                # A message with no name is the same person, still talking.
+                kind, level, line = BlockKind.turn, None, " ".join(text.split())
+            else:
+                kind, level, line = classify_plain_paragraph(text)
             own = "en" if not _HEBREW.search(line) and _LATIN.search(line) else None
             blocks.append(
                 Block(
@@ -91,9 +132,12 @@ def document_from_pages(
                     text=line,
                     ref=f"p{number}",
                     language=own,
+                    speaker=last if kind is BlockKind.turn else None,
                 )
             )
     hebrew = "\n".join(block.text for block in blocks if block.language is None)
+    if title is None and conversation:
+        title = conversation_title(speakers) or None
     document = build_document(
         source,
         blocks,

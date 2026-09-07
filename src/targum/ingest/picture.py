@@ -47,7 +47,7 @@ def bytes_hash(paths: list[Path]) -> str:
 
 
 class PictureIngester:
-    name = "picture/1"
+    name = "picture/2"
 
     def __init__(self, usage: Usage | None = None) -> None:
         # Where the reading's tokens land when this is the reading. The server reads at
@@ -64,7 +64,13 @@ class PictureIngester:
                 "A clearer photo, or a screenshot, reads better.",
             )
         document = document_from_pages(
-            str(source), pages, ingester=self.name, source_hash=bytes_hash(paths)
+            str(source),
+            pages,
+            ingester=self.name,
+            source_hash=bytes_hash(paths),
+            # One chat photographed over several screens is one conversation: the
+            # first page says what it is, and the rest are read the same way.
+            conversation=any(read.conversation for read in reads),
         )
         if not document.blocks:
             raise TargumError("No text could be read in that picture.")

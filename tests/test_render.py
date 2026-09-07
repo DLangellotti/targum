@@ -4505,3 +4505,37 @@ def test_a_word_after_an_emoji_is_marked_where_the_browser_counts(tmp_path: Path
     rows = data["words"][segment.id]
     units = text.encode("utf-16-le")
     assert [units[row[0] * 2 : row[1] * 2].decode("utf-16-le") for row in rows] == ["שחרית", "בשעה"]
+
+
+def test_a_turn_with_no_recording_still_names_its_speaker(tmp_path: Path) -> None:
+    """A saved conversation and a chat photographed off a phone are turns without a
+    sound; the name on the block is what the reader shows beside the line."""
+    from targum.models import Block, BlockKind
+
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.turn,
+        text="מה שלומך?",
+    )
+    segmented = make_segmented([segment])
+    document = Document(
+        source="m",
+        title="אמא",
+        language="he",
+        blocks=[Block(id="b0000", kind=BlockKind.turn, text="מה שלומך?", speaker="אמא")],
+        content_hash="h",
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "How are you?"},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
+    assert 'data-speaker="אמא"' in html
+    assert '<span class="who" aria-hidden="true">אמא</span>' in html

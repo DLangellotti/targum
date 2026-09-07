@@ -148,3 +148,19 @@ def test_a_file_that_is_not_a_picture_is_said_so(tmp_path: Path) -> None:
 def test_the_reservation_is_a_penny_a_page_before_the_reading() -> None:
     assert vision.reserve(30) == pytest.approx(0.30)
     assert vision.reserve(1) == pytest.approx(vision.PAGE_RESERVE)
+
+
+def test_a_messaging_conversation_is_marked_and_the_mark_taken_off() -> None:
+    read = vision.parse("[conversation]\nאמא: מה שלומך?\n\nme: טוב")
+    assert read.conversation is True
+    assert read.lines == ["אמא: מה שלומך?", "", "me: טוב"], "the marker is not a line"
+    assert vision.parse("אמא: מה שלומך?").conversation is False
+    assert vision.parse("[Conversation]\nx: y").conversation is True, "however it is cased"
+
+
+def test_the_cache_remembers_that_a_picture_was_a_conversation() -> None:
+    model = Model("[conversation]\nאמא: שלום\n\nme: שלום")
+    first = vision.read_pages([FIXTURES / "screenshot.png"], usage=Usage(), model="c", client=model)
+    again = vision.read_pages([FIXTURES / "screenshot.png"], usage=Usage(), model="c", client=model)
+    assert first[0].conversation and again[0].conversation
+    assert len(model.asked) == 1
