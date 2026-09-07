@@ -10,16 +10,14 @@ set -euo pipefail
 HOST="${TARGUM_HOST:?set TARGUM_HOST=user@box}"
 DOMAIN="${DOMAIN:-targum.page}"
 
-# Keep the connection talking while the box is silent. The rebuild below runs inside one
-# heredoc with its output on /dev/null, so an annotator rename — which re-annotates every
-# text by design — leaves this connection idle for two hours and something between here
-# and the box drops it. It is not sshd: the box reports `clientaliveinterval 0`. It is a
-# plain TCP idle drop, and the failure it produces is the nastiest shape available, because
-# the rebuild is a transient systemd unit owned by PID 1 and finishes regardless. What dies
-# with the connection is the tail of the heredoc — `seed` and `systemctl restart` — so the
-# expensive work succeeds, the deploy reports 255, and the box goes on serving the old
-# process. Two hours at sixty seconds is 120 unanswered probes before the client gives up,
-# which is longer than any rebuild measured here. targum-internal#177.
+# Keep the connection talking while the box is silent. Something between here and the
+# box drops a connection that says nothing for long enough — a plain TCP idle drop, not
+# sshd, which reports `clientaliveinterval 0` — and the install below is minutes of
+# nothing said while the box pulls torch. It was the rebuild that showed this first: an
+# annotator rename re-annotates every text by design, two hours of silence on a box with
+# no GPU, and the connection went with it. The rebuild no longer holds a connection at all
+# (see the box-side block), and this stays for everything that still does. Two hours at
+# sixty seconds is 120 unanswered probes before the client gives up. targum-internal#177.
 SSH_OPTS=(-o ServerAliveInterval=60 -o ServerAliveCountMax=120)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -146,18 +144,91 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # the box's key. Nothing when nothing moved; a few dollars once when an annotator
   # starts filing words under keys nobody has paid for, which oshb/2 did — 92 of 200
   # rows of Judges opened on "look it up" for a day because this line did not say it.
-  systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
-    --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums >/dev/null
+  #
+  # The rebuild, the seed and the restart as one transient unit that this shell starts
+  # and does not wait on. They ran here in turn, each under its own systemd-run --wait,
+  # with this shell holding the connection open through all of it — and an annotator
+  # rename is two hours of nothing said on a box with no GPU, which is longer than the
+  # path from the laptop to the box tolerates. The failure that made was the worst shape
+  # available: the rebuild, a unit owned by PID 1 already, finished every text
+  # regardless; what died with this shell was the seed and the restart after it, so the
+  # expensive work succeeded, the deploy reported 255, and the box went on serving the
+  # old process (targum-internal#177). Past this line nothing on the box needs the
+  # laptop: the unit runs to its end or fails on its own, what it says goes to the
+  # journal under its name rather than onto a connection that may be gone, and the
+  # laptop asks after it below. The two inner units keep the service's user and
+  # environment, as before; the outer one is root, because the restart is.
+  #
+  # Named, so the laptop has something to ask about, and so a second deploy started
+  # during a rebuild is refused at this line rather than run two rebuilds over one
+  # shelf. Not --collect: that forgets a failed unit the moment it fails, and the
+  # laptop would read the absence as a finish. The last deploy's failed state is
+  # cleared here instead, its journal having been read by whoever ran it.
+  systemctl reset-failed targum-deploy.service 2>/dev/null || true
+  systemd-run --quiet --unit=targum-deploy \
+    --description="targum deploy: rebuild, seed, restart" \
+    /bin/bash -euo pipefail -c '
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums
 
-  # The shared texts a reader with nothing is handed first. Published translations, so
-  # nothing is spent; every stage is cached, so after the first time this is a rewrite.
-  systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
-    --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-    /usr/local/bin/targum seed --out /var/lib/targum/targums >/dev/null
+      # The shared texts a reader with nothing is handed first. Published translations,
+      # so nothing is spent; every stage is cached, so after the first time this is a
+      # rewrite.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum seed --out /var/lib/targum/targums
 
-  systemctl restart targum
+      systemctl restart targum
+    '
 EOF
+
+echo "== rebuild, seed, restart =="
+# The box is doing these on its own (the block above). Asked after, on a fresh connection
+# each time, so there is nothing for an idle drop to take: a poll that cannot reach the
+# box is a poll to repeat, not a deploy that failed — up to a point, because a box that
+# has answered nothing for five minutes is a box to go and look at.
+#
+# A transient unit that ends well is unloaded, and systemctl calls a unit it no longer
+# has "inactive", so inactive is the finish. One that ends badly stays loaded as
+# "failed" until the next deploy clears it, above. is-active says either on stdout and
+# exits 3 for both, which is not a failure of the asking; ssh's own trouble is 255.
+asked() {
+  local said rc=0
+  said="$(ssh "${SSH_OPTS[@]}" "$HOST" "systemctl is-active targum-deploy.service" 2>/dev/null)" || rc=$?
+  if [ "$rc" -eq 255 ]; then echo unreachable; else echo "${said:-unknown}"; fi
+}
+began=$SECONDS
+polls=0
+unanswered=0
+while :; do
+  state="$(asked)"
+  case "$state" in
+    inactive) break ;;
+    failed)
+      echo "   targum-deploy failed on the box:" >&2
+      ssh "${SSH_OPTS[@]}" "$HOST" "journalctl -u targum-deploy -n 40 --no-pager" >&2
+      exit 1 ;;
+    active|activating|deactivating) unanswered=0 ;;
+    unreachable)
+      unanswered=$((unanswered + 1))
+      if [ "$unanswered" -ge 20 ]; then
+        echo "   the box has not answered for five minutes; the unit may still be running there" >&2
+        echo "   (ssh $HOST journalctl -u targum-deploy -f)" >&2
+        exit 1
+      fi ;;
+    *)
+      echo "   targum-deploy is '$state', which this script does not understand" >&2
+      exit 1 ;;
+  esac
+  polls=$((polls + 1))
+  # A line every five minutes, so a two-hour rebuild does not read as a hung deploy.
+  if [ $((polls % 20)) -eq 0 ]; then
+    echo "   still running after $(( (SECONDS - began) / 60 ))m; journalctl -u targum-deploy on the box says how far"
+  fi
+  sleep 15
+done
+echo "   done"
 
 echo "== verify =="
 # The point of the whole exercise: a deploy that says it worked and did not is the

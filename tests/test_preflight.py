@@ -5,6 +5,7 @@ Every check here exists because of a way a deployment can look fine and not be.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -281,6 +282,42 @@ def test_nothing_in_the_remote_block_is_written_in_backticks() -> None:
     deploy."""
     remote = DEPLOY.split("<<EOF", 1)[1].split("\nEOF", 1)[0]
     assert "`" not in remote, "backticks in an unquoted heredoc are run, not written"
+
+
+def test_the_deploy_keeps_its_connection_talking() -> None:
+    """targum-internal#177. A connection that says nothing for long enough is dropped by
+    something between the laptop and the box, and it is not sshd. On every ssh here rather
+    than the long one, so the next long-running command is covered before it is written."""
+    assert "ServerAliveInterval" in DEPLOY and "ServerAliveCountMax" in DEPLOY
+    for line in DEPLOY.splitlines():
+        # Commands, not comments and not the hint a failure prints for a person to type.
+        if line.lstrip().startswith(("#", "echo ")) or not re.search(r"\bssh\s", line):
+            continue
+        assert '"${SSH_OPTS[@]}"' in line, line
+
+
+def test_the_box_finishes_the_deploy_without_the_laptop() -> None:
+    """targum-internal#177, the other half. Keeping the connection warm is a bet on the
+    path; this is what happens when the bet is lost. The rebuild always survived a dropped
+    connection, being a unit owned by PID 1 — what died with the login shell was the seed
+    and the restart after it, so the box served the old process after a deploy that had
+    done all the expensive work. All three run inside one named unit the box starts and
+    finishes on its own, and the laptop asks after it rather than sitting on a silent
+    connection for two hours."""
+    remote = DEPLOY.split("<<EOF", 1)[1].split("\nEOF", 1)[0]
+    start = remote.index("--unit=targum-deploy")
+    unit = remote[start:]
+    for step in ("targum rebuild", "targum seed", "systemctl restart targum"):
+        assert step in unit, f"{step} is where a dropped connection can take it"
+        assert step not in remote[:start], f"{step} is on the connection, not in the unit"
+    # Started, not waited on: a --wait here is the two-hour silence back again.
+    outer = remote[remote.rindex("systemd-run", 0, start) : remote.index("/bin/bash", start)]
+    assert "--wait" not in outer, outer
+    assert "--collect" not in outer, "collected, a failure is forgotten and reads as a finish"
+    # And the laptop asks after it, before it asks the box whether it came back up.
+    after = DEPLOY.split("\nEOF", 1)[1]
+    assert "systemctl is-active targum-deploy.service" in after
+    assert after.index("is-active targum-deploy") < after.index("/health"), "asked before verified"
 
 
 def test_scripture_warns_when_the_tagging_is_not_where_the_service_looks(
