@@ -26,6 +26,7 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -369,3 +370,101 @@ def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(brows
     context.close()
     assert measured["railRight"] <= measured["threadLeft"] + 1, "the rail keeps to its column"
     assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
+
+
+def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
+    """The whole of what a reader does with a phone's worth of pages, on the client's
+    side: two files chosen together on Learn sit in the box as chips, Send takes them up
+    one after another, `/prepare` is asked once with both, `/build` is pressed by Send
+    itself, and the reader opens when the build is done. The server is answered here —
+    what is under test is that a real file input with `multiple` reaches the box's
+    script as a set, and that the page ends up in the reader."""
+    fixture = Path(__file__).parent / "fixtures" / "pages" / "screenshot.png"
+    prepared: list[dict] = []
+    built: list[dict] = []
+    begun = 0
+    quote = {
+        "id": "j1",
+        "title": "נָסַעְתִּי לַנֶּגֶב",
+        "language": "he",
+        "segments": 6,
+        "total": 6,
+        "chapters": 1,
+        "pages": 2,
+        "doubtful": 1,
+        "excerpt": ["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול"],
+        "estimate": 0.02,
+        "stage": "ready",
+        "blocked": "",
+        "error": "",
+        "audio": False,
+    }
+
+    def answer(route, request):
+        nonlocal begun
+        # The path under the host, without the key: "chat/list", "upload/u1/end".
+        path = urlparse(request.url).path.strip("/")
+        if path in ("", "learn", "learn.html"):
+            route.fulfill(status=200, content_type="text/html", body=learn_page(TOKEN))
+        elif path == "chat":
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN))
+        elif path == "chat/list":
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"chats": [], "usable": True, "talk": True}),
+            )
+        elif path == "upload/begin":
+            begun += 1
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": f"u{begun}", "chunk": 1_000_000}),
+            )
+        elif path.startswith("upload/") and path.endswith("/end"):
+            which = path.split("/")[1]
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": which, "picture": True}),
+            )
+        elif path.startswith("upload/"):
+            route.fulfill(status=200, content_type="application/json", body='{"got": 0}')
+        elif path == "prepare":
+            prepared.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(quote))
+        elif path == "job/j1":
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="done", reader="negev-he/reader/index.html")),
+            )
+        elif path.startswith("reader/"):
+            route.fulfill(status=200, content_type="text/html", body="<html>the reader</html>")
+        elif path == "build":
+            built.append(request.post_data_json)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="working")),
+            )
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://learn.test/**", answer)
+    open_page.goto("http://learn.test/learn")
+    open_page.wait_for_timeout(300)
+    open_page.set_input_files("#chat-file", [str(fixture), str(fixture)])
+    chips = open_page.locator(".chat-chip").count()
+    assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
+    open_page.click("#chat-send")
+    open_page.wait_for_url("**/reader/negev-he/**", timeout=5000)
+    landed = open_page.url
+    context.close()
+
+    assert chips == 2, "one chip a file"
+    assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
+    assert built == [{"id": "j1"}], "Send was the press"
+    assert "/reader/negev-he/reader/index.html" in landed, "and the text opened"

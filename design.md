@@ -300,6 +300,22 @@ In *this* repository: tokens are the `:root` block of
 Seventeen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
 
+
+### A picture is read before it is priced — 2026-09-07
+
+Everything else the `+` brings is priced before a cent is spent. A picture cannot be:
+until it is read there is nothing to count, no title, no first line, and a card that
+said "a picture" would be asking the reader to buy blind. So the reading happens at the
+quote, and it is the one spend before a card. What keeps it honest: the file choice is the
+consent, the ceiling is thirty pages and is refused at the door before any is read, the
+reservation goes through the same claim a build makes and is settled to the receipt,
+every picture read is cached by its bytes so a second drop or the build after the quote
+reads for nothing, and the card shows the first lines as read and says in words how many
+lines could not be read clearly (§6: a count, never a colour). The reader is never shown
+what the reading cost, as with every other price here. Scanned PDFs are not read at all
+and are refused by name; that is targum-internal#197's, and the reflow-not-facsimile
+decision for pictures is recorded there and in #217.
+
 ### A conversation is drawn as the text it becomes — 2026-09-06
 
 `/chat` drew a thread: the reader's lines and targum's, the same ink under a quiet label.
@@ -350,9 +366,18 @@ conversation beside it — Learn now carries one box under the ledger's own sent
 nothing else on the page moves. The box takes a request, a link, a file by its `+`, or a
 word, and Speak where the browser records. A line typed there opens a conversation and
 goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in one
-press: a file or a recording goes up as it did there, is priced in place, and the card
-the model's quote draws stands under the box, its button the only spend and its "More
-options" the Add page, kept for a translation or a transcript of the reader's own. Chat is no longer a place in the nav and Upload
+press: a file, a picture or a recording is held in the box as a chip until Send, goes up
+as it did there, is priced, and the card the model's quote draws is a turn in the
+conversation, on Learn too, where the conversation page opens on it the way it opens on
+a line. Send with a file in the box is the press: the text builds and opens when it is
+ready, and a bare file, or a line that only says "open this", starts no conversation at
+all — "when I wrote 'open this' with a file, I didn't want that to be the start of a
+conversation." A line that says more is a specification: it is said, with a note of what
+was sent so the model answers about the text rather than asking for it, and the card
+follows it in the thread as the build's progress. "More options" is the Add page, kept
+for a translation or a transcript of the reader's own. (Until 2026-09-07 the card stood under the
+box on Learn with a button to press: "I'm chatting, I think I should be pressing Send",
+and "I originally just gave the file… it should have been enough to just open it".) Chat is no longer a place in the nav and Upload
 is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
 the conversation page marks Learn, the way Learn's own lists do.
 

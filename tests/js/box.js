@@ -82,6 +82,8 @@ global.FileReader = class {
 };
 
 require(path.join(assets, "bring.js"));
+// A build is followed with no wait between looks, so a test sees its end at once.
+global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
 require(path.join(assets, "box.js"));
 
@@ -95,7 +97,8 @@ require(path.join(assets, "box.js"));
       byId["composer"].fire("submit", { preventDefault() {} });
     }
     if (step.type === "file") {
-      byId["chat-file"].files = [fakeFile(step.file)];
+      // One file, or several chosen together (`files`): the pages of one text.
+      byId["chat-file"].files = (step.files || [step.file]).map(fakeFile);
       byId["chat-file"].onchange();
       // An upload is several round trips; let them all settle.
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -105,6 +108,15 @@ require(path.join(assets, "box.js"));
       await new Promise((resolve) => setImmediate(resolve));
       byId["chat-mic"].onclick();
     }
+    if (step.type === "drop") {
+      // The × on the n-th chip: let that file go.
+      byId["chat-held"].children[step.index].children[1].onclick();
+    }
+    if (step.type === "send") {
+      byId["say"].value = step.text || "";
+      byId["composer"].fire("submit", { preventDefault() {} });
+      for (let i = 0; i < 24; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
   }
@@ -112,16 +124,10 @@ require(path.join(assets, "box.js"));
     JSON.stringify({
       posted,
       went: global.location.href,
-      brought: (byId["chat-brought"].children || []).map((card) => {
-        const by = (cls) => card.children.find((c) => String(c.className).split(" ").includes(cls));
-        return {
-          cls: [card.className, ...card.classList._names].join(" "),
-          title: by("quote-title") ? by("quote-title").children[0].textContent : "",
-          button: by("quote-go") ? by("quote-go").textContent : "",
-          more: by("quote-more") ? by("quote-more").href : "",
-          note: by("quote-note") ? by("quote-note").textContent : "",
-        };
-      }),
+      // What the + chose and the box still holds: one chip a file.
+      held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
+      heldHidden: byId["chat-held"].hidden,
+      field: byId["say"].value,
       mic: { hidden: byId["chat-mic"].hidden },
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

@@ -131,6 +131,8 @@ global.FileReader = class {
 };
 
 require(path.join(assets, "bring.js"));
+// A build is followed with no wait between looks, so a test sees its end at once.
+global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
 require(path.join(assets, "chat.js"));
 
@@ -155,7 +157,13 @@ function cards() {
         note: by("quote-note") ? by("quote-note").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
-      });
+              excerpt: by("quote-excerpt")
+          ? by("quote-excerpt")
+              .children.filter((c) => String(c.tagName).toUpperCase() === "BDI")
+              .map((c) => c.textContent)
+          : [],
+        doubt: by("quote-doubt") ? by("quote-doubt").textContent : "",
+});
     }
     (node.children || []).forEach(walk);
   };
@@ -234,10 +242,19 @@ function drawn() {
       sources[sources.length - 1].fire(step.event, step.data || "");
     }
     if (step.type === "file") {
-      byId["chat-file"].files = [fakeFile(step.file)];
+      // One file, or several chosen together (`files`): the pages of one text.
+      byId["chat-file"].files = (step.files || [step.file]).map(fakeFile);
       byId["chat-file"].onchange();
       // An upload is several round trips; let them all settle.
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "send") {
+      byId["say"].value = step.text || "";
+      byId["composer"].fire("submit", { preventDefault() {} });
+      for (let i = 0; i < 24; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "drop") {
+      byId["chat-held"].children[step.index].children[1].onclick();
     }
     if (step.type === "record") {
       // Two presses: start, then stop — which is when the clip goes up.
@@ -265,6 +282,9 @@ function drawn() {
       streams: sources.map((s) => s.url),
       turns: drawn(),
       cards: cards(),
+      went: global.location.href,
+      held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
+      field: byId["say"].value,
       pairs: pairsDrawn(),
       foot: foot(),
       doors: doors(),

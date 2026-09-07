@@ -27,12 +27,15 @@ def test_build_writes_a_reader(source: Path, tmp_path: Path, needs_dicta_model: 
     assert "he → en" in result.output
 
 
-def test_pdf_gets_a_message_not_a_traceback(tmp_path: Path) -> None:
+def test_a_broken_pdf_gets_a_message_not_a_traceback(tmp_path: Path) -> None:
+    """A PDF with a text layer builds since 2026-09-07; what is not a PDF at all is
+    still one sentence, not a stack."""
+    pytest.importorskip("pypdf")
     pdf = tmp_path / "book.pdf"
     pdf.write_bytes(b"%PDF-1.4")
     result = runner.invoke(app, ["build", str(pdf), "--to", "en", "--provider", "null"])
     assert result.exit_code == 1
-    assert "PDF ingest is not supported yet" in result.output
+    assert "could not be opened" in result.output
     assert "Traceback" not in result.output
 
 

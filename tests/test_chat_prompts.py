@@ -74,3 +74,12 @@ def test_the_ladder_a_reader_may_name_is_in_the_prompt_from_the_one_table() -> N
     assert "bet plus" in said and "RUNGS" not in said
     assert "max_looked_up_percent" in said
     assert "Never tell them which rung they are at" in said
+
+
+def test_a_text_sent_with_a_line_is_never_asked_for_again() -> None:
+    """A reader sent a picture with "open this and help me learn it" and was asked for a
+    link. The prompt now says what a brought text's note means and what not to do."""
+    from targum.chat.prompts import SYSTEM
+
+    assert "never ask for it, for a link, or for its words again" in SYSTEM
+    assert "You cannot open it yourself" in SYSTEM

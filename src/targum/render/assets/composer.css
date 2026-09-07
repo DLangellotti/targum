@@ -10,12 +10,14 @@
   display: grid;
   grid-template-areas:
     "say say say"
+    "held held held"
     "bring mic send";
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.6rem;
   align-items: center;
 }
 .composer textarea { grid-area: say; }
+.composer .chat-held { grid-area: held; }
 .composer .chat-bring { grid-area: bring; }
 .composer .chat-mic { grid-area: mic; justify-self: end; }
 .composer .chat-send { grid-area: send; }
@@ -55,8 +57,51 @@
 }
 .chat-bring:hover { background: var(--paper-raised); }
 .chat-bring:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.chat-brought:empty { display: none; }
-.chat-brought { margin-block-start: 0.75rem; }
+
+/* What the + chose, held until Send (2026-09-07): one chip a file, ink-bordered like
+   the working controls around it, with a typed × to let it go (§7). */
+.chat-held {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chat-held[hidden] { display: none; }
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  max-width: 100%;
+}
+.chat-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-drop {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.chat-drop:hover { background: var(--paper-raised); color: var(--ink); }
+.chat-drop:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
 /* --- a quote --------------------------------------------------------------- */
 
@@ -95,6 +140,18 @@
 }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .quote-card.refused .quote-note { color: var(--clay); }
+/* The first lines of a text that arrived as pages, in the reading face: what the
+   reader will get, seen before the press. Four lines at most, set by the server. */
+.quote-excerpt {
+  margin: 0;
+  justify-self: stretch;
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+/* How many lines could not be read cleanly. A count in words (§6), never a colour. */
+.quote-doubt { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .quote-go {
   font: inherit;
   font-size: 0.8125rem;
@@ -157,6 +214,7 @@
   .chat-send,
   .chat-mic,
   .chat-bring,
+  .chat-drop,
   .quote-go {
     min-height: 44px;
     min-width: 44px;

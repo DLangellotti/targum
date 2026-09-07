@@ -31,7 +31,7 @@
   var mic = document.getElementById("chat-mic");
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
-  var brought = document.getElementById("chat-brought");
+  var heldList = document.getElementById("chat-held");
   var said = document.getElementById("chat-said");
   if (!form || !field || !send) return;
   // The conversation page carries the same box and its own script for it; this one
@@ -70,9 +70,13 @@
 
   // The conversation page, opened on the conversation this line began. The id rides
   // in the hash rather than the path: `/chat/<id>` is the conversation as JSON, and
-  // the page is one page whatever it is showing.
-  function go(chat) {
-    window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat);
+  // the page is one page whatever it is showing. A text sent with a line that says
+  // more than "open this" rides the same way, as `job=<id>`, and the page draws its
+  // card as a turn in that conversation.
+  function go(chat, job) {
+    var hash = chat ? encodeURIComponent(chat) : "";
+    if (job) hash += (hash ? "&" : "") + "job=" + encodeURIComponent(job);
+    window.location.href = keyed("/chat") + "#" + hash;
   }
 
   function refused(got) {
@@ -118,6 +122,7 @@
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var text = field.value.trim();
+    if (held.length) return bringHeld(text);
     if (!text) return;
     say(text);
   });
@@ -126,6 +131,7 @@
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       var text = field.value.trim();
+      if (held.length) return bringHeld(text);
       if (!text) return;
       say(text);
     }
@@ -137,41 +143,72 @@
     };
   }
 
-  // A file chosen by the +: up, priced, and the card drawn under the box — the Add
-  // page's whole job in one press, with "More options" on the card for the two things
-  // only its form can say. The card's button is the spend; the strip in the header
-  // carries the build and its door when it is done.
+  // A file chosen by the + is held in the box until Send, the way a line is typed
+  // and then sent (2026-09-07): choosing is not bringing. Send with a file means open
+  // it: the file goes up, is priced and built, the strip in the header carries the
+  // build, and the reader opens when it is ready. No conversation is started for a
+  // bare file or a line that only says "open this" — "when I wrote 'open this' with
+  // a file, I didn't want that to be the start of a conversation." A line that says
+  // more is a specification: it is said, with a note of what was sent, and the
+  // conversation page opens on it with the card as a turn.
   var bringing = window.TargumBring;
-  function bringFile(chosen) {
-    if (!chosen || !bringing || !brought) return;
+  var held = [];
+  function showHeld() {
+    if (bringing && heldList) {
+      bringing.held(heldList, held, function (index) {
+        held.splice(index, 1);
+        showHeld();
+      });
+    }
+  }
+  function bringHeld(text) {
+    if (busy || !bringing || !held.length) return;
+    var spec = bringing.justOpen(text) ? "" : text;
     busy = true;
     send.disabled = true;
-    brought.textContent = "";
     tell("Uploading…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
     bringing
-      .bring(chosen, { to: into }, function (share) {
+      .bring(held, { to: into }, function (share) {
         tell("Uploading… " + share + "%");
       })
       .then(function (job) {
         tell("");
         if (job.reader) {
           // The same bytes were already brought: the text is the answer.
-          window.location.href = keyed(
-            "/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/")
-          );
+          window.location.href = bringing.door(job.reader);
           return;
         }
-        if (job.error) return tell(job.error);
-        bringing.quoteCard(brought, job);
+        if (job.error) return refused(job);
+        if (job.stage !== "ready") return refused({ error: job.blocked || job.error });
+        // Send with a file in the box is the press: the reader chose the file and
+        // sent it, and a card asking them to say so again was a second surface
+        // ("I originally just gave the file… it should have been enough to just
+        // open it", 2026-09-07). Started here, followed to its end, and opened.
+        return bringing.start(job).then(function (state) {
+          if (state.error || state.blocked) return refused({ error: state.error || state.blocked });
+          held = [];
+          showHeld();
+          if (spec) {
+            // Said with the note of what was sent; the card follows it as a turn.
+            return ask("/chat/say", { chat: "", text: spec, brought: job.id }).then(function (got) {
+              if (got.error) return refused(got);
+              go(got.chat, job.id);
+            });
+          }
+          tell("Building. It will open when it is ready.");
+          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+          return bringing.follow(job.id).then(function (done) {
+            if (done.stage === "done" && done.reader) {
+              window.location.href = bringing.door(done.reader);
+              return;
+            }
+            refused({ error: done.error || "That did not build. The strip above has the detail." });
+          });
+        });
       })
       .catch(function (why) {
-        tell(String(why || "That did not go through. Try again."));
-      })
-      .then(function () {
-        busy = false;
-        send.disabled = false;
-        if (file) file.value = "";
+        refused({ error: String(why || "That did not go through. Try again.") });
       });
   }
   if (bring && file) {
@@ -179,7 +216,10 @@
       if (!busy) file.click();
     };
     file.onchange = function () {
-      bringFile(file.files && file.files[0]);
+      // All of them: several pictures chosen together are the pages of one text.
+      held = held.concat(bringing ? bringing.listed(file.files) : []);
+      file.value = "";
+      showHeld();
     };
   }
 
@@ -191,5 +231,5 @@
     showMic();
   });
 
-  window.TargumBox = { say: say, hear: hear, bring: bringFile };
+  window.TargumBox = { say: say, hear: hear, bring: bringHeld };
 })();

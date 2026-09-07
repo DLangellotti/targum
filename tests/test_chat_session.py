@@ -692,3 +692,24 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     again = bare.say(person, home, "", "Good morning", admin=False)
     bare.answer(again)
     assert "Sentences a Hebrew speaker wrote" not in client.requests[2]["system"][1]["text"]
+
+
+def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
+    """The reader gave the model a text; the note says what it is and that it is on its
+    way, so the model never asks for it (2026-09-07)."""
+    framed = session_module.framed(
+        "help me learn it",
+        None,
+        {"title": "מכתב", "pages": 1, "segments": 4, "excerpt": ["א", "ב"], "stage": "working"},
+    )
+    assert framed.startswith("The reader has just sent a text through the box")
+    assert "מכתב (1 pages, 4 sentences)" in framed
+    assert "Its first lines, as read: א / ב" in framed
+    assert "being built now" in framed
+    assert framed.endswith("Their line:\nhelp me learn it")
+    waiting = session_module.framed("?", None, {"title": "t", "stage": "ready"})
+    assert "waiting on their press" in waiting
+    refused = session_module.framed(
+        "?", None, {"title": "t", "stage": "blocked", "blocked": "Too long."}
+    )
+    assert "could not be built: Too long." in refused

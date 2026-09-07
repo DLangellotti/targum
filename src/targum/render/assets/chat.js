@@ -325,13 +325,29 @@
     return bringing.quoteCard(li, job);
   }
 
-  // A file chosen by the +: up in pieces or whole, priced, and the card drawn in the
-  // thread as a turn of its own. No model in the loop — the reader brought a thing and
-  // is told what it will take, which is the Add page's whole job in one row.
+  // A file chosen by the + is held in the box until Send (2026-09-07), the way a line
+  // is typed and then sent. Send with a file means open it: up in pieces or whole,
+  // priced, built, the card in the thread as its progress, and — when nothing more
+  // was said than "open this" — the reader opened when it is ready, with no turn said:
+  // "when I wrote 'open this' with a file, I didn't want that to be the start of a
+  // conversation." A line that says more is said after the card, with a note of what
+  // was sent, and the reader is left to open from the card or the strip.
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
-  function brought(chosen) {
-    if (!chosen || !bringing) return;
+  var heldList = document.getElementById("chat-held");
+  var held = [];
+  function showHeld() {
+    if (bringing && heldList) {
+      bringing.held(heldList, held, function (index) {
+        held.splice(index, 1);
+        showHeld();
+      });
+    }
+  }
+  function brought(chosen, opening) {
+    if (!bringing) return Promise.resolve();
+    chosen = bringing.listed(chosen);
+    if (!chosen.length) return Promise.resolve();
     busy = true;
     send.disabled = true;
     tell("");
@@ -339,7 +355,7 @@
     var line = li.querySelector(".chat-line");
     line.textContent = "Uploading…";
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
-    bringing
+    return bringing
       .bring(chosen, { to: into }, function (share) {
         line.textContent = "Uploading… " + share + "%";
       })
@@ -358,16 +374,33 @@
           line.textContent = job.error;
           return;
         }
-        quoteCard(li, job);
+        // Send with a file in the box is the press (2026-09-07): started here, and
+        // the card is its progress. A quote the rails refused shows its sentence.
+        if (job.stage !== "ready") {
+          quoteCard(li, job);
+          return job;
+        }
+        return bringing.start(job).then(function (state) {
+          quoteCard(li, state);
+          if (state.error || state.blocked) return state;
+          if (!opening) return state;
+          return bringing.follow(job.id).then(function (done) {
+            if (done.stage === "done" && done.reader) {
+              window.location.href = bringing.door(done.reader);
+            }
+            return done;
+          });
+        });
       })
       .catch(function (why) {
         li.className = "chat-turn them bad";
         line.textContent = String(why || "That did not go through. Try again.");
       })
-      .then(function () {
+      .then(function (job) {
         busy = false;
         send.disabled = false;
         if (file) file.value = "";
+        return job;
       });
   }
   if (bring && file) {
@@ -375,8 +408,42 @@
       if (!busy) file.click();
     };
     file.onchange = function () {
-      brought(file.files && file.files[0]);
+      // All of them: several pictures chosen together are the pages of one text.
+      held = held.concat(bringing ? bringing.listed(file.files) : []);
+      file.value = "";
+      showHeld();
     };
+  }
+
+  // What Send does: the held files first, as a card; then the line, if it said more
+  // than "open this" — a bare "open this" is the file's own meaning, and the text
+  // opens when it is ready instead.
+  function submit() {
+    var text = field.value.trim();
+    if (held.length) {
+      var files = held;
+      var spec = bringing && bringing.justOpen(text) ? "" : text;
+      held = [];
+      showHeld();
+      field.value = "";
+      brought(files, !spec).then(function (job) {
+        if (spec) say(spec, job && job.id);
+      });
+      return;
+    }
+    if (!text) return;
+    field.value = "";
+    say(text);
+  }
+
+  // A text brought from the front door with a line arrives as `job=<id>` in the hash:
+  // its card is drawn as a turn in the conversation named beside it.
+  function showJob(id) {
+    return ask("/job/" + encodeURIComponent(id)).then(function (job) {
+      if (job.error) return tell(job.error);
+      var li = turn("assistant", "", "");
+      quoteCard(li, job);
+    });
   }
 
   /* --- speaking and hearing -------------------------------------------------- */
@@ -568,17 +635,32 @@
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
       // Arrived from the front door with a conversation named in the hash: that one,
-      // whose first answer is still streaming; otherwise the newest.
+      // whose first answer is still streaming; otherwise the newest. A text sent there
+      // with a line rides beside it as `job=<id>`, and its card follows in that thread.
       var wanted = "";
+      var wantedJob = "";
       try {
-        wanted = decodeURIComponent(String(window.location.hash || "").slice(1));
+        String(window.location.hash || "")
+          .slice(1)
+          .split("&")
+          .forEach(function (part) {
+            if (part.indexOf("job=") === 0) wantedJob = decodeURIComponent(part.slice(4));
+            else if (part) wanted = decodeURIComponent(part);
+          });
       } catch (e) {
         wanted = "";
+        wantedJob = "";
       }
-      if (!current && wanted && chats.some(function (chat) { return chat.id === wanted; })) {
-        return open(wanted);
+      if (current) return;
+      var job = wantedJob;
+      // Consumed once: `load` runs again when a first line makes a conversation.
+      if (job) window.location.hash = wanted ? "#" + encodeURIComponent(wanted) : "";
+      if (wanted && chats.some(function (chat) { return chat.id === wanted; })) {
+        return open(wanted).then(function () {
+          if (job) return showJob(job);
+        });
       }
-      if (!current && chats.length) return open(chats[0].id);
+      if (chats.length) return open(chats[0].id);
       if (empty) empty.hidden = !!current;
     });
   }
@@ -622,14 +704,17 @@
 
   /* --- asking -------------------------------------------------------------- */
 
-  function say(text) {
+  function say(text, brought) {
     if (busy || !text) return;
     if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
     busy = true;
     send.disabled = true;
     turn("user", text);
     var answer = turn("assistant", "", "working");
-    ask("/chat/say", { chat: current, text: text }).then(function (got) {
+    var line = { chat: current, text: text };
+    // The text sent with the line, by its job, so the model knows what it was given.
+    if (brought) line.brought = brought;
+    ask("/chat/say", line).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";
         render(answer.querySelector(".chat-line"), got.error);
@@ -712,19 +797,13 @@
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    var text = field.value.trim();
-    if (!text) return;
-    field.value = "";
-    say(text);
+    submit();
   });
   field.addEventListener("keydown", function (event) {
     // Enter sends, Shift+Enter breaks the line — the convention every chat shares.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      var text = field.value.trim();
-      if (!text) return;
-      field.value = "";
-      say(text);
+      submit();
     }
   });
   if (fresh) fresh.onclick = startNew;

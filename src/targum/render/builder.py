@@ -44,7 +44,7 @@ from ..models import (
     is_biblical,
 )
 from ..translate.prompts import language_name
-from ..vocalize import has_taamim, map_span, strip_nikkud, strip_taamim
+from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -1957,7 +1957,7 @@ def render(
                     if token.feats and token.feats not in grammar_at:
                         grammar_at[token.feats] = len(grammar)
                         grammar.append(token.feats)
-                    start, end = map_span(token.start, token.end, to_bare[sid])
+                    start, end = js_span(bare[sid], *map_span(token.start, token.end, to_bare[sid]))
                     rows.append(
                         [
                             start,
@@ -2001,6 +2001,15 @@ def render(
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
         spoken = speech(document, segments, folder)
+        # Who said each line. A scene's or a recording's speakers come with its audio;
+        # a text that is turns without a sound — a saved conversation, a chat
+        # photographed off a phone (2026-09-07) — carries the name on the block, and
+        # the reader shows it beside the line the same way.
+        speakers = dict(spoken.speakers)
+        named = {block.id: block.speaker for block in document.blocks if block.speaker}
+        for segment in segments:
+            if segment.id not in speakers and segment.block_id in named:
+                speakers[segment.id] = str(named[segment.block_id])
         # The one file too heavy to ride inside the page. Copied beside the reader and
         # named by a relative address, so a folder that travels to a disk keeps its
         # picture and the page still fetches nothing from any network (design.md §12).
@@ -2075,7 +2084,7 @@ def render(
             pointed=pointed,
             unaccented=unaccented,
             machine=machine,
-            speakers=spoken.speakers,
+            speakers=speakers,
             spoken=spoken.spans,
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
@@ -2205,7 +2214,14 @@ def render(
                                     {
                                         "words": {
                                             sid: [
-                                                [*map_span(int(cs), int(ce), to_bare[sid]), s, e]
+                                                [
+                                                    *js_span(
+                                                        bare[sid],
+                                                        *map_span(int(cs), int(ce), to_bare[sid]),
+                                                    ),
+                                                    s,
+                                                    e,
+                                                ]
                                                 for cs, ce, s, e in rows
                                             ]
                                             for sid, rows in spoken.words.items()

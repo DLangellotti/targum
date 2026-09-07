@@ -441,3 +441,43 @@ def test_the_conversation_carries_its_clock_and_its_words_and_can_be_saved(chatt
         "one line is not a conversation to read back"
     )
     assert call(port, "POST", f"/chat/save?k={key}", {"chat": "nobody"})[0] == 404
+
+
+def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None:
+    """`brought` names a job; what the model is told about it comes from the job on the
+    server, never from the page — and a job that is not the asker's is no note."""
+    from targum.serve import Job
+
+    port, key, store, chats = chatting
+    chats.library.jobs["j1"] = Job(
+        id="j1",
+        source="x",
+        title="הודעה מחברת הביטוח",
+        pages=2,
+        segments=9,
+        excerpt=["שורה ראשונה", "שורה שנייה"],
+        stage="working",
+    )
+    chats.library.jobs["theirs"] = Job(id="theirs", source="y", title="secret", owner=7)
+    status, asked, _ = call(
+        port,
+        "POST",
+        f"/chat/say?k={key}",
+        {"chat": "", "text": "Open this and help me learn it.", "brought": "j1"},
+    )
+    assert status == 200
+    turn = store.chat_turns(asked["chat"])[0]
+    assert turn["said"] == "Open this and help me learn it.", "the page shows what was said"
+    assert "הודעה מחברת הביטוח (2 pages, 9 sentences)" in turn["content"]
+    assert "שורה ראשונה / שורה שנייה" in turn["content"]
+    assert (
+        "being built now" in turn["content"] and "do not need to send it again" in turn["content"]
+    )
+    status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
+    assert whole["chat"]["mode"] == "talk", "the conversation keeps its language"
+
+    status, asked, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "brought": "theirs"}
+    )
+    assert status == 200
+    assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "not theirs: no note"

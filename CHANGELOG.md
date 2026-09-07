@@ -18,6 +18,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and `scripts/eval_grading.py --pool` draws its openers from sentences inside the
   synthetic reader's list, so the outside share can be read per rung. `LICENSING.md`
   records what is taken, what is owed and where the credit is given.
+- A picture is a text. The `+` on the box and the Add page take a screenshot, a phone
+  photo (HEIC included) or a PDF with a text layer, and several pictures chosen
+  together are the pages of one text in the order chosen. Pictures go up the chunked
+  door and are read by the model at the price quote — the one spend before a card,
+  reserved against the same rails a build is claimed on and settled to what the API
+  charged, cached by the picture's bytes so nothing is read twice, capped at thirty
+  pages (targum-internal#217). A PDF's text layer is read by `pypdf` and costs
+  nothing; a scanned PDF is refused by name and stays on #197. The card shows the
+  first lines as read and how many lines could not be read clearly, so what will be
+  built is seen before the press. Every block carries its page as `ref`, and a line
+  with no Hebrew in it is marked English so the lemmatizer leaves it alone. New
+  `bring` extra: `pillow`, `pillow-heif`, `pypdf`.
+- A chat photographed off a phone is a dialogue. A screenshot of WhatsApp, Telegram,
+  SMS or the like is read as turns — the model writes `[conversation]` and one
+  `name: message` a paragraph — and drawn the way the shelf's own scenes are: the
+  speaker beside the line, out of the text, never pointed, counted or read aloud.
+  The chat is named on the shelf for the other side. A turn's speaker now reaches the
+  reader from its block, so a saved conversation shows who said what without a
+  recording too.
 - The box is the front door. Learn carries one field under the ledger's own sentence —
   a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
   records — and a line typed there opens a conversation and goes to it, with the new
@@ -34,8 +53,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Bringing a text is one press. The `+` on the box — on Learn and on the conversation
   page — takes a file or a recording, sends it up the way the Add page does (a
   recording in pieces, anything else whole), prices it with `/prepare`, and draws the
-  same card the model's quote draws, under the box or as a turn in the thread, with no
-  model in the loop; the card's button is the spend, and its "More options" is the Add
+  same card the model's quote draws as a turn in the thread — a file is held in the
+  box as a chip until Send, and Send is the press: the text builds and opens when it
+  is ready, with no conversation started for a bare file or a line that only says
+  "open this"; a line that says more is said with a note of what was sent, and the
+  card follows it in the thread as the build's progress (2026-09-07) — with no model
+  in the loop; the card's button is the spend, and its "More options" is the Add
   page, kept for the two things only its form can say — a translation of your own, a
   transcript of your own. A link goes in the field like anything else said to targum.
   The upload, the price in the reader's time, the plain words for a build's progress
@@ -458,6 +481,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   row now carries the first and last verse its file holds, and a verse takes the file
   whose range has it; a chapter alone, or a verse no file holds, still takes the
   chapter's first file rather than nothing (targum-internal#142).
+
+### Fixed
+- A word is a word of its language. An English name, a clock time or an emoji inside a
+  Hebrew line came back a word: tappable, counted against "N of M known", and "Hannah"
+  filed in the ledger as extremely hard, from a community notice photographed off a
+  phone. A token with no letter of its block's script is now read past, in the reader
+  and in the conversation's record alike. This is the annotator's `languages/3`, so
+  every text on the shelf is re-annotated at the next rebuild — free of spend, not of
+  time (see CLAUDE.md on renames).
+- A word after an emoji is marked where the browser counts. Python counts a calendar
+  glyph as one character and JavaScript as two, so every span after one landed a unit
+  short: half of שחרית marked, the other half of the mark on the time beside it. Every
+  offset that ships to a page now goes through `js_span`.
 
 ## [0.2.0.0] - 2026-09-01
 

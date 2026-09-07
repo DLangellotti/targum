@@ -58,6 +58,7 @@ from .render.builder import (
 from .segment.stanza_segmenter import telling
 from .usage import Usage
 from .video import MAX_VIDEO_BYTES
+from .vision import MAX_PAGES, PICTURE_SUFFIXES
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
 from .weekly.models import Level as WeeklyLevel
@@ -70,6 +71,10 @@ MAX_UPLOAD = 32 * 1024 * 1024
 #: Caddy's 48 MB body ceiling with room to spare — and are assembled on disk.
 CHUNK_BYTES = 8 * 1024 * 1024
 MAX_AUDIO_BYTES = 1024 * 1024 * 1024
+#: A picture or a PDF comes through the same door as a recording (2026-09-07), because
+#: a phone photo is ten megabytes and the JSON door reads its body into memory as
+#: base64. Twenty-five is a photo at any phone's full size, and no handout.
+MAX_PICTURE_BYTES = 25 * 1024 * 1024
 #: A video is allowed more than a recording — an hour of 480p is most of a gigabyte
 #: before anything is cut from it. The ceiling itself is `video.MAX_VIDEO_BYTES`,
 #: imported above: two copies of a ceiling drift, and a door that refuses what
@@ -584,6 +589,14 @@ class Job:
     #: `build` for everything the queue runs; `chat` for one turn of conversation, which
     #: takes a row here so the rails see it and is never queued. See `chat/session.py`.
     kind: str = "build"
+    # A text that arrived as pages — pictures the model read, or a PDF's text layer.
+    # How many, how many lines could not be read cleanly, the first lines as read (the
+    # card shows them, so the reader sees what will be built before pressing), and what
+    # the reading cost: the one spend before a card, settled into the receipt at the end.
+    pages: int = 0
+    doubtful: int = 0
+    excerpt: list[str] = field(default_factory=list)
+    reading: float = 0.0
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -619,7 +632,25 @@ class Job:
             "seconds": round(self.seconds, 1),
             "parts": self.parts,
             "transcription": round(self.transcription, 2),
+            # The pages card's facts: what was read, and how well.
+            "pages": self.pages,
+            "doubtful": self.doubtful,
+            "excerpt": list(self.excerpt),
         }
+
+
+def excerpt_of(lines: list[str], count: int = 4, width: int = 120) -> list[str]:
+    """The first lines of a text as read, for the card. What the reader will get, shown
+    before they press, in place of a filename that says nothing about a picture."""
+    out: list[str] = []
+    for line in lines:
+        text = " ".join(line.split())
+        if not text:
+            continue
+        out.append(text if len(text) <= width else text[: width - 1].rstrip() + "…")
+        if len(out) == count:
+            break
+    return out
 
 
 # A person's home is `p` and their number, and nothing else. Matching on the `p` alone
@@ -1522,6 +1553,15 @@ class Library:
                     return
                 if found is not None:
                     return self._prepare_episode(job, found)
+            # A text that arrived as pages is read before it is priced: the pictures by
+            # the model (the one spend before a card, reserved and settled here), a
+            # PDF's text layer by nothing that costs. Either way the card can then show
+            # the first lines as read, which for a picture is the only honest title.
+            refused = self._read_pages(job)
+            if refused:
+                job.blocked = refused
+                job.stage = "blocked"
+                return
             builder = self._builder(job)
             # Priced for what the build will buy, which for a book is one chapter. The
             # cap then applies to a chapter, not to a novel — which is the difference
@@ -1568,6 +1608,70 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    def _read_pages(self, job: Job) -> str:
+        """Read a source that arrived as pages, or say why it may not be read.
+
+        Pictures cost: they are reserved against the same rails a build is claimed on,
+        at `vision.PAGE_RESERVE` a page still unread, read, and settled to what the API
+        charged — the reader's file choice is the consent, and the ceiling is thirty
+        pages (targum-internal#217). Every picture read is cached by its bytes, so the
+        build that follows, and a second drop of the same screenshot, read for nothing.
+        A PDF's text layer is free and is only described here: how many pages, how many
+        lines came out mixed, and the first lines for the card.
+
+        Returns the sentence that blocks the card, or "" when the pages were read.
+        Anything else wrong raises, and `prepare` writes it on the job like every
+        other failure.
+        """
+        from . import vision
+        from .annotate.gloss import GLOSS_MODEL
+        from .ingest import pdf as pdf_module
+        from .ingest import picture as picture_module
+
+        source = Path(job.source)
+        if source.is_file() and source.suffix.lower() == ".pdf":
+            pages = pdf_module.page_lines(source)
+            job.pages = len(pages)
+            job.doubtful = pdf_module.doubtful_lines(pages)
+            job.excerpt = excerpt_of([line for lines in pages for line in lines])
+            return ""
+        if not picture_module.is_pictures(source):
+            return ""
+        paths = picture_module.pages_of(source)
+        if len(paths) > MAX_PAGES:
+            raise TargumError(
+                f"That is {len(paths)} pictures. targum reads up to {MAX_PAGES} at a time."
+            )
+        job.pages = len(paths)
+        usable, _ = vision.can_read()
+        if not usable:
+            return NO_KEY
+        waiting = vision.unread(paths, GLOSS_MODEL)
+        usage = Usage()
+        if waiting:
+            job.estimate = vision.reserve(waiting)
+            refused = self.claim(job)
+            if refused:
+                job.estimate = 0.0
+                return refused
+            job.stage = "reading"
+            self.remember(job)
+            try:
+                reads = vision.read_pages(paths, usage=usage, model=GLOSS_MODEL)
+            finally:
+                # Whatever was read was paid for, whether or not the rest arrived. The
+                # reservation becomes the receipt now, not at the end of a build the
+                # reader may never press for.
+                job.reading = usage.cost()
+                job.spent = job.reading
+                job.estimate = 0.0
+                self.settle(job)
+        else:
+            reads = vision.read_pages(paths, usage=usage, model=GLOSS_MODEL)
+        job.doubtful = sum(read.doubtful for read in reads)
+        job.excerpt = excerpt_of([line for read in reads for line in read.lines])
+        return ""
 
     #: Manual subtitle tracks worth looking for before paying to transcribe. Hebrew in
     #: both spellings YouTube uses — `iw` is the old ISO code and half the Israeli
@@ -1896,8 +2000,9 @@ class Library:
             with telling(builder.notify):
                 result = builder.run(on_progress=progress, on_ready=ready, chapters=FIRST_CHAPTERS)
             # The reservation becomes the receipt. Until this, the ledger held an
-            # estimate and the budget was an approximation of itself.
-            job.spent = result.spent.cost()
+            # estimate and the budget was an approximation of itself. What reading the
+            # pictures cost at the quote is on the same receipt: one text, one line.
+            job.spent = result.spent.cost() + job.reading
             self.settle(job)
             self.remember(job)
             self.propose(job)
@@ -3884,7 +3989,19 @@ class Handler(BaseHTTPRequestHandler):
             }
             if not about.get("surface") and not about.get("sentence"):
                 about = None
-        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, about=about)
+        # The text sent with the line, if one was: read from its own job, never from
+        # the payload, so what the model is told about it is what the server knows.
+        brought = None
+        sent = self._own_job(str(payload.get("brought") or ""))
+        if sent is not None:
+            state = sent.state()
+            brought = {
+                key: state[key]
+                for key in ("title", "pages", "segments", "excerpt", "stage", "blocked", "error")
+            }
+        asked = self.chats.say(
+            person, self._home(), chat_id, text, admin=admin, about=about, brought=brought
+        )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     def _chat_save(self, payload: dict[str, Any]) -> None:
@@ -4524,6 +4641,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _source_from(self, payload: dict[str, Any]) -> str:
         """A dropped file is written next to the readers; anything else is a source."""
+        many = payload.get("uploads")
+        if isinstance(many, list) and many:
+            return str(self._gathered([str(one) for one in many]))
         upload = str(payload.get("upload") or "")
         if upload:
             held = self._upload_folder(upload)
@@ -4533,6 +4653,8 @@ class Handler(BaseHTTPRequestHandler):
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
                 raise TargumError("That upload is no longer here. Start it again.")
+            if target.suffix.lower() in PICTURE_SUFFIXES or target.suffix.lower() == ".pdf":
+                return str(self._gathered([upload]))
             return str(target)
         name = payload.get("name")
         content = payload.get("content")
@@ -4543,6 +4665,51 @@ class Handler(BaseHTTPRequestHandler):
         if not source:
             raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
+
+    def _gathered(self, uploads: list[str]) -> Path:
+        """Chunked uploads of pages, made into one source that stays.
+
+        A set of pictures is one text, in the order the reader chose them, and the
+        folder is the source: the first upload's folder keeps the lot, numbered, and
+        the others are emptied. The chunked door's own marks come off — `.meta.json`
+        is what the sweep eats after a day, and a document points back at this folder
+        for as long as it is on the shelf, the way the JSON door's uploads are kept.
+        A lone PDF goes through the same motions so it, too, outlives the sweep.
+        """
+        from . import vision
+
+        if len(uploads) > MAX_PAGES:
+            raise TargumError(
+                f"That is {len(uploads)} pictures. targum reads up to {MAX_PAGES} at a time."
+            )
+        found: list[tuple[Path, Path]] = []
+        for upload in uploads:
+            held = self._upload_folder(upload)
+            if held is None:
+                raise TargumError("That upload is no longer here. Start it again.")
+            folder, meta = held
+            target = folder / Path(str(meta.get("name") or "")).name
+            if not target.is_file():
+                raise TargumError("That upload is no longer here. Start it again.")
+            found.append((folder, target))
+        pictures = all(vision.is_picture(target) for _, target in found)
+        if not pictures and (len(found) > 1 or found[0][1].suffix.lower() != ".pdf"):
+            raise TargumError("Several files at once must all be pictures of one text.")
+        home, _ = found[0]
+        kept: list[Path] = []
+        for number, (folder, target) in enumerate(found, start=1):
+            moved = home / f"{number:02d}-{target.name}"
+            if folder == home:
+                target.rename(moved)
+            else:
+                shutil.move(str(target), str(moved))
+                shutil.rmtree(folder, ignore_errors=True)
+            kept.append(moved)
+        for mark in (".meta.json", ".sha256"):
+            (home / mark).unlink(missing_ok=True)
+        shutil.rmtree(home / ".part", ignore_errors=True)
+        self.library._used.pop(self._home(), None)
+        return home if pictures else kept[0]
 
     def _translation_from(self, payload: dict[str, Any]) -> list[str]:
         """A translation the reader already has, written down for the aligner.
@@ -4597,14 +4764,25 @@ class Handler(BaseHTTPRequestHandler):
             size = 0
         if suffix in DRM_SUFFIXES:
             return self._json({"error": "This file is protected, so targum cannot read it."}, 400)
-        if suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
-            return self._json({"error": "That is not an audio or video file targum can read."}, 400)
-        moving = suffix in VIDEO_SUFFIXES
-        ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
-        if size <= 0 or size > ceiling:
-            limit = ceiling // (1024 * 1024 * 1024)
-            what = "video" if moving else "recording"
-            return self._json({"error": f"That {what} is over {limit} GB."}, 413)
+        if suffix in PICTURE_SUFFIXES or suffix == ".pdf":
+            # A picture or a handout, through the recording's door: the same chunks, the
+            # same quota, a ceiling of its own.
+            if size <= 0 or size > MAX_PICTURE_BYTES:
+                what = "PDF" if suffix == ".pdf" else "picture"
+                limit = MAX_PICTURE_BYTES // (1024 * 1024)
+                return self._json({"error": f"That {what} is over {limit} MB."}, 413)
+        elif suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
+            return self._json(
+                {"error": "That is not a recording, a video, a picture or a PDF targum can read."},
+                400,
+            )
+        else:
+            moving = suffix in VIDEO_SUFFIXES
+            ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
+            if size <= 0 or size > ceiling:
+                limit = ceiling // (1024 * 1024 * 1024)
+                what = "video" if moving else "recording"
+                return self._json({"error": f"That {what} is over {limit} GB."}, 413)
         home = self._home()
         self.library.sweep_uploads(home)
         if self.library.used(home) + size > MEDIA_QUOTA_BYTES:
@@ -4682,6 +4860,31 @@ class Handler(BaseHTTPRequestHandler):
         if twin is not None:
             shutil.rmtree(folder, ignore_errors=True)
             return self._json(twin)
+        if target.suffix.lower() in PICTURE_SUFFIXES:
+            # Proved as a picture, and nothing more: it is read when the reader asks
+            # for a price, which is where the reading is reserved and settled.
+            from . import vision
+
+            try:
+                vision.probe(target)
+            except TargumError as error:
+                shutil.rmtree(folder, ignore_errors=True)
+                return self._json({"error": error.message}, 400)
+            return self._json({"upload": upload, "picture": True})
+        if target.suffix.lower() == ".pdf":
+            # Counted at the door so a book is refused before a page of it is read.
+            from .ingest import pdf as pdf_module
+
+            try:
+                pages = pdf_module.page_count(target)
+            except TargumError as error:
+                shutil.rmtree(folder, ignore_errors=True)
+                return self._json({"error": error.message}, 400)
+            if pages > MAX_PAGES:
+                shutil.rmtree(folder, ignore_errors=True)
+                too_many = f"That PDF is {pages} pages. targum reads up to {MAX_PAGES} at a time."
+                return self._json({"error": too_many}, 413)
+            return self._json({"upload": upload, "pages": pages})
         from .video import VIDEO_SUFFIXES
 
         moving = target.suffix.lower() in VIDEO_SUFFIXES

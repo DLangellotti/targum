@@ -39,10 +39,20 @@ check() {
     exit 1
   fi
 }
+# CI is the gate for the suite, and the laptop is not: a single-process run of the
+# whole suite is killed for memory on an 8 GB machine (2026-09-06), and a deploy that
+# dies in its preflight for a reason that is not the code is a deploy that does not
+# happen. So the suite here may be stood down for a tree CI has already passed — and
+# only for that exact tree: TARGUM_CHECKED must name the commit being shipped, and the
+# tree must be clean, or the suite runs as it always did.
 check uv run ruff check .
 check uv run ruff format --check .
 check uv run mypy
-check uv run pytest -q
+if [ "${TARGUM_CHECKED:-}" = "$(git rev-parse HEAD)" ] && [ -z "$(git status --porcelain)" ]; then
+  echo "   suite: passed by CI at $(git rev-parse --short HEAD)"
+else
+  check uv run pytest -q
+fi
 echo "   clean"
 
 echo "== build =="
@@ -66,6 +76,15 @@ if [ ! -f "$CATALOGUE" ]; then
   exit 1
 fi
 scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
+# The publishers the chat may search — private data for the same reason, read from
+# beside the catalogue by default. Optional, unlike the catalogue: a box without one
+# has nowhere to search and says so, and nothing else changes.
+SOURCES="${TARGUM_SOURCES:-$HOME/.targum/sources.json}"
+if [ -f "$SOURCES" ]; then
+  scp -q "$SOURCES" "$HOST:/tmp/sources.json"
+else
+  echo "no sources.json at $SOURCES — the chat will have no publishers to search" >&2
+fi
 # The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
@@ -93,7 +112,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
   # extras for x86_64 Linux both ways and diffing (targum-internal#93).
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" \
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring]" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
       >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
@@ -104,6 +123,10 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   install -d -o root -g targum -m 0750 /etc/targum
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json
+  if [ -f /tmp/sources.json ]; then
+    install -o root -g targum -m 0640 /tmp/sources.json /etc/targum/sources.json
+    rm -f /tmp/sources.json
+  fi
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
   systemctl daemon-reload

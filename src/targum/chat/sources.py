@@ -40,6 +40,32 @@ KINDS = ("news", "podcast", "video", "text")
 #: The API takes at most this many domains on one search tool.
 MAX_DOMAINS = 64
 
+#: Second-level suffixes under which a site's own name is the third label from the
+#: right — walla.co.il, kan.org.il — so `site()` keeps three labels there and two
+#: elsewhere. The Israeli ones, which is where the publishers are, plus the few generic
+#: ones a feed might live under.
+TWO_LABEL_SUFFIXES = frozenset(
+    {"co.il", "org.il", "gov.il", "ac.il", "net.il", "muni.il", "co.uk", "org.uk", "com.au"}
+)
+
+
+def site(address: str) -> str:
+    """The domain a search should be allowed on, from an address on it.
+
+    A feed lives on a subdomain — rss.walla.co.il, rcs.mako.co.il — and the API's
+    `allowed_domains` matches a bare domain against every subdomain of it, so the
+    publisher's own domain is the one to name: naming the feed host would let the search
+    read the RSS server and nothing the paper actually prints.
+    """
+    host = (urlparse(address).hostname or "").lower().strip(".")
+    if not host:
+        return ""
+    labels = host.split(".")
+    if labels[0] == "www" and len(labels) > 2:
+        labels = labels[1:]
+    keep = 3 if ".".join(labels[-2:]) in TWO_LABEL_SUFFIXES else 2
+    return ".".join(labels[-keep:])
+
 
 @dataclass(frozen=True)
 class Publisher:
@@ -107,11 +133,13 @@ def allowed_domains() -> list[str]:
 
     Deduplicated in first-seen order and capped at what the API takes, with the
     publishers first so a long list loses a reference site before it loses a paper.
+    A publisher is named by its site (`site()`); the public hosts are named as written,
+    because he.wikisource.org is a choice and wikisource.org would not be.
     """
     hosts: list[str] = []
     for publisher in load():
         for address in (publisher.homepage, publisher.feed):
-            host = (urlparse(address).hostname or "").lower()
+            host = site(address)
             if host and host not in hosts:
                 hosts.append(host)
     for host in PUBLIC_HOSTS:

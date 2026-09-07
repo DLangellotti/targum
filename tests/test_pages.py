@@ -285,7 +285,8 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     did nothing for an upload — the one case somebody is most likely to insist on."""
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     retry = source[source.index("anyway.onclick") : source.index("row.appendChild(anyway)")]
-    assert "readFile(chosen)" in retry, "a file has to be able to take this branch"
+    assert "readFile(chosen[0])" in retry, "a file has to be able to take this branch"
+    assert "bringing.upload(chosen" in retry, "and so has a picture or a recording"
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
 
 

@@ -35,10 +35,10 @@
       <h2>Your content</h2>
 
       <div class="drop" id="drop" tabindex="0">
-        <p class="drop-label">Drop a book, an article, or a recording</p>
-        <p class="drop-note">EPUB, plain text, markdown, audio, or video</p>
-        <input type="file" id="file"
-               accept=".txt,.md,.markdown,.epub,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
+        <p class="drop-label">Drop a book, an article, a picture, or a recording</p>
+        <p class="drop-note">EPUB, plain text, markdown, PDF, pictures, audio, or video</p>
+        <input type="file" id="file" multiple
+               accept=".txt,.md,.markdown,.epub,.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
         <button type="button" id="choose">Choose file</button>
         <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
       </div>
@@ -56,8 +56,10 @@
         text takes its title from its first line.</p>
       {#- The refusals, named before they are met: a reader who tries a PDF or a Spotify
           link learns the limit from a sentence here rather than from a failed attempt. -#}
-      <p class="hint">Not PDF, protected audiobooks (.aax), or Spotify. Nothing behind a
-        login. A video counts against your hours, like a recording.</p>
+      <p class="hint">A screenshot or a photo of a page is read as it is printed; several
+        pictures chosen together are one text. Not scanned PDFs, protected audiobooks
+        (.aax), or Spotify. Nothing behind a login. A video counts against your hours,
+        like a recording.</p>
 
       {#- Only when the file is a recording. A transcript with its own timings makes the
           import free of transcription; without one, targum writes down what is said,

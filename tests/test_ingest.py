@@ -75,10 +75,13 @@ def test_source_language_overrides_detection(tmp_path: Path) -> None:
     assert ingest.load(str(source), language="he-IL").language == "he-IL"
 
 
-def test_pdf_says_so_without_a_traceback(tmp_path: Path) -> None:
+def test_a_broken_pdf_says_so_without_a_traceback(tmp_path: Path) -> None:
+    """A PDF with a text layer is read since 2026-09-07 (targum-internal#217); what is
+    not a PDF at all is still one sentence, not a stack."""
+    pytest.importorskip("pypdf")
     source = tmp_path / "book.pdf"
     source.write_bytes(b"%PDF-1.4")
-    with pytest.raises(UnsupportedSource, match="PDF ingest is not supported yet"):
+    with pytest.raises(TargumError, match="could not be opened"):
         ingest.load(str(source))
 
 
