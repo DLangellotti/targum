@@ -549,6 +549,38 @@ def _icon() -> bytes:
     return (brand / "favicon-32.png").read_bytes()
 
 
+def grounding_note(
+    store: Store | None, lemma: str, source: str, target: str
+) -> Callable[[Any, Any, str], None]:
+    """What a grounding writes to the correction store (targum-internal#164, door 1).
+
+    A reader tapped a word in a sentence and the sense was bought again with that
+    sentence; the row keeps the bare sense that stood, the grounded one that stands,
+    and the line — under `who = reader`, never a person. Nothing here may fail the
+    look-up: the reader asked what a word means, not for a record to be kept.
+    """
+
+    def note(before: Any, after: Any, context: str) -> None:
+        if store is None:
+            return
+        try:
+            store.correct(
+                "gloss",
+                who="reader",
+                term=lemma,
+                language=source,
+                target=target,
+                before=str(getattr(before, "gloss", "") or ""),
+                after=str(getattr(after, "gloss", "") or ""),
+                context=context,
+                reason="grounded on the sentence the reader was in",
+            )
+        except Exception:  # noqa: BLE001 - see the docstring
+            traceback.print_exc()
+
+    return note
+
+
 @dataclass
 class Job:
     id: str
@@ -4563,7 +4595,14 @@ class Handler(BaseHTTPRequestHandler):
         if not usable:
             return self._json({"error": NO_KEY}, 402)
         try:
-            sense = gloss_one(lemma, source, target, provider, context=sentence)
+            sense = gloss_one(
+                lemma,
+                source,
+                target,
+                provider,
+                context=sentence,
+                on_grounded=grounding_note(self.store, lemma, source, target),
+            )
         except TargumError as error:
             return self._json({"error": error.message}, 502)
         except Exception:
