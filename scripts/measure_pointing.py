@@ -1,4 +1,4 @@
-"""Two diacritizers on the same held-out modern Hebrew, mark by mark (targum-internal#148).
+"""Two diacritizers on the same held-out Hebrew, mark by mark (targum-internal#148).
 
 `vocalize/nakdimon.py` was chosen for one behaviour — it returns the letters it was
 given — and never for its accuracy, which was measured once, on classical Hebrew, at
@@ -7,53 +7,78 @@ has a `mark_matres_lectionis` option that keeps the letters, which answers the o
 that ruled its family out. Before anything is swapped, this measures the two on text
 neither was trained on.
 
-**The held-out set** is the modern third of DICTA's own `hebrew-diacritization-test-corpora`
-(github.com/Dicta-Israel-Center-for-Text-Analysis): a random selection of Hebrew
-Wikipedia articles, fully pointed by hand, offered "up to the public domain" in its
-README. The repository carries no LICENSE file; the README's sentence is the licence.
-It is a *test* corpus, published for exactly this comparison, so the menaked was not
-trained on it — and Nakdimon, trained before it existed on a different pointed
-corpus, was not either. The rabbinic and poetry thirds are left out on purpose: the
-menaked's card says it is not for them, and the Mishnah and siddur stay on Nakdimon
-whatever this finds.
+**Two held-out sets**, chosen with `--corpus`:
 
-**What each model is given** is the bare text: the corpus marks a mater lectionis in
-angle brackets (`דִּ<י>בֵּר`), and both the brackets and the marks are removed, so the
-input is the plene spelling a reader's source would have. The reference is the same line
-with only the brackets removed, so a mater is a letter that carries nothing — which is
-the pointing a diacritizer that keeps the letters ought to produce. The menaked is asked
-with `mark_matres_lectionis=""`, which keeps the letter and marks it with nothing.
+- `dicta-modern`: the modern third of DICTA's own `hebrew-diacritization-test-corpora`
+  (github.com/Dicta-Israel-Center-for-Text-Analysis): a random selection of Hebrew
+  Wikipedia articles, fully pointed by hand, offered "up to the public domain" in its
+  README. The repository carries no LICENSE file; the README's sentence is the licence.
+  It is a *test* corpus, published for exactly this comparison, so the menaked was not
+  trained on it — and Nakdimon, trained before it existed on a different pointed
+  corpus, was not either. The rabbinic and poetry thirds are left out on purpose: the
+  menaked's card says it is not for them, and the Mishnah and siddur stay on Nakdimon
+  whatever this finds.
+- `ben-yehuda`: pointed works from Project Ben-Yehuda's public domain dump
+  (github.com/projectbenyehuda/public_domain_dump, LICENSE: "The data files in this
+  repository are in the public domain"; credit asked for, not required, to "Project
+  Ben-Yehuda volunteers"). The site's API is free but wants a key and at most fifty
+  requests a minute, so the dump is read instead. **Held out by author**: Nakdimon's
+  training set (github.com/elazarg/hebrew_diacritized) names its Ben-Yehuda authors —
+  Bialik, Tchernichovsky, Dushman, Regelson, Porat, Zviri, Kaplan, Ofek, Berkman — and
+  none of them is here. The menaked's card says only "modern Hebrew texts manually
+  diacritized by linguistic experts", so its authors cannot be excluded, only noted. The
+  works are in `BEN_YEHUDA_WORKS`: prose from Katzenelson, Barash, Frank, Frischmann and
+  Yehuda Steinberg; poetry from Rachel, Karni, Bergstein, Lensky, Gordon, Elisheva and
+  Yaakov Steinberg. Prose and poetry both, because pointed prose is what the shelf has
+  and the poetry is where the menaked's card says it is weakest. This is the Hebrew of
+  1880-1940, not a newspaper's: harder for both models, and the second opinion the first
+  corpus needs, since that one is DICTA's own house style.
+
+**What each model is given** is the bare text: marks removed, letters as the edition
+spells them. In the DICTA corpus a mater lectionis is marked in angle brackets
+(`דִּ<י>בֵּר`) and the brackets go too; the reference keeps the letter carrying nothing,
+which is the pointing a diacritizer that keeps the letters ought to produce. The menaked
+is asked with `mark_matres_lectionis=""`, which keeps the letter and marks it with
+nothing. A Ben-Yehuda work is read paragraph by paragraph, only the fully pointed ones
+are kept, and consecutive ones are joined into lines of at least `CHUNK_WORDS` words so
+a line is a paragraph's worth of text for both corpora; at most `PER_WORK` lines per
+work, spread through it, so no one novel outweighs the poets.
 
 **What is scored**, per line, after the production skeleton check in `vocalize/base.py`:
 
 - `skeleton_kept`: the share of lines `splice()` accepts. The issue's gate: a model that
   fails this on any line is out regardless of what follows. The maqaf is part of the
-  skeleton, though this corpus happens to contain none.
+  skeleton; the DICTA corpus has none, the Ben-Yehuda editions have many.
 - `letter_vowel`: per Hebrew letter, the vowel marks match exactly. Qamats qatan
   (U+05C7) counts as its own vowel. `letter_vowel_folded` is the same with U+05C7 read
   as U+05B8 — the number a model that never emits the qatan deserves on the vowel itself.
 - `letter_dagesh`: per letter, dagesh present where the reference has it and absent
   where it does not.
-- `shin_dot`: per shin, the shin or sin dot matches.
+- `shin_dot`: per shin the reference dots, the shin or sin dot matches. A shin the
+  reference leaves bare — the Ben-Yehuda editions dot only the sin — is not scored on
+  its dot at all, in the word either.
 - `qamats_qatan_recall` and `_precision`: of the letters the reference marks U+05C7, how
   many the model did; of the ones the model marked, how many were right. Not recorded
   for a model that emits none — that is a base of zero, not a score of zero.
-- `word_exact`: per word (a run of Hebrew letters), every mark on every letter matches.
+- `word_exact`: per word (a run of Hebrew letters), every vowel, dagesh and shin dot on
+  every letter matches. Meteg and rafe, which an older edition may carry, are neither
+  scored nor held against a model.
 - Stress (U+05AB) is counted in the output and reported in the table. Neither model
-  emits it and the reference does not carry it, so it is never a ledger row. That is
+  emits it and the references do not carry it, so it is never a ledger row. That is
   #132's problem and this script exists to give it a baseline, not to solve it.
 
 The letter and word metrics are computed only on lines whose skeleton survived, because
 a line whose letters changed cannot be aligned with its reference; `n` on each row says
 how many letters, shins or words were actually compared.
 
-Each number is appended to `evals/ledger.jsonl` as stage `vocalize`, corpus
-`dicta-modern`, with the system and the version of it that ran. Models are loaded one at
-a time and freed before the next: this is an eight-gigabyte laptop and the menaked is
-1.2 GB of weights. The corpus is fetched once to the gold directory beside the IAHLT
-treebanks, for evaluation and nothing else. Nothing here spends money.
+Each number is appended to `evals/ledger.jsonl` as stage `vocalize`, under the corpus
+name, with the system and the version of it that ran. Models are loaded one at a time
+and freed before the next: this is an eight-gigabyte laptop and the menaked is 1.2 GB of
+weights. Each corpus is fetched once to the gold directory beside the IAHLT treebanks,
+for evaluation and nothing else. Nothing here spends money.
 
-    PYTHONPATH=src .venv/bin/python scripts/measure_pointing.py [--limit 40] [--show 8]
+    PYTHONPATH=src .venv/bin/python scripts/measure_pointing.py [--corpus ben-yehuda] \\
+        [--limit 250] [--show 8]
 """
 
 from __future__ import annotations
@@ -69,41 +94,206 @@ import time
 from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import evals  # noqa: E402
 from targum.errors import SkeletonChanged, TargumError  # noqa: E402
 from targum.paths import ensure, model_dir, write_atomic  # noqa: E402
-from targum.vocalize.base import LETTERS, MARKS, splice, strip_nikkud  # noqa: E402
-
-CORPUS = "dicta-modern"
-CREDIT = "DICTA, hebrew-diacritization-test-corpora (modern: Hebrew Wikipedia)"
-LICENCE = "public domain, per the repository README; no LICENSE file"
-SOURCE = (
-    "https://raw.githubusercontent.com/Dicta-Israel-Center-for-Text-Analysis/"
-    "hebrew-diacritization-test-corpora/master/ModernTestCorpus-HebrewWiki1.txt"
+from targum.vocalize.base import (  # noqa: E402
+    LETTERS,
+    MARKS,
+    is_fully_pointed,
+    splice,
+    strip_nikkud,
 )
+
 MENAKED = "dicta-il/dictabert-large-char-menaked"
 
 #: The vowels proper: sheva, the three hatafs, hiriq through qubuts, and qamats qatan.
 VOWELS = frozenset(range(0x05B0, 0x05BC)) | {0x05C7}
 DAGESH = 0x05BC
 SHIN_DOTS = frozenset({0x05C1, 0x05C2})
+#: Everything a word is scored on. Meteg (U+05BD) and rafe (U+05BF) are outside it.
+SCORED = VOWELS | {DAGESH} | SHIN_DOTS
 QAMATS, QAMATS_QATAN = 0x05B8, 0x05C7
 STRESS = 0x05AB
 
+
+class Line(NamedTuple):
+    """One line of a corpus: the reference pointing, and what the models see."""
+
+    gold: str
+    bare: str
+
+
+# --- the DICTA test corpus ------------------------------------------------------------
+
+DICTA_SOURCE = (
+    "https://raw.githubusercontent.com/Dicta-Israel-Center-for-Text-Analysis/"
+    "hebrew-diacritization-test-corpora/master/ModernTestCorpus-HebrewWiki1.txt"
+)
 #: An article header in the corpus file: ` ** !! ** $0001$ title ** !! **`.
 _HEADER = "** !! **"
 _BRACKETS = re.compile(r"[<>]")
 
 
-class Line(NamedTuple):
-    """One paragraph of the corpus: the reference pointing, and what the models see."""
+def bare_of(gold: str) -> str:
+    return "".join(char for char in gold if ord(char) not in MARKS)
 
-    gold: str
-    bare: str
+
+def parse_dicta(text: str) -> list[Line]:
+    lines: list[Line] = []
+    for raw in text.splitlines():
+        if not raw.strip() or _HEADER in raw:
+            continue
+        gold = _BRACKETS.sub("", raw.strip())
+        lines.append(Line(gold, bare_of(gold)))
+    return lines
+
+
+def fetch_dicta(say: Callable[[str], None]) -> list[Line]:
+    path = gold_dir() / "dicta-diacritization-modern.txt"
+    if not path.is_file():
+        say("Fetching dicta-modern…")
+        write_atomic(path, _get(DICTA_SOURCE))
+    return parse_dicta(path.read_text(encoding="utf-8"))
+
+
+# --- Project Ben-Yehuda ---------------------------------------------------------------
+
+BEN_YEHUDA_SOURCE = (
+    "https://raw.githubusercontent.com/projectbenyehuda/public_domain_dump/master/txt/{path}.txt"
+)
+#: (author, genre, path in the dump). Chosen 2026-09-07 from the pseudocatalogue by
+#: probing each candidate author's works for a body that is actually pointed, since a
+#: pointed title says nothing about the text under it. Authors in Nakdimon's training
+#: set are absent by construction; see the module docstring.
+BEN_YEHUDA_WORKS: tuple[tuple[str, str, str], ...] = (
+    ("יצחק קצנלסון", "prose", "p440/m42219"),  # חֲבֵרִים
+    ("יצחק קצנלסון", "prose", "p440/m52755"),  # הָאָדָם (אגדה)
+    ("יצחק קצנלסון", "prose", "p440/m39144"),  # יַלְדַי הַפְּרָחִים
+    ("אשר ברש", "prose", "p1274/m39524"),  # פֶּרֶק רְבִיעִי: עַל מַיִם רַבִּים
+    ("אשר ברש", "prose", "p1274/m46211"),  # טַלִּיסְמָא מְדַבֶּרֶת
+    ("אשר ברש", "prose", "p1274/m57811"),  # הַמַּצָּה הַחַמָּה
+    ("עזריאל נתן פרנק", "prose", "p87/m20910"),  # לֵדָתוֹ שֶל רַבִּי יִשְׂרָאֵל בַּעַל־שֵם
+    ("עזריאל נתן פרנק", "prose", "p87/m20931"),  # בִּרְכַּת הֶדְיוֹט
+    ("דוד פרישמן", "prose", "p142/m11442"),  # תִּתְחַדֵּשׁ
+    ("יהודה שטיינברג", "prose", "p117/m44548"),  # פְּנֵי מֹשֶׁה
+    ("יהודה שטיינברג", "prose", "p117/m44564"),  # חֶמְדָּן הַיָּפֶה
+    ("יהודה שטיינברג", "prose", "p117/m53497"),  # נֵס חֲנֻכָּה
+    ("רחל בלובשטיין", "poetry", "p141/m4339"),  # כָּאן עַל פְּנֵי הָאֲדָמָה
+    ("רחל בלובשטיין", "poetry", "p141/m1685"),  # עֵץ אַגָּס
+    ("רחל בלובשטיין", "poetry", "p141/m19"),  # הֲלָךְ נֶפֶשׁ
+    ("יהודה קרני", "poetry", "p609/m17036"),  # אֶל בַּלְפוּר
+    ("יהודה קרני", "poetry", "p609/m16802"),  # לְחֹדֶשׁ הַהַצָּלָה
+    ("פניה ברגשטיין", "poetry", "p814/m24325"),  # שִׁיר לְיָעֵל
+    ("חיים לנסקי", "poetry", "p726/m20521"),  # בַּקֻּפֶּה אַפְלוּלִית
+    ("חיים לנסקי", "poetry", "p726/m20690"),  # אִגֶּרֶת א' לְרוֹבֶּרְט לֶוִין
+    ("יהודה ליב גורדון", "poetry", "p46/m7786"),  # חַג לַאדֹנָי
+    ("יהודה ליב גורדון", "poetry", "p46/m92"),  # חִידוֹת בְּמִלּוֹת יְחִידוֹת
+    ("אלישבע", "poetry", "p611/m43335"),  # מַה קְּטַנִּים הָיוּ
+    ("אלישבע", "poetry", "p611/m43383"),  # וּבְכֵן, אֵשֵׁב
+    ("יעקב שטיינברג", "poetry", "p388/m10146"),  # בִּדְלֹק הַמְּנוֹרָה
+    ("יעקב שטיינברג", "poetry", "p388/m10423"),  # בַּלָּדוֹת
+)
+#: Every dump file ends with a credit block that begins with this.
+_FOOTER = "פרויקט בן־יהודה"
+#: A line is at least this many Hebrew words, so a verse of four does not stand alone.
+CHUNK_WORDS = 20
+#: Lines kept per work, spread through it.
+PER_WORK = 30
+
+
+def hebrew_words(text: str) -> int:
+    return sum(1 for word in text.split() if any(ord(char) in LETTERS for char in word))
+
+
+def parse_ben_yehuda(text: str) -> list[Line]:
+    """A work's fully pointed paragraphs, joined into lines of `CHUNK_WORDS` or more.
+
+    The first paragraph is the title and the credit block at the end is the project's,
+    so both are dropped. An unpointed paragraph — a section label, a quotation the
+    editor left bare — ends the line being built rather than joining it, and a short
+    tail that never reached the size is kept if it has at least four words: a poem's
+    last stanza is still the poet's Hebrew.
+    """
+    paragraphs = [p.strip() for p in text.split("\n") if p.strip()][1:]
+    lines: list[Line] = []
+    run: list[str] = []
+    for paragraph in paragraphs:
+        if _FOOTER in paragraph:
+            break
+        if not is_fully_pointed(paragraph) or hebrew_words(paragraph) < 2:
+            if run and hebrew_words(" ".join(run)) >= 4:
+                lines.append(_line(run))
+            run = []
+            continue
+        run.append(paragraph)
+        if hebrew_words(" ".join(run)) >= CHUNK_WORDS:
+            lines.append(_line(run))
+            run = []
+    if run and hebrew_words(" ".join(run)) >= 4:
+        lines.append(_line(run))
+    return lines
+
+
+def _line(run: list[str]) -> Line:
+    gold = " ".join(run)
+    return Line(gold, bare_of(gold))
+
+
+def fetch_ben_yehuda(say: Callable[[str], None]) -> list[Line]:
+    lines: list[Line] = []
+    for _author, _genre, work in BEN_YEHUDA_WORKS:
+        path = ensure(gold_dir() / "ben-yehuda") / (work.replace("/", "_") + ".txt")
+        if not path.is_file():
+            say(f"Fetching ben-yehuda {work}…")
+            write_atomic(path, _get(BEN_YEHUDA_SOURCE.format(path=work)))
+        lines.extend(spread(parse_ben_yehuda(path.read_text(encoding="utf-8")), PER_WORK))
+    return lines
+
+
+# --- both -----------------------------------------------------------------------------
+
+
+class Corpus(NamedTuple):
+    credit: str
+    licence: str
+    load: Callable[[Callable[[str], None]], list[Line]]
+
+
+CORPORA: dict[str, Corpus] = {
+    "dicta-modern": Corpus(
+        "DICTA, hebrew-diacritization-test-corpora (modern: Hebrew Wikipedia)",
+        "public domain, per the repository README; no LICENSE file",
+        fetch_dicta,
+    ),
+    "ben-yehuda": Corpus(
+        "Project Ben-Yehuda volunteers, public_domain_dump "
+        f"({len(BEN_YEHUDA_WORKS)} works, {len({a for a, _, _ in BEN_YEHUDA_WORKS})} authors)",
+        "public domain, per the dump's LICENSE",
+        fetch_ben_yehuda,
+    ),
+}
+
+
+def gold_dir() -> Path:
+    """Beside the IAHLT treebanks and for the same reason: fetched once, read by a
+    laptop, never shipped and never trained on."""
+    return ensure(model_dir() / "gold")
+
+
+def _get(url: str) -> str:
+    import httpx
+
+    try:
+        answer = httpx.get(url, timeout=180.0, follow_redirects=True)
+        answer.raise_for_status()
+    except Exception as bad:  # noqa: BLE001 - network and HTTP both land here
+        raise TargumError(f"Could not fetch {url}.", str(bad)) from bad
+    return answer.text
 
 
 def units(text: str) -> list[tuple[str, frozenset[int]]]:
@@ -134,19 +324,8 @@ def word_spans(bases: Sequence[str]) -> list[tuple[int, int]]:
     return spans
 
 
-def parse(text: str) -> list[Line]:
-    lines: list[Line] = []
-    for raw in text.splitlines():
-        if not raw.strip() or _HEADER in raw:
-            continue
-        gold = _BRACKETS.sub("", raw.strip())
-        bare = "".join(char for char in gold if ord(char) not in MARKS)
-        lines.append(Line(gold, bare))
-    return lines
-
-
 def spread(lines: list[Line], limit: int) -> list[Line]:
-    """`limit` lines spaced evenly through the file, so a cheap run still crosses
+    """`limit` lines spaced evenly through the list, so a cheap run still crosses
     articles rather than reading the first one twice over."""
     if limit <= 0 or limit >= len(lines):
         return lines
@@ -237,7 +416,11 @@ def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
         tally.vowel_ok += want_v == have_v
         tally.vowel_folded_ok += _fold(want_v) == _fold(have_v)
         tally.dagesh_ok += (DAGESH in want) == (DAGESH in have)
-        if base == "ש":
+        # A shin the reference leaves undotted is not a shin read as sin: editions of
+        # the Ben-Yehuda period write the plain shin bare and dot only the sin. So the
+        # dot is compared only where the reference took a position, and a bare shin in
+        # the reference is not scored on its dot, in the word either.
+        if base == "ש" and want & SHIN_DOTS:
             tally.shins += 1
             tally.shin_ok += (want & SHIN_DOTS) == (have & SHIN_DOTS)
         if QAMATS_QATAN in want:
@@ -248,7 +431,7 @@ def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
     for start, end in word_spans(bases):
         tally.words += 1
         if all(
-            want == have
+            want & SCORED == have & _scored(want)
             for (_, want), (_, have) in zip(gold[start:end], got[start:end], strict=True)
         ):
             tally.word_ok += 1
@@ -261,30 +444,18 @@ def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
             )
 
 
+def _scored(want: frozenset[int]) -> frozenset[int]:
+    """What a model's letter is compared on: everything scored, minus the shin dot
+    where the reference has none."""
+    return SCORED if want & SHIN_DOTS else SCORED - SHIN_DOTS
+
+
 def _at(pointed: list[tuple[str, frozenset[int]]], index: int) -> int:
     """The string offset of unit `index` in the text the units came from."""
     return sum(1 + len(marks) for _, marks in pointed[:index])
 
 
 # --- the models -----------------------------------------------------------------------
-
-
-def fetch(say: Callable[[str], None]) -> Path:
-    """The corpus, beside the IAHLT treebanks and for the same reason: fetched once,
-    read by a laptop, never shipped and never trained on."""
-    path = ensure(model_dir() / "gold") / "dicta-diacritization-modern.txt"
-    if path.is_file():
-        return path
-    import httpx
-
-    say(f"Fetching {CORPUS}…")
-    try:
-        answer = httpx.get(SOURCE, timeout=180.0, follow_redirects=True)
-        answer.raise_for_status()
-    except Exception as bad:  # noqa: BLE001 - network and HTTP both land here
-        raise TargumError(f"Could not fetch {CORPUS}.", str(bad)) from bad
-    write_atomic(path, answer.text)
-    return path
 
 
 def run_nakdimon(lines: list[Line], say: Callable[[str], None]) -> tuple[str, list[str | None]]:
@@ -339,19 +510,54 @@ def run_menaked(lines: list[Line], say: Callable[[str], None]) -> tuple[str, lis
     )
     model = AutoModel.from_pretrained(MENAKED, trust_remote_code=True)
     model.eval()
-    version = str(getattr(model.config, "_commit_hash", None) or "unknown")[:12]
+    # `/walk` names the assembly below, so its rows never pass for the card's.
+    version = str(getattr(model.config, "_commit_hash", None) or "unknown")[:12] + "/walk"
     say(f"{MENAKED} @ {version} over {len(lines)} lines…")
     out: list[str | None] = []
     with torch.inference_mode():
         for i, line in enumerate(lines):
             try:
-                out.append(model.predict([line.bare], tokenizer, mark_matres_lectionis="")[0])
+                out.append(point(model, tokenizer, line.bare))
             except Exception as error:  # noqa: BLE001 - a third-party model, not our code
                 say(f"  line {i}: {type(error).__name__}: {str(error)[:120]}")
                 out.append(None)
     del model, tokenizer
     gc.collect()
     return version, out
+
+
+def point(model: Any, tokenizer: Any, text: str) -> str:
+    """The menaked's marks on `text`, letters kept, every character emitted once.
+
+    The card's `predict` walks the tokens and copies the input slice each one covers,
+    which emits a character once per token it became: the tokenizer NFKC-normalises,
+    `…` is three tokens over one character, and it came back as `………` — 24 of 250
+    Ben-Yehuda lines refused by the skeleton check for an ellipsis (2026-09-07). This
+    walks the input instead and looks each character's token up, so nothing is ever
+    written twice or lost. It is what a `DictaVocalizer` would have to do, and it is the
+    same head, the same classes and the same rule for a mater as the card's code: a
+    letter the model calls a mater is kept bare.
+    """
+    inputs = tokenizer([text], return_tensors="pt", truncation=True, return_offsets_mapping=True)
+    offsets = inputs.pop("offset_mapping")[0].tolist()
+    logits = model(**{k: v.to(model.device) for k, v in inputs.items()}, return_dict=True).logits
+    nikud = logits.nikud_logits[0].argmax(-1).tolist()
+    shin = logits.shin_logits[0].argmax(-1).tolist()
+    token_of: dict[int, int] = {}
+    for index, (start, end) in enumerate(offsets):
+        if end - start == 1:
+            token_of.setdefault(start, index)
+    out: list[str] = []
+    for at, char in enumerate(text):
+        out.append(char)
+        index = token_of.get(at)
+        if index is None or ord(char) not in LETTERS:
+            continue
+        if char == "ש":
+            out.append(model.config.shin_classes[shin[index]])
+        marks = model.config.nikud_classes[nikud[index]]
+        out.append("" if marks == model.config.mat_lect_token else marks)
+    return "".join(out)
 
 
 RUNNERS: dict[str, tuple[str, Callable[..., tuple[str, list[str | None]]]]] = {
@@ -388,6 +594,7 @@ def table(results: dict[str, tuple[str, Tally]]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--corpus", choices=sorted(CORPORA), default="dicta-modern")
     parser.add_argument("--limit", type=int, default=0, help="lines to score, 0 for all")
     parser.add_argument(
         "--model",
@@ -401,8 +608,11 @@ def main() -> None:
     args = parser.parse_args()
 
     say: Callable[[str], None] = lambda message: print(message, file=sys.stderr)  # noqa: E731
-    lines = spread(parse(fetch(say).read_text(encoding="utf-8")), args.limit)
-    say(f"{CORPUS}: {len(lines)} lines, {sum(len(line.bare.split()) for line in lines)} words")
+    corpus = CORPORA[args.corpus]
+    lines = spread(corpus.load(say), args.limit)
+    say(
+        f"{args.corpus}: {len(lines)} lines, {sum(hebrew_words(line.bare) for line in lines)} words"
+    )
 
     results: dict[str, tuple[str, Tally]] = {}
     for name in args.model or ["nakdimon", "menaked"]:
@@ -422,7 +632,7 @@ def main() -> None:
 
     if not results:
         raise SystemExit("nothing ran")
-    print(f"\n{CORPUS} — {CREDIT}; {LICENCE}\n")
+    print(f"\n{args.corpus} — {corpus.credit}; {corpus.licence}\n")
     print(table(results))
     for system, tally in results.values():
         if tally.broken:
@@ -451,7 +661,7 @@ def main() -> None:
                     metric,
                     round(score_, 4),
                     n,
-                    corpus=CORPUS,
+                    corpus=args.corpus,
                     note=note,
                 )
             )
