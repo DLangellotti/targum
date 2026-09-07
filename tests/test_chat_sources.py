@@ -16,6 +16,20 @@ def registry(tmp_path: Path, monkeypatch: Any, rows: list[dict[str, Any]]) -> Pa
     return path
 
 
+def test_a_feed_host_is_reduced_to_the_site_it_belongs_to() -> None:
+    """The papers' feeds live on rss. and rcs. hosts; a search allowed only there would
+    read RSS servers and never a page anybody prints."""
+    assert sources.site("https://rss.walla.co.il/feed/1") == "walla.co.il"
+    assert sources.site("https://rcs.mako.co.il/rss/news-israel.xml") == "mako.co.il"
+    assert sources.site("https://www.ynet.co.il/Integration/StoryRss2.xml") == "ynet.co.il"
+    assert sources.site("https://main.knesset.gov.il/News/rss.aspx") == "knesset.gov.il"
+    assert sources.site("https://www.israelhayom.co.il/rss.xml") == "israelhayom.co.il"
+    assert sources.site("https://feeds.example.org/x") == "example.org"
+    assert sources.site("https://benyehuda.org/") == "benyehuda.org"
+    assert sources.site("https://www.gov.il/he/api/news/rss") == "gov.il", "www. is not a site"
+    assert sources.site("not an address") == ""
+
+
 def test_no_file_means_no_publishers_and_only_the_public_hosts(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
@@ -55,7 +69,7 @@ def test_publishers_are_read_and_their_hosts_lead_the_domain_list(
     assert [one.key for one in found] == ["kan", "odd"], "a row with no key is skipped"
     assert found[1].kind == "news", "an unknown kind falls back rather than failing"
     hosts = sources.allowed_domains()
-    assert hosts[:2] == ["www.kan.org.il", "feeds.example.org"], "publishers first"
+    assert hosts[:2] == ["kan.org.il", "example.org"], "publishers first, by their site"
     assert "www.sefaria.org" in hosts
     assert sources.by_key("kan") is not None and sources.by_key("nope") is None
 

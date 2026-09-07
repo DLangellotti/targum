@@ -66,6 +66,15 @@ if [ ! -f "$CATALOGUE" ]; then
   exit 1
 fi
 scp -q "$CATALOGUE" "$HOST:/tmp/catalogue.json"
+# The publishers the chat may search — private data for the same reason, read from
+# beside the catalogue by default. Optional, unlike the catalogue: a box without one
+# has nowhere to search and says so, and nothing else changes.
+SOURCES="${TARGUM_SOURCES:-$HOME/.targum/sources.json}"
+if [ -f "$SOURCES" ]; then
+  scp -q "$SOURCES" "$HOST:/tmp/sources.json"
+else
+  echo "no sources.json at $SOURCES — the chat will have no publishers to search" >&2
+fi
 # The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
@@ -104,6 +113,10 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   install -d -o root -g targum -m 0750 /etc/targum
   install -o root -g targum -m 0640 /tmp/catalogue.json /etc/targum/catalogue.json
   rm -f /tmp/catalogue.json
+  if [ -f /tmp/sources.json ]; then
+    install -o root -g targum -m 0640 /tmp/sources.json /etc/targum/sources.json
+    rm -f /tmp/sources.json
+  fi
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
   systemctl daemon-reload
