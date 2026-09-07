@@ -71,21 +71,27 @@ saying why."""
 
 
 def pool_rows(path: Path) -> list[dict[str, Any]]:
+    """English originals with a native Hebrew rendering, at sentence length. Streamed
+    and filtered on the way in: the whole pool as Python objects is what tipped an
+    8 GB laptop into killing the run."""
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            rows.append(json.loads(line))
+    with path.open(encoding="utf-8") as lines:
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            raw = json.loads(line)
+            if (
+                raw.get("from_english")
+                and raw.get("en")
+                and len(str(raw["he"]).split()) <= MAX_WORDS
+            ):
+                rows.append(raw)
     return rows
 
 
 def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, Any]]:
-    """English originals with a native Hebrew rendering, at sentence length."""
-    fit = [
-        row
-        for row in rows
-        if row.get("from_english") and row.get("en") and len(str(row["he"]).split()) <= MAX_WORDS
-    ]
+    fit = list(rows)
     draw = random.Random(seed)
     draw.shuffle(fit)
     return fit[:count]
@@ -131,10 +137,12 @@ def recast(client: object, system: list[dict[str, str]], english: str, usage: Us
 
 def judge(
     client: object, english: str, reference: str, candidate: str, usage: Usage
-) -> tuple[bool, str]:
+) -> tuple[str, str]:
+    """ "yes", "no", or "none" where the judge wrote nothing — counted apart, never as a
+    no: the first run counted empty replies as wrong and the number could not be read."""
     reply = client.messages.create(  # type: ignore[attr-defined]
         model=CHAT_MODEL,
-        max_tokens=120,
+        max_tokens=400,
         messages=[
             {
                 "role": "user",
@@ -145,8 +153,10 @@ def judge(
     )
     usage.add(CHAT_MODEL, reply.usage.input_tokens, reply.usage.output_tokens)
     text = "".join(getattr(block, "text", "") for block in reply.content).strip()
-    first = text.splitlines()[0].strip().upper() if text else ""
-    return first.startswith("YES"), text
+    if not text:
+        return "none", ""
+    first = text.splitlines()[0].strip().upper()
+    return ("yes" if first.startswith("YES") else "no"), text
 
 
 def main() -> None:
@@ -158,6 +168,9 @@ def main() -> None:
     parser.add_argument("--exemplars", action="store_true", help="ride the Tatoeba exemplars")
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     parser.add_argument("--show", type=int, default=8, help="how many judged-wrong to print")
+    parser.add_argument(
+        "--save", type=Path, help="write every pair, recast and verdict here, JSONL"
+    )
     args = parser.parse_args()
 
     import anthropic
@@ -178,7 +191,6 @@ def main() -> None:
 
     client = anthropic.Anthropic()
     usage = Usage()
-    reader = lemma.for_source("chat:eval")
     candidates: list[str] = []
     for n, row in enumerate(chosen):
         block = ledger
@@ -195,37 +207,69 @@ def main() -> None:
             print(f"  {n + 1}/{len(chosen)} recast", flush=True)
 
     references = [str(row["he"]) for row in chosen]
+    # The lemmatizer is loaded after the turns and dropped before the judging, so the
+    # model is not held in memory through four hundred API calls.
+    reader = lemma.for_source("chat:eval")
     got = content_lemmas(reader, candidates)
     want = content_lemmas(reader, references)
+    del reader
     overlaps = [jaccard(a, b) for a, b in zip(got, want, strict=True)]
     unpaired = sum(1 for line in candidates if not line)
 
-    verdicts: list[tuple[bool, str]] = []
+    verdicts: list[tuple[str, str]] = []
     for n, (row, candidate) in enumerate(zip(chosen, candidates, strict=True)):
         if not candidate:
-            verdicts.append((False, "no recast line"))
+            verdicts.append(("no", "no recast line"))
             continue
         verdicts.append(judge(client, str(row["en"]), str(row["he"]), candidate, usage))
         if (n + 1) % 20 == 0:
             print(f"  {n + 1}/{len(chosen)} judged", flush=True)
-    ok_share = sum(1 for ok, _ in verdicts if ok) / len(verdicts)
+    unjudged = sum(1 for verdict, _ in verdicts if verdict == "none")
+    judged = len(verdicts) - unjudged
+    ok_share = (sum(1 for verdict, _ in verdicts if verdict == "yes") / judged) if judged else 0.0
     overlap = sum(overlaps) / len(overlaps)
+    if args.save:
+        args.save.parent.mkdir(parents=True, exist_ok=True)
+        with args.save.open("w", encoding="utf-8") as out:
+            for row, candidate, (verdict, why), score in zip(
+                chosen, candidates, verdicts, overlaps, strict=True
+            ):
+                out.write(
+                    json.dumps(
+                        {
+                            "id": row["id"],
+                            "en": row["en"],
+                            "ref": row["he"],
+                            "got": candidate,
+                            "verdict": verdict,
+                            "why": why,
+                            "overlap": round(score, 3),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
 
     print(f"{len(chosen)} pairs, exemplars {'on' if args.exemplars else 'off'}, known={args.known}")
     print(
-        f"judge says right: {ok_share:.1%}   lemma overlap: {overlap:.3f}   no recast: {unpaired}"
+        f"judge says right: {ok_share:.1%} of {judged} judged   lemma overlap: {overlap:.3f}   "
+        f"no recast: {unpaired}   judge wrote nothing: {unjudged}"
     )
     print(f"spent ${usage.cost():.2f} over {usage.calls} calls")
     shown = 0
-    for row, candidate, (ok, why) in zip(chosen, candidates, verdicts, strict=True):
-        if ok or shown >= args.show:
+    for row, candidate, (verdict, why) in zip(chosen, candidates, verdicts, strict=True):
+        if verdict != "no" or shown >= args.show:
             continue
         shown += 1
-        print(f"\n  {row['en']}\n  ref: {row['he']}\n  got: {candidate}\n  {why.splitlines()[-1]}")
+        reason = why.splitlines()[-1] if why else "(no reason given)"
+        print(f"\n  {row['en']}\n  ref: {row['he']}\n  got: {candidate}\n  {reason}")
 
     today = date.today().isoformat()
     riding = "on" if args.exemplars else "off"
-    note = f"known={args.known} pairs={len(chosen)} seed={args.seed} exemplars={riding}"
+    note = (
+        f"known={args.known} pairs={len(chosen)} seed={args.seed} exemplars={riding} "
+        f"unjudged={unjudged}"
+    )
     rows_out = [
         evals.Row(
             today,
