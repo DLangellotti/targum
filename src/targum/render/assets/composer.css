@@ -95,6 +95,18 @@
 }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .quote-card.refused .quote-note { color: var(--clay); }
+/* The first lines of a text that arrived as pages, in the reading face: what the
+   reader will get, seen before the press. Four lines at most, set by the server. */
+.quote-excerpt {
+  margin: 0;
+  justify-self: stretch;
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+/* How many lines could not be read cleanly. A count in words (§6), never a colour. */
+.quote-doubt { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .quote-go {
   font: inherit;
   font-size: 0.8125rem;

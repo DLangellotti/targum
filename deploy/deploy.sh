@@ -102,7 +102,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
   # extras for x86_64 Linux both ways and diffing (targum-internal#93).
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers]" \
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring]" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
       >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum

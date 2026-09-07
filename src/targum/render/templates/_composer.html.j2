@@ -3,7 +3,7 @@
     front door (2026-09-06, design.md §12), and the conversation page, where it is the
     composer — and two copies of a box drift the way two copies of a nav bar did.
 
-    Left to right: the `+`, which brings a file or a recording and prices it here (it
+    Left to right: the `+`, which brings a file, a picture or a recording and prices it here (it
     used to be Upload, a corner of the nav; it is a thing you do while asking, not a
     place, and since 2026-09-06 the Add page is its "More options"); the field; Speak, shown only where the browser records and the reader
     has modern Hebrew to speak (the page's script decides both); and Send, the working
@@ -19,9 +19,12 @@
       said to targum. The card it draws carries "More options", which is the Add page,
       for a translation or a transcript of your own. -#}
   <button type="button" class="chat-bring" id="chat-bring"
-          aria-label="Bring a file or a recording" title="Bring a file or a recording">+</button>
-  <input type="file" id="chat-file" hidden
-         accept=".txt,.md,.markdown,.epub,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv">
+          aria-label="Bring a file, a picture or a recording"
+          title="Bring a file, a picture or a recording">+</button>
+  {#- `multiple` for the pictures: several chosen together are the pages of one text
+      (2026-09-07). Anything else is taken one at a time, whatever was selected. -#}
+  <input type="file" id="chat-file" hidden multiple
+         accept=".txt,.md,.markdown,.epub,.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv">
   {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
       as a line — seconds, not a conversation. -#}
   <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>

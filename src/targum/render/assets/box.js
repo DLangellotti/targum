@@ -143,7 +143,9 @@
   // carries the build and its door when it is done.
   var bringing = window.TargumBring;
   function bringFile(chosen) {
-    if (!chosen || !bringing || !brought) return;
+    if (!bringing || !brought) return;
+    chosen = bringing.listed(chosen);
+    if (!chosen.length) return;
     busy = true;
     send.disabled = true;
     brought.textContent = "";
@@ -179,7 +181,8 @@
       if (!busy) file.click();
     };
     file.onchange = function () {
-      bringFile(file.files && file.files[0]);
+      // All of them: several pictures chosen together are the pages of one text.
+      bringFile(file.files);
     };
   }
 

@@ -581,3 +581,35 @@ def test_a_reader_with_nothing_marked_is_not_told_they_knew_nothing() -> None:
     )
     assert page["foot"]["counts"] == "1 min · 4 words · none marked yet"
     assert "%" not in page["foot"]["counts"] and "not met" not in page["foot"]["counts"]
+
+
+def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
+    """Two pages photographed one after another: up one at a time, priced once, one
+    card in the thread — the same card the front door draws for them."""
+    page = run(
+        do=[
+            {
+                "type": "file",
+                "files": [{"name": "p1.jpg", "size": 10}, {"name": "p2.png", "size": 10}],
+            }
+        ],
+        answers={
+            "/upload/begin": {"upload": "u1", "chunk": 100},
+            "/upload/u1/0": {},
+            "/upload/u1/end": {"upload": "u1", "picture": True},
+            "/prepare": dict(QUOTE, pages=2, doubtful=0, excerpt=["שורה ראשונה"]),
+        },
+    )
+    assert [p["path"] for p in page["posted"]] == [
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/end",
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/end",
+        "/prepare",
+    ]
+    assert page["posted"][-1]["body"]["uploads"] == ["u1", "u1"]
+    (card,) = page["cards"]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["meta"].startswith("2 pages")

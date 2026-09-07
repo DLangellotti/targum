@@ -331,7 +331,9 @@
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
   function brought(chosen) {
-    if (!chosen || !bringing) return;
+    if (!bringing) return;
+    chosen = bringing.listed(chosen);
+    if (!chosen.length) return;
     busy = true;
     send.disabled = true;
     tell("");
@@ -375,7 +377,8 @@
       if (!busy) file.click();
     };
     file.onchange = function () {
-      brought(file.files && file.files[0]);
+      // All of them: several pictures chosen together are the pages of one text.
+      brought(file.files);
     };
   }
 

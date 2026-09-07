@@ -183,3 +183,84 @@ def test_a_refused_file_is_said_under_the_box() -> None:
         answers={"/prepare": {"error": "Nothing new can be built now."}},
     )
     assert page["brought"] == [] and page["said"]["text"] == "Nothing new can be built now."
+
+
+PAGES = dict(
+    QUOTE,
+    pages=2,
+    segments=12,
+    total=12,
+    doubtful=1,
+    excerpt=["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול ארוך"],
+)
+
+PICTURES = {
+    "/upload/begin": {"upload": "u1", "chunk": 100},
+    "/upload/u1/0": {},
+    "/upload/u1/end": {"upload": "u1", "picture": True},
+}
+
+
+def test_several_pictures_chosen_together_are_one_text_read_and_shown_on_the_card() -> None:
+    """Two photos of one handout: each goes up the chunked door, `/prepare` is asked
+    once with both, and the card shows the first lines as read and how many lines were
+    doubtful — what will be built, seen before the press (targum-internal#217)."""
+    page = run(
+        do=[
+            {
+                "type": "file",
+                "files": [{"name": "page1.jpg", "size": 10}, {"name": "page2.HEIC", "size": 10}],
+            }
+        ],
+        answers={**PICTURES, "/prepare": PAGES},
+    )
+    assert [p["path"] for p in page["posted"]] == [
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/end",
+        "/upload/begin",
+        "/upload/u1/0",
+        "/upload/u1/end",
+        "/prepare",
+    ]
+    assert page["posted"][-1]["body"]["uploads"] == ["u1", "u1"], "one text, in order"
+    assert "upload" not in page["posted"][-1]["body"]
+    (card,) = page["brought"]
+    assert card["excerpt"] == PAGES["excerpt"]
+    assert card["doubt"] == "1 line could not be read clearly."
+    assert card["meta"].startswith("2 pages · 12 sentences")
+    assert card["button"] == "Read this"
+
+
+def test_a_pdf_goes_up_the_chunked_door_and_is_priced_as_one_upload() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "handout.pdf", "size": 10}}],
+        answers={**PICTURES, "/upload/u1/end": {"upload": "u1", "pages": 3}, "/prepare": PAGES},
+    )
+    assert [p["path"] for p in page["posted"]][-2:] == ["/upload/u1/end", "/prepare"]
+    assert page["posted"][-1]["body"]["upload"] == "u1"
+    assert "content" not in page["posted"][-1]["body"], "not read whole as base64"
+
+
+def test_pictures_and_a_text_chosen_together_are_refused_under_the_box() -> None:
+    page = run(
+        do=[
+            {
+                "type": "file",
+                "files": [{"name": "page1.png", "size": 10}, {"name": "notes.txt", "size": 10}],
+            }
+        ],
+        answers={**PICTURES, "/prepare": PAGES},
+    )
+    assert page["posted"] == [], "nothing went up"
+    assert page["said"]["text"] == "Several files at once must all be pictures of one text."
+    assert page["sendDisabled"] is False
+
+
+def test_a_card_with_no_excerpt_draws_no_excerpt() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
+        answers={"/prepare": QUOTE},
+    )
+    (card,) = page["brought"]
+    assert card["excerpt"] == [] and card["doubt"] == ""

@@ -16,6 +16,8 @@ from .audio import AudioIngester
 from .base import Ingester, detect_language, normalize, parse_frontmatter, to_markdown
 from .epub import EpubIngester
 from .markdown import MarkdownIngester
+from .pdf import PdfIngester
+from .picture import PictureIngester, is_pictures
 from .plaintext import PlainTextIngester
 from .subtitles import SubtitleIngester
 from .transcript import TranscriptIngester
@@ -41,6 +43,16 @@ _BY_SUFFIX: dict[str, Ingester] = {
     ".vtt": SubtitleIngester(),
     # A conversation written down by the chat, in the reader's own home.
     ".chat": TranscriptIngester(),
+    # A handout with a text layer. A scan is refused inside, by name (#197).
+    ".pdf": PdfIngester(),
+    # A screenshot or a phone photo, read by the model (targum-internal#217). A
+    # folder of them is one text and is dispatched below, since a folder has no suffix.
+    ".png": PictureIngester(),
+    ".jpg": PictureIngester(),
+    ".jpeg": PictureIngester(),
+    ".webp": PictureIngester(),
+    ".heic": PictureIngester(),
+    ".heif": PictureIngester(),
 }
 
 
@@ -95,12 +107,16 @@ def _load(source: str) -> Document:
     path = Path(source)
     suffix = path.suffix.lower()
 
-    if suffix == ".pdf":
-        raise UnsupportedSource("PDF ingest is not supported yet.")
     if is_drm(source):
         raise UnsupportedSource("This file is protected, so targum cannot read it.")
     if not path.exists():
         raise TargumError(f"No such file: {source}")
+    if path.is_dir():
+        # The pages of one text, photographed one after another: the upload door
+        # numbers them into a folder, and the folder is the source.
+        if is_pictures(path):
+            return PictureIngester().load(source)
+        raise UnsupportedSource(f"targum reads a folder only when it holds pictures: {path.name}")
     if is_audio(source) or is_video(source):
         # A video is the audio import with pictures kept: the same ingester reads the
         # same transcripts, and the pictures never enter the document at all.

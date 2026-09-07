@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A picture is a text. The `+` on the box and the Add page take a screenshot, a phone
+  photo (HEIC included) or a PDF with a text layer, and several pictures chosen
+  together are the pages of one text in the order chosen. Pictures go up the chunked
+  door and are read by the model at the price quote — the one spend before a card,
+  reserved against the same rails a build is claimed on and settled to what the API
+  charged, cached by the picture's bytes so nothing is read twice, capped at thirty
+  pages (targum-internal#217). A PDF's text layer is read by `pypdf` and costs
+  nothing; a scanned PDF is refused by name and stays on #197. The card shows the
+  first lines as read and how many lines could not be read clearly, so what will be
+  built is seen before the press. Every block carries its page as `ref`, and a line
+  with no Hebrew in it is marked English so the lemmatizer leaves it alone. New
+  `bring` extra: `pillow`, `pillow-heif`, `pypdf`.
 - The box is the front door. Learn carries one field under the ledger's own sentence —
   a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
   records — and a line typed there opens a conversation and goes to it, with the new

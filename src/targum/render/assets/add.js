@@ -70,7 +70,7 @@
   };
 
   fileInput.onchange = function () {
-    if (fileInput.files[0]) take(fileInput.files[0]);
+    if (fileInput.files[0]) take(fileInput.files);
   };
 
   ["dragenter", "dragover"].forEach(function (name) {
@@ -86,29 +86,42 @@
     });
   });
   drop.addEventListener("drop", function (event) {
-    var file = event.dataTransfer && event.dataTransfer.files[0];
-    if (file) take(file);
+    var files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files[0]) take(files);
   });
 
   var unchoose = document.getElementById("unchoose");
   var DROP_LABEL = drop.querySelector(".drop-label").textContent;
   var DROP_NOTE = drop.querySelector(".drop-note").textContent;
 
+  // What was chosen, said: one file by its name, several pictures by their count.
+  function chosenLabel() {
+    if (chosen.length === 1) return chosen[0].name;
+    return chosen.length + " pictures";
+  }
+  function chosenSize() {
+    var total = 0;
+    chosen.forEach(function (file) {
+      total += file.size || 0;
+    });
+    return Math.round(total / 1024) + " KB";
+  }
+
   function showChosen() {
     var picked = chosen !== null;
-    drop.querySelector(".drop-label").textContent = picked ? chosen.name : DROP_LABEL;
-    drop.querySelector(".drop-note").textContent = picked
-      ? Math.round(chosen.size / 1024) + " KB"
-      : DROP_NOTE;
+    drop.querySelector(".drop-label").textContent = picked ? chosenLabel() : DROP_LABEL;
+    drop.querySelector(".drop-note").textContent = picked ? chosenSize() : DROP_NOTE;
     document.getElementById("choose").hidden = picked;
     if (unchoose) unchoose.hidden = !picked;
   }
 
-  function take(file) {
-    chosen = file;
+  // `chosen` is always a list: one file, or the pictures of one text chosen together.
+  function take(files) {
+    chosen = bringing.listed(files);
+    if (!chosen.length) return forget();
     sourceInput.value = "";
     showChosen();
-    if (window.TargumAddAudio) window.TargumAddAudio.toggle(/\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav|mp4|m4v|mov|webm|mkv)$/i.test(file.name));
+    if (window.TargumAddAudio) window.TargumAddAudio.toggle(chosen.length === 1 && isAudio(chosen[0]));
   }
 
   function forget() {
@@ -228,6 +241,12 @@
 
   function isAudio(file) {
     return !!(file && AUDIO.test(file.name));
+  }
+  // Anything that goes up the chunked door: a recording, a picture, a PDF.
+  function inPieces(files) {
+    return files.some(function (file) {
+      return isAudio(file) || bringing.isPicture(file) || bringing.isPdf(file);
+    });
   }
 
   //: The transcript the reader brought for their recording, if they brought one.
@@ -533,27 +552,32 @@
     }
 
     var text = pasted ? pasted.value.trim() : "";
-    if (chosen && isAudio(chosen)) {
-      prepared = uploadInChunks(chosen, function (share) {
-        say(line("Uploading… " + share + "%"));
-      }).then(function (done) {
-        if (done.error) throw done.error;
-        // The same bytes were already imported: the reader is the answer.
-        if (done.reader) {
-          window.location.href = keyed(
-            "/reader/" + done.reader.split("/").map(encodeURIComponent).join("/")
-          );
-          return { id: "" };
-        }
-        payload.upload = done.upload;
-        say(waiting());
-        return withTranscript(payload).then(function (body) {
-          return ask("/prepare", body);
+    if (chosen && inPieces(chosen)) {
+      // A recording, a PDF, or the pictures of one text: up the chunked door, the
+      // fields it answers with merged into the request, then priced.
+      prepared = bringing
+        .upload(chosen, function (share) {
+          say(line("Uploading… " + share + "%"));
+        })
+        .then(function (sent) {
+          // The same bytes were already imported: the reader is the answer.
+          if (sent.reader) {
+            window.location.href = keyed(
+              "/reader/" + sent.reader.split("/").map(encodeURIComponent).join("/")
+            );
+            return { id: "" };
+          }
+          Object.keys(sent).forEach(function (name) {
+            payload[name] = sent[name];
+          });
+          say(waiting());
+          return withTranscript(payload).then(function (body) {
+            return ask("/prepare", body);
+          });
         });
-      });
     } else if (chosen) {
-      prepared = readFile(chosen).then(function (content) {
-        payload.name = chosen.name;
+      prepared = readFile(chosen[0]).then(function (content) {
+        payload.name = chosen[0].name;
         payload.content = content;
         return withTranslation(payload).then(function (body) {
           return ask("/prepare", body);
@@ -623,7 +647,7 @@
     var what =
       job.chapters > 1
         ? job.chapters + " chapters"
-        : job.segments + " sentences";
+        : (job.pages > 1 ? job.pages + " pages · " : "") + job.segments + " sentences";
     return document.createTextNode(named(job.language) + " · " + what);
   }
 
@@ -672,9 +696,18 @@
       // dropped file could never take this branch: the override worked for a pasted
       // link and silently did nothing for an upload.
       var again;
-      if (chosen) {
-        again = readFile(chosen).then(function (content) {
-          payload.name = chosen.name;
+      if (chosen && inPieces(chosen)) {
+        // A recording, a PDF or pictures: up the chunked door again — the first
+        // upload was gathered into the quote and cannot be named twice.
+        again = bringing.upload(chosen).then(function (sent) {
+          Object.keys(sent).forEach(function (name) {
+            payload[name] = sent[name];
+          });
+          return ask("/prepare", payload);
+        });
+      } else if (chosen) {
+        again = readFile(chosen[0]).then(function (content) {
+          payload.name = chosen[0].name;
           payload.content = content;
           return ask("/prepare", payload);
         });
@@ -727,6 +760,27 @@
     head.appendChild(document.createTextNode(" · "));
     head.appendChild(describe(job));
     box.appendChild(head);
+
+    // A text that arrived as pages: its first lines as read, and how many it could
+    // not read cleanly, so the reader sees what will be built before pressing.
+    if (job.excerpt && job.excerpt.length) {
+      var lines = document.createElement("p");
+      lines.className = "excerpt";
+      lines.setAttribute("lang", job.language || "he");
+      lines.setAttribute("dir", (job.language || "he") === "he" ? "rtl" : "ltr");
+      job.excerpt.forEach(function (read, n) {
+        if (n) lines.appendChild(document.createElement("br"));
+        var bdi = document.createElement("bdi");
+        bdi.textContent = read;
+        lines.appendChild(bdi);
+      });
+      box.appendChild(lines);
+    }
+    if (job.doubtful > 0) {
+      box.appendChild(
+        line(job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " could not be read clearly.")
+      );
+    }
 
     var cost = document.createElement("span");
     cost.className = "cost";

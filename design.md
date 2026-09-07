@@ -300,6 +300,22 @@ In *this* repository: tokens are the `:root` block of
 Seventeen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
 
+
+### A picture is read before it is priced — 2026-09-07
+
+Everything else the `+` brings is priced before a cent is spent. A picture cannot be:
+until it is read there is nothing to count, no title, no first line, and a card that
+said "a picture" would be asking the reader to buy blind. So the reading happens at the
+quote, and it is the one spend before a card. What keeps it honest: the file choice is the
+consent, the ceiling is thirty pages and is refused at the door before any is read, the
+reservation goes through the same claim a build makes and is settled to the receipt,
+every picture read is cached by its bytes so a second drop or the build after the quote
+reads for nothing, and the card shows the first lines as read and says in words how many
+lines could not be read clearly (§6: a count, never a colour). The reader is never shown
+what the reading cost, as with every other price here. Scanned PDFs are not read at all
+and are refused by name; that is targum-internal#197's, and the reflow-not-facsimile
+decision for pictures is recorded there and in #217.
+
 ### A conversation is drawn as the text it becomes — 2026-09-06
 
 `/chat` drew a thread: the reader's lines and targum's, the same ink under a quiet label.

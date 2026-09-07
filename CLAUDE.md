@@ -74,7 +74,10 @@ wrong. There is; it is just not in the environment of a fresh shell.
   `Library.claim`. The chat is a door on rooms that exist; the model may ask
   (`quote_*`), a person presses, and only then does `start_build` run. A tool that
   spends on a model's decision makes the pricing page a lie. Every turn is a `job` row
-  of kind `chat`, so the rails see it — do not invent a second counter.
+  of kind `chat`, so the rails see it — do not invent a second counter. The one spend
+  before a card is the reading of a picture brought by the `+` (2026-09-07): the file
+  choice is the consent, it is capped at thirty pages, and it still goes through
+  `Library.claim` and is settled to the receipt (`Library._read_pages`).
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

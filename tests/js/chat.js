@@ -234,7 +234,8 @@ function drawn() {
       sources[sources.length - 1].fire(step.event, step.data || "");
     }
     if (step.type === "file") {
-      byId["chat-file"].files = [fakeFile(step.file)];
+      // One file, or several chosen together (`files`): the pages of one text.
+      byId["chat-file"].files = (step.files || [step.file]).map(fakeFile);
       byId["chat-file"].onchange();
       // An upload is several round trips; let them all settle.
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));

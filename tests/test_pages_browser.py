@@ -369,3 +369,95 @@ def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(brows
     context.close()
     assert measured["railRight"] <= measured["threadLeft"] + 1, "the rail keeps to its column"
     assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
+
+
+def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
+    """The whole of what a reader does with a phone's worth of pages, on the client's
+    side: two files chosen together on Learn go up one after another, `/prepare` is
+    asked once with both, and one card stands under the box showing the first lines
+    as read. Pressing it posts `/build`. The server is answered here — what is under
+    test is that a real file input with `multiple` reaches the box's script as a set."""
+    html = learn_page(TOKEN)
+    fixture = Path(__file__).parent / "fixtures" / "pages" / "screenshot.png"
+    prepared: list[dict] = []
+    built: list[dict] = []
+    begun = 0
+
+    def answer(route, request):
+        nonlocal begun
+        url = request.url
+        if url.endswith(("/learn", "/learn.html")) or url.rstrip("/").endswith("learn.test"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        elif "/chat/list" in url:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"chats": [], "usable": True, "talk": True}),
+            )
+        elif "/upload/begin" in url:
+            begun += 1
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": f"u{begun}", "chunk": 1_000_000}),
+            )
+        elif "/upload/" in url and url.split("?")[0].endswith("/end"):
+            which = url.split("/upload/")[1].split("/")[0]
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": which, "picture": True}),
+            )
+        elif "/upload/" in url:
+            route.fulfill(status=200, content_type="application/json", body='{"got": 0}')
+        elif "/prepare" in url:
+            prepared.append(request.post_data_json)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {
+                        "id": "j1",
+                        "title": "נָסַעְתִּי לַנֶּגֶב",
+                        "language": "he",
+                        "segments": 6,
+                        "total": 6,
+                        "chapters": 1,
+                        "pages": 2,
+                        "doubtful": 1,
+                        "excerpt": ["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול"],
+                        "estimate": 0.02,
+                        "stage": "ready",
+                        "blocked": "",
+                        "error": "",
+                        "audio": False,
+                    }
+                ),
+            )
+        elif "/build" in url:
+            built.append(request.post_data_json)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"stage": "working"})
+            )
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://learn.test/**", answer)
+    open_page.goto("http://learn.test/learn")
+    open_page.wait_for_timeout(300)
+    open_page.set_input_files("#chat-file", [str(fixture), str(fixture)])
+    open_page.wait_for_selector(".quote-card", timeout=5000)
+    cards = open_page.locator(".quote-card").count()
+    excerpt = open_page.locator(".quote-excerpt").inner_text()
+    doubt = open_page.locator(".quote-doubt").inner_text()
+    open_page.click(".quote-go")
+    open_page.wait_for_timeout(300)
+    context.close()
+
+    assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
+    assert cards == 1, "several pictures are one text and one card"
+    assert "נָסַעְתִּי לַנֶּגֶב" in excerpt
+    assert doubt == "1 line could not be read clearly."
+    assert built == [{"id": "j1"}]

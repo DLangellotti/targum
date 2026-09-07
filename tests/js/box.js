@@ -95,7 +95,8 @@ require(path.join(assets, "box.js"));
       byId["composer"].fire("submit", { preventDefault() {} });
     }
     if (step.type === "file") {
-      byId["chat-file"].files = [fakeFile(step.file)];
+      // One file, or several chosen together (`files`): the pages of one text.
+      byId["chat-file"].files = (step.files || [step.file]).map(fakeFile);
       byId["chat-file"].onchange();
       // An upload is several round trips; let them all settle.
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -120,6 +121,11 @@ require(path.join(assets, "box.js"));
           button: by("quote-go") ? by("quote-go").textContent : "",
           more: by("quote-more") ? by("quote-more").href : "",
           note: by("quote-note") ? by("quote-note").textContent : "",
+          meta: by("quote-meta") ? by("quote-meta").textContent : "",
+          excerpt: by("quote-excerpt")
+            ? by("quote-excerpt").children.filter((c) => String(c.tagName).toUpperCase() === "BDI").map((c) => c.textContent)
+            : [],
+          doubt: by("quote-doubt") ? by("quote-doubt").textContent : "",
         };
       }),
       mic: { hidden: byId["chat-mic"].hidden },

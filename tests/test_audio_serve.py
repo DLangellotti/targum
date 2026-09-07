@@ -390,7 +390,7 @@ def test_a_file_that_is_not_audio_or_video_is_refused_at_the_door(served) -> Non
     port, token, _out = served
     status, answer = begin(port, token, name="film.avi")
     assert status == 400
-    assert "not an audio or video file" in answer["error"]
+    assert "not a recording, a video, a picture or a PDF" in answer["error"]
 
 
 def test_a_video_is_taken_at_the_door_and_probed_as_one(served, fake_audio) -> None:
