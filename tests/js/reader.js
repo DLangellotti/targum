@@ -37,6 +37,11 @@ install({
     // Anything else the browser held, already as strings: the reading days, a ledger
     // snapshot, whatever a test needs the page to find.
     payload.stored || {},
+    // The language the reader said they read into, on the library or words page —
+    // `lang.js` keeps it, and the reader takes it as the opening rendering.
+    payload.into ? { "targum:into": payload.into } : {},
+    // What an earlier page of this text left in the reader's preferences.
+    payload.prefs ? { "targum:prefs": JSON.stringify(payload.prefs) } : {},
   ),
 });
 
@@ -55,7 +60,48 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   // which is what every page built before this said.
   ...(payload.section ? { section: payload.section } : {}),
   ...(payload.sections ? { sections: payload.sections } : {}),
+  // The renderings this section carries, as the builder ships them: `{ t0: { text,
+  // coarse, language, direction }, ... }`.
+  ...(payload.translations ? { translations: payload.translations } : {}),
 });
+
+/* The pairs, as the template writes them: a bare source cell and a translation cell
+ * written with the first rendering, each claiming its language and direction. Only what
+ * the switch reads and writes; the spans inside a cell are a browser's business. */
+const main = byId.reader = element("main");
+const pairs = (payload.pairs || []).map((row) => {
+  const pair = element("div");
+  pair.className = "pair" + (row.coarse ? " coarse" : "");
+  if (row.coarse) pair.classList.add("coarse");
+  pair.setAttribute("data-id", row.id);
+  const src = element("p");
+  src.className = "src plain";
+  src.setAttribute("data-form", "plain");
+  src.textContent = row.src;
+  pair.appendChild(src);
+  const tr = element("p");
+  tr.className = "tr";
+  tr.setAttribute("lang", row.lang || "en");
+  tr.setAttribute("dir", row.dir || "ltr");
+  tr.textContent = row.tr;
+  pair.appendChild(tr);
+  main.appendChild(pair);
+  return pair;
+});
+// The switch, as the template draws it on a text with more than one rendering: one
+// button per rendering, the drawn one pressed. Absent — `byId` makes an empty element
+// on demand — the reader draws nothing and opens on the first.
+if (payload.switch) {
+  const picker = document.getElementById("translation");
+  picker.setAttribute("data-drawn", payload.switch.drawn || "t0");
+  (payload.switch.ids || []).forEach((id) => {
+    const key = element("button");
+    key.className = "rendering";
+    key.setAttribute("data-translation", id);
+    if (id === (payload.switch.drawn || "t0")) key.classList.add("on");
+    picker.appendChild(key);
+  });
+}
 
 // The offer at the foot, as the template ships it: the next section of this same
 // document, away until this one is finished. `.here` is what tells the script this is
@@ -141,10 +187,44 @@ const said = [];
 if (payload.markRest) reader.markRest();
 if (payload.undoAfter) reader.undo();
 
+/* The rendering on show, before and after a switch: what every cell says and claims to
+ * be, which pairs wear the coarse mark, and what the switch's own buttons say. */
+function rendering() {
+  return {
+    showing: reader.rendering(),
+    cells: pairs.map((pair) => {
+      const tr = pair.querySelector(".tr");
+      return {
+        id: pair.getAttribute("data-id"),
+        src: pair.querySelector(".src").textContent,
+        tr: tr.textContent,
+        lang: tr.getAttribute("lang"),
+        dir: tr.getAttribute("dir"),
+        coarse: pair.classList.contains("coarse"),
+      };
+    }),
+    pressed: document.getElementById("translation").querySelectorAll(".rendering")
+      .filter((key) => key.classList.contains("on"))
+      .map((key) => key.getAttribute("data-translation")),
+    // What the page would remember, read back the way the next page reads it.
+    kept: (() => {
+      try {
+        return JSON.parse(localStorage.getItem("targum:prefs") || "{}").translationBy || {};
+      } catch (e) {
+        return {};
+      }
+    })(),
+  };
+}
+const opened = rendering();
+if (payload.switchTo) reader.rendering(payload.switchTo);
+const switched = rendering();
+
 process.stdout.write(
   JSON.stringify({
     placed: (payload.words || []).map((word) => ({ word, card: place(word, payload.card) })),
     hover,
+    rendering: { opened, switched },
     queue: reader.queue().map(entry),
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),

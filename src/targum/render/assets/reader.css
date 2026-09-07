@@ -1452,6 +1452,7 @@ table.rows tr:hover .copy,
      mode buttons and the sentence tint kept moving. */
   .modes button, .pair { transition: none; }
   .bar .levels .level { transition: none; }
+  .bar .renderings .rendering { transition: none; }
 }
 
 /* --- reaching things with a thumb -------------------------------------------
@@ -1516,7 +1517,7 @@ table.rows tr:hover .copy,
      of glass, the same 22px of ink. The inline growth stops at the midline of the gap
      to the neighbour, so a near-miss lands on the button it looks like it landed on. */
   :is(
-    .bar .group button, .modes button, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -1525,7 +1526,7 @@ table.rows tr:hover .copy,
     position: relative;
   }
   :is(
-    .bar .group button, .modes button, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -2066,6 +2067,35 @@ body.has-player .next-up { margin-block-end: 9rem; }
   color: var(--ink);
 }
 .bar .levels .level.here {
+  background: var(--ink-soft);
+  color: var(--paper);
+}
+
+/* Which rendering the translation column draws from, on a text that carries more than
+   one (targum-internal#199). The same pill as the levels, for the same reason: a choice
+   with a position, not buttons with states, and ink rather than accent. A rendering
+   with nothing for this section is offered disabled, the way a mode the page cannot
+   take is. */
+.bar .renderings {
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.bar .renderings .rendering {
+  padding: 0.28rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  transition: color 200ms ease;
+}
+.bar .renderings .rendering:hover { color: var(--ink); background: none; }
+.bar .renderings .rendering:disabled { opacity: 0.35; cursor: default; }
+.bar .renderings .rendering:disabled:hover { color: var(--ink-soft); }
+.bar .renderings .rendering.on {
   background: var(--ink-soft);
   color: var(--paper);
 }

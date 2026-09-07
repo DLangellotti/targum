@@ -196,6 +196,9 @@ THUMBED = (
     # And the record's two presses (2026-09-06): look a word up, save the conversation.
     ".chat-look",
     ".chat-save",
+    # And the switch between renderings in the bar (2026-09-07, targum-internal#199):
+    # Onkelos or English, on a text that carries both.
+    ".renderings .rendering",
 )
 
 

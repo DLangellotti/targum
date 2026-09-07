@@ -667,7 +667,7 @@ def test_a_reader_is_written_without_a_language_its_owner_does_not_read(
     )[0].read_text(encoding="utf-8")
     assert "peace" in only_english
     assert "мир" not in only_english, "a language its owner does not read was offered"
-    assert only_english.count("<option") == 0, "one translation needs no picker"
+    assert 'id="translation"' not in only_english, "one translation needs no switch"
 
     # Asked of nobody — the command line, and a machine somebody runs themselves.
     everything = render(document, segmented, both, tmp_path / "all", annotation=annotation)[
