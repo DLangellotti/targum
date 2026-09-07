@@ -99,6 +99,16 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
         "naturalness before the list; new words on purpose, and not many"
     )
     assert "ktiv male" in said and "לִקְרוֹא" in said, "the full spelling a modern reader meets"
+    # Read off a real transcript (2026-09-07): a conversation that was good and still
+    # obviously a machine thinking in English — em dashes in half the lines, "note:" and
+    # "and one more thing:" lead-ins, English glosses in brackets inside the Hebrew,
+    # "לְקַלֵּק" for pressing, and "X, or Y?" closing every single reply.
+    assert "No em dashes between clauses" in said
+    assert "No colon lead-ins" in said and "שִׂים לֵב:" in said
+    assert "No English inside a Hebrew line" in said and "(is saved)" in said
+    assert "לְקַלֵּק" in said and "לִלְחוֹץ" in said
+    assert 'not "2 הַיָּמִים"' in said and "הֶסְבֵּר" in said
+    assert "Do not end every reply the same way" in said and "X, or Y?" in said
     assert "Begin every reply with the reader's own line" in said, (
         "every reader turn carries its English"
     )
