@@ -37,7 +37,7 @@ from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
 from targum.chat import CHAT_MODEL, EFFORT, exemplars, hebrew, prompts  # noqa: E402
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Block, BlockKind, Document  # noqa: E402
-from targum.segment import segment_document  # noqa: E402
+from targum.segment import HebrewSegmenter, segment_document  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
 from targum.usage import Usage  # noqa: E402
 
@@ -123,7 +123,9 @@ def outside_share(hebrew_lines: list[str], allowed: set[str]) -> tuple[float, in
         ],
         ingester="eval",
     )
-    segmented = segment_document(document)
+    # The same segmenter a build uses for Hebrew, drawn by rule (targum#71); without it
+    # the call is a TypeError after every turn has been paid for.
+    segmented = segment_document(document, HebrewSegmenter())
     annotation = Annotator().annotate(segmented)
     counted = outside = 0
     for tokens in annotation.tokens.values():
