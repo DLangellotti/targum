@@ -621,8 +621,7 @@ def test_a_hebrew_reply_is_read_as_a_text_and_its_words_reach_the_page(tmp_path:
 
     kept = next(turn for turn in store.chat_turns(asked.chat_id) if turn["n"] == asked.n)
     assert kept["words"] == payload, "kept on the reader's turn, for the page that comes back"
-    assert "saved lately" in client.requests[0]["system"][1]["text"]
-    assert "מצפה" in client.requests[0]["system"][1]["text"]
+    assert "met once, not yet known (1): מצפה" in client.requests[0]["system"][1]["text"]
 
 
 def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Path) -> None:

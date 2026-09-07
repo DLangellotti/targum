@@ -514,12 +514,13 @@ class Chats:
         contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
         known = hebrew_module.known_words(store, person_id, language)
         common = hebrew_module.common_words(language=language)
-        # What the reader saved lately comes back into a conversation in Hebrew, and
-        # only there: a question about a text is answered about the text.
-        lately, phrases = (
-            hebrew_module.bring_back(store, person_id, language) if contract else ([], [])
+        # The reader's own words come back into a conversation in Hebrew, and only
+        # there: a question about a text is answered about the text. By status, and a
+        # different slice of the ledger on every turn.
+        returning = (
+            hebrew_module.bring_back(store, person_id, language, turn=asked.n) if contract else None
         )
-        ledger = hebrew_module.ledger_block(level, known, common, lately, phrases)
+        ledger = hebrew_module.ledger_block(level, known, common, returning)
         try:
             spent = run_turn(
                 self.client(),
@@ -544,7 +545,12 @@ class Chats:
             if contract:
                 # The record forming: the reply's Hebrew read as a text is read, before
                 # the page is told the turn is done, so the words land with the lines.
-                self._record(asked, feed, language, set(known) | set(common) | set(lately))
+                self._record(
+                    asked,
+                    feed,
+                    language,
+                    set(known) | set(common) | set(returning.words() if returning else []),
+                )
             feed.put(
                 "done",
                 {

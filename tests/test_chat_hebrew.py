@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -122,12 +123,18 @@ def test_the_contract_says_the_shape_and_the_rule() -> None:
     assert "!" not in said
 
 
-def test_what_was_saved_lately_comes_back_if_a_newspaper_would_use_it(
+def word(lemma: str, status: int, at: int, band: str = "hard") -> dict[str, Any]:
+    return {"language": "he", "lemma": lemma, "status": status, "band": band, "at": at, "seen": at}
+
+
+def test_the_readers_words_come_back_by_status_if_a_newspaper_would_use_them(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The one thing the chat-first products never do: a saved word returns. Filtered to
-    words a modern conversation can carry — a word saved in Judges that no newspaper
-    uses stays in Judges — and never named as an exercise."""
+    """The one thing the chat-first products never do: a saved word returns — and by
+    where it stands (2026-09-07), from the whole ledger and not only this week's, so the
+    words are met even when the reader is not reading. Filtered to words a modern
+    conversation can carry — a word saved in Judges that no newspaper uses stays in
+    Judges — and never named as an exercise."""
     from targum.annotate import frequency
 
     store = Store(tmp_path / "db")
@@ -139,46 +146,13 @@ def test_what_was_saved_lately_comes_back_if_a_newspaper_would_use_it(
         person,
         {
             "words": [
-                {
-                    "language": "he",
-                    "lemma": "מצפה",
-                    "status": 1,
-                    "band": "hard",
-                    "at": fresh,
-                    "seen": fresh,
-                },
-                {
-                    "language": "he",
-                    "lemma": "לחץ",
-                    "status": 9,
-                    "band": "easy",
-                    "at": fresh,
-                    "seen": fresh,
-                },
-                {
-                    "language": "he",
-                    "lemma": "ויכום",
-                    "status": 1,
-                    "band": "hard",
-                    "at": fresh,
-                    "seen": fresh,
-                },
-                {
-                    "language": "he",
-                    "lemma": "רמון",
-                    "status": 1,
-                    "band": "name",
-                    "at": fresh,
-                    "seen": fresh,
-                },
-                {
-                    "language": "he",
-                    "lemma": "בית",
-                    "status": 9,
-                    "band": "easy",
-                    "at": old,
-                    "seen": old,
-                },
+                word("מצפה", 1, fresh),
+                word("ספר", 2, old),
+                word("גשם", 3, old),
+                word("לחץ", 9, fresh, "easy"),
+                word("ויכום", 1, fresh),
+                word("רמון", 1, fresh, "name"),
+                word("בית", 9, old, "easy"),
             ],
             "phrases": [
                 {"id": "p1", "text": "בשבוע שעבר", "at": fresh, "seen": fresh},
@@ -191,13 +165,41 @@ def test_what_was_saved_lately_comes_back_if_a_newspaper_would_use_it(
     monkeypatch.setattr(
         frequency.FrequencyBands, "band", lambda self, lemma, language: 6 if lemma == "ויכום" else 3
     )
-    words, phrases = hebrew.bring_back(store, person.id, "he", now_ms=now)
-    assert sorted(words) == ["לחץ", "מצפה"], (
-        "this week's, a name left out, the biblical form left out"
-    )
-    assert phrases == ["בשבוע שעבר"], "this week's phrases"
-    block = hebrew.ledger_block(level.EMPTY, [], [], ["מצפה", "לחץ"], phrases)
-    assert "saved lately (2): מצפה לחץ" in block
-    assert "ask the reader to use two of them" in block and "Never" in block
+    back = hebrew.bring_back(store, person.id, "he", now_ms=now)
+    assert back.new == ["מצפה"], "a name left out, the biblical form left out"
+    assert back.learning == ["ספר"] and back.nearly == ["גשם"]
+    assert back.known == ["בית", "לחץ"], "known, the one ticked off longest ago first"
+    assert back.phrases == ["בשבוע שעבר"], "this week's phrases"
+    block = hebrew.ledger_block(level.EMPTY, [], [], back)
+    assert "met once, not yet known (1): מצפה" in block
+    assert "learning (1): ספר" in block and "nearly known (1): גשם" in block
+    assert "known, from a while ago (2): בית לחץ" in block
+    assert "ask the reader to use two" in block and "never say a word's status" in block
     assert "Phrases they kept lately (1): בשבוע שעבר" in block
-    assert "lately" not in hebrew.ledger_block(level.EMPTY, [], [])
+    assert "carry back" not in hebrew.ledger_block(level.EMPTY, [], [])
+    assert not hebrew.bring_back(store, None, "he", now_ms=now), "nobody signed in"
+
+
+def test_the_ledger_is_walked_a_slice_at_a_turn_and_a_short_status_passes_its_share_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.annotate import frequency
+
+    monkeypatch.setattr(frequency.FrequencyBands, "band", lambda self, lemma, language: 3)
+    store = Store(tmp_path / "db")
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    met = [f"מילה{n}" for n in range(8)]
+    store.push(person, {"words": [word(lemma, 1, n) for n, lemma in enumerate(met)]})
+    first = hebrew.bring_back(store, person.id, "he", turn=1)
+    second = hebrew.bring_back(store, person.id, "he", turn=2)
+    assert len(first.new) == 8 and first.new != second.new, (
+        "with nothing learning or nearly known, the met-once words take the whole list, "
+        "and a turn starts further along"
+    )
+    assert set(first.new) == set(met) == set(second.new)
+    store.push(person, {"words": [word(f"לומד{n}", 2, n) for n in range(20)]})
+    back = hebrew.bring_back(store, person.id, "he", turn=1)
+    assert len(back.new) == 8 and len(back.learning) == 4, (
+        "the met-once share is five and takes the four nobody nearly knows; learning keeps its own"
+    )
+    assert len(hebrew.rotate(list("abc"), 5, 0)) == 3 and hebrew.rotate([], 3, 0) == []

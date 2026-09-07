@@ -141,7 +141,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   English for something to read was answered in English: there is one conversation, and
   it is in the language being learnt. A text the model finds is handed over as its path
   on a line of its own, which the page draws as an ink door the reader presses — the
-  model cannot open anything, and no longer says it has. It is handed the reader's own known words
+  model cannot open anything, and no longer says it has. And the reader's own words
+  come back into the conversation by where they stand — met once, learning, nearly
+  known, and a few known ones marked known longest ago — from the whole ledger and not
+  only the week's, a different slice each turn, so a saved word is met again when the
+  reader is not reading (2026-09-07). It is handed the reader's own known words
   from their ledger and, under them, the commonest words of the language at the first two
   bands, and asked to stay inside them with one new word a sentence; the contract is
   `chat/hebrew.py`, and whether a model can hold to a list is measured by
