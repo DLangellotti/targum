@@ -181,6 +181,10 @@ class TestTheFallback:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(dicta, "downloaded", lambda: True)
+        # A fresh cache, not the process's: on a machine that holds the weights, an
+        # earlier test in the same run may have loaded them, and this asserts about
+        # this call alone.
+        monkeypatch.setattr(dicta, "_LOADED", {})
         said: list[str] = []
         engine = vocalize.for_source("upload:x", register=Register.modern, notify=said.append)
         assert engine.name == dicta.DictaVocalizer.name
