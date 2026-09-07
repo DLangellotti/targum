@@ -2115,6 +2115,11 @@ ALONG = """
 """
 
 
+#: How many times a press the media declined is repeated before the caller is left to
+#: say so. Four is two seconds at most, which is longer than the gap it covers.
+PRESSES = 4
+
+
 def pressed_along(page, part: float) -> None:
     """Press the bar `part` of the way along it, left to right on the glass.
 
@@ -2146,8 +2151,29 @@ def pressed_along(page, part: float) -> None:
     # `placed: False` — the one state only the throwing path leaves behind.
     page.wait_for_function("() => window.TargumPlayer.seekable()")
     bar = page.locator(".player-track")
-    box = bar.bounding_box()
-    bar.click(position={"x": box["width"] * part, "y": box["height"] / 2})
+    # And pressed again where the page says the press was declined. `seek` adds `placed`
+    # after the write to `currentTime` and not before, so a press the media refused
+    # leaves the class off — the state both CI transcripts carry — and a press it took
+    # leaves it on, whatever the media then does with the position. The wait above is
+    # the fact the refusal turns on as far as the transport can report it; a runner
+    # that refuses past it is pressed again, a few times, which is what the transport
+    # was written for: "`seek` already gives up quietly and the reader presses again".
+    # Bounded, and not an assertion: a seek that lands in the wrong place is placed, is
+    # not pressed again, and fails the caller with the numbers. A page already placed
+    # by `resume` is never pressed twice, and no caller here presses one.
+    for press in range(PRESSES):
+        box = bar.bounding_box()
+        bar.click(position={"x": box["width"] * part, "y": box["height"] / 2})
+        try:
+            page.wait_for_function(
+                "() => document.getElementById('player').classList.contains('placed')",
+                timeout=1000,
+            )
+            return
+        except playwright_api.TimeoutError:
+            if press == PRESSES - 1:
+                # Declined every time. The caller's assertion says so in its own numbers.
+                return
 
 
 def test_the_clock_is_drawn_in_the_frame_the_button_changes(scene) -> None:
