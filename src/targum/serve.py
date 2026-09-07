@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from . import incidents as incidents_module
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
@@ -734,6 +735,8 @@ class Library:
     ) -> None:
         self.out = out
         self.chat_budget = chat_budget
+        #: Where an error is written down, other than the journal (targum-internal#24).
+        self.incidents = out / "incidents.jsonl"
         # How to reach somebody whose build finished while they were away, and where
         # the reader is. Neither is needed on a machine somebody runs themselves.
         self.mailer = mailer
@@ -2029,10 +2032,12 @@ class Library:
             self.propose(job)
         except TargumError as error:
             self._blame(job, error.message)
-        except Exception:
+        except Exception as error:
             # Whatever a library chose to say about itself is not a sentence for someone
-            # who wanted to read a poem. The detail belongs in the terminal.
+            # who wanted to read a poem. The detail belongs in the terminal, and on the
+            # back office, which is where it is read.
             traceback.print_exc()
+            incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(
                 job,
                 "Something went wrong. The Terminal has the detail.",
@@ -2049,8 +2054,9 @@ class Library:
 
         try:
             promote_module.candidate(self, self.store, job)
-        except Exception:  # noqa: BLE001 - the shelf's business, not the reader's build
+        except Exception as error:  # noqa: BLE001 - the shelf's business, not the reader's build
             traceback.print_exc()
+            incidents_module.record(self.incidents, "promote", error, job=job.id)
 
     def cover_plan(self, folder: Path, chapters: bool) -> tuple[Any, list[tuple[str, str]]]:
         """What this text is, and every image worth drawing for it.
@@ -2241,8 +2247,9 @@ class Library:
             )
         except TargumError as error:
             return self._blame(job, error.message)
-        except Exception:
+        except Exception as error:
             traceback.print_exc()
+            incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             return self._blame(job, "Something went wrong. The Terminal has the detail.")
 
         job.spent = builder.spent.cost()
@@ -2292,8 +2299,9 @@ class Library:
             self.remember(job)
         except TargumError as error:
             self._blame(job, error.message)
-        except Exception:
+        except Exception as error:
             traceback.print_exc()
+            incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(job, "Something went wrong. The Terminal has the detail.")
 
     def _blame(self, job: Job, message: str) -> None:
@@ -3361,7 +3369,12 @@ class Handler(BaseHTTPRequestHandler):
         found = survey_store(self.store.path)
         said = parse_qs(urlparse(self.path).query).get("said", [""])[0][:300]
         page = back_office_page(
-            found, DAYS, proposed=self.store.proposals(), wanted=self.store.wanted(), said=said
+            found,
+            DAYS,
+            proposed=self.store.proposals(),
+            wanted=self.store.wanted(),
+            said=said,
+            incidents=incidents_module.recent(self.library.incidents),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -3398,6 +3411,26 @@ class Handler(BaseHTTPRequestHandler):
         self._go(BACK_OFFICE_ROUTE)
 
     def do_GET(self) -> None:  # noqa: N802
+        self._answer(self._get)
+
+    def do_POST(self) -> None:  # noqa: N802
+        self._answer(self._post)
+
+    def _answer(self, route: Callable[[], None]) -> None:
+        """A route, with whatever escapes it written down (targum-internal#24).
+
+        `socketserver` prints the traceback and drops the connection, which is what a
+        request thread should do with an exception nobody caught; what it did not do was
+        leave a trace anywhere but the journal. Recorded, then re-raised, so nothing
+        about the failure itself changes.
+        """
+        try:
+            route()
+        except Exception as error:
+            incidents_module.record(self.library.incidents, self.path, error)
+            raise
+
+    def _get(self) -> None:
         route = urlparse(self.path).path
         # No key, no account, no cookie: a monitor asks this every minute from off the
         # box, and A6 is "I find out it broke before she tells me".
@@ -3596,7 +3629,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         self._send(404, b"not found", "text/plain")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def _post(self) -> None:
         route = urlparse(self.path).path
         if not self._host_is_ours():
             return self._json({"error": "not found"}, 404)
@@ -4579,8 +4612,9 @@ class Handler(BaseHTTPRequestHandler):
             sense = gloss_one(lemma, source, target, provider, context=sentence)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
-        except Exception:
+        except Exception as error:
             traceback.print_exc()
+            incidents_module.record(self.library.incidents, "/gloss", error)
             return self._json({"error": "Could not look that word up just now."}, 502)
         return self._json(
             {
@@ -4641,8 +4675,9 @@ class Handler(BaseHTTPRequestHandler):
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:
             return self._json({"error": error.message}, 502)
-        except Exception:
+        except Exception as error:
             traceback.print_exc()
+            incidents_module.record(self.library.incidents, "/phrase", error)
             return self._json({"error": "Could not look that phrase up just now."}, 502)
         return self._json(
             {

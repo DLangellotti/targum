@@ -1006,6 +1006,7 @@ def back_office_page(
     proposed: list[dict[str, Any]] | None = None,
     wanted: list[dict[str, Any]] | None = None,
     said: str = "",
+    incidents: list[Any] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -1025,6 +1026,8 @@ def back_office_page(
             proposed=proposed or [],
             wanted=wanted or [],
             said=said,
+            # What went wrong lately, newest first (`incidents.py`; targum-internal#24).
+            incidents=incidents or [],
             registers=[r.value for r in Register if r is not Register.none],
             kinds=[k.value for k in Kind],
         )

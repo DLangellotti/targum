@@ -43,6 +43,7 @@
     border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink);
   }
   .bo .decide button { cursor: pointer; }
+  .bo .trace pre { font-size: 0.75rem; white-space: pre-wrap; margin: 0.4rem 0 0; color: var(--ink-soft); }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -169,6 +170,30 @@
         <td class="quiet"><code>{{ one.source[:70] }}</code></td>
         <td class="quiet">{{ one.standing or '—' }}</td>
         <td class="n">{{ one.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <h2>Incidents</h2>
+  {#- What went wrong, other than in the journal (targum-internal#24): a request that
+      raised, a build that died, a look-up that failed. The type and the message, the
+      route or the stage, and the traceback's tail behind a disclosure — no script on
+      this page, so `details` is the toggle. Never a reader's text or an address: the
+      recorder cuts those out before writing. -#}
+  {% if not incidents %}
+  <p class="nothing">Nothing has gone wrong lately.</p>
+  {% else %}
+  <table>
+    <thead><tr><th>When</th><th>Where</th><th>What</th></tr></thead>
+    <tbody>
+      {% for one in incidents %}
+      <tr>
+        <td class="quiet">{{ one.at }}</td>
+        <td>{{ one.where }}{% if one.job %} <span class="quiet">{{ one.job }}</span>{% endif %}</td>
+        <td>{% if one.kind %}<b>{{ one.kind }}</b> {% endif %}{{ one.message }}
+          {%- if one.trace %}<details class="trace"><summary class="quiet">Traceback</summary><pre>{{ one.trace }}</pre></details>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
