@@ -131,6 +131,8 @@ global.FileReader = class {
 };
 
 require(path.join(assets, "bring.js"));
+// A build is followed with no wait between looks, so a test sees its end at once.
+global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
 require(path.join(assets, "chat.js"));
 
@@ -249,7 +251,7 @@ function drawn() {
     if (step.type === "send") {
       byId["say"].value = step.text || "";
       byId["composer"].fire("submit", { preventDefault() {} });
-      for (let i = 0; i < 16; i++) await new Promise((resolve) => setImmediate(resolve));
+      for (let i = 0; i < 24; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     if (step.type === "drop") {
       byId["chat-held"].children[step.index].children[1].onclick();
@@ -280,7 +282,9 @@ function drawn() {
       streams: sources.map((s) => s.url),
       turns: drawn(),
       cards: cards(),
+      went: global.location.href,
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
+      field: byId["say"].value,
       pairs: pairsDrawn(),
       foot: foot(),
       doors: doors(),

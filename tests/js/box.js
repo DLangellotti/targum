@@ -82,6 +82,8 @@ global.FileReader = class {
 };
 
 require(path.join(assets, "bring.js"));
+// A build is followed with no wait between looks, so a test sees its end at once.
+global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
 require(path.join(assets, "box.js"));
 
@@ -113,7 +115,7 @@ require(path.join(assets, "box.js"));
     if (step.type === "send") {
       byId["say"].value = step.text || "";
       byId["composer"].fire("submit", { preventDefault() {} });
-      for (let i = 0; i < 16; i++) await new Promise((resolve) => setImmediate(resolve));
+      for (let i = 0; i < 24; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
@@ -125,6 +127,7 @@ require(path.join(assets, "box.js"));
       // What the + chose and the box still holds: one chip a file.
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       heldHidden: byId["chat-held"].hidden,
+      field: byId["say"].value,
       mic: { hidden: byId["chat-mic"].hidden },
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

@@ -151,48 +151,78 @@ def test_the_x_on_a_chip_lets_that_file_go() -> None:
 
 
 STARTED = dict(QUOTE, stage="working")
+DONE = dict(QUOTE, stage="done", reader="story-he/reader/index.html")
+BUILT = {"/prepare": QUOTE, "/build": STARTED, "/job/j1": DONE}
 
 
-def test_send_brings_the_held_file_starts_it_and_opens_the_conversation_page() -> None:
+def test_send_with_a_file_opens_it() -> None:
     """The Add page's job in one press, from the box: the file read whole, `/prepare`
-    asked, `/build` pressed — Send with a file is the press (2026-09-07) — and the
-    conversation page opened with the job in the hash, where the card is a turn in the
-    thread showing the build's progress, never a thing under this box."""
+    asked, `/build` pressed — Send with a file is the press (2026-09-07) — the build
+    followed, and the reader opened when it is ready. No conversation is started:
+    "when I wrote 'open this' with a file, I didn't want that to be the start of a
+    conversation." """
     page = run(
         do=[
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send"},
         ],
-        answers={"/prepare": QUOTE, "/build": STARTED},
+        answers=BUILT,
     )
     assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"], "no line was said"
     assert page["posted"][0]["body"]["name"] == "story.txt"
     assert page["posted"][1]["body"] == {"id": "j1"}
-    assert page["went"] == "/chat?k=k#job=j1"
+    assert page["went"] == "/reader/story-he/reader/index.html?k=k"
     assert page["held"] == []
 
 
-def test_a_quote_the_rails_refused_is_not_pressed() -> None:
+def test_a_line_that_only_says_open_this_is_the_files_own_meaning() -> None:
+    for line in ("Open this", "read it please", "תפתח את זה", "Open the pdf."):
+        page = run(
+            do=[
+                {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+                {"type": "send", "text": line},
+            ],
+            answers=BUILT,
+        )
+        assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"], line
+        assert page["went"] == "/reader/story-he/reader/index.html?k=k", line
+
+
+def test_a_quote_the_rails_refused_is_said_under_the_box() -> None:
     page = run(
         do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
         answers={"/prepare": dict(QUOTE, stage="blocked", blocked="Too long.")},
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare"]
-    assert page["went"] == "/chat?k=k#job=j1", "the card says why, in the thread"
+    assert [p["path"] for p in page["posted"]] == ["/prepare"], "not pressed"
+    assert page["went"] == ""
+    assert page["said"] == {"text": "Too long.", "hidden": False}
+    assert page["held"] == ["story.txt"] and page["sendDisabled"] is False
 
 
-def test_a_line_typed_alongside_opens_the_conversation_the_card_lands_in() -> None:
+def test_a_build_that_fails_is_said_under_the_box() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers={**BUILT, "/job/j1": dict(QUOTE, stage="failed", error="Something went wrong.")},
+    )
+    assert page["went"] == ""
+    assert page["said"]["text"] == "Something went wrong."
+
+
+def test_a_line_that_says_more_is_a_specification_and_opens_the_conversation() -> None:
+    """ "I still want the possibility for the user to send specifications in the chat":
+    a line that says more than "open this" is said, with a note of what was sent, and
+    the conversation page opens on it with the card as a turn. The text still builds."""
     page = run(
         do=[
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
-            {"type": "send", "text": "read this with me"},
+            {"type": "send", "text": "Open this and help me learn it."},
         ],
-        answers={"/prepare": QUOTE, "/build": STARTED, "/chat/say": {"chat": "abc", "turn": 1}},
+        answers={**BUILT, "/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert [p["path"] for p in page["posted"]] == ["/prepare", "/build", "/chat/say"]
     assert page["posted"][2]["body"] == {
         "chat": "",
-        "text": "read this with me",
+        "text": "Open this and help me learn it.",
         "brought": "j1",
     }, "the model is told what was sent"
     assert page["went"] == "/chat?k=k#abc&job=j1"
@@ -201,7 +231,11 @@ def test_a_line_typed_alongside_opens_the_conversation_the_card_lands_in() -> No
 def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
     page = run(
         do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}, {"type": "send"}],
-        answers={**UPLOAD, "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1)},
+        answers={
+            **UPLOAD,
+            **BUILT,
+            "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1),
+        },
     )
     assert [p["path"] for p in page["posted"]] == [
         "/upload/begin",
@@ -213,7 +247,7 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
         "/build",
     ]
     assert page["posted"][-2]["body"]["upload"] == "u1"
-    assert page["went"] == "/chat?k=k#job=j1"
+    assert page["went"] == "/reader/story-he/reader/index.html?k=k"
 
 
 def test_the_same_bytes_already_brought_open_the_text() -> None:
@@ -255,7 +289,7 @@ def test_several_pictures_chosen_together_are_one_text() -> None:
             {"type": "file", "files": [{"name": "page2.HEIC", "size": 10}]},
             {"type": "send"},
         ],
-        answers={**PICTURES, "/prepare": dict(QUOTE, pages=2)},
+        answers={**PICTURES, **BUILT, "/prepare": dict(QUOTE, pages=2)},
     )
     assert [p["path"] for p in page["posted"]] == [
         "/upload/begin",
@@ -268,13 +302,13 @@ def test_several_pictures_chosen_together_are_one_text() -> None:
         "/build",
     ]
     assert page["posted"][-2]["body"]["uploads"] == ["u1", "u1"], "one text, in order"
-    assert page["went"] == "/chat?k=k#job=j1"
+    assert page["went"] == "/reader/story-he/reader/index.html?k=k"
 
 
 def test_a_pdf_goes_up_the_chunked_door_and_is_priced_as_one_upload() -> None:
     page = run(
         do=[{"type": "file", "file": {"name": "handout.pdf", "size": 10}}, {"type": "send"}],
-        answers={**PICTURES, "/upload/u1/end": {"upload": "u1", "pages": 3}, "/prepare": QUOTE},
+        answers={**PICTURES, **BUILT, "/upload/u1/end": {"upload": "u1", "pages": 3}},
     )
     assert [p["path"] for p in page["posted"]][-3:] == ["/upload/u1/end", "/prepare", "/build"]
     assert page["posted"][-2]["body"]["upload"] == "u1"

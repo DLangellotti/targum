@@ -369,10 +369,13 @@ goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in
 press: a file, a picture or a recording is held in the box as a chip until Send, goes up
 as it did there, is priced, and the card the model's quote draws is a turn in the
 conversation, on Learn too, where the conversation page opens on it the way it opens on
-a line. Send with a file in the box is the press, so the card arrives already building
-and is the build's progress; its "More options" is the Add page, kept for a translation
-or a transcript of the reader's own. A line sent with the file reaches the model with a
-note of what was sent, so it answers about the text rather than asking for it. (Until 2026-09-07 the card stood under the
+a line. Send with a file in the box is the press: the text builds and opens when it is
+ready, and a bare file, or a line that only says "open this", starts no conversation at
+all — "when I wrote 'open this' with a file, I didn't want that to be the start of a
+conversation." A line that says more is a specification: it is said, with a note of what
+was sent so the model answers about the text rather than asking for it, and the card
+follows it in the thread as the build's progress. "More options" is the Add page, kept
+for a translation or a transcript of the reader's own. (Until 2026-09-07 the card stood under the
 box on Learn with a button to press: "I'm chatting, I think I should be pressing Send",
 and "I originally just gave the file… it should have been enough to just open it".) Chat is no longer a place in the nav and Upload
 is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and

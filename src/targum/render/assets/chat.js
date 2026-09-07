@@ -326,10 +326,12 @@
   }
 
   // A file chosen by the + is held in the box until Send (2026-09-07), the way a line
-  // is typed and then sent; Send takes it up in pieces or whole, prices it, and draws
-  // the card in the thread as a turn of its own. No model in the loop — the reader
-  // brought a thing and is told what it will take, which is the Add page's whole job
-  // in one row. Resolves when the card is drawn, so a line typed alongside can follow.
+  // is typed and then sent. Send with a file means open it: up in pieces or whole,
+  // priced, built, the card in the thread as its progress, and — when nothing more
+  // was said than "open this" — the reader opened when it is ready, with no turn said:
+  // "when I wrote 'open this' with a file, I didn't want that to be the start of a
+  // conversation." A line that says more is said after the card, with a note of what
+  // was sent, and the reader is left to open from the card or the strip.
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
   var heldList = document.getElementById("chat-held");
@@ -342,7 +344,7 @@
       });
     }
   }
-  function brought(chosen) {
+  function brought(chosen, opening) {
     if (!bringing) return Promise.resolve();
     chosen = bringing.listed(chosen);
     if (!chosen.length) return Promise.resolve();
@@ -380,7 +382,14 @@
         }
         return bringing.start(job).then(function (state) {
           quoteCard(li, state);
-          return state;
+          if (state.error || state.blocked) return state;
+          if (!opening) return state;
+          return bringing.follow(job.id).then(function (done) {
+            if (done.stage === "done" && done.reader) {
+              window.location.href = bringing.door(done.reader);
+            }
+            return done;
+          });
         });
       })
       .catch(function (why) {
@@ -391,7 +400,6 @@
         busy = false;
         send.disabled = false;
         if (file) file.value = "";
-        // The job, for a line sent with the file: the model is told what was sent.
         return job;
       });
   }
@@ -407,16 +415,19 @@
     };
   }
 
-  // What Send does: the held files first, as a card, then the line, if there was one.
+  // What Send does: the held files first, as a card; then the line, if it said more
+  // than "open this" — a bare "open this" is the file's own meaning, and the text
+  // opens when it is ready instead.
   function submit() {
     var text = field.value.trim();
     if (held.length) {
       var files = held;
+      var spec = bringing && bringing.justOpen(text) ? "" : text;
       held = [];
       showHeld();
       field.value = "";
-      brought(files).then(function (job) {
-        if (text) say(text, job && job.id);
+      brought(files, !spec).then(function (job) {
+        if (spec) say(spec, job && job.id);
       });
       return;
     }
@@ -425,8 +436,8 @@
     say(text);
   }
 
-  // A text brought from the front door arrives as `job=<id>` in the hash: its card is
-  // drawn as a turn, in the conversation named beside it or in a fresh thread.
+  // A text brought from the front door with a line arrives as `job=<id>` in the hash:
+  // its card is drawn as a turn in the conversation named beside it.
   function showJob(id) {
     return ask("/job/" + encodeURIComponent(id)).then(function (job) {
       if (job.error) return tell(job.error);
@@ -624,9 +635,8 @@
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
       // Arrived from the front door with a conversation named in the hash: that one,
-      // whose first answer is still streaming; otherwise the newest. A text brought
-      // there rides beside it as `job=<id>`, and its card follows the thread it lands
-      // in — or stands in a fresh one, when only the job was named.
+      // whose first answer is still streaming; otherwise the newest. A text sent there
+      // with a line rides beside it as `job=<id>`, and its card follows in that thread.
       var wanted = "";
       var wantedJob = "";
       try {
@@ -649,11 +659,6 @@
         return open(wanted).then(function () {
           if (job) return showJob(job);
         });
-      }
-      if (job) {
-        turns.textContent = "";
-        drawList();
-        return showJob(job);
       }
       if (chats.length) return open(chats[0].id);
       if (empty) empty.hidden = !!current;

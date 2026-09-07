@@ -79,8 +79,10 @@ wrong. There is; it is just not in the environment of a fresh shell.
   choice is the consent, it is capped at thirty pages, and it still goes through
   `Library.claim` and is settled to the receipt (`Library._read_pages`). And Send with
   a file in the box is the press (2026-09-07): the person chose the file and sent it,
-  so the page posts `/build` itself and the card is the build's progress — still the
-  person's own hand, never the model's, and still through `Library.claim`.
+  so the page posts `/build` itself and opens the reader when it is done — still the
+  person's own hand, never the model's, and still through `Library.claim`. A line
+  that says more than "open this" is said to the model with a note of what was sent;
+  the model is told, and still cannot open or spend.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

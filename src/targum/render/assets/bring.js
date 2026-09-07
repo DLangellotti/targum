@@ -225,6 +225,48 @@
     return keyed("/reader/" + String(reader).split("/").map(encodeURIComponent).join("/"));
   }
 
+  //: How often a page asks after a build it is waiting to open. A test sets it to 0.
+  var POLL = 2000;
+
+  //: A line sent with a file that only says to open it, in English or Hebrew: "open
+  //: this", "read it please", "תפתח את זה". Such a line is the file's own meaning and
+  //: starts no conversation; anything that says more is a specification for the model.
+  var JUST_OPEN = new RegExp(
+    "^(?:(?:please|בבקשה)\\s+)?" +
+      "(?:open|read|build|load|show|translate|start|" +
+      "פתח|תפתח|לפתוח|תפתחי|פתחי|קרא|תקרא|לקרוא|תרגם|תתרגם|לתרגם|בנה|תבנה)" +
+      "(?:\\s+(?:this|it|that|the|my|this one|" +
+      "(?:the\\s+)?(?:file|picture|photo|image|text|pdf|message|letter|page|pages|screenshot)|" +
+      "את\\s+זה|זה|את\\s+הקובץ|הקובץ|את\\s+התמונה|התמונה|את\\s+הטקסט|הטקסט|לי))*" +
+      "(?:\\s+(?:please|בבקשה|now|עכשיו|for me|לי))*$",
+    "i"
+  );
+
+  function justOpen(text) {
+    var line = String(text || "")
+      .trim()
+      .replace(/[.!?,;:״"']+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return !line || JUST_OPEN.test(line);
+  }
+
+  // Follow a started build to its end: resolves to the job's state once it is done or
+  // has failed. A reader who sent a text to open it is waiting for exactly this.
+  function follow(id) {
+    return new Promise(function (resolve) {
+      function look() {
+        ask("/job/" + encodeURIComponent(id)).then(function (state) {
+          if (state.error || !state.stage || state.stage === "done" || state.stage === "failed") {
+            return resolve(state);
+          }
+          setTimeout(look, window.TargumBring.POLL);
+        });
+      }
+      look();
+    });
+  }
+
   function quoteCard(host, job) {
     var card = document.createElement("div");
     // Not `quote`: that is the reader's own class for a quotation inside a text, and
@@ -361,6 +403,9 @@
     upload: upload,
     start: start,
     door: door,
+    follow: follow,
+    justOpen: justOpen,
+    POLL: POLL,
     uploadInChunks: uploadInChunks,
     readFile: readFile,
     options: options,

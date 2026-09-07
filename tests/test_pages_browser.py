@@ -375,10 +375,10 @@ def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(brows
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up
-    one after another, `/prepare` is asked once with both, and the conversation page
-    opens on the card as a turn in the thread. Pressing it posts `/build`. The server is
-    answered here — what is under test is that a real file input with `multiple` reaches
-    the box's script as a set, and that the page it goes to draws the card."""
+    one after another, `/prepare` is asked once with both, `/build` is pressed by Send
+    itself, and the reader opens when the build is done. The server is answered here —
+    what is under test is that a real file input with `multiple` reaches the box's
+    script as a set, and that the page ends up in the reader."""
     fixture = Path(__file__).parent / "fixtures" / "pages" / "screenshot.png"
     prepared: list[dict] = []
     built: list[dict] = []
@@ -437,8 +437,10 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
             route.fulfill(
                 status=200,
                 content_type="application/json",
-                body=json.dumps(dict(quote, stage="working")),
+                body=json.dumps(dict(quote, stage="done", reader="negev-he/reader/index.html")),
             )
+        elif path.startswith("reader/"):
+            route.fulfill(status=200, content_type="text/html", body="<html>the reader</html>")
         elif path == "build":
             built.append(request.post_data_json)
             route.fulfill(
@@ -458,18 +460,11 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     chips = open_page.locator(".chat-chip").count()
     assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
     open_page.click("#chat-send")
-    open_page.wait_for_url("**/chat?**", timeout=5000)
-    open_page.wait_for_selector(".chat-turn .quote-card.started", timeout=5000)
-    cards = open_page.locator(".quote-card").count()
-    excerpt = open_page.locator(".quote-excerpt").inner_text()
-    doubt = open_page.locator(".quote-doubt").inner_text()
-    buttons = open_page.locator(".quote-go").count()
+    open_page.wait_for_url("**/reader/negev-he/**", timeout=5000)
+    landed = open_page.url
     context.close()
 
     assert chips == 2, "one chip a file"
     assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
-    assert cards == 1, "several pictures are one text and one card, in the thread"
-    assert "נָסַעְתִּי לַנֶּגֶב" in excerpt
-    assert doubt == "1 line could not be read clearly."
     assert built == [{"id": "j1"}], "Send was the press"
-    assert buttons == 0, "nothing left to press"
+    assert "/reader/negev-he/reader/index.html" in landed, "and the text opened"

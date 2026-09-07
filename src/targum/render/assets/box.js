@@ -70,8 +70,9 @@
 
   // The conversation page, opened on the conversation this line began. The id rides
   // in the hash rather than the path: `/chat/<id>` is the conversation as JSON, and
-  // the page is one page whatever it is showing. A text brought from here rides the
-  // same way, as `job=<id>`, and the page draws its card as a turn.
+  // the page is one page whatever it is showing. A text sent with a line that says
+  // more than "open this" rides the same way, as `job=<id>`, and the page draws its
+  // card as a turn in that conversation.
   function go(chat, job) {
     var hash = chat ? encodeURIComponent(chat) : "";
     if (job) hash += (hash ? "&" : "") + "job=" + encodeURIComponent(job);
@@ -143,11 +144,13 @@
   }
 
   // A file chosen by the + is held in the box until Send, the way a line is typed
-  // and then sent (2026-09-07): choosing is not bringing. Send takes it up, prices
-  // it, and goes to the conversation page with the job in the hash, where the card
-  // the model's quote draws is a turn in the thread — never a thing under this box.
-  // A line typed alongside opens the conversation the card lands in. The card's
-  // button is still the spend.
+  // and then sent (2026-09-07): choosing is not bringing. Send with a file means open
+  // it: the file goes up, is priced and built, the strip in the header carries the
+  // build, and the reader opens when it is ready. No conversation is started for a
+  // bare file or a line that only says "open this" — "when I wrote 'open this' with
+  // a file, I didn't want that to be the start of a conversation." A line that says
+  // more is a specification: it is said, with a note of what was sent, and the
+  // conversation page opens on it with the card as a turn.
   var bringing = window.TargumBring;
   var held = [];
   function showHeld() {
@@ -160,6 +163,7 @@
   }
   function bringHeld(text) {
     if (busy || !bringing || !held.length) return;
+    var spec = bringing.justOpen(text) ? "" : text;
     busy = true;
     send.disabled = true;
     tell("Uploading…");
@@ -172,25 +176,34 @@
         tell("");
         if (job.reader) {
           // The same bytes were already brought: the text is the answer.
-          window.location.href = keyed(
-            "/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/")
-          );
+          window.location.href = bringing.door(job.reader);
           return;
         }
         if (job.error) return refused(job);
-        held = [];
-        showHeld();
+        if (job.stage !== "ready") return refused({ error: job.blocked || job.error });
         // Send with a file in the box is the press: the reader chose the file and
         // sent it, and a card asking them to say so again was a second surface
         // ("I originally just gave the file… it should have been enough to just
-        // open it", 2026-09-07). Started here; the card on the next page is its
-        // progress, and a refusal is said on the card in the same words.
-        var started = job.stage === "ready" ? bringing.start(job) : Promise.resolve(job);
-        return started.then(function () {
-          if (!text) return go("", job.id);
-          return ask("/chat/say", { chat: "", text: text, brought: job.id }).then(function (got) {
-            // A refused line still leaves the card a home: a fresh thread.
-            go(got.error ? "" : got.chat, job.id);
+        // open it", 2026-09-07). Started here, followed to its end, and opened.
+        return bringing.start(job).then(function (state) {
+          if (state.error || state.blocked) return refused({ error: state.error || state.blocked });
+          held = [];
+          showHeld();
+          if (spec) {
+            // Said with the note of what was sent; the card follows it as a turn.
+            return ask("/chat/say", { chat: "", text: spec, brought: job.id }).then(function (got) {
+              if (got.error) return refused(got);
+              go(got.chat, job.id);
+            });
+          }
+          tell("Building. It will open when it is ready.");
+          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+          return bringing.follow(job.id).then(function (done) {
+            if (done.stage === "done" && done.reader) {
+              window.location.href = bringing.door(done.reader);
+              return;
+            }
+            refused({ error: done.error || "That did not build. The strip above has the detail." });
           });
         });
       })

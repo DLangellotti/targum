@@ -519,6 +519,13 @@ def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
     assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")
 
 
+BUILT = {
+    "/prepare": QUOTE,
+    "/build": dict(QUOTE, stage="working"),
+    "/job/j1": dict(QUOTE, stage="done", reader="story-he/reader/index.html"),
+}
+
+
 def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() -> None:
     """The + on the conversation page: the file is held in the box as a chip, Send
     takes it up and prices it, and the card is a turn of its own — no model in the
@@ -530,7 +537,7 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send"},
         ],
-        answers={"/prepare": QUOTE, "/build": dict(QUOTE, stage="working")},
+        answers=BUILT,
     )
     assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"], "no line was said"
     (card,) = page["cards"]
@@ -540,6 +547,19 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
+    assert page["went"] == "/reader/story-he/reader/index.html?k=k", "opened when ready"
+
+
+def test_a_line_that_only_says_open_this_starts_no_conversation() -> None:
+    page = run(
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send", "text": "Open this"},
+        ],
+        answers=BUILT,
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"]
+    assert page["went"] == "/reader/story-he/reader/index.html?k=k"
 
 
 def test_a_quote_the_rails_refused_says_why_on_its_card() -> None:
@@ -552,21 +572,20 @@ def test_a_quote_the_rails_refused_says_why_on_its_card() -> None:
     assert card["note"] == "Too long." and "refused" in card["cls"]
 
 
-def test_a_line_sent_with_a_file_follows_its_card() -> None:
+def test_a_line_that_says_more_follows_its_card_as_a_specification() -> None:
+    """A specification for the model rides after the card with a note of what was
+    sent, and the page stays: the reader opens from the card or the strip."""
     page = run(
         do=[
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send", "text": "what is this about"},
         ],
-        answers={
-            "/prepare": QUOTE,
-            "/build": dict(QUOTE, stage="working"),
-            "/chat/say": {"chat": "abc", "turn": 1},
-        },
+        answers={**BUILT, "/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert [p["path"] for p in page["posted"]] == ["/prepare", "/build", "/chat/say"]
     assert page["posted"][2]["body"]["brought"] == "j1", "the model is told what was sent"
     assert len(page["cards"]) == 1
+    assert page["went"] == "", "a conversation was wanted, so the page stays"
     assert [t["text"] for t in page["turns"] if t["cls"].startswith("chat-turn me")] == [
         "what is this about"
     ]
@@ -582,6 +601,7 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
             "/upload/u1/end": {"upload": "u1"},
             "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1),
             "/build": dict(QUOTE, audio=True, seconds=600, parts=1, stage="working"),
+            "/job/j1": dict(QUOTE, audio=True, stage="done", reader="talk-he/reader/index.html"),
         },
     )
     assert [p["path"] for p in page["posted"]] == [
@@ -605,27 +625,6 @@ PAGES = dict(
     doubtful=1,
     excerpt=["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול ארוך"],
 )
-
-
-def test_a_text_brought_from_the_front_door_is_a_card_in_a_fresh_thread() -> None:
-    """Learn's box lands here with `job=<id>` in the hash: the card is drawn as a turn,
-    showing the first lines as read and how many were doubtful, and the thread is a
-    fresh one — the first line typed starts the conversation the card sits in."""
-    page = run(
-        answers={
-            "/chat/list": {"chats": [{"id": "old", "title": "older"}], "usable": True},
-            "/chat/old": {"chat": {"id": "old"}, "turns": []},
-            "/job/j1": dict(PAGES, stage="working"),
-        },
-        hash="#job=j1",
-    )
-    (card,) = page["cards"]
-    assert card["excerpt"] == PAGES["excerpt"]
-    assert card["doubt"] == "1 line could not be read clearly."
-    assert card["meta"].startswith("2 pages · 12 sentences")
-    assert card["button"] == "" and card["note"].startswith("Building."), "already pressed"
-    assert "started" in card["cls"]
-    assert not any(p["path"] == "/chat/old" for p in page["posted"]), "not the newest thread"
 
 
 def test_a_text_brought_with_a_line_follows_that_line_in_its_conversation() -> None:
@@ -690,6 +689,7 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
             "/upload/u1/end": {"upload": "u1", "picture": True},
             "/prepare": dict(QUOTE, pages=2, doubtful=0, excerpt=["שורה ראשונה"]),
             "/build": dict(QUOTE, pages=2, stage="working"),
+            "/job/j1": dict(QUOTE, pages=2, stage="done", reader="pages-he/reader/index.html"),
         },
     )
     assert [p["path"] for p in page["posted"]] == [
