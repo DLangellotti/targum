@@ -321,6 +321,50 @@
   // The card is bring.js's: the same one the Add page's press and the front door's +
   // draw, from the server's state of the job and never from what the model wrote.
   var bringing = window.TargumBring;
+  // The other card the model may leave: an offer to search past the sites targum knows.
+  // Built here rather than in bring.js because it prices nothing and starts no job — it
+  // asks the same question again, wider, and only a reader's press sends it. The words
+  // that would be searched are on the card, so they are read before they are agreed to.
+  // Same classes as the quote card, so it is plainly the same kind of thing.
+  function widerCard(li, offer) {
+    var asked = String(offer.asked || "");
+    if (!asked) return null;
+    var card = document.createElement("div");
+    card.className = "quote-card";
+    card.setAttribute("data-wider", "1");
+    var title = document.createElement("p");
+    title.className = "quote-title";
+    var he = document.createElement("bdi");
+    he.setAttribute("dir", "auto");
+    he.textContent = asked;
+    title.appendChild(he);
+    card.appendChild(title);
+    var meta = document.createElement("p");
+    meta.className = "quote-meta";
+    meta.textContent =
+      "targum looks at " + (offer.sites || 0) + " Hebrew sites. This asks the whole web.";
+    card.appendChild(meta);
+    var note = document.createElement("p");
+    note.className = "quote-note";
+    if (offer.why) note.textContent = offer.why;
+    var go = document.createElement("button");
+    go.type = "button";
+    go.className = "quote-go";
+    go.textContent = "Look wider";
+    go.onclick = function () {
+      if (busy) return;
+      go.disabled = true;
+      card.classList.add("started");
+      // One press, one turn. Nothing remembers this, so the turn after it is held to
+      // the list again.
+      say(asked, null, true);
+    };
+    card.appendChild(go);
+    card.appendChild(note);
+    li.appendChild(card);
+    return card;
+  }
+
   function quoteCard(li, job) {
     return bringing.quoteCard(li, job);
   }
@@ -729,7 +773,7 @@
 
   /* --- asking -------------------------------------------------------------- */
 
-  function say(text, brought) {
+  function say(text, brought, wider) {
     if (busy || !text) return;
     if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
     busy = true;
@@ -739,6 +783,9 @@
     var line = { chat: current, text: text };
     // The text sent with the line, by its job, so the model knows what it was given.
     if (brought) line.brought = brought;
+    // The press on a "look wider" card. Sent only from that button, and only for the
+    // one turn it starts.
+    if (wider) line.wider = true;
     ask("/chat/say", line).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";
@@ -781,6 +828,9 @@
       });
       source.addEventListener("quote", function (event) {
         quoteCard(li, JSON.parse(event.data || "{}"));
+      });
+      source.addEventListener("wider", function (event) {
+        widerCard(li, JSON.parse(event.data || "{}"));
       });
       source.addEventListener("words", function (event) {
         // The lines read as a text is read: drawn again with their words marked.

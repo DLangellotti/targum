@@ -155,6 +155,7 @@ def run_turn(
     keep: Callable[[str, list[dict[str, Any]], str], None],
     *,
     web_search: bool = False,
+    wider: bool = False,
     contract: str = "",
     ledger: str = "",
 ) -> Usage:
@@ -163,8 +164,9 @@ def run_turn(
     `keep(role, content, said)` is called for every API message this turn produces, in
     order, so the store holds the conversation as the API will need to see it again.
     `contract` is a stable block added to the system prompt (the Hebrew mode's rules);
-    `ledger` is the per-reader block, or the plain one where none is given. Returns what
-    the turn cost.
+    `ledger` is the per-reader block, or the plain one where none is given. `wider` is
+    one turn a reader pressed to widen: the search gives its host list up for this turn
+    only, and nothing carries it into the next. Returns what the turn cost.
     """
     usage = ctx.usage
     messages = list(history)
@@ -180,7 +182,7 @@ def run_turn(
                 {"type": "text", "text": ledger or prompts.ledger(ctx.level)},
             ],
             output_config={"effort": EFFORT},
-            tools=tools_module.anthropic_tools(web_search=web_search),
+            tools=tools_module.anthropic_tools(web_search=web_search, wider=wider),
             messages=messages,
         ) as stream:
             for event in stream:
@@ -225,6 +227,13 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "offer_wider_search" and not failed:
+                # The same rule, for the only other card the model may leave: the words
+                # that would be searched come from the tool result the reader can see,
+                # not from the sentence the model writes around it.
+                offered = json.loads(text).get("offered")
+                if offered:
+                    feed.put("wider", offered)
             results.append(
                 {
                     "type": "tool_result",
@@ -252,6 +261,9 @@ class Asked:
     #: Seconds of the reader's own voice this turn came from, already metered by the
     #: request that heard it. Zero for a typed line.
     heard_seconds: float = 0.0
+    #: Whether the reader pressed to widen this one turn's search past the host list.
+    #: Set only by `/chat/say` from the card's own button, never by a model.
+    wider: bool = False
 
 
 def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | None = None) -> str:
@@ -456,6 +468,7 @@ class Chats:
         heard_seconds: float = 0.0,
         about: dict[str, str] | None = None,
         brought: dict[str, Any] | None = None,
+        wider: bool = False,
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -464,7 +477,8 @@ class Chats:
         and not in what the page shows back, and it opens the conversation in English:
         a question about a form is answered about the form, whatever the reader's shelf.
         `brought` is the text the reader sent with the line, from its own job: it rides
-        the same way, and the conversation keeps its language.
+        the same way, and the conversation keeps its language. `wider` is the press on
+        the card `offer_wider_search` left: it widens this turn's search and no other.
         """
         if self.store is None:
             raise RuntimeError("a chat needs a store")
@@ -481,7 +495,7 @@ class Chats:
         )
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
-        asked = Asked(chat_id, n, person, home, admin, heard_seconds)
+        asked = Asked(chat_id, n, person, home, admin, heard_seconds, wider)
         self.queue.put(asked)
         return asked
 
@@ -594,6 +608,7 @@ class Chats:
                 feed,
                 keep,
                 web_search=self.web_search,
+                wider=asked.wider,
                 contract=contract,
                 ledger=ledger,
             )

@@ -142,7 +142,11 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
     assert sent["messages"][-1]["role"] == "user"
     assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}, "the stable half is cached"
     assert "cache_control" not in sent["system"][1], "the ledger sits after the breakpoint"
-    assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
+    # The whole registry but the one card that only exists where a search does: this
+    # turn was answered on a box with no web_search, so there is no list to widen.
+    assert [tool["name"] for tool in sent["tools"]] == [
+        tool.name for tool in tools.REGISTRY if tool.name != "offer_wider_search"
+    ]
 
 
 def test_tool_results_go_back_in_one_message_in_order(tmp_path: Path) -> None:
@@ -771,3 +775,67 @@ def test_a_thinking_block_is_never_touched_on_the_way_through(tmp_path: Path) ->
         lambda role, content, said: kept.append(content),
     )
     assert kept[0][0]["thinking"] == "a�b"
+
+
+def test_a_press_widens_one_turn_and_the_offer_reaches_the_page(tmp_path: Path) -> None:
+    """The card's words come from the tool result the reader can see, not from the
+    sentence the model writes around it — the same rule the quote card keeps."""
+    library, store = world(tmp_path)
+    offer = {
+        "id": "t1",
+        "type": "tool_use",
+        "name": "offer_wider_search",
+        "input": {"asked": "מתכונים בעברית", "why": "I asked for recipes and got news."},
+    }
+    client = Script(
+        [
+            reply([{"type": "text", "text": "Not what you asked for."}, offer], stop="tool_use"),
+            reply([{"type": "text", "text": "Say the word."}]),
+        ]
+    )
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "find me recipes"}],
+        feed,
+        lambda role, content, said: None,
+        web_search=True,
+    )
+    widened = [json.loads(data) for kind, data in feed.events if kind == "wider"]
+    assert widened == [
+        {
+            "asked": "מתכונים בעברית",
+            "why": "I asked for recipes and got news.",
+            "sites": widened[0]["sites"],
+        }
+    ]
+    assert client.requests[0]["tools"][-1]["allowed_domains"], "the offer's own turn is held"
+
+
+def test_the_turn_a_reader_widened_gives_the_host_list_up(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    client = Script([reply([{"type": "text", "text": "Looking wider."}])])
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "מתכונים בעברית"}],
+        session_module.Feed(),
+        lambda role, content, said: None,
+        web_search=True,
+        wider=True,
+    )
+    (searching,) = [t for t in client.requests[0]["tools"] if t.get("name") == "web_search"]
+    assert "allowed_domains" not in searching and "blocked_domains" not in searching
+    assert searching["user_location"]["country"] == "IL"
+
+
+def test_a_press_widens_nothing_after_its_own_turn(tmp_path: Path) -> None:
+    """One press, one turn. A conversation does not stay open because it was opened."""
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    home = library.home(None)
+    pressed = chats.say(None, home, "", "מתכונים", admin=False, wider=True)
+    assert pressed.wider is True
+    after = chats.say(None, home, pressed.chat_id, "ועוד משהו", admin=False)
+    assert after.wider is False, "the turn after a press is held to the list again"
