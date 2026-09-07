@@ -79,3 +79,56 @@ def test_transcription_fill_rules_are_not_text() -> None:
 
 def test_a_real_dash_survives() -> None:
     assert texts("<body><p>the well-known case</p></body>") == ["the well-known case"]
+
+
+def test_a_skin_flag_on_the_root_does_not_take_the_page_with_it() -> None:
+    """MediaWiki's Vector 2022 writes `vector-toc-available` on <html>, and the furniture
+    patterns match inside a word, so every Wikipedia page came back blank (2026-09-07)."""
+    html = """<html class="vector-toc-available client-nojs"><body class="mw-editable">
+    <main id="content"><p>ירושלים היא עיר.</p></main></body></html>"""
+    assert texts(html) == ["ירושלים היא עיר."]
+
+
+def test_furniture_inside_the_page_is_still_dropped() -> None:
+    html = """<html class="vector-toc-available"><body><p>Real text.</p>
+    <div class="vector-toc">Contents</div><div class="navbox">See also</div>
+    <article class="teaser"><p>Read more from us.</p></article></body></html>"""
+    assert texts(html) == ["Real text."]
+
+
+def test_a_framework_namespace_is_not_a_furniture_word() -> None:
+    """Elementor builds a large share of the WordPress web and wraps every block it
+    makes in `elementor-widget`. Matching `widget` inside it threw the whole article
+    away on hayadan.org.il and shakuf.co.il (2026-09-07)."""
+    html = """<body><div class="elementor-widget-container"><div class="elementor-widget">
+    <p>הידען מדווח על מחקר חדש.</p></div></div>
+    <div class="widget-area"><p>Furniture.</p></div></body>"""
+    assert texts(html) == ["הידען מדווח על מחקר חדש."]
+
+
+def test_a_generic_word_still_counts_where_a_name_begins() -> None:
+    html = """<body><p>Real text.</p><div class="share-tools">Share this</div>
+    <div class="comments"><p>A comment.</p></div><aside class="promo">Buy</aside>
+    <div class="social_links">Follow</div></body>"""
+    assert texts(html) == ["Real text."]
+
+
+def test_a_long_furniture_word_still_counts_anywhere_in_a_name() -> None:
+    html = """<body><p>Real text.</p><div class="wp-block-taboola">Around the web</div>
+    <div class="mw-editsection">edit</div><div class="site-newsletter-box">Sign up</div>
+    <div class="vector-toc-contents">Contents</div></body>"""
+    assert texts(html) == ["Real text."]
+
+
+def test_an_element_holding_most_of_the_page_is_the_page() -> None:
+    """The backstop for the framework nobody has met yet: whatever it is classed, an
+    element carrying most of the text is not furniture."""
+    body = "מילה " * 200
+    html = f'<body><div class="promo-wrapper"><p>{body}</p></div></body>'
+    assert texts(html) == [body.strip()]
+
+
+def test_but_not_a_short_one_that_merely_outweighs_a_short_page() -> None:
+    """Share alone would protect the apparatus in a two-line document."""
+    html = '<body><p>A claim.</p><div class="footnotes"><p>Apparatus, not text.</p></div></body>'
+    assert texts(html) == ["A claim."]
