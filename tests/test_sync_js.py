@@ -132,3 +132,103 @@ def test_a_title_from_another_device_does_not_drop_a_finished_chapter() -> None:
     # And the chapter this browser knew about went up as its own row, not as a column.
     pushed = {(row["hash"], row["section"]) for row in seen["sent"]["sections"]}
     assert ("gen", "1") in pushed
+
+
+def test_a_word_that_moved_here_does_not_come_back_under_its_old_name_from_the_account() -> None:
+    """The annotator changed and `vocab.js` moved a mark to the word's new name, leaving
+    the old one as a tombstone (targum-internal#141). The account, or a device that has
+    not opened that text yet, still holds the old name; on the next pull it must not be
+    put back beside the new one, or one word is two again. The rule is the one the
+    account applies on a push, applied on the way in: the newer edit stands."""
+    stored = {
+        "targum:sync": json.dumps({"email": "r@example.com", "revision": 3, "pushed": 250}),
+        "targum:vocab:he": json.dumps(
+            {"ארך": {"status": 2, "surface": "לאורך", "band": 4, "at": 100, "seen": 300}},
+            ensure_ascii=False,
+        ),
+        "targum:gone": json.dumps({"w:he:לאורך": 300, "m:he:en:לאורך": 300}, ensure_ascii=False),
+        "targum:meanings:he:en": json.dumps(
+            {"ארך": {"meaning": "along", "note": "", "at": 5, "seen": 300}}, ensure_ascii=False
+        ),
+    }
+    answers = {
+        "/account/me": {"signedIn": True, "email": "r@example.com", "reads": [], "learning": []},
+        "/sync": {
+            "revision": 4,
+            "words": [
+                # The old name, from the account: older than the tombstone, so it stays gone.
+                {
+                    "language": "he",
+                    "lemma": "לאורך",
+                    "status": 2,
+                    "surface": "לאורך",
+                    "band": 4,
+                    "learned": 0,
+                    "at": 100,
+                    "seen": 150,
+                    "gone": 0,
+                },
+                # A word touched on another device after this one's tombstones: it lands.
+                {
+                    "language": "he",
+                    "lemma": "ספר",
+                    "status": 9,
+                    "surface": "ספר",
+                    "band": 1,
+                    "learned": 0,
+                    "at": 90,
+                    "seen": 400,
+                    "gone": 0,
+                },
+            ],
+            "meanings": [
+                {
+                    "source": "he",
+                    "target": "en",
+                    "term": "לאורך",
+                    "meaning": "along",
+                    "note": "",
+                    "at": 5,
+                    "seen": 150,
+                    "gone": 0,
+                },
+            ],
+            "phrases": [],
+            "docs": [],
+            "days": [],
+            "sections": [],
+        },
+    }
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {stored};
+      install({{ TARGUM_KEY: "k", stored }});
+      const answers = {answers};
+      const sent = [];
+      global.fetch = window.fetch = function (url, options) {{
+        const path = String(url).split("?")[0];
+        if (options && options.body) sent.push(JSON.parse(options.body));
+        const json = () => Promise.resolve(answers[path]);
+        return Promise.resolve({{ ok: true, status: 200, json }});
+      }};
+      require({where});
+      window.TargumSync.start().then(function () {{
+        console.log(JSON.stringify({{
+          words: JSON.parse(stored["targum:vocab:he"]),
+          meanings: JSON.parse(stored["targum:meanings:he:en"]),
+          pushed: sent[0].words.map((w) => [w.lemma, w.gone || 0]).sort(),
+        }}));
+      }});
+    """.format(
+        dom=json.dumps(str(DOM)),
+        stored=json.dumps(stored, ensure_ascii=False),
+        answers=json.dumps(answers, ensure_ascii=False),
+        where=json.dumps(str(ASSETS / "sync.js")),
+    )
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    answer = json.loads(done.stdout)
+    assert set(answer["words"]) == {"ארך", "ספר"}, "the old name stayed gone; the newer word landed"
+    assert set(answer["meanings"]) == {"ארך"}
+    # And what went up: the moved record under its new name, and the old name as gone.
+    assert answer["pushed"] == [["ארך", 0], ["לאורך", 1]]

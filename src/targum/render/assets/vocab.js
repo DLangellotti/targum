@@ -511,6 +511,16 @@
     });
 
     if (renames.length) {
+      // A move is a change the account has to hear about, or it is a change this one
+      // browser made and nobody else keeps (found 2026-09-07). `sync.js` pushes a record
+      // when its `seen` is past the last push, and says a name is gone through
+      // `targum:gone` — so the record that moved is stamped as touched now, and the name
+      // it left is a tombstone, the same two facts a reader's own delete leaves. Without
+      // them the account keeps the old name, another device brings the orphan back on
+      // its next pull, and the chat's ledger, which reads the account, never learns the
+      // word's new name at all.
+      var when = Date.now();
+      var gone = read("targum:gone", "{}");
       renames.forEach(function (move) {
         var was = move[0];
         var now = move[1];
@@ -519,23 +529,29 @@
         var already = words[now];
         if (!already || (already.at || 0) < (word.at || 0)) {
           word.surface = word.surface || was;
+          word.seen = when;
           words[now] = word;
         }
         delete words[was];
+        gone["w:" + tag + ":" + was] = when;
       });
       write(name, words);
 
       keys("targum:meanings:" + tag + ":").forEach(function (pair) {
         var store = read(pair, "{}");
+        var target = pair.slice(("targum:meanings:" + tag + ":").length);
         var touched = false;
         renames.forEach(function (move) {
           if (!store[move[0]] || store[move[1]]) return;
           store[move[1]] = store[move[0]];
+          store[move[1]].seen = when;
           delete store[move[0]];
+          gone["m:" + tag + ":" + target + ":" + move[0]] = when;
           touched = true;
         });
         if (touched) write(pair, store);
       });
+      write("targum:gone", gone);
     }
 
     done[flag] = Date.now();

@@ -390,6 +390,15 @@
 
   /* --- taking what the account has ------------------------------------------ */
 
+  // A name this browser has already said is gone, more recently than the account's
+  // record of it, stays gone: a word that moved to a new name under an annotator change
+  // (`vocab.js`, targum-internal#141) must not come back under the old one from a device
+  // that has not opened that text yet. The same rule the account applies on a push —
+  // the newer edit stands — applied here on the way in.
+  function buried(name, seen) {
+    return Number(read(GONE, "{}")[name] || 0) >= Number(seen || 0);
+  }
+
   function applyWords(rows) {
     var stores = {};
     var touched = false;
@@ -399,6 +408,7 @@
       var store = stores[name];
       var here = store[row.lemma];
       if (here && touchedAt(here) >= Number(row.seen || 0)) return;
+      if (!row.gone && buried("w:" + row.language + ":" + row.lemma, row.seen)) return;
       touched = true;
       if (row.gone) {
         delete store[row.lemma];
@@ -433,6 +443,12 @@
       var store = stores[name];
       var here = store[row.term];
       if (here && touchedAt(here) >= Number(row.seen || 0)) return;
+      if (
+        !row.gone &&
+        buried("m:" + row.source + ":" + row.target + ":" + row.term, row.seen)
+      ) {
+        return;
+      }
       touched = true;
       if (row.gone) {
         delete store[row.term];

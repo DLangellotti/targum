@@ -374,6 +374,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- A mark that moved to a word's new name when the annotator changed (targum-internal#141)
+  now reaches the account. The move stamped nothing and buried nothing, so the sync never
+  sent the record under its new name and the account kept the old one: a second device
+  brought the orphan back on its next pull, and the chat's ledger, which is read from
+  the account, never learned what the word is now called. The moved record is now
+  touched at the move and the name it left is a tombstone — the two facts a reader's own
+  delete leaves — and a name this browser has buried more recently than the account's
+  record of it stays buried on the way in, the same newer-edit-stands rule the account
+  applies on a push.
 - On a machine somebody runs themselves the chat's dollar-a-day rail is off: the reader
   is the operator, whose `--budget` is the ceiling. An evening of testing was told to
   come back tomorrow by its own laptop. Hosted, the rail stands.
