@@ -95,7 +95,16 @@ def survey(out: Path, home: str = "") -> Shelf:
 
     Hebrew only: the annotator name for another language moves for reasons that have
     nothing to do with the work this watches, and counting them would bury the number.
+
+    **Raises rather than returning an empty survey where there is no shelf.** An empty
+    `Shelf` prints "0 of 0 behind", which reads as "everything is current" — so a
+    mistyped path, or a user who cannot see `/var/lib/targum`, would answer this
+    question with the reassuring version of the silence the whole check exists to break.
+    A caller that means "there may legitimately be nothing built yet" says so by testing
+    the path first, the way `preflight.check_shelf` does.
     """
+    if not out.is_dir():
+        raise FileNotFoundError(f"no build directory at {out}")
     shelf = Shelf()
     # Cached because a shelf is mostly a few sources repeated, and the name is a pure
     # function of the source.

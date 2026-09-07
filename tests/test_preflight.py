@@ -519,3 +519,15 @@ def test_a_box_that_has_built_nothing_is_not_scolded(tmp_path: Path) -> None:
     """A first deploy has no shelf, and a check that failed there would be a check
     everybody learns to ignore."""
     assert check_shelf(tmp_path / "never-built").ok
+
+
+def test_asking_about_a_shelf_that_is_not_there_is_not_reassuring(tmp_path: Path) -> None:
+    """An empty survey prints "0 of 0 behind", which reads as "everything is current" —
+    so a mistyped path would answer this question with the comfortable version of exactly
+    the silence the check exists to break. `check_shelf` tests the path itself and says
+    "nothing built yet"; anyone calling `survey` directly is told the path is wrong."""
+    from targum.annotate.versions import survey
+
+    with pytest.raises(FileNotFoundError):
+        survey(tmp_path / "not-a-shelf")
+    assert check_shelf(tmp_path / "not-a-shelf").ok, "the deploy path still says it plainly"
