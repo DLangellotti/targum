@@ -155,7 +155,13 @@ function cards() {
         note: by("quote-note") ? by("quote-note").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
-      });
+              excerpt: by("quote-excerpt")
+          ? by("quote-excerpt")
+              .children.filter((c) => String(c.tagName).toUpperCase() === "BDI")
+              .map((c) => c.textContent)
+          : [],
+        doubt: by("quote-doubt") ? by("quote-doubt").textContent : "",
+});
     }
     (node.children || []).forEach(walk);
   };
@@ -240,6 +246,14 @@ function drawn() {
       // An upload is several round trips; let them all settle.
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "send") {
+      byId["say"].value = step.text || "";
+      byId["composer"].fire("submit", { preventDefault() {} });
+      for (let i = 0; i < 16; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "drop") {
+      byId["chat-held"].children[step.index].children[1].onclick();
+    }
     if (step.type === "record") {
       // Two presses: start, then stop — which is when the clip goes up.
       byId["chat-mic"].onclick();
@@ -266,6 +280,7 @@ function drawn() {
       streams: sources.map((s) => s.url),
       turns: drawn(),
       cards: cards(),
+      held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       pairs: pairsDrawn(),
       foot: foot(),
       doors: doors(),

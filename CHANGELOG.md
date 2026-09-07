@@ -34,8 +34,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Bringing a text is one press. The `+` on the box — on Learn and on the conversation
   page — takes a file or a recording, sends it up the way the Add page does (a
   recording in pieces, anything else whole), prices it with `/prepare`, and draws the
-  same card the model's quote draws, under the box or as a turn in the thread, with no
-  model in the loop; the card's button is the spend, and its "More options" is the Add
+  same card the model's quote draws as a turn in the thread — a file is held in the
+  box as a chip until Send, and from Learn the conversation page opens on the card
+  (2026-09-07) — with no model in the loop; the card's button is the spend, and its "More options" is the Add
   page, kept for the two things only its form can say — a translation of your own, a
   transcript of your own. A link goes in the field like anything else said to targum.
   The upload, the price in the reader's time, the plain words for a build's progress

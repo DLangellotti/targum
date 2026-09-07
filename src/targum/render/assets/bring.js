@@ -304,8 +304,33 @@
     return card;
   }
 
+  /* The files the + chose, held in the box until Send: one chip a file, each with a
+     way to let it go. Drawn here so both boxes hold a file the same way. */
+  function held(host, files, drop) {
+    host.textContent = "";
+    files.forEach(function (file, index) {
+      var chip = document.createElement("li");
+      chip.className = "chat-chip";
+      var name = document.createElement("span");
+      name.textContent = file.name;
+      chip.appendChild(name);
+      var out = document.createElement("button");
+      out.type = "button";
+      out.className = "chat-drop";
+      out.setAttribute("aria-label", "Do not bring " + file.name);
+      out.textContent = "×";
+      out.onclick = function () {
+        drop(index);
+      };
+      chip.appendChild(out);
+      host.appendChild(chip);
+    });
+    host.hidden = files.length === 0;
+  }
+
   window.TargumBring = {
     isMedia: isMedia,
+    held: held,
     isPicture: isPicture,
     isPdf: isPdf,
     listed: listed,

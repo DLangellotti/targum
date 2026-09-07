@@ -31,7 +31,7 @@
   var mic = document.getElementById("chat-mic");
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
-  var brought = document.getElementById("chat-brought");
+  var heldList = document.getElementById("chat-held");
   var said = document.getElementById("chat-said");
   if (!form || !field || !send) return;
   // The conversation page carries the same box and its own script for it; this one
@@ -70,9 +70,12 @@
 
   // The conversation page, opened on the conversation this line began. The id rides
   // in the hash rather than the path: `/chat/<id>` is the conversation as JSON, and
-  // the page is one page whatever it is showing.
-  function go(chat) {
-    window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat);
+  // the page is one page whatever it is showing. A text brought from here rides the
+  // same way, as `job=<id>`, and the page draws its card as a turn.
+  function go(chat, job) {
+    var hash = chat ? encodeURIComponent(chat) : "";
+    if (job) hash += (hash ? "&" : "") + "job=" + encodeURIComponent(job);
+    window.location.href = keyed("/chat") + "#" + hash;
   }
 
   function refused(got) {
@@ -118,6 +121,7 @@
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var text = field.value.trim();
+    if (held.length) return bringHeld(text);
     if (!text) return;
     say(text);
   });
@@ -126,6 +130,7 @@
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       var text = field.value.trim();
+      if (held.length) return bringHeld(text);
       if (!text) return;
       say(text);
     }
@@ -137,22 +142,30 @@
     };
   }
 
-  // A file chosen by the +: up, priced, and the card drawn under the box — the Add
-  // page's whole job in one press, with "More options" on the card for the two things
-  // only its form can say. The card's button is the spend; the strip in the header
-  // carries the build and its door when it is done.
+  // A file chosen by the + is held in the box until Send, the way a line is typed
+  // and then sent (2026-09-07): choosing is not bringing. Send takes it up, prices
+  // it, and goes to the conversation page with the job in the hash, where the card
+  // the model's quote draws is a turn in the thread — never a thing under this box.
+  // A line typed alongside opens the conversation the card lands in. The card's
+  // button is still the spend.
   var bringing = window.TargumBring;
-  function bringFile(chosen) {
-    if (!bringing || !brought) return;
-    chosen = bringing.listed(chosen);
-    if (!chosen.length) return;
+  var held = [];
+  function showHeld() {
+    if (bringing && heldList) {
+      bringing.held(heldList, held, function (index) {
+        held.splice(index, 1);
+        showHeld();
+      });
+    }
+  }
+  function bringHeld(text) {
+    if (busy || !bringing || !held.length) return;
     busy = true;
     send.disabled = true;
-    brought.textContent = "";
     tell("Uploading…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
     bringing
-      .bring(chosen, { to: into }, function (share) {
+      .bring(held, { to: into }, function (share) {
         tell("Uploading… " + share + "%");
       })
       .then(function (job) {
@@ -164,16 +177,17 @@
           );
           return;
         }
-        if (job.error) return tell(job.error);
-        bringing.quoteCard(brought, job);
+        if (job.error) return refused(job);
+        held = [];
+        showHeld();
+        if (!text) return go("", job.id);
+        return ask("/chat/say", { chat: "", text: text }).then(function (got) {
+          // A refused line still leaves the card a home: a fresh thread.
+          go(got.error ? "" : got.chat, job.id);
+        });
       })
       .catch(function (why) {
-        tell(String(why || "That did not go through. Try again."));
-      })
-      .then(function () {
-        busy = false;
-        send.disabled = false;
-        if (file) file.value = "";
+        refused({ error: String(why || "That did not go through. Try again.") });
       });
   }
   if (bring && file) {
@@ -182,7 +196,9 @@
     };
     file.onchange = function () {
       // All of them: several pictures chosen together are the pages of one text.
-      bringFile(file.files);
+      held = held.concat(bringing ? bringing.listed(file.files) : []);
+      file.value = "";
+      showHeld();
     };
   }
 
@@ -194,5 +210,5 @@
     showMic();
   });
 
-  window.TargumBox = { say: say, hear: hear, bring: bringFile };
+  window.TargumBox = { say: say, hear: hear, bring: bringHeld };
 })();

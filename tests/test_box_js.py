@@ -130,32 +130,62 @@ UPLOAD = {
 }
 
 
-def test_a_file_chosen_by_the_plus_is_priced_under_the_box() -> None:
-    """The Add page's job in one press: a text read whole, `/prepare` asked, the card
-    drawn under the box with the same button the model's quote has, and the Add page
-    one link away for the two things only its form can say."""
+def test_a_file_chosen_by_the_plus_is_held_until_send() -> None:
+    """Choosing is not bringing (2026-09-07): the file sits in the box as a chip, the
+    way a typed line sits in the field, and nothing goes up until Send."""
+    page = run(do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}])
+    assert page["posted"] == [] and page["went"] == ""
+    assert page["held"] == ["story.txt"] and page["heldHidden"] is False
+
+
+def test_the_x_on_a_chip_lets_that_file_go() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
+        do=[
+            {"type": "file", "files": [{"name": "a.png"}, {"name": "b.png"}]},
+            {"type": "drop", "index": 0},
+        ]
+    )
+    assert page["held"] == ["b.png"]
+    page = run(do=[{"type": "file", "file": {"name": "a.png"}}, {"type": "drop", "index": 0}])
+    assert page["held"] == [] and page["heldHidden"] is True
+
+
+def test_send_brings_the_held_file_and_opens_the_conversation_page_on_its_card() -> None:
+    """The Add page's job in one press, from the box: the file read whole, `/prepare`
+    asked, and the conversation page opened with the job in the hash — where the card
+    is a turn in the thread, never a thing under this box."""
+    page = run(
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send"},
+        ],
         answers={"/prepare": QUOTE},
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare"]
-    sent = page["posted"][0]["body"]
-    assert sent["name"] == "story.txt" and sent["content"], "read whole, as base64"
-    assert sent["words"] is True and sent["gloss"] is False and sent["to"] == "en"
-    (card,) = page["brought"]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
-    assert card["more"] == "/add?k=k", "the Add page, for a translation of your own"
-    assert page["went"] == "", "nowhere: the card is the answer"
-    assert page["sendDisabled"] is False
+    assert [p["path"] for p in page["posted"]] == ["/prepare"], "no line was said"
+    assert page["posted"][0]["body"]["name"] == "story.txt"
+    assert page["went"] == "/chat?k=k#job=j1"
+    assert page["held"] == []
+
+
+def test_a_line_typed_alongside_opens_the_conversation_the_card_lands_in() -> None:
+    page = run(
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send", "text": "read this with me"},
+        ],
+        answers={"/prepare": QUOTE, "/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/chat/say"]
+    assert page["posted"][1]["body"] == {"chat": "", "text": "read this with me"}
+    assert page["went"] == "/chat?k=k#abc&job=j1"
 
 
 def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}, {"type": "send"}],
         answers={**UPLOAD, "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1)},
     )
-    paths = [p["path"] for p in page["posted"]]
-    assert paths == [
+    assert [p["path"] for p in page["posted"]] == [
         "/upload/begin",
         "/upload/u1/0",
         "/upload/u1/1",
@@ -163,36 +193,32 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
         "/upload/u1/end",
         "/prepare",
     ]
-    assert page["posted"][-1]["body"]["upload"] == "u1", "priced by its upload, not its bytes"
-    (card,) = page["brought"]
-    assert "minutes of audio" in card["title"] or card["button"] == "Read this"
+    assert page["posted"][-1]["body"]["upload"] == "u1"
+    assert page["went"] == "/chat?k=k#job=j1"
 
 
 def test_the_same_bytes_already_brought_open_the_text() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
-        answers={**UPLOAD, "/upload/u1/end": {"reader": "שיחה-he/reader/index.html"}},
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}, {"type": "send"}],
+        answers={**UPLOAD, "/upload/u1/end": {"reader": "talk-he/reader/index.html"}},
     )
-    assert page["went"] == "/reader/%D7%A9%D7%99%D7%97%D7%94-he/reader/index.html?k=k"
-    assert "/prepare" not in [p["path"] for p in page["posted"]]
+    assert page["went"] == "/reader/talk-he/reader/index.html?k=k"
+    assert not any(p["path"] == "/prepare" for p in page["posted"])
 
 
-def test_a_refused_file_is_said_under_the_box() -> None:
+def test_a_refused_file_is_said_under_the_box_and_kept() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "story.txt", "content": "x"}}],
-        answers={"/prepare": {"error": "Nothing new can be built now."}},
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send"},
+        ],
+        answers={"/prepare": {"error": "targum cannot read '.rtf' files."}},
     )
-    assert page["brought"] == [] and page["said"]["text"] == "Nothing new can be built now."
+    assert page["went"] == ""
+    assert page["said"] == {"text": "targum cannot read '.rtf' files.", "hidden": False}
+    assert page["held"] == ["story.txt"], "still in the box, to try again or let go"
+    assert page["sendDisabled"] is False
 
-
-PAGES = dict(
-    QUOTE,
-    pages=2,
-    segments=12,
-    total=12,
-    doubtful=1,
-    excerpt=["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול ארוך"],
-)
 
 PICTURES = {
     "/upload/begin": {"upload": "u1", "chunk": 100},
@@ -201,18 +227,16 @@ PICTURES = {
 }
 
 
-def test_several_pictures_chosen_together_are_one_text_read_and_shown_on_the_card() -> None:
-    """Two photos of one handout: each goes up the chunked door, `/prepare` is asked
-    once with both, and the card shows the first lines as read and how many lines were
-    doubtful — what will be built, seen before the press (targum-internal#217)."""
+def test_several_pictures_chosen_together_are_one_text() -> None:
+    """Two photos of one handout: each goes up the chunked door on Send, `/prepare` is
+    asked once with both, and the conversation page opens on the card."""
     page = run(
         do=[
-            {
-                "type": "file",
-                "files": [{"name": "page1.jpg", "size": 10}, {"name": "page2.HEIC", "size": 10}],
-            }
+            {"type": "file", "files": [{"name": "page1.jpg", "size": 10}]},
+            {"type": "file", "files": [{"name": "page2.HEIC", "size": 10}]},
+            {"type": "send"},
         ],
-        answers={**PICTURES, "/prepare": PAGES},
+        answers={**PICTURES, "/prepare": dict(QUOTE, pages=2)},
     )
     assert [p["path"] for p in page["posted"]] == [
         "/upload/begin",
@@ -224,18 +248,13 @@ def test_several_pictures_chosen_together_are_one_text_read_and_shown_on_the_car
         "/prepare",
     ]
     assert page["posted"][-1]["body"]["uploads"] == ["u1", "u1"], "one text, in order"
-    assert "upload" not in page["posted"][-1]["body"]
-    (card,) = page["brought"]
-    assert card["excerpt"] == PAGES["excerpt"]
-    assert card["doubt"] == "1 line could not be read clearly."
-    assert card["meta"].startswith("2 pages · 12 sentences")
-    assert card["button"] == "Read this"
+    assert page["went"] == "/chat?k=k#job=j1"
 
 
 def test_a_pdf_goes_up_the_chunked_door_and_is_priced_as_one_upload() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "handout.pdf", "size": 10}}],
-        answers={**PICTURES, "/upload/u1/end": {"upload": "u1", "pages": 3}, "/prepare": PAGES},
+        do=[{"type": "file", "file": {"name": "handout.pdf", "size": 10}}, {"type": "send"}],
+        answers={**PICTURES, "/upload/u1/end": {"upload": "u1", "pages": 3}, "/prepare": QUOTE},
     )
     assert [p["path"] for p in page["posted"]][-2:] == ["/upload/u1/end", "/prepare"]
     assert page["posted"][-1]["body"]["upload"] == "u1"
@@ -245,22 +264,12 @@ def test_a_pdf_goes_up_the_chunked_door_and_is_priced_as_one_upload() -> None:
 def test_pictures_and_a_text_chosen_together_are_refused_under_the_box() -> None:
     page = run(
         do=[
-            {
-                "type": "file",
-                "files": [{"name": "page1.png", "size": 10}, {"name": "notes.txt", "size": 10}],
-            }
+            {"type": "file", "files": [{"name": "page1.png", "size": 10}, {"name": "notes.txt"}]},
+            {"type": "send"},
         ],
-        answers={**PICTURES, "/prepare": PAGES},
+        answers={**PICTURES, "/prepare": QUOTE},
     )
     assert page["posted"] == [], "nothing went up"
     assert page["said"]["text"] == "Several files at once must all be pictures of one text."
+    assert page["held"] == ["page1.png", "notes.txt"], "kept, so one can be let go"
     assert page["sendDisabled"] is False
-
-
-def test_a_card_with_no_excerpt_draws_no_excerpt() -> None:
-    page = run(
-        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
-        answers={"/prepare": QUOTE},
-    )
-    (card,) = page["brought"]
-    assert card["excerpt"] == [] and card["doubt"] == ""

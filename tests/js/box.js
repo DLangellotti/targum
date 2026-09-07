@@ -106,6 +106,15 @@ require(path.join(assets, "box.js"));
       await new Promise((resolve) => setImmediate(resolve));
       byId["chat-mic"].onclick();
     }
+    if (step.type === "drop") {
+      // The × on the n-th chip: let that file go.
+      byId["chat-held"].children[step.index].children[1].onclick();
+    }
+    if (step.type === "send") {
+      byId["say"].value = step.text || "";
+      byId["composer"].fire("submit", { preventDefault() {} });
+      for (let i = 0; i < 16; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
   }
@@ -113,21 +122,9 @@ require(path.join(assets, "box.js"));
     JSON.stringify({
       posted,
       went: global.location.href,
-      brought: (byId["chat-brought"].children || []).map((card) => {
-        const by = (cls) => card.children.find((c) => String(c.className).split(" ").includes(cls));
-        return {
-          cls: [card.className, ...card.classList._names].join(" "),
-          title: by("quote-title") ? by("quote-title").children[0].textContent : "",
-          button: by("quote-go") ? by("quote-go").textContent : "",
-          more: by("quote-more") ? by("quote-more").href : "",
-          note: by("quote-note") ? by("quote-note").textContent : "",
-          meta: by("quote-meta") ? by("quote-meta").textContent : "",
-          excerpt: by("quote-excerpt")
-            ? by("quote-excerpt").children.filter((c) => String(c.tagName).toUpperCase() === "BDI").map((c) => c.textContent)
-            : [],
-          doubt: by("quote-doubt") ? by("quote-doubt").textContent : "",
-        };
-      }),
+      // What the + chose and the box still holds: one chip a file.
+      held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
+      heldHidden: byId["chat-held"].hidden,
       mic: { hidden: byId["chat-mic"].hidden },
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

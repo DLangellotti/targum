@@ -519,11 +519,17 @@ def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
     assert page["foot"]["counts"].startswith("2 min · 1 word you have not met")
 
 
-def test_a_file_chosen_by_the_plus_is_priced_in_the_thread() -> None:
-    """The + on the conversation page: the file goes up, is priced, and the card is a
-    turn of its own — no model in the loop, and the same card the model's quote is."""
+def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() -> None:
+    """The + on the conversation page: the file is held in the box as a chip, Send
+    takes it up and prices it, and the card is a turn of its own — no model in the
+    loop, and the same card the model's quote is."""
+    page = run(do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}])
+    assert page["posted"] == [] and page["held"] == ["story.txt"], "held, not yet brought"
     page = run(
-        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}],
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send"},
+        ],
         answers={"/prepare": QUOTE},
     )
     assert [p["path"] for p in page["posted"]] == ["/prepare"], "no line was said"
@@ -531,12 +537,27 @@ def test_a_file_chosen_by_the_plus_is_priced_in_the_thread() -> None:
     assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
     assert card["more"] == "/add?k=k"
     assert page["turns"][-1]["cls"] == "chat-turn them"
-    assert page["sendDisabled"] is False
+    assert page["sendDisabled"] is False and page["held"] == []
+
+
+def test_a_line_sent_with_a_file_follows_its_card() -> None:
+    page = run(
+        do=[
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send", "text": "what is this about"},
+        ],
+        answers={"/prepare": QUOTE, "/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/chat/say"]
+    assert len(page["cards"]) == 1
+    assert [t["text"] for t in page["turns"] if t["cls"].startswith("chat-turn me")] == [
+        "what is this about"
+    ]
 
 
 def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
     page = run(
-        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}],
+        do=[{"type": "file", "file": {"name": "talk.mp3", "size": 10}}, {"type": "send"}],
         answers={
             "/upload/begin": {"upload": "u1", "chunk": 5},
             "/upload/u1/0": {},
@@ -555,6 +576,55 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
     assert page["posted"][-1]["body"]["upload"] == "u1"
     (card,) = page["cards"]
     assert card["meta"].startswith("10 minutes of audio")
+
+
+PAGES = dict(
+    QUOTE,
+    pages=2,
+    segments=12,
+    total=12,
+    doubtful=1,
+    excerpt=["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול ארוך"],
+)
+
+
+def test_a_text_brought_from_the_front_door_is_a_card_in_a_fresh_thread() -> None:
+    """Learn's box lands here with `job=<id>` in the hash: the card is drawn as a turn,
+    showing the first lines as read and how many were doubtful, and the thread is a
+    fresh one — the first line typed starts the conversation the card sits in."""
+    page = run(
+        answers={
+            "/chat/list": {"chats": [{"id": "old", "title": "older"}], "usable": True},
+            "/chat/old": {"chat": {"id": "old"}, "turns": []},
+            "/job/j1": PAGES,
+        },
+        hash="#job=j1",
+    )
+    (card,) = page["cards"]
+    assert card["excerpt"] == PAGES["excerpt"]
+    assert card["doubt"] == "1 line could not be read clearly."
+    assert card["meta"].startswith("2 pages · 12 sentences")
+    assert card["button"] == "Read this"
+    assert not any(p["path"] == "/chat/old" for p in page["posted"]), "not the newest thread"
+
+
+def test_a_text_brought_with_a_line_follows_that_line_in_its_conversation() -> None:
+    page = run(
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "from the door"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [{"n": 1, "role": "user", "said": "read this with me", "stage": "done"}],
+            },
+            "/job/j1": PAGES,
+        },
+        hash="#abc&job=j1",
+    )
+    assert [t["text"] for t in page["turns"] if t["cls"].startswith("chat-turn me")] == [
+        "read this with me"
+    ]
+    (card,) = page["cards"]
+    assert card["title"] == QUOTE["title"]
 
 
 def test_a_reader_with_nothing_marked_is_not_told_they_knew_nothing() -> None:
@@ -584,14 +654,15 @@ def test_a_reader_with_nothing_marked_is_not_told_they_knew_nothing() -> None:
 
 
 def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
-    """Two pages photographed one after another: up one at a time, priced once, one
-    card in the thread — the same card the front door draws for them."""
+    """Two pages photographed one after another: held, then up one at a time on Send,
+    priced once, one card in the thread — the same card the front door draws for them."""
     page = run(
         do=[
             {
                 "type": "file",
                 "files": [{"name": "p1.jpg", "size": 10}, {"name": "p2.png", "size": 10}],
-            }
+            },
+            {"type": "send"},
         ],
         answers={
             "/upload/begin": {"upload": "u1", "chunk": 100},

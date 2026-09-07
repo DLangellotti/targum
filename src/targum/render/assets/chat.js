@@ -325,15 +325,27 @@
     return bringing.quoteCard(li, job);
   }
 
-  // A file chosen by the +: up in pieces or whole, priced, and the card drawn in the
-  // thread as a turn of its own. No model in the loop — the reader brought a thing and
-  // is told what it will take, which is the Add page's whole job in one row.
+  // A file chosen by the + is held in the box until Send (2026-09-07), the way a line
+  // is typed and then sent; Send takes it up in pieces or whole, prices it, and draws
+  // the card in the thread as a turn of its own. No model in the loop — the reader
+  // brought a thing and is told what it will take, which is the Add page's whole job
+  // in one row. Resolves when the card is drawn, so a line typed alongside can follow.
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
+  var heldList = document.getElementById("chat-held");
+  var held = [];
+  function showHeld() {
+    if (bringing && heldList) {
+      bringing.held(heldList, held, function (index) {
+        held.splice(index, 1);
+        showHeld();
+      });
+    }
+  }
   function brought(chosen) {
-    if (!bringing) return;
+    if (!bringing) return Promise.resolve();
     chosen = bringing.listed(chosen);
-    if (!chosen.length) return;
+    if (!chosen.length) return Promise.resolve();
     busy = true;
     send.disabled = true;
     tell("");
@@ -341,7 +353,7 @@
     var line = li.querySelector(".chat-line");
     line.textContent = "Uploading…";
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
-    bringing
+    return bringing
       .bring(chosen, { to: into }, function (share) {
         line.textContent = "Uploading… " + share + "%";
       })
@@ -378,8 +390,38 @@
     };
     file.onchange = function () {
       // All of them: several pictures chosen together are the pages of one text.
-      brought(file.files);
+      held = held.concat(bringing ? bringing.listed(file.files) : []);
+      file.value = "";
+      showHeld();
     };
+  }
+
+  // What Send does: the held files first, as a card, then the line, if there was one.
+  function submit() {
+    var text = field.value.trim();
+    if (held.length) {
+      var files = held;
+      held = [];
+      showHeld();
+      field.value = "";
+      brought(files).then(function () {
+        if (text) say(text);
+      });
+      return;
+    }
+    if (!text) return;
+    field.value = "";
+    say(text);
+  }
+
+  // A text brought from the front door arrives as `job=<id>` in the hash: its card is
+  // drawn as a turn, in the conversation named beside it or in a fresh thread.
+  function showJob(id) {
+    return ask("/job/" + encodeURIComponent(id)).then(function (job) {
+      if (job.error) return tell(job.error);
+      var li = turn("assistant", "", "");
+      quoteCard(li, job);
+    });
   }
 
   /* --- speaking and hearing -------------------------------------------------- */
@@ -571,17 +613,38 @@
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
       // Arrived from the front door with a conversation named in the hash: that one,
-      // whose first answer is still streaming; otherwise the newest.
+      // whose first answer is still streaming; otherwise the newest. A text brought
+      // there rides beside it as `job=<id>`, and its card follows the thread it lands
+      // in — or stands in a fresh one, when only the job was named.
       var wanted = "";
+      var wantedJob = "";
       try {
-        wanted = decodeURIComponent(String(window.location.hash || "").slice(1));
+        String(window.location.hash || "")
+          .slice(1)
+          .split("&")
+          .forEach(function (part) {
+            if (part.indexOf("job=") === 0) wantedJob = decodeURIComponent(part.slice(4));
+            else if (part) wanted = decodeURIComponent(part);
+          });
       } catch (e) {
         wanted = "";
+        wantedJob = "";
       }
-      if (!current && wanted && chats.some(function (chat) { return chat.id === wanted; })) {
-        return open(wanted);
+      if (current) return;
+      var job = wantedJob;
+      // Consumed once: `load` runs again when a first line makes a conversation.
+      if (job) window.location.hash = wanted ? "#" + encodeURIComponent(wanted) : "";
+      if (wanted && chats.some(function (chat) { return chat.id === wanted; })) {
+        return open(wanted).then(function () {
+          if (job) return showJob(job);
+        });
       }
-      if (!current && chats.length) return open(chats[0].id);
+      if (job) {
+        turns.textContent = "";
+        drawList();
+        return showJob(job);
+      }
+      if (chats.length) return open(chats[0].id);
       if (empty) empty.hidden = !!current;
     });
   }
@@ -715,19 +778,13 @@
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    var text = field.value.trim();
-    if (!text) return;
-    field.value = "";
-    say(text);
+    submit();
   });
   field.addEventListener("keydown", function (event) {
     // Enter sends, Shift+Enter breaks the line — the convention every chat shares.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      var text = field.value.trim();
-      if (!text) return;
-      field.value = "";
-      say(text);
+      submit();
     }
   });
   if (fresh) fresh.onclick = startNew;
