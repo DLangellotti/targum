@@ -20,13 +20,22 @@ from .prompts import language_name, system_prompt
 
 DEFAULT_MODEL = "claude-opus-5"
 
-# USD per million tokens, input and output. Used only for the estimate shown before a run.
+# USD per million tokens, input and output. The estimate shown before a run reads these,
+# and so does `Usage.cost()` — which is what `Library.settle` writes into the ledger — so
+# a stale row here is not a wrong guess but a wrong receipt. Sonnet 5 sat at 3/15 from
+# its arrival until 2026-09-05; that is Sonnet 4.6's rate, and every hosted build settled
+# in between was recorded at half again what it cost. Check against the published table
+# before adding a model, and again when one is superseded.
 PRICES: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-opus-4-8": (5.0, 25.0),
-    "claude-sonnet-5": (3.0, 15.0),
+    "claude-sonnet-5": (2.0, 10.0),
     "claude-haiku-4-5": (1.0, 5.0),
 }
+
+#: USD per web search, when the chat is allowed one. Billed per search on top of the
+#: tokens the results cost, which is why `Usage` counts searches on their own axis.
+SEARCH_PRICE = 0.01
 
 MAX_ATTEMPTS = 3
 

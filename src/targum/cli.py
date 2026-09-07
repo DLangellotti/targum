@@ -699,54 +699,26 @@ def warm(
     fetched and nothing is spent: the English is the English that was bought.
     """
     from .cache import Cache
-    from .catalogue import BOUGHT_WITH
-    from .models import Document, SegmentedDocument, Translation, read_artifact
-    from .pipeline import Build
+    from .models import Document, read_artifact
+    from .promote import warm_folder
 
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
 
     cache = Cache()
-    folders = [f for f in sorted(root.rglob("document.json"))]
     warmed = runs = 0
-    for document_path in folders:
+    for document_path in sorted(root.rglob("document.json")):
         folder = document_path.parent
-        document = read_artifact(Document, document_path)
-        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-        if document is None or segmented is None:
-            continue
-        machine = [
-            t
-            for path in sorted((folder / "translations").glob("*.json"))
-            if (t := read_artifact(Translation, path)) is not None and t.provider != "aligned"
-        ]
-        if not machine:
-            continue
-        translation = machine[0]
-        builder = Build(
-            document.source,
-            target_language=translation.target_language,
-            source_language=segmented.language,
-            style=Style.natural,
-            provider_name=translation.provider,
-            model=model or translation.model or BOUGHT_WITH,
-            owner="",
-        )
-        here = 0
-        for number in range(1, 500):
-            run = builder.chapter_segments(segmented, number)
-            if not run:
-                break
-            have = {s.id: translation.segments[s.id] for s in run if translation.segments.get(s.id)}
-            if len(have) != len(run):
-                continue  # a chapter that was never finished is not one to promise
-            cache.put("translate", builder.cache_key(segmented, run), {"segments": have})
-            here += 1
+        # The body is `promote.warm_folder`, so accepting a reader's text for the shelf
+        # and warming a whole shelf are one rule rather than two that drift.
+        here = warm_folder(folder, cache, model=model)
         if here:
+            document = read_artifact(Document, document_path)
             warmed += 1
             runs += here
-            console.print(f"[dim]  {document.title or folder.name} ({here} chapters)[/dim]")
+            title = document.title if document is not None and document.title else folder.name
+            console.print(f"[dim]  {title} ({here} chapters)[/dim]")
     console.print(
         f"[green]Seeded {runs} chapter{'' if runs == 1 else 's'} from {warmed} "
         f"targum{'' if warmed == 1 else 's'}.[/green] "
@@ -1921,7 +1893,8 @@ def sources() -> None:
     console.print("  [bold]Video[/bold]      .mp4, .m4v, .mov, .webm, .mkv, and a YouTube address")
     console.print("  [bold]Links[/bold]      any article, essay, wiki page or podcast episode")
     console.print("  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>")
-    console.print("[dim]Not PDF. Save one as text or markdown first.[/dim]")
+    console.print("  [bold]Pages[/bold]      .pdf with a text layer; .png, .jpg, .webp, .heic")
+    console.print("[dim]Not scanned PDFs. Save one as text or markdown first.[/dim]")
 
 
 @app.command()
@@ -2565,6 +2538,39 @@ def main() -> None:
     except KeyboardInterrupt:
         err.print("[dim]Stopped. Anything that finished earlier is cached.[/dim]")
         sys.exit(130)
+
+
+@app.command()
+def mcp(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    store: Annotated[
+        Path | None,
+        typer.Option("--store", help="The account database. Default: ~/.targum/targum.db"),
+    ] = None,
+    list_tools: Annotated[
+        bool, typer.Option("--list", help="Say which tools are offered, and stop.")
+    ] = False,
+) -> None:
+    """Offer targum's tools to Claude Desktop or Claude Code, over stdio.
+
+    The same tools the chat runs on, served to a client you already talk to: the library
+    measured against your words, your shelf, your ledger, a suggestion, a build's state, a
+    link described, a text priced. Nothing here spends — a quote is information, and the
+    press that starts a build stays on targum's own page. Point the client at
+    `targum mcp` as a stdio server; needs `uv sync --extra mcp` once.
+    """
+    from .connector import describe, serve
+
+    if list_tools:
+        console.print(describe())
+        return
+    try:
+        serve(out or Path.cwd() / "targum-out", store)
+    except TargumError as error:
+        fail(error)
 
 
 @parasha_app.command("build")

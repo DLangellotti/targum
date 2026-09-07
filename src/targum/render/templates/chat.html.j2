@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat — targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('theme.js') }}</script>
+</head>
+<body class="chat">
+{% set here = 'chat' %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+<main class="chat-main">
+  {#- The conversations you have had, newest first, and one door to a fresh one. A
+      hairline list rather than a raised panel: §9, one raised layer per view, and the
+      thread is the one. -#}
+  <aside class="chat-side">
+    <button type="button" id="chat-new" class="chat-new">New</button>
+    <ul class="chat-list" id="chat-list"></ul>
+    {#- The one limit a reader is told about, in the unit they were told it, on the page
+        before the cap is met. Conversation comes out of the same hours a recording does. -#}
+    <p class="chat-hours" id="chat-hours" hidden></p>
+  </aside>
+
+  <section class="chat-thread" aria-live="polite">
+    {#- What this is, said once to a reader with no conversations yet. The copy is the
+        product's register: precise, unpatronising, no selling. -#}
+    <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.
+      targum answers from the library and your own shelf.</p>
+    <ol class="turns" id="turns"></ol>
+  </section>
+
+  {#- The box, shared with the front door (`_composer.html.j2`). One conversation,
+      always in Hebrew, graded to the reader's own words, with the English under every
+      line — whatever language they write in. -#}
+  {% set placeholder = 'Write in Hebrew, or in English' %}
+  {% include '_composer.html.j2' %}
+</main>
+{% include '_foot.html.j2' %}
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('bring.js') }}</script>
+<script>{{ asset('speak.js') }}</script>
+<script>{{ asset('chat.js') }}</script>
+</body>
+</html>

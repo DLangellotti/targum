@@ -13,6 +13,12 @@ quietly clears as you learn: what you have yet to meet is lit, what you are work
 turns leaf, what you know reads plain. Verbs come with their conjugations. Names and
 numbers are marked as what they are.
 
+You can also ask. targum has a chat that answers from the library and from your own
+shelf: what to read next at the words you know, what you have read, what a text you are
+looking at will cost you in words you have not met. It does not spend on your behalf —
+when something would have to be built, it says so and stops. `targum mcp` offers the same
+tools to Claude Desktop or Claude Code, if you would rather ask from there.
+
 What sets it apart is that everything is curated to what a learner needs. A library that
 runs from Tanakh to this week's news, sorted by how much of it you can already read, with
 a published translation wherever one exists and AI translation, sentence by sentence, in

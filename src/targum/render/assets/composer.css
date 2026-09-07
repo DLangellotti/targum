@@ -1,0 +1,222 @@
+/* The box — `_composer.html.j2` — on the two pages that carry it.
+
+   One field and the ways out of it, drawn the same on Learn and on the conversation
+   page. It is not a raised layer: a field with a hairline on paper (§9 allows one raised
+   layer per view, and on both pages something else has it). The one send button takes
+   the accent because sending is the product's working action here, not a call to
+   action at a door; Speak and the door for a file are ink-bordered working controls. */
+
+.composer {
+  display: grid;
+  grid-template-areas:
+    "say say say"
+    "held held held"
+    "bring mic send";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+.composer textarea { grid-area: say; }
+.composer .chat-held { grid-area: held; }
+.composer .chat-bring { grid-area: bring; }
+.composer .chat-mic { grid-area: mic; justify-self: end; }
+.composer .chat-send { grid-area: send; }
+
+.composer textarea {
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  min-height: 2.75rem;
+  width: 100%;
+}
+.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* A file or a recording, brought and priced in place (2026-09-06): the Add page's job
+   in one press, where Upload was a corner of the nav. A typed `+` as itself (§7), in a
+   ring the size of the buttons beside it; a working control, so ink-bordered. */
+.chat-bring {
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 1.0625rem;
+  line-height: 1;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-bring:hover { background: var(--paper-raised); }
+.chat-bring:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* What the + chose, held until Send (2026-09-07): one chip a file, ink-bordered like
+   the working controls around it, with a typed × to let it go (§7). */
+.chat-held {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chat-held[hidden] { display: none; }
+.chat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  max-width: 100%;
+}
+.chat-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-drop {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.chat-drop:hover { background: var(--paper-raised); color: var(--ink); }
+.chat-drop:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* --- a quote --------------------------------------------------------------- */
+
+/* The card a brought or quoted text is: inside the thread, which is that page's one
+   raised layer, or under the box on Learn — §9, if a card needs a card, use a
+   hairline. The title is ink, the facts are muted, the button that starts a build is a
+   call to action and takes the max-contrast pair (§9: calls to action are ink). */
+.quote-card {
+  margin-block-start: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: start;
+}
+.quote-title {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+.quote-title bdi { line-height: 1.95; }
+.quote-english {
+  margin-inline-start: 0.6em;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.quote-meta {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.quote-card.refused .quote-note { color: var(--clay); }
+/* The first lines of a text that arrived as pages, in the reading face: what the
+   reader will get, seen before the press. Four lines at most, set by the server. */
+.quote-excerpt {
+  margin: 0;
+  justify-self: stretch;
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
+/* How many lines could not be read cleanly. A count in words (§6), never a colour. */
+.quote-doubt { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.quote-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.quote-go:hover { background: var(--ink-soft); }
+.quote-go:disabled { opacity: 0.5; cursor: default; }
+
+.quote-more {
+  font-size: 0.8125rem;
+  color: var(--accent);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.quote-more:hover { border-block-end-color: var(--accent); }
+
+
+/* Speak is a working action, so it takes the working treatment: ink border, not the
+   accent the one send button holds (§4: one accent, rationed). Recording is a state
+   said in words as well as in ink, never in a colour alone (§6). */
+.chat-mic {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-mic:hover { background: var(--paper-raised); }
+.chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chat-mic[hidden] { display: none; }
+
+.chat-send {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-send:hover { filter: brightness(1.08); }
+.chat-send:disabled { opacity: 0.5; cursor: default; }
+
+.chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-said[hidden] { display: none; }
+
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-send,
+  .chat-mic,
+  .chat-bring,
+  .chat-drop,
+  .quote-go {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

@@ -1506,3 +1506,26 @@ def test_a_token_with_no_lexeme_is_not_guessed_at(tmp_path, monkeypatch) -> None
     _tagged_senses(tmp_path, monkeypatch)
     modern = Token(start=0, end=4, surface="מקרר", lemma="מקרר", band=3, pos="NOUN")
     assert from_the_tagging(_annotation([modern])) == {}
+
+
+def test_a_token_with_no_letter_of_its_language_is_not_a_word() -> None:
+    """A community notice photographed off a phone carried English names, a clock time
+    and a calendar glyph inside its Hebrew, and every one came back a word: tappable,
+    counted against "N of M known", and "Hannah" filed in the ledger as extremely hard.
+    English inside a Hebrew text is something a Hebrew reader reads past (2026-09-07).
+    """
+    segmented = document(["הודעות - קהילת Chananel, Hannah 22:15 שחרית"])
+    annotation = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands()).annotate(segmented)
+    surfaces = [token.surface for token in annotation.tokens[segmented.segments[0].id]]
+    assert surfaces == ["הודעות", "קהילת", "שחרית"], surfaces
+
+
+def test_the_script_rule_is_the_blocks_own_language() -> None:
+    """An English block inside a Hebrew document keeps its English words, where
+    something can read it; the rule asks the block's language, not the document's."""
+    from targum.annotate.base import in_script
+
+    assert in_script("Hannah", "en") and not in_script("22:15", "en")
+    assert in_script("שלום", "he") and not in_script("Hannah", "he")
+    assert in_script("мир", "ru") and not in_script("mir", "ru")
+    assert in_script("מלכא", "arc"), "Aramaic is written in Hebrew letters"

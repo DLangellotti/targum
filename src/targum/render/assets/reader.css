@@ -988,6 +988,66 @@ body.marking .w.here,
   font-size: 0.8125rem;
 }
 
+/* Asking about the word (2026-09-06). A hairline above, then the exchange: the reader's
+   question quiet, the answer in ink, and one field for the next question. Ask is a
+   working action, so it takes the accent the send button has elsewhere; the way on to
+   the conversation page is a link. The field and the answer take a selection: the card
+   itself refuses one so a tap on a word does not drag, and a question is typed. */
+.gloss-card .ask {
+  align-self: stretch;
+  margin-block-start: 0.4rem;
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.gloss-card .ask-q { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
+.gloss-card .ask-a {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gloss-card .ask-a [lang|="he"] { line-height: 1.95; }
+.gloss-card .ask-a.bad { color: var(--clay); }
+.gloss-card .ask-a.working:empty::after { content: "…"; color: var(--ink-soft); }
+.gloss-card .ask-form { display: flex; gap: 0.4rem; align-items: center; }
+.gloss-card .ask-field {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.gloss-card .ask-field:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.gloss-card .ask-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.gloss-card .ask-go:disabled { opacity: 0.5; cursor: default; }
+.gloss-card .ask-on { align-self: start; font-size: 0.8125rem; color: var(--accent); }
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .gloss-card .ask-go,
+  .gloss-card .ask-field { min-height: 44px; }
+}
+
 
 /* --- copying a word out --------------------------------------------------- */
 

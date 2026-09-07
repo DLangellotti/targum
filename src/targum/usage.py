@@ -33,6 +33,9 @@ class Usage:
     # axis. Seconds rather than minutes: what a provider reports is a file's length,
     # and rounding here would round sixty times per audiobook.
     seconds_by_model: dict[str, float] = field(default_factory=dict)
+    # And a web search the API ran for the chat is bought per search. Counted here so a
+    # turn that searched three times settles for what it cost, not for its tokens alone.
+    searches: int = 0
 
     def add(self, model: str, input_tokens: int, output_tokens: int) -> None:
         self.calls += 1
@@ -45,6 +48,9 @@ class Usage:
         self.calls += 1
         self.seconds_by_model[model] = self.seconds_by_model.get(model, 0.0) + seconds
 
+    def add_search(self) -> None:
+        self.searches += 1
+
     def __add__(self, other: Usage) -> Usage:
         total = Usage(
             calls=self.calls + other.calls,
@@ -52,6 +58,7 @@ class Usage:
             output_tokens=self.output_tokens + other.output_tokens,
             by_model=dict(self.by_model),
             seconds_by_model=dict(self.seconds_by_model),
+            searches=self.searches + other.searches,
         )
         for model, (used_in, used_out) in other.by_model.items():
             was_in, was_out = total.by_model.get(model, (0, 0))
@@ -63,7 +70,7 @@ class Usage:
     def cost(self) -> float:
         """USD, from the prices the provider publishes for each model it used."""
         from .transcribe import PRICES as MINUTES
-        from .translate.anthropic_provider import PRICES
+        from .translate.anthropic_provider import PRICES, SEARCH_PRICE
 
         total = 0.0
         for model, (used_in, used_out) in self.by_model.items():
@@ -78,6 +85,7 @@ class Usage:
                 # Counted, not priced, for the reason above.
                 continue
             total += seconds / 60 * rate
+        total += self.searches * SEARCH_PRICE
         return total
 
     def state(self) -> dict[str, object]:
@@ -89,4 +97,6 @@ class Usage:
         }
         if self.seconds_by_model:
             state["seconds"] = round(sum(self.seconds_by_model.values()), 1)
+        if self.searches:
+            state["searches"] = self.searches
         return state

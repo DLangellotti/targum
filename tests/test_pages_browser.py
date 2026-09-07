@@ -26,12 +26,14 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
 from targum.render.builder import (
     LISTS,
     add_page,
+    chat_page,
     learn_page,
     library_page,
     list_page,
@@ -50,6 +52,7 @@ def pages() -> dict[str, str]:
     """Every page the server renders at start-up, as it renders them."""
     built = {
         "add": add_page(TOKEN),
+        "chat": chat_page(TOKEN),
         "learn": learn_page(TOKEN),
         "library": library_page(TOKEN),
         "progress": progress_page(TOKEN),
@@ -250,10 +253,11 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     """Under 46rem the header is two lines: the name at one corner and the account and
     the light switch at the other, then the places under them, flush with the name.
 
-    The places used to sit indented under the name with Upload cut off at the edge: the
-    rule that reset their auto margin stood above the rule that set it, at the same
-    specificity, and lost. A cascade bug is invisible in the file and obvious on a
-    phone, which is why this is measured rather than read."""
+    The places used to sit indented under the name with Upload (then a corner, now the
+    `+` on the box) cut off at the edge: the rule that reset their auto margin stood
+    above the rule that set it, at the same specificity, and lost. A cascade bug is
+    invisible in the file and obvious on a phone, which is why this is measured rather
+    than read."""
     page_file = tmp_path / "learn.html"
     page_file.write_text(learn_page(TOKEN), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -263,7 +267,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     measured = open_page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
-          const brand = box('.brand'), nav = box('.site-nav'), upload = box('.upload');
+          const brand = box('.brand'), nav = box('.site-nav');
           const toggle = box('[data-theme-toggle]'), account = box('.account');
           return {
             navFlush: Math.abs(nav.left - brand.left) <= 1,
@@ -271,7 +275,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
             toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
-            uploadInside: upload.right <= document.documentElement.clientWidth,
+            noUpload: document.querySelector('.upload') === null,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -282,7 +286,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["navBelow"], "and sit on the line under it"
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
-    assert measured["uploadInside"], "Upload is whole"
+    assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
     assert measured["width"] <= width, "and the page does not scroll sideways"
 
 
@@ -303,3 +307,164 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     )
     context.close()
     assert one_line
+
+
+def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
+    """A conversation is titled with its first line, and a first line can be long. The
+    rail's column is 14rem; a grid item's minimum width is its content unless told
+    otherwise, so a long title widened the rail out under the raised thread, where every
+    title was cut off behind it (2026-09-06). Measured, because a cascade rule is
+    invisible in the file."""
+    import json
+
+    html = chat_page(TOKEN)
+    long_title = "Can you find for me something interesting to read at about a bet plus level"
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {
+                "chats": [
+                    {"id": "a", "title": long_title},
+                    {"id": "b", "title": "שלום בוקר טוב אני רוצה משהו מעניין תקחו"},
+                ],
+                "usable": True,
+                "talk": True,
+                "hours": {"used": 0.14, "allowed": 8, "ends": "1 October"},
+            }
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": []}
+        elif "/account/me" in request.url:
+            body = {
+                "signedIn": True,
+                "email": "r@example.org",
+                "counts": {},
+                "learning": ["he"],
+                "reads": ["en"],
+            }
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}")
+    page.wait_for_selector(".chat-list button")
+    page.wait_for_timeout(200)
+    measured = page.evaluate(
+        """() => {
+          const rail = document.querySelector('.chat-side').getBoundingClientRect();
+          const thread = document.querySelector('.chat-thread').getBoundingClientRect();
+          const buttons = [...document.querySelectorAll('.chat-list button')]
+            .map((b) => b.getBoundingClientRect().right);
+          return {
+            railRight: rail.right,
+            threadLeft: thread.left,
+            buttonsRight: Math.max(...buttons),
+          };
+        }"""
+    )
+    context.close()
+    assert measured["railRight"] <= measured["threadLeft"] + 1, "the rail keeps to its column"
+    assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
+
+
+def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
+    """The whole of what a reader does with a phone's worth of pages, on the client's
+    side: two files chosen together on Learn sit in the box as chips, Send takes them up
+    one after another, `/prepare` is asked once with both, `/build` is pressed by Send
+    itself, and the reader opens when the build is done. The server is answered here —
+    what is under test is that a real file input with `multiple` reaches the box's
+    script as a set, and that the page ends up in the reader."""
+    fixture = Path(__file__).parent / "fixtures" / "pages" / "screenshot.png"
+    prepared: list[dict] = []
+    built: list[dict] = []
+    begun = 0
+    quote = {
+        "id": "j1",
+        "title": "נָסַעְתִּי לַנֶּגֶב",
+        "language": "he",
+        "segments": 6,
+        "total": 6,
+        "chapters": 1,
+        "pages": 2,
+        "doubtful": 1,
+        "excerpt": ["נָסַעְתִּי לַנֶּגֶב בַּשָּׁבוּעַ שֶׁעָבַר", "בבוקר יצאנו לטיול"],
+        "estimate": 0.02,
+        "stage": "ready",
+        "blocked": "",
+        "error": "",
+        "audio": False,
+    }
+
+    def answer(route, request):
+        nonlocal begun
+        # The path under the host, without the key: "chat/list", "upload/u1/end".
+        path = urlparse(request.url).path.strip("/")
+        if path in ("", "learn", "learn.html"):
+            route.fulfill(status=200, content_type="text/html", body=learn_page(TOKEN))
+        elif path == "chat":
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN))
+        elif path == "chat/list":
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"chats": [], "usable": True, "talk": True}),
+            )
+        elif path == "upload/begin":
+            begun += 1
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": f"u{begun}", "chunk": 1_000_000}),
+            )
+        elif path.startswith("upload/") and path.endswith("/end"):
+            which = path.split("/")[1]
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": which, "picture": True}),
+            )
+        elif path.startswith("upload/"):
+            route.fulfill(status=200, content_type="application/json", body='{"got": 0}')
+        elif path == "prepare":
+            prepared.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(quote))
+        elif path == "job/j1":
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="done", reader="negev-he/reader/index.html")),
+            )
+        elif path.startswith("reader/"):
+            route.fulfill(status=200, content_type="text/html", body="<html>the reader</html>")
+        elif path == "build":
+            built.append(request.post_data_json)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="working")),
+            )
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://learn.test/**", answer)
+    open_page.goto("http://learn.test/learn")
+    open_page.wait_for_timeout(300)
+    open_page.set_input_files("#chat-file", [str(fixture), str(fixture)])
+    chips = open_page.locator(".chat-chip").count()
+    assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
+    open_page.click("#chat-send")
+    open_page.wait_for_url("**/reader/negev-he/**", timeout=5000)
+    landed = open_page.url
+    context.close()
+
+    assert chips == 2, "one chip a file"
+    assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
+    assert built == [{"id": "j1"}], "Send was the press"
+    assert "/reader/negev-he/reader/index.html" in landed, "and the text opened"

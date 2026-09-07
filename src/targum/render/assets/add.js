@@ -70,7 +70,7 @@
   };
 
   fileInput.onchange = function () {
-    if (fileInput.files[0]) take(fileInput.files[0]);
+    if (fileInput.files[0]) take(fileInput.files);
   };
 
   ["dragenter", "dragover"].forEach(function (name) {
@@ -86,29 +86,42 @@
     });
   });
   drop.addEventListener("drop", function (event) {
-    var file = event.dataTransfer && event.dataTransfer.files[0];
-    if (file) take(file);
+    var files = event.dataTransfer && event.dataTransfer.files;
+    if (files && files[0]) take(files);
   });
 
   var unchoose = document.getElementById("unchoose");
   var DROP_LABEL = drop.querySelector(".drop-label").textContent;
   var DROP_NOTE = drop.querySelector(".drop-note").textContent;
 
+  // What was chosen, said: one file by its name, several pictures by their count.
+  function chosenLabel() {
+    if (chosen.length === 1) return chosen[0].name;
+    return chosen.length + " pictures";
+  }
+  function chosenSize() {
+    var total = 0;
+    chosen.forEach(function (file) {
+      total += file.size || 0;
+    });
+    return Math.round(total / 1024) + " KB";
+  }
+
   function showChosen() {
     var picked = chosen !== null;
-    drop.querySelector(".drop-label").textContent = picked ? chosen.name : DROP_LABEL;
-    drop.querySelector(".drop-note").textContent = picked
-      ? Math.round(chosen.size / 1024) + " KB"
-      : DROP_NOTE;
+    drop.querySelector(".drop-label").textContent = picked ? chosenLabel() : DROP_LABEL;
+    drop.querySelector(".drop-note").textContent = picked ? chosenSize() : DROP_NOTE;
     document.getElementById("choose").hidden = picked;
     if (unchoose) unchoose.hidden = !picked;
   }
 
-  function take(file) {
-    chosen = file;
+  // `chosen` is always a list: one file, or the pictures of one text chosen together.
+  function take(files) {
+    chosen = bringing.listed(files);
+    if (!chosen.length) return forget();
     sourceInput.value = "";
     showChosen();
-    if (window.TargumAddAudio) window.TargumAddAudio.toggle(/\.(mp3|m4a|m4b|aac|ogg|opus|flac|wav|mp4|m4v|mov|webm|mkv)$/i.test(file.name));
+    if (window.TargumAddAudio) window.TargumAddAudio.toggle(chosen.length === 1 && isAudio(chosen[0]));
   }
 
   function forget() {
@@ -229,6 +242,12 @@
   function isAudio(file) {
     return !!(file && AUDIO.test(file.name));
   }
+  // Anything that goes up the chunked door: a recording, a picture, a PDF.
+  function inPieces(files) {
+    return files.some(function (file) {
+      return isAudio(file) || bringing.isPicture(file) || bringing.isPdf(file);
+    });
+  }
 
   //: The transcript the reader brought for their recording, if they brought one.
   var spokenText = null;
@@ -322,35 +341,12 @@
     };
   })();
 
-  /* A recording goes up in pieces: the JSON door reads its whole body into memory as
-     base64, which for an audiobook is the wrong door. Sequential on purpose — the
-     server is one worker and the reader's uplink is the bottleneck either way. */
+  // The upload, the price and the plain words for a build are bring.js's now: the same
+  // three the box on Learn and the conversation page use, so no page answers the one
+  // question differently.
+  var bringing = window.TargumBring;
   function uploadInChunks(file, tell) {
-    return ask("/upload/begin", { name: file.name, size: file.size }).then(function (opened) {
-      if (opened.error) throw opened.error;
-      var piece = opened.chunk;
-      var count = Math.ceil(file.size / piece);
-
-      function send(n) {
-        if (n >= count) {
-          return ask("/upload/" + opened.upload + "/end", {});
-        }
-        return fetch(keyed("/upload/" + opened.upload + "/" + n), {
-          method: "POST",
-          headers: keyHeaders({ "Content-Type": "application/octet-stream" }),
-          body: file.slice(n * piece, (n + 1) * piece),
-        })
-          .then(function (response) {
-            return response.json();
-          })
-          .then(function (state) {
-            if (state.error) throw state.error;
-            tell(Math.round(((n + 1) / count) * 100));
-            return send(n + 1);
-          });
-      }
-      return send(0);
-    });
+    return bringing.uploadInChunks(file, tell);
   }
 
   /* --- building ------------------------------------------------------------ */
@@ -556,27 +552,32 @@
     }
 
     var text = pasted ? pasted.value.trim() : "";
-    if (chosen && isAudio(chosen)) {
-      prepared = uploadInChunks(chosen, function (share) {
-        say(line("Uploading… " + share + "%"));
-      }).then(function (done) {
-        if (done.error) throw done.error;
-        // The same bytes were already imported: the reader is the answer.
-        if (done.reader) {
-          window.location.href = keyed(
-            "/reader/" + done.reader.split("/").map(encodeURIComponent).join("/")
-          );
-          return { id: "" };
-        }
-        payload.upload = done.upload;
-        say(waiting());
-        return withTranscript(payload).then(function (body) {
-          return ask("/prepare", body);
+    if (chosen && inPieces(chosen)) {
+      // A recording, a PDF, or the pictures of one text: up the chunked door, the
+      // fields it answers with merged into the request, then priced.
+      prepared = bringing
+        .upload(chosen, function (share) {
+          say(line("Uploading… " + share + "%"));
+        })
+        .then(function (sent) {
+          // The same bytes were already imported: the reader is the answer.
+          if (sent.reader) {
+            window.location.href = keyed(
+              "/reader/" + sent.reader.split("/").map(encodeURIComponent).join("/")
+            );
+            return { id: "" };
+          }
+          Object.keys(sent).forEach(function (name) {
+            payload[name] = sent[name];
+          });
+          say(waiting());
+          return withTranscript(payload).then(function (body) {
+            return ask("/prepare", body);
+          });
         });
-      });
     } else if (chosen) {
-      prepared = readFile(chosen).then(function (content) {
-        payload.name = chosen.name;
+      prepared = readFile(chosen[0]).then(function (content) {
+        payload.name = chosen[0].name;
         payload.content = content;
         return withTranslation(payload).then(function (body) {
           return ask("/prepare", body);
@@ -646,32 +647,12 @@
     var what =
       job.chapters > 1
         ? job.chapters + " chapters"
-        : job.segments + " sentences";
+        : (job.pages > 1 ? job.pages + " pages · " : "") + job.segments + " sentences";
     return document.createTextNode(named(job.language) + " · " + what);
   }
 
-  // What it will take, in the only currency the reader is spending: their time. What
-  // it costs us is our business and never theirs — they pay by the month.
   function price(job) {
-    if (job.audio && job.parts > 0) {
-      // The wait is the first part's: hearing it, then translating it.
-      var spoken = job.seconds / job.parts / 60;
-      var listening = Math.max(1, Math.round(spoken / 6));
-      var translating = Math.max(1, Math.round((job.total || 25) / 25));
-      var wait = listening + translating;
-      var opener = job.parts > 1 ? "First part in " : "Ready in ";
-      if (wait <= 1) return opener + "about a minute.";
-      if (wait <= 4) return opener + "a few minutes.";
-      return opener + "about " + wait + " minutes.";
-    }
-    if (!job.estimate) return "Ready in a moment.";
-    // A book opens on its first chapter, so the wait is that chapter's — not the
-    // novel's. `total` is what is being translated now.
-    var minutes = Math.max(1, Math.round((job.total || job.segments) / 25));
-    var start = job.chapters > 1 ? "First chapter in " : "";
-    if (minutes <= 1) return start ? start + "about a minute." : "About a minute.";
-    if (minutes <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
-    return start + "about " + minutes + " minutes.";
+    return bringing.wait(job);
   }
 
   // This text is already in the library with a translation somebody published, which is
@@ -715,9 +696,18 @@
       // dropped file could never take this branch: the override worked for a pasted
       // link and silently did nothing for an upload.
       var again;
-      if (chosen) {
-        again = readFile(chosen).then(function (content) {
-          payload.name = chosen.name;
+      if (chosen && inPieces(chosen)) {
+        // A recording, a PDF or pictures: up the chunked door again — the first
+        // upload was gathered into the quote and cannot be named twice.
+        again = bringing.upload(chosen).then(function (sent) {
+          Object.keys(sent).forEach(function (name) {
+            payload[name] = sent[name];
+          });
+          return ask("/prepare", payload);
+        });
+      } else if (chosen) {
+        again = readFile(chosen[0]).then(function (content) {
+          payload.name = chosen[0].name;
           payload.content = content;
           return ask("/prepare", payload);
         });
@@ -771,6 +761,27 @@
     head.appendChild(describe(job));
     box.appendChild(head);
 
+    // A text that arrived as pages: its first lines as read, and how many it could
+    // not read cleanly, so the reader sees what will be built before pressing.
+    if (job.excerpt && job.excerpt.length) {
+      var lines = document.createElement("p");
+      lines.className = "excerpt";
+      lines.setAttribute("lang", job.language || "he");
+      lines.setAttribute("dir", (job.language || "he") === "he" ? "rtl" : "ltr");
+      job.excerpt.forEach(function (read, n) {
+        if (n) lines.appendChild(document.createElement("br"));
+        var bdi = document.createElement("bdi");
+        bdi.textContent = read;
+        lines.appendChild(bdi);
+      });
+      box.appendChild(lines);
+    }
+    if (job.doubtful > 0) {
+      box.appendChild(
+        line(job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " could not be read clearly.")
+      );
+    }
+
     var cost = document.createElement("span");
     cost.className = "cost";
     cost.textContent = price(job);
@@ -792,20 +803,8 @@
     say(box);
   }
 
-  var PLAIN = {
-    "Finding each word's dictionary form…": "Reading the words…",
-    "Adding vowel points…": "Adding vowel points…",
-    "Building the reader…": "Setting the page…",
-  };
-
   function plain(message) {
-    if (!message) return "Getting it ready…";
-    if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining up…";
-    if (message.indexOf("Transcribing") === 0) return "Writing down what is said…";
-    if (message.indexOf("Finding the pauses") === 0) return "Finding the pauses…";
-    if (message.indexOf("Looking up") === 0) return "Looking words up…";
-    return "Getting it ready…";
+    return bringing.plain(message);
   }
 
   function watch(job) {

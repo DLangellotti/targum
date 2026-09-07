@@ -78,7 +78,38 @@ NO_METHOD = "none"
 #: so it is looked up rather than skipped and the blank page those books had is now the
 #: worse of the two answers — but the band table and the register are Hebrew, and asked
 #: about Aramaic they call ordinary words rare (targum-internal#64, #195).
-LANGUAGES = "languages/2"
+#:
+#: `languages/3` (2026-09-07): a token with no letter of its block's script is not a
+#: word of that block. A community notice photographed off a phone carried "Hannah",
+#: "Chananel", "22:15" and a calendar emoji inside its Hebrew, and every one came back
+#: a word: tappable, counted against "N of M known", and "Hannah" filed in the ledger as
+#: extremely hard. English inside a Hebrew text is something a Hebrew reader reads past.
+LANGUAGES = "languages/3"
+
+#: What a language is written in, for the rule above. Anything not listed is written in
+#: letters of some kind, and a token with no letter at all — a time, a number, an
+#: emoji — is not a word in any of them.
+SCRIPTS: dict[str, range] = {
+    "he": range(0x05D0, 0x05EB),
+    "arc": range(0x05D0, 0x05EB),
+    "yi": range(0x05D0, 0x05EB),
+    "ru": range(0x0400, 0x0530),
+    "uk": range(0x0400, 0x0530),
+    "ar": range(0x0600, 0x0700),
+}
+
+
+def in_script(surface: str, language: str) -> bool:
+    """Whether this token has a letter of the language it is supposed to be in.
+
+    A Latin name inside a Hebrew line, a clock time, an emoji: none is a word of the
+    text, and none should be counted, tapped or learned as one. Asked of the surface
+    rather than of the tagger, because the tagger answered confidently about all three.
+    """
+    span = SCRIPTS.get((language or "").split("-")[0].lower())
+    if span is None:
+        return any(char.isalpha() for char in surface)
+    return any(ord(char) in span for char in surface)
 
 
 def reads(lemmatizer: object | None, segment: Segment) -> bool:

@@ -37,6 +37,13 @@
   .bo .nothing { color: var(--ink-soft); }
   .bo tr.empty td { color: var(--ink-soft); }
   .bo .note { font-size: 0.8125rem; color: var(--ink-soft); margin-block-start: 2rem; }
+  .bo .decide { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+  .bo .decide select, .bo .decide input, .bo .decide button {
+    font: inherit; font-size: 0.8125rem; padding: 0.25rem 0.5rem;
+    border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink);
+  }
+  .bo .decide button { cursor: pointer; }
+  .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
 <body class="public">
@@ -105,6 +112,68 @@
       {% endfor %}
     </tbody>
   </table>
+
+  {#- A reader's build offered to the shelf. The licence has already been read by
+      `promote.py` — nothing here may enter the catalogue unless its standing allows a
+      public copy — so what is left for a person is the record: is this a text, is the
+      register right, who is it by. Accept is a form post to the same origin; the page
+      carries no script. -#}
+  <h2>Proposed for the shelf</h2>
+  {% if said %}<p class="note">{{ said }}</p>{% endif %}
+  {% if not proposed %}
+  <p class="nothing">Nothing waiting.</p>
+  {% else %}
+  <table>
+    <thead>
+      <tr><th>Text</th><th>Source</th><th>Licence</th><th class="n">Words</th><th class="n">Looked up</th><th>Decide</th></tr>
+    </thead>
+    <tbody>
+      {% for one in proposed %}
+      <tr>
+        <td><bdi lang="{{ one.language }}">{{ one.title }}</bdi>{% if one.author %} <span class="quiet">{{ one.author }}</span>{% endif %}</td>
+        <td class="quiet"><code>{{ one.source[:60] }}</code></td>
+        <td class="quiet">{{ one.licence or 'unknown' }} <span class="quiet">({{ one.standing }}{% if one.corpus_ok %}, exportable{% endif %})</span></td>
+        <td class="n">{{ one.words }}</td>
+        <td class="n">{{ one.difficulty or '—' }}</td>
+        <td>
+          <form method="post" action="/back-office/promote" class="decide">
+            <input type="hidden" name="id" value="{{ one.id }}">
+            <select name="register" aria-label="Register">
+              {% for r in registers %}<option value="{{ r }}"{% if r == one.register %} selected{% endif %}>{{ r }}</option>{% endfor %}
+            </select>
+            <select name="kind" aria-label="Kind">
+              {% for k in kinds %}<option value="{{ k }}"{% if k == one.kind %} selected{% endif %}>{{ k }}</option>{% endfor %}
+            </select>
+            {% if one.standing == 'owed' %}<input type="text" name="credit" placeholder="Credit" aria-label="Credit" required>{% endif %}
+            <button type="submit" name="action" value="accept">Accept</button>
+            <button type="submit" name="action" value="decline" formnovalidate>Decline</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {#- What readers asked for and the shelf could not give. Counts, never who. -#}
+  <h2>Wanted</h2>
+  {% if not wanted %}
+  <p class="nothing">Nothing asked for that the shelf lacks.</p>
+  {% else %}
+  <table>
+    <thead><tr><th>Asked</th><th>Link</th><th>Licence</th><th class="n">Times</th></tr></thead>
+    <tbody>
+      {% for one in wanted %}
+      <tr>
+        <td>{{ one.query or '—' }}</td>
+        <td class="quiet"><code>{{ one.source[:70] }}</code></td>
+        <td class="quiet">{{ one.standing or '—' }}</td>
+        <td class="n">{{ one.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
 
   <p class="note">Counts only. This page holds no words, no texts and no notes — see
     <code>backoffice.py</code> for why that is a rule rather than a first version.</p>

@@ -1,0 +1,282 @@
+/* Talking to targum.
+
+   The same paper, ink and type as every other page: a conversation is one more surface
+   of the product, not a widget on it. One raised layer (§9) — the thread — and the
+   list of conversations beside it is type and a hairline. The reader's own lines are
+   ink; targum's are the same ink under a quiet label, because this is not a messaging
+   app and the two sides are not bubbles of two colours. */
+
+body.chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-height: 100svh;
+}
+body.chat > .site-head { justify-self: stretch; }
+body.chat > .chat-main {
+  justify-self: start;
+  margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+}
+
+.chat-main {
+  width: min(62rem, 100%);
+  padding: 1.5rem 1.25rem 2rem;
+  font-family: system-ui, sans-serif;
+  display: grid;
+  grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-areas:
+    "side thread"
+    "side compose"
+    "side said";
+  gap: 1rem 2rem;
+  align-items: start;
+}
+@media (max-width: 48rem) {
+  .chat-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "thread"
+      "compose"
+      "said"
+      "side";
+  }
+}
+
+/* --- the list ------------------------------------------------------------- */
+
+/* `min-width: 0` on the rail and on the list: a grid item's default minimum is its
+   content, and a conversation titled with a long first line pushed the rail out under
+   the thread, where its titles were cut off behind the raised paper. The column is
+   14rem; what does not fit in it is cut short with an ellipsis, on the button. */
+.chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.chat-new {
+  justify-self: start;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-new:hover { background: var(--paper-raised); }
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-block-start: 1px solid var(--rule);
+}
+.chat-list li { border-block-end: 1px solid var(--rule); }
+.chat-list button {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: start;
+  padding: 0.55rem 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
+.chat-list button.on { color: var(--ink); font-weight: 600; }
+
+/* --- the thread -----------------------------------------------------------
+   Every class here is prefixed: this page carries `reader.css` for its tokens, and the
+   reader owns `.pair`, `.turn`, `.line` and `.who` — a thread drawn in those names was
+   laid out by the reader's rules, across the page. */
+
+.chat-thread {
+  grid-area: thread;
+  min-height: 14rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+}
+.chat-empty {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.chat-turn { display: grid; gap: 0.2rem; }
+.chat-turn .chat-who {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.chat-turn .chat-line {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Hebrew inside a line keeps its own leading (§5: parity comes from leading). */
+.chat-turn .chat-line [lang|="he"] { line-height: 1.95; }
+.chat-turn .chat-line a { color: var(--accent); }
+.chat-turn .note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.chat-turn.bad .chat-line { color: var(--clay); }
+.chat-turn.working .chat-line:empty::after { content: "…"; color: var(--ink-soft); }
+
+/* --- hearing an answer ----------------------------------------------------- */
+
+/* Hear is a working action like Speak, so it takes the same treatment: ink border, not
+   the accent the send button holds (§4: one accent, rationed). */
+.chat-play {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  justify-self: start;
+}
+.chat-play:hover { background: var(--paper-raised); }
+.chat-play:disabled { opacity: 0.5; cursor: default; }
+.chat-hours {
+  margin: 0.25rem 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+/* --- Hebrew, with the English under every line ------------------------------
+   The record's own shape: a Hebrew line in the reading face at its own leading, its
+   English beneath in the muted tone a translation rests in (§4). A recast of the
+   reader's words is marked in type, not colour. */
+.chat-turn .chat-pair { display: grid; gap: 0.1rem; margin-block-end: 0.5rem; }
+.chat-turn .chat-pair .chat-he {
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.95;
+  color: var(--ink);
+}
+.chat-turn .chat-pair .chat-en {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+/* The record's words (2026-09-06). A word on the ledger is bare; one still being
+   learned carries the reader's own dotted line; one not met is marked in the discovery
+   hue (§4: iris for what is new) and counted at the foot. A name is not vocabulary and
+   is left alone. */
+.chat-w { cursor: pointer; }
+.chat-w:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.chat-w.new { text-decoration: underline dotted var(--iris); text-underline-offset: 0.18em; }
+.chat-w.learning { text-decoration: underline dotted var(--ink-soft); text-underline-offset: 0.18em; }
+.chat-gloss {
+  display: block;
+  margin-block-start: 0.15rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.chat-gloss bdi { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); }
+.chat-look {
+  margin-inline-start: 0.5em;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-look:disabled { opacity: 0.6; cursor: default; }
+
+/* The foot: the counts in the reading face, real numbers and never a level; the door
+   out is a call to action and takes the max-contrast pair (§9). */
+.chat-sum {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--rule);
+}
+.chat-counts {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.chat-save {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-save:hover { background: var(--ink-soft); }
+.chat-save:disabled { opacity: 0.5; cursor: default; }
+.chat-sum .note { margin: 0; font-size: 0.8125rem; color: var(--clay); }
+.chat-sum .note:empty { display: none; }
+
+.chat-turn .chat-pair.recast .chat-en::before {
+  content: "you said";
+  margin-inline-end: 0.5em;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* --- a door ---------------------------------------------------------------- */
+
+/* A path the model hands over is drawn as the one thing a path is for: opening the
+   text. It is a call to action and takes the max-contrast pair (§9), the same press
+   the quote's button is, and it sits on its own line between the sentences. */
+.chat-door {
+  display: inline-block;
+  margin-block: 0.35rem 0.6rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.55rem 1rem;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+}
+.chat-door:hover { background: var(--ink-soft); color: var(--paper); }
+.chat-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The box sits in its own area of this page's grid; its own rules are composer.css's. */
+.composer { grid-area: compose; }
+.chat-said { grid-area: said; }
+
+/* §8: a control a thumb presses answers a tap over 44px. The box's own controls are
+   given theirs in composer.css. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-new,
+  .chat-list button,
+  .chat-door,
+  .chat-play,
+  .chat-save,
+  .chat-look {
+    min-height: 44px;
+  }
+}

@@ -32,6 +32,7 @@ heard of yet, and the phone puts it back on the next sync.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import secrets
 import sqlite3
@@ -80,11 +81,20 @@ SESSION_DAYS = 90
 #    is not a second place for the setting — it is the one place, and the browser keeps a
 #    copy of it the way it keeps a copy of the words. Old `reads` rows are read across
 #    once for anybody who has signed in; the table stays on disk, empty of meaning.
+# 12: job.kind, and the two chat tables. A conversation turn takes a `job` row of its
+#    own kind so that it lands in the same ledger a build does — the money rails and,
+#    later, the hours — rather than in a second counter beside it that would drift. The
+#    chat tables are new, so `CREATE TABLE IF NOT EXISTS` is the whole migration.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 13
+
+#: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
+#: `talk` since 2026-09-06, when the two modes became one: every conversation is in
+#: Hebrew. `find` survives on rows written before that and means the same thing now.
+MODES = ("find", "talk")
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -161,10 +171,22 @@ MIGRATIONS: tuple[str, ...] = (
     # last part; pressing again takes it back, so a text is finished once however often
     # the button is pressed. Synced and exported with the rest of what they did.
     "ALTER TABLE doc ADD COLUMN done INTEGER NOT NULL DEFAULT 0",
-    # Seconds of recording a build consumed from the monthly allowance. Set only for an
-    # uploaded audio or video file, which is the one thing metered by time; text uploads
-    # and everything in the library are zero. See `serve.UPLOAD_SECONDS`.
+    # Seconds a job consumed from the monthly allowance. Two things are metered by time:
+    # an uploaded audio or video file, and since 2026-09-05 a turn of conversation, typed
+    # or spoken (`chat/hebrew.py` says how a typed one becomes seconds). Text uploads and
+    # everything in the library are zero. See `serve.UPLOAD_SECONDS`.
     "ALTER TABLE job ADD COLUMN length REAL NOT NULL DEFAULT 0",
+    # What kind of work the row is. `build` is every row written before 2026-09-05; a
+    # `chat` row is one turn of conversation, claimed and settled the same way so the
+    # rails see it, and never queued — see `chat/session.py`.
+    "ALTER TABLE job ADD COLUMN kind TEXT NOT NULL DEFAULT 'build'",
+    # What a conversation is for: `find` (things to read) or `talk` (in Hebrew). The
+    # reader switches it; the mode decides which contract the model is given.
+    "ALTER TABLE chat ADD COLUMN mode TEXT NOT NULL DEFAULT 'find'",
+    # The words of the answer to a turn, read the way a text is read (2026-09-06): JSON
+    # on the reader's row, so a page that comes back to the conversation draws every
+    # word with its state without reading the lines again. See `chat/record.py`.
+    "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -361,7 +383,8 @@ CREATE TABLE IF NOT EXISTS job (
   claimed  REAL    NOT NULL DEFAULT 0,
   spent    REAL    NOT NULL DEFAULT 0,
   length   REAL    NOT NULL DEFAULT 0,
-  made     INTEGER NOT NULL DEFAULT 0
+  made     INTEGER NOT NULL DEFAULT 0,
+  kind     TEXT    NOT NULL DEFAULT 'build'
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -406,6 +429,81 @@ CREATE TABLE IF NOT EXISTS subscriber (
   bounces INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS subscriber_state ON subscriber (state);
+
+-- A conversation, and its turns. Server-side, unlike a reader's words, which the
+-- browser keeps and the account mirrors: the same conversation has to be resumable
+-- from another client altogether, and a chat is not a reader. `person` is NULL on a
+-- machine somebody runs themselves with nobody signed in, the way `job.owner` is.
+CREATE TABLE IF NOT EXISTS chat (
+  id       TEXT    PRIMARY KEY,
+  person   INTEGER,
+  title    TEXT    NOT NULL DEFAULT '',
+  language TEXT    NOT NULL DEFAULT 'he',
+  made     INTEGER NOT NULL DEFAULT 0,
+  seen     INTEGER NOT NULL DEFAULT 0,
+  spent    REAL    NOT NULL DEFAULT 0,
+  saved    TEXT    NOT NULL DEFAULT '',
+  gone     INTEGER NOT NULL DEFAULT 0,
+  mode     TEXT    NOT NULL DEFAULT 'find'
+);
+-- One row per API message, in order: the reader's line, the model's answer, and the
+-- tool calls and results between them. `content` is the content-block array verbatim,
+-- because tool-use blocks have to be replayed exactly; `said` is the text a page shows,
+-- empty on a row that is only tool traffic. `stage` and `error` live on the reader's
+-- own row and say what became of the answer to it.
+CREATE TABLE IF NOT EXISTS chat_turn (
+  chat     TEXT    NOT NULL,
+  n        INTEGER NOT NULL,
+  role     TEXT    NOT NULL,
+  content  TEXT    NOT NULL,
+  said     TEXT    NOT NULL DEFAULT '',
+  stage    TEXT    NOT NULL DEFAULT 'done',
+  error    TEXT    NOT NULL DEFAULT '',
+  spent    REAL    NOT NULL DEFAULT 0,
+  made     INTEGER NOT NULL DEFAULT 0,
+  words    TEXT    NOT NULL DEFAULT '',
+  PRIMARY KEY (chat, n)
+);
+CREATE INDEX IF NOT EXISTS chat_person ON chat (person, seen);
+
+-- A reader's build proposed for the shelf, and what became of it. Written by
+-- `promote.candidate` after a build finishes; decided in the back office, or by the
+-- machine where the licence is certain by construction. See `promote.py`.
+CREATE TABLE IF NOT EXISTS proposed (
+  id           TEXT    PRIMARY KEY,
+  job          TEXT    NOT NULL DEFAULT '',
+  owner        INTEGER,
+  home         TEXT    NOT NULL DEFAULT '',
+  folder       TEXT    NOT NULL DEFAULT '',
+  source       TEXT    NOT NULL DEFAULT '',
+  title        TEXT    NOT NULL DEFAULT '',
+  author       TEXT    NOT NULL DEFAULT '',
+  language     TEXT    NOT NULL DEFAULT '',
+  words        INTEGER NOT NULL DEFAULT 0,
+  difficulty   INTEGER NOT NULL DEFAULT 0,
+  register     TEXT    NOT NULL DEFAULT '',
+  kind         TEXT    NOT NULL DEFAULT '',
+  licence      TEXT    NOT NULL DEFAULT '',
+  standing     TEXT    NOT NULL DEFAULT '',
+  catalogue_ok INTEGER NOT NULL DEFAULT 0,
+  corpus_ok    INTEGER NOT NULL DEFAULT 0,
+  because      TEXT    NOT NULL DEFAULT '',
+  state        TEXT    NOT NULL DEFAULT 'proposed',
+  by           TEXT    NOT NULL DEFAULT '',
+  made         INTEGER NOT NULL DEFAULT 0
+);
+-- What readers asked for that the shelf could not answer: a query with no library
+-- match, a link somebody had described. Counts, so the operator can see that eleven
+-- readers wanted a text one licence email away. No reader is named on a row.
+CREATE TABLE IF NOT EXISTS wanted (
+  query    TEXT    NOT NULL DEFAULT '',
+  source   TEXT    NOT NULL DEFAULT '',
+  standing TEXT    NOT NULL DEFAULT '',
+  count    INTEGER NOT NULL DEFAULT 0,
+  first    INTEGER NOT NULL DEFAULT 0,
+  last     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (query, source)
+);
 """
 
 
@@ -1179,6 +1277,12 @@ class Store:
                     "link",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
+                # Conversations too: half of every one is what the person said.
+                db.execute(
+                    "DELETE FROM chat_turn WHERE chat IN (SELECT id FROM chat WHERE person = ?)",
+                    (person_id,),
+                )
+                db.execute("DELETE FROM chat WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
         return gone
 
@@ -1333,13 +1437,25 @@ class Store:
             ).fetchall()
             out[name] = [dict(row) for row in rows]
 
+        # What they said to targum and what it said back. Theirs in the plainest sense.
+        out["chats"] = [
+            {
+                **chat,
+                "turns": [
+                    {"role": turn["role"], "said": turn["said"], "made": turn["made"]}
+                    for turn in self.chat_turns(str(chat["id"]))
+                    if turn["said"]
+                ],
+            }
+            for chat in self.chats(person.id)
+        ]
         # What they built, and what it cost. Theirs as much as their words are, and the
         # only place the spend is written down.
         out["builds"] = [
             dict(row)
             for row in self.db.execute(
                 "SELECT source, title, language, stage, spent, made FROM job"
-                " WHERE owner = ? ORDER BY made DESC",
+                " WHERE owner = ? AND kind = 'build' ORDER BY made DESC",
                 (person.id,),
             )
         ]
@@ -1367,6 +1483,282 @@ class Store:
             ).fetchone()
             out[name] = int(row["n"])
         return out
+
+    def words_with_bands(
+        self, person_id: int | None, language: str
+    ) -> list[tuple[str, int | None, str, int]]:
+        """Every word in one language with its status, band and when it was marked —
+        what the ulpan ladder in `level.py` weighs."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT lemma, status, band, at FROM word"
+            " WHERE person = ? AND language = ? AND gone = 0",
+            (person_id, language.split("-")[0].lower()),
+        )
+        return [
+            (str(row["lemma"]), row["status"], str(row["band"] or ""), int(row["at"] or 0))
+            for row in rows
+        ]
+
+    def activity(self, person_id: int | None) -> dict[str, Any]:
+        """The days someone read on, and how many sections and texts they finished."""
+        if person_id is None:
+            return {"days": [], "sections": 0, "texts": 0}
+        days = [
+            str(row["day"])
+            for row in self.db.execute(
+                "SELECT day FROM day WHERE person = ? AND gone = 0 ORDER BY day", (person_id,)
+            )
+        ]
+        sections = self.db.execute(
+            "SELECT COUNT(*) AS n FROM section WHERE person = ? AND gone = 0", (person_id,)
+        ).fetchone()
+        texts = self.db.execute(
+            "SELECT COUNT(*) AS n FROM doc WHERE person = ? AND gone = 0 AND done > 0",
+            (person_id,),
+        ).fetchone()
+        return {"days": days, "sections": int(sections["n"]), "texts": int(texts["n"])}
+
+    def opened_documents(self, person_id: int | None) -> set[str]:
+        """The hashes of every text this person has had open, on any device.
+
+        `doc` is written by the reader's own sync, so this is the one place the server
+        can tell which of the shared shelf a reader has actually read — the shelf itself
+        is the same folder for everybody.
+        """
+        if person_id is None:
+            return set()
+        rows = self.db.execute(
+            "SELECT hash FROM doc WHERE person = ? AND gone = 0 AND opened > 0",
+            (person_id,),
+        ).fetchall()
+        return {str(row["hash"]) for row in rows}
+
+    def hours_used(self, owner: int | None, month_from: int) -> float:
+        """Seconds of recording this person's builds have spent since a moment — the
+        same sum `claim` holds them to, read without claiming anything."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+            "WHERE length > 0 AND made >= ? AND owner IS ?",
+            (month_from, owner),
+        ).fetchone()
+        return float(row["used"])
+
+    # -- conversations ----------------------------------------------------------
+
+    def chat_seconds(self, chat_id: str) -> float:
+        """How long one conversation has run, in the seconds its turns were metered in:
+        the same `length` the allowance is kept in, summed over this conversation's
+        rows and nobody else's."""
+        row = self.db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS used FROM job WHERE source = ? AND kind = 'chat'",
+            (f"chat:{chat_id}",),
+        ).fetchone()
+        return float(row["used"])
+
+    def recent_words(
+        self, person_id: int | None, language: str, since: int, limit: int = 12
+    ) -> list[str]:
+        """The lemmas this person marked most recently — met, learning or known — newest
+        first, names and numbers left out. `since` is in the milliseconds `at` is kept in."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT lemma FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND at >= ? AND status IN (1, 2, 3, 9) AND band NOT IN ('name', 'number')"
+            " ORDER BY at DESC LIMIT ?",
+            (person_id, language.split("-")[0].lower(), since, limit),
+        ).fetchall()
+        return [str(row["lemma"]) for row in rows if row["lemma"]]
+
+    def recent_phrases(self, person_id: int | None, since: int, limit: int = 6) -> list[str]:
+        """The phrases this person kept most recently, newest first."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT text FROM phrase WHERE person = ? AND gone = 0 AND at >= ? AND text != ''"
+            " ORDER BY at DESC LIMIT ?",
+            (person_id, since, limit),
+        ).fetchall()
+        return [str(row["text"]) for row in rows]
+
+    def chat_open(self, person_id: int | None, language: str = "he", mode: str = "talk") -> str:
+        """Start a conversation. Its id is a bearer token in the sense a job's is:
+        unguessable, and still checked against the asker on every read."""
+        chat_id = secrets.token_urlsafe(9)
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO chat (id, person, language, made, seen, mode)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, person_id, language, now(), now(), mode if mode in MODES else "find"),
+            )
+        return chat_id
+
+    def chats(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Somebody's conversations, most recent first."""
+        rows = self.db.execute(
+            "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
+            "       chat.saved, chat.mode,"
+            "       (SELECT COUNT(*) FROM chat_turn"
+            "         WHERE chat_turn.chat = chat.id AND said != '') AS turns"
+            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def chat_owned(self, person_id: int | None, chat_id: str) -> dict[str, Any] | None:
+        """One conversation, but only if it is the asker's."""
+        row = self.db.execute(
+            "SELECT id, person, title, language, made, seen, spent, saved, mode FROM chat"
+            " WHERE id = ? AND person IS ? AND gone = 0",
+            (chat_id, person_id),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def chat_turns(self, chat_id: str) -> list[dict[str, Any]]:
+        """Every API message in a conversation, in order, content decoded."""
+        rows = self.db.execute(
+            "SELECT n, role, content, said, stage, error, spent, made, words FROM chat_turn"
+            " WHERE chat = ? ORDER BY n",
+            (chat_id,),
+        ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            turn = dict(row)
+            try:
+                turn["content"] = json.loads(str(row["content"]))
+            except json.JSONDecodeError:
+                turn["content"] = str(row["content"])
+            # The words of the answer to this turn, or None where none were read.
+            try:
+                turn["words"] = json.loads(str(row["words"])) if row["words"] else None
+            except json.JSONDecodeError:
+                turn["words"] = None
+            out.append(turn)
+        return out
+
+    def chat_say(
+        self,
+        chat_id: str,
+        role: str,
+        content: str | list[dict[str, Any]],
+        said: str,
+        *,
+        stage: str = "done",
+    ) -> int:
+        """Append one API message and return its place. The first thing the reader said
+        names the conversation until somebody renames it."""
+        stored = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+        with self.write() as db:
+            last = db.execute(
+                "SELECT COALESCE(MAX(n), 0) AS n FROM chat_turn WHERE chat = ?", (chat_id,)
+            ).fetchone()
+            n = int(last["n"]) + 1
+            db.execute(
+                "INSERT INTO chat_turn (chat, n, role, content, said, stage, made)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (chat_id, n, role, stored, said, stage, now()),
+            )
+            db.execute("UPDATE chat SET seen = ? WHERE id = ?", (now(), chat_id))
+            if role == "user" and said:
+                db.execute(
+                    "UPDATE chat SET title = ? WHERE id = ? AND title = ''",
+                    (said.strip().splitlines()[0][:60], chat_id),
+                )
+        return n
+
+    def chat_turn_update(
+        self,
+        chat_id: str,
+        n: int,
+        *,
+        stage: str | None = None,
+        error: str | None = None,
+        spent: float | None = None,
+        words: str | None = None,
+    ) -> None:
+        sets = []
+        values: list[Any] = []
+        for column, value in (
+            ("stage", stage),
+            ("error", error),
+            ("spent", spent),
+            ("words", words),
+        ):
+            if value is not None:
+                sets.append(f"{column} = ?")
+                values.append(value)
+        if not sets:
+            return
+        with self.write() as db:
+            db.execute(
+                f"UPDATE chat_turn SET {', '.join(sets)} WHERE chat = ? AND n = ?",
+                (*values, chat_id, n),
+            )
+
+    def chat_title(self, chat_id: str) -> str:
+        row = self.db.execute("SELECT title FROM chat WHERE id = ?", (chat_id,)).fetchone()
+        return str(row["title"]) if row else ""
+
+    def chat_saved(self, chat_id: str, saved: str) -> None:
+        """Which build this conversation was written down as, once it has been."""
+        with self.write() as db:
+            db.execute("UPDATE chat SET saved = ? WHERE id = ?", (saved, chat_id))
+
+    def chat_add_spent(self, chat_id: str, spent: float) -> None:
+        with self.write() as db:
+            db.execute("UPDATE chat SET spent = spent + ? WHERE id = ?", (spent, chat_id))
+
+    # -- the shelf's door ---------------------------------------------------------
+
+    def propose(self, fields: dict[str, Any]) -> None:
+        columns = ", ".join(fields)
+        holes = ", ".join("?" for _ in fields)
+        with self.write() as db:
+            db.execute(f"INSERT INTO proposed ({columns}) VALUES ({holes})", tuple(fields.values()))
+
+    def proposals(self, state: str = "proposed") -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            "SELECT * FROM proposed WHERE state = ? ORDER BY made DESC", (state,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        row = self.db.execute("SELECT * FROM proposed WHERE id = ?", (proposal_id,)).fetchone()
+        return dict(row) if row else None
+
+    def proposal_state(self, proposal_id: str, state: str, by: str) -> None:
+        with self.write() as db:
+            db.execute(
+                "UPDATE proposed SET state = ?, by = ? WHERE id = ?", (state, by, proposal_id)
+            )
+
+    def want(self, query: str, source: str, standing: str = "") -> None:
+        """Count one ask the shelf could not answer. Keyed on the words and the link,
+        never on who asked."""
+        query = query.strip()[:200]
+        source = source.strip()[:500]
+        if not query and not source:
+            return
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO wanted (query, source, standing, count, first, last)"
+                " VALUES (?, ?, ?, 1, ?, ?)"
+                " ON CONFLICT(query, source) DO UPDATE SET"
+                "   count = count + 1, last = excluded.last,"
+                "   standing = CASE WHEN excluded.standing != '' THEN excluded.standing"
+                "                   ELSE wanted.standing END",
+                (query, source, standing, now(), now()),
+            )
+
+    def wanted(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            "SELECT query, source, standing, count, first, last FROM wanted"
+            " ORDER BY count DESC, last DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     # -- housekeeping -----------------------------------------------------------
 
@@ -1459,6 +1851,7 @@ class Store:
         month_from: int | None = None,
         length: float = 0.0,
         per_month_length: float | None = None,
+        kind: str | None = None,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -1488,13 +1881,19 @@ class Store:
         Only recordings are counted. Transcription is bought by the minute and is the
         one cost that rises with the clock, so the clock is what meters it; a text
         upload is bounded by the money rails alone.
+
+        `kind` narrows the per-account ceiling to rows of one kind: the chat's own rail
+        counts only chat turns, while a build's rail counts everything the account spent.
+        The box ceiling never narrows — it is the runaway guard, whatever is running.
         """
         with self.write() as db:
             if per_account is not None:
+                narrowed = " AND kind = ?" if kind is not None else ""
+                params: tuple[Any, ...] = (since, owner, kind) if kind else (since, owner)
                 mine = db.execute(
                     "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
-                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
-                    (since, owner),
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?" + narrowed,
+                    params,
                 ).fetchone()
                 if float(mine["spent"]) + amount > per_account:
                     return "account"
@@ -1522,16 +1921,25 @@ class Store:
             )
             return ""
 
-    def settle(self, job_id: str, spent: float) -> None:
+    def settle(self, job_id: str, spent: float, length: float | None = None) -> None:
         """Replace what a build reserved with what it really cost.
 
         Claiming takes the estimate up front, because the decision to allow a build has
         to be made before it runs. Settling is the other half: once the API has said
         what it charged, the ledger holds that instead of a guess, and the budget stops
-        being an approximation of itself.
+        being an approximation of itself. A turn of conversation settles its seconds the
+        same way — reserved from the words asked, held at the words said.
         """
         with self.write() as db:
-            db.execute("UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id))
+            if length is None:
+                db.execute(
+                    "UPDATE job SET claimed = ?, spent = ? WHERE id = ?", (spent, spent, job_id)
+                )
+            else:
+                db.execute(
+                    "UPDATE job SET claimed = ?, spent = ?, length = ? WHERE id = ?",
+                    (spent, spent, length, job_id),
+                )
 
     def unclaim(self, job_id: str) -> None:
         """Give back what a failed build never spent — the money and the hours both.

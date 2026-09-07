@@ -6,6 +6,177 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A picture is a text. The `+` on the box and the Add page take a screenshot, a phone
+  photo (HEIC included) or a PDF with a text layer, and several pictures chosen
+  together are the pages of one text in the order chosen. Pictures go up the chunked
+  door and are read by the model at the price quote — the one spend before a card,
+  reserved against the same rails a build is claimed on and settled to what the API
+  charged, cached by the picture's bytes so nothing is read twice, capped at thirty
+  pages (targum-internal#217). A PDF's text layer is read by `pypdf` and costs
+  nothing; a scanned PDF is refused by name and stays on #197. The card shows the
+  first lines as read and how many lines could not be read clearly, so what will be
+  built is seen before the press. Every block carries its page as `ref`, and a line
+  with no Hebrew in it is marked English so the lemmatizer leaves it alone. New
+  `bring` extra: `pillow`, `pillow-heif`, `pypdf`.
+- A chat photographed off a phone is a dialogue. A screenshot of WhatsApp, Telegram,
+  SMS or the like is read as turns — the model writes `[conversation]` and one
+  `name: message` a paragraph — and drawn the way the shelf's own scenes are: the
+  speaker beside the line, out of the text, never pointed, counted or read aloud.
+  The chat is named on the shelf for the other side. A turn's speaker now reaches the
+  reader from its block, so a saved conversation shows who said what without a
+  recording too.
+- The box is the front door. Learn carries one field under the ledger's own sentence —
+  a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
+  records — and a line typed there opens a conversation and goes to it, with the new
+  conversation's id in the hash so the page opens that one. Nothing is answered on
+  Learn. Chat leaves the nav, a day after it joined it; Upload leaves the corner and is
+  the `+` on the box, on both pages that carry one. The box is one file
+  (`_composer.html.j2`) and push-to-talk is one script (`speak.js`), shared by Learn and
+  the conversation page, because two copies of a box drift the way two copies of a nav
+  bar did. A reader whose every text is scripture is not written Hebrew at: their
+  conversation is opened in English, about the text, and no microphone is offered —
+  `Library.talks` decides it from the shelf, and `/readers` and `/chat/list` both say
+  it as `talk`. `design.md` §12 records the day's decisions and what was cut ("The front
+  door is a question").
+- Bringing a text is one press. The `+` on the box — on Learn and on the conversation
+  page — takes a file or a recording, sends it up the way the Add page does (a
+  recording in pieces, anything else whole), prices it with `/prepare`, and draws the
+  same card the model's quote draws as a turn in the thread — a file is held in the
+  box as a chip until Send, and Send is the press: the text builds and opens when it
+  is ready, with no conversation started for a bare file or a line that only says
+  "open this"; a line that says more is said with a note of what was sent, and the
+  card follows it in the thread as the build's progress (2026-09-07) — with no model
+  in the loop; the card's button is the spend, and its "More options" is the Add
+  page, kept for the two things only its form can say — a translation of your own, a
+  transcript of your own. A link goes in the field like anything else said to targum.
+  The upload, the price in the reader's time, the plain words for a build's progress
+  and the card are one script now (`bring.js`), shared by the Add page, the box and the
+  conversation page, because two answers to one question drift.
+- The thread is drawn as the text it becomes. In Hebrew, every line the model writes is
+  read the way a text is read the moment the reply is whole — the same lemmatizer a
+  build uses, warmed when the chat's workers start (`chat/record.py`; measured first:
+  a line in about sixty milliseconds, a turn in a fifth of a second, on a laptop) — and
+  each word comes back to the page with its dictionary form, its band and whatever
+  meaning the glossary already holds, as a `words` event before `done` and kept on the
+  reader's turn for the page that comes back. On the page a word takes its state from
+  the reader's own ledger: known bare, learning underlined, not met marked and counted,
+  a name left alone; a tap says the form and the meaning or offers to look it up, the
+  reader's own press and spend. The foot of the thread says how long the conversation
+  has run, how many words the reader has not met and what share they knew, and carries
+  Save as targum — `POST /chat/save`, the reader's press on the same quote the model's
+  own save hands the page, and only a quote. Every turn records what share of its
+  vocabulary lay outside the words the model was given, for the eval (#213), and the
+  page claims nothing from it yet. What the reader saved lately — words a newspaper
+  would use, and phrases — rides in the ledger block, and the model is asked to bring
+  them back and, once, to ask the reader to use two, never as an exercise.
+- A word tapped is a question half-asked. The gloss card gains one more working action,
+  Ask: a question typed there goes up with a note of where the reader is — the text, the
+  section, the sentence, the word — and the answer streams back into the card the way
+  the conversation page's do, in English, about the text: what the form is, why it is
+  that form here, where they have met it before. Two questions, then "Continue in chat"
+  carries the conversation on. The note rides in the turn the model sees and not in
+  what the page shows back, it is strings and capped, and it opens the conversation in
+  English whatever the shelf would have offered; on scripture the model is told to
+  write no Hebrew of its own beyond what the text says. The reader still fetches
+  nothing it did not already: the card talks to its own origin the way a gloss does.
+- targum has a chat. `/chat` is a door on the rooms that already exist: ask what to read
+  next and it answers from the library measured against your own words; ask what you have
+  read and it answers from your ledger; ask about a build and it reports where it has got
+  to. Seven read-only tools behind it — the catalogue, your shelf, your vocabulary, your
+  progress, a ranked suggestion, a build's state — declared once (`chat/tools.py`) so the
+  same list can be served over MCP later, and every one reads whose shelf and whose words
+  from the session, never from an argument. The model may not spend: no tool in this slice
+  buys anything, and the seam for the ones that will is drawn (`spends`, `needs_consent`).
+  Answers stream as server-sent events on the same origin under the same policy every
+  page takes — `connect-src 'self'` did the work it was written for, and nothing in
+  `POLICY` moved. A conversation is the server's, unlike words and reading position, and
+  it travels in the account export and leaves with the account. Every turn is a `job` row
+  of kind `chat`, so the rails see it: a chat rail of its own (`CHAT_BUDGET`, a dollar a
+  day, a rate limit like the account's) and the account rail both count it, and the refusal
+  names when it lifts and never implies reading is used up. The ulpan ladder the progress
+  page draws is now in Python too (`level.py`), pinned against the browser's `charts.js` by
+  one fixture, so the chat can grade what it writes — and is told in as many words never to
+  quote the rung as a placement. `design.md` §12 records the reversal this is
+  ("targum speaks back"), and the roadmap's "Not building" line carries the decision.
+- And the chat can price a text. `quote_build` is `/prepare` reached by a sentence — a
+  link, a podcast episode, a YouTube address, a Gutenberg or Wikisource id, or a library
+  text by id — refused on exactly the grounds the Add page refuses, and it costs nothing:
+  `Library.prepare` is the free half of the quote-then-consent seam. The quote reaches the
+  page as its own event and is drawn as a card from the job's state, never from what the
+  model said about it: title, sentences or chapters or hours of audio, how long it will
+  take in the reader's time and never in money, and one ink button. The button posts to
+  `/build`, the same door the Add page's button posts to, so `Handler._build` stays the
+  only path to `Library.claim` and the model holds no tool that could press. `my_hours`
+  says how much of the month's audio allowance is used and when it returns, in hours.
+- And it can find things. `describe_source` says what is at a link before it is quoted —
+  a video's length, its audio language and whether it has Hebrew subtitles somebody wrote
+  (from `yt-dlp -J`, never the video); an episode's length and whether a transcript comes
+  with it; an article's words and how much of it is Hebrew — with the licence recorded and
+  the screen's flags as advice, never as a refusal: a reader's own import is refused only
+  at the fetch door, on format, or on the rails. `search_sources` reads what the publishers
+  this box knows have published lately, from a private `sources.json` the way the
+  catalogue is a private file, and a box with none simply has nowhere to look. Where
+  `TARGUM_WEB_SEARCH` is on, Anthropic's server-side search rides along, held to those
+  publishers' hosts and the public-domain fetchers' for relevance; a search is bought per
+  search and `Usage` now counts it, so a turn that searched settles for what it cost.
+  `LICENSING.md` says the private-import posture in one paragraph.
+- What a reader asks for feeds the shelf. Import is not gated on licence; promotion is,
+  and `promote.py` is the one place the licence recorded at ingest is read. After every
+  build the queue finishes, a private text whose source stands `free` or `owed` is
+  proposed for the catalogue — `unknown`, which is most of the web, stays private for ever
+  — and a person accepts or declines it in the back office, which gains the list with the
+  register and kind to correct and a credit an `owed` licence must carry before the merge
+  will take it. The public-domain fetchers promote themselves on completion, because their
+  licence is certain by construction. Accepting moves nothing: the reader's folder stays
+  theirs, the translation they paid for is re-keyed into the shared cache the way `targum
+  warm` does it (the two now share one body), and an entry is merged into the catalogue
+  file with the model named so the next reader's build is free. `Entry` gains `licence`
+  and `credit`. The back office also lists what was wanted — a library search that found
+  nothing, a link a reader had described — as counts, never who.
+- targum talks. Every conversation is in Hebrew, whatever the reader writes in: the
+  model writes in pointed Hebrew with the English under every line and recasts whatever
+  the reader said in another language into Hebrew first — the shape a targum has, so the
+  record can be read back (that reading-back is the next slice). It opened with two
+  modes, Find and Hebrew, and lost the first on 2026-09-06 after a reader who asked in
+  English for something to read was answered in English: there is one conversation, and
+  it is in the language being learnt. A text the model finds is handed over as its path
+  on a line of its own, which the page draws as an ink door the reader presses — the
+  model cannot open anything, and no longer says it has. It is handed the reader's own known words
+  from their ledger and, under them, the commonest words of the language at the first two
+  bands, and asked to stay inside them with one new word a sentence; the contract is
+  `chat/hebrew.py`, and whether a model can hold to a list is measured by
+  `scripts/eval_grading.py` before any page says "at your level" — no page does yet.
+  Conversation comes out of the eight hours: a typed turn is converted to seconds at
+  120 words a minute (the measured conversational rate, reconciled against the 89 of
+  read-aloud literature and the 150 the cost estimate deliberately sits high at), a
+  turn's seconds land in the same monthly sum a recording's do, the refusal at the cap
+  names audio and conversation together and the date they return, and the chat page shows
+  the hours used beside the list before the cap is met.
+- And a conversation can be read back as a targum. Ask to keep it and the chat writes it
+  down in your own home as a `.chat` file — always Hebrew on both sides, because every
+  reply now opens with your own line recast into Hebrew (as you wrote it if it was right,
+  corrected if not, translated if you wrote in English) with your words as its English —
+  and prices reading it back on the same card a build gets. The English is carried, so
+  nothing is bought for translation; the words are glossed like any text's and land on
+  your ledger. It is addressed by path, never a scheme: `dialogue:` and every public
+  prefix share a cache with no owner on the key, and a conversation filed under one would
+  have been reachable from another account. The shelf files it as a dialogue, and a
+  conversation is never proposed for the catalogue.
+- Push-to-talk, and called that. A Speak button records a line, sends the
+  clip up as itself, and the same transcriber a recording gets writes it down and asks it;
+  a Hear button on each answer reads it aloud, made once and kept. The clip's seconds come
+  out of the eight hours in both directions — the microphone's off the recording, the
+  voice's off the WAV the API returned, never off the text — and a spoken line is metered
+  once: the turn it becomes counts the reply alone. The Gemini client moved out of the
+  gitignored weekly into a public `speech` module so the box and CI can run it; its price
+  is in no table yet, so its seconds are counted and not charged, and the module says so.
+  Seconds to first sound, not a conversation, and nothing on the page pretends otherwise.
+- `targum mcp` adds the same tools to Claude Desktop or Claude Code over stdio. The one
+  registry the chat runs on is served as it stands — the library measured against your
+  words, your shelf, your ledger, a suggestion, a build's state, a link described, a text
+  priced — and nothing that spends: a quote over MCP is information, and the press that
+  starts a build stays on the page where the card is. The `mcp` SDK is an optional extra,
+  so a plain install carries nothing for it.
 - Hebrew sentences are drawn by rule, and no Hebrew text passes through Stanza at any
   stage. The annotator swap moved every Hebrew word off Stanza's NonCommercial models and
   left every Hebrew sentence boundary on them — DICTA takes a sentence at a time and
@@ -121,6 +292,36 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Web search rides along unless the box says not (`TARGUM_WEB_SEARCH=0`). It was off
+  unless asked for, and a reader who asked for something to read online was told the
+  box could not look. Three searches a turn at most, each counted, inside the same
+  rails every turn is; what it may look at is still the publishers' hosts and the
+  public ones.
+- Natural Hebrew before the list. The contract asked the chat to stay inside the
+  reader's words with at most one word outside per sentence, and a wall like that bends
+  sentences. It now says: prefer the reader's words wherever a natural sentence allows,
+  never bend a sentence to avoid a word, and bring new words in on purpose — two or
+  three a reply, chosen to be met again, each with its English, and used again a few
+  lines later. Comprehensible, natural, one step at a time; the outside share is still
+  recorded on every turn for the eval.
+- A first day has no ledger. A reader who has marked nothing is not written to at 800
+  common words and left there: the chat is told to keep to the commonest of them, keep
+  every sentence short, ask what they have read in Hebrew so far — never what level
+  they are — and offer one short text to start with, because words are marked while
+  reading and that is how a ledger begins. And the foot of the record no longer tells
+  them they knew 0% of it: it says how many words there were and that none are marked
+  yet.
+- The Hebrew the chat writes is written as Hebrew. The recast of a reader's English
+  was carrying their grammar mistakes and their English word order into the line of
+  record, and the model's own lines read as translated English ("זה ישר" for
+  "plainly"). The contract now says the recast is what they meant, said the way a
+  Hebrew speaker says it, and that its own lines are written in Hebrew first, the
+  English under each being the English for the Hebrew and not the sentence it started
+  from.
+- The chat knows the ladder a reader may name. Asked for "a bet plus level", it did not
+  know what that was: the rungs and what each is reckoned to want are written into the
+  prompt from the one table `level.py` keeps, and it is still told never to hand the
+  reader's own rung back.
 - A sense bought bare is grounded by the first sentence that meets it. The catalogue holds
   glosses bought without a sentence, and asking again without one returns the same answer:
   the held gloss for עם is "people; nation", with the preposition not there at all. So the
@@ -151,6 +352,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- On a machine somebody runs themselves the chat's dollar-a-day rail is off: the reader
+  is the operator, whose `--budget` is the ceiling. An evening of testing was told to
+  come back tomorrow by its own laptop. Hosted, the rail stands.
+- A browser that moved on before a JSON answer landed printed a traceback in the
+  terminal for every dropped request; the stream already treated a broken pipe as the
+  reader leaving, and the plain answers do now too.
+- A conversation titled with a long first line pushed the rail out under the thread,
+  where every title was cut off behind the raised paper: a grid item's minimum width is
+  its content unless told otherwise. Measured in Chromium now.
+- Sonnet 5 was priced at 3/15 per million tokens in `PRICES`, which is Sonnet 4.6's rate;
+  it is 2/10. `Usage.cost()` reads that table to settle the ledger, so every hosted build
+  since the model arrived was recorded at half again what it cost, and `targum usage`
+  could not have agreed with the bill.
 - yt-dlp no longer speaks to readers in its own voice, and where YouTube is fetched from
   is a setting rather than an assumption. A reader who pasted a YouTube address on the box
   was shown, in the red box on /add, a paragraph naming `--cookies-from-browser` and two
@@ -255,6 +469,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   row now carries the first and last verse its file holds, and a verse takes the file
   whose range has it; a chapter alone, or a verse no file holds, still takes the
   chapter's first file rather than nothing (targum-internal#142).
+
+### Fixed
+- A word is a word of its language. An English name, a clock time or an emoji inside a
+  Hebrew line came back a word: tappable, counted against "N of M known", and "Hannah"
+  filed in the ledger as extremely hard, from a community notice photographed off a
+  phone. A token with no letter of its block's script is now read past, in the reader
+  and in the conversation's record alike. This is the annotator's `languages/3`, so
+  every text on the shelf is re-annotated at the next rebuild — free of spend, not of
+  time (see CLAUDE.md on renames).
+- A word after an emoji is marked where the browser counts. Python counts a calendar
+  glyph as one character and JavaScript as two, so every span after one landed a unit
+  short: half of שחרית marked, the other half of the mark on the time beside it. Every
+  offset that ships to a page now goes through `js_span`.
 
 ## [0.2.0.0] - 2026-09-01
 

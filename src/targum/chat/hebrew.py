@@ -1,0 +1,260 @@
+"""Conversation in Hebrew, graded to the reader's own words.
+
+This is the slice the roadmap called a thesis change, and it is built from one sentence:
+targum will not be a better conversation partner than the free voice session that already
+has the modern learner's hour, so it does not try. What it does that nothing else does is
+leave a record — every line the model writes comes with its English on the next line,
+every line the reader writes in another language is recast into Hebrew first, and the
+whole exchange is the shape a targum has (slice 5 reads it back). The contract below is
+what makes the record readable and the grading possible; the eval in
+`scripts/eval_grading.py` is what says whether the grading claim is true.
+
+**The shape.** Every Hebrew sentence on its own line, pointed. Its English on the line
+below, beginning `= `. A recast of the reader's own words begins `> ` (their Hebrew, as
+they might have said it), and its `= ` line is what they actually wrote. Nothing else is
+in the contract, so `pairs()` can read a turn back with no model in the loop.
+
+**The vocabulary.** The reader's known lemmas from their ledger, and under them a floor
+of the commonest words of the language — bands 1 and 2 of the reader's own six-band
+scale, which is Zipf 4.8 and up in `annotate/frequency.py`. Natural Hebrew first
+(decided 2026-09-06, on the first live conversations): the lists are what to prefer, not
+a wall, and a sentence is never bent to stay inside them; two or three new words a
+reply, brought in on purpose and used again, with their English beside them. Whether a
+model can hold near a list is the open question; every turn records how far outside it
+fell (`record.outside_share`), and until the eval answers, no page says "at your level".
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from ..level import NOT_VOCABULARY, Level, describe
+
+if TYPE_CHECKING:
+    from ..accounts import Store
+
+#: Bands 1 and 2 — `frequency.CUTS[1]`. A word this common is one every learner meets
+#: in their first months, so it is the floor a conversation may stand on whatever the
+#: ledger says.
+BAND_FLOOR_ZIPF = 4.8
+
+#: How many of the commonest words to hand the model as the floor. Eight hundred is
+#: roughly the first ulpan rung's reckoning, and a list a system prompt can carry.
+COMMON = 800
+
+#: How many of the reader's own known words to carry. Beyond this the prompt is paying
+#: for a list nobody reads; the commonest are the ones a conversation reaches for.
+KNOWN_LIMIT = 1500
+
+#: Words a minute, for turning a typed exchange into the seconds the allowance is kept
+#: in. Three measured numbers disagreed and had to be reconciled before any of them
+#: metered anything: read-aloud literature runs 5,367 words an hour (89 a minute,
+#: measured 2026-09-01 over 2.45 hours of LibriVox); `audio.SPEECH_WORDS_PER_MINUTE` is
+#: 150, set deliberately on the high side for a cost *estimate*, over a conversational
+#: podcast measured within 3% of 120 and scripted narration 30% over; and conversation
+#: is the podcast's register, not the novel's. So 120: the one of the three that was
+#: measured on speech shaped like this. The direction of error matters the other way
+#: round here — a higher rate charges a reader *fewer* seconds, which is the side an
+#: allowance should err on — and 120 is the measured middle, not either edge.
+CONVERSATION_WORDS_PER_MINUTE = 120
+
+#: What a reply is assumed to run to before it exists, for the reservation the rails
+#: take before the first token. Settled to the real count after the last.
+ASSUMED_REPLY_WORDS = 80
+
+#: How far back "lately" reaches for the words brought back into a conversation, in
+#: the milliseconds the ledger keeps `at` in. A week: the research this rests on says a
+#: saved word wants eight to twelve more meetings, spread out, and a week is spread out.
+LATELY_MS = 7 * 24 * 3600 * 1000
+
+#: How many of those to carry, and how common a word has to be to count as one a modern
+#: conversation can carry back. Band 4 is Zipf 3.4 and up in `annotate/frequency.py`: a
+#: word a newspaper uses. A word saved in Judges that no newspaper uses stays in Judges.
+BRING_BACK = 12
+BRING_BACK_PHRASES = 6
+MODERN_BAND = 4
+
+RECAST = "> "
+ENGLISH = "= "
+
+CONTRACT = f"""This conversation is in Hebrew, whatever language the reader writes in.
+Every reply, including one that finds, offers or quotes a text, keeps to this:
+
+- Write in Hebrew, with vowel points (nikkud) on every word — on the full spelling the
+  reader meets in a newspaper (ktiv male), not the defective spelling pointed text once
+  used: לִקְרוֹא and not לִקְרֹא, שׁוּלְחָן and not שֻׁלְחָן. The word should look like the
+  one on their ledger, with its vowels added.
+- Every Hebrew sentence goes on its own line. Directly under it, on the next line, its
+  English, beginning with "{ENGLISH}". Never a Hebrew line without its English line.
+- Begin every reply with the reader's own line, in Hebrew: a line beginning "{RECAST}"
+  with their sentence — as they wrote it if their Hebrew was right, corrected if it was
+  not, and said in Hebrew if they wrote in English or any other language — then a
+  "{ENGLISH}" line with its English, which for a line they wrote in English is what
+  they wrote, as they wrote it. The recast is what they meant, said the way a Hebrew
+  speaker says it: correct and idiomatic, in Hebrew word order, in one clean sentence
+  or two. Never carry their grammar mistakes, their slips or their English word order
+  into it — the recast is the correction, and a wrong recast becomes the line of record.
+  Then answer. Do not lecture about a mistake; the corrected line is the whole
+  correction.
+- Write your own lines in Hebrew first, as a Hebrew speaker would say them to a
+  friend: the idiom, the word order and the register of spoken Israeli Hebrew, and the
+  plain words. Do not think of an English sentence and translate it — no calques, no
+  "זה ישר" for "plainly", no English rhythm. The "{ENGLISH}" line under each of your
+  lines is the English for the Hebrew you wrote, and may read a little differently from
+  how you would have put it in English; that is right.
+- Natural first. Prefer the reader's known words and the common words listed below
+  wherever a natural sentence allows, so that most of what you write is theirs already —
+  but never bend a sentence to avoid a word: a stilted line inside the list is worse
+  than a natural one a little outside it. Bring new words in on purpose, two or three in
+  a reply and not more, chosen because the reader will meet them again — each is on its
+  "{ENGLISH}" line like every other word — and use a word you brought in again a few
+  lines later. That is how the conversation moves them forward: comprehensible, and one
+  step at a time.
+- Keep it short: a few Hebrew sentences, and end with one question so the reader has
+  something to answer. When you offer texts, one Hebrew line per text with its English,
+  and the text's door under it.
+- When the reader asks to read a text, its path - exactly as the tool returned it - goes
+  on a line of its own between the Hebrew lines, with nothing else on that line and no
+  "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
+  when you have not given its path.
+- Still never tell the reader they are at a level. You know their words; use them.
+"""
+
+
+@dataclass(frozen=True)
+class Pair:
+    hebrew: str
+    english: str
+    recast: bool = False
+
+
+def pairs(text: str) -> list[Pair]:
+    """Read a turn back as (Hebrew, English) lines, by the contract and nothing else.
+
+    A Hebrew line with no `= ` under it is kept with an empty English — the transcript
+    should show what was said rather than hide a line the model forgot to translate.
+    Lines that are neither (a stray English sentence) are dropped: they are not in the
+    record's shape.
+    """
+    out: list[Pair] = []
+    pending: tuple[str, bool] | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith(ENGLISH):
+            if pending is not None:
+                out.append(Pair(pending[0], line[len(ENGLISH) :].strip(), pending[1]))
+                pending = None
+            continue
+        if pending is not None:
+            out.append(Pair(pending[0], "", pending[1]))
+            pending = None
+        recast = line.startswith(RECAST)
+        body = line[len(RECAST) :].strip() if recast else line
+        if _has_hebrew(body):
+            pending = (body, recast)
+    if pending is not None:
+        out.append(Pair(pending[0], "", pending[1]))
+    return out
+
+
+def _has_hebrew(text: str) -> bool:
+    return any("א" <= ch <= "ת" for ch in text)
+
+
+def common_words(n: int = COMMON, language: str = "he") -> list[str]:
+    """The commonest words of the language at bands 1 and 2, most common first.
+
+    From wordfreq, the same table the reader's bands come from, so "common" here means
+    the same thing it means on their word cards. Empty where the `difficulty` extra is
+    not installed — the prompt then stands on the ledger alone, and says nothing false.
+    """
+    try:
+        from wordfreq import top_n_list, zipf_frequency
+    except ImportError:
+        return []
+    code = language.split("-")[0].lower()
+    return [
+        word for word in top_n_list(code, n * 2) if zipf_frequency(word, code) >= BAND_FLOOR_ZIPF
+    ][:n]
+
+
+def known_words(
+    store: Store, person_id: int | None, language: str, limit: int = KNOWN_LIMIT
+) -> list[str]:
+    """The reader's known lemmas, newest first, names and numbers left out."""
+    rows = store.words_with_bands(person_id, language)
+    known = [
+        (at, lemma)
+        for lemma, status, band, at in rows
+        if status == 9 and band not in NOT_VOCABULARY and lemma
+    ]
+    known.sort(reverse=True)
+    return [lemma for _, lemma in known[:limit]]
+
+
+def bring_back(
+    store: Store, person_id: int | None, language: str, now_ms: int | None = None
+) -> tuple[list[str], list[str]]:
+    """The words and phrases the reader saved lately, for the conversation to carry
+    back — the one thing the chat-first products never do, and the thing the research
+    says a saved word needs. Words are kept to the ones a modern conversation can
+    carry: a word saved in Judges returns only if a newspaper would use it.
+    """
+    from ..annotate.frequency import FrequencyBands
+
+    since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
+    words = store.recent_words(person_id, language, since, limit=BRING_BACK * 3)
+    bands = FrequencyBands()
+    if bands.supports(language):
+        words = [word for word in words if bands.band(word, language) <= MODERN_BAND]
+    return words[:BRING_BACK], store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES)
+
+
+def ledger_block(
+    level: Level,
+    known: list[str],
+    common: list[str],
+    lately: list[str] | None = None,
+    phrases: list[str] | None = None,
+) -> str:
+    """The per-reader block: the ledger, then the word lists, then what came back."""
+    parts = [describe(level)]
+    if known:
+        parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
+    else:
+        # Nobody has a ledger on their first day. Words are marked while reading, so
+        # the way to a ledger is a text, and the first question is the one the research
+        # notes give: what they have read, never what level they are.
+        parts.append(
+            "The reader has marked no words known yet. Stand on the commonest of the common "
+            "words, keep every sentence short, and in your first reply ask what they have "
+            "read in Hebrew so far - never what level they are - and offer them one short "
+            "text to start with (suggest_next), because words are marked while reading and "
+            "that is how their ledger begins."
+        )
+    if common:
+        parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
+    if lately:
+        parts.append(
+            f"Words the reader saved lately ({len(lately)}): "
+            + " ".join(lately)
+            + ". Bring them back into your Hebrew where they fit naturally, and once in the "
+            "conversation ask the reader to use two of them. Never list them or name this "
+            "as an exercise."
+        )
+    if phrases:
+        parts.append(f"Phrases they kept lately ({len(phrases)}): " + " | ".join(phrases))
+    return "\n\n".join(parts)
+
+
+def words_in(*texts: str) -> int:
+    return sum(len(text.split()) for text in texts)
+
+
+def seconds_for(words: int) -> float:
+    """How long this many words take to say, at the conversational rate."""
+    return max(0.0, words) / CONVERSATION_WORDS_PER_MINUTE * 60.0

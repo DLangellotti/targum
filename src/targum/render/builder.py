@@ -44,7 +44,7 @@ from ..models import (
     is_biblical,
 )
 from ..translate.prompts import language_name
-from ..vocalize import has_taamim, map_span, strip_nikkud, strip_taamim
+from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -893,6 +893,28 @@ def add_page(token: str, no_key: str = "") -> str:
     )
 
 
+def chat_page(token: str) -> str:
+    """The conversation page: one conversation, in Hebrew, and the box under it.
+
+    Reached from the box on Learn, which is the front door (2026-09-06): a line typed
+    there opens a conversation and lands here with its id in the hash. Nothing about the
+    reader is baked in, for the reason `learn_page` gives: the conversations come from
+    `/chat/list` and the answers stream in, so one rendered page serves everybody. The
+    page is chrome, not a reader — it talks to its own origin and nothing else, and
+    `design.md` §12 records what that means for the fetch-nothing rule.
+    """
+    from ..translate.prompts import OFFERED, language_name
+
+    return (
+        _environment()
+        .get_template("chat.html.j2")
+        .render(
+            token=token,
+            languages=[(code, language_name(code)) for code in OFFERED],
+        )
+    )
+
+
 def _staged(pairs: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
     """A language list with its stage beside each, for a page to draw a picker from."""
     from ..translate.prompts import language_name, stage_label
@@ -978,7 +1000,13 @@ def legal_is_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_LEGAL", "").strip().lower() in {"1", "true", "yes"}
 
 
-def back_office_page(found: object, days: int) -> str:
+def back_office_page(
+    found: object,
+    days: int,
+    proposed: list[dict[str, Any]] | None = None,
+    wanted: list[dict[str, Any]] | None = None,
+    said: str = "",
+) -> str:
     """The operator's own page, at `bo.<domain>`.
 
     Rendered here with everything else rather than in `backoffice.py`, so the one place
@@ -986,7 +1014,21 @@ def back_office_page(found: object, days: int) -> str:
     `backoffice.Survey`; it is typed loosely to keep the import one way, since nothing
     in the renderer should need the store.
     """
-    return _environment().get_template("backoffice.html.j2").render(survey=found, days=days)
+    from ..catalogue import Kind, Register
+
+    return (
+        _environment()
+        .get_template("backoffice.html.j2")
+        .render(
+            survey=found,
+            days=days,
+            proposed=proposed or [],
+            wanted=wanted or [],
+            said=said,
+            registers=[r.value for r in Register if r is not Register.none],
+            kinds=[k.value for k in Kind],
+        )
+    )
 
 
 def legal_page(which: str, address: str = "") -> str:
@@ -1915,7 +1957,7 @@ def render(
                     if token.feats and token.feats not in grammar_at:
                         grammar_at[token.feats] = len(grammar)
                         grammar.append(token.feats)
-                    start, end = map_span(token.start, token.end, to_bare[sid])
+                    start, end = js_span(bare[sid], *map_span(token.start, token.end, to_bare[sid]))
                     rows.append(
                         [
                             start,
@@ -1959,6 +2001,15 @@ def render(
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
         spoken = speech(document, segments, folder)
+        # Who said each line. A scene's or a recording's speakers come with its audio;
+        # a text that is turns without a sound — a saved conversation, a chat
+        # photographed off a phone (2026-09-07) — carries the name on the block, and
+        # the reader shows it beside the line the same way.
+        speakers = dict(spoken.speakers)
+        named = {block.id: block.speaker for block in document.blocks if block.speaker}
+        for segment in segments:
+            if segment.id not in speakers and segment.block_id in named:
+                speakers[segment.id] = str(named[segment.block_id])
         # The one file too heavy to ride inside the page. Copied beside the reader and
         # named by a relative address, so a folder that travels to a disk keeps its
         # picture and the page still fetches nothing from any network (design.md §12).
@@ -2033,7 +2084,7 @@ def render(
             pointed=pointed,
             unaccented=unaccented,
             machine=machine,
-            speakers=spoken.speakers,
+            speakers=speakers,
             spoken=spoken.spans,
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
@@ -2163,7 +2214,14 @@ def render(
                                     {
                                         "words": {
                                             sid: [
-                                                [*map_span(int(cs), int(ce), to_bare[sid]), s, e]
+                                                [
+                                                    *js_span(
+                                                        bare[sid],
+                                                        *map_span(int(cs), int(ce), to_bare[sid]),
+                                                    ),
+                                                    s,
+                                                    e,
+                                                ]
                                                 for cs, ce, s, e in rows
                                             ]
                                             for sid, rows in spoken.words.items()

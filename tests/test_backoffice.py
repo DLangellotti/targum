@@ -181,3 +181,36 @@ def test_the_door_is_an_admin_session_and_not_a_password() -> None:
     assert not [line for line in directives if line.startswith("basic_auth")], (
         "two passwords for one page"
     )
+
+
+def test_the_page_lists_what_is_proposed_and_wanted(store: sqlite3.Connection) -> None:
+    found = survey(store, today=date(2026, 9, 4))
+    page = back_office_page(
+        found,
+        30,
+        proposed=[
+            {
+                "id": "p1",
+                "title": "שיעור",
+                "author": "",
+                "language": "he",
+                "source": "https://www.youtube.com/watch?v=x",
+                "licence": "CC BY 4.0",
+                "standing": "owed",
+                "corpus_ok": 1,
+                "words": 400,
+                "difficulty": 17,
+                "register": "modern",
+                "kind": "talk",
+            }
+        ],
+        wanted=[{"query": "ים", "source": "", "standing": "", "count": 3}],
+        said="An owed licence needs a credit.",
+    )
+    assert "Proposed for the shelf" in page and "שיעור" in page and "CC BY 4.0" in page
+    assert 'name="credit"' in page, "an owed licence asks for its credit on the form"
+    assert 'value="accept"' in page and 'value="decline"' in page
+    assert "An owed licence needs a credit." in page
+    assert "Wanted" in page and "ים" in page and ">3<" in page
+    empty = back_office_page(found, 30)
+    assert "Nothing waiting" in empty and 'name="credit"' not in empty

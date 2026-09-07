@@ -1,17 +1,22 @@
-{#- The same header on every page: the name on the left, the four places you can be,
+{#- The same header on every page: the name on the left, the three places you can be,
     and the light switch. It is one file because copies of a navigation bar drift apart —
     they had already drifted into three different orders once.
 
     The order is how often somebody wants each one. Learn is most visits; Library is
-    finding the next thing; Your Progress is deliberate study. Uploading a text is not a
-    place at all — it is a thing you do, rarely — so it sits in the corner with the
-    account rather than in the row of pages.
+    finding the next thing; Your Progress is deliberate study.
+
+    Two things left this row on 2026-09-06 (design.md §12, "The front door is a
+    question"). The chat was second here for a day — added 2026-09-05 as where you go
+    when you do not know what to pick up — and is now the box at the top of Learn, so
+    the conversation page marks Learn the way Learn's own lists do. Uploading a text was
+    never a place at all; it sat in the corner with the account, and it is now the `+`
+    on that box.
 
     Your Progress was called Words until it became an account of what a reader has built
     rather than a list of what they had kept. It is the only two-word label here, which
     is why the row wraps rather than scrolls under a narrow window.
 
-    Set `here` to "learn", "library", "progress" or "add" before including this. -#}
+    Set `here` to "learn", "chat", "library", "progress" or "add" before including this. -#}
 <header class="site-head">
   <div class="site-head-row">
     {#- The lockup, assembled live rather than dropped in as lockup.svg: the name is
@@ -26,13 +31,10 @@
       <span>targum</span>
     </a>
     <nav class="site-nav" aria-label="Pages">
-      <a href="/" data-nav="learn"{% if here == 'learn' %} class="on" aria-current="page"{% endif %}>Learn</a>
+      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}>Learn</a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
     </nav>
-    {#- Not one of the places you can be: a thing you do, and rarely. It sits with the
-        account and the light switch rather than in the row of pages. -#}
-    <a class="upload{% if here == 'add' %} on{% endif %}" href="/add" data-nav="add"{% if here == 'add' %} aria-current="page"{% endif %}>Upload</a>
     <div class="account" id="account">
       <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
         Sign in

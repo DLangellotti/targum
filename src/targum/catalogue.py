@@ -283,6 +283,13 @@ class Entry:
     #: payload would be a way to spend somebody else's money.
     model: str = ""
 
+    #: The source text's own licence and the credit it asks for, on an entry that has
+    #: no `Rendering` to carry them — a text promoted from a reader's shelf
+    #: (`promote.py`), whose English targum bought. Empty on the curated shelf, whose
+    #: sources are public domain by selection.
+    licence: str = ""
+    credit: str = ""
+
     @property
     def sample(self) -> list[Line]:
         """The opening, both languages, for the public page.
@@ -493,6 +500,8 @@ def _entry(raw: dict[str, Any]) -> Entry:
         register=Register(raw.get("register", Register.none.value)),
         difficulty=int(raw.get("difficulty", 0)),
         model=str(raw.get("model", "")),
+        licence=str(raw.get("licence", "")),
+        credit=str(raw.get("credit", "")),
     )
 
 
@@ -540,6 +549,22 @@ BOUGHT_WITH = str(_read().get("bought_with") or BOUGHT_WITH)
 CATALOGUE: list[Entry] = load()
 
 COLLECTIONS: list[Collection] = load_collections()
+
+
+def reload() -> None:
+    """Read the file again, in place — for a shelf that grew while the server ran.
+
+    In place, because `CATALOGUE` is the list every page and every test holds a
+    reference to; rebinding the name would leave them reading the old one. A page
+    rendered at start-up with the catalogue baked in (`learn_page`) still shows the old
+    shelf until a restart; `everything()` and the chat read this list and see the new.
+    """
+    # The file is read through a cache, because every page asks for it; a reload is
+    # the one moment the memo is wrong.
+    _read.cache_clear()
+    _samples.cache_clear()
+    CATALOGUE[:] = load()
+    COLLECTIONS[:] = load_collections()
 
 
 def beit_midrash() -> list[Entry]:

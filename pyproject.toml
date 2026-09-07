@@ -52,6 +52,12 @@ speech-align = [
   "transformers>=4.40",
 ]
 covers = ["pillow>=10.0"]
+# Bringing a picture or a PDF through the `+` (targum-internal#217, 2026-09-07). Pillow
+# scales a photo to the model's ceiling and applies the phone's orientation tag;
+# `pillow-heif` opens what an iPhone takes; `pypdf` reads a handout's text layer. All
+# three BSD-3. An extra rather than hard dependencies because a box that only reads
+# text should not carry libheif, and because a box without them refuses in one sentence.
+bring = ["pillow>=10.0", "pillow-heif>=0.18", "pypdf>=5.0"]
 difficulty = ["wordfreq>=3.1"]
 # Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
 # caps Python below 3.13, and the reader that would lose is the one on a Python targum
@@ -63,6 +69,9 @@ phonetics = ["phonikud>=0.4"]
 # step and a few hundred megabytes. Without it `tests/test_reader_browser.py` skips
 # itself, the way the node tests skip without node.
 browser = ["playwright>=1.44"]
+mcp = [
+    "mcp>=1.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/DLangellotti/targum"

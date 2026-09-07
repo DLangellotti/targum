@@ -175,4 +175,8 @@
   });
 
   ask();
+
+  // Another script on the page that has just started a build asks the strip to look
+  // again, rather than waiting for a poll that only runs while something is unfinished.
+  window.TargumBuilding = { ask: ask };
 })();

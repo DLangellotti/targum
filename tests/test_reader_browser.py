@@ -1057,6 +1057,93 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     context.close()
 
 
+#: What the card says once the reader has asked about the word.
+ASKED = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const on = card.querySelector('.ask-on');
+  return {
+    field: !!card.querySelector('.ask-field'),
+    questions: [...card.querySelectorAll('.ask-q')].map((q) => q.textContent),
+    answers: [...card.querySelectorAll('.ask-a')].map((a) => a.textContent),
+    on: on ? on.getAttribute('href') : null,
+  };
+}
+"""
+
+
+def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
+    """The card's one more working action (2026-09-06): ask targum about this word, in
+    this sentence, and read the answer in the card. The question goes up with a note of
+    where the reader is, the answer streams back the way the conversation page's do,
+    and after two questions the card hands over to the conversation page. The model is
+    not called: the two requests this makes are answered here.
+    """
+    html = built.read_text(encoding="utf-8")
+    said: list[dict[str, Any]] = []
+    context = opened(browser)
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/gloss" in request.url:
+            body = {"meaning": MEANING, "cached": True, "grounded": True}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif "/chat/say" in request.url:
+            said.append(request.post_data_json)
+            body = {"chat": "c1", "turn": len(said)}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif "/chat/stream/" in request.url:
+            reply = f"Answer {len(said)}."
+            body = (
+                f"event: text\ndata: {reply}\n\n"
+                f"event: done\ndata: {json.dumps({'text': reply})}\n\n"
+            )
+            route.fulfill(status=200, content_type="text/event-stream", body=body)
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair")
+
+    word = page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    before = page.evaluate(ASKED)
+    assert before == {"field": True, "questions": [], "answers": [], "on": None}, (
+        "a served card offers to ask, and nothing more until it is asked"
+    )
+
+    page.fill(".gloss-card .ask-field", "why this form?")
+    page.press(".gloss-card .ask-field", "Enter")
+    page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
+    first = page.evaluate(ASKED)
+    assert first["questions"] == ["why this form?"] and first["answers"] == ["Answer 1."]
+    assert first["on"] == "/chat?k=test#c1", "the way on carries the key and the conversation"
+    assert first["field"], "one more question is offered"
+
+    sent = said[0]
+    assert sent["chat"] == "" and sent["text"] == "why this form?"
+    assert sent["about"]["surface"] == word, "the word as it sits on the page"
+    assert word in sent["about"]["sentence"] or sent["about"]["sentence"], "and its sentence"
+    assert sent["about"]["document"] and sent["about"]["section"]
+
+    page.fill(".gloss-card .ask-field", "and where else?")
+    page.press(".gloss-card .ask-field", "Enter")
+    page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
+    second = page.evaluate(ASKED)
+    assert second["answers"] == ["Answer 1.", "Answer 2."]
+    assert said[1]["chat"] == "c1", "the same conversation, continued"
+    assert not second["field"], "two turns, then the conversation page"
+    assert second["on"] == "/chat?k=test#c1"
+
+    # Tapping the word again redraws the card with the exchange still in it.
+    page.evaluate(TAP_AGAIN, word)
+    page.wait_for_timeout(200)
+    assert page.evaluate(ASKED)["answers"] == ["Answer 1.", "Answer 2."]
+    context.close()
+
+
 def test_a_meaning_the_build_shipped_is_asked_again_with_its_sentence(
     browser, two_languages: Path
 ) -> None:

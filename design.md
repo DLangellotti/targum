@@ -172,6 +172,12 @@ Two registers, and which one applies depends on who is reading.
 - **And short.** Buttons and links are one or two words: "Send a link", not "Email me a
   link"; "Delete", not "Move to the trash". State what happened without justifying it,
   softening it, or answering the question nobody asked — see §12.
+- **What the chat writes is chrome when it is English and content when it is Hebrew.**
+  Every English sentence the assistant produces obeys this section in full; the Hebrew
+  it writes for a learner is a text, and the English rules do not reach it. A model's
+  output is in no stylesheet or template, so `test_brand.py` cannot see it: the rules
+  live in `chat/prompts.py`, and `test_chat_prompts.py` asserts over that file that each
+  is still said. Added 2026-09-05; see §12.
 
 ## 7 · Iconography
 
@@ -239,6 +245,16 @@ acts.
   weight 600; on an inverted block it flips to paper with ink text. The accent keeps the
   product's working actions (play, Save, Send it) and links, where its calm is the
   point — as a call to action on warm paper it whispered. Added 2026-08-31; see §12.
+- **The chat page is one more surface, not a widget.** `/chat` takes the rules of any
+  page inside the product: the thread is its one raised layer; the reader's lines and
+  targum's are the same ink under a quiet label, never two colours of bubble; sending is
+  a working action and takes the accent; the send button, the new-conversation door and
+  the rows of the list are in `test_brand.py`'s thumb registry. Added 2026-09-05.
+- **The box is the front door, and it is not a raised layer.** The same field stands
+  on Learn, under the ledger's own sentence, and on the conversation page, from one file
+  (`_composer.html.j2`): a hairline field on paper, Send in the accent, Speak and the
+  `+` for a file as ink-bordered working controls. On both pages something else has the
+  view's one raised layer. Added 2026-09-06; see §12.
 - **Numbers at display sizes are ink or leaf.** Gold is the record colour inside charts, not
   a headline colour; gold display type on cream is the sleepy publisher look this brand
   exists to avoid.
@@ -281,8 +297,156 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Sixteen places. Each was a deliberate decision with a date, kept here so nobody "corrects"
-the code back to a rule that was already retired.
+Seventeen places. Each was a deliberate decision with a date, kept here so nobody
+"corrects" the code back to a rule that was already retired.
+
+
+### A picture is read before it is priced — 2026-09-07
+
+Everything else the `+` brings is priced before a cent is spent. A picture cannot be:
+until it is read there is nothing to count, no title, no first line, and a card that
+said "a picture" would be asking the reader to buy blind. So the reading happens at the
+quote, and it is the one spend before a card. What keeps it honest: the file choice is the
+consent, the ceiling is thirty pages and is refused at the door before any is read, the
+reservation goes through the same claim a build makes and is settled to the receipt,
+every picture read is cached by its bytes so a second drop or the build after the quote
+reads for nothing, and the card shows the first lines as read and says in words how many
+lines could not be read clearly (§6: a count, never a colour). The reader is never shown
+what the reading cost, as with every other price here. Scanned PDFs are not read at all
+and are refused by name; that is targum-internal#197's, and the reflow-not-facsimile
+decision for pictures is recorded there and in #217.
+
+### A conversation is drawn as the text it becomes — 2026-09-06
+
+`/chat` drew a thread: the reader's lines and targum's, the same ink under a quiet label.
+In Hebrew it now draws each line as the pair it will be on the shelf, and reads it the
+way a text is read: the moment a reply is whole, its Hebrew lines go through the same
+lemmatizer a build uses (`chat/record.py`), and each word comes back to the page with its
+dictionary form, its band, and whatever meaning the glossary already holds — never one
+bought for the purpose. On the page a word takes its state from the reader's own ledger,
+read where the reader keeps it: a word marked known is bare; a word still being learned
+carries the reader's own dotted line; a word never met is marked in iris, the hue §4
+keeps for what is new, and is counted. A name is not vocabulary and is left alone. A tap
+on any of them says its dictionary form and its meaning, or offers to look it up, which
+is the reader's press and the reader's spend, the same door a word card in a text opens.
+
+The foot of the thread is the record's summary: how long the conversation has run, in the
+minutes it is metered in; how many words the reader has not met; what share of the words
+they knew. Real counts off the page and the ledger, never a level. Under them, Save as
+targum: the reader's own press on the quote the model's save already hands the page, and
+still only a quote — the card's button is the spend, as it is everywhere.
+
+Two things were measured before this was built, so nothing here is a hope. A line costs
+the annotator about sixty milliseconds warm and a turn about a fifth of a second, against
+a nine-second load paid once and warmed when the workers start
+(`scripts/measure_line_annotation.py`; the box's own numbers are still owed). And every
+turn now records what share of its vocabulary lay outside the words the model was given
+(`outside` on the turn): the number the grading claim rests on, kept where the eval can
+read it, and not yet a claim anywhere on the page.
+
+What comes back: the words and phrases the reader saved lately ride in the ledger block,
+and the model is asked to bring them back where they fit and, once, to ask the reader to
+use two — never as a list, never named as an exercise. The research this rests on says a
+saved word wants eight to twelve more meetings; the chat-first products the survey looked
+at never return one. Only words a newspaper would use come back: a word saved in Judges
+that no newspaper uses stays in Judges.
+
+The reason is the chat plan's sentence: where a choice is between a better conversation
+and a better record, take the record. Drawing the thread as the text is the record made
+visible while it is being made, and it costs no second surface. If the thread ever becomes
+the thing people look at and the shelf an afterthought, the design has gone wrong in the
+way §1 describes.
+
+### The front door is a question — 2026-09-06
+
+Learn opened with two cards and a list: the text you were in, and everything else. From
+the note of 2026-09-05 that asked for "the Lovable of language learning", and from a day
+of looking at that product — one box on the front page that makes the thing, then a
+conversation beside it — Learn now carries one box under the ledger's own sentence, and
+nothing else on the page moves. The box takes a request, a link, a file by its `+`, or a
+word, and Speak where the browser records. A line typed there opens a conversation and
+goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in one
+press: a file, a picture or a recording is held in the box as a chip until Send, goes up
+as it did there, is priced, and the card the model's quote draws is a turn in the
+conversation, on Learn too, where the conversation page opens on it the way it opens on
+a line. Send with a file in the box is the press: the text builds and opens when it is
+ready, and a bare file, or a line that only says "open this", starts no conversation at
+all — "when I wrote 'open this' with a file, I didn't want that to be the start of a
+conversation." A line that says more is a specification: it is said, with a note of what
+was sent so the model answers about the text rather than asking for it, and the card
+follows it in the thread as the build's progress. "More options" is the Add page, kept
+for a translation or a transcript of the reader's own. (Until 2026-09-07 the card stood under the
+box on Learn with a button to press: "I'm chatting, I think I should be pressing Send",
+and "I originally just gave the file… it should have been enough to just open it".) Chat is no longer a place in the nav and Upload
+is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
+the conversation page marks Learn, the way Learn's own lists do.
+
+What was tried first, and cut the same day, so it is not tried again: a board of three
+doors under the box (the text to read, a conversation to have, the week's words) that
+drew the day as a task list, on a product two strangers had already called work; a
+two-column workspace with the reader framed beside the thread; a strip and a sheet on the
+phone; a switch between finding and talking ("I do not intuitively understand what this
+switcher means"). The research the doors were built on still stands — a saved word needs
+eight to twelve more encounters, using a word is worth more than looking it up — and is
+served invisibly: the next text is chosen for the words just saved, the week's words are
+delivered at the foot of a section, and the words come back inside the conversation from
+the ledger block, with no door and no label.
+
+One conversation, always in Hebrew, was decided the same morning. The one exception,
+decided the same afternoon: a reader whose every text is scripture is not written Hebrew
+at. Nobody converses in the Hebrew of Judges, and a model writing it graded to a ledger
+of biblical words would be pastiche on the one shelf where every line must be right. That
+reader's box finds and answers in English, about the text, and is not offered a
+microphone. Decided from the shelf (`Library.talks`), because the ledger is one bucket
+per language and cannot say which Hebrew a word came from.
+
+What it reverses: the `_nav.html.j2` note of 2026-09-05 that put Chat second because
+"Learn is where a returning reader picks up, and the chat is where they go when they do
+not know what to pick up". A day later the two are one page, and the gate stands: at
+thirty days, does the alpha reader open something she found by asking, unprompted? If she
+goes to the library instead, the door was not the problem and the box goes back to a page.
+
+One more door on a page that is not this one: the gloss card in the reader gains Ask,
+and the answer lives in the card, two turns at most, in English, about the text — what
+the form is, why it is that form here — with "Continue in chat" as the way on. The reader
+stays a reader: full page, nothing beside it, and still fetching nothing — the card talks
+to its own origin the way a gloss does today, on the reader's press. Ask is a working
+action and takes the accent; the field and the button are in the thumb registry.
+
+What it does not overturn: one raised layer per view (on Learn, the cards; on the
+conversation page, the thread — the box is a hairline field on both); ink for the door
+that asks somebody to act and accent for Send; no invented currency; counts, never a
+level; a text that carries media opens as its media; the reader is a full page and
+fetches nothing.
+
+### targum speaks back — 2026-09-05
+
+Until now every surface here was a page a reader looked at. From a handwritten note of
+2026-09-05, targum gains a conversation: a reader asks for something to read, asks what
+they know, and — in the slices that follow — asks targum to bring a text in, talks to it
+in Hebrew graded to their own ledger, and reads that conversation back as a targum. The
+roadmap's "not building" line named conversation and tutoring, and the reason it did is
+recorded there with the reversal; this section is only about what it does to the paint.
+
+- **The chat page is chrome, not a reader.** *Readers must fetch nothing* governs the
+  self-contained files a build writes, and `test_render.py` holds it there unchanged. The
+  chat page talks to its own origin — `POST /chat/say`, an event stream back — under the
+  same `POLICY` every served page already takes, with `connect-src 'self'` doing exactly
+  the work it was written for. Nothing in that policy moved to make this possible, and
+  `test_serve.py` pins that it did not.
+- **A conversation is the server's.** Words, reading position and days stay the
+  browser's, as `sync.js` has always said. A conversation is written server-side because
+  the same one has to be resumable from a client that is not this browser, and because a
+  chat is not a reader. The asymmetry is written beside the rule it departs from.
+- **A chat that knows your words still may not say a level.** The ledger goes to the
+  model so the Hebrew it writes can be graded; what the model says to the reader is the
+  counts — §6's "12 days reading", "500 words known" — and never "you are at bet". The
+  progress page's "A guide, not a placement" is now a rule the prompt carries too.
+- **The English is chrome, the Hebrew is content** — see §6.
+
+What this does not overturn: engagement yes and arcade no, the ledger in serif tabular
+numbers, no invented currency, the hue budget, one raised layer per view. A conversation
+that starts congratulating people has gone wrong in exactly the way §1 describes.
 
 ### A thing that moves under a thumb belongs to the thumb — 2026-09-04
 

@@ -770,6 +770,29 @@ class Build:
                 return None
             held.document_hash = segmented.document_hash
             return held
+        if source.source.endswith(".chat"):
+            # A conversation the chat wrote down: every line came with its English, by
+            # the contract in `chat/hebrew.py`, and `ingest/transcript.py` numbers the
+            # blocks the same way it reads them here. Nothing is bought.
+            from .ingest import transcript as transcript_ingest
+
+            english = transcript_ingest.english_by_block(Path(source.source))
+            segments = {
+                segment.id: english[segment.block_id]
+                for segment in segmented.segments
+                if segment.block_id in english
+            }
+            if not segments:
+                return None
+            return Translation(
+                name=source.title or "a conversation",
+                document_hash=segmented.document_hash,
+                source_language=segmented.language,
+                target_language="en",
+                provider="authored",
+                kind="authored",
+                segments=segments,
+            )
         if not source.source.startswith("dialogue:"):
             return None
         from .dialogue import index as dialogue_index

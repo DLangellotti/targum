@@ -27,8 +27,9 @@ def test_tokens_add_up_across_calls_and_models() -> None:
     assert spent.input_tokens == 3200
     assert spent.output_tokens == 1600
     # Priced per model, because a build can span two and an average is a price for
-    # neither: 3000 in and 1500 out on Sonnet, 200 and 100 on Haiku.
-    expected = (3000 * 3.0 + 1500 * 15.0) / 1e6 + (200 * 1.0 + 100 * 5.0) / 1e6
+    # neither: 3000 in and 1500 out on Sonnet, 200 and 100 on Haiku. Sonnet 5 is 2/10;
+    # this said 3/15 — Sonnet 4.6's rate — until 2026-09-05, and so did `PRICES`.
+    expected = (3000 * 2.0 + 1500 * 10.0) / 1e6 + (200 * 1.0 + 100 * 5.0) / 1e6
     assert abs(spent.cost() - expected) < 1e-9
 
 
@@ -518,3 +519,15 @@ def test_a_reader_may_upload_text_all_month_without_a_ceiling(tmp_path: Path) ->
             )
 
     assert not hasattr(library, "month_budget"), "no per-reader monthly ceiling exists"
+
+
+def test_a_search_is_bought_per_search_and_counted() -> None:
+    from targum.translate.anthropic_provider import SEARCH_PRICE
+
+    spent = Usage()
+    spent.add_search()
+    spent.add_search()
+    assert spent.searches == 2 and abs(spent.cost() - 2 * SEARCH_PRICE) < 1e-9
+    assert spent.state()["searches"] == 2
+    assert (spent + Usage()).searches == 2
+    assert "searches" not in Usage().state(), "absent rather than zero"

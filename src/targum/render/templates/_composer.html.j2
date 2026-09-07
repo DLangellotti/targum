@@ -1,0 +1,40 @@
+{#- The box: one field for anything a reader wants to say to targum, and the four ways
+    out of it. It is one file because it stands on two pages — Learn, where it is the
+    front door (2026-09-06, design.md §12), and the conversation page, where it is the
+    composer — and two copies of a box drift the way two copies of a nav bar did.
+
+    Left to right: the `+`, which holds a file, a picture or a recording in the box for
+    Send to bring (it used to be Upload, a corner of the nav; it is a thing you do while
+    asking, not a place, and since 2026-09-06 the Add page is its "More options"); the
+    field; Speak, shown only where the browser records and the reader
+    has modern Hebrew to speak (the page's script decides both); and Send, the working
+    action, in the accent.
+
+    Set `placeholder` before including. Every id here is what `chat.js` and `box.js`
+    look for. -#}
+<form class="composer" id="composer">
+  <textarea id="say" rows="2" placeholder="{{ placeholder }}" spellcheck="true"
+            aria-label="Your message"></textarea>
+  {#- A file, a recording or a book, chosen here and priced in place: the Add page's
+      job in one press, since 2026-09-06. A link goes in the field like anything else
+      said to targum. The card it draws carries "More options", which is the Add page,
+      for a translation or a transcript of your own. -#}
+  <button type="button" class="chat-bring" id="chat-bring"
+          aria-label="Bring a file, a picture or a recording"
+          title="Bring a file, a picture or a recording">+</button>
+  {#- `multiple` for the pictures: several chosen together are the pages of one text
+      (2026-09-07). Anything else is taken one at a time, whatever was selected. -#}
+  <input type="file" id="chat-file" hidden multiple
+         accept=".txt,.md,.markdown,.epub,.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv">
+  {#- What the + chose, held in the box until Send (2026-09-07): a chip a file, each
+      with a way to let it go. Choosing is not yet bringing; Send is, the way it is for
+      a line — the card is then a turn in the conversation, never a thing under the box. -#}
+  <ul class="chat-held" id="chat-held" hidden></ul>
+  {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
+      as a line — seconds, not a conversation. -#}
+  <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
+  <button type="submit" class="chat-send" id="chat-send">Send</button>
+</form>
+{#- What went wrong with a line, said under the box in words (§6), never in colour
+    alone. -#}
+<p class="chat-said" id="chat-said" role="status" hidden></p>

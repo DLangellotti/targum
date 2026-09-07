@@ -20,6 +20,7 @@ import pytest
 
 from targum.render.builder import (
     add_page,
+    chat_page,
     learn_page,
     library_page,
     list_page,
@@ -36,6 +37,7 @@ PAGES = {
     "words": list_page("k", "words"),
     "phrases": list_page("k", "phrases"),
     "add": add_page("k"),
+    "chat": chat_page("k"),
 }
 
 
@@ -58,12 +60,18 @@ def test_add_still_does_everything_only_it_could() -> None:
     assert 'id="status"' in add, "the price-before-you-commit surface"
 
 
-def test_only_add_builds_anything() -> None:
-    """The front door stopped being a form, which is the whole point of the change."""
-    for name in ("learn", "library", "progress"):
+def test_the_library_and_the_progress_page_build_nothing() -> None:
+    """The front door stopped being a form, which was the whole point of the change;
+    since 2026-09-06 it carries one press instead, the `+` on the box, which prices a
+    file in place and is not a form either. The library and the progress page take
+    nothing at all."""
+    for name in ("library", "progress"):
         page = PAGES[name]
         assert 'type="file"' not in page, f"{name} should not take uploads"
         assert 'id="source"' not in page, f"{name} should not take a source"
+    learn = PAGES["learn"]
+    assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
+    assert learn.count('type="file"') == 1, "one hidden input behind the +"
 
 
 def test_the_library_carries_nothing_personal() -> None:
@@ -91,7 +99,7 @@ def test_learn_says_what_to_do_next() -> None:
     comes first because most visits are somebody returning to a text."""
     learn = PAGES["learn"]
     steps = re.findall(r'data-door="(\w+)"', learn)
-    assert steps == ["library", "add", "progress"]
+    assert steps == ["library", "progress"], "bringing a text is the `+` on the box"
     assert 'id="carry"' in learn[: learn.index('data-door="library"')], "the card comes first"
     assert 'id="suggest"' in learn, "and something to read, picked for this reader"
 
@@ -116,21 +124,24 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_four_places() -> None:
+def test_every_page_carries_the_same_three_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
-    once already."""
+    once already. Three since 2026-09-06: the chat, second here for a day, is the box at
+    the top of Learn, and uploading, which was a corner, is the `+` on that box."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress", "add"], name
+        assert found == ["learn", "library", "progress"], name
 
 
-#: Reached from the corner rather than from the nav — a profile is not one of the places
-#: you can be, it is who you are while you are in one of them.
-NOT_IN_THE_NAV = {"you"}
+#: Reached from somewhere other than the nav — a profile is not one of the places you
+#: can be, it is who you are while you are in one of them; and bringing a text is the
+#: `+` on the box, a thing you do while asking.
+NOT_IN_THE_NAV = {"you", "add"}
 
-#: Learn's lists, gone to a page of their own. They mark Learn, which is where they came
-#: from and the only nav entry that could honestly be current.
-UNDER_LEARN = {"texts", "words", "phrases"}
+#: Learn's lists, gone to a page of their own, and the conversation, which is where a
+#: line typed into Learn's box goes. They mark Learn, which is where they came from and
+#: the only nav entry that could honestly be current.
+UNDER_LEARN = {"texts", "words", "phrases", "chat"}
 
 
 def test_the_nav_marks_where_you_are() -> None:
@@ -145,11 +156,31 @@ def test_the_nav_marks_where_you_are() -> None:
         assert current == [name], f"{name} should mark itself and nothing else"
 
 
-def test_adding_is_last_because_it_is_rarest() -> None:
-    """Nav order is how often somebody wants each one. Add used to be first."""
+def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
+    """Add used to be first in the nav, then the corner. Since 2026-09-06 it is the `+`
+    on the box, on both pages that carry one, and nothing in the nav points at it."""
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
+        assert 'class="upload' not in page, name
+    bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
+    assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
-    assert order.index("add") == len(order) - 1
     assert order.index("learn") == 0
+
+
+def test_the_box_is_the_front_door() -> None:
+    """Learn carries the box under the ledger's own sentence, and the conversation page
+    carries the same one from the same file: one field, the `+`, Speak, Send."""
+    learn = PAGES["learn"]
+    assert 'id="composer"' in learn and 'id="say"' in learn
+    assert (
+        learn.index('id="known-line"') < learn.index('id="composer"') < learn.index('id="carry"')
+    ), "under the count, above the cards"
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
+            assert page.count(control) == 1, f"{name}: {control} once"
 
 
 # -- what each page says it is --------------------------------------------------
@@ -254,7 +285,8 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     did nothing for an upload — the one case somebody is most likely to insist on."""
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     retry = source[source.index("anyway.onclick") : source.index("row.appendChild(anyway)")]
-    assert "readFile(chosen)" in retry, "a file has to be able to take this branch"
+    assert "readFile(chosen[0])" in retry, "a file has to be able to take this branch"
+    assert "bringing.upload(chosen" in retry, "and so has a picture or a recording"
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
 
 

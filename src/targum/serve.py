@@ -56,7 +56,9 @@ from .render.builder import (
     weekly_page,
 )
 from .segment.stanza_segmenter import telling
+from .usage import Usage
 from .video import MAX_VIDEO_BYTES
+from .vision import MAX_PAGES, PICTURE_SUFFIXES
 from .weekly import index as weekly_index
 from .weekly.models import Issue as WeeklyIssue
 from .weekly.models import Level as WeeklyLevel
@@ -69,6 +71,10 @@ MAX_UPLOAD = 32 * 1024 * 1024
 #: Caddy's 48 MB body ceiling with room to spare — and are assembled on disk.
 CHUNK_BYTES = 8 * 1024 * 1024
 MAX_AUDIO_BYTES = 1024 * 1024 * 1024
+#: A picture or a PDF comes through the same door as a recording (2026-09-07), because
+#: a phone photo is ten megabytes and the JSON door reads its body into memory as
+#: base64. Twenty-five is a photo at any phone's full size, and no handout.
+MAX_PICTURE_BYTES = 25 * 1024 * 1024
 #: A video is allowed more than a recording — an hour of 480p is most of a gigabyte
 #: before anything is cut from it. The ceiling itself is `video.MAX_VIDEO_BYTES`,
 #: imported above: two copies of a ceiling drift, and a door that refuses what
@@ -164,6 +170,10 @@ TRASHED = "trashed"
 # a disk with no server. Rather than `unsafe-inline`, which would allow anything a
 # defect managed to inject, each block is named by the hash of its own contents, so only
 # the code targum wrote will run.
+#: What a word's card may say about where the reader is, and how much of each. The
+#: sentence is the long one; the rest name things.
+ABOUT_FIELDS = {"document": 200, "section": 20, "sentence": 1000, "surface": 80, "lemma": 80}
+
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
@@ -236,6 +246,16 @@ ACCOUNT_BUDGET = 10.00
 # is 1.84 of them, and printing the rounder sentence would over-promise by 9%.
 UPLOAD_HOURS = 8
 UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
+
+# What one reader's conversation may spend in a day. **A rate limit, like the account
+# rail above, and a narrower one**: a turn is uncacheable and the reader controls the
+# volume, so the rail that was sized for builds — where a novel is the unit — is the
+# wrong size for a sentence. A dollar is on the order of fifty turns at the effort the
+# chat runs at, which is an afternoon of asking; a script asking every second is what
+# this stops. Counted on rows of kind `chat` alone, and the same rows count against the
+# account rail too, so neither can be used to get round the other. The refusal names
+# when it lifts and never implies that reading is used up.
+CHAT_BUDGET = 1.00
 
 # Hosted, everyone signs in first. Signed out, every home would be the same `local`
 # directory, so one visitor would be reading another's library — and there is nowhere
@@ -566,6 +586,17 @@ class Job:
     parts: int = 0
     transcription: float = 0.0
     made: int = field(default_factory=now)
+    #: `build` for everything the queue runs; `chat` for one turn of conversation, which
+    #: takes a row here so the rails see it and is never queued. See `chat/session.py`.
+    kind: str = "build"
+    # A text that arrived as pages — pictures the model read, or a PDF's text layer.
+    # How many, how many lines could not be read cleanly, the first lines as read (the
+    # card shows them, so the reader sees what will be built before pressing), and what
+    # the reading cost: the one spend before a card, settled into the receipt at the end.
+    pages: int = 0
+    doubtful: int = 0
+    excerpt: list[str] = field(default_factory=list)
+    reading: float = 0.0
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -601,7 +632,25 @@ class Job:
             "seconds": round(self.seconds, 1),
             "parts": self.parts,
             "transcription": round(self.transcription, 2),
+            # The pages card's facts: what was read, and how well.
+            "pages": self.pages,
+            "doubtful": self.doubtful,
+            "excerpt": list(self.excerpt),
         }
+
+
+def excerpt_of(lines: list[str], count: int = 4, width: int = 120) -> list[str]:
+    """The first lines of a text as read, for the card. What the reader will get, shown
+    before they press, in place of a filename that says nothing about a picture."""
+    out: list[str] = []
+    for line in lines:
+        text = " ".join(line.split())
+        if not text:
+            continue
+        out.append(text if len(text) <= width else text[: width - 1].rstrip() + "…")
+        if len(out) == count:
+            break
+    return out
 
 
 # A person's home is `p` and their number, and nothing else. Matching on the `p` alone
@@ -661,8 +710,10 @@ class Library:
         upload_seconds: float | None = UPLOAD_SECONDS,
         mailer: Mailer | None = None,
         address: str = "",
+        chat_budget: float | None = CHAT_BUDGET,
     ) -> None:
         self.out = out
+        self.chat_budget = chat_budget
         # How to reach somebody whose build finished while they were away, and where
         # the reader is. Neither is needed on a machine somebody runs themselves.
         self.mailer = mailer
@@ -732,6 +783,7 @@ class Library:
                 options=json.loads(row["options"] or "{}"),
                 owner=row["owner"],
                 home=Path(str(row["home"])),
+                kind=str(row["kind"] or "build"),
             )
             self.jobs[job.id] = job
 
@@ -762,6 +814,7 @@ class Library:
                 "blocked": job.blocked,
                 "spent": job.spent,
                 "made": job.made,
+                "kind": job.kind,
             }
         )
 
@@ -796,14 +849,15 @@ class Library:
         — which with one worker is exact. The reader's page can then say "waiting
         behind one other build" rather than leaving a second build to look stuck.
         """
-        working = any(job.stage == "working" for job in self.jobs.values())
-        waiting = sorted(
-            (job for job in self.jobs.values() if job.stage == "queued"), key=lambda j: j.made
-        )
+        # Builds only, on both counts: a chat turn is never in this line, so one that is
+        # working must not put every waiting build one place further back.
+        builds = [job for job in self.jobs.values() if job.kind == "build"]
+        working = any(job.stage == "working" for job in builds)
+        waiting = sorted((job for job in builds if job.stage == "queued"), key=lambda j: j.made)
         position = {job.id: index + (1 if working else 0) for index, job in enumerate(waiting)}
         cutoff = now() - self.RECENT_MS
         out: list[dict[str, Any]] = []
-        for job in sorted(self.jobs.values(), key=lambda j: j.made, reverse=True):
+        for job in sorted(builds, key=lambda j: j.made, reverse=True):
             if job.owner != owner:
                 continue
             if job.stage in ("done", "failed", "blocked") and job.made < cutoff:
@@ -967,9 +1021,10 @@ class Library:
         return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
 
     def settle(self, job: Job) -> None:
-        """Swap what a build reserved for what it spent."""
+        """Swap what a build reserved for what it spent — and, for a turn of
+        conversation, the seconds it was reserved at for the seconds it ran to."""
         if self.store is not None:
-            self.store.settle(job.id, job.spent)
+            self.store.settle(job.id, job.spent, length=job.seconds if job.kind == "chat" else None)
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
@@ -1028,6 +1083,21 @@ class Library:
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
             return f"Building a lot at once. Try again {when}. The library is always free."
+        if whose == "talk-hours":
+            # The allowance, reached by talking rather than by uploading. The same number
+            # the pricing page names, and the same promise that reading carries on.
+            allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
+            return (
+                f"That is your {allowed / 3600:g} hours of audio and conversation for this "
+                f"month. More on {self._month_ends()}. Reading carries on, and the library "
+                "is always free."
+            )
+        if whose == "chat":
+            # The same rule for the conversation's own rail: a lot of talking is not a
+            # lot of reading, and the shelf is still open.
+            return (
+                f"A lot of conversation for one day. Try again {when}. The library is always free."
+            )
         return f"targum is at its limit. Try again {when}, or read from the library."
 
     def why_blocked(self, estimate: float) -> str:
@@ -1324,6 +1394,9 @@ class Library:
             if source.startswith(prefix):
                 kind = named
                 break
+        if source.endswith(".chat"):
+            # A conversation read back: shaped like a scene, filed like one.
+            kind = "dialogue"
         annotation = folder / "annotation.json"
         difficulty = (
             self._own_difficulty(str(annotation), annotation.stat().st_mtime, language)
@@ -1347,6 +1420,35 @@ class Library:
             "english": "",
             "drawn": False,
         }
+
+    def talks(self, home: Path, person_id: int | None) -> bool:
+        """Whether this reader is offered a conversation in Hebrew.
+
+        One conversation, always in Hebrew (2026-09-06) — for a reader who has modern
+        Hebrew to hold it in. A reader whose every text is scripture is not offered one:
+        nobody converses in the Hebrew of Judges, and a model writing it graded to a
+        ledger of biblical words would be pastiche on the one shelf where every line must
+        be right. That reader's box finds and answers in English, about the text.
+
+        Decided from the shelf, because the ledger is one bucket per language and cannot
+        say which Hebrew a word came from: modern if any text of their own is modern, or
+        any modern text on the shared shelf has been opened; scripture-only if what they
+        have is scripture and nothing else; and a reader with nothing yet is offered the
+        conversation, since nothing says otherwise.
+        """
+        registers: set[str] = set()
+        for reader in self.readers(home):
+            registers.add(str(reader.get("register") or ""))
+        if "modern" in registers:
+            return True
+        if self.store is not None and person_id is not None:
+            opened = self.store.opened_documents(person_id)
+            for reader in self.readers(self.shared):
+                if reader.get("document") in opened:
+                    registers.add(str(reader.get("register") or ""))
+        if "modern" in registers:
+            return True
+        return "biblical" not in registers
 
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
@@ -1451,6 +1553,15 @@ class Library:
                     return
                 if found is not None:
                     return self._prepare_episode(job, found)
+            # A text that arrived as pages is read before it is priced: the pictures by
+            # the model (the one spend before a card, reserved and settled here), a
+            # PDF's text layer by nothing that costs. Either way the card can then show
+            # the first lines as read, which for a picture is the only honest title.
+            refused = self._read_pages(job)
+            if refused:
+                job.blocked = refused
+                job.stage = "blocked"
+                return
             builder = self._builder(job)
             # Priced for what the build will buy, which for a book is one chapter. The
             # cap then applies to a chapter, not to a novel — which is the difference
@@ -1497,6 +1608,70 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    def _read_pages(self, job: Job) -> str:
+        """Read a source that arrived as pages, or say why it may not be read.
+
+        Pictures cost: they are reserved against the same rails a build is claimed on,
+        at `vision.PAGE_RESERVE` a page still unread, read, and settled to what the API
+        charged — the reader's file choice is the consent, and the ceiling is thirty
+        pages (targum-internal#217). Every picture read is cached by its bytes, so the
+        build that follows, and a second drop of the same screenshot, read for nothing.
+        A PDF's text layer is free and is only described here: how many pages, how many
+        lines came out mixed, and the first lines for the card.
+
+        Returns the sentence that blocks the card, or "" when the pages were read.
+        Anything else wrong raises, and `prepare` writes it on the job like every
+        other failure.
+        """
+        from . import vision
+        from .annotate.gloss import GLOSS_MODEL
+        from .ingest import pdf as pdf_module
+        from .ingest import picture as picture_module
+
+        source = Path(job.source)
+        if source.is_file() and source.suffix.lower() == ".pdf":
+            pages = pdf_module.page_lines(source)
+            job.pages = len(pages)
+            job.doubtful = pdf_module.doubtful_lines(pages)
+            job.excerpt = excerpt_of([line for lines in pages for line in lines])
+            return ""
+        if not picture_module.is_pictures(source):
+            return ""
+        paths = picture_module.pages_of(source)
+        if len(paths) > MAX_PAGES:
+            raise TargumError(
+                f"That is {len(paths)} pictures. targum reads up to {MAX_PAGES} at a time."
+            )
+        job.pages = len(paths)
+        usable, _ = vision.can_read()
+        if not usable:
+            return NO_KEY
+        waiting = vision.unread(paths, GLOSS_MODEL)
+        usage = Usage()
+        if waiting:
+            job.estimate = vision.reserve(waiting)
+            refused = self.claim(job)
+            if refused:
+                job.estimate = 0.0
+                return refused
+            job.stage = "reading"
+            self.remember(job)
+            try:
+                reads = vision.read_pages(paths, usage=usage, model=GLOSS_MODEL)
+            finally:
+                # Whatever was read was paid for, whether or not the rest arrived. The
+                # reservation becomes the receipt now, not at the end of a build the
+                # reader may never press for.
+                job.reading = usage.cost()
+                job.spent = job.reading
+                job.estimate = 0.0
+                self.settle(job)
+        else:
+            reads = vision.read_pages(paths, usage=usage, model=GLOSS_MODEL)
+        job.doubtful = sum(read.doubtful for read in reads)
+        job.excerpt = excerpt_of([line for read in reads for line in read.lines])
+        return ""
 
     #: Manual subtitle tracks worth looking for before paying to transcribe. Hebrew in
     #: both spellings YouTube uses — `iw` is the old ISO code and half the Israeli
@@ -1694,6 +1869,41 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
+    def claim_turn(self, job: Job) -> str:
+        """Reserve one turn of conversation against the rails, or say which refused.
+
+        The same transaction a build takes, narrowed: the per-account ceiling is the
+        chat's own (`CHAT_BUDGET`, over rows of kind `chat`), and the box ceiling is the
+        one every kind of work shares. Admins pass the account rail as they do for
+        builds, and never the box one.
+        """
+        if self.store is None:
+            with self.lock:
+                if job.estimate > self.remaining():
+                    return self._out_of("everyone")
+                self._committed += job.estimate
+                return ""
+        admin = bool(job.admin)
+        refused = self.store.claim(
+            job.id,
+            job.estimate,
+            self.budget,
+            self._since(),
+            owner=job.owner,
+            per_account=None if admin else self.chat_budget,
+            kind="chat",
+            # Conversation comes out of the eight hours (decided 2026-09-05): the same
+            # sum a recording's seconds land in, so there is one ledger and not two.
+            month_from=self._month_from(),
+            length=job.seconds,
+            per_month_length=None if admin else self.upload_seconds,
+        )
+        if not refused:
+            return ""
+        if refused == "hours":
+            return self._out_of("talk-hours")
+        return self._out_of("chat" if refused == "account" else refused)
+
     @staticmethod
     def _gloss_cost(
         builder: Build, segmented: SegmentedDocument, buying: list[Segment]
@@ -1790,10 +2000,12 @@ class Library:
             with telling(builder.notify):
                 result = builder.run(on_progress=progress, on_ready=ready, chapters=FIRST_CHAPTERS)
             # The reservation becomes the receipt. Until this, the ledger held an
-            # estimate and the budget was an approximation of itself.
-            job.spent = result.spent.cost()
+            # estimate and the budget was an approximation of itself. What reading the
+            # pictures cost at the quote is on the same receipt: one text, one line.
+            job.spent = result.spent.cost() + job.reading
             self.settle(job)
             self.remember(job)
+            self.propose(job)
         except TargumError as error:
             self._blame(job, error.message)
         except Exception:
@@ -1804,6 +2016,20 @@ class Library:
                 job,
                 "Something went wrong. The Terminal has the detail.",
             )
+
+    def propose(self, job: Job) -> None:
+        """Offer a finished build to the shelf, if its licence allows a public copy.
+
+        Never a reason for the build to fail: the reader has their text whatever the
+        shelf decides, so whatever goes wrong here is printed for the operator and the
+        job stays done.
+        """
+        from . import promote as promote_module
+
+        try:
+            promote_module.candidate(self, self.store, job)
+        except Exception:  # noqa: BLE001 - the shelf's business, not the reader's build
+            traceback.print_exc()
 
     def cover_plan(self, folder: Path, chapters: bool) -> tuple[Any, list[tuple[str, str]]]:
         """What this text is, and every image worth drawing for it.
@@ -2154,6 +2380,10 @@ class Handler(BaseHTTPRequestHandler):
     progress: str
     catalogue: str
     you: str
+    #: The conversation page, and the workers that answer it. Empty and None on a
+    #: handler built by hand, which is how the tests build one that has no chat.
+    chatting: str = ""
+    chats: Any = None
     #: The three list pages, by route name: everything Learn shows the top of. Empty by
     #: default so a handler built with only the pages it needs — which is what the tests
     #: build — serves no list pages rather than failing on the way past them.
@@ -2345,7 +2575,13 @@ class Handler(BaseHTTPRequestHandler):
         if policy is not None:
             self.send_header("Content-Security-Policy", policy)
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            # The browser moved on before the answer landed — a page that navigated
+            # away with a fetch in flight. Not an error of ours, and the stream already
+            # treats it so; without this each one printed a traceback in the terminal.
+            self.close_connection = True
 
     # The sidecar video parts beside a reader. A closed table rather than `mimetypes`:
     # these are the only files a build writes that a page addresses by name, and a table
@@ -3089,7 +3325,43 @@ class Handler(BaseHTTPRequestHandler):
         # answers `no-store`, which is what a page listing accounts wants: not in a
         # proxy, and not in the back button after the laptop is shut.
         found = survey_store(self.store.path)
-        self._send(200, back_office_page(found, DAYS).encode("utf-8"), HTML)
+        said = parse_qs(urlparse(self.path).query).get("said", [""])[0][:300]
+        page = back_office_page(
+            found, DAYS, proposed=self.store.proposals(), wanted=self.store.wanted(), said=said
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
+    def _promote(self, form: dict[str, str]) -> None:
+        """Accept or decline a proposal, from the back office's own form.
+
+        The same door the page is: an admin session, and 404 for anyone else. A plain
+        form post rather than JSON, because the back office carries no script and
+        `form-action 'self'` is already what the policy allows.
+        """
+        from . import promote as promote_module
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        proposal_id = form.get("id", "")
+        try:
+            if form.get("action") == "accept":
+                promote_module.accept(
+                    self.library,
+                    self.store,
+                    proposal_id,
+                    register=form.get("register", ""),
+                    kind=form.get("kind", ""),
+                    credit=form.get("credit", "").strip(),
+                )
+            elif form.get("action") == "decline":
+                promote_module.decline(self.store, proposal_id)
+            else:
+                return self._send(400, b"bad request", "text/plain")
+        except TargumError as error:
+            said = f"{error.message} {error.hint or ''}".strip()
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+        self._go(BACK_OFFICE_ROUTE)
 
     def do_GET(self) -> None:  # noqa: N802
         route = urlparse(self.path).path
@@ -3174,7 +3446,9 @@ class Handler(BaseHTTPRequestHandler):
             # page rather than a 401 — and not the sign-in page either, because a door
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
-            if route.startswith(("/readers", "/job/", "/jobs", "/glossary/", "/account/export")):
+            if route.startswith(
+                ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
+            ):
                 return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
@@ -3207,6 +3481,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/chat":
+            if not self.chatting:
+                return self._send(404, b"not found", "text/plain")
+            return self._send(200, self.chatting.encode("utf-8"), "text/html; charset=utf-8")
+        if route.startswith("/chat/"):
+            return self._chat_get(route[len("/chat/") :])
         if route == "/progress":
             return self._send(200, self.progress.encode("utf-8"), "text/html; charset=utf-8")
         # Learn holds the top of each of these; this is the rest. `/words` was a redirect
@@ -3231,11 +3511,15 @@ class Handler(BaseHTTPRequestHandler):
             for reader in shared:
                 reader["shared"] = True
             self._measure(self.library.shared, shared)
+            person = self._person()
             return self._json(
                 {
                     "readers": mine,
                     "shared": shared,
                     "trash": self.library.readers(home, trashed=True),
+                    # Whether this reader is offered a conversation in Hebrew — the same
+                    # word `/chat/list` gives, decided the same way (`Library.talks`).
+                    "talk": self.library.talks(home, person.id if person else None),
                     # Whether this deployment can draw a cover at all. A page with no
                     # image key offers nothing rather than offering and failing.
                     "covers": self.library.can_draw(),
@@ -3288,6 +3572,9 @@ class Handler(BaseHTTPRequestHandler):
         # to an address the asker typed themselves.
         if route == "/account/enter":
             return self._enter(self._form().get("t", ""))
+        # The back office's one action, a form post from the page an admin is on.
+        if route == BACK_OFFICE_ROUTE + "/promote":
+            return self._promote(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the
@@ -3305,6 +3592,9 @@ class Handler(BaseHTTPRequestHandler):
         # holding it to the JSON ceiling would refuse the very uploads it exists for.
         if route.startswith("/upload/"):
             return self._upload(route)
+        # A spoken line: raw audio, not JSON, so it is read before the JSON parse too.
+        if route == "/chat/hear":
+            return self._chat_hear(parse_qs(urlparse(self.path).query))
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_UPLOAD:
             return self._json(
@@ -3315,6 +3605,10 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return self._json({"error": "bad request"}, 400)
 
+        if route == "/chat/say":
+            return self._chat_say(payload)
+        if route == "/chat/save":
+            return self._chat_save(payload)
         if route == "/weekly/follow":
             # Takes no address at all: it reads the session's own. With nothing to
             # supply there is no way to sign somebody else's inbox up and nothing to
@@ -3351,6 +3645,386 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/account/languages":
             return self._languages(payload)
         self._json({"error": "not found"}, 404)
+
+    # -- the conversation ---------------------------------------------------
+
+    def _chat_get(self, rest: str) -> None:
+        """`/chat/list`, `/chat/<id>`, `/chat/turn/<id>/<n>` and `/chat/stream/<id>/<n>`.
+
+        Every one checks the conversation is the asker's before it says anything, the
+        way `_own_job` does for a build: an id is unguessable and is still not a key.
+        """
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        store = self.chats.store
+        person = self._person()
+        person_id = person.id if person else None
+        if rest == "list":
+            # The hours beside the list, so the clock is on the page before the cap is
+            # met: the one limit a reader is told about, in the unit they were told.
+            allowed = self.library.upload_seconds
+            used = store.hours_used(person_id, self.library._month_from())
+            return self._json(
+                {
+                    "chats": store.chats(person_id),
+                    "usable": self.chats.usable,
+                    # Whether Speak is offered and the Hebrew contract rides: a reader
+                    # with modern Hebrew to speak. Scripture-only readers are answered
+                    # in English, about the text (`Library.talks`).
+                    "talk": self.library.talks(self._home(), person_id),
+                    "hours": {
+                        "used": round(used / 3600, 2),
+                        "allowed": None if allowed is None else round(allowed / 3600, 2),
+                        "ends": self.library._month_ends(),
+                    },
+                }
+            )
+        pieces = rest.split("/")
+        if pieces[0] in ("turn", "stream", "audio") and len(pieces) == 3 and pieces[2].isdigit():
+            chat_id, n = pieces[1], int(pieces[2])
+            if store.chat_owned(person_id, chat_id) is None:
+                return self._json({"error": "not found"}, 404)
+            if pieces[0] == "turn":
+                return self._json(self._chat_turn_state(chat_id, n))
+            if pieces[0] == "audio":
+                return self._chat_audio(chat_id, n, person)
+            return self._chat_stream(chat_id, n)
+        if len(pieces) == 1:
+            chat = store.chat_owned(person_id, pieces[0])
+            if chat is None:
+                return self._json({"error": "not found"}, 404)
+            turns = [
+                {
+                    "n": turn["n"],
+                    "role": turn["role"],
+                    "said": turn["said"],
+                    "stage": turn["stage"],
+                    "error": turn["error"],
+                    "made": turn["made"],
+                    # The words of the answer to a reader's turn, read as a text is
+                    # read (`chat/record.py`); None where none were.
+                    "words": turn.get("words"),
+                }
+                for turn in store.chat_turns(chat["id"])
+                if turn["said"] or turn["role"] == "user"
+            ]
+            return self._json(
+                {
+                    "chat": chat,
+                    "turns": turns,
+                    # How long it has run, in the seconds it is metered in.
+                    "seconds": round(store.chat_seconds(chat["id"]), 1),
+                }
+            )
+        return self._json({"error": "not found"}, 404)
+
+    def _chat_turn_state(self, chat_id: str, n: int) -> dict[str, Any]:
+        """What became of the answer to turn `n`, from the live feed or the store.
+
+        The feed is the live copy and dies with the process; the store is what a tab
+        that reconnects after a restart finds. Both say the same thing.
+        """
+        feed = self.chats.feed_for(chat_id, n)
+        if feed is not None:
+            errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
+            read = [json.loads(data) for kind, data in feed.events if kind == "words"]
+            return {
+                "text": feed.text(),
+                "done": feed.closed,
+                "error": errors[-1]["message"] if errors else "",
+                # The cards this turn quoted, for a page polling rather than streaming.
+                "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
+                "words": read[-1] if read else None,
+            }
+        turns = self.chats.store.chat_turns(chat_id)
+        asked = next((turn for turn in turns if turn["n"] == n), None)
+        answered = "".join(
+            str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
+        )
+        stage = str(asked["stage"]) if asked else "done"
+        return {
+            "text": answered,
+            "done": stage != "working",
+            "error": str(asked["error"]) if asked else "",
+            "words": asked.get("words") if asked else None,
+        }
+
+    #: How long a tail waits for the next event before it says it is still here.
+    STREAM_PATIENCE_S = 15.0
+
+    def _chat_stream(self, chat_id: str, n: int) -> None:
+        """Tail one turn as server-sent events.
+
+        Written past `_send` on purpose: that sets a `Content-Length` and gzips, and a
+        stream has neither. Caddy sits in front on the box and buffers what it is not
+        told not to, hence `X-Accel-Buffering`. A tab that reconnects sends the last id
+        it saw and gets what it missed; a tab that closed is a broken pipe, which ends
+        this thread and nothing else.
+        """
+        feed = self.chats.feed_for(chat_id, n)
+        after = 0
+        held = self.headers.get("Last-Event-ID", "")
+        if held.isdigit():
+            after = int(held) + 1
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.close_connection = True
+        try:
+            if feed is None:
+                # After a restart there is no live copy; the store's answer is the whole
+                # stream, sent as the one closing event.
+                state = self._chat_turn_state(chat_id, n)
+                kind = "error" if state["error"] else "done"
+                payload = {"message": state["error"]} if state["error"] else {"text": state["text"]}
+                self._chat_event(0, kind, json.dumps(payload, ensure_ascii=False))
+                return
+            while True:
+                fresh, closed = feed.wait(after, self.STREAM_PATIENCE_S)
+                for index, kind, data in fresh:
+                    self._chat_event(index, kind, data)
+                    after = index + 1
+                if closed and after >= len(feed.events):
+                    return
+                if not fresh:
+                    self.wfile.write(b": still here\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def _chat_event(self, index: int, kind: str, data: str) -> None:
+        lines = "".join(f"data: {line}\n" for line in data.split("\n"))
+        self.wfile.write(f"id: {index}\nevent: {kind}\n{lines}\n".encode())
+        self.wfile.flush()
+
+    def _chat_audio(self, chat_id: str, n: int, person: Person | None) -> None:
+        """The answer to turn `n`, read aloud. Push-to-talk out: a clip, not a stream.
+
+        Made once and kept beside the transcript, then served like any media file. The
+        press is the spend — a reader who did not press hears nothing and pays nothing —
+        and the clip's seconds come out of the same eight hours a recording does, read
+        off the clip and never off the text. The voice's own price is not yet in any
+        table, so the money side is counted and not charged; see `speech`.
+        """
+        from . import speech
+        from .chat import hebrew as hebrew_module
+
+        store = self.chats.store
+        home = self._home()
+        where = home / "chats" / "audio"
+        kept = (
+            next((p for p in where.glob(f"{chat_id}-{n}.*") if p.is_file()), None)
+            if where.is_dir()
+            else None
+        )
+        if kept is not None:
+            return self._send_file(kept, "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav")
+        usable, why = speech.available()
+        if not usable:
+            return self._json({"error": f"No voice on this box: {why}."}, 402)
+        turns = store.chat_turns(chat_id)
+        said = "".join(
+            str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
+        )
+        found = hebrew_module.pairs(said)
+        text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
+        if not text:
+            return self._json({"error": "Nothing to read aloud yet."}, 404)
+        job = Job(
+            id=f"speak-{chat_id}-{n}",
+            source=f"chat:{chat_id}",
+            estimate=0.0,
+            seconds=hebrew_module.seconds_for(hebrew_module.words_in(text)),
+            stage="working",
+            owner=person.id if person else None,
+            home=home,
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="chat",
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            return self._json({"error": refused}, 402)
+        try:
+            clip = speech.render(text, where / f"{chat_id}-{n}")
+        except TargumError as error:
+            job.stage = "failed"
+            self.library.release(job)
+            self.library.remember(job)
+            return self._json({"error": error.message}, 502)
+        job.seconds = clip.seconds
+        job.stage = "done"
+        spent = Usage()
+        spent.add_seconds(speech.NAME, clip.seconds)
+        job.spent = spent.cost()
+        self.library.settle(job)
+        self.library.remember(job)
+        self._send_file(clip.path, clip.kind)
+
+    def _chat_hear(self, query: dict[str, list[str]]) -> None:
+        """A line spoken into the microphone, written down and asked. Push-to-talk in.
+
+        The clip's seconds are metered as the reader's words — the same allowance, the
+        same sum — and the turn it becomes counts the reply alone, so nothing is charged
+        twice. The transcriber the recording pipeline uses is the one used here.
+        """
+        from . import transcribe as transcribe_module
+        from .audio import probe as probe_module
+
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        if not self.chats.usable:
+            return self._json({"error": NO_KEY}, 402)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = query.get("chat", [""])[0]
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return self._json({"error": "Nothing was heard."}, 400)
+        if length > MAX_UPLOAD:
+            return self._json({"error": "That is long for one line. Try a shorter one."}, 413)
+        body = self.rfile.read(length)
+        kind = (self.headers.get("Content-Type") or "audio/webm").split(";")[0].strip()
+        suffixes = {
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".m4a",
+            "audio/mpeg": ".mp3",
+            "audio/wav": ".wav",
+        }
+        home = self._home()
+        clips = home / "chats" / "clips"
+        clips.mkdir(parents=True, exist_ok=True)
+        clip = clips / f"{secrets.token_hex(8)}{suffixes.get(kind, '.webm')}"
+        clip.write_bytes(body)
+        try:
+            heard = probe_module.examine(clip).duration
+        except TargumError as error:
+            clip.unlink(missing_ok=True)
+            return self._json({"error": error.message}, 400)
+        transcriber = transcribe_module.build(transcribe_module.default_name())
+        usable, why = transcriber.available()
+        if not usable:
+            clip.unlink(missing_ok=True)
+            return self._json({"error": f"Nothing here can write speech down: {why}."}, 402)
+        admin = bool(person and self.store.is_admin(person.email))
+        job = Job(
+            id=f"hear-{secrets.token_hex(6)}",
+            source=f"chat:{chat_id or 'new'}",
+            estimate=heard / 60 * transcriber.price_per_minute(),
+            seconds=heard,
+            stage="working",
+            owner=person_id,
+            home=home,
+            admin=admin,
+            kind="chat",
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        refused = self.library.claim_turn(job)
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            self.library.remember(job)
+            clip.unlink(missing_ok=True)
+            return self._json({"error": refused}, 402)
+        try:
+            transcript = transcriber.transcribe(clip, "he")
+        except TargumError as error:
+            job.stage = "failed"
+            self.library.release(job)
+            self.library.remember(job)
+            return self._json({"error": error.message}, 502)
+        job.spent = transcriber.spent.cost()
+        job.stage = "done"
+        self.library.settle(job)
+        self.library.remember(job)
+        text = " ".join(
+            str(getattr(word, "text", "")) for word in getattr(transcript, "words", [])
+        ).strip()
+        if not text:
+            return self._json({"error": "Nothing was heard. Try again, a little closer."}, 400)
+        asked = self.chats.say(person, home, chat_id, text, admin=admin, heard_seconds=heard)
+        self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
+
+    def _chat_say(self, payload: dict[str, Any]) -> None:
+        """The reader's line. Written down and handed to a worker; the answer streams."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        if not self.chats.usable:
+            return self._json({"error": NO_KEY}, 402)
+        text = str(payload.get("text") or "").strip()
+        if not text:
+            return self._json({"error": "Say something first."}, 400)
+        if len(text) > 4000:
+            return self._json({"error": "That is long for one turn. Try a shorter one."}, 413)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        admin = bool(person and self.store.is_admin(person.email))
+        # Where the reader is, when the line came from a word's card: the text, the
+        # section, the sentence and the word. Strings, capped, and nothing else — a
+        # page can say anything here and the model reads it, so it is quoted as the
+        # reader's note and never trusted as a fact about the shelf.
+        about = None
+        raw = payload.get("about")
+        if isinstance(raw, dict):
+            about = {
+                key: str(raw.get(key) or "")[:limit]
+                for key, limit in ABOUT_FIELDS.items()
+                if raw.get(key)
+            }
+            if not about.get("surface") and not about.get("sentence"):
+                about = None
+        # The text sent with the line, if one was: read from its own job, never from
+        # the payload, so what the model is told about it is what the server knows.
+        brought = None
+        sent = self._own_job(str(payload.get("brought") or ""))
+        if sent is not None:
+            state = sent.state()
+            brought = {
+                key: state[key]
+                for key in ("title", "pages", "segments", "excerpt", "stage", "blocked", "error")
+            }
+        asked = self.chats.say(
+            person, self._home(), chat_id, text, admin=admin, about=about, brought=brought
+        )
+        return self._json({"chat": asked.chat_id, "turn": asked.n})
+
+    def _chat_save(self, payload: dict[str, Any]) -> None:
+        """Save as targum, pressed at the foot of the record: the conversation written
+        down and priced, the same card the model's `quote_conversation` hands the page.
+        The reader's own press, no model turn, and still only a quote — the card's
+        button is the spend, as it is everywhere.
+        """
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        from .chat import tools as chat_tools
+
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if not chat_id or self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        admin = bool(person and self.store.is_admin(person.email))
+        ctx = self.chats.context(person, self._home(), chat_id, admin)
+        answer = chat_tools.quote_conversation(ctx, {})
+        if answer.get("error"):
+            return self._json({"error": answer["error"]}, 409)
+        return self._json({"quote": answer["quote"], "lines": answer.get("lines", 0)})
 
     # -- accounts -----------------------------------------------------------
 
@@ -3967,6 +4641,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _source_from(self, payload: dict[str, Any]) -> str:
         """A dropped file is written next to the readers; anything else is a source."""
+        many = payload.get("uploads")
+        if isinstance(many, list) and many:
+            return str(self._gathered([str(one) for one in many]))
         upload = str(payload.get("upload") or "")
         if upload:
             held = self._upload_folder(upload)
@@ -3976,6 +4653,8 @@ class Handler(BaseHTTPRequestHandler):
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
                 raise TargumError("That upload is no longer here. Start it again.")
+            if target.suffix.lower() in PICTURE_SUFFIXES or target.suffix.lower() == ".pdf":
+                return str(self._gathered([upload]))
             return str(target)
         name = payload.get("name")
         content = payload.get("content")
@@ -3986,6 +4665,51 @@ class Handler(BaseHTTPRequestHandler):
         if not source:
             raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
+
+    def _gathered(self, uploads: list[str]) -> Path:
+        """Chunked uploads of pages, made into one source that stays.
+
+        A set of pictures is one text, in the order the reader chose them, and the
+        folder is the source: the first upload's folder keeps the lot, numbered, and
+        the others are emptied. The chunked door's own marks come off — `.meta.json`
+        is what the sweep eats after a day, and a document points back at this folder
+        for as long as it is on the shelf, the way the JSON door's uploads are kept.
+        A lone PDF goes through the same motions so it, too, outlives the sweep.
+        """
+        from . import vision
+
+        if len(uploads) > MAX_PAGES:
+            raise TargumError(
+                f"That is {len(uploads)} pictures. targum reads up to {MAX_PAGES} at a time."
+            )
+        found: list[tuple[Path, Path]] = []
+        for upload in uploads:
+            held = self._upload_folder(upload)
+            if held is None:
+                raise TargumError("That upload is no longer here. Start it again.")
+            folder, meta = held
+            target = folder / Path(str(meta.get("name") or "")).name
+            if not target.is_file():
+                raise TargumError("That upload is no longer here. Start it again.")
+            found.append((folder, target))
+        pictures = all(vision.is_picture(target) for _, target in found)
+        if not pictures and (len(found) > 1 or found[0][1].suffix.lower() != ".pdf"):
+            raise TargumError("Several files at once must all be pictures of one text.")
+        home, _ = found[0]
+        kept: list[Path] = []
+        for number, (folder, target) in enumerate(found, start=1):
+            moved = home / f"{number:02d}-{target.name}"
+            if folder == home:
+                target.rename(moved)
+            else:
+                shutil.move(str(target), str(moved))
+                shutil.rmtree(folder, ignore_errors=True)
+            kept.append(moved)
+        for mark in (".meta.json", ".sha256"):
+            (home / mark).unlink(missing_ok=True)
+        shutil.rmtree(home / ".part", ignore_errors=True)
+        self.library._used.pop(self._home(), None)
+        return home if pictures else kept[0]
 
     def _translation_from(self, payload: dict[str, Any]) -> list[str]:
         """A translation the reader already has, written down for the aligner.
@@ -4040,14 +4764,25 @@ class Handler(BaseHTTPRequestHandler):
             size = 0
         if suffix in DRM_SUFFIXES:
             return self._json({"error": "This file is protected, so targum cannot read it."}, 400)
-        if suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
-            return self._json({"error": "That is not an audio or video file targum can read."}, 400)
-        moving = suffix in VIDEO_SUFFIXES
-        ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
-        if size <= 0 or size > ceiling:
-            limit = ceiling // (1024 * 1024 * 1024)
-            what = "video" if moving else "recording"
-            return self._json({"error": f"That {what} is over {limit} GB."}, 413)
+        if suffix in PICTURE_SUFFIXES or suffix == ".pdf":
+            # A picture or a handout, through the recording's door: the same chunks, the
+            # same quota, a ceiling of its own.
+            if size <= 0 or size > MAX_PICTURE_BYTES:
+                what = "PDF" if suffix == ".pdf" else "picture"
+                limit = MAX_PICTURE_BYTES // (1024 * 1024)
+                return self._json({"error": f"That {what} is over {limit} MB."}, 413)
+        elif suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
+            return self._json(
+                {"error": "That is not a recording, a video, a picture or a PDF targum can read."},
+                400,
+            )
+        else:
+            moving = suffix in VIDEO_SUFFIXES
+            ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
+            if size <= 0 or size > ceiling:
+                limit = ceiling // (1024 * 1024 * 1024)
+                what = "video" if moving else "recording"
+                return self._json({"error": f"That {what} is over {limit} GB."}, 413)
         home = self._home()
         self.library.sweep_uploads(home)
         if self.library.used(home) + size > MEDIA_QUOTA_BYTES:
@@ -4125,6 +4860,31 @@ class Handler(BaseHTTPRequestHandler):
         if twin is not None:
             shutil.rmtree(folder, ignore_errors=True)
             return self._json(twin)
+        if target.suffix.lower() in PICTURE_SUFFIXES:
+            # Proved as a picture, and nothing more: it is read when the reader asks
+            # for a price, which is where the reading is reserved and settled.
+            from . import vision
+
+            try:
+                vision.probe(target)
+            except TargumError as error:
+                shutil.rmtree(folder, ignore_errors=True)
+                return self._json({"error": error.message}, 400)
+            return self._json({"upload": upload, "picture": True})
+        if target.suffix.lower() == ".pdf":
+            # Counted at the door so a book is refused before a page of it is read.
+            from .ingest import pdf as pdf_module
+
+            try:
+                pages = pdf_module.page_count(target)
+            except TargumError as error:
+                shutil.rmtree(folder, ignore_errors=True)
+                return self._json({"error": error.message}, 400)
+            if pages > MAX_PAGES:
+                shutil.rmtree(folder, ignore_errors=True)
+                too_many = f"That PDF is {pages} pages. targum reads up to {MAX_PAGES} at a time."
+                return self._json({"error": too_many}, 413)
+            return self._json({"upload": upload, "pages": pages})
         from .video import VIDEO_SUFFIXES
 
         moving = target.suffix.lower() in VIDEO_SUFFIXES
@@ -4283,10 +5043,12 @@ def start(
     public_address: str = "",
 ) -> str:
     """Run until interrupted. Returns the address it is listening on."""
+    from .chat.session import Chats
     from .mail import from_environment
     from .render.builder import (
         LISTS,
         add_page,
+        chat_page,
         learn_page,
         library_page,
         list_page,
@@ -4320,8 +5082,16 @@ def start(
         # bearer token in a mailbox, so on a machine somebody runs themselves the
         # library is told no address and says nothing.
         address=public if require_account else "",
+        # The chat's daily rail is a hosted account's (2026-09-06): on a machine
+        # somebody runs themselves the reader is the operator, who set `--budget` at
+        # the prompt and is the ceiling. An evening of testing hit a dollar a day and
+        # was told to come back tomorrow by their own laptop.
+        chat_budget=CHAT_BUDGET if require_account else None,
     )
     library.start_workers()
+    # The conversation's own workers, beside the build queue and never in it.
+    chats = Chats(library, keeping, usable=usable)
+    chats.start_workers()
 
     handler = type(
         "TargumHandler",
@@ -4345,6 +5115,8 @@ def start(
             "you": you_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
+            "chatting": chat_page(token),
+            "chats": chats,
             "progress": progress_page(token),
             "catalogue": library_page(token),
         },
