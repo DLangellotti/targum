@@ -350,3 +350,33 @@ def test_the_press_stays_on_the_card() -> None:
 
 def test_a_caller_can_say_what_the_label_should_be() -> None:
     assert copied(clipboard="ok", label="Copy the phrase")["before"]["label"] == "Copy the phrase"
+
+
+def test_a_moved_mark_is_something_the_account_has_to_hear_about() -> None:
+    """The move is stamped as touched and leaves the old name as a tombstone, in the two
+    places `sync.js` reads: a record whose `seen` is past the last push goes up under
+    its new name, and `targum:gone` says the old one was taken away. Without both, the
+    account kept the old name, a second device brought the orphan back, and the chat's
+    ledger — read from the account — never learned what the word is now called
+    (2026-09-07)."""
+    after = moved(
+        {
+            "targum:vocab:he": {
+                "לאורך": {"status": 2, "surface": "לאורך", "band": 4, "at": 100, "seen": 100},
+                "ספר": {"status": 9, "surface": "הספר", "band": 1, "at": 90, "seen": 90},
+            },
+            "targum:meanings:he:en": {"לאורך": {"meaning": "along", "note": "", "at": 5}},
+            "targum:meanings:he:ru": {"ספר": {"meaning": "книга", "note": "", "at": 5}},
+        },
+        moves=MOVES,
+    )
+    words = after["targum:vocab:he"]
+    assert words["ארך"]["seen"] > 100, "touched now, so the next push carries it"
+    assert words["ארך"]["at"] == 100, "when it was first kept does not change"
+    assert words["ספר"]["seen"] == 90, "a word that did not move is not re-sent"
+    gone = after["targum:gone"]
+    assert gone["w:he:לאורך"] == words["ארך"]["seen"], "the old name is a tombstone"
+    assert "w:he:ספר" not in gone
+    assert gone["m:he:en:לאורך"] == words["ארך"]["seen"], "and so is its meaning's"
+    assert after["targum:meanings:he:en"]["ארך"]["seen"] == words["ארך"]["seen"]
+    assert "m:he:ru:ספר" not in gone and set(gone) == {"w:he:לאורך", "m:he:en:לאורך"}
