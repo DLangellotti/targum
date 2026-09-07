@@ -1232,8 +1232,10 @@ UNTOUCHED = """
 })
 """
 
-#: The switch's own buttons: which rendering each is, and whether it is pressed.
-PRESSED = """
+#: The switch's own buttons: which rendering each is, and whether it is pressed. Its
+#: own name: `PRESSED` above is every toggle in the bar, and a second definition of it
+#: down here silently answered for the first in eight tests (CI, 2026-09-07).
+RENDERING_KEYS = """
 () => [...document.querySelectorAll('#translation .rendering')].map((b) => [
   b.getAttribute('data-translation'), b.getAttribute('aria-pressed'), b.classList.contains('on'),
 ])
@@ -1280,7 +1282,7 @@ def test_a_switched_rendering_is_drawn_and_kept(browser, two_languages: Path) ->
     page = context.new_page()
     page.goto(address(two_languages))
     page.wait_for_selector(".pair")
-    assert page.evaluate(PRESSED) == [["t0", "true", True], ["t1", "false", False]]
+    assert page.evaluate(RENDERING_KEYS) == [["t0", "true", True], ["t1", "false", False]]
     before = page.evaluate(UNTOUCHED)
 
     page.evaluate(SWITCH, "t1")
@@ -1289,12 +1291,12 @@ def test_a_switched_rendering_is_drawn_and_kept(browser, two_languages: Path) ->
     russian = page.evaluate(CELLS)
     assert russian["langs"] == ["ru"] and russian["dirs"] == ["ltr"]
     assert "На земле Израиля" in russian["first"]
-    assert page.evaluate(PRESSED) == [["t0", "false", False], ["t1", "true", True]]
+    assert page.evaluate(RENDERING_KEYS) == [["t0", "false", False], ["t1", "true", True]]
 
     page.reload()
     page.wait_for_selector(".pair")
     assert "На земле Израиля" in page.evaluate(CELLS)["first"], "the choice was not kept"
-    assert page.evaluate(PRESSED) == [["t0", "false", False], ["t1", "true", True]]
+    assert page.evaluate(RENDERING_KEYS) == [["t0", "false", False], ["t1", "true", True]]
     context.close()
 
 
