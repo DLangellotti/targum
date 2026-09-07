@@ -679,6 +679,11 @@
   {% if words_credit %}
   <p class="keys-credit">Dictionary forms by <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
   {% endif %}
+  {#- And what pointed the words, on the same terms and keyed the same way: to the
+      vocalizer that ran, and only where it pointed something the edition had not. -#}
+  {% if pointing_credit %}
+  <p class="keys-credit">Vowel points by <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
   {% if biblical %}
   <p class="keys-credit">Dictionary forms on biblical Hebrew are less reliable than on
     modern: the analyser is trained on modern unpointed text, so waw-consecutive, pausal

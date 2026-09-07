@@ -2122,6 +2122,14 @@ def render(
             # the reader. Keyed off what actually ran: a text annotated before the swap
             # carries Stanza's name and gets no DICTA credit it did not earn.
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
+            # The vowel points likewise, and only where the model actually pointed a
+            # word: a text its edition pointed throughout names the vocalizer that was
+            # ready and never ran, and owes it nothing.
+            pointing_credit=bool(
+                vocalization
+                and vocalization.machine
+                and vocalization.vocalizer.startswith("dicta/")
+            ),
             segments=segments,
             verses=verses,
             languages=languages,

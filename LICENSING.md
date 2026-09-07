@@ -19,7 +19,7 @@ building on targum is entitled to know about.
 - Install `targum` and use it for anything, commercial included.
 - Run the Hebrew annotator and you are using **DICTA**, CC BY 4.0, which permits
   commercial use and asks to be named. targum names it at the foot of every reader whose
-  words it read.
+  words it read — and, since targum-internal#148, whose modern Hebrew it pointed.
 - Nothing in targum is NonCommercial any more. Two things were: the forced aligner until
   2026-09-02, and Stanza's Hebrew models until later the same day — except for the
   sentence splitter, which the swap overlooked and which ran on them until 2026-09-03.
@@ -37,6 +37,7 @@ building on targum is entitled to know about.
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
+| tokenizers, huggingface_hub | Apache-2.0 | load the menaked's own character tokenizer and fetch its weights |
 | **stanza** | Apache-2.0 (code) | Hebrew is no longer read by it — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
@@ -113,6 +114,32 @@ Open Scriptures morphology, which had them all along: 97.9% and 99.9% of verbs, 
 verbs and the root for 99.1%, at 94.3% and 98.1% accuracy, where the spelling rules
 answered for 8.9%. Neither depends on anything NonCommercial and neither moves a lemma.
 
+### DICTA's menaked — CC BY 4.0, confirmed 2026-09-07
+
+Modern Hebrew is pointed by
+**[`dicta-il/dictabert-large-char-menaked`](https://huggingface.co/dicta-il/dictabert-large-char-menaked)**,
+whose card carries `license: cc-by-4.0` in its front matter and the Creative Commons
+Attribution 4.0 International text in its body. The weights are 1.2 GB, fetched from
+Hugging Face by `targum models fetch menaked` (or `fetch he`, with the annotator's) into
+the model directory, and never vendored: no copy of them is in this repository or in the
+wheel, and a machine without them points with Nakdimon and says so. This is the local run
+the card's licence permits; DICTA's hosted Nakdan is CC BY-NC-SA by its site terms and is
+never called (`vocalize/dicta.py`).
+
+Measured before it was let near a reader, against two held-out sets, on 2026-09-07
+(`scripts/measure_pointing.py`, `evals/ledger.jsonl`, stage `vocalize`): on DICTA's own
+Wikipedia test corpus — public domain per its README — 0.969 to Nakdimon's 0.960 on
+vowels per letter and 0.890 to 0.854 on exact words; on pointed prose and poetry from
+Project Ben-Yehuda, public domain, by twelve authors none of whom is in Nakdimon's
+training set, 0.906 to 0.893 and 0.700 to 0.677. Its card says it is not for biblical,
+rabbinic or premodern Hebrew, and the register gate in `vocalize.for_source` keeps those
+shelves on Nakdimon; scripture and the pinned editions reach neither model.
+
+The credit is at the foot of every reader whose pointing it made, beside the annotator's
+and keyed the same way: to the vocalizer that actually ran, and only where it pointed a
+word the edition had not. A reader pointed by Nakdimon, or by its edition, carries no
+DICTA credit for its vowels.
+
 ### Nakdimon's weights — MIT, confirmed 2026-09-02
 
 The diacritizer's model is `nakdimon/data/Nakdimon.onnx`, 21 MB inside the `nakdimon`
@@ -175,7 +202,8 @@ DICTA's terms permit commercial use and require attribution. The naming is at th
 every reader whose words DICTA read — beside the credit for whoever read the audio, and
 for the same reason: a credit in a file nobody opens is not a credit. It is keyed to the
 annotator that actually ran, so a reader built before the swap does not claim a credit it
-did not earn.
+did not earn. The vowel points have their own line on the same terms, keyed to the
+vocalizer that ran and shown only where it pointed something.
 
 A second DICTA model was tried and not adopted. `dicta-il/dictabert-char-spacefix`
 (licence field `cc-by-4.0` on its card, 2026-09-07) restores missing spaces, and

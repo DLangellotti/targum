@@ -911,11 +911,6 @@ class Build:
             return None
         self.notify("Adding vowel points…")
         path = self.resolved_out / "vocalization.json"
-        if not self.force:
-            existing = read_artifact(Vocalization, path)
-            if existing is not None and existing.document_hash == segmented.document_hash:
-                self.reused.append("nikkud")
-                return existing
 
         engine = self._vocalizer
         if keeps_its_own_pointing(self.source):
@@ -924,7 +919,24 @@ class Build:
             # megabytes to open for the privilege of being ignored.
             engine = None
         elif engine is None and vocalize_module.wants_pointing(segmented.segments):
-            engine = vocalize_module.build()
+            # By register, and by what this machine has: the menaked for modern Hebrew
+            # where its weights are on disk, Nakdimon otherwise. Chosen but not loaded —
+            # loading is the engine's own business and happens only if it runs.
+            engine = vocalize_module.for_source(self.source, notify=self.notify)
+        if not self.force:
+            # Same text, and pointed by the same vocalizer that would run now. The name
+            # is what lets a better diacritizer reach a text already built: a file that
+            # names another is redone, which costs no money since the model runs here.
+            # A rename is a scheduled operation, not a side effect of a deploy — see
+            # CLAUDE.md — because "redone" is every modern Hebrew text on the box.
+            existing = read_artifact(Vocalization, path)
+            if (
+                existing is not None
+                and existing.document_hash == segmented.document_hash
+                and existing.vocalizer == (engine.name if engine else vocalize_module.SOURCE_ONLY)
+            ):
+                self.reused.append("nikkud")
+                return existing
         key = self.cache.key(
             "vocalize",
             document=segmented.document_hash,

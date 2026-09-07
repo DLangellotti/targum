@@ -1004,6 +1004,8 @@ def test_a_name_is_never_a_word_that_cost() -> None:
                 row.extend([0, 1])
     said = run([], chapter=words, lemmas=lemmas, looked=[1], finish=[True])["finished"]["said"]
     assert "Looked up here" not in said
+
+
 # --- the switch between renderings (targum-internal#199) ------------------------
 
 #: Two renderings of two lines, as the builder ships them: a published English and

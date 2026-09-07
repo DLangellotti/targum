@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
+    from .vocalize import Vocalizer
 
 app = typer.Typer(
     add_completion=False,
@@ -795,7 +796,7 @@ def repair(
         read_artifact,
     )
     from .render import render as render_reader
-    from .vocalize import build as build_vocalizer
+    from .vocalize import for_source as vocalizer_for
     from .vocalize import vocalize_document, wants_pointing
 
     root = out or Path.cwd() / "targum-out"
@@ -889,7 +890,7 @@ def repair(
             vocalization = read_artifact(Vocalization, folder / "vocalization.json")
             if vocalization is not None:
                 if changed:
-                    engine = build_vocalizer() if wants_pointing(changed) else None
+                    engine = vocalizer_for(document.source) if wants_pointing(changed) else None
                     fresh = vocalize_document(patch, engine, source=document.source)
                     vocalization.segments.update(fresh.segments)
                     moved = {segment.id for segment in changed}
@@ -1011,6 +1012,7 @@ def rebuild_one(
     whole: bool = False,
     provider: GlossProvider | None = None,
     bought: list[int] | None = None,
+    vocalize: Callable[[Document], Vocalizer] | None = None,
 ) -> tuple[str, int] | tuple[None, str]:
     """Rewrite one reader from the artifacts beside it.
 
@@ -1024,7 +1026,9 @@ def rebuild_one(
     reader whose words were worked out by an older one has them worked out again
     before it is written. That is the only path by which a change to what a word is
     reaches a text already on the shelf: a build compares the names itself, but a
-    rebuild reads the annotation as it finds it.
+    rebuild reads the annotation as it finds it. `vocalize` is the same for the vowel
+    points, and runs first: a word's reading is worked out from its pointing, so a text
+    pointed again has its words worked out again whatever the annotator's name says.
     """
     from .models import (
         Annotation,
@@ -1069,10 +1073,28 @@ def rebuild_one(
     # rendered without them drops the migration for every reader who has not opened it
     # yet — and two rebuilds in an evening is what a deploy that failed halfway does.
     moves: dict[str, object] | None = moves_module.carried(folder) or None
+    repointed = False
+    vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+    if vocalization is not None and vocalize is not None and vocalization.machine:
+        # Only a text a model pointed: one pointed by its edition names `source` and is
+        # nobody's to redo. The engine is chosen by register and by what is on disk, so
+        # a box without the menaked's weights compares Nakdimon with Nakdimon and moves
+        # nothing.
+        engine = vocalize(document)
+        if engine.name != vocalization.vocalizer:
+            from .vocalize import vocalize_document
+
+            try:
+                fresh = vocalize_document(segmented, engine, source=document.source)
+            except TargumError as error:
+                console.print(f"[dim]{error.message} Kept the pointing it had.[/dim]")
+            else:
+                fresh.write(folder / "vocalization.json")
+                vocalization = fresh
+                repointed = True
     if annotation is not None and annotate is not None:
         annotator = annotate(folder, document)
-        if annotation.annotator != annotator.name:
-            vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+        if repointed or annotation.annotator != annotator.name:
             was = annotation
             annotation = annotator.annotate(segmented, vocalization)
             if was.document_hash == annotation.document_hash:
@@ -1163,7 +1185,10 @@ def rebuild(
         bool,
         typer.Option(
             "--words",
-            help="Work the words out again where a newer annotator would. Free: Stanza runs here.",
+            help=(
+                "Work the vowel points and the words out again where a newer diacritizer "
+                "or annotator would. Free: both run here."
+            ),
         ),
     ] = False,
     gloss: Annotated[
@@ -1184,14 +1209,30 @@ def rebuild(
     The words in a reader are what the annotator made of them on the day, and rewriting
     the page does not revisit that. `--words` does: a text whose dictionary forms were
     worked out by an older annotator has them worked out again, on this machine, before
-    the page is written.
+    the page is written — and its vowel points first, where a newer diacritizer would
+    point it, since the readings are worked out from the pointing.
     """
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
 
     annotate: Callable[[Path, Document], Annotator] | None = None
+    vocalize: Callable[[Document], Vocalizer] | None = None
     if words:
+        from .vocalize import for_source as vocalizer_for
+
+        # Said once for the run rather than once a text: a box without the menaked's
+        # weights would otherwise print the same sentence a hundred times.
+        said: set[str] = set()
+
+        def once(message: str) -> None:
+            if message not in said:
+                said.add(message)
+                console.print(f"[dim]{message}[/dim]")
+
+        def vocalize(document: Document) -> Vocalizer:
+            return vocalizer_for(document.source, notify=once)
+
         from .annotate import (
             Annotator,
             PhonikudPronouncer,
@@ -1282,6 +1323,7 @@ def rebuild(
             annotate=annotate,
             provider=provider,
             bought=bought,
+            vocalize=vocalize,
         )
         if title is None:
             skipped.append((folder.name, str(outcome)))
@@ -2385,12 +2427,15 @@ def weekly_sources() -> None:
 def models_list() -> None:
     """Show downloaded language models."""
     from .align import embedding
+    from .vocalize import dicta as menaked
 
     for name in embedding.downloaded_models():
         console.print(f"  {name}  [dim]{embedding.model_size(name) / 1_000_000:.0f} MB[/dim]")
+    if menaked.downloaded():
+        console.print(f"  {menaked.MODEL}  [dim]{menaked.size() / 1_000_000:.0f} MB[/dim]")
 
     languages = segment_module.downloaded_languages()
-    if not languages and not embedding.downloaded_models():
+    if not languages and not embedding.downloaded_models() and not menaked.downloaded():
         console.print("[dim]No language models downloaded yet.[/dim]")
         console.print("[dim]They download on first use, or run: targum models fetch he[/dim]")
         return
@@ -2405,9 +2450,13 @@ def models_fetch(
     language: Annotated[str, typer.Argument(help="A language tag, such as he or ru.")],
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
-    'scripture' for the hand-tagged Hebrew Bible, or 'gold' for the treebanks the
-    annotator is scored against."""
+    'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
+    their own, or 'gold' for the treebanks the annotator is scored against."""
     from .align import embedding
+
+    if language in {"menaked", "nikkud", "vowels", "pointing"}:
+        _fetch_menaked()
+        return
 
     if language in {"scripture", "tanakh", "oshb"}:
         from .annotate import oshb
@@ -2471,6 +2520,10 @@ def models_fetch(
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             fail(TargumError(f"Could not download {MODEL}.", str(error)))
         console.print(f"[green]Downloaded[/green] {MODEL}")
+        # And the vowel points, which are DICTA's too since targum-internal#148: a box
+        # asked to fetch Hebrew ahead of a job should not point its first modern text
+        # with Nakdimon because nobody said the second word.
+        _fetch_menaked()
         return
 
     # Both builds of the tokenizer, where the language has two: scripture is read with
@@ -2494,6 +2547,23 @@ def models_fetch(
     except TargumError as error:
         fail(error)
     console.print(f"[green]Downloaded[/green] {code}")
+
+
+def _fetch_menaked() -> None:
+    """DICTA's menaked, 1.2 GB, CC BY 4.0. Fetched here and never inside a build."""
+    from .vocalize import dicta as menaked
+
+    if menaked.downloaded():
+        console.print(f"[dim]{menaked.MODEL} is already downloaded.[/dim]")
+        return
+    try:
+        got = menaked.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+    except TargumError as error:
+        fail(error)
+    console.print(
+        f"[green]Downloaded[/green] {menaked.MODEL} · {got / 1_000_000_000:.1f} GB · "
+        f"{menaked.CREDIT} · {menaked.LICENCE}"
+    )
 
 
 @models_app.command("remove")
