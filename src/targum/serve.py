@@ -596,6 +596,8 @@ class Job:
     pages: int = 0
     doubtful: int = 0
     excerpt: list[str] = field(default_factory=list)
+    #: Whether the pictures were a messaging conversation, read as its messages.
+    conversation: bool = False
     reading: float = 0.0
 
     def state(self) -> dict[str, Any]:
@@ -635,8 +637,26 @@ class Job:
             # The pages card's facts: what was read, and how well.
             "pages": self.pages,
             "doubtful": self.doubtful,
+            "conversation": self.conversation,
             "excerpt": list(self.excerpt),
         }
+
+
+def sent_as(job: Job) -> str:
+    """What kind of thing a job's source is, for the note the model gets with a line
+    sent beside it: `pictures`, `pdf`, `recording`, `link` or `text`."""
+    from .ingest import picture as picture_module
+
+    source = str(job.source)
+    if picture_module.is_pictures(source):
+        return "pictures"
+    if source.lower().endswith(".pdf"):
+        return "pdf"
+    if job.audio:
+        return "recording"
+    if source.startswith(("http://", "https://")):
+        return "link"
+    return "text"
 
 
 def excerpt_of(lines: list[str], count: int = 4, width: int = 120) -> list[str]:
@@ -1670,6 +1690,7 @@ class Library:
         else:
             reads = vision.read_pages(paths, usage=usage, model=GLOSS_MODEL)
         job.doubtful = sum(read.doubtful for read in reads)
+        job.conversation = any(read.conversation for read in reads)
         job.excerpt = excerpt_of([line for read in reads for line in read.lines])
         return ""
 
@@ -3997,8 +4018,19 @@ class Handler(BaseHTTPRequestHandler):
             state = sent.state()
             brought = {
                 key: state[key]
-                for key in ("title", "pages", "segments", "excerpt", "stage", "blocked", "error")
+                for key in (
+                    "title",
+                    "pages",
+                    "doubtful",
+                    "segments",
+                    "excerpt",
+                    "stage",
+                    "blocked",
+                    "error",
+                    "conversation",
+                )
             }
+            brought["from"] = sent_as(sent)
         asked = self.chats.say(
             person, self._home(), chat_id, text, admin=admin, about=about, brought=brought
         )

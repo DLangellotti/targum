@@ -621,8 +621,7 @@ def test_a_hebrew_reply_is_read_as_a_text_and_its_words_reach_the_page(tmp_path:
 
     kept = next(turn for turn in store.chat_turns(asked.chat_id) if turn["n"] == asked.n)
     assert kept["words"] == payload, "kept on the reader's turn, for the page that comes back"
-    assert "saved lately" in client.requests[0]["system"][1]["text"]
-    assert "מצפה" in client.requests[0]["system"][1]["text"]
+    assert "met once, not yet known (1): מצפה" in client.requests[0]["system"][1]["text"]
 
 
 def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Path) -> None:
@@ -703,7 +702,7 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
         {"title": "מכתב", "pages": 1, "segments": 4, "excerpt": ["א", "ב"], "stage": "working"},
     )
     assert framed.startswith("The reader has just sent a text through the box")
-    assert "מכתב (1 pages, 4 sentences)" in framed
+    assert "It is called: מכתב (1 pages, 4 sentences)" in framed
     assert "Its first lines, as read: א / ב" in framed
     assert "being built now" in framed
     assert framed.endswith("Their line:\nhelp me learn it")
@@ -713,3 +712,23 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
         "?", None, {"title": "t", "stage": "blocked", "blocked": "Too long."}
     )
     assert "could not be built: Too long." in refused
+
+    # And what was sent is named as what it was: a screenshot is a picture, read.
+    shot = session_module.framed(
+        "help me understand this",
+        None,
+        {"title": "הודעה", "from": "pictures", "pages": 1, "doubtful": 2, "stage": "working"},
+    )
+    assert "sent a picture (a screenshot or a photograph), read into words" in shot
+    assert "2 lines could not be read clearly" in shot
+    assert "(1 pages" not in shot, "a picture is not counted in pages"
+    chat = session_module.framed(
+        "?", None, {"title": "t", "from": "pictures", "pages": 3, "conversation": True}
+    )
+    assert "a screenshot of a messaging conversation, read into its messages" in chat
+    assert "sent 3 pictures" in session_module.framed(
+        "?", None, {"title": "t", "from": "pictures", "pages": 3}
+    )
+    assert "sent a recording" in session_module.framed(
+        "?", None, {"title": "t", "from": "recording"}
+    )

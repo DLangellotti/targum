@@ -1557,21 +1557,6 @@ class Store:
         ).fetchone()
         return float(row["used"])
 
-    def recent_words(
-        self, person_id: int | None, language: str, since: int, limit: int = 12
-    ) -> list[str]:
-        """The lemmas this person marked most recently — met, learning or known — newest
-        first, names and numbers left out. `since` is in the milliseconds `at` is kept in."""
-        if person_id is None:
-            return []
-        rows = self.db.execute(
-            "SELECT lemma FROM word WHERE person = ? AND language = ? AND gone = 0"
-            " AND at >= ? AND status IN (1, 2, 3, 9) AND band NOT IN ('name', 'number')"
-            " ORDER BY at DESC LIMIT ?",
-            (person_id, language.split("-")[0].lower(), since, limit),
-        ).fetchall()
-        return [str(row["lemma"]) for row in rows if row["lemma"]]
-
     def recent_phrases(self, person_id: int | None, since: int, limit: int = 6) -> list[str]:
         """The phrases this person kept most recently, newest first."""
         if person_id is None:

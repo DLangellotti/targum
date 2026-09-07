@@ -69,11 +69,18 @@ ASSUMED_REPLY_WORDS = 80
 #: saved word wants eight to twelve more meetings, spread out, and a week is spread out.
 LATELY_MS = 7 * 24 * 3600 * 1000
 
-#: How many of those to carry, and how common a word has to be to count as one a modern
-#: conversation can carry back. Band 4 is Zipf 3.4 and up in `annotate/frequency.py`: a
-#: word a newspaper uses. A word saved in Judges that no newspaper uses stays in Judges.
-BRING_BACK = 12
+#: How many of the reader's words come back into one reply's list, by status — the
+#: whole ledger, a few at a time, not only what was saved this week (decided 2026-09-07:
+#: the conversation is where a word is met again when the reader is not reading). A
+#: word met once needs the most meetings and a nearly-known one the fewest, and a few
+#: known words from long ago stay alive. Rotated by turn, so a conversation moves
+#: through the ledger rather than repeating its first page.
+BRING_BACK = {1: 5, 2: 4, 3: 3}
+KNOWN_BACK = 3
 BRING_BACK_PHRASES = 6
+#: How common a word has to be to count as one a modern conversation can carry back.
+#: Band 4 is Zipf 3.4 and up in `annotate/frequency.py`: a word a newspaper uses. A word
+#: saved in Judges that no newspaper uses stays in Judges.
 MODERN_BAND = 4
 
 RECAST = "> "
@@ -100,10 +107,28 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   correction.
 - Write your own lines in Hebrew first, as a Hebrew speaker would say them to a
   friend: the idiom, the word order and the register of spoken Israeli Hebrew, and the
-  plain words. Do not think of an English sentence and translate it — no calques, no
-  "זה ישר" for "plainly", no English rhythm. The "{ENGLISH}" line under each of your
-  lines is the English for the Hebrew you wrote, and may read a little differently from
-  how you would have put it in English; that is right.
+  plain words. Do not think of an English sentence and translate it — no calques: not
+  "אָז נַגִּיד אֶת זֶה יָשִׁיר" for "let's say it straight", not "אֲנִי מֵבִיא מִילִים"
+  for "I bring words", not "הַצָּעָה לְטֶקְסְט" for "a suggestion for a text", not
+  "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf". If a sentence would only
+  make sense to someone who knows the English under it, it is not Hebrew yet. The
+  "{ENGLISH}" line under each of your lines is the English for the Hebrew you wrote,
+  and may read a little differently from how you would have put it in English; that is
+  right.
+- Punctuate like Hebrew, not like English prose. No em dashes between clauses — a
+  comma, a full stop or a new sentence instead; a hyphen only inside a compound
+  (אָלֶף־בֵּית). No colon lead-ins that announce what is coming: not "וְעוֹד דָּבָר:",
+  not "שִׂים לֵב:", not "בַּמִּסְפָּרִים שֶׁלְּךָ:", not "הָרִאשׁוֹן: … הַשֵּׁנִי: …",
+  not "וְעַכְשָׁיו אֵלֶיךָ:" — say the thing. Small numbers as words: שְׁנֵי הַיָּמִים,
+  not "2 הַיָּמִים". Use the right word, not the nearest one: the narration of a video is
+  הֶסְבֵּר, not הַסְבָּרָה.
+- No English inside a Hebrew line, not even in brackets: never "נִשְׁמֶרֶת (is saved)".
+  The English lives on the "{ENGLISH}" line and nowhere else. A word Israelis say in
+  English is written in Hebrew letters (פּוֹדְקָאסְט), and an English verb never gets
+  Hebrew clothes: לִלְחוֹץ עַל מִילָּה, never "לְקַלֵּק". The one exception is a title
+  that is in English, a video's name, which stands as it is.
+- Do not end every reply the same way. Ask a question when there is something to ask,
+  the way a person asks, and not "X, or Y?" every time; a reply may also simply end.
 - Natural first. Prefer the reader's known words and the common words listed below
   wherever a natural sentence allows, so that most of what you write is theirs already —
   but never bend a sentence to avoid a word: a stilted line inside the list is worse
@@ -112,9 +137,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   "{ENGLISH}" line like every other word — and use a word you brought in again a few
   lines later. That is how the conversation moves them forward: comprehensible, and one
   step at a time.
-- Keep it short: a few Hebrew sentences, and end with one question so the reader has
-  something to answer. When you offer texts, one Hebrew line per text with its English,
-  and the text's door under it.
+- Keep it short: a few Hebrew sentences, and give the reader something to answer.
+  When you offer texts, one Hebrew line per text with its English, and the text's door
+  under it.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -196,32 +221,98 @@ def known_words(
     return [lemma for _, lemma in known[:limit]]
 
 
+@dataclass(frozen=True)
+class Returning:
+    """The reader's own words coming back into a conversation, by where they stand."""
+
+    #: Status 1: met once and marked, not known yet.
+    new: list[str]
+    #: Status 2.
+    learning: list[str]
+    #: Status 3: nearly there.
+    nearly: list[str]
+    #: Known, and marked known longest ago — the ones a reader stops meeting.
+    known: list[str]
+    #: Phrases kept lately.
+    phrases: list[str]
+
+    def words(self) -> list[str]:
+        return self.new + self.learning + self.nearly + self.known
+
+    def __bool__(self) -> bool:
+        return bool(self.words() or self.phrases)
+
+
+NOTHING_RETURNING = Returning([], [], [], [], [])
+
+
+def rotate(pool: list[str], want: int, turn: int) -> list[str]:
+    """`want` of `pool`, starting `want` further along on each turn and wrapping, so
+    every turn's slice is different and a conversation walks the whole list."""
+    if not pool or want <= 0:
+        return []
+    want = min(want, len(pool))
+    start = (turn * want) % len(pool)
+    return [pool[(start + i) % len(pool)] for i in range(want)]
+
+
 def bring_back(
-    store: Store, person_id: int | None, language: str, now_ms: int | None = None
-) -> tuple[list[str], list[str]]:
-    """The words and phrases the reader saved lately, for the conversation to carry
-    back — the one thing the chat-first products never do, and the thing the research
-    says a saved word needs. Words are kept to the ones a modern conversation can
-    carry: a word saved in Judges returns only if a newspaper would use it.
+    store: Store,
+    person_id: int | None,
+    language: str,
+    now_ms: int | None = None,
+    turn: int = 0,
+) -> Returning:
+    """The reader's words, for the conversation to carry back — the one thing the
+    chat-first products never do, and the thing the research says a saved word needs.
+
+    From the whole ledger, by status: the words met once first, then the ones being
+    learnt, then the nearly known, each status a share of one reply's list and any
+    share a status cannot fill passed down the line; and a few known words marked known
+    longest ago, so that what was learnt stays met. Kept to the words a modern
+    conversation can carry: a word saved in Judges returns only if a newspaper would use
+    it. Phrases are the ones kept lately.
     """
     from ..annotate.frequency import FrequencyBands
 
-    since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
-    words = store.recent_words(person_id, language, since, limit=BRING_BACK * 3)
     bands = FrequencyBands()
-    if bands.supports(language):
-        words = [word for word in words if bands.band(word, language) <= MODERN_BAND]
-    return words[:BRING_BACK], store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES)
+    modern = bands.supports(language)
+    pools: dict[int, list[tuple[int, str]]] = {1: [], 2: [], 3: [], 9: []}
+    for lemma, status, band, at in store.words_with_bands(person_id, language):
+        if status not in pools or not lemma or band in NOT_VOCABULARY:
+            continue
+        if modern and bands.band(lemma, language) > MODERN_BAND:
+            continue
+        pools[status].append((at, lemma))
+    # The learning ones newest first, so a word saved yesterday is met tomorrow; the
+    # known ones oldest first, since a word ticked off last month is the one at risk.
+    learning = {s: [lemma for _, lemma in sorted(pools[s], reverse=True)] for s in (1, 2, 3)}
+    picked = {s: rotate(learning[s], BRING_BACK[s], turn) for s in (1, 2, 3)}
+    left = sum(BRING_BACK.values()) - sum(len(got) for got in picked.values())
+    for status in (1, 2, 3):
+        if left <= 0:
+            break
+        rest = [lemma for lemma in learning[status] if lemma not in picked[status]]
+        more = rotate(rest, left, turn)
+        picked[status] = picked[status] + more
+        left -= len(more)
+    since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
+    return Returning(
+        new=picked[1],
+        learning=picked[2],
+        nearly=picked[3],
+        known=rotate([lemma for _, lemma in sorted(pools[9])], KNOWN_BACK, turn),
+        phrases=store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES),
+    )
 
 
 def ledger_block(
     level: Level,
     known: list[str],
     common: list[str],
-    lately: list[str] | None = None,
-    phrases: list[str] | None = None,
+    returning: Returning | None = None,
 ) -> str:
-    """The per-reader block: the ledger, then the word lists, then what came back."""
+    """The per-reader block: the ledger, then the word lists, then what comes back."""
     parts = [describe(level)]
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
@@ -238,16 +329,39 @@ def ledger_block(
         )
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
-    if lately:
-        parts.append(
-            f"Words the reader saved lately ({len(lately)}): "
-            + " ".join(lately)
-            + ". Bring them back into your Hebrew where they fit naturally, and once in the "
-            "conversation ask the reader to use two of them. Never list them or name this "
-            "as an exercise."
+    back = returning or NOTHING_RETURNING
+    if back.words():
+        lines = ["The reader's own words to carry back into your Hebrew, by where they stand:"]
+        if back.new:
+            lines.append(
+                f"- met once, not yet known ({len(back.new)}): {' '.join(back.new)}. Use each "
+                "in a sentence whose meaning is clear from the rest of it; its English is on "
+                'the "= " line like any word.'
+            )
+        if back.learning:
+            lines.append(
+                f"- learning ({len(back.learning)}): {' '.join(back.learning)}. Use them "
+                "plainly, so they start to feel familiar."
+            )
+        if back.nearly:
+            lines.append(
+                f"- nearly known ({len(back.nearly)}): {' '.join(back.nearly)}. Use them "
+                "without fuss."
+            )
+        if back.known:
+            lines.append(
+                f"- known, from a while ago ({len(back.known)}): {' '.join(back.known)}. Let "
+                "them simply appear."
+            )
+        lines.append(
+            "Bring them back where they fit naturally, a few in a reply and never all of "
+            "them, and once in the conversation ask the reader to use two of the ones they "
+            "are learning. Never list them, never name this as an exercise, and never say a "
+            "word's status or that you are bringing anything back."
         )
-    if phrases:
-        parts.append(f"Phrases they kept lately ({len(phrases)}): " + " | ".join(phrases))
+        parts.append("\n".join(lines))
+    if back.phrases:
+        parts.append(f"Phrases they kept lately ({len(back.phrases)}): " + " | ".join(back.phrases))
     return "\n\n".join(parts)
 
 

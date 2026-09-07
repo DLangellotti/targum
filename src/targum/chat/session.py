@@ -259,24 +259,49 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
     return "\n".join(lines)
 
 
+def what_was_sent(brought: dict[str, Any]) -> str:
+    """The thing the reader sent, named as what it was — so the model, which was told
+    it had been given words, stops telling a reader who sent a screenshot that no
+    picture arrived (2026-09-07)."""
+    pages = int(brought.get("pages") or 0)
+    kind = str(brought.get("from") or "text")
+    if kind == "pictures":
+        if brought.get("conversation"):
+            return (
+                "a screenshot of a messaging conversation, read into its messages with "
+                "the names the app shows"
+            )
+        count = f"{pages} pictures" if pages > 1 else "a picture"
+        return f"{count} (a screenshot or a photograph), read into words before it reached you"
+    if kind == "pdf":
+        return "a PDF, its text read off its pages"
+    if kind == "recording":
+        return "a recording, to be written down"
+    if kind == "link":
+        return "a link"
+    return "a text"
+
+
 def brought_note(brought: dict[str, Any]) -> list[str]:
     """What the reader sent with their line, said to the model as a fact it can use:
-    the text's name, its size, its first lines, and whether it is already building —
-    so it never asks for a file it has been given (2026-09-07)."""
+    what it was, its name, its size, its first lines, and whether it is already
+    building — so it never asks for a file it has been given (2026-09-07)."""
     title = str(brought.get("title") or "a text")
     facts = []
-    if brought.get("pages"):
+    if brought.get("pages") and brought.get("from") not in ("pictures",):
         facts.append(f"{brought['pages']} pages")
     if brought.get("segments"):
         facts.append(f"{brought['segments']} sentences")
     lines = [
-        f"The reader has just sent a text through the box with this line: {title}"
-        + (f" ({', '.join(facts)})" if facts else "")
-        + "."
+        f"The reader has just sent {what_was_sent(brought)} through the box with this "
+        f"line. It is called: {title}" + (f" ({', '.join(facts)})" if facts else "") + "."
     ]
     excerpt = [str(line) for line in brought.get("excerpt") or [] if str(line).strip()]
     if excerpt:
         lines.append("Its first lines, as read: " + " / ".join(excerpt))
+    doubtful = int(brought.get("doubtful") or 0)
+    if doubtful:
+        lines.append(f"{doubtful} lines could not be read clearly and are marked in the text.")
     stage = str(brought.get("stage") or "")
     if stage in ("working", "done"):
         lines.append(
@@ -519,12 +544,13 @@ class Chats:
         contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
         known = hebrew_module.known_words(store, person_id, language)
         common = hebrew_module.common_words(language=language)
-        # What the reader saved lately comes back into a conversation in Hebrew, and
-        # only there: a question about a text is answered about the text.
-        lately, phrases = (
-            hebrew_module.bring_back(store, person_id, language) if contract else ([], [])
+        # The reader's own words come back into a conversation in Hebrew, and only
+        # there: a question about a text is answered about the text. By status, and a
+        # different slice of the ledger on every turn.
+        returning = (
+            hebrew_module.bring_back(store, person_id, language, turn=asked.n) if contract else None
         )
-        ledger = hebrew_module.ledger_block(level, known, common, lately, phrases)
+        ledger = hebrew_module.ledger_block(level, known, common, returning)
         if contract and self.exemplars:
             # A few sentences a Hebrew speaker wrote inside this reader's words, after
             # the breakpoint with the ledger: the idiom to write in, drawn afresh each
@@ -532,7 +558,7 @@ class Chats:
             picked = exemplars_module.pick(
                 self.exemplars,
                 set(known) | set(common),
-                lately,
+                returning.words() if returning else (),
                 seed=exemplars_module.turn_seed(asked.chat_id, asked.n),
             )
             if picked:
@@ -561,7 +587,12 @@ class Chats:
             if contract:
                 # The record forming: the reply's Hebrew read as a text is read, before
                 # the page is told the turn is done, so the words land with the lines.
-                self._record(asked, feed, language, set(known) | set(common) | set(lately))
+                self._record(
+                    asked,
+                    feed,
+                    language,
+                    set(known) | set(common) | set(returning.words() if returning else []),
+                )
             feed.put(
                 "done",
                 {

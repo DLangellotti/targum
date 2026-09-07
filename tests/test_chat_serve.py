@@ -451,13 +451,18 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     port, key, store, chats = chatting
     chats.library.jobs["j1"] = Job(
         id="j1",
-        source="x",
+        source=str(chats.library.home(None) / "shots"),
         title="הודעה מחברת הביטוח",
         pages=2,
         segments=9,
         excerpt=["שורה ראשונה", "שורה שנייה"],
         stage="working",
     )
+    # Two screenshots in a folder, which is how pictures chosen together arrive.
+    shots = chats.library.home(None) / "shots"
+    shots.mkdir(parents=True, exist_ok=True)
+    (shots / "a.png").write_bytes(b"png")
+    (shots / "b.png").write_bytes(b"png")
     chats.library.jobs["theirs"] = Job(id="theirs", source="y", title="secret", owner=7)
     status, asked, _ = call(
         port,
@@ -468,7 +473,8 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     assert status == 200
     turn = store.chat_turns(asked["chat"])[0]
     assert turn["said"] == "Open this and help me learn it.", "the page shows what was said"
-    assert "הודעה מחברת הביטוח (2 pages, 9 sentences)" in turn["content"]
+    assert "sent 2 pictures (a screenshot or a photograph), read into words" in turn["content"]
+    assert "It is called: הודעה מחברת הביטוח (9 sentences)" in turn["content"]
     assert "שורה ראשונה / שורה שנייה" in turn["content"]
     assert (
         "being built now" in turn["content"] and "do not need to send it again" in turn["content"]
