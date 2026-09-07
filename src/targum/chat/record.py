@@ -20,10 +20,10 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
-from ..annotate.base import NOT_VOCABULARY, Bands, Lemmatizer
+from ..annotate.base import NOT_VOCABULARY, Bands, Lemmatizer, in_script
 from ..annotate.frequency import FrequencyBands
 from ..models import Segment
-from ..vocalize.base import map_span, pointed_positions, strip_nikkud
+from ..vocalize.base import js_span, map_span, pointed_positions, strip_nikkud
 
 #: Which languages the record reads. One: the record is Hebrew on both sides.
 LANGUAGE = "he"
@@ -101,6 +101,13 @@ class Recorder:
             words: list[dict[str, Any]] = []
             for token in read.get(f"l{index}", []):
                 start, end = map_span(token.start, token.end, positions)
+                surface = line[start:end]
+                if not in_script(surface, language):
+                    # An emoji, a time, an English word inside the Hebrew: read past,
+                    # as the annotator reads past it (`annotate.base.in_script`).
+                    continue
+                # Shipped as the browser counts, since chat.js slices the line itself.
+                start, end = js_span(line, start, end)
                 vocabulary = token.pos not in NOT_VOCABULARY
                 if vocabulary and token.lemma not in bands:
                     bands[token.lemma] = self.bands.band(token.lemma, language) if rated else 0
@@ -110,7 +117,7 @@ class Recorder:
                     {
                         "start": start,
                         "end": end,
-                        "surface": line[start:end],
+                        "surface": surface,
                         "lemma": token.lemma,
                         "pos": token.pos or "",
                         "band": bands.get(token.lemma, 0) if vocabulary else 0,

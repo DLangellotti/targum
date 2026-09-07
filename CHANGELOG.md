@@ -459,6 +459,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   whose range has it; a chapter alone, or a verse no file holds, still takes the
   chapter's first file rather than nothing (targum-internal#142).
 
+### Fixed
+- A word is a word of its language. An English name, a clock time or an emoji inside a
+  Hebrew line came back a word: tappable, counted against "N of M known", and "Hannah"
+  filed in the ledger as extremely hard, from a community notice photographed off a
+  phone. A token with no letter of its block's script is now read past, in the reader
+  and in the conversation's record alike. This is the annotator's `languages/3`, so
+  every text on the shelf is re-annotated at the next rebuild — free of spend, not of
+  time (see CLAUDE.md on renames).
+- A word after an emoji is marked where the browser counts. Python counts a calendar
+  glyph as one character and JavaScript as two, so every span after one landed a unit
+  short: half of שחרית marked, the other half of the mark on the time beside it. Every
+  offset that ships to a page now goes through `js_span`.
+
 ## [0.2.0.0] - 2026-09-01
 
 ### Added

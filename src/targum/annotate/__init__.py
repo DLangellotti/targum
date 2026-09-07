@@ -18,6 +18,7 @@ from .base import (
     Lemmatizer,
     Pronouncer,
     highlight_levels,
+    in_script,
     method_label,
     unread,
 )
@@ -171,10 +172,18 @@ class Annotator:
             if segment.language_in(segmented.language) != segmented.language
         }
 
+        spoken = {
+            segment.id: segment.language_in(segmented.language) for segment in segmented.segments
+        }
+
         for segment_id, tokens in by_segment.items():
             positions = to_source.get(segment_id)
             marked: list[Token] = []
             for token in tokens:
+                if not in_script(token.surface, spoken.get(segment_id, segmented.language)):
+                    # An English name, a time, an emoji inside the Hebrew: read past,
+                    # the way the reader reads past it. See `in_script`.
+                    continue
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED

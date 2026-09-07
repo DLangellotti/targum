@@ -107,3 +107,16 @@ def test_the_share_outside_the_ledger_leaves_names_out() -> None:
 
 def test_nothing_to_read_reads_nothing() -> None:
     assert recorder().annotate([]) == []
+
+
+def test_a_word_after_an_emoji_is_placed_where_the_browser_counts() -> None:
+    """chat.js slices the line by these offsets, and JavaScript counts an emoji as two
+    units where Python counts one. Measured in Python, every word after a calendar
+    glyph landed one unit early."""
+    line = "📅 שחרית בשעה"
+    (words,) = recorder().annotate([line])
+    assert [w["surface"] for w in words] == ["שחרית", "בשעה"]
+    units = line.encode("utf-16-le")
+    for word in words:
+        cut = units[word["start"] * 2 : word["end"] * 2].decode("utf-16-le")
+        assert cut == word["surface"], (word, cut)

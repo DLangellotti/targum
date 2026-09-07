@@ -83,6 +83,23 @@ def map_span(start: int, end: int, index: list[int]) -> tuple[int, int]:
     return index[start], index[end]
 
 
+def js_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """The same span as the browser counts it.
+
+    Python counts characters; JavaScript counts UTF-16 units, and every character
+    outside the Basic Multilingual Plane — an emoji, mostly — is two of them. A page
+    marks its words by slicing a string in the browser, so a span measured here lands
+    one unit short for every emoji before it: a calendar glyph in a community notice
+    put the word mark on half of שחרית and the other half on the time beside it
+    (2026-09-07). Every offset that ships to a page goes through this.
+    """
+    return _js_units(text, start), _js_units(text, end)
+
+
+def _js_units(text: str, index: int) -> int:
+    return index + sum(1 for char in text[:index] if ord(char) > 0xFFFF)
+
+
 def has_nikkud(text: str) -> bool:
     return any(ord(char) in MARKS for char in text)
 

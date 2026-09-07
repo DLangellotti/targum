@@ -44,7 +44,7 @@ from ..models import (
     is_biblical,
 )
 from ..translate.prompts import language_name
-from ..vocalize import has_taamim, map_span, strip_nikkud, strip_taamim
+from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -1957,7 +1957,7 @@ def render(
                     if token.feats and token.feats not in grammar_at:
                         grammar_at[token.feats] = len(grammar)
                         grammar.append(token.feats)
-                    start, end = map_span(token.start, token.end, to_bare[sid])
+                    start, end = js_span(bare[sid], *map_span(token.start, token.end, to_bare[sid]))
                     rows.append(
                         [
                             start,
@@ -2205,7 +2205,14 @@ def render(
                                     {
                                         "words": {
                                             sid: [
-                                                [*map_span(int(cs), int(ce), to_bare[sid]), s, e]
+                                                [
+                                                    *js_span(
+                                                        bare[sid],
+                                                        *map_span(int(cs), int(ce), to_bare[sid]),
+                                                    ),
+                                                    s,
+                                                    e,
+                                                ]
                                                 for cs, ce, s, e in rows
                                             ]
                                             for sid, rows in spoken.words.items()
