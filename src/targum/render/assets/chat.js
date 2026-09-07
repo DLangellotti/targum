@@ -344,6 +344,30 @@
       });
     }
   }
+  // Pictures sent are seen in the thread as the reader's own turn: the pictures
+  // themselves, from the files still in hand, so a screenshot sent is a screenshot
+  // seen and not a filename (2026-09-07). Drawn from the browser's copy and kept
+  // nowhere — a conversation opened again shows the card the reading became. Any
+  // other file is named by its card, which is enough.
+  function sentTurn(chosen) {
+    var pictures = chosen.filter(function (one) {
+      return bringing.isPicture(one);
+    });
+    if (!pictures.length || typeof URL === "undefined" || !URL.createObjectURL) return null;
+    var li = turn("user", "");
+    var line = li.querySelector(".chat-line");
+    var sent = document.createElement("div");
+    sent.className = "chat-sent";
+    pictures.forEach(function (one) {
+      var img = document.createElement("img");
+      img.src = URL.createObjectURL(one);
+      img.alt = one.name;
+      sent.appendChild(img);
+    });
+    line.appendChild(sent);
+    return li;
+  }
+
   function brought(chosen, opening) {
     if (!bringing) return Promise.resolve();
     chosen = bringing.listed(chosen);
@@ -351,6 +375,7 @@
     busy = true;
     send.disabled = true;
     tell("");
+    sentTurn(chosen);
     var li = turn("assistant", "", "working");
     var line = li.querySelector(".chat-line");
     line.textContent = "Uploading…";

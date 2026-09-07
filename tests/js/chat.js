@@ -123,6 +123,8 @@ function fakeFile(spec) {
     _content: spec.content || "text",
   };
 }
+// A picture sent is drawn from the browser's own copy of the file.
+global.URL = { createObjectURL: (file) => "blob:" + file.name };
 global.FileReader = class {
   readAsDataURL(file) {
     this.result = "data:text/plain;base64," + Buffer.from(file._content).toString("base64");
@@ -217,6 +219,16 @@ function doors() {
   return out;
 }
 
+function pictured(node) {
+  const out = [];
+  const walk = (n) => {
+    if (n.tagName === "img") out.push(n.src);
+    (n.children || []).forEach(walk);
+  };
+  walk(node);
+  return out;
+}
+
 function drawn() {
   return (turns.children || []).map((li) => {
     const line = lineOf(li);
@@ -225,6 +237,7 @@ function drawn() {
       text: line ? line.textContent : "",
       links: line ? line.children.filter((c) => c.tagName === "a").map((a) => a.href) : [],
       hebrew: line ? line.children.filter((c) => c.attrs && c.attrs.lang === "he").length : 0,
+      pictures: pictured(li),
     };
   });
 }

@@ -243,6 +243,18 @@ body.chat > .chat-main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+/* --- what was sent --------------------------------------------------------- */
+
+/* The pictures a reader sent, in their own turn: small, side by side, a hairline
+   round each, the picture itself and never a filename standing in for it. */
+.chat-sent { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block: 0.25rem; }
+.chat-sent img {
+  max-height: 11rem;
+  max-width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+
 /* --- a door ---------------------------------------------------------------- */
 
 /* A path the model hands over is drawn as the one thing a path is for: opening the

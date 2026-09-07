@@ -258,24 +258,49 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
     return "\n".join(lines)
 
 
+def what_was_sent(brought: dict[str, Any]) -> str:
+    """The thing the reader sent, named as what it was — so the model, which was told
+    it had been given words, stops telling a reader who sent a screenshot that no
+    picture arrived (2026-09-07)."""
+    pages = int(brought.get("pages") or 0)
+    kind = str(brought.get("from") or "text")
+    if kind == "pictures":
+        if brought.get("conversation"):
+            return (
+                "a screenshot of a messaging conversation, read into its messages with "
+                "the names the app shows"
+            )
+        count = f"{pages} pictures" if pages > 1 else "a picture"
+        return f"{count} (a screenshot or a photograph), read into words before it reached you"
+    if kind == "pdf":
+        return "a PDF, its text read off its pages"
+    if kind == "recording":
+        return "a recording, to be written down"
+    if kind == "link":
+        return "a link"
+    return "a text"
+
+
 def brought_note(brought: dict[str, Any]) -> list[str]:
     """What the reader sent with their line, said to the model as a fact it can use:
-    the text's name, its size, its first lines, and whether it is already building —
-    so it never asks for a file it has been given (2026-09-07)."""
+    what it was, its name, its size, its first lines, and whether it is already
+    building — so it never asks for a file it has been given (2026-09-07)."""
     title = str(brought.get("title") or "a text")
     facts = []
-    if brought.get("pages"):
+    if brought.get("pages") and brought.get("from") not in ("pictures",):
         facts.append(f"{brought['pages']} pages")
     if brought.get("segments"):
         facts.append(f"{brought['segments']} sentences")
     lines = [
-        f"The reader has just sent a text through the box with this line: {title}"
-        + (f" ({', '.join(facts)})" if facts else "")
-        + "."
+        f"The reader has just sent {what_was_sent(brought)} through the box with this "
+        f"line. It is called: {title}" + (f" ({', '.join(facts)})" if facts else "") + "."
     ]
     excerpt = [str(line) for line in brought.get("excerpt") or [] if str(line).strip()]
     if excerpt:
         lines.append("Its first lines, as read: " + " / ".join(excerpt))
+    doubtful = int(brought.get("doubtful") or 0)
+    if doubtful:
+        lines.append(f"{doubtful} lines could not be read clearly and are marked in the text.")
     stage = str(brought.get("stage") or "")
     if stage in ("working", "done"):
         lines.append(

@@ -145,7 +145,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   come back into the conversation by where they stand — met once, learning, nearly
   known, and a few known ones marked known longest ago — from the whole ledger and not
   only the week's, a different slice each turn, so a saved word is met again when the
-  reader is not reading (2026-09-07). It is handed the reader's own known words
+  reader is not reading (2026-09-07). The chat also knows what the product around it can take
+  and how a reader gives it — the + beside the box, a screenshot of WhatsApp, a phone
+  photo, a PDF, a recording, a link — and that a picture is read into words before it
+  reaches it, after a reader who asked whether they could send a screenshot was told
+  twice that targum reads only words, sent it, and was told no picture had arrived. The
+  note with a sent file now says what was sent, and the pictures themselves are seen in
+  the thread as the reader's own turn. It is handed the reader's own known words
   from their ledger and, under them, the commonest words of the language at the first two
   bands, and asked to stay inside them with one new word a sentence; the contract is
   `chat/hebrew.py`, and whether a model can hold to a list is measured by

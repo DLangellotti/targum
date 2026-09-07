@@ -653,7 +653,7 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
         {"title": "מכתב", "pages": 1, "segments": 4, "excerpt": ["א", "ב"], "stage": "working"},
     )
     assert framed.startswith("The reader has just sent a text through the box")
-    assert "מכתב (1 pages, 4 sentences)" in framed
+    assert "It is called: מכתב (1 pages, 4 sentences)" in framed
     assert "Its first lines, as read: א / ב" in framed
     assert "being built now" in framed
     assert framed.endswith("Their line:\nhelp me learn it")
@@ -663,3 +663,23 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
         "?", None, {"title": "t", "stage": "blocked", "blocked": "Too long."}
     )
     assert "could not be built: Too long." in refused
+
+    # And what was sent is named as what it was: a screenshot is a picture, read.
+    shot = session_module.framed(
+        "help me understand this",
+        None,
+        {"title": "הודעה", "from": "pictures", "pages": 1, "doubtful": 2, "stage": "working"},
+    )
+    assert "sent a picture (a screenshot or a photograph), read into words" in shot
+    assert "2 lines could not be read clearly" in shot
+    assert "(1 pages" not in shot, "a picture is not counted in pages"
+    chat = session_module.framed(
+        "?", None, {"title": "t", "from": "pictures", "pages": 3, "conversation": True}
+    )
+    assert "a screenshot of a messaging conversation, read into its messages" in chat
+    assert "sent 3 pictures" in session_module.framed(
+        "?", None, {"title": "t", "from": "pictures", "pages": 3}
+    )
+    assert "sent a recording" in session_module.framed(
+        "?", None, {"title": "t", "from": "recording"}
+    )

@@ -83,3 +83,20 @@ def test_a_text_sent_with_a_line_is_never_asked_for_again() -> None:
 
     assert "never ask for it, for a link, or for its words again" in SYSTEM
     assert "You cannot open it yourself" in SYSTEM
+
+
+def test_the_prompt_knows_what_the_product_takes_and_that_it_reads_pictures() -> None:
+    """A reader asked, in Hebrew, whether they could send a screenshot of a WhatsApp
+    conversation and was told twice that targum reads only words — then sent it, had it
+    read, and was told no picture had arrived (2026-09-07). The model has to know what
+    the product around it can do, and how a reader does it."""
+    from targum.chat.prompts import SYSTEM
+
+    assert "What targum takes, and how the reader gives it" in SYSTEM
+    assert "The + beside the box" in SYSTEM and "press Send" in SYSTEM
+    assert "a screenshot of WhatsApp" in SYSTEM and "a phone" in SYSTEM
+    assert "You read pictures" in SYSTEM
+    assert "Never say you cannot read a picture" in SYSTEM
+    assert "never say the reader sent words when they sent a picture" in SYSTEM
+    assert "What targum does not take" in SYSTEM and "Spotify" in SYSTEM
+    assert "explain it from the lines you were given" in SYSTEM
