@@ -389,6 +389,12 @@ var targumReader = function () {
   // the snapshot is taken on open, above, before those functions are reached.
   var FOOT = "targum:foot";
   var FOOT_DAYS = 90;
+  // Every word this reader has ever opened a card for, by lemma, with how many times:
+  // the reader's own stall signal, shown back to them at the foot of a finished section
+  // (targum-internal#174). This browser's, never the account's — it is a count of taps,
+  // not a fact about a word — and a name or a number is never in it. Not
+  // `targum:looked:`, which is a store `vocab.js` retired and still sweeps on load.
+  var LOOKED = "targum:cards:" + language;
 
   // What you have decided about a word. Learning runs 1 to 3, from just met to nearly
   // there; known and ignored are ends rather than steps. A word you have never marked
@@ -807,6 +813,106 @@ var targumReader = function () {
     footWrite(foot);
   }
 
+  /* Which words cost the reader the most (targum-internal#174).
+   *
+   * The gloss tap is the whole explanation mechanism, and it only ever fires when the
+   * reader already knows they are stuck; nothing volunteers what went wrong. The review
+   * that appears after every chess game — you were fine until move 24 — is the
+   * strongest retention mechanism the game has, and it turns a loss into a lesson.
+   * The reader has the same data and never shows it back. So the foot of a finished
+   * section says which words were looked up in it and how often each had been looked up
+   * before, which words appeared here and were passed without a look-up having been
+   * looked up in an earlier text — the half that shows progress rather than debt — and
+   * offers the two or three most-repeated to the reader's list. One offer, not a quiz.
+   *
+   * What it never does: score the section, print a percentage, or scold. There is no
+   * oracle for "did you understand this sentence", and inventing one puts a lie in
+   * tabular numbers; counting look-ups is counting what is there. The sentence is
+   * "looked up six times", never "you still do not know this", and the hue is the
+   * ledger's, never clay.
+   */
+  function lookedRead() {
+    return read(LOOKED, "{}");
+  }
+
+  function noteLookUp(index) {
+    var lemma = lemmas[index];
+    if (!lemma || isNameAt(index)) return;
+    try {
+      var history = lookedRead();
+      var was = history[lemma] || {};
+      history[lemma] = { n: Number(was.n || 0) + 1, at: Date.now() };
+      targumKeep(LOOKED, JSON.stringify(history));
+      var foot = footRead();
+      var entry = foot[footKey()];
+      if (entry && !entry.moved) {
+        entry.looked = entry.looked || {};
+        entry.looked[lemma] = Number(entry.looked[lemma] || 0) + 1;
+        footWrite(foot);
+      }
+    } catch (e) {}
+  }
+
+  // Every token of this section carrying a lemma, once per lemma, names and numbers
+  // left out: the words that appeared here.
+  function eachLemmaHere(callback) {
+    var seen = {};
+    Object.keys(wordData).forEach(function (segment) {
+      (wordData[segment] || []).forEach(function (row) {
+        var index = row[4];
+        var lemma = lemmas[index];
+        if (!lemma || seen[lemma] || isName(row)) return;
+        seen[lemma] = true;
+        callback(lemma, index, row);
+      });
+    });
+  }
+
+  // Whether the word at this lemma index is a name or a number anywhere on the page.
+  // Read off the rows themselves: `eachLemmaHere` leaves names out, which is what it is
+  // for and makes it the wrong tool for this.
+  function isNameAt(index) {
+    var named = false;
+    Object.keys(wordData).forEach(function (segment) {
+      (wordData[segment] || []).forEach(function (row) {
+        if (row[4] === index && isName(row)) named = true;
+      });
+    });
+    return named;
+  }
+
+  // What this section cost, what it no longer costs, and what to offer. Counts only.
+  function footCost(entry) {
+    var history = lookedRead();
+    var here = entry.looked || {};
+    var cost = Object.keys(here)
+      .map(function (lemma) {
+        var total = Number((history[lemma] || {}).n || 0);
+        return { lemma: lemma, here: here[lemma], before: Math.max(0, total - here[lemma]) };
+      })
+      .sort(function (a, b) {
+        return b.before - a.before || b.here - a.here || (a.lemma < b.lemma ? -1 : 1);
+      });
+    var stopped = [];
+    eachLemmaHere(function (lemma) {
+      if (here[lemma] || !(history[lemma] && history[lemma].n)) return;
+      stopped.push({ lemma: lemma, before: Number(history[lemma].n) });
+    });
+    stopped.sort(function (a, b) {
+      return b.before - a.before || (a.lemma < b.lemma ? -1 : 1);
+    });
+    // Offered: the most-repeated of what cost, not already on the list. Two or three.
+    var offer = cost
+      .filter(function (item) {
+        return !vocab[item.lemma];
+      })
+      .slice(0, 3)
+      .map(function (item) {
+        return item.lemma;
+      });
+    return { cost: cost.slice(0, 8), stopped: stopped.slice(0, 8), offer: offer };
+  }
+
   // Worked out on the press, before the finish is written: the delta and the standing
   // for every count that moved since the section was opened, kept beside the snapshot
   // so the foot can say it again on the next visit. Taking the finish back drops it.
@@ -816,10 +922,12 @@ var targumReader = function () {
     if (!entry) return;
     if (!on) {
       delete entry.moved;
+      delete entry.cost;
       footWrite(foot);
       return;
     }
     var now = ledgerNow();
+    entry.cost = footCost(entry);
     var moved = [];
     if (now.known > entry.known) {
       moved.push({ hue: "leaf", delta: now.known - entry.known, of: "newly known", standing: now.known, all: "known" });
@@ -839,9 +947,79 @@ var targumReader = function () {
     footWrite(foot);
   }
 
+  function times(n) {
+    return n === 1 ? "once" : n === 2 ? "twice" : n + " times";
+  }
+
+  // The words, after the counts: what cost, what stopped costing, and the offer. Each
+  // word in the reading face, bold, and the sentence around it in the ledger's quiet
+  // tone. A reader who looked nothing up sees the half that shows progress, and a
+  // section with neither says neither.
+  function drawCost(into, cost) {
+    if (!cost) return;
+    function line(className, lead) {
+      var span = document.createElement("span");
+      span.className = "move " + className;
+      if (lead) span.appendChild(document.createTextNode(lead));
+      into.appendChild(span);
+      return span;
+    }
+    function name(span, lemma) {
+      var b = document.createElement("b");
+      b.setAttribute("lang", language);
+      b.textContent = lemma;
+      span.appendChild(b);
+    }
+    if (cost.cost && cost.cost.length) {
+      var costly = line("cost", "Looked up here: ");
+      cost.cost.forEach(function (item, n) {
+        if (n) costly.appendChild(document.createTextNode(" · "));
+        name(costly, item.lemma);
+        costly.appendChild(
+          document.createTextNode(
+            item.before ? ", looked up " + times(item.before) + " before" : ", the first time"
+          )
+        );
+      });
+    }
+    if (cost.stopped && cost.stopped.length) {
+      var eased = line("stopped", "Read here without a look-up, looked up before: ");
+      cost.stopped.forEach(function (item, n) {
+        if (n) eased.appendChild(document.createTextNode(" · "));
+        name(eased, item.lemma);
+      });
+    }
+    var offer = (cost.offer || []).filter(function (lemma) {
+      return !vocab[lemma];
+    });
+    if (offer.length) {
+      var asked = line("offer", "Keep on your list: ");
+      offer.forEach(function (lemma) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "offer";
+        button.setAttribute("lang", language);
+        button.textContent = lemma;
+        button.addEventListener("click", function () {
+          var index = lemmas.indexOf(lemma);
+          var band = "";
+          eachLemmaHere(function (found, at, row) {
+            if (found === lemma) band = bandOf(row);
+          });
+          if (index >= 0 && setStatus(index, lemma, band, LEARNING[0])) {
+            redraw();
+            renderFinished();
+          }
+        });
+        asked.appendChild(button);
+      });
+    }
+  }
+
   function drawMoved(into) {
     var entry = footRead()[footKey()];
     var moved = entry && entry.moved;
+    if (entry && entry.cost) drawCost(into, entry.cost);
     if (!moved || !moved.length) return;
     moved.forEach(function (item) {
       var line = document.createElement("span");
@@ -2965,6 +3143,9 @@ var targumReader = function () {
     var index = parseInt(word.getAttribute("data-lemma"), 10);
     var lemma = lemmas[index];
     if (!lemma) return;
+    // A card opened is a look-up, whether a tap or Enter asked for it: the reader wanted
+    // to know what the word was, and that is the whole of the signal the foot reports.
+    noteLookUp(index);
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
@@ -6593,6 +6774,9 @@ var targumReader = function () {
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
+    // A card opened on a word, for tests with no card to open: what the foot of a
+    // finished section counts as a look-up (targum-internal#174).
+    looked: noteLookUp,
     // What the ledger would count from what is stored, by the rule that never adds an
     // old whole-document record to the sections it did not record.
     finishedCount: finishedCount,

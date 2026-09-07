@@ -1951,6 +1951,32 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .finished.ledger .move.leaf b { color: var(--leaf-bright); }
 .finished.ledger .move.iris b { color: var(--iris-bright); }
 .finished.ledger .move.sun b { color: var(--sun); }
+/* The words (targum-internal#174): what was looked up here and how often before, what
+   was read here without a look-up having been looked up before, and the two or three
+   offered to the list. Each word in the reading face and bold, the sentence around it
+   quiet; never clay, never a percentage — counting look-ups is counting what is there,
+   and the tone is "looked up six times", not a verdict. The offer is a press, drawn as
+   the Undo beside it is: paper on ink, an outline, nothing lit. */
+.finished.is-done .move.cost,
+.finished.is-done .move.stopped,
+.finished.is-done .move.offer { margin-block-start: 0.5rem; line-height: 1.6; }
+.finished.is-done .move b[lang] { font-weight: 600; font-size: 1.0625rem; }
+.finished.is-done .move.offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.finished.is-done button.offer {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--page-max) 30%, transparent);
+  border-radius: 4px;
+  background: none;
+  color: var(--page-max);
+  font: inherit;
+  font-weight: 600;
+  box-shadow: none;
+}
+.finished.is-done button.offer:hover { border-color: var(--page-max); }
+@media (hover: none) and (pointer: coarse) {
+  /* §8: a control a thumb presses answers a tap over 44px. Done, Undo and the offer. */
+  .finished button { min-height: 44px; }
+}
 .finished.is-done button.undo {
   color: var(--page-max);
   border-color: color-mix(in srgb, var(--page-max) 30%, transparent);

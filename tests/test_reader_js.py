@@ -932,3 +932,75 @@ def test_taking_the_finish_back_takes_the_movement_with_it() -> None:
         finish=[True, False],
     )["finished"]
     assert back["said"] == "" and back["button"] == "Done"
+
+
+# --- which words cost the most ---------------------------------------------------------
+#
+# targum-internal#174. The gloss tap only fires when the reader already knows they are
+# stuck, and nothing volunteers what went wrong. The foot says which words were looked
+# up here and how often before, which were read here without a look-up having been
+# looked up before, and offers the most-repeated to the list. Counts, never a verdict.
+
+
+def test_the_foot_says_which_words_were_looked_up_and_how_often_before() -> None:
+    words, lemmas = chapter(["a", "b", "c"])
+    said = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        stored={"targum:cards:he": json.dumps({"a": {"n": 5, "at": 1}})},
+        looked=[0, 1, 1],
+        finish=[True],
+    )["finished"]["said"]
+    assert "Looked up here: " in said
+    assert "a, looked up 5 times before" in said, "counted across everything read before"
+    assert "b, the first time" in said, "twice here, never before: still the first time"
+    assert said.index("a, looked") < said.index("b, the"), "the most-repeated first"
+    assert "c" not in said.split("Looked up here: ")[1].split("Keep")[0].replace("c", "")
+
+
+def test_a_word_read_without_a_look_up_that_once_needed_one_is_the_progress_half() -> None:
+    words, lemmas = chapter(["a", "b"])
+    said = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        stored={"targum:cards:he": json.dumps({"b": {"n": 3, "at": 1}, "z": {"n": 9, "at": 1}})},
+        finish=[True],
+    )["finished"]["said"]
+    assert "Read here without a look-up, looked up before: b" in said
+    assert "Looked up here" not in said, "nothing was looked up, so that half is not said"
+    assert "z" not in said, "a word that does not appear here is not progress here"
+    assert "%" not in said and "score" not in said.lower()
+
+
+def test_the_most_repeated_words_are_offered_to_the_list_and_kept_ones_are_not() -> None:
+    words, lemmas = chapter(["a", "b", "c", "d"])
+    said = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={"c": {"status": 2, "surface": "c", "at": 1}},
+        stored={
+            "targum:cards:he": json.dumps(
+                {"a": {"n": 6, "at": 1}, "b": {"n": 2, "at": 1}, "c": {"n": 8, "at": 1}}
+            )
+        },
+        looked=[0, 1, 2, 3],
+        finish=[True],
+    )["finished"]["said"]
+    offered = said.split("Keep on your list: ")[1]
+    assert offered.startswith("ab"), "the most looked-up first, and only words not yet kept"
+    assert "c" not in offered, "already on the list, so not offered"
+    assert "d" in offered, "a first look-up can still be offered"
+
+
+def test_a_name_is_never_a_word_that_cost() -> None:
+    words, lemmas = chapter(["a", "Tom"])
+    # A name, marked the way the annotator marks one: the seventh column says so.
+    for rows in words.values():
+        for row in rows:
+            if lemmas[row[4]] == "Tom":
+                row.extend([0, 1])
+    said = run([], chapter=words, lemmas=lemmas, looked=[1], finish=[True])["finished"]["said"]
+    assert "Looked up here" not in said

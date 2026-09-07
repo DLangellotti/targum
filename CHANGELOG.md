@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- At the foot of a finished section, which words cost the reader the most
+  (targum-internal#174). Every card opened on a word is counted, by lemma, in the
+  browser (`targum:cards:<language>`), and the foot says which words were looked up
+  in this section and how often each had been looked up before — "looked up twice
+  before", "the first time" — which words were read here without a look-up having
+  been looked up in an earlier text, the half that shows progress rather than debt,
+  and offers the two or three most-repeated to the reader's list, one press each. No
+  score, no percentage, no red, nowhere: there is no oracle for "did you understand
+  this sentence", and counting look-ups is counting what is there. Names and numbers
+  are never counted.
 - The ledger's increment is delivered, not visited (targum-internal#175). The foot of a
   finished section says what moved while it was read — the delta, then the standing it
   moved to: "3 newly known · 412 known", "day 12 reading" — for the counts that moved

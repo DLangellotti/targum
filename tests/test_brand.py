@@ -436,6 +436,9 @@ def test_the_streak_is_the_longest_one_and_the_foot_moves_nothing() -> None:
             assert "animation" not in body and "transition" not in body, selector.strip()
 
     reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    foot = reader[reader.index("function footMoved") : reader.index("function renderFinished")]
+    foot = reader[reader.index("function lookedRead") : reader.index("function renderFinished")]
     for currency in ("score", "point", "level", "xp"):
         assert currency not in foot.lower(), f"the foot invents a currency: {currency!r}"
+    # And the words that cost (targum-internal#174): no percentage, no grade, no clay.
+    for verdict in ("%", "accuracy", "grade", "clay"):
+        assert verdict not in foot.lower(), f"the foot passes a verdict: {verdict!r}"
