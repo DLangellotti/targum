@@ -849,3 +849,86 @@ def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
     """`::` is how Anki nests decks, and a title with it in would file the text two
     levels down."""
     assert deck(WORD, name="Genesis::1")[3] == "#deck:targum::Genesis:1"
+
+
+# --- what moved, delivered rather than visited ----------------------------------------
+#
+# targum-internal#175. /progress is a destination a reader has to choose to visit; a
+# rating put in front of you at the end of every game is not. The foot of a finished
+# section says what moved while it was read — the delta, then the standing — and only
+# what moved.
+
+
+def _days(*ago: int) -> dict[str, int]:
+    from datetime import date, timedelta
+
+    return {(date.today() - timedelta(days=n)).isoformat(): 1 for n in ago}
+
+
+def test_the_foot_says_what_moved_while_the_section_was_read() -> None:
+    words, lemmas = chapter(["a", "b"])
+    done = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        levels=[{"word": "a", "status": 9}],
+        finish=[True],
+    )["finished"]
+    said = done["said"]
+    assert said.startswith("You finished a targum."), "the finish is still said first"
+    assert "1 newly known · 1 known" in said, "the delta, then the standing"
+    assert "1 newly saved · 1 saved" in said
+    assert "day 1 reading" in said, "opened on a new reading day, so the day moved"
+    assert "running" not in said, "a run of one day is not a run"
+
+
+def test_a_section_where_nothing_moved_says_the_finish_and_no_zeroes() -> None:
+    words, lemmas = chapter(["a"])
+    done = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={"x": {"status": 9, "surface": "x", "at": 1}},
+        stored={"targum:days": json.dumps(_days(0))},
+        finish=[True],
+    )["finished"]
+    said = done["said"]
+    assert said.startswith("You finished a targum.")
+    for word in ("newly", "reading", "running", "0 "):
+        assert word not in said, f"{word!r} is a zero, and a zero is not said"
+
+
+def test_the_longest_run_is_announced_on_the_day_it_rises_and_on_no_other() -> None:
+    words, lemmas = chapter(["a"])
+    # Read yesterday and the day before; today makes three in a row for the first time.
+    risen = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        stored={"targum:days": json.dumps(_days(1, 2))},
+        finish=[True],
+    )["finished"]["said"]
+    assert "3 days running · your longest" in risen
+    assert "day 3 reading" in risen
+    # Read three days ago and the day before that; today starts a run of one, and the
+    # longest stays two, so nothing about a run is said.
+    quiet = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        stored={"targum:days": json.dumps(_days(3, 4))},
+        finish=[True],
+    )["finished"]["said"]
+    assert "running" not in quiet and "day 3 reading" in quiet
+
+
+def test_taking_the_finish_back_takes_the_movement_with_it() -> None:
+    words, lemmas = chapter(["a"])
+    back = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        levels=[{"word": "a", "status": 9}],
+        finish=[True, False],
+    )["finished"]
+    assert back["said"] == "" and back["button"] == "Done"

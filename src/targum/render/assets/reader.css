@@ -1936,6 +1936,21 @@ body.has-player .next-up { margin-block-end: 9rem; }
 }
 /* `.ledger` names the inverted block — the one surface the bright set is legal on. */
 .finished.ledger .tally b { color: var(--leaf-bright); font-size: 1.5rem; font-weight: 600; }
+/* What moved while this section was read (targum-internal#175): one line per count that
+   did, the delta then the standing, in the ledger's own treatment — real counts in the
+   reading face, tabular, one functional hue per line and paper-white where none is
+   earned. In the flow, under the tally, nothing to dismiss, and nothing moves. */
+.finished.is-done .move {
+  display: block;
+  margin-block-start: 0.15rem;
+  color: color-mix(in srgb, var(--page-max) 72%, transparent);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+.finished.is-done .move b { color: var(--page-max); font-weight: 600; }
+.finished.ledger .move.leaf b { color: var(--leaf-bright); }
+.finished.ledger .move.iris b { color: var(--iris-bright); }
+.finished.ledger .move.sun b { color: var(--sun); }
 .finished.is-done button.undo {
   color: var(--page-max);
   border-color: color-mix(in srgb, var(--page-max) 30%, transparent);

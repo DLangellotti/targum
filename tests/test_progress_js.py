@@ -401,6 +401,8 @@ def test_every_figure_is_said_once_on_the_page() -> None:
         "phrases saved",
         "targums finished",
         "day reading",
+        # The longest run of days, and never the current one (targum-internal#175).
+        "day running, your longest",
     ], "in the order somebody would say them"
 
 
@@ -409,7 +411,7 @@ def test_a_figure_carries_its_name_and_nothing_else() -> None:
     is however many words happen to be part-way up the ladder, so it fell when a reader
     saved a new word and rose when they gave up on one."""
     drawn = page(marked(known=9, learning=1))
-    assert [box["delta"] for box in drawn["tiles"]] == [""] * 6
+    assert [box["delta"] for box in drawn["tiles"]] == [""] * 7
 
 
 # --- a name is not a word ------------------------------------------------------
@@ -571,3 +573,30 @@ def test_the_shading_is_scaled_to_the_window_not_to_all_time() -> None:
     assert drawn["days"]["shades"] == [4], (
         "two words is the busiest day on screen, so it is the top shade"
     )
+
+
+def test_the_longest_run_of_days_is_counted_and_the_current_one_never() -> None:
+    """targum-internal#175, decided 2026-09-03 and recorded in design.md §12: the
+    longest run can be tied or beaten and never lost, which is the property every other
+    count in the ledger has; the current one is the count that makes people quit in the
+    week they break it, and it is refused rather than unbuilt."""
+    drawn = draw(
+        {
+            "targum:vocab:he": vocab(known=1),
+            "targum:docs": {},
+            "targum:opened": {},
+            "targum:days": {
+                "2026-08-01": 1,
+                "2026-08-02": 1,
+                "2026-08-03": 1,
+                "2026-08-10": 1,
+                "2026-08-11": 1,
+            },
+        }
+    )
+    assert drawn["counts"]["days running, your longest"] == 3
+    assert drawn["counts"]["days reading"] == 5, "the days themselves are still all counted"
+    assert not [label for label in drawn["counts"] if "current" in label or "in a row" in label]
+
+    one = draw({"targum:vocab:he": vocab(known=1), "targum:days": {"2026-08-01": 1}})
+    assert one["counts"]["day running, your longest"] == 1, "singular, like the rest"

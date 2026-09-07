@@ -532,6 +532,37 @@
     return Object.keys(read("targum:days", "{}")).sort();
   }
 
+  /* The longest run of consecutive reading days there has ever been.
+   *
+   * The longest, and never the current one — decided 2026-09-03 (targum-internal#175)
+   * and recorded in design.md §12. The pull of a current streak comes from the fact that
+   * it can be destroyed, and that is the mechanism that makes people quit for good in the
+   * week they break a long one. A longest run has none of it: it can be tied or beaten,
+   * never lost, which is the property the whole ledger is built on. So there is no
+   * function here that says how many days in a row it has been, and none that says how
+   * long since the last one, and a future reader of this file should take the absence as
+   * the decision rather than an oversight.
+   *
+   * Days are local dates, `YYYY-MM-DD`, as the reader writes them; two are consecutive
+   * when they are one calendar day apart, read as UTC so a clock change cannot make a
+   * day 23 hours long.
+   */
+  function longest(list) {
+    var sorted = (list || days()).slice().sort();
+    var best = 0;
+    var run = 0;
+    var previous = null;
+    sorted.forEach(function (day) {
+      var parts = String(day).split("-").map(Number);
+      if (parts.length !== 3 || parts.some(isNaN)) return;
+      var stamp = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+      run = previous !== null && stamp - previous === DAY ? run + 1 : 1;
+      previous = stamp;
+      if (run > best) best = run;
+    });
+    return best;
+  }
+
   /* How many of these are finished with. Learn says it at the top of the page and the
      ledger counts it too, and the two must never be able to disagree. */
   function known(words) {
@@ -671,6 +702,7 @@
     totals: totals,
     collect: collect,
     days: days,
+    longest: longest,
     known: known,
     vocabulary: vocabulary,
     read: read,

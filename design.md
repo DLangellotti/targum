@@ -297,8 +297,36 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Seventeen places. Each was a deliberate decision with a date, kept here so nobody
+Eighteen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
+
+
+### The streak is the longest one, and the current one is refused — 2026-09-03
+
+§4 gives `--sun` to "streak milestones, the daily spark", and #34 specified two streaks,
+current and longest, when it built the day-activity record. Only the longest is built
+(targum-internal#175, built 2026-09-07), and the current one is not unbuilt but refused.
+
+The pull of a current streak comes from the fact that it can be destroyed. That is loss
+aversion, the mechanism that makes people play chess at three in the morning — and the
+same mechanism that makes them quit for good in the week they break a long one. For a
+reading habit measured in years rather than sessions, that trade is bad. A longest run
+has none of it: it can be tied or beaten, never lost. It is a count that only rises,
+which is the property the whole ledger is built on, so a reader who disappears for a
+month comes back to a record intact rather than to a ruin.
+
+So `charts.js` has `longest()` and no function for the run in progress or the gap since
+the last reading day; /progress shows the longest quietly beside the other counts; and
+it is announced only in the delivered increment at the foot of a finished section, on the
+day it rises and on no other, because a longest run never changes except on the day it is
+good news. §6 still governs the day chart around it: a missed day is quiet, in the
+resting colour, never red. `test_brand.py` pins the absence.
+
+The same entry records the delivery itself: the ledger's increment is put at the foot of a
+finished section — the delta, then the standing, for the counts that moved and no others,
+in the ledger's treatment, in the flow, with nothing to dismiss and nothing in motion —
+because a rating put in front of a reader unbidden is the half of the mechanism that
+works, and /progress is a destination.
 
 
 ### A picture is read before it is priced — 2026-09-07

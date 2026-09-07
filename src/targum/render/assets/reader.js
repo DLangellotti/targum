@@ -383,6 +383,12 @@ var targumReader = function () {
   var PICKED = "targum:picked:" + documentId;
   var DOCS = "targum:docs";
   var MIGRATED = "targum:migrated";
+  // Where the ledger stood when a section was first opened, by document and section,
+  // so the foot can say what moved when it is finished (targum-internal#175; the
+  // functions are beside `renderFinished`). Named here with the other stores because
+  // the snapshot is taken on open, above, before those functions are reached.
+  var FOOT = "targum:foot";
+  var FOOT_DAYS = 90;
 
   // What you have decided about a word. Learning runs 1 to 3, from just met to nearly
   // there; known and ignored are ends rather than steps. A word you have never marked
@@ -430,6 +436,10 @@ var targumReader = function () {
       "-" +
       String(now.getDate()).padStart(2, "0");
     var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
+    // Where the ledger stood when this section was first opened, taken before today is
+    // written into it, so that a section opened on a new reading day counts the day as
+    // one of the things that moved (targum-internal#175; `footOpen` below).
+    footOpen(days);
     if (!days[today]) {
       days[today] = 1;
       targumKeep("targum:days", JSON.stringify(days));
@@ -628,6 +638,9 @@ var targumReader = function () {
   }
 
   function setFinished(on) {
+    // What moved while this section was read, worked out before the finish is written
+    // so the finish itself is not among the movements (targum-internal#175).
+    footMoved(on);
     var all = read(DOCS, "{}");
     var record = all[documentId] || {};
     // Said every time, not only on a fresh record. A record can be born nameless —
@@ -725,6 +738,136 @@ var targumReader = function () {
     return n + (["th", "st", "nd", "rd"][n % 10] || "th");
   }
 
+  /* What moved, delivered rather than visited (targum-internal#175).
+   *
+   * /progress holds the ledger and is right, and it is a destination a reader has to
+   * choose to visit. A chess rating is not: it is put in front of you at the end of
+   * every game, unbidden, and that half of the mechanism is the half that does the work.
+   * So the foot of a finished section says what moved while it was being read — the
+   * delta, then the standing it moved to — and says nothing about a count that did not
+   * move: a row of zeroes is a dashboard, and a delta with no total has no weight.
+   *
+   * Where the ledger stood when this section was first opened is kept under
+   * `targum:foot`, by document and section, and read back on Done. It is a bookmark
+   * into the ledger rather than a fact about the reader, so it stays in this browser
+   * and never goes to the account; a section opened before it existed simply says the
+   * finish and not the movement. Nothing here is a score, a point or a level: every
+   * figure is a count of a real thing the reader did, in the reading face, and the
+   * streak it can mention is the longest there has ever been, on the day it rises and
+   * on no other day — the current one is refused on purpose (design.md §12,
+   * 2026-09-03), because a count that can be lost is the thing that makes people quit.
+   */
+  function footKey() {
+    return documentId + ":" + sectionId;
+  }
+
+  function footRead() {
+    return read(FOOT, "{}");
+  }
+
+  function footWrite(foot) {
+    try {
+      targumKeep(FOOT, JSON.stringify(foot));
+    } catch (e) {}
+  }
+
+  // The ledger now, in the counts the foot can report. The same rules `charts.js` counts
+  // by: an ignored word is not a saved one, and a name or a number is not vocabulary.
+  function ledgerNow(days) {
+    var known = 0;
+    var saved = 0;
+    var words = read(VOCAB, "{}");
+    Object.keys(words).forEach(function (lemma) {
+      var word = words[lemma] || {};
+      if (word.status === IGNORED || word.band === "name" || word.band === "number") return;
+      saved += 1;
+      if (word.status === KNOWN) known += 1;
+    });
+    var list = Object.keys(days || read("targum:days", "{}"));
+    return {
+      known: known,
+      saved: saved,
+      finished: finishedCount(),
+      days: list.length,
+      longest: window.TargumCharts ? window.TargumCharts.longest(list) : 0,
+    };
+  }
+
+  function footOpen(days) {
+    var foot = footRead();
+    var cutoff = Date.now() - FOOT_DAYS * 86400000;
+    Object.keys(foot).forEach(function (key) {
+      if (Number((foot[key] || {}).at || 0) < cutoff) delete foot[key];
+    });
+    if (!foot[footKey()] && !finishedAt()) {
+      var stood = ledgerNow(days);
+      stood.at = Date.now();
+      foot[footKey()] = stood;
+    }
+    footWrite(foot);
+  }
+
+  // Worked out on the press, before the finish is written: the delta and the standing
+  // for every count that moved since the section was opened, kept beside the snapshot
+  // so the foot can say it again on the next visit. Taking the finish back drops it.
+  function footMoved(on) {
+    var foot = footRead();
+    var entry = foot[footKey()];
+    if (!entry) return;
+    if (!on) {
+      delete entry.moved;
+      footWrite(foot);
+      return;
+    }
+    var now = ledgerNow();
+    var moved = [];
+    if (now.known > entry.known) {
+      moved.push({ hue: "leaf", delta: now.known - entry.known, of: "newly known", standing: now.known, all: "known" });
+    }
+    if (now.saved > entry.saved) {
+      moved.push({ hue: "iris", delta: now.saved - entry.saved, of: "newly saved", standing: now.saved, all: "saved" });
+    }
+    // "day 12 reading" is the delta and the standing in one phrase: the day is the one
+    // that moved, and twelve is what it moved to.
+    if (now.days > entry.days) moved.push({ hue: "", day: now.days });
+    // A run of one is not a run. The longest run is said on the day it rises past the
+    // last one it was said at, and never as a standing: the standing lives on /progress.
+    if (now.longest > entry.longest && now.longest >= 2) {
+      moved.push({ hue: "sun", run: now.longest });
+    }
+    entry.moved = moved;
+    footWrite(foot);
+  }
+
+  function drawMoved(into) {
+    var entry = footRead()[footKey()];
+    var moved = entry && entry.moved;
+    if (!moved || !moved.length) return;
+    moved.forEach(function (item) {
+      var line = document.createElement("span");
+      line.className = "move" + (item.hue ? " " + item.hue : "");
+      function figure(n) {
+        var b = document.createElement("b");
+        b.textContent = String(n);
+        line.appendChild(b);
+      }
+      if (item.day) {
+        line.appendChild(document.createTextNode("day "));
+        figure(item.day);
+        line.appendChild(document.createTextNode(" reading"));
+      } else if (item.run) {
+        figure(item.run);
+        line.appendChild(document.createTextNode(" days running · your longest"));
+      } else {
+        figure(item.delta);
+        line.appendChild(document.createTextNode(" " + item.of + " · "));
+        figure(item.standing);
+        line.appendChild(document.createTextNode(" " + item.all));
+      }
+      into.appendChild(line);
+    });
+  }
+
   // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block
   // that earned it — and brags the brand's way: a real count, in serif tabular figures,
   // leaf-bright on ink. Type, not motion.
@@ -753,6 +896,7 @@ var targumReader = function () {
       tally.appendChild(figure);
       tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
       finishedSaid.appendChild(tally);
+      drawMoved(finishedSaid);
       finishedSaid.hidden = false;
       finishedMark.textContent = "Undo";
       finishedMark.classList.add("undo");

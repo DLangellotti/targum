@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The ledger's increment is delivered, not visited (targum-internal#175). The foot of a
+  finished section says what moved while it was read — the delta, then the standing it
+  moved to: "3 newly known · 412 known", "day 12 reading" — for the counts that moved
+  and no others, in the ledger's own treatment, under the tally, in the flow, with
+  nothing to dismiss and nothing in motion. Where the ledger stood when the section was
+  first opened is kept in the browser (`targum:foot`) and read back on Done. And the
+  streak: the longest run of reading days is counted once, in `charts.js`, shown on
+  /progress beside the other counts, and announced at the foot on the day it rises and
+  on no other day; the current streak is refused, not unbuilt — design.md §12 records
+  the decision of 2026-09-03 and `test_brand.py` pins the absence. The reader now
+  carries `charts.js` for the arithmetic, so three pages cannot disagree about it.
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

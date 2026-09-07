@@ -412,3 +412,30 @@ def test_a_page_that_can_be_heard_says_so_in_ink() -> None:
     body = rule.group(1)
     assert "var(--ink)" in body, ".player-said must be ink, not muted (§9)"
     assert "--ink-soft" not in body, "the name of the thing is not metadata (§9)"
+
+
+def test_the_streak_is_the_longest_one_and_the_foot_moves_nothing() -> None:
+    """§12 (2026-09-03), targum-internal#175. The longest run of days is built and the
+    current one is refused: a count that can be destroyed is the mechanism that makes
+    people quit in the week they break it. So nothing anywhere names a current streak or
+    the gap since the last reading day, `charts.js` has no function for either, and the
+    foot that delivers the ledger's increment celebrates in type, never in motion (§1),
+    and counts real things only (§6) — no score, no points, no level."""
+    for path in PAGES + SCRIPTS:
+        for line in prose(path):
+            said = line.lower()
+            for banned in ("current streak", "streak broken", "days in a row", "keep your streak"):
+                assert banned not in said, f"{path.name} says {banned!r}"
+    charts = (ASSETS / "charts.js").read_text(encoding="utf-8")
+    assert "function longest(" in charts
+    assert "function current(" not in charts and "function gap(" not in charts
+
+    css = re.sub(r"/\*.*?\*/", " ", (ASSETS / "reader.css").read_text(encoding="utf-8"), flags=re.S)
+    for selector, body in re.findall(r"([^{}]+)\{([^}]*)\}", css):
+        if ".finished" in selector or ".move" in selector:
+            assert "animation" not in body and "transition" not in body, selector.strip()
+
+    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    foot = reader[reader.index("function footMoved") : reader.index("function renderFinished")]
+    for currency in ("score", "point", "level", "xp"):
+        assert currency not in foot.lower(), f"the foot invents a currency: {currency!r}"
