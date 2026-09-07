@@ -6,6 +6,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The haftarah, under the reading on `/parasha`. Hebcal was already returning it on the
+  call the calendar makes and the parser was throwing it away; now it is parsed beside
+  the aliyot — `Reading.haftarah`, not a third `ReadingKind`, because it is the second
+  reading of a Shabbat and not a kind of one — and cut from the Prophets already on the
+  shelf into a one-section reader of its own, keyed by what it is (`isaiah-61-10-63-9`)
+  since the same one comes round on more than one Shabbat. Every one of the twenty-one
+  books is built, so nothing is ingested and nothing is spent. The page frames the
+  week's haftarah on the page that means this Shabbat — a Shabbat Rosh Chodesh or
+  Chanukah reads the special one, and the dateline says why — and the portion's own,
+  decided across every occurrence in the corpus span, on a portion asked for by name;
+  a festival Shabbat shows the festival's, and the two schedules each carry theirs. The
+  Sephardic reading Hebcal returns is recorded on the week and the portion and is not
+  shown: no rite chooser. One chanting-marks switch reaches both frames
+  (targum-internal#201).
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

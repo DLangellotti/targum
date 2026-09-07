@@ -18,13 +18,24 @@ What follows from that is the shape of the package:
 
 from __future__ import annotations
 
-from .calendar import Aliyah, Reading, ReadingKind, Schedule, current, for_shabbat
+from .calendar import (
+    Aliyah,
+    Haftarah,
+    Reading,
+    ReadingKind,
+    Schedule,
+    Span,
+    current,
+    for_shabbat,
+)
 
 __all__ = [
     "Aliyah",
+    "Haftarah",
     "Reading",
     "ReadingKind",
     "Schedule",
+    "Span",
     "current",
     "for_shabbat",
 ]

@@ -142,6 +142,33 @@
       loading="lazy"></iframe>
   </div>
 
+  {#- The haftarah: the second reading of the same Shabbat, from the Prophets, after
+      the Torah reading the way it is read after it. Its own label and dateline, the
+      shape of the reading's above, and its own frame — one section, because it is
+      called up once. On the page that means "this Shabbat" this is the week's haftarah,
+      which on a special Shabbat is not the portion's own, and the dateline says why;
+      on a portion asked for by name it is the one the portion ordinarily has. The
+      reference is said even where the text is not built, because knowing what is read
+      is most of what somebody preparing needs. Hebcal's Sephardic variant is in the
+      index and deliberately not here: see targum-internal#201. -#}
+  {% if haftarah %}
+  <h2 class="label">The haftarah</h2>
+  <p class="dateline">
+    {{ haftarah.summary }}{% if haftarah.hebrew %} — from
+    <bdi lang="he" dir="rtl">{{ haftarah.hebrew }}</bdi>{% endif %}, {{ haftarah.verses }} verses.{% if haftarah_reason %}
+    Read this week in place of the portion's own: {{ haftarah_reason }}.{% endif %}
+  </p>
+  {% if haftarah_readable %}
+  <div class="embed" id="haftarah">
+    <button type="button" class="handle" aria-expanded="false">Full screen</button>
+    <iframe
+      src="/parasha/read/{{ haftarah.folder }}/reader/{{ haftarah.opens }}"
+      title="The haftarah, {{ haftarah.summary }}"
+      loading="lazy"></iframe>
+  </div>
+  {% endif %}
+  {% endif %}
+
   {#- Where the year goes from here. The portion before and the one after, in the order
       they are read — and it wraps, because after וזאת הברכה comes בראשית. A festival
       reading belongs to a date rather than to the cycle and has neither, only the way to
@@ -170,7 +197,7 @@
       </li>
       <li>
         <b>Seven aliyot, seven sections.</b>
-        <span>The reading is divided the way it is called up, so you can go to שלישי without counting verses.</span>
+        <span>The reading is divided the way it is called up, so you can go to שלישי without counting verses. The haftarah follows it, the same way.</span>
       </li>
       <li>
         <b>It follows you.</b>
@@ -183,9 +210,12 @@
     <h2 class="label">Made honestly</h2>
     <p class="made">
       The Hebrew is the Masoretic text as it is published, cut to this week's reading and
-      not edited. The English beside it is {{ translation_said }}. The division into
-      aliyot and the calendar behind it — including which portion Israel reads and which
-      the diaspora reads — come from Hebcal.
+      not edited. The English beside it is {{ translation_said }}. The haftarah is cut
+      from the Prophets on the same shelf, with the translation each book carries there:
+      the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The
+      division into aliyot, the haftarah for each Shabbat and the calendar behind them —
+      including which portion Israel reads and which the diaspora reads — come from
+      Hebcal.
     </p>
     {#- Whose work this page is built out of. The photograph asks for nothing — it is
         CC0 — and is credited anyway, which is the rule the recordings already follow:

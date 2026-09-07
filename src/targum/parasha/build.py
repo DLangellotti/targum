@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Callable, Iterable
+from collections import Counter, defaultdict
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -24,10 +25,11 @@ from ..annotate.difficulty import hard_share
 from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
+from .calendar import Haftarah as Reference
 from .calendar import Reading, Schedule, always, root
 from .calendar import year as readings_for
-from .cut import BOOKS, MissingBook, books_for, cut, parse_ref
-from .models import Index, Portion, Week
+from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
+from .models import Haftarah, Index, Portion, Week
 
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
 #: for a while still knows what this Shabbat is, and few enough that a build is quick.
@@ -89,18 +91,43 @@ def _fresh() -> tuple[Index, set[str]]:
             # A half-written or hand-edited index leaves the corpus absent rather than
             # taking the rest of the server down with it.
             return Index(), set()
-        folders = {
-            portion.folder
-            for portion in index.portions.values()
-            if (root() / "read" / portion.folder / "reader" / "index.html").is_file()
-        }
+        folders = _built(index)
         _cached = (stamp, index, folders)
         return index, folders
+
+
+def _built(index: Index) -> set[str]:
+    """Every folder in the index — a portion's or a haftarah's — with a reader in it."""
+    named = [portion.folder for portion in index.portions.values()]
+    named.extend(one.folder for one in index.haftarot.values() if one.folder)
+    return {
+        folder for folder in named if (root() / "read" / folder / "reader" / "index.html").is_file()
+    }
 
 
 def load() -> Index:
     """The corpus on disk, or an empty one where nothing has been built."""
     return _fresh()[0]
+
+
+def walk(
+    years: Iterable[int],
+    schedules: Iterable[Schedule],
+    *,
+    allow_fetch: bool = True,
+) -> Iterator[Reading]:
+    """Every reading in the window, every time it occurs, schedule by schedule.
+
+    The readings that belong to the corpus but to no Shabbat come first on each
+    schedule. `distinct` takes the first of each slug off this; the build also wants
+    the rest, because which haftarah a portion ordinarily has is a question about all
+    of its occurrences and not about one.
+    """
+    years = list(years)
+    for schedule in schedules:
+        yield from always(schedule)
+        for one in years:
+            yield from readings_for(one, schedule, allow_fetch=allow_fetch)
 
 
 def distinct(
@@ -121,13 +148,28 @@ def distinct(
     `allow_fetch=False` is what a command that only reads an existing corpus passes.
     """
     out: dict[str, Reading] = {}
-    for schedule in schedules:
-        for reading in always(schedule):
-            out.setdefault(reading.slug, reading)
-        for one in years:
-            for reading in readings_for(one, schedule, allow_fetch=allow_fetch):
-                out.setdefault(reading.slug, reading)
+    for reading in walk(years, schedules, allow_fetch=allow_fetch):
+        out.setdefault(reading.slug, reading)
     return out
+
+
+def ordinary(occurrences: Iterable[Reading]) -> Reading | None:
+    """Of every time a portion is read, the one whose haftarah is the portion's own.
+
+    A portion's haftarah is fixed — Nasso's is Samson's birth, whatever the year — and
+    then a special Shabbat overrides it: Shekalim, Zachor, a Rosh Chodesh, Chanukah.
+    Hebcal marks the override with a reason, so the ordinary one is the commonest
+    reading with no reason on it. Where every occurrence carries a reason — Pinchas
+    falls after 17 Tammuz in most years and reads Jeremiah then — the commonest of
+    those is what the page shows, which is also what most years read.
+    """
+    found = [(one, one.haftarah) for one in occurrences if one.haftarah is not None]
+    if not found:
+        return None
+    plain = [pair for pair in found if not pair[1].reason]
+    pool = plain or found
+    commonest = Counter(reference.key for _, reference in pool).most_common(1)[0][0]
+    return next(one for one, reference in pool if reference.key == commonest)
 
 
 def build(
@@ -169,33 +211,46 @@ def build(
             notify(message)
 
     index = Index(built_at=datetime.now(UTC).isoformat(timespec="seconds"))
+    readings: dict[str, Reading] = {}
+    # Every occurrence of each reading, not only the first: the haftarah a portion
+    # ordinarily has is decided across all of them (`ordinary`).
+    occurrences: dict[str, list[Reading]] = defaultdict(list)
+
+    def take(span: Iterable[int]) -> None:
+        for reading in walk(span, schedules):
+            readings.setdefault(reading.slug, reading)
+            occurrences[reading.slug].append(reading)
+
     # The pointer's own years first, because those must be there or the page has nothing
     # to point at, and a failure in them is a real failure.
-    readings = distinct(years, schedules)
+    take(years)
     # Then the rest of the corpus span, a year at a time and best effort. A far year that
     # Hebcal will not answer for costs the four portions it might have carried; it must
     # not cost the build. Before the span widened this could not arise, so failing hard
     # here would be a new way for a working cron to start breaking.
     for one in [y for y in corpus_years if y not in set(years)]:
         try:
-            for slug, reading in distinct([one], schedules).items():
-                readings.setdefault(slug, reading)
+            take([one])
         except TargumError as gone:
             say(f"  {one} is not reachable — the corpus is what the other years hold ({gone})")
     say(f"{len(readings)} readings across {len(corpus_years)} years")
 
     missing: set[str] = set()
+
+    def absent(gone: MissingBook) -> None:
+        # A book that is not on the shelf takes its readings with it and leaves the
+        # rest of the corpus alone. Said once per book rather than once per reading,
+        # which would be forty identical lines.
+        if gone.book not in missing:
+            missing.add(gone.book)
+            say(f"  {gone.book} is not built — every reading in it is skipped")
+
     for slug in sorted(readings):
         reading = readings[slug]
         try:
             books = books_for(reading, library)
         except MissingBook as gone:
-            # A book that is not on the shelf takes its readings with it and leaves the
-            # rest of the corpus alone. Said once per book rather than once per reading,
-            # which would be forty identical lines.
-            if gone.book not in missing:
-                missing.add(gone.book)
-                say(f"  {gone.book} is not built — every reading in it is skipped")
+            absent(gone)
             continue
         portion = cut(reading, books)
         folder = root() / "read" / slug
@@ -216,6 +271,7 @@ def build(
             folder=folder,
         )
         opening, opening_ref = portion.opening()
+        usual = ordinary(occurrences[slug])
         index.portions[slug] = Portion(
             slug=slug,
             name=reading.name,
@@ -238,8 +294,68 @@ def build(
             opening=opening,
             opening_ref=opening_ref,
             folder=slug,
+            haftarah=usual.haftarah.key if usual is not None and usual.haftarah else "",
+            haftarah_sephardic=(
+                usual.haftarah_sephardic.summary
+                if usual is not None and usual.haftarah_sephardic is not None
+                else ""
+            ),
         )
         say(f"  {reading.name} — {portion.verses} verses")
+
+    # The haftarot, once each. Every one any occurrence names, whether it is a
+    # portion's own or a special Shabbat's, so a week in the pointer years always has
+    # its reading built — and the reference is written down whether or not the book is
+    # on the shelf, so the page can at least say what is read.
+    wanted: dict[str, Reference] = {}
+    for many in occurrences.values():
+        for reading in many:
+            if reading.haftarah is not None and reading.slug in index.portions:
+                wanted.setdefault(reading.haftarah.key, reading.haftarah)
+    for key in sorted(wanted):
+        reference = wanted[key]
+        record = Haftarah(
+            key=key,
+            summary=reference.summary,
+            books=list(reference.books),
+            hebrew=" · ".join(NEVIIM.get(book, book) for book in reference.books),
+            verses=reference.verses,
+        )
+        index.haftarot[key] = record
+        try:
+            books = books_for(reference, library)
+        except MissingBook as gone:
+            absent(gone)
+            continue
+        portion = cut_haftarah(reference, books)
+        folder_name = f"haftarah-{key}"
+        folder = root() / "read" / folder_name
+        written = render(
+            portion.document,
+            portion.segmented,
+            portion.translations,
+            folder / "reader",
+            annotation=portion.annotation,
+            glossaries=portion.glossaries,
+            vocalization=portion.vocalization,
+            clean=True,
+            folder=folder,
+        )
+        opening, opening_ref = portion.opening()
+        record.opens = (
+            "sec-0001.html" if any(one.name == "sec-0001.html" for one in written) else "index.html"
+        )
+        record.verses = portion.verses
+        record.words = portion.words
+        record.difficulty = (
+            hard_share(portion.annotation, portion.document.language)
+            if portion.annotation is not None
+            else 0
+        )
+        record.opening = opening
+        record.opening_ref = opening_ref
+        record.folder = folder_name
+        say(f"  haftarah {reference.summary} — {portion.verses} verses")
 
     for schedule in schedules:
         for one in years:
@@ -252,6 +368,15 @@ def build(
                         schedule=schedule,
                         slug=reading.slug,
                         hdate=reading.hdate,
+                        haftarah=reading.haftarah.key if reading.haftarah is not None else "",
+                        haftarah_reason=(
+                            reading.haftarah.reason if reading.haftarah is not None else ""
+                        ),
+                        haftarah_sephardic=(
+                            reading.haftarah_sephardic.summary
+                            if reading.haftarah_sephardic is not None
+                            else ""
+                        ),
                     )
                 )
     index.weeks.sort(key=lambda w: (w.day, w.schedule.value))
@@ -260,7 +385,11 @@ def build(
         index_path(),
         json.dumps(index.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
     )
-    say(f"{len(index.portions)} portions, {len(index.weeks)} weeks pointed")
+    built_haftarot = sum(1 for one in index.haftarot.values() if one.folder)
+    say(
+        f"{len(index.portions)} portions, {built_haftarot} haftarot, "
+        f"{len(index.weeks)} weeks pointed"
+    )
     return index
 
 
@@ -406,11 +535,7 @@ def readable(index: Index | None = None) -> set[str]:
     """
     if index is None:
         return _fresh()[1]
-    return {
-        portion.folder
-        for portion in index.portions.values()
-        if (root() / "read" / portion.folder / "reader" / "index.html").is_file()
-    }
+    return _built(index)
 
 
 def current(

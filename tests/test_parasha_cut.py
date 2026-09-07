@@ -529,3 +529,182 @@ def test_a_festival_has_no_place_in_the_cycle() -> None:
     assert neighbours(festival, listed) == (None, None)
     assert neighbours(listed[0], []) == (None, None)
     assert neighbours(listed[0], [listed[0]]) == (None, None), "nowhere else to go"
+
+
+# -- the haftarah ------------------------------------------------------------
+
+
+def _isaiah(root: Path) -> Path:
+    """Enough of Isaiah for Shemot's haftarah: two pieces, three chapters."""
+    a_book(root / "ישעיהו-he", "Isaiah", "ישעיהו", {27: 13, 28: 29, 29: 24})
+    return root
+
+
+def _shemot_haftarah() -> cal.Haftarah:
+    return cal.Haftarah(
+        summary="Isaiah 27:6-28:13, 29:22-23",
+        spans=(
+            cal.Span(book="Isaiah", begin="27:6", end="28:13", verses=21),
+            cal.Span(book="Isaiah", begin="29:22", end="29:23", verses=2),
+        ),
+    )
+
+
+def test_the_haftarah_is_cut_as_one_section_with_its_pieces_in_order(tmp_path: Path) -> None:
+    """Called up once, so one section; the jump between the pieces is a chapter line
+    inside it rather than a section of its own."""
+    library = _isaiah(tmp_path / "library")
+    reference = _shemot_haftarah()
+    portion = cutmod.cut_haftarah(reference, cutmod.books_for(reference, library))
+
+    verses = [s for s in portion.segmented.segments if s.kind is BlockKind.verse]
+    assert len(verses) == 23
+    assert verses[0].ref == "Isaiah 27:6"
+    assert verses[20].ref == "Isaiah 28:13"
+    assert verses[21].ref == "Isaiah 29:22", "the second piece follows the first"
+    assert verses[-1].ref == "Isaiah 29:23"
+
+    sections = [
+        s for s in portion.segmented.segments if s.kind is BlockKind.heading and s.level == 2
+    ]
+    assert [s.text for s in sections] == [cutmod.HAFTARAH]
+    lines = [s for s in portion.segmented.segments if s.kind is BlockKind.heading and s.level == 3]
+    assert [s.text for s in lines] == ["ישעיהו 27", "ישעיהו 28", "ישעיהו 29"]
+
+    assert portion.reading is None, "the Shabbat it belongs to is the calendar's to say"
+    assert portion.document.source == "sefaria:Isaiah 27:6-28:13, 29:22-23"
+    assert "ישעיהו" in portion.document.title
+    assert portion.verses == 23
+
+
+def test_everything_keyed_to_a_haftarah_verse_comes_with_it(tmp_path: Path) -> None:
+    library = _isaiah(tmp_path / "library")
+    reference = _shemot_haftarah()
+    portion = cutmod.cut_haftarah(reference, cutmod.books_for(reference, library))
+    kept = {s.id for s in portion.segmented.segments if s.kind is BlockKind.verse}
+    [english] = portion.translations
+    assert set(english.segments) == kept
+    assert portion.annotation is not None and set(portion.annotation.tokens) == kept
+    assert portion.vocalization is not None and set(portion.vocalization.segments) == kept
+    assert has_taamim(portion.vocalization.segments[next(iter(kept))])
+
+
+def test_a_book_of_the_prophets_is_filed_under_its_slugged_title(tmp_path: Path) -> None:
+    """The library files "מלכים א" as `מלכים-א-he`, the way `ids.slug` files every text,
+    and Hebcal says "I Kings"; the table holds the two together."""
+    root = tmp_path / "library"
+    a_book(root / "מלכים-א-he", "I Kings", "מלכים א", {2: 12})
+    reference = cal.Haftarah(
+        summary="I Kings 2:1-12",
+        spans=(cal.Span(book="I Kings", begin="2:1", end="2:12", verses=12),),
+    )
+    portion = cutmod.cut_haftarah(reference, cutmod.books_for(reference, root))
+    assert portion.verses == 12
+    assert cutmod.load_book("I Kings", root).name == "I Kings"
+
+
+def test_a_prophet_who_is_not_built_is_named(tmp_path: Path) -> None:
+    reference = _shemot_haftarah()
+    with pytest.raises(cutmod.MissingBook) as gone:
+        cutmod.books_for(reference, tmp_path / "nothing")
+    assert gone.value.book == "Isaiah"
+
+
+def _occurrence(summary: str, reason: str = "") -> cal.Reading:
+    """A reading of Mishpatim carrying one haftarah, for `ordinary` to choose among."""
+    from datetime import date
+
+    book, _, rest = summary.partition(" ")
+    begin, _, end = rest.partition("-")
+    return cal.Reading(
+        day=date(2026, 2, 14),
+        schedule=cal.Schedule.diaspora,
+        kind=cal.ReadingKind.parasha,
+        name="Mishpatim",
+        hebrew="מִּשְׁפָּטִים",
+        hdate="",
+        summary="Exodus 21:1-24:18",
+        numbers=(18,),
+        aliyot=(),
+        haftarah=cal.Haftarah(
+            summary=summary,
+            spans=(cal.Span(book=book, begin=begin, end=end, verses=1),),
+            reason=reason,
+        ),
+    )
+
+
+def test_a_portions_own_haftarah_is_the_one_read_with_no_reason() -> None:
+    """Across nineteen years Mishpatim falls on Shabbat Shekalim more often than not,
+    and the portion's own haftarah is still Jeremiah's covenant."""
+    from targum.parasha.build import ordinary
+
+    seen = [
+        _occurrence("II Kings 12:1-17", "Shabbat Shekalim"),
+        _occurrence("II Kings 12:1-17", "Shabbat Shekalim"),
+        _occurrence("Jeremiah 34:8-22", ""),
+        _occurrence("II Kings 12:1-17", "Shabbat Shekalim"),
+    ]
+    chosen = ordinary(seen)
+    assert chosen is not None and chosen.haftarah is not None
+    assert chosen.haftarah.summary == "Jeremiah 34:8-22"
+
+
+def test_where_every_occurrence_has_a_reason_the_commonest_is_the_portions() -> None:
+    """Pinchas after 17 Tammuz reads Jeremiah in most years; a corpus that never met the
+    other case shows what most years read rather than nothing."""
+    from targum.parasha.build import ordinary
+
+    seen = [
+        _occurrence("Jeremiah 1:1-2:3", "Pinchas occurring after 17 Tammuz"),
+        _occurrence("I Kings 18:46-19:21", "some other reason"),
+        _occurrence("Jeremiah 1:1-2:3", "Pinchas occurring after 17 Tammuz"),
+    ]
+    chosen = ordinary(seen)
+    assert chosen is not None and chosen.haftarah is not None
+    assert chosen.haftarah.summary == "Jeremiah 1:1-2:3"
+    assert ordinary([]) is None
+
+
+def test_the_weeks_haftarah_wins_over_the_portions_on_each_schedule() -> None:
+    """The index answers per Shabbat and per schedule. A week that names a special
+    haftarah shows it with its reason; a week that names none — an index written
+    before weeks carried one — falls back to the portion's own."""
+    from targum.parasha.models import Haftarah, Week
+
+    index = Index(
+        portions={
+            "mishpatim": Portion(
+                slug="mishpatim",
+                name="Mishpatim",
+                hebrew="",
+                numbers=[18],
+                summary="Exodus 21:1-24:18",
+                haftarah="jeremiah-34-8-22-33-25-26",
+            )
+        },
+        haftarot={
+            "jeremiah-34-8-22-33-25-26": Haftarah(
+                key="jeremiah-34-8-22-33-25-26", summary="Jeremiah 34:8-22, 33:25-26"
+            ),
+            "ii-kings-12-1-17": Haftarah(key="ii-kings-12-1-17", summary="II Kings 12:1-17"),
+        },
+        weeks=[
+            Week(
+                day="2026-02-14",
+                schedule=cal.Schedule.diaspora,
+                slug="mishpatim",
+                haftarah="ii-kings-12-1-17",
+                haftarah_reason="Shabbat Shekalim",
+                haftarah_sephardic="II Kings 11:17-12:17",
+            ),
+            Week(day="2026-02-14", schedule=cal.Schedule.israel, slug="mishpatim"),
+        ],
+    )
+    special, why = index.haftarah_on("2026-02-14", cal.Schedule.diaspora)
+    assert special is not None and special.summary == "II Kings 12:1-17"
+    assert why == "Shabbat Shekalim"
+    own, why = index.haftarah_on("2026-02-14", cal.Schedule.israel)
+    assert own is not None and own.summary == "Jeremiah 34:8-22, 33:25-26"
+    assert why == ""
+    assert index.haftarah_on("2026-02-21", cal.Schedule.diaspora) == (None, "")

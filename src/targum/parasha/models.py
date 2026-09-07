@@ -44,6 +44,14 @@ class Portion(BaseModel):
     opening_ref: str = ""
     #: The folder under the corpus root holding this portion's reader.
     folder: str = ""
+    #: The haftarah this portion has on an ordinary Shabbat, as a key into
+    #: `Index.haftarot`; "" where it has none. What the page shows for a portion asked
+    #: for by name. On a given Shabbat the week may say otherwise — a Shabbat Rosh
+    #: Chodesh reads Isaiah 66 whatever the portion — and then `Week.haftarah` wins.
+    haftarah: str = ""
+    #: The Sephardic reading for the same, as Hebcal's range line, where it differs.
+    #: Recorded and not shown.
+    haftarah_sephardic: str = ""
 
     @property
     def doubled(self) -> bool:
@@ -71,6 +79,39 @@ class Portion(BaseModel):
         return not any(number in (covered or set()) for number in self.numbers)
 
 
+class Haftarah(BaseModel):
+    """One haftarah, built and on disk.
+
+    Keyed by what it is rather than when it is read, because the same one comes round
+    on more than one Shabbat: see `calendar.Haftarah.key`. Which Shabbat reads it, and
+    why, is the week's to say.
+    """
+
+    #: `isaiah-61-10-63-9`. The key into `Index.haftarot`.
+    key: str
+    #: Hebcal's own line: "Isaiah 61:10-63:9".
+    summary: str
+    #: Which book or books it is read from, in reading order, as Hebcal names them.
+    books: list[str] = Field(default_factory=list)
+    #: The same in Hebrew, joined the way the shelf joins a byline: "הושע · יואל".
+    hebrew: str = ""
+    verses: int = 0
+    words: int = 0
+    difficulty: int = 0
+    opening: str = ""
+    opening_ref: str = ""
+    #: The folder under the corpus root holding the reader, or "" where the text is not
+    #: on the shelf: the reference is carried either way.
+    folder: str = ""
+    #: Which file of the reader the page frames. A haftarah is one section, and the
+    #: renderer writes a one-section text as `index.html` alone — no `sec-0001.html` —
+    #: so pointing at the first section unconditionally is a 404 on most of them. A
+    #: long one that the renderer splits on length opens on its first section, the way
+    #: the portion does. Decided at build from what was written, the way `daily.opens_at`
+    #: decides it off the disk.
+    opens: str = "index.html"
+
+
 class Week(BaseModel):
     """One Shabbat, and what is read on it, on one schedule."""
 
@@ -79,6 +120,14 @@ class Week(BaseModel):
     schedule: Schedule
     slug: str
     hdate: str = ""
+    #: The haftarah read on this Shabbat, as a key into `Index.haftarot`. The
+    #: portion's own on most weeks; a special Shabbat's on the weeks that have one.
+    haftarah: str = ""
+    #: Why it is not the portion's own — "Shabbat Shekalim" — or "".
+    haftarah_reason: str = ""
+    #: The Sephardic reading for the same Shabbat, as Hebcal's range line, where it
+    #: differs. Recorded and not shown.
+    haftarah_sephardic: str = ""
 
 
 class Index(BaseModel):
@@ -88,6 +137,8 @@ class Index(BaseModel):
     built_at: str = ""
     #: Every portion built, by slug.
     portions: dict[str, Portion] = Field(default_factory=dict)
+    #: Every haftarah the pointed weeks and the portions name, by key.
+    haftarot: dict[str, Haftarah] = Field(default_factory=dict)
     #: Which portion each Shabbat reads, per schedule. The pointer, and the only part
     #: that changes from week to week.
     weeks: list[Week] = Field(default_factory=list)
@@ -101,6 +152,23 @@ class Index(BaseModel):
     def on(self, day: str, schedule: Schedule) -> Portion | None:
         found = self.week(day, schedule)
         return self.portions.get(found.slug) if found is not None else None
+
+    def haftarah_on(self, day: str, schedule: Schedule) -> tuple[Haftarah | None, str]:
+        """The haftarah read on one Shabbat, and why it is not the portion's own.
+
+        The week's, where the week names one; the portion's ordinary one otherwise, so
+        an index written before weeks carried a haftarah still answers. The reason is ""
+        whenever the answer is the portion's own.
+        """
+        found = self.week(day, schedule)
+        if found is None:
+            return None, ""
+        if found.haftarah:
+            return self.haftarot.get(found.haftarah), found.haftarah_reason
+        portion = self.portions.get(found.slug)
+        if portion is None or not portion.haftarah:
+            return None, ""
+        return self.haftarot.get(portion.haftarah), ""
 
     def listed(self) -> list[Portion]:
         """The cycle, in order — what the library shows.

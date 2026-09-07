@@ -351,15 +351,15 @@ def test_the_corpus_is_walked_wider_than_the_pointer(
 
     asked: dict[str, list[int]] = {}
 
-    def fake_distinct(years, schedules, **kw):  # type: ignore[no-untyped-def]
+    def fake_walk(years, schedules, **kw):  # type: ignore[no-untyped-def]
         asked.setdefault("corpus", []).extend(years)
-        return {}
+        return iter([])
 
     def fake_readings_for(one, schedule, **kw):  # type: ignore[no-untyped-def]
         asked.setdefault("pointer", []).append(one)
         return []
 
-    monkeypatch.setattr(build_module, "distinct", fake_distinct)
+    monkeypatch.setattr(build_module, "walk", fake_walk)
     monkeypatch.setattr(build_module, "readings_for", fake_readings_for)
 
     build_module.build(schedules=[cal.Schedule.diaspora])
@@ -384,11 +384,11 @@ def test_naming_the_corpus_span_narrows_it(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
     asked: list[int] = []
 
-    def fake_distinct(years, schedules, **kw):  # type: ignore[no-untyped-def]
+    def fake_walk(years, schedules, **kw):  # type: ignore[no-untyped-def]
         asked.extend(years)
-        return {}
+        return iter([])
 
-    monkeypatch.setattr(build_module, "distinct", fake_distinct)
+    monkeypatch.setattr(build_module, "walk", fake_walk)
     monkeypatch.setattr(build_module, "readings_for", lambda *a, **k: [])
 
     build_module.build(years=[2026], corpus_years=[2026], schedules=[cal.Schedule.diaspora])
@@ -421,3 +421,168 @@ def test_parsing_is_not_confused_by_a_weekday_reading(corpus: Path) -> None:
     )
     readings = cal.parse(payload, cal.Schedule.diaspora)
     assert all(one.day.weekday() == 5 for one in readings), "only Shabbat readings"
+
+
+# -- the haftarah ------------------------------------------------------------
+#
+# Hebcal returns it on the same call, and for a while the parser filtered it out. What
+# follows pins that it arrives, that it is the Ashkenazi reading, that the other rite is
+# only recorded, and that a festival and a schedule each carry their own.
+
+
+def test_the_haftarah_arrives_beside_the_aliyot(corpus: Path) -> None:
+    """Vayechi's is David's charge to Solomon, and the reading carries it."""
+    reading = cal.for_shabbat(date(2026, 1, 3), cal.Schedule.diaspora)
+    assert reading is not None
+    assert reading.haftarah is not None
+    assert reading.haftarah.summary == "I Kings 2:1-12"
+    assert reading.haftarah.books == ("I Kings",)
+    assert reading.haftarah.verses == 12
+    assert reading.haftarah.reason == "", "an ordinary Shabbat has no reason on it"
+    assert reading.haftarah_sephardic is None, "Hebcal gives no variant here"
+
+
+def test_the_haftarah_key_is_a_folder_the_reader_route_accepts(corpus: Path) -> None:
+    """Built once under what it is, and served from under `/parasha/read/`."""
+    from targum.serve import PARASHA_READER
+
+    reading = cal.for_shabbat(date(2026, 1, 3), cal.Schedule.diaspora)
+    assert reading is not None and reading.haftarah is not None
+    assert reading.haftarah.key == "i-kings-2-1-12"
+    path = f"/parasha/read/haftarah-{reading.haftarah.key}/reader/sec-0001.html"
+    assert PARASHA_READER.match(path) is not None
+
+
+def _shemot() -> dict[str, object]:
+    """Hebcal's real item for Shemot, 2026-01-10, trimmed to what the parser reads: a
+    haftarah in two pieces of Isaiah, and a Sephardic reading from a different book."""
+    return {
+        "date": "2026-01-10",
+        "type": "shabbat",
+        "name": {"en": "Shemot", "he": "שְׁמוֹת"},
+        "parshaNum": 13,
+        "summary": "Exodus 1:1-6:1",
+        "fullkriyah": {"1": {"k": "Exodus", "b": "1:1", "e": "1:17", "v": 17}},
+        "haftara": "Isaiah 27:6-28:13, 29:22-23",
+        "haft": [
+            {"k": "Isaiah", "b": "27:6", "e": "28:13", "v": 21},
+            {"k": "Isaiah", "b": "29:22", "e": "29:23", "v": 2},
+        ],
+        "seph": {"k": "Jeremiah", "b": "1:1", "e": "2:3", "v": 22},
+        "sephardic": "Jeremiah 1:1-2:3",
+    }
+
+
+def test_a_haftarah_in_pieces_is_one_reading() -> None:
+    [reading] = cal.parse({"items": [_shemot()]}, cal.Schedule.diaspora)
+    assert reading.haftarah is not None
+    assert len(reading.haftarah.spans) == 2
+    assert [one.begin for one in reading.haftarah.spans] == ["27:6", "29:22"]
+    assert reading.haftarah.books == ("Isaiah",)
+    assert reading.haftarah.verses == 23
+    assert reading.haftarah.summary == "Isaiah 27:6-28:13, 29:22-23"
+    assert reading.haftarah.key == "isaiah-27-6-28-13-29-22-23"
+
+
+def test_the_variant_rite_is_recorded_beside_the_reading_shown() -> None:
+    """Whatever Hebcal returns for the other rite is kept, and is not the haftarah."""
+    [reading] = cal.parse({"items": [_shemot()]}, cal.Schedule.diaspora)
+    assert reading.haftarah is not None and reading.haftarah.books == ("Isaiah",)
+    assert reading.haftarah_sephardic is not None
+    assert reading.haftarah_sephardic.summary == "Jeremiah 1:1-2:3"
+    assert reading.haftarah_sephardic.key == "jeremiah-1-1-2-3"
+
+
+def test_a_special_shabbat_says_why_the_haftarah_is_not_the_portions_own() -> None:
+    """Mishpatim on Shabbat Shekalim reads the Temple's repairs, not Jeremiah's
+    covenant, and Hebcal says so in a `reason` map keyed like the fields."""
+    item = {
+        "date": "2026-02-14",
+        "type": "shabbat",
+        "name": {"en": "Mishpatim", "he": "מִּשְׁפָּטִים"},
+        "parshaNum": 18,
+        "summary": "Exodus 21:1-24:18",
+        "fullkriyah": {"1": {"k": "Exodus", "b": "21:1", "e": "21:19", "v": 19}},
+        "haftara": "II Kings 12:1-17",
+        "haft": {"k": "II Kings", "b": "12:1", "e": "12:17", "v": 17, "reason": "Shabbat Shekalim"},
+        "seph": {
+            "k": "II Kings",
+            "b": "11:17",
+            "e": "12:17",
+            "v": 21,
+            "reason": "Shabbat Shekalim",
+        },
+        "sephardic": "II Kings 11:17-12:17",
+        "reason": {"haftara": "Shabbat Shekalim", "sephardic": "Shabbat Shekalim"},
+    }
+    [reading] = cal.parse({"items": [item]}, cal.Schedule.diaspora)
+    assert reading.haftarah is not None
+    assert reading.haftarah.reason == "Shabbat Shekalim"
+    assert reading.haftarah_sephardic is not None
+    assert reading.haftarah_sephardic.reason == "Shabbat Shekalim"
+
+
+def test_a_reason_carried_only_on_the_piece_is_still_read() -> None:
+    item = {
+        **_shemot(),
+        "haft": {
+            "k": "Isaiah",
+            "b": "66:1",
+            "e": "66:24",
+            "v": 24,
+            "reason": "Shabbat Rosh Chodesh",
+        },
+        "haftara": "Isaiah 66:1-24",
+    }
+    item.pop("seph")
+    [reading] = cal.parse({"items": [item]}, cal.Schedule.diaspora)
+    assert reading.haftarah is not None
+    assert reading.haftarah.reason == "Shabbat Rosh Chodesh"
+
+
+def test_a_festival_shabbat_has_the_festivals_haftarah(corpus: Path) -> None:
+    """The same rule as the portion: the congregation reads the festival's, so the page
+    must too. Shavuot's second day on Shabbat reads Habakkuk's prayer."""
+    reading = cal.for_shabbat(date(2026, 5, 23), cal.Schedule.diaspora)
+    assert reading is not None
+    assert reading.kind is cal.ReadingKind.festival
+    assert reading.haftarah is not None
+    assert reading.haftarah.summary == "Habakkuk 3:1-19"
+    assert reading.haftarah_sephardic is not None
+    assert reading.haftarah_sephardic.summary == "Habakkuk 2:20-3:19"
+
+
+def test_the_two_schedules_read_different_haftarot_where_they_are_apart(corpus: Path) -> None:
+    """The week the portions diverge, the haftarot diverge with them: the diaspora is
+    on Nasso and Samson's birth, Israel a week ahead on Beha'alotcha and Zechariah's
+    lamp. Where the portions agree, so do the haftarot."""
+    apart = date(2026, 5, 30)
+    here = cal.for_shabbat(apart, cal.Schedule.diaspora)
+    there = cal.for_shabbat(apart, cal.Schedule.israel)
+    assert here is not None and there is not None
+    assert here.haftarah is not None and there.haftarah is not None
+    assert here.haftarah.summary == "Judges 13:2-25"
+    assert there.haftarah.summary == "Zechariah 2:14-4:7"
+
+    together = date(2026, 1, 3)
+    here = cal.for_shabbat(together, cal.Schedule.diaspora)
+    there = cal.for_shabbat(together, cal.Schedule.israel)
+    assert here is not None and there is not None
+    assert here.haftarah is not None and there.haftarah is not None
+    assert here.haftarah.key == there.haftarah.key
+
+
+def test_vzot_haberachah_carries_simchat_torahs_haftarah() -> None:
+    [one] = cal.always()
+    assert one.haftarah is not None
+    assert one.haftarah.summary == "Joshua 1:1-18"
+    assert one.haftarah_sephardic is not None
+    assert one.haftarah_sephardic.summary == "Joshua 1:1-9"
+
+
+def test_a_haftarah_outside_the_prophets_is_left_out() -> None:
+    """A megillah never arrives in `haft`, and if one did it would mean Hebcal changed
+    shape: better no haftarah than a span cut from a book the table does not know."""
+    item = {**_shemot(), "haft": {"k": "Ruth", "b": "1:1", "e": "1:22", "v": 22}}
+    [reading] = cal.parse({"items": [item]}, cal.Schedule.diaspora)
+    assert reading.haftarah is None

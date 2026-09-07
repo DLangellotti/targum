@@ -53,10 +53,38 @@ TIMEOUT = 30.0
 FLIP_ZONE = "America/New_York"
 FLIP_AT = time(2, 0)
 
-#: The five books, as Hebcal names them, in the order they are read. A reading that
-#: names anything else is not Torah — a haftarah, or one of the megillot — and this
-#: package does not carry it: see `ReadingKind` and `Reading.aliyot`.
+#: The five books, as Hebcal names them, in the order they are read. An aliyah names one
+#: of these and nothing else: see `Reading.aliyot`. The haftarah is the other reading of
+#: the same Shabbat and comes from the Prophets — `NEVIIM_BOOKS`, `Reading.haftarah`.
+#: A festival's megillah is neither and is not carried.
 TORAH_BOOKS = ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy")
+
+#: The books a haftarah is read from, as Hebcal names them, in the order of the canon.
+#: Every one of them is on the shelf, which is what makes the haftarah a cut and not an
+#: ingest: see `cut.NEVIIM`.
+NEVIIM_BOOKS = (
+    "Joshua",
+    "Judges",
+    "I Samuel",
+    "II Samuel",
+    "I Kings",
+    "II Kings",
+    "Isaiah",
+    "Jeremiah",
+    "Ezekiel",
+    "Hosea",
+    "Joel",
+    "Amos",
+    "Obadiah",
+    "Jonah",
+    "Micah",
+    "Nahum",
+    "Habakkuk",
+    "Zephaniah",
+    "Haggai",
+    "Zechariah",
+    "Malachi",
+)
 
 
 class Schedule(StrEnum):
@@ -90,6 +118,63 @@ class Aliyah:
 
 
 @dataclass(frozen=True, slots=True)
+class Span:
+    """A verse range in one book of the Prophets."""
+
+    book: str
+    begin: str
+    end: str
+    verses: int
+
+
+@dataclass(frozen=True, slots=True)
+class Haftarah:
+    """The reading from the Prophets that follows the Torah reading.
+
+    Not a third `ReadingKind`: it is not a kind of Shabbat but the second reading of one,
+    so it sits on `Reading` beside the aliyot. Most are one range; some are two or three
+    pieces of one book read as one ("Isaiah 27:6-28:13, 29:22-23"), and Shabbat Shuva's
+    is pieces of two. The pieces are kept in the order they are read.
+
+    Two of these can arrive for one Shabbat — the Ashkenazi reading and a Sephardic
+    one — and both are kept: `Reading.haftarah` is the one shown, and the other is
+    recorded so the day a rite becomes a choice the record already exists. Nothing on
+    the page offers the choice.
+    """
+
+    #: Hebcal's own line, the way it is printed in a chumash: "Isaiah 61:10-63:9".
+    summary: str
+    spans: tuple[Span, ...]
+    #: Why this Shabbat's is not the portion's own — "Shabbat Shekalim", "Chanukah Day 1
+    #: (on Shabbat)" — or "" for the haftarah the portion always has.
+    reason: str = ""
+
+    @property
+    def books(self) -> tuple[str, ...]:
+        """Every book the pieces touch, in the order they are first read."""
+        seen: list[str] = []
+        for one in self.spans:
+            if one.book not in seen:
+                seen.append(one.book)
+        return tuple(seen)
+
+    @property
+    def verses(self) -> int:
+        return sum(one.verses for one in self.spans)
+
+    @property
+    def key(self) -> str:
+        """The reference as an identifier: `isaiah-61-10-63-9`.
+
+        The same haftarah is read on more than one Shabbat — Isaiah 66 on any Shabbat
+        Rosh Chodesh, Zechariah's lamp on Beha'alotcha and again on Chanukah — so it is
+        built once and keyed by what it is rather than by when it is read. Every
+        punctuation mark in the line becomes a hyphen, so 27:6 and 2:76 cannot collide.
+        """
+        return slug(self.summary.replace(":", "-").replace(",", "-").replace(";", "-"))
+
+
+@dataclass(frozen=True, slots=True)
 class Reading:
     """What is read on one Shabbat, on one schedule."""
 
@@ -109,6 +194,12 @@ class Reading:
     #: none at all on a festival.
     numbers: tuple[int, ...]
     aliyot: tuple[Aliyah, ...]
+    #: The reading from the Prophets that follows, as the Ashkenazi rite reads it. None
+    #: where Hebcal names none.
+    haftarah: Haftarah | None = None
+    #: The Sephardic reading for the same Shabbat, where Hebcal gives one that differs.
+    #: Recorded, never shown: see `Haftarah`.
+    haftarah_sephardic: Haftarah | None = None
 
     @property
     def doubled(self) -> bool:
@@ -136,7 +227,9 @@ class Reading:
 #: Deuteronomy would simply be missing from the shelf. Its span is fixed and its
 #: division is the traditional one, so it is written down here rather than asked for.
 #: Hebcal does carry it inside the Simchat Torah reading, which is a different reading —
-#: it runs on into the opening of Bereshit — and is built under that name besides.
+#: it runs on into the opening of Bereshit — and is built under that name besides. Its
+#: haftarah is Simchat Torah's, the opening of Joshua, in the same two rites Hebcal
+#: gives for every other Shabbat.
 ALWAYS = (
     {
         "name": {"en": "V'Zot HaBerachah", "he": "וְזֹאת הַבְּרָכָה"},
@@ -144,6 +237,10 @@ ALWAYS = (
         "parshaNum": 54,
         "summary": "Deuteronomy 33:1-34:12",
         "hdate": "",
+        "haftara": "Joshua 1:1-18",
+        "haft": {"k": "Joshua", "b": "1:1", "e": "1:18", "v": 18},
+        "sephardic": "Joshua 1:1-9",
+        "seph": {"k": "Joshua", "b": "1:1", "e": "1:9", "v": 9},
         "fullkriyah": {
             "1": {"k": "Deuteronomy", "b": "33:1", "e": "33:7", "v": 7},
             "2": {"k": "Deuteronomy", "b": "33:8", "e": "33:12", "v": 5},
@@ -203,8 +300,8 @@ def _aliyot(item: dict[str, Any]) -> tuple[Aliyah, ...]:
     `fullkriyah` is keyed by strings: "1" through "7", plus "M" for the maftir. The
     maftir is deliberately dropped — on a portion it repeats the end of the seventh,
     and on a festival it is the additional offering from Numbers, which is a different
-    reading from the one this page is for. A festival's megillah and every haftarah
-    arrive in their own fields and are not read here at all.
+    reading from the one this page is for. The haftarah arrives in fields of its own and
+    is read by `_haftarah`; a festival's megillah is not read at all.
     """
     out: list[Aliyah] = []
     for key, value in sorted((item.get("fullkriyah") or {}).items()):
@@ -225,6 +322,49 @@ def _aliyot(item: dict[str, Any]) -> tuple[Aliyah, ...]:
             )
         )
     return tuple(sorted(out, key=lambda one: one.number))
+
+
+def _haftarah(item: dict[str, Any], pieces: str, line: str) -> Haftarah | None:
+    """One rite's haftarah off a Hebcal item, or None where it names none.
+
+    `pieces` is the structured field — `haft` for the Ashkenazi reading, `seph` for the
+    Sephardic one — and holds one range as a dict or several as a list. `line` is the
+    printed form beside it (`haftara`, `sephardic`). Why the special Shabbat is read from
+    the item's `reason` map, keyed the same way, and falls back to the reason a piece
+    carries itself: Hebcal puts it in both places on most items and in only one on some.
+    """
+    raw = item.get(pieces)
+    if not raw:
+        return None
+    found = raw if isinstance(raw, list) else [raw]
+    spans: list[Span] = []
+    reason = ""
+    for value in found:
+        if not isinstance(value, dict):
+            continue
+        book = str(value.get("k", ""))
+        if book not in NEVIIM_BOOKS:
+            # A haftarah outside the Prophets would mean Hebcal changed shape under us.
+            # Leave the piece out rather than cut a span from a book we do not carry.
+            continue
+        spans.append(
+            Span(
+                book=book,
+                begin=str(value.get("b", "")),
+                end=str(value.get("e", "")),
+                verses=int(value.get("v", 0) or 0),
+            )
+        )
+        reason = reason or str(value.get("reason", "") or "")
+    if not spans:
+        return None
+    reasons = item.get("reason") or {}
+    if isinstance(reasons, dict):
+        reason = str(reasons.get(line, "") or "") or reason
+    summary = str(item.get(line, "") or "") or ", ".join(
+        f"{one.book} {one.begin}-{one.end}" for one in spans
+    )
+    return Haftarah(summary=summary, spans=tuple(spans), reason=reason)
 
 
 def _reading(item: dict[str, Any], schedule: Schedule) -> Reading | None:
@@ -266,6 +406,8 @@ def _reading(item: dict[str, Any], schedule: Schedule) -> Reading | None:
         summary=str(item.get("summary", "")),
         numbers=numbers,
         aliyot=aliyot,
+        haftarah=_haftarah(item, "haft", "haftara"),
+        haftarah_sephardic=_haftarah(item, "seph", "sephardic"),
     )
 
 
