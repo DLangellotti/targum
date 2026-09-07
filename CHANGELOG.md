@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
+  words, to write in their idiom rather than translate from English. They are Tatoeba's
+  (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once
+  by `scripts/tatoeba_pool.py` into a pool the box reads (`TARGUM_EXEMPLARS`, or
+  `exemplars.jsonl` beside `sources.json`); a box without the file has none. Six a turn,
+  after the cache breakpoint, first claim to a sentence carrying a word the reader saved
+  lately, originals before translations, drawn afresh each turn; retrieval is local and
+  buys nothing. Two evals draw on the same pool: `scripts/eval_recast.py` scores the `> `
+  recast line against a native speaker's rendering of the same English (stage `recast`),
+  and `scripts/eval_grading.py --pool` draws its openers from sentences inside the
+  synthetic reader's list, so the outside share can be read per rung. `LICENSING.md`
+  records what is taken, what is owed and where the credit is given.
 - The box is the front door. Learn carries one field under the ledger's own sentence —
   a request, a link, a file by its `+`, a word you are stuck on, Speak where the browser
   records — and a line typed there opens a conversation and goes to it, with the new

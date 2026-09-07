@@ -1,0 +1,6 @@
+{"id": 329714, "he": "בוקר טוב.", "en": "Good morning.", "by": "YURY0608", "en_by": "CK", "original": true, "from_english": false, "words": [["בוקר", "NOUN"], ["טוב", "ADJ"]], "zipf": 5.2}
+{"id": 329718, "he": "מה אתה עושה?", "en": "What are you doing?", "by": "YURY0608", "en_by": "CK", "original": true, "from_english": false, "words": [["מה", "PRON"], ["את", "PRON"], ["עושה", "VERB"]], "zipf": 5.5}
+{"id": 1000001, "he": "טום קנה לחם בשוק.", "en": "Tom bought bread at the market.", "by": "fekundulo", "en_by": "CK", "original": false, "from_english": true, "words": [["טום", "PROPN"], ["קנה", "VERB"], ["לחם", "NOUN"], ["שוק", "NOUN"]], "zipf": 4.1}
+{"id": 1000002, "he": "הסערה מנעה מאיתנו לצאת.", "en": "The storm prevented us from going out.", "by": "MrShoval", "en_by": "CK", "original": false, "from_english": true, "words": [["סערה", "NOUN"], ["מנע", "VERB"], ["מן", "ADP"], ["יצא", "VERB"]], "zipf": 3.6}
+{"id": 1000003, "he": "כן.", "en": "Yes.", "by": "nava", "en_by": "CK", "original": true, "from_english": false, "words": [["כן", "ADV"]], "zipf": 6.0}
+{"id": 1000004, "he": "עדיין לא קראתי את הספר.", "en": "I have not read the book yet.", "by": "Eldad", "en_by": "CK", "original": false, "from_english": true}

@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from .. import level as level_module
 from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
+from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
 from . import tools as tools_module
 from .record import Recorder, outside_share
@@ -267,12 +268,16 @@ class Chats:
         client_factory: ClientFactory | None = None,
         web_search: bool | None = None,
         recorder: Recorder | None = None,
+        exemplars: list[exemplars_module.Exemplar] | None = None,
     ) -> None:
         self.library = library
         self.store = store
         #: What reads a turn's Hebrew as a text is read, so the page can draw the record
         #: as it forms (`chat/record.py`). Its model is warmed when the workers start.
         self.recorder = recorder or Recorder()
+        #: Sentences a Hebrew speaker wrote, for the idiom (`chat/exemplars.py`). Read
+        #: once from the pool on the box; a box without one has none.
+        self.exemplars = exemplars if exemplars is not None else exemplars_module.load()
         #: Whether the server-side search rides along. On unless the box says not
         #: (`TARGUM_WEB_SEARCH=0`): a reader who asks for something online and is told
         #: the box cannot look is being told the product is smaller than it is
@@ -479,6 +484,18 @@ class Chats:
             hebrew_module.bring_back(store, person_id, language) if contract else ([], [])
         )
         ledger = hebrew_module.ledger_block(level, known, common, lately, phrases)
+        if contract and self.exemplars:
+            # A few sentences a Hebrew speaker wrote inside this reader's words, after
+            # the breakpoint with the ledger: the idiom to write in, drawn afresh each
+            # turn. Only where the conversation is in Hebrew.
+            picked = exemplars_module.pick(
+                self.exemplars,
+                set(known) | set(common),
+                lately,
+                seed=exemplars_module.turn_seed(asked.chat_id, asked.n),
+            )
+            if picked:
+                ledger = ledger + "\n\n" + exemplars_module.block(picked)
         try:
             spent = run_turn(
                 self.client(),

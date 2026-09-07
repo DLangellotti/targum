@@ -643,3 +643,52 @@ def test_on_a_machine_somebody_runs_themselves_the_chat_rail_is_off(tmp_path: Pa
         encoding="utf-8"
     )
     assert "chat_budget=CHAT_BUDGET if require_account else None" in source
+
+
+def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#218: with a pool on the box, a Hebrew turn carries a few Tatoeba
+    sentences inside the reader's words after the breakpoint; a conversation opened in
+    English about a text carries none; a box with no pool carries none."""
+    from targum.chat import exemplars
+
+    pool = exemplars.load(Path(__file__).parent / "fixtures" / "exemplars.jsonl")
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": now, "seen": now}
+                for w in ("בוקר", "טוב", "מה", "את", "עושה")
+            ]
+        },
+    )
+    reply_text = "> בּוֹקֶר טוֹב.\n= Good morning.\nמָה שְׁלוֹמְךָ?\n= How are you?"
+    client = Script([reply([{"type": "text", "text": reply_text}])] * 3)
+    chats = session_module.Chats(library, store, client_factory=lambda: client, exemplars=pool)
+    home = library.home(person)
+    asked = chats.say(person, home, "", "Good morning", admin=False)
+    chats.answer(asked)
+    block = client.requests[0]["system"][1]["text"]
+    assert "Sentences a Hebrew speaker wrote" in block and "בוקר טוב. = Good morning." in block
+    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+    assert "הסערה" not in block, "a sentence outside the reader's words is not picked"
+
+    found = chats.say(
+        person,
+        home,
+        "",
+        "What is this word?",
+        admin=False,
+        about={"document": "genesis", "section": "1", "surface": "בָּרָא", "lemma": "ברא"},
+    )
+    chats.answer(found)
+    assert "Sentences a Hebrew speaker wrote" not in client.requests[1]["system"][1]["text"]
+
+    bare = session_module.Chats(library, store, client_factory=lambda: client, exemplars=[])
+    again = bare.say(person, home, "", "Good morning", admin=False)
+    bare.answer(again)
+    assert "Sentences a Hebrew speaker wrote" not in client.requests[2]["system"][1]["text"]

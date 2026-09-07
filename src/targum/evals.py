@@ -38,9 +38,19 @@ from typing import Any
 #: In the repository, beside the code that produced the numbers.
 DEFAULT = Path("evals/ledger.jsonl")
 
-#: The stages #163 names. Not an enum: a stage nobody has written yet should be
-#: recordable the day somebody does, without this file being the thing in the way.
-STAGES = ("segment", "lemma", "vocalize", "difficulty", "align", "transcribe")
+#: The stages #163 names, and the chat's two (`grading`, #213; `recast`, #219). Not an
+#: enum: a stage nobody has written yet should be recordable the day somebody does,
+#: without this file being the thing in the way.
+STAGES = (
+    "segment",
+    "lemma",
+    "vocalize",
+    "difficulty",
+    "align",
+    "transcribe",
+    "grading",
+    "recast",
+)
 
 
 @dataclasses.dataclass(frozen=True)

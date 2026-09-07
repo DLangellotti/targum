@@ -226,6 +226,35 @@ If that ever stops being true — if a model is tuned on them, or a table derive
 ships — the ShareAlike term reaches the corpus and this paragraph is wrong. It is written
 down here so that would have to be a decision rather than a drift.
 
+### Tatoeba's sentences, which the chat reads for the idiom
+
+Since 2026-09-07 the chat is handed a few sentences a Hebrew speaker wrote, inside the
+reader's own words, so that what it writes is shaped like Hebrew rather than translated
+from English (`chat/exemplars.py`; targum-internal#218). They come from **Tatoeba**
+(tatoeba.org), whose sentences are **CC BY 2.0 FR**: attribution, nothing else owed, and
+the licence `licensing.verdict` marks exportable. The same sentences are the reference
+the chat's recast is scored against (`scripts/eval_recast.py`) and the openers the
+grading eval draws (`scripts/eval_grading.py --pool`).
+
+**What is taken.** Only sentences whose contributor declares Hebrew native, each with a
+linked English sentence — 165,000 of Tatoeba's 212,000 Hebrew sentences on 2026-09-07,
+three contributors writing most of them — filtered and lemmatized by
+`scripts/tatoeba_pool.py` on a developer's machine into a file the box reads
+(`TARGUM_EXEMPLARS`, or `exemplars.jsonl` beside `sources.json`). The file is data and
+does not ship in the wheel or the repository. Tatoeba's audio is licensed per recording
+and most Hebrew recordings carry no reuse licence; none is taken.
+
+**Where the credit is given.** Here, and in every row of the pool, which keeps the
+username of the Hebrew contributor and of the English one, with the sentence's own
+address (`tatoeba.org/sentences/show/<id>`). The sentences reach the model as a prompt
+and reach no page: a reader is shown the chat's own lines, which the contract asks it to
+write itself. If a Tatoeba sentence ever appears verbatim in a reader's saved
+conversation, that build's `licence` and `credit` fields are where the attribution
+travels; the promotion door (`promote.py`) reads them before anything becomes public.
+
+**Nothing trains on them.** targum-internal#161's standard is a documented grant covering
+the use made; CC BY would permit it, and nothing does it, because nothing here trains.
+
 ### The Hebrew Bible is read, not analysed
 
 Scripture on the shelf is not annotated by a model. Its prefix divisions, lemmas and
