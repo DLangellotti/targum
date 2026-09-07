@@ -64,11 +64,23 @@ SCRIPTURE_TAG = "PART"
 def by_scripture_path(annotation: Annotation) -> bool:
     """Whether this annotation came through the hand tagging rather than the model.
 
-    Asked of the tokens because nothing else in the artifact can answer it. Both paths
-    write the same `annotator` name and both band against the Tanakh, so `annotator` and
+    The artifact answers this itself now: `scripture_share` records what the lookup
+    actually covered, written by the annotator since targum-internal#180. Anything above
+    nothing means the tagging read part of this text; `0.0` means the wrapper was in
+    place and lined up with no verse at all, which is the `p4` copy of Genesis and is
+    exactly the case a name could never distinguish.
+
+    **The sniff stays for what was built before the field existed.** Both paths write
+    the same `annotator` name and both band against the Tanakh, so `annotator` and
     `method` are identical on the two copies — verified on the three Genesis copies of
-    2026-09-03 (targum-internal#172). The tags are the only place they differ.
+    2026-09-03 (targum-internal#172). On those, the tags are the only place they differ:
+    `PART` is emitted only by `annotate/scripture.py`'s mapping of the Open Scriptures
+    code `T`, and the modern path is Universal Dependencies, which has no such tag for
+    Hebrew. Every artifact carrying the field is read from the field, so this narrows to
+    the old shelf and goes away when the shelf is next rebuilt.
     """
+    if annotation.scripture_share is not None:
+        return annotation.scripture_share > 0
     return any(
         token.pos == SCRIPTURE_TAG for tokens in annotation.tokens.values() for token in tokens
     )
