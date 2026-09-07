@@ -8,7 +8,9 @@ what the reader shows.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
+from ..catalogue import Register
 from ..errors import SkeletonChanged, TargumError
 from ..models import BlockKind, SegmentedDocument, Vocalization, keeps_its_own_pointing
 from .base import (
@@ -28,11 +30,13 @@ from .base import (
     supports,
     wants_pointing,
 )
+from .dicta import DictaVocalizer
 from .nakdimon import NakdimonVocalizer
 
 LOG = logging.getLogger(__name__)
 
 __all__ = [
+    "DictaVocalizer",
     "NakdimonVocalizer",
     "LETTERS",
     "MARKS",
@@ -48,7 +52,10 @@ __all__ = [
     "strip_nikkud",
     "strip_taamim",
     "build",
+    "for_source",
+    "name_for",
     "names",
+    "register_of",
     "supports",
     "vocalize_document",
     "wants_pointing",
@@ -56,8 +63,18 @@ __all__ = [
 
 SOURCE_ONLY = "source"
 
-_BUILDERS = {NakdimonVocalizer.name: NakdimonVocalizer}
+_BUILDERS: dict[str, Callable[[], Vocalizer]] = {
+    NakdimonVocalizer.name: NakdimonVocalizer,
+    DictaVocalizer.name: DictaVocalizer,
+}
 DEFAULT = NakdimonVocalizer.name
+
+#: The shelves the menaked's card says it is not for — biblical, rabbinic, premodern —
+#: and which stay on Nakdimon. Scripture and the pinned editions never reach either
+#: model (`keeps_its_own_pointing`); this is for the Mishnah that arrives bare, and for
+#: the Kuzari. The revival shelf is not here on purpose: the Ben-Yehuda measurement was
+#: of exactly that Hebrew, and the menaked won on it (targum-internal#148).
+CLASSICAL = frozenset({Register.biblical, Register.rabbinic, Register.medieval})
 
 
 def names() -> list[str]:
@@ -69,6 +86,44 @@ def build(name: str = DEFAULT) -> Vocalizer:
     if builder is None:
         raise TargumError(f"No vocalizer named '{name}'.", f"Available: {', '.join(names())}")
     return builder()
+
+
+def register_of(source: object) -> Register:
+    """Which Hebrew a text is in, off the catalogue. A text the catalogue does not know —
+    an upload, an address somebody pasted — is `none`, and is read as today's Hebrew."""
+    from ..catalogue import matching
+
+    entry = matching(str(source or ""))
+    return entry.register if entry is not None else Register.none
+
+
+def name_for(source: object, register: Register | None = None) -> str:
+    """The vocalizer a text gets, by register: the menaked for modern Hebrew, Nakdimon
+    for the study house. Decided before anything is loaded, because the name is what a
+    stored pointing is compared with to know whether it is stale."""
+    which = register if register is not None else register_of(source)
+    return NakdimonVocalizer.name if which in CLASSICAL else DictaVocalizer.name
+
+
+def for_source(
+    source: object,
+    *,
+    register: Register | None = None,
+    notify: Callable[[str], None] | None = None,
+) -> Vocalizer:
+    """The vocalizer that will actually run for a text, on this machine.
+
+    The register picks; what is on disk decides. A machine without the menaked's
+    weights points with Nakdimon and says so once, and the pointing it writes names
+    Nakdimon, so the day the weights arrive the text is pointed again rather than kept.
+    """
+    engine = build(name_for(source, register))
+    usable, why = engine.available()
+    if usable:
+        return engine
+    if notify is not None:
+        notify(f"{why} Pointing with Nakdimon instead.")
+    return NakdimonVocalizer()
 
 
 # A label rather than a sentence: never sent to a diacritizer.

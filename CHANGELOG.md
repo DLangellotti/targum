@@ -6,6 +6,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Modern Hebrew is pointed by DICTA's menaked (`dicta-il/dictabert-large-char-menaked`,
+  CC BY 4.0), measured first against Nakdimon on two held-out sets — DICTA's own
+  Wikipedia test corpus and pointed prose and poetry from Project Ben-Yehuda by authors
+  neither model was trained on — and better on both: +1 point on vowels per letter, +2
+  to +4 on exact words, a perfect consonant skeleton, and the qamats qatan that
+  Nakdimon never writes and phonikud needs to say כָּל as `kol`. Gated by register:
+  scripture and the pinned editions reach no model, as before; the rabbinic and
+  medieval shelves stay on Nakdimon, whose card the menaked's says it is not for; the
+  revival and modern shelves and every upload go to the menaked. The weights are 1.2
+  GB, fetched by `targum models fetch menaked` (or `fetch he`, with the annotator's)
+  and never in a build: a machine without them points with Nakdimon and says so. The
+  vocalizer's name is the cache key, so a text Nakdimon pointed is pointed again on its
+  next build or `rebuild --words` — about 0.3 s a sentence on a box without a GPU,
+  which is why a deploy that carries this is scheduled rather than run. `SCHEMA_VERSION`
+  is untouched. The reader credits DICTA for the vowels where it made them, beside the
+  credit for the words; `LICENSING.md` records the licence, the measurement and the
+  gate. `scripts/measure_pointing.py` and `evals/ledger.jsonl` (stage `vocalize`) hold
+  the numbers (targum-internal#148).
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

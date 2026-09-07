@@ -87,14 +87,13 @@ import argparse
 import dataclasses
 import gc
 import importlib.metadata
-import os
 import re
 import sys
 import time
 from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -108,8 +107,7 @@ from targum.vocalize.base import (  # noqa: E402
     splice,
     strip_nikkud,
 )
-
-MENAKED = "dicta-il/dictabert-large-char-menaked"
+from targum.vocalize.dicta import MODEL as MENAKED  # noqa: E402
 
 #: The vowels proper: sheva, the three hatafs, hiriq through qubuts, and qamats qatan.
 VOWELS = frozenset(range(0x05B0, 0x05BC)) | {0x05C7}
@@ -478,39 +476,20 @@ def run_nakdimon(lines: list[Line], say: Callable[[str], None]) -> tuple[str, li
 
 
 def run_menaked(lines: list[Line], say: Callable[[str], None]) -> tuple[str, list[str | None]]:
-    """DICTA's menaked, straight from the Hugging Face weights, letters kept.
+    """DICTA's menaked through `vocalize/dicta.py`, which is what a build runs.
 
-    `HF_HOME` is pointed beside the annotator's weights the way `annotate/dicta.py` does
-    it, so the 1.2 GB lands in the one place a box is given its models. The weights are
-    CC BY 4.0 on the model card; this is the local run that licence permits, and not the
-    hosted Nakdan, which is NonCommercial by DICTA's terms and is never called.
+    The weights are CC BY 4.0 on the model card; this is the local run that licence
+    permits, and not the hosted Nakdan, which is NonCommercial by DICTA's terms and is
+    never called. Fetched here if absent, since a measurement is not a build.
     """
-    os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
     import torch
-    from huggingface_hub import hf_hub_download
-    from tokenizers import Tokenizer
-    from transformers import AutoModel, PreTrainedTokenizerFast
+
+    from targum.vocalize.dicta import DictaVocalizer, point
 
     say(f"loading {MENAKED}…")
-    # The card says `AutoTokenizer.from_pretrained`, and under transformers 5 that
-    # rebuilds a word-level BERT tokenizer from `vocab.txt` and `tokenizer_config.json`,
-    # which turns every Hebrew word into one `[UNK]` — the model then points nothing and
-    # the card's offset walk duplicates words (measured 2026-09-07: 5 of 6 lines failed
-    # the skeleton check that way). The model's own `tokenizer.json` is the character
-    # tokenizer it was trained with, so it is loaded as written. A `DictaVocalizer`, if
-    # one is ever built, has to do the same.
-    tokenizer = PreTrainedTokenizerFast(
-        tokenizer_object=Tokenizer.from_file(hf_hub_download(MENAKED, "tokenizer.json")),
-        model_max_length=2048,
-        cls_token="[CLS]",
-        sep_token="[SEP]",
-        pad_token="[PAD]",
-        unk_token="[UNK]",
-        mask_token="[MASK]",
-    )
-    model = AutoModel.from_pretrained(MENAKED, trust_remote_code=True)
-    model.eval()
-    # `/walk` names the assembly below, so its rows never pass for the card's.
+    model, tokenizer = DictaVocalizer(auto_download=True).load()
+    # `/walk` names the assembly in `dicta.assemble`, which walks the input rather than
+    # the tokens as the card's `predict` does, so its rows never pass for the card's.
     version = str(getattr(model.config, "_commit_hash", None) or "unknown")[:12] + "/walk"
     say(f"{MENAKED} @ {version} over {len(lines)} lines…")
     out: list[str | None] = []
@@ -524,40 +503,6 @@ def run_menaked(lines: list[Line], say: Callable[[str], None]) -> tuple[str, lis
     del model, tokenizer
     gc.collect()
     return version, out
-
-
-def point(model: Any, tokenizer: Any, text: str) -> str:
-    """The menaked's marks on `text`, letters kept, every character emitted once.
-
-    The card's `predict` walks the tokens and copies the input slice each one covers,
-    which emits a character once per token it became: the tokenizer NFKC-normalises,
-    `…` is three tokens over one character, and it came back as `………` — 24 of 250
-    Ben-Yehuda lines refused by the skeleton check for an ellipsis (2026-09-07). This
-    walks the input instead and looks each character's token up, so nothing is ever
-    written twice or lost. It is what a `DictaVocalizer` would have to do, and it is the
-    same head, the same classes and the same rule for a mater as the card's code: a
-    letter the model calls a mater is kept bare.
-    """
-    inputs = tokenizer([text], return_tensors="pt", truncation=True, return_offsets_mapping=True)
-    offsets = inputs.pop("offset_mapping")[0].tolist()
-    logits = model(**{k: v.to(model.device) for k, v in inputs.items()}, return_dict=True).logits
-    nikud = logits.nikud_logits[0].argmax(-1).tolist()
-    shin = logits.shin_logits[0].argmax(-1).tolist()
-    token_of: dict[int, int] = {}
-    for index, (start, end) in enumerate(offsets):
-        if end - start == 1:
-            token_of.setdefault(start, index)
-    out: list[str] = []
-    for at, char in enumerate(text):
-        out.append(char)
-        index = token_of.get(at)
-        if index is None or ord(char) not in LETTERS:
-            continue
-        if char == "ש":
-            out.append(model.config.shin_classes[shin[index]])
-        marks = model.config.nikud_classes[nikud[index]]
-        out.append("" if marks == model.config.mat_lect_token else marks)
-    return "".join(out)
 
 
 RUNNERS: dict[str, tuple[str, Callable[..., tuple[str, list[str | None]]]]] = {
