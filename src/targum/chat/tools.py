@@ -547,6 +547,30 @@ def _licence_row(licence: str) -> dict[str, Any]:
     }
 
 
+def refused(ctx: Ctx | None, host: str, error: Any) -> dict[str, Any] | None:
+    """Record what a failed fetch says about `host`; the answer to give if it is shut.
+
+    Called from every place `_describe` knocks, because the first knock is not always
+    the article fetch: an address is offered to the podcast reader before it is read as
+    a page, and a host that refuses the box refuses that knock first. Returning `None`
+    means the host is fine and it was the page that was missing.
+    """
+    from ..ingest import url as url_module
+
+    shut = url_module.shut(error)
+    if ctx is not None and ctx.store is not None:
+        ctx.store.reach(host, not shut, str(error.status or "no answer"))
+    if not shut:
+        return None
+    return {
+        "error": f"{host} does not answer targum. It may open in the reader's own browser; "
+        "it will not open here, so nothing can be built from it.",
+        "host_shut": True,
+        "advice": "Offer something else rather than this, and say plainly that targum "
+        "cannot reach it.",
+    }
+
+
 def describe_source(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     described = _describe(ctx, args)
     if "error" not in described and ctx.store is not None and described.get("kind") != "fetcher":
@@ -567,7 +591,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     address, a page over the cap, a source the ingester does not read.
     """
     from ..audio import episode as episode_module
-    from ..errors import TargumError, UnsupportedSource
+    from ..errors import TargumError, Unreachable, UnsupportedSource
     from ..ingest import fetch as fetchers
     from ..ingest import url as url_module
     from ..video import youtube as youtube_module
@@ -622,10 +646,14 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             **_licence_row(media.licence),
         }
 
+    host = (parsed.hostname or "").lower()
     try:
         found = episode_module.find(url)
     except UnsupportedSource as refusal:
         return {"error": f"{refusal.message} {refusal.hint or ''}".strip()}
+    except Unreachable as error:
+        shut = refused(ctx, host, error)
+        return shut if shut is not None else {"error": error.message}
     except TargumError as error:
         return {"error": error.message}
     if found is not None:
@@ -646,8 +674,16 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
     try:
         got = url_module.fetch(url)
+    except Unreachable as error:
+        # A door that will be shut next time is worth remembering; a page that is not
+        # there is not. Every host is still knocked on — the record informs what the
+        # model *offers*, never what a reader may bring (targum-internal#126).
+        shut = refused(ctx, host, error)
+        return shut if shut is not None else {"error": error.message}
     except TargumError as error:
         return {"error": error.message}
+    if ctx is not None and ctx.store is not None:
+        ctx.store.reach(host, True)
     if not got.is_html:
         return {
             "kind": "file",

@@ -839,3 +839,30 @@ def test_a_press_widens_nothing_after_its_own_turn(tmp_path: Path) -> None:
     assert pressed.wider is True
     after = chats.say(None, home, pressed.chat_id, "ועוד משהו", admin=False)
     assert after.wider is False, "the turn after a press is held to the list again"
+
+
+def test_the_model_is_told_which_doors_are_shut(tmp_path: Path) -> None:
+    """After the breakpoint with the ledger, because it changes as the box knocks and a
+    changing block before the breakpoint throws the cached prefix away each time."""
+    library, store = world(tmp_path)
+    store.reach("hebrew-academy.org.il", False, "403")
+    store.reach("nli.org.il", False, "403")
+    store.reach("he.wikipedia.org", True)
+    chats = session_module.Chats(
+        library, store, client_factory=lambda: Script([reply([{"type": "text", "text": "ok"}])])
+    )
+    chats.answer(chats.say(None, library.home(None), "", "מה לקרוא", admin=False))
+    (client,) = [chats._client]
+    ledger = client.requests[0]["system"][1]["text"]
+    assert "hebrew-academy.org.il" in ledger and "nli.org.il" in ledger
+    assert "he.wikipedia.org" not in ledger, "a host that answers is not on the list"
+    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+
+
+def test_no_shut_doors_means_no_block_at_all(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    chats = session_module.Chats(
+        library, store, client_factory=lambda: Script([reply([{"type": "text", "text": "ok"}])])
+    )
+    chats.answer(chats.say(None, library.home(None), "", "מה לקרוא", admin=False))
+    assert "did not answer targum" not in chats._client.requests[0]["system"][1]["text"]

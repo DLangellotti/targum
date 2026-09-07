@@ -600,6 +600,12 @@ class Chats:
             )
             if picked:
                 ledger = ledger + "\n\n" + exemplars_module.block(picked)
+        # Where the fetch door was refused. After the breakpoint with the ledger, because
+        # it changes as the box knocks, and a changing block before the breakpoint would
+        # throw the cached prefix away every time it learned something.
+        shut = prompts.shut_hosts(store.closed())
+        if shut:
+            ledger = ledger + "\n\n" + shut
         try:
             spent = run_turn(
                 self.client(),
