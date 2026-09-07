@@ -234,6 +234,10 @@ class Annotator:
                 else f"No word frequency data exists for {segmented.language}, "
                 "so words are not rated here."
             ),
+            # Asked of the object rather than added to the `Lemmatizer` protocol: it is
+            # true of one implementation and meaningless for every other, and a protocol
+            # that carried it would have every lemmatizer answering None to be polite.
+            scripture_share=getattr(self.lemmatizer, "scripture_share", None),
             tokens=banded,
         )
 

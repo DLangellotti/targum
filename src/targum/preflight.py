@@ -299,6 +299,47 @@ def check_scripture() -> Check:
     )
 
 
+def check_shelf(out: Path) -> Check:
+    """How many built texts are behind the annotator this code would use.
+
+    A warning, not a failure: a shelf a version behind serves perfectly good pages, and
+    `deploy.sh` runs `rebuild --words` right after this, which is what closes the gap. The
+    point is that the number is *said*. Three fixes were merged, closed and believed
+    shipped on 2026-09-03 and reached no built page — the register fix that stopped the
+    Tanakh calling `נִצָּבִים` modern, the binyan the hand tagging had written down all
+    along, and the recounted Tanakh table the difficulty bands sort on. Nothing was done
+    wrong; there was simply no line anywhere that printed "411 of 418 behind", so a stale
+    shelf and a current one looked the same (targum-internal#207, #208).
+
+    `scripts/shelf_versions.py` is the same survey with the detail — which component, by
+    home, and the ingester's separate and sharper version of the question.
+    """
+    from .annotate.versions import survey
+
+    if not out.is_dir():
+        return Check("shelf", True, f"nothing built at {out} yet", fatal=False)
+    shelf = survey(out)
+    if not shelf.total:
+        return Check("shelf", True, f"no Hebrew texts built at {out}", fatal=False)
+    if not shelf.behind:
+        return Check(
+            "shelf",
+            True,
+            f"all {shelf.total} Hebrew texts on the current annotator",
+            fatal=False,
+        )
+    moved = ", ".join(list(shelf.moved())[:3])
+    return Check(
+        "shelf",
+        False,
+        f"{len(shelf.behind)} of {shelf.total} Hebrew texts are behind the current annotator"
+        + (f" ({moved})" if moved else ""),
+        "targum rebuild --words — and note it re-annotates, which on a box without a GPU "
+        "is about a text a minute. scripts/shelf_versions.py --list names them.",
+        fatal=False,
+    )
+
+
 def check_transcriber() -> Check:
     """Whether a recording without a transcript can be heard, and on whose key."""
     from .transcribe import build, default_name
@@ -471,6 +512,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_pot(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
+    checks.append(check_shelf(out))
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

@@ -5,6 +5,7 @@ Every check here exists because of a way a deployment can look fine and not be.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from targum.preflight import (
     check_paths,
     check_pot,
     check_scripture,
+    check_shelf,
     check_ytdlp,
     check_ytdlp_proxy,
     fatal,
@@ -469,3 +471,51 @@ class _Nothing:
 
     def __exit__(self, *_: object) -> None:
         return None
+
+
+# --- the shelf against the code ----------------------------------------------
+
+
+def built(out: Path, home: str, name: str, annotator: str, source: str = "sefaria:Ruth") -> None:
+    """One text on a shelf, as a build leaves it: the two files the survey reads."""
+    folder = out / home / name
+    folder.mkdir(parents=True)
+    (folder / "annotation.json").write_text(
+        json.dumps({"language": "he", "annotator": annotator}), encoding="utf-8"
+    )
+    (folder / "document.json").write_text(json.dumps({"source": source}), encoding="utf-8")
+
+
+def test_a_shelf_behind_the_code_is_said_out_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The number nobody printed. Three fixes were merged, closed and believed shipped on
+    2026-09-03 and reached no built page, because a shelf 411 texts behind and a shelf
+    that was fine produced exactly the same silence (targum-internal#208)."""
+    monkeypatch.setattr(
+        "targum.annotate.versions.current_name", lambda source: "oshb/2+register/2+tanakh/2"
+    )
+    out = tmp_path / "targum-out"
+    built(out, "library", "old-he", "oshb/2+register/1+tanakh/1")
+    built(out, "library", "new-he", "oshb/2+register/2+tanakh/2")
+
+    check = check_shelf(out)
+    assert not check.ok and not check.fatal, "a stale shelf still serves pages"
+    assert "1 of 2" in check.detail
+    assert "register/1 -> register/2" in check.detail
+    assert "rebuild --words" in check.fix
+
+
+def test_a_shelf_level_with_the_code_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("targum.annotate.versions.current_name", lambda source: "oshb/2+register/2")
+    out = tmp_path / "targum-out"
+    built(out, "library", "one-he", "oshb/2+register/2+phonikud/2")
+    assert check_shelf(out).ok, "components the comparison cannot know are not staleness"
+
+
+def test_a_box_that_has_built_nothing_is_not_scolded(tmp_path: Path) -> None:
+    """A first deploy has no shelf, and a check that failed there would be a check
+    everybody learns to ignore."""
+    assert check_shelf(tmp_path / "never-built").ok

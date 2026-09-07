@@ -330,6 +330,18 @@ class Annotation(Artifact):
     method: str
     method_note: str
     band_count: int = 6
+    #: What share of this document's segments the Open Scriptures tagging actually read,
+    #: where a scripture lemmatizer was in the chain at all. `None` means nothing asked
+    #: the question — either the text is not scripture, or it was annotated before this
+    #: was recorded — and is not the same fact as `0.0`, which says the lookup was in
+    #: place and lined up with nothing.
+    #:
+    #: Here because the annotator name states configuration and cannot state outcome:
+    #: two copies of Genesis, one read by the tagging and one entirely by the model, are
+    #: five points apart in difficulty and record the same name byte for byte
+    #: (targum-internal#180). Additive on purpose — it is not in the name, so it
+    #: invalidates no cache and re-annotates nothing.
+    scripture_share: float | None = None
     tokens: dict[str, list[Token]] = Field(default_factory=dict)
 
     def counts(self) -> dict[int, int]:

@@ -295,6 +295,32 @@ class ScriptureLemmatizer:
 
     def __init__(self, fallback: Lemmatizer) -> None:
         self.fallback = fallback
+        #: The share of the last document's segments the tagging actually answered.
+        #: `None` until `lemmas` has been asked something. See `scripture_share`.
+        self._covered: float | None = None
+
+    @property
+    def scripture_share(self) -> float | None:
+        """How much of the last document the hand tagging actually read.
+
+        The name says this wrapper was *in place*; it cannot say the lookup *worked*.
+        Wrapping happens when the source is biblical and the tagging is on disk, and
+        `lemmas` then falls through per verse — so a copy of Genesis whose edition
+        numbers its verses differently is annotated entirely by the model and records a
+        name that claims otherwise. Two such copies of Genesis on the shelf carried the
+        same annotator name byte for byte while disagreeing by five points of difficulty
+        (targum-internal#180).
+
+        A share rather than a flag, because partial coverage is the ordinary case: a
+        chapter heading is not a verse and never lines up, so a book the tagging read
+        completely still reports slightly under one.
+
+        Deliberately not part of `name`. The name is the cache key, and a key that moved
+        with the outcome would re-annotate a text whenever a verse happened to align
+        differently — an unstable key is worse than an ambiguous one. This is recorded
+        on the artifact instead, where it costs no re-annotation to start writing.
+        """
+        return self._covered
 
     @property
     def name(self) -> str:
@@ -347,10 +373,12 @@ class ScriptureLemmatizer:
     def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
         looked_up: dict[str, list[Token]] = {}
         left: list[Segment] = []
+        answered = 0
         for segment in segments:
             found = self._verse(segment) if language.split("-")[0].lower() == "he" else None
             if found is not None:
                 looked_up[segment.id] = found
+                answered += 1
             elif (segment.language or "").split("-")[0].lower() == "arc":
                 # Aramaic the tagging could not line up — a different edition's verse
                 # numbering, which is 14 of Daniel's 200. It does not go to the fallback:
@@ -367,6 +395,10 @@ class ScriptureLemmatizer:
                 left.append(segment)
         if left:
             looked_up.update(self.fallback.lemmas(left, language))
+        # What the lookup covered, for the artifact to record. Counted over everything
+        # asked rather than over Hebrew alone, because the question is how much of this
+        # document was read from the tagging.
+        self._covered = (answered / len(segments)) if segments else None
         return looked_up
 
     def _verse(self, segment: Segment) -> list[Token] | None:

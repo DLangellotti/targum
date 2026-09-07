@@ -20,7 +20,7 @@ from targum.annotate.scripture import (
     part_of,
     root_of,
 )
-from targum.models import Segment, Token
+from targum.models import Segment, SegmentedDocument, Token
 
 FIXTURES = Path(__file__).parent / "fixtures" / "oshb"
 
@@ -470,3 +470,114 @@ def test_hebrew_the_tagging_cannot_place_still_goes_to_the_model(tagged: Path) -
     hebrew = verse("Isaiah 53:1", "מי האמין לשמעתנו")
     ScriptureLemmatizer(stub).lemmas([hebrew], "he")
     assert stub.asked == ["s1"], "the fallback is still what reads it"
+
+
+def test_the_artifact_says_how_much_the_tagging_actually_read(tagged: Path) -> None:
+    """The name says the wrapper was in place. Only this says the lookup worked.
+
+    Wrapping happens when the source is biblical and the tagging is on disk, and the
+    fall-through is per verse — so a copy of Genesis whose edition numbers its verses
+    differently is read entirely by the model under a name claiming otherwise. Two such
+    copies on the shelf carried the same annotator name byte for byte while disagreeing
+    by five points of difficulty (targum-internal#180).
+    """
+    read = ScriptureLemmatizer(Stub())
+    assert read.scripture_share is None, "nothing has been asked yet"
+
+    read.lemmas([verse("Genesis 1:1", FIRST)], "he")
+    assert read.scripture_share == 1.0
+
+    # The `p4` copy: the wrapper is in place and lines up with nothing at all. It is the
+    # case the name cannot tell from the one above, and `0.0` is not `None`.
+    read.lemmas([verse("Genesis 1:1", "בראשית ברא אלהים ומשהו נוסף לגמרי", "odd")], "he")
+    assert read.scripture_share == 0.0
+
+
+def test_a_book_the_tagging_read_whole_still_reports_under_one(tagged: Path) -> None:
+    """A share rather than a flag, because partial coverage is the ordinary case: a
+    chapter heading is not a verse and never lines up. Reading this as a boolean would
+    call a fully-read book partly guessed at, or a wholly-guessed one read."""
+    read = ScriptureLemmatizer(Stub())
+    read.lemmas(
+        [verse("Genesis 1:1", FIRST), verse("Genesis 1", "בראשית א׳", "heading")],
+        "he",
+    )
+    assert read.scripture_share == 0.5
+
+
+# --- through the whole annotator ---------------------------------------------
+
+
+class Rates:
+    """Bands that rate anything, so the pipeline runs without a frequency table."""
+
+    name = "fake-bands/1"
+    method = "curated:test"
+    note = "A test list."
+
+    def supports(self, language: str) -> bool:
+        return True
+
+    def band(self, lemma: str, language: str) -> int:
+        return 3
+
+
+def one_verse(ref: str, text: str) -> SegmentedDocument:
+    return SegmentedDocument(
+        document_hash="h",
+        language="he",
+        segmenter="fake/1",
+        segments=[verse(ref, text, "0000.000-aaaaaa")],
+    )
+
+
+def test_a_verb_keeps_its_binyan_through_the_whole_annotator(tagged: Path) -> None:
+    """The lemmatizer answering correctly is not the same fact as the shelf carrying it.
+
+    `test_a_verb_carries_its_binyan_and_root_off_the_tagging` above pins the lemmatizer.
+    This pins the pipeline, which is the layer targum-internal#207 was actually about:
+    the built shelf carried a binyan on 0.68% of its scripture verbs — 445 of 65,827,
+    with five books at exactly zero — while the lemmatizer beside it answered 100% for
+    the same book. Banding, the register and the dictionary stage all run between the
+    two, and nothing pinned what came out the far end.
+
+    So this is deliberately the full `Annotator` and not `ScriptureLemmatizer`: a
+    shelf-wide drop to zero has to fail a test rather than wait for an audit.
+    """
+    from targum.annotate import Annotator
+
+    annotation = Annotator(lemmatizer=ScriptureLemmatizer(Stub()), bands=Rates()).annotate(
+        one_verse("Genesis 1:1", FIRST)
+    )
+    verbs = [
+        token for tokens in annotation.tokens.values() for token in tokens if token.pos == "VERB"
+    ]
+    assert [(token.lemma, token.binyan, token.root) for token in verbs] == [("ברא", "פעל", "ברא")]
+    assert all("UPOS=VERB" in (token.feats or "") for token in verbs), (
+        "the grammar line reads UPOS= before anything else"
+    )
+
+
+def test_the_annotation_records_what_the_tagging_covered(tagged: Path) -> None:
+    """The share reaches the artifact, which is the only place anything downstream can
+    read it. `measure_difficulty.by_scripture_path` sniffed `PART` tags to recover this
+    because the artifact could not answer (targum-internal#180)."""
+    from targum.annotate import Annotator
+
+    read = Annotator(lemmatizer=ScriptureLemmatizer(Stub()), bands=Rates())
+    assert read.annotate(one_verse("Genesis 1:1", FIRST)).scripture_share == 1.0
+    # The wrapper in place, lining up with nothing: the `p4` copy of Genesis.
+    missed = read.annotate(one_verse("Genesis 1:1", "בראשית ברא אלהים ומשהו נוסף לגמרי"))
+    assert missed.scripture_share == 0.0
+
+
+def test_a_model_read_annotation_records_no_share_at_all(tagged: Path) -> None:
+    """`None` and `0.0` are different facts: nothing asked, against asked and answered
+    nowhere. Every text built before this field existed reads `None`, which is why
+    `by_scripture_path` still falls back to the tags for those."""
+    from targum.annotate import Annotator
+
+    annotation = Annotator(lemmatizer=Stub(), bands=Rates()).annotate(
+        one_verse("Genesis 1:1", FIRST)
+    )
+    assert annotation.scripture_share is None
