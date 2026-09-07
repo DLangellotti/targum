@@ -176,7 +176,11 @@ DICTA = "https://huggingface.co/dicta-il/"
 #: `youtube.WATCH`, whatever address the reader pasted, so this prefix is the whole
 #: allowance; and never for an uploaded file, which has no home to link to.
 YOUTUBE = "https://www.youtube.com/watch?v="
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE)
+#: Not an address at all: the XML namespace `charts.js` names to create an SVG element,
+#: carried by the reader since the foot of a finished section counts through it
+#: (targum-internal#175). A browser resolves it in memory and fetches nothing.
+SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, SVG_NAMESPACE)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:

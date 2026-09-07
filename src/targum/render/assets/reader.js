@@ -383,6 +383,18 @@ var targumReader = function () {
   var PICKED = "targum:picked:" + documentId;
   var DOCS = "targum:docs";
   var MIGRATED = "targum:migrated";
+  // Where the ledger stood when a section was first opened, by document and section,
+  // so the foot can say what moved when it is finished (targum-internal#175; the
+  // functions are beside `renderFinished`). Named here with the other stores because
+  // the snapshot is taken on open, above, before those functions are reached.
+  var FOOT = "targum:foot";
+  var FOOT_DAYS = 90;
+  // Every word this reader has ever opened a card for, by lemma, with how many times:
+  // the reader's own stall signal, shown back to them at the foot of a finished section
+  // (targum-internal#174). This browser's, never the account's — it is a count of taps,
+  // not a fact about a word — and a name or a number is never in it. Not
+  // `targum:looked:`, which is a store `vocab.js` retired and still sweeps on load.
+  var LOOKED = "targum:cards:" + language;
 
   // What you have decided about a word. Learning runs 1 to 3, from just met to nearly
   // there; known and ignored are ends rather than steps. A word you have never marked
@@ -430,6 +442,10 @@ var targumReader = function () {
       "-" +
       String(now.getDate()).padStart(2, "0");
     var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
+    // Where the ledger stood when this section was first opened, taken before today is
+    // written into it, so that a section opened on a new reading day counts the day as
+    // one of the things that moved (targum-internal#175; `footOpen` below).
+    footOpen(days);
     if (!days[today]) {
       days[today] = 1;
       targumKeep("targum:days", JSON.stringify(days));
@@ -628,6 +644,9 @@ var targumReader = function () {
   }
 
   function setFinished(on) {
+    // What moved while this section was read, worked out before the finish is written
+    // so the finish itself is not among the movements (targum-internal#175).
+    footMoved(on);
     var all = read(DOCS, "{}");
     var record = all[documentId] || {};
     // Said every time, not only on a fresh record. A record can be born nameless —
@@ -725,6 +744,308 @@ var targumReader = function () {
     return n + (["th", "st", "nd", "rd"][n % 10] || "th");
   }
 
+  /* What moved, delivered rather than visited (targum-internal#175).
+   *
+   * /progress holds the ledger and is right, and it is a destination a reader has to
+   * choose to visit. A chess rating is not: it is put in front of you at the end of
+   * every game, unbidden, and that half of the mechanism is the half that does the work.
+   * So the foot of a finished section says what moved while it was being read — the
+   * delta, then the standing it moved to — and says nothing about a count that did not
+   * move: a row of zeroes is a dashboard, and a delta with no total has no weight.
+   *
+   * Where the ledger stood when this section was first opened is kept under
+   * `targum:foot`, by document and section, and read back on Done. It is a bookmark
+   * into the ledger rather than a fact about the reader, so it stays in this browser
+   * and never goes to the account; a section opened before it existed simply says the
+   * finish and not the movement. Nothing here is a score, a point or a level: every
+   * figure is a count of a real thing the reader did, in the reading face, and the
+   * streak it can mention is the longest there has ever been, on the day it rises and
+   * on no other day — the current one is refused on purpose (design.md §12,
+   * 2026-09-03), because a count that can be lost is the thing that makes people quit.
+   */
+  function footKey() {
+    return documentId + ":" + sectionId;
+  }
+
+  function footRead() {
+    return read(FOOT, "{}");
+  }
+
+  function footWrite(foot) {
+    try {
+      targumKeep(FOOT, JSON.stringify(foot));
+    } catch (e) {}
+  }
+
+  // The ledger now, in the counts the foot can report. The same rules `charts.js` counts
+  // by: an ignored word is not a saved one, and a name or a number is not vocabulary.
+  function ledgerNow(days) {
+    var known = 0;
+    var saved = 0;
+    var words = read(VOCAB, "{}");
+    Object.keys(words).forEach(function (lemma) {
+      var word = words[lemma] || {};
+      if (word.status === IGNORED || word.band === "name" || word.band === "number") return;
+      saved += 1;
+      if (word.status === KNOWN) known += 1;
+    });
+    var list = Object.keys(days || read("targum:days", "{}"));
+    return {
+      known: known,
+      saved: saved,
+      finished: finishedCount(),
+      days: list.length,
+      longest: window.TargumCharts ? window.TargumCharts.longest(list) : 0,
+    };
+  }
+
+  function footOpen(days) {
+    var foot = footRead();
+    var cutoff = Date.now() - FOOT_DAYS * 86400000;
+    Object.keys(foot).forEach(function (key) {
+      if (Number((foot[key] || {}).at || 0) < cutoff) delete foot[key];
+    });
+    if (!foot[footKey()] && !finishedAt()) {
+      var stood = ledgerNow(days);
+      stood.at = Date.now();
+      foot[footKey()] = stood;
+    }
+    footWrite(foot);
+  }
+
+  /* Which words cost the reader the most (targum-internal#174).
+   *
+   * The gloss tap is the whole explanation mechanism, and it only ever fires when the
+   * reader already knows they are stuck; nothing volunteers what went wrong. The review
+   * that appears after every chess game — you were fine until move 24 — is the
+   * strongest retention mechanism the game has, and it turns a loss into a lesson.
+   * The reader has the same data and never shows it back. So the foot of a finished
+   * section says which words were looked up in it and how often each had been looked up
+   * before, which words appeared here and were passed without a look-up having been
+   * looked up in an earlier text — the half that shows progress rather than debt — and
+   * offers the two or three most-repeated to the reader's list. One offer, not a quiz.
+   *
+   * What it never does: score the section, print a percentage, or scold. There is no
+   * oracle for "did you understand this sentence", and inventing one puts a lie in
+   * tabular numbers; counting look-ups is counting what is there. The sentence is
+   * "looked up six times", never "you still do not know this", and the hue is the
+   * ledger's, never clay.
+   */
+  function lookedRead() {
+    return read(LOOKED, "{}");
+  }
+
+  function noteLookUp(index) {
+    var lemma = lemmas[index];
+    if (!lemma || isNameAt(index)) return;
+    try {
+      var history = lookedRead();
+      var was = history[lemma] || {};
+      history[lemma] = { n: Number(was.n || 0) + 1, at: Date.now() };
+      targumKeep(LOOKED, JSON.stringify(history));
+      var foot = footRead();
+      var entry = foot[footKey()];
+      if (entry && !entry.moved) {
+        entry.looked = entry.looked || {};
+        entry.looked[lemma] = Number(entry.looked[lemma] || 0) + 1;
+        footWrite(foot);
+      }
+    } catch (e) {}
+  }
+
+  // Every token of this section carrying a lemma, once per lemma, names and numbers
+  // left out: the words that appeared here.
+  function eachLemmaHere(callback) {
+    var seen = {};
+    Object.keys(wordData).forEach(function (segment) {
+      (wordData[segment] || []).forEach(function (row) {
+        var index = row[4];
+        var lemma = lemmas[index];
+        if (!lemma || seen[lemma] || isName(row)) return;
+        seen[lemma] = true;
+        callback(lemma, index, row);
+      });
+    });
+  }
+
+  // Whether the word at this lemma index is a name or a number anywhere on the page.
+  // Read off the rows themselves: `eachLemmaHere` leaves names out, which is what it is
+  // for and makes it the wrong tool for this.
+  function isNameAt(index) {
+    var named = false;
+    Object.keys(wordData).forEach(function (segment) {
+      (wordData[segment] || []).forEach(function (row) {
+        if (row[4] === index && isName(row)) named = true;
+      });
+    });
+    return named;
+  }
+
+  // What this section cost, what it no longer costs, and what to offer. Counts only.
+  function footCost(entry) {
+    var history = lookedRead();
+    var here = entry.looked || {};
+    var cost = Object.keys(here)
+      .map(function (lemma) {
+        var total = Number((history[lemma] || {}).n || 0);
+        return { lemma: lemma, here: here[lemma], before: Math.max(0, total - here[lemma]) };
+      })
+      .sort(function (a, b) {
+        return b.before - a.before || b.here - a.here || (a.lemma < b.lemma ? -1 : 1);
+      });
+    var stopped = [];
+    eachLemmaHere(function (lemma) {
+      if (here[lemma] || !(history[lemma] && history[lemma].n)) return;
+      stopped.push({ lemma: lemma, before: Number(history[lemma].n) });
+    });
+    stopped.sort(function (a, b) {
+      return b.before - a.before || (a.lemma < b.lemma ? -1 : 1);
+    });
+    // Offered: the most-repeated of what cost, not already on the list. Two or three.
+    var offer = cost
+      .filter(function (item) {
+        return !vocab[item.lemma];
+      })
+      .slice(0, 3)
+      .map(function (item) {
+        return item.lemma;
+      });
+    return { cost: cost.slice(0, 8), stopped: stopped.slice(0, 8), offer: offer };
+  }
+
+  // Worked out on the press, before the finish is written: the delta and the standing
+  // for every count that moved since the section was opened, kept beside the snapshot
+  // so the foot can say it again on the next visit. Taking the finish back drops it.
+  function footMoved(on) {
+    var foot = footRead();
+    var entry = foot[footKey()];
+    if (!entry) return;
+    if (!on) {
+      delete entry.moved;
+      delete entry.cost;
+      footWrite(foot);
+      return;
+    }
+    var now = ledgerNow();
+    entry.cost = footCost(entry);
+    var moved = [];
+    if (now.known > entry.known) {
+      moved.push({ hue: "leaf", delta: now.known - entry.known, of: "newly known", standing: now.known, all: "known" });
+    }
+    if (now.saved > entry.saved) {
+      moved.push({ hue: "iris", delta: now.saved - entry.saved, of: "newly saved", standing: now.saved, all: "saved" });
+    }
+    // "day 12 reading" is the delta and the standing in one phrase: the day is the one
+    // that moved, and twelve is what it moved to.
+    if (now.days > entry.days) moved.push({ hue: "", day: now.days });
+    // A run of one is not a run. The longest run is said on the day it rises past the
+    // last one it was said at, and never as a standing: the standing lives on /progress.
+    if (now.longest > entry.longest && now.longest >= 2) {
+      moved.push({ hue: "sun", run: now.longest });
+    }
+    entry.moved = moved;
+    footWrite(foot);
+  }
+
+  function times(n) {
+    return n === 1 ? "once" : n === 2 ? "twice" : n + " times";
+  }
+
+  // The words, after the counts: what cost, what stopped costing, and the offer. Each
+  // word in the reading face, bold, and the sentence around it in the ledger's quiet
+  // tone. A reader who looked nothing up sees the half that shows progress, and a
+  // section with neither says neither.
+  function drawCost(into, cost) {
+    if (!cost) return;
+    function line(className, lead) {
+      var span = document.createElement("span");
+      span.className = "move " + className;
+      if (lead) span.appendChild(document.createTextNode(lead));
+      into.appendChild(span);
+      return span;
+    }
+    function name(span, lemma) {
+      var b = document.createElement("b");
+      b.setAttribute("lang", language);
+      b.textContent = lemma;
+      span.appendChild(b);
+    }
+    if (cost.cost && cost.cost.length) {
+      var costly = line("cost", "Looked up here: ");
+      cost.cost.forEach(function (item, n) {
+        if (n) costly.appendChild(document.createTextNode(" · "));
+        name(costly, item.lemma);
+        costly.appendChild(
+          document.createTextNode(
+            item.before ? ", looked up " + times(item.before) + " before" : ", the first time"
+          )
+        );
+      });
+    }
+    if (cost.stopped && cost.stopped.length) {
+      var eased = line("stopped", "Read here without a look-up, looked up before: ");
+      cost.stopped.forEach(function (item, n) {
+        if (n) eased.appendChild(document.createTextNode(" · "));
+        name(eased, item.lemma);
+      });
+    }
+    var offer = (cost.offer || []).filter(function (lemma) {
+      return !vocab[lemma];
+    });
+    if (offer.length) {
+      var asked = line("offer", "Keep on your list: ");
+      offer.forEach(function (lemma) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "offer";
+        button.setAttribute("lang", language);
+        button.textContent = lemma;
+        button.addEventListener("click", function () {
+          var index = lemmas.indexOf(lemma);
+          var band = "";
+          eachLemmaHere(function (found, at, row) {
+            if (found === lemma) band = bandOf(row);
+          });
+          if (index >= 0 && setStatus(index, lemma, band, LEARNING[0])) {
+            redraw();
+            renderFinished();
+          }
+        });
+        asked.appendChild(button);
+      });
+    }
+  }
+
+  function drawMoved(into) {
+    var entry = footRead()[footKey()];
+    var moved = entry && entry.moved;
+    if (entry && entry.cost) drawCost(into, entry.cost);
+    if (!moved || !moved.length) return;
+    moved.forEach(function (item) {
+      var line = document.createElement("span");
+      line.className = "move" + (item.hue ? " " + item.hue : "");
+      function figure(n) {
+        var b = document.createElement("b");
+        b.textContent = String(n);
+        line.appendChild(b);
+      }
+      if (item.day) {
+        line.appendChild(document.createTextNode("day "));
+        figure(item.day);
+        line.appendChild(document.createTextNode(" reading"));
+      } else if (item.run) {
+        figure(item.run);
+        line.appendChild(document.createTextNode(" days running · your longest"));
+      } else {
+        figure(item.delta);
+        line.appendChild(document.createTextNode(" " + item.of + " · "));
+        figure(item.standing);
+        line.appendChild(document.createTextNode(" " + item.all));
+      }
+      into.appendChild(line);
+    });
+  }
+
   // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block
   // that earned it — and brags the brand's way: a real count, in serif tabular figures,
   // leaf-bright on ink. Type, not motion.
@@ -753,6 +1074,7 @@ var targumReader = function () {
       tally.appendChild(figure);
       tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
       finishedSaid.appendChild(tally);
+      drawMoved(finishedSaid);
       finishedSaid.hidden = false;
       finishedMark.textContent = "Undo";
       finishedMark.classList.add("undo");
@@ -2821,6 +3143,9 @@ var targumReader = function () {
     var index = parseInt(word.getAttribute("data-lemma"), 10);
     var lemma = lemmas[index];
     if (!lemma) return;
+    // A card opened is a look-up, whether a tap or Enter asked for it: the reader wanted
+    // to know what the word was, and that is the whole of the signal the foot reports.
+    noteLookUp(index);
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
@@ -6449,6 +6774,9 @@ var targumReader = function () {
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
+    // A card opened on a word, for tests with no card to open: what the foot of a
+    // finished section counts as a look-up (targum-internal#174).
+    looked: noteLookUp,
     // What the ledger would count from what is stored, by the rule that never adds an
     // old whole-document record to the sections it did not record.
     finishedCount: finishedCount,

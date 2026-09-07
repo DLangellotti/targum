@@ -34,6 +34,9 @@ install({
     { ["targum:vocab:" + language]: JSON.stringify(payload.vocab || {}) },
     // A doc record that predates this page — the sync writes some with no language.
     payload.docs ? { "targum:docs": JSON.stringify(payload.docs) } : {},
+    // Anything else the browser held, already as strings: the reading days, a ledger
+    // snapshot, whatever a test needs the page to find.
+    payload.stored || {},
   ),
 });
 
@@ -71,6 +74,9 @@ byId.first = Object.assign(element("p"), {
 
 // The page loads this first and the reader leans on it: the level names it announces
 // and the steps the card draws are both `TargumVocab.STEPS`.
+// And the ledger's arithmetic before either, as the template ships it: the foot of a
+// finished section counts the longest run of days through `TargumCharts`.
+require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
 require(path.join(assets, "reader.js"));
 const reader = window.TargumReader;
@@ -126,6 +132,9 @@ const said = [];
 });
 
 /* Finished with the text: said, said again, and what the record holds. */
+// Cards opened on words, by lemma index, before the finish: what the foot counts as a
+// look-up (targum-internal#174).
+(payload.looked || []).forEach((index) => reader.looked(index));
 (payload.finish || []).forEach((on) => reader.finish(on));
 
 /* The offer at the foot: everything never marked, known at once, and one undo. */

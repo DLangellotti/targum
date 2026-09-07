@@ -677,6 +677,10 @@
   {% endif %}
 </div>
 <script type="application/json" id="targum-data">{{ data }}</script>
+{#- The ledger's arithmetic, shared with Learn and /progress: the foot of a finished
+    section says what moved (targum-internal#175), and the longest run of days is
+    counted in one place so three pages cannot disagree about it. -#}
+<script>{{ asset('charts.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('reader.js') }}</script>

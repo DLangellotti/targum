@@ -371,6 +371,15 @@
     // thing, and the one on this page that is a whole text rather than a word.
     count(sums.finished, sums.finished === 1 ? "targum finished" : "targums finished", "leaf");
     count(days.length, days.length === 1 ? "day reading" : "days reading");
+    // The longest run of days there has ever been, and never the current one. Decided
+    // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
+    // is a count that can be destroyed, and that is what makes people quit in the week
+    // they break a long one; the longest can be tied or beaten and never lost, which is
+    // the property every other figure in this block has. Sun is the streak's hue (§4),
+    // legal here because this block is the inverted surface. It rises on /progress
+    // quietly; the day it rises, the foot of the section that did it says so.
+    var longest = charts.longest(days);
+    count(longest, longest === 1 ? "day running, your longest" : "days running, your longest", "sun");
 
     drawStanding(standing, entry, code, sums.known);
   }
