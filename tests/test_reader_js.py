@@ -849,3 +849,105 @@ def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
     """`::` is how Anki nests decks, and a title with it in would file the text two
     levels down."""
     assert deck(WORD, name="Genesis::1")[3] == "#deck:targum::Genesis:1"
+
+
+# --- the switch between renderings (targum-internal#199) ------------------------
+
+#: Two renderings of two lines, as the builder ships them: a published English and
+#: Onkelos, disagreeing about which line was paired coarsely.
+RENDERINGS = {
+    "t0": {
+        "text": {"a": "In the beginning", "b": "And the earth"},
+        "coarse": ["b"],
+        "language": "en",
+        "direction": "ltr",
+    },
+    "t1": {
+        "text": {"a": "בְּקַדְמִין", "b": "וְאַרְעָא"},
+        "coarse": ["a"],
+        "language": "arc",
+        "direction": "rtl",
+    },
+}
+#: The pairs as the template writes them, with the first rendering in the cells.
+PAIRS = [
+    {"id": "a", "src": "בראשית", "tr": "In the beginning"},
+    {"id": "b", "src": "והארץ", "tr": "And the earth", "coarse": True},
+]
+SWITCH = {"drawn": "t0", "ids": ["t0", "t1"]}
+
+
+def renderings(**more: Any) -> dict[str, Any]:
+    return run([], translations=RENDERINGS, pairs=PAIRS, switch=SWITCH, **more)["rendering"]
+
+
+def test_switching_rendering_rewrites_only_the_translation_cells() -> None:
+    """The switch writes the translation cells — text, language, direction — and nothing
+    else. The source cells, which every mark and offset is measured against, are as they
+    were, so switching cannot move a saved phrase."""
+    said = renderings(switchTo="t1")
+    opened, switched = said["opened"], said["switched"]
+
+    assert opened["showing"] == "t0" and opened["pressed"] == ["t0"]
+    assert [cell["tr"] for cell in opened["cells"]] == ["In the beginning", "And the earth"]
+    assert {(cell["lang"], cell["dir"]) for cell in opened["cells"]} == {("en", "ltr")}
+
+    assert switched["showing"] == "t1" and switched["pressed"] == ["t1"]
+    assert [cell["tr"] for cell in switched["cells"]] == ["בְּקַדְמִין", "וְאַרְעָא"]
+    assert {(cell["lang"], cell["dir"]) for cell in switched["cells"]} == {("arc", "rtl")}
+    assert [cell["src"] for cell in switched["cells"]] == [cell["src"] for cell in opened["cells"]]
+
+
+def test_coarse_marks_follow_the_rendering_on_show() -> None:
+    """Each rendering is aligned on its own, so which lines are paired coarsely is a
+    fact about the rendering, and the marks change with it."""
+    said = renderings(switchTo="t1")
+    assert [cell["coarse"] for cell in said["opened"]["cells"]] == [False, True]
+    assert [cell["coarse"] for cell in said["switched"]["cells"]] == [True, False]
+
+
+def test_a_rendering_is_remembered_per_text_and_reopens_on_it() -> None:
+    """Kept per document, the way the vowels are — an id is a position, and `t1` is
+    Onkelos in one book and Russian in the next — and the next page of the same text
+    opens on it without a press."""
+    said = renderings(switchTo="t1")
+    assert said["opened"]["kept"] == {}
+    assert said["switched"]["kept"] == {"a-chapter": "t1"}
+
+    again = renderings(prefs={"translationBy": {"a-chapter": "t1"}})["opened"]
+    assert again["showing"] == "t1" and again["pressed"] == ["t1"]
+    assert [cell["tr"] for cell in again["cells"]] == ["בְּקַדְמִין", "וְאַרְעָא"]
+    assert {cell["dir"] for cell in again["cells"]} == {"rtl"}
+
+
+def test_the_language_read_into_picks_the_opening_rendering() -> None:
+    """`targum:into` is the language a reader said they read into, on the library or the
+    words page. A text with no choice made on it yet opens on a rendering in that
+    language when it carries one, and on the one it was drawn with when it does not."""
+    assert renderings(into="arc")["opened"]["showing"] == "t1"
+    assert renderings(into="fr")["opened"]["showing"] == "t0"
+    # A choice made on the text itself outranks it.
+    kept = renderings(into="arc", prefs={"translationBy": {"a-chapter": "t0"}})
+    assert kept["opened"]["showing"] == "t0"
+
+
+def test_a_rendering_with_nothing_for_this_page_is_never_opened_on() -> None:
+    """A book bought a chapter at a time in one language and held whole in another has
+    pages one rendering does not cover. Neither a kept choice, the language read into,
+    nor a press opens on an empty column."""
+    empty = {**RENDERINGS, "t1": {**RENDERINGS["t1"], "text": {"a": "", "b": ""}}}
+    kept = run(
+        [],
+        translations=empty,
+        pairs=PAIRS,
+        switch=SWITCH,
+        switchTo="t1",
+        prefs={"translationBy": {"a-chapter": "t1"}},
+        into="arc",
+    )["rendering"]
+    assert kept["opened"]["showing"] == "t0"
+    assert kept["switched"]["showing"] == "t0"
+    assert [cell["tr"] for cell in kept["switched"]["cells"]] == [
+        "In the beginning",
+        "And the earth",
+    ]

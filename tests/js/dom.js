@@ -12,6 +12,16 @@
 
 "use strict";
 
+/** Whether a node wears every class in a selector: `.src.plain` is a cell that is both,
+ *  the way the reader asks for the form on show. One class is the common case. */
+function wearing(selector) {
+  const wanted = String(selector).split(".").filter(Boolean);
+  return (node) => {
+    const worn = String(node.className || "").split(" ");
+    return wanted.every((name) => worn.includes(name));
+  };
+}
+
 function element(tag) {
   return {
     tagName: tag,
@@ -64,6 +74,8 @@ function element(tag) {
 
     appendChild(child) {
       this.children.push(child);
+      // The reader asks a cell for the pair it is in, to find the segment it draws.
+      child.parentNode = this;
       return child;
     },
     removeChild(child) {
@@ -102,21 +114,18 @@ function element(tag) {
        the class match, never hit, and the stub quietly answered null. */
     querySelector(selector) {
       const attr = /^\[([\w-]+)="?([^"\]]*)"?\]$/.exec(selector);
-      const wanted = selector.replace(".", "");
-      const hit = attr
-        ? (node) => node.attrs[attr[1]] === attr[2]
-        : (node) => String(node.className).split(" ").includes(wanted);
+      const hit = attr ? (node) => node.attrs[attr[1]] === attr[2] : wearing(selector);
       const find = (node) => (hit(node) ? node : node.children.map(find).find(Boolean));
       return find(this) || null;
     },
     /* Every descendant carrying the class, in document order — the record's foot counts
        the words drawn above it this way. Class selectors only, like querySelector. */
     querySelectorAll(selector) {
-      const wanted = String(selector).replace(".", "");
+      const hit = wearing(selector);
       const out = [];
       const walk = (node) => {
         (node.children || []).forEach((child) => {
-          if (String(child.className || "").split(" ").includes(wanted)) out.push(child);
+          if (hit(child)) out.push(child);
           walk(child);
         });
       };

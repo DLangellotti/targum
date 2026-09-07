@@ -100,13 +100,22 @@
       <button type="button" class="more-close">Close the player</button>
     </div>
     {% endif %}
+    {#- Which rendering the translation column draws from, on a text that carries more
+        than one: Hebrew against Onkelos and against English, or against a published
+        edition and a literal one (targum-internal#199). Drawn the way the levels are —
+        one pill, a fill under the live one — and not drawn at all on a text with one,
+        because a switch with one position asks a question that has no other answer.
+        Named by language where the languages differ and by the rendering where they do
+        not; the full name is the title. `data-drawn` is the rendering the cells were
+        written with, which the script takes as the opening position rather than
+        assuming the first. A rendering with nothing for this section is offered
+        disabled, not as a button that empties the column. -#}
     {% if translations|length > 1 %}
-    <label class="group">
-      <span class="label">Translation</span>
-      <select id="translation">
-        {% for t in translations %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
-      </select>
-    </label>
+    <div class="group renderings" id="translation" role="group" aria-label="Translation" data-what="Translation" data-drawn="{{ drawn_id }}">
+      {%- for t in translations %}
+      <button type="button" class="rendering{% if t.id == drawn_id %} on{% endif %}" data-translation="{{ t.id }}" aria-pressed="{{ 'true' if t.id == drawn_id else 'false' }}" title="{{ t.name }}"{% if t.id not in covered %} disabled{% endif %}>{{ t.label }}</button>
+      {%- endfor %}
+    </div>
     {% endif %}
     {#- One button, not two: it is a thing that is on or off, and two buttons for that
         made a scale out of a switch. The drawing is a letter with its points beneath —

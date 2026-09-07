@@ -1779,7 +1779,6 @@ def render(
         if segment.kind is BlockKind.verse and verse_address(segment.ref)
     }
     source_direction = direction_for(segmented.language)
-    target_direction = direction_for(translations[0].target_language)
     # Which rows are in a language other than the document's. Daniel and Ezra turn into
     # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
     # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
@@ -1803,6 +1802,8 @@ def render(
     parts = parts[1:]
 
     drawn = cover_name(document)
+    # Which languages the renderings are in, for naming them on the switch.
+    into = [translation.target_language for translation in translations]
     # Whether this text is an imported recording. The contents page asks so its
     # waiting rows can offer the work actually owed — a transcript, not a translation.
     from ..audio import manifest as manifest_module
@@ -1827,8 +1828,6 @@ def render(
         "minutes": section_minutes(sections, by_id),
         "source_language": segmented.language,
         "source_direction": source_direction,
-        "target_language": translations[0].target_language,
-        "target_direction": target_direction,
         "page_direction": source_direction,
         "has_nikkud": bool(pointed),
         "has_taamim": bool(unaccented),
@@ -1855,6 +1854,16 @@ def render(
             {
                 "id": f"t{index}",
                 "name": translation.name,
+                # What the switch calls it, on a text that carries more than one. The
+                # language where the languages differ — Aramaic beside English is the
+                # whole of what a reader doing shnayim mikra is choosing between — and
+                # the rendering's own name where two are in the same language, since
+                # "English | English" says nothing. The full name is the button's title.
+                "label": (
+                    language_name(translation.target_language)
+                    if into.count(translation.target_language) == 1
+                    else translation.name
+                ),
                 "language": translation.target_language,
                 "direction": direction_for(translation.target_language),
                 "kind": translation.kind,
@@ -2046,7 +2055,29 @@ def render(
         # which is what a reader who followed the arrow from chapter one walked into.
         # The same rule `Library.chapters()` applies, so the contents page and the
         # chapter page cannot disagree about which chapters are waiting.
-        translated = any(translations[0].segments.get(sid) for sid in section.segment_ids)
+        # Any rendering counts: a book bought a chapter at a time in one language and
+        # held whole in another is translated wherever either has it. Which ones have
+        # anything for this section is also what the switch says — a button that
+        # empties the column is a control that lies, so one with nothing here is
+        # offered disabled.
+        covering = [
+            index
+            for index, translation in enumerate(translations)
+            if any(translation.segments.get(sid) for sid in section.segment_ids)
+        ]
+        translated = bool(covering)
+        covered = {f"t{index}" for index in covering}
+        # Which rendering the cells are written with. The first, as it has always been
+        # — which one a text opens on is not decided here (targum-internal#199) — unless
+        # the first has nothing for this section and another does: the alternative was
+        # an empty column with a switch beside it, under a page that said "not
+        # translated yet" about a chapter that is. The script reads the choice off the
+        # switch rather than assuming the first, and the direction and language stamped
+        # on the cells are this rendering's and nobody else's: Hebrew against Onkelos
+        # runs right to left on both sides, and against English on one.
+        drawn_at = covering[0] if covering else 0
+        drawing = translations[drawn_at]
+        target_direction = direction_for(drawing.target_language)
         # Where the language turns, said once at the row where it does — "Aramaic" over
         # Daniel 2:4, "Hebrew" over 8:1 — rather than on every row of a chapter. Counted
         # from the document's language at the top of each page, because a page is opened
@@ -2098,8 +2129,12 @@ def render(
             speech_credited=spoken.credited,
             speech_licence=spoken.licence,
             speech_licence_url=spoken.licence_url,
-            primary=translations[0].segments,
-            primary_coarse=set(translations[0].coarse),
+            target_language=drawing.target_language,
+            target_direction=target_direction,
+            drawn_id=f"t{drawn_at}",
+            covered=covered,
+            primary=drawing.segments,
+            primary_coarse=set(drawing.coarse),
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,

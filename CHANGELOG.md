@@ -6,6 +6,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The reader switches between renderings (targum-internal#199). A document has always
+  been able to carry several translations; the page now draws every one it carries —
+  each with its own language, direction and coarse marks — and a text with more than
+  one gains a switch in the bar, drawn the way the levels are: one pill, a fill under
+  the live one, named by language where the languages differ (Aramaic beside English
+  is what a reader doing shnayim mikra is choosing between) and by the rendering where
+  they do not. Hebrew against Onkelos runs right to left on both sides and against
+  English on one, and the cells say so per rendering. The choice is kept per text, the
+  way the vowels are; a text with no choice yet opens on the language the reader said
+  they read into (`targum:into`) when it carries one. A chapter one rendering has and
+  another does not is drawn from the one that has it, with the other's button
+  disabled rather than emptying the column. Switching writes only the translation
+  cells: every mark, phrase and offset is measured against the bare source text and
+  none of them moves. A text with one translation renders exactly as before, and shows
+  no switch at all.
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

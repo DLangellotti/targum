@@ -1216,12 +1216,27 @@ TAP_FIRST = """
 }
 """
 
+#: Press the switch in the bar for one rendering, the way a reader does.
 SWITCH = """
 (id) => {
-  const picker = document.getElementById('translation');
-  picker.value = id;
-  picker.dispatchEvent(new Event('change'));
+  document.querySelector('#translation [data-translation="' + id + '"]').click();
 }
+"""
+
+#: What the switch must leave alone: every source cell's markup, spans and all, and the
+#: reader's place on the page.
+UNTOUCHED = """
+() => ({
+  source: [...document.querySelectorAll('.pair .src.plain')].map((c) => c.innerHTML),
+  y: window.scrollY,
+})
+"""
+
+#: The switch's own buttons: which rendering each is, and whether it is pressed.
+PRESSED = """
+() => [...document.querySelectorAll('#translation .rendering')].map((b) => [
+  b.getAttribute('data-translation'), b.getAttribute('aria-pressed'), b.classList.contains('on'),
+])
 """
 
 
@@ -1248,6 +1263,38 @@ def test_switching_translation_switches_the_language(browser, two_languages: Pat
     russian = page.evaluate(CELLS)
     assert russian["langs"] == ["ru"], "the cells still claimed the first language"
     assert "На земле Израиля" in russian["first"]
+    context.close()
+
+
+def test_a_switched_rendering_is_drawn_and_kept(browser, two_languages: Path) -> None:
+    """The switch is one press on a pill in the bar (targum-internal#199). It rewrites
+    the translation cells and nothing else — the source cells' markup and the reader's
+    place are as they were, so no mark or phrase can move — and the choice is kept for
+    the text, so the page opens on it next time without a press.
+
+    Its own context, without `SCROLLING`: that init script writes `targum:prefs` afresh
+    on every navigation, which is right for a test about the pages and would make the
+    reload here measure the harness rather than the reader. The page is paged, as a
+    reader's is by default."""
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(two_languages))
+    page.wait_for_selector(".pair")
+    assert page.evaluate(PRESSED) == [["t0", "true", True], ["t1", "false", False]]
+    before = page.evaluate(UNTOUCHED)
+
+    page.evaluate(SWITCH, "t1")
+
+    assert page.evaluate(UNTOUCHED) == before, "the switch touched more than the translation"
+    russian = page.evaluate(CELLS)
+    assert russian["langs"] == ["ru"] and russian["dirs"] == ["ltr"]
+    assert "На земле Израиля" in russian["first"]
+    assert page.evaluate(PRESSED) == [["t0", "false", False], ["t1", "true", True]]
+
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert "На земле Израиля" in page.evaluate(CELLS)["first"], "the choice was not kept"
+    assert page.evaluate(PRESSED) == [["t0", "false", False], ["t1", "true", True]]
     context.close()
 
 

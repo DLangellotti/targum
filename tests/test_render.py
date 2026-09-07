@@ -1100,7 +1100,12 @@ def test_hostile_source_text_cannot_script_the_reader(tmp_path: Path) -> None:
     assert "&lt;svg onload" in page  # and it is there, escaped, where it belongs
     # No element anywhere carries an inline event handler: escaped text may contain the
     # word, but a live attribute is always preceded by a space inside a tag.
-    assert not re.search(r"<[a-z][^>]*\son[a-z]+\s*=", page, flags=re.I)
+    # Looked for outside attribute values: the hostile name is also the switch's
+    # `title` now, where it is escaped and inert (`"` becomes `&#34;`, so no value can
+    # close itself), and a handler that is text inside a value is not one. A handler
+    # that is an attribute stands before its own `=` and is still caught.
+    tags = re.sub(r'="[^"]*"', '=""', page)
+    assert not re.search(r"<[a-z][^>]*\son[a-z]+\s*=", tags, flags=re.I)
     assert "<\\/script" in html  # because "</" is split across a JSON escape
 
 
@@ -4539,3 +4544,188 @@ def test_a_turn_with_no_recording_still_names_its_speaker(tmp_path: Path) -> Non
     html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
     assert 'data-speaker="אמא"' in html
     assert '<span class="who" aria-hidden="true">אמא</span>' in html
+
+
+# --- several renderings (targum-internal#199) ---------------------------------
+
+
+def _segment(
+    n: int, text: str, kind: BlockKind = BlockKind.paragraph, level: int | None = None
+) -> Segment:
+    return Segment(
+        id=f"{n:04d}.000-aaaaaa",
+        block_id=f"b{n:04d}",
+        block_index=n,
+        index=n,
+        text=text,
+        kind=kind,
+        level=level,
+    )
+
+
+def _rendering(
+    name: str, into: str, segments: dict[str, str], coarse: list[str] | tuple[str, ...] = ()
+) -> Translation:
+    return Translation(
+        name=name,
+        document_hash="h",
+        source_language="he",
+        target_language=into,
+        provider="null",
+        segments=segments,
+        coarse=list(coarse),
+    )
+
+
+def _payload(html: str) -> dict:
+    return json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+
+
+def _markup(html: str) -> str:
+    """The page with its inlined stylesheet and scripts taken out, the JSON block kept."""
+    html = re.sub(r"<style>.*?</style>", "<style/>", html, flags=re.S)
+    return re.sub(r'<script>(?!.*?id="targum-data").*?</script>', "<script/>", html, flags=re.S)
+
+
+def _switch(html: str) -> str:
+    found = re.search(r'<div class="group renderings".*?</div>', html, re.S)
+    return found.group(0) if found else ""
+
+
+#: Genesis 1:1–2, against a published English and against Onkelos: RTL beside LTR and
+#: RTL beside RTL in one document, which is the pair the issue asks to be verified.
+GENESIS = [
+    _segment(0, "בראשית", BlockKind.heading, 1),
+    _segment(1, "בראשית ברא אלהים את השמים ואת הארץ"),
+    _segment(2, "והארץ היתה תהו ובהו"),
+]
+
+
+def _genesis(tmp_path: Path, translations: list[Translation], **extra) -> str:
+    document = Document(source="memory", title="בראשית", language="he", blocks=[], content_hash="h")
+    page = render(document, make_segmented(GENESIS), translations, tmp_path / "r", **extra)[0]
+    return page.read_text(encoding="utf-8")
+
+
+def _english(coarse: list[str] | tuple[str, ...] = ()) -> Translation:
+    return _rendering(
+        "JPS 1917",
+        "en",
+        {s.id: f"English {s.index}" for s in GENESIS},
+        coarse,
+    )
+
+
+def _onkelos(coarse: list[str] | tuple[str, ...] = ()) -> Translation:
+    return _rendering("Onkelos", "arc", {s.id: f"ארמית {s.index}" for s in GENESIS}, coarse)
+
+
+def test_a_text_with_one_translation_draws_no_switch(tmp_path: Path) -> None:
+    """A switch with one position asks a question that has no other answer."""
+    html = _genesis(tmp_path, [_english()])
+    assert 'id="translation"' not in html
+    assert 'class="rendering' not in html
+    assert list(_payload(html)["translations"]) == ["t0"]
+
+
+def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path) -> None:
+    """Both renderings ship, each with the language and direction of its own target:
+    Hebrew against English runs RTL/LTR and against Onkelos RTL/RTL, in one file. The
+    cells are written with the first and say so; the switch names each by its language
+    and pressed on the one drawn."""
+    html = _genesis(tmp_path, [_english(), _onkelos()])
+    shipped = _payload(html)["translations"]
+    assert {k: (v["language"], v["direction"]) for k, v in shipped.items()} == {
+        "t0": ("en", "ltr"),
+        "t1": ("arc", "rtl"),
+    }
+    assert shipped["t1"]["text"][GENESIS[1].id] == "ארמית 1"
+
+    switch = _switch(html)
+    assert 'data-drawn="t0"' in switch
+    assert ">English</button>" in switch and ">Aramaic</button>" in switch
+    assert 'title="JPS 1917"' in switch and 'title="Onkelos"' in switch
+    assert re.search(r'class="rendering on" data-translation="t0" aria-pressed="true"', switch)
+    assert re.search(r'class="rendering" data-translation="t1" aria-pressed="false"', switch)
+    assert "disabled" not in switch, "both cover the chapter, so neither is refused"
+    # The cells are the first rendering's, in its language and direction.
+    cells = re.findall(r'<p class="tr" lang="(\w+)" dir="(\w+)">', html)
+    assert cells and set(cells) == {("en", "ltr")}
+
+
+def test_two_renderings_in_one_language_are_named_by_the_rendering(tmp_path: Path) -> None:
+    """ "English | English" says nothing; a published edition beside a literal one is
+    told apart by name."""
+    literal = _rendering("literal", "en", {s.id: f"word for word {s.index}" for s in GENESIS})
+    switch = _switch(_genesis(tmp_path, [_english(), literal]))
+    assert ">JPS 1917</button>" in switch and ">literal</button>" in switch
+    assert ">English</button>" not in switch
+
+
+def test_coarse_marks_follow_the_rendering(tmp_path: Path) -> None:
+    """Each rendering is aligned on its own, so two can disagree about the same segment.
+    The marks ship per rendering, and the page wears the drawn one's."""
+    first, second = GENESIS[1].id, GENESIS[2].id
+    html = _genesis(tmp_path, [_english([first]), _onkelos([second])])
+    shipped = _payload(html)["translations"]
+    assert shipped["t0"]["coarse"] == [first]
+    assert shipped["t1"]["coarse"] == [second]
+    coarse = re.findall(r'<div class="pair[^"]*\bcoarse\b[^"]*" data-id="([^"]+)"', html)
+    assert coarse == [first], "the page opens wearing the first rendering's marks"
+
+
+def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: Path) -> None:
+    """A book bought a chapter at a time in one language and held whole in another. The
+    chapter the first rendering lacks is drawn from the one that has it — its language,
+    its direction, its button pressed and the other's disabled — rather than as an empty
+    column under "not translated yet". A chapter neither has still says so."""
+    segments = [
+        _segment(0, "א", BlockKind.heading, 1),
+        _segment(1, "שלום עולם"),
+        _segment(2, "ב", BlockKind.heading, 1),
+        _segment(3, "עוד שורה"),
+        _segment(4, "ג", BlockKind.heading, 1),
+        _segment(5, "שורה שלישית"),
+    ]
+    english = _rendering("JPS 1917", "en", {segments[1].id: "Hello world"})
+    onkelos = _rendering("Onkelos", "arc", {segments[1].id: "שלם", segments[3].id: "עוד"})
+    document = Document(source="memory", title="ספר", language="he", blocks=[], content_hash="h")
+    pages = render(document, make_segmented(segments), [english, onkelos], tmp_path / "r")
+    one, two, three = (p.read_text(encoding="utf-8") for p in pages[1:])
+
+    assert 'data-drawn="t0"' in _switch(one) and "disabled" not in _switch(one)
+    assert 'id="waiting-note"' not in one
+
+    switch = _switch(two)
+    assert 'data-drawn="t1"' in switch
+    refused = r'data-translation="t0" aria-pressed="false" title="JPS 1917" disabled>'
+    assert re.search(refused, switch)
+    assert re.search(r'class="rendering on" data-translation="t1" aria-pressed="true"', switch)
+    assert '<p class="tr" lang="arc" dir="rtl">' in two
+    assert '<p class="tr" lang="en"' not in two
+    assert 'id="waiting-note"' not in two, "the chapter is translated, in Aramaic"
+
+    assert 'id="waiting-note"' in three
+    assert "Not translated yet." in three
+    assert '<p class="tr"' not in three
+
+
+def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Path) -> None:
+    """The regression that matters, from the other side: a second rendering adds the
+    switch and its own data, and leaves every byte of the text, the cells and the first
+    rendering's data exactly as a one-rendering page has them. Every existing text takes
+    the one-rendering path, and it is pinned to be the same markup it always was."""
+    alone = _genesis(tmp_path / "alone", [_english([GENESIS[2].id])])
+    both = _genesis(tmp_path / "both", [_english([GENESIS[2].id]), _onkelos()])
+
+    switch = _switch(both)
+    assert switch
+    assert _switch(alone) == ""
+    without = _markup(both).replace(switch, "")
+    # The switch is the one difference in the page's furniture...
+    text = lambda html: re.search(r"<main.*?</main>", html, re.S).group(0)  # noqa: E731
+    assert text(without) == text(_markup(alone))
+    # ...and the second rendering the one difference in its data.
+    mine, theirs = _payload(alone), _payload(both)
+    assert theirs["translations"]["t0"] == mine["translations"]["t0"]
+    assert {**theirs, "translations": {"t0": theirs["translations"]["t0"]}} == mine

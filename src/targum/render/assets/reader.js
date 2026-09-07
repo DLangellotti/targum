@@ -5170,7 +5170,38 @@ var targumReader = function () {
     return pages.length > 1 ? current / (pages.length - 1) : 1;
   }
 
+  // The switch between renderings, on a text that carries more than one: one button per
+  // rendering, drawn where the levels are drawn, in the bar or the ⋯ menu
+  // (targum-internal#199). Absent on every text with one — a switch with one position
+  // asks a question that has no other answer — and everything below then opens on the
+  // rendering the page was written with, without touching a cell.
   var picker = document.getElementById("translation");
+  var renderingKeys = picker
+    ? Array.prototype.slice.call(picker.querySelectorAll(".rendering"))
+    : [];
+  // Which rendering the cells were written with. The first, unless the first had
+  // nothing for this section and another did; the page says which, and the script takes
+  // its word rather than assuming.
+  var drawn = (picker && picker.getAttribute("data-drawn")) || "t0";
+
+  function markRendering(id) {
+    renderingKeys.forEach(function (key) {
+      var on = key.getAttribute("data-translation") === id;
+      key.classList.toggle("on", on);
+      key.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  // Whether a rendering has anything at all for this section. A book bought a chapter
+  // at a time in one language and held whole in another has pages one rendering
+  // covers and the other does not, and opening on the empty one is a blank column.
+  function covers(id) {
+    var entry = translationData[id];
+    if (!entry || !entry.text) return false;
+    return Object.keys(entry.text).some(function (segmentId) {
+      return !!entry.text[segmentId];
+    });
+  }
 
   // Changing translation can be changing language, and everything that is about a pair
   // of languages rather than about a word has to follow it: which meanings the cards and
@@ -5182,7 +5213,9 @@ var targumReader = function () {
   // be a full re-mark of the screen to arrive at the page that is already on it.
   function applyTranslation(id, first) {
     var entry = translationData[id];
-    if (!entry || !entry.text) return;
+    // Never an empty column, whichever door asked: a press, a kept choice, a language
+    // read into, or a test.
+    if (!entry || !entry.text || !covers(id)) return;
     var was = targetLanguage;
     useTarget(id);
     foldMeanings();
@@ -5204,6 +5237,11 @@ var targumReader = function () {
       // changes with the translation on show.
       pair.classList.toggle("coarse", !!coarse[segmentId]);
     });
+    markRendering(id);
+    // The subtitle over the picture is copied out of the cells, and claims their
+    // language and direction the same way.
+    var subtitle = document.querySelector(".video-tr");
+    if (subtitle) inTarget(subtitle);
     if (prefs.translationBy && documentId) prefs.translationBy[documentId] = id;
     save();
     if (!first && targetLanguage !== was) {
@@ -5219,27 +5257,47 @@ var targumReader = function () {
     renderList();
   }
 
-  // Which translation to open on. The page is already rendered with the first one, so
-  // opening on that costs nothing: the target is taken and the meanings folded in
-  // without a single cell being touched. Only a remembered choice of another one
-  // rewrites the text, and only a reader who made that choice pays for it.
-  var opening = "t0";
-  var kept = prefs.translationBy ? prefs.translationBy[documentId] : "";
-  if (kept && translationData[kept]) opening = kept;
+  // Which translation to open on. A choice made on this text wins; failing that, the
+  // language the reader said they read into on the library or words page — `lang.js`
+  // keeps it as `targum:into`, and this is the same preference one level down — when
+  // this text carries a rendering in that language; failing both, the one the page was
+  // written with, which costs nothing: the target is taken and the meanings folded in
+  // without a single cell being touched. Only a choice of another one rewrites the
+  // text, and only a reader who made that choice pays for it. A rendering with nothing
+  // for this section is never opened on, whoever asked for it.
+  function readInto() {
+    try {
+      return localStorage.getItem("targum:into") || "";
+    } catch (e) {
+      return "";
+    }
+  }
 
-  if (opening !== "t0") {
+  function openingRendering() {
+    var kept = prefs.translationBy ? prefs.translationBy[documentId] : "";
+    if (kept && covers(kept)) return kept;
+    var into = readInto();
+    var ids = Object.keys(translationData);
+    for (var i = 0; into && i < ids.length; i++) {
+      if ((translationData[ids[i]].language || "") === into && covers(ids[i])) return ids[i];
+    }
+    return drawn;
+  }
+
+  var opening = openingRendering();
+  if (opening !== drawn) {
     applyTranslation(opening, true);
   } else {
-    useTarget("t0");
+    useTarget(drawn);
     foldMeanings();
   }
 
-  if (picker) {
-    picker.value = opening;
-    picker.addEventListener("change", function () {
-      applyTranslation(picker.value);
+  renderingKeys.forEach(function (key) {
+    key.addEventListener("click", function () {
+      var id = key.getAttribute("data-translation");
+      if (id && id !== showing) applyTranslation(id);
     });
-  }
+  });
 
   /* --- keyboard help ------------------------------------------------------- */
 
@@ -6458,6 +6516,12 @@ var targumReader = function () {
     personWord: personWord,
     // And the register line: which Hebrew a word belongs to, from where the reader is.
     registerLine: registerLine,
+    // Which rendering the translation column draws from, and switching it: settled in
+    // the payload and the cells, which is what a stub document can hold.
+    rendering: function (id) {
+      if (id) applyTranslation(id);
+      return showing;
+    },
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
@@ -7383,7 +7447,7 @@ var targumReader = function () {
     if (!/^[ <>]$/.test(key)) return;
     var on = document.activeElement;
     // SELECT is in this list and not in the argument below: Space is how a keyboard
-    // opens one, and taking it away leaves the translations menu unopenable.
+    // opens one, and a page that grows one must not lose it to the player.
     if (
       on &&
       (on.tagName === "INPUT" || on.tagName === "SELECT" || on.tagName === "TEXTAREA" || on.isContentEditable)
