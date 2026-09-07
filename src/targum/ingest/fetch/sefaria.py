@@ -599,4 +599,13 @@ class SefariaFetcher:
         language, ref = split_ref(identifier)
         if not ref:
             raise TargumError("No book named.", "Try: sefaria:Ruth")
+        # The Hebrew of a daf — the Mishnah in the daf's own edition, Rashi, Tosafot —
+        # is shaped and licensed differently and has a module of its own (#193).
+        # Imported here because that module reads this one.
+        from . import daf as daf_module
+
+        if language == DEFAULT_LANGUAGE:
+            found = daf_module.load(ref)
+            if found is not None:
+                return found
         return document_from_payload(_payload(ref, language), ref, language)

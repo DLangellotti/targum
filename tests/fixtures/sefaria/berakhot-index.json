@@ -1,0 +1,54 @@
+{
+ "title": "Berakhot",
+ "alt_structs": {
+  "Chapters": {
+   "nodes": [
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 2a:1-13a:15"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 13a:16-17b:11"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 17b:12-26a:10"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 26a:11-30b:13"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 30b:14-34b:32"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 35a:1-45a:3"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 45a:4-51b:10"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 51b:11-53b:33"
+    },
+    {
+     "title": null,
+     "heTitle": null,
+     "wholeRef": "Berakhot 54a:1-64a:15"
+    }
+   ]
+  }
+ }
+}

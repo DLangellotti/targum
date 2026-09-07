@@ -49,7 +49,18 @@ def direction_for(language: str) -> str:
 #: `Pirkei Avot` is the one tractate Sefaria does not file as `Mishnah …`, and it is
 #: the most read of the sixty-three, so leaving it out would be leaving out the one
 #: that matters. `Mishneh Torah` and `Mishnah` differ by a letter and are two works.
-BEYOND_SCRIPTURE = ("Mishneh Torah", "Mishnah", "Pirkei Avot", "Kuzari")
+#: And the Hebrew of a daf (targum-internal#193): the Mishnah in the daf's own edition,
+#: `sefaria:daf:<tractate>`, and the commentaries, `Rashi on <tractate>` and
+#: `Tosafot on <tractate>`. Rabbinic, not scripture, like the Mishnah above.
+BEYOND_SCRIPTURE = (
+    "Mishneh Torah",
+    "Mishnah",
+    "Pirkei Avot",
+    "Kuzari",
+    "daf:",
+    "Rashi on ",
+    "Tosafot on ",
+)
 
 
 def is_biblical(source: object) -> bool:
@@ -64,7 +75,7 @@ def is_biblical(source: object) -> bool:
         return False
     ref = text.split(":", 1)[1]
     head, sep, tail = ref.partition(":")
-    if sep and len(head) <= 3 and head.isalpha():
+    if sep and len(head) <= 3 and head.isalpha() and head != "daf":
         ref = tail  # a language was named: `sefaria:en:Ruth`
     return not ref.strip().startswith(BEYOND_SCRIPTURE)
 
@@ -72,6 +83,11 @@ def is_biblical(source: object) -> bool:
 #: Where a text arrives already pointed, by whoever published it. `sefaria:` covers the
 #: Tanakh and the Mishneh Torah; `siddur:` the weekday services.
 PINNED_EDITIONS = ("sefaria:", "siddur:")
+
+#: The exception inside `sefaria:`: the Hebrew of a daf (targum-internal#193). Romm and
+#: Vilna print no vowels, so an edition that "keeps its own pointing" would keep none,
+#: and these go to the diacritizer like any modern text.
+UNPOINTED_EDITIONS = ("sefaria:daf:", "sefaria:Rashi on ", "sefaria:Tosafot on ")
 
 
 def keeps_its_own_pointing(source: object) -> bool:
@@ -85,7 +101,10 @@ def keeps_its_own_pointing(source: object) -> bool:
     numerals, which are set unpointed throughout and are three quarters of the halakhot on
     their own. Keyed to scripture, this let a diacritizer at exactly those.
     """
-    return str(source or "").startswith(PINNED_EDITIONS)
+    text = str(source or "")
+    if text.startswith(UNPOINTED_EDITIONS):
+        return False
+    return text.startswith(PINNED_EDITIONS)
 
 
 class BlockKind(StrEnum):
