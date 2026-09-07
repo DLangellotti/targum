@@ -38,11 +38,16 @@ from ..models import (
     glossaries_in,
     read_artifact,
 )
-from .calendar import Reading
+from .calendar import Haftarah, Reading
+from .calendar import slug as reading_slug
 
 #: What each aliyah is called, in order. The seventh is the last on an ordinary Shabbat;
 #: a festival reading can be shorter, and then the names simply run out where it stops.
 ALIYOT = ("ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שביעי")
+
+#: What the haftarah's one section is called: the heading the reader jumps to, the way
+#: an aliyah's name is.
+HAFTARAH = "הפטרה"
 
 #: The Hebrew title each book is filed under in the library, by the English name Hebcal
 #: uses. The library is keyed by the Hebrew title — the build folder is `בראשית-he` —
@@ -53,6 +58,35 @@ BOOKS = {
     "Leviticus": "ויקרא",
     "Numbers": "במדבר",
     "Deuteronomy": "דברים",
+}
+
+#: The same for the Prophets, which is where the haftarah is cut from. Kept apart from
+#: the five because the five are what `entries` and `portions_for` mean by "a book":
+#: the shelf lists the Torah by portion, and the Prophets stay filed under their own
+#: names. A title with a space in it — "מלכים א" — is filed under `ids.slug` of it,
+#: the way the pipeline files every text.
+NEVIIM = {
+    "Joshua": "יהושע",
+    "Judges": "שופטים",
+    "I Samuel": "שמואל א",
+    "II Samuel": "שמואל ב",
+    "I Kings": "מלכים א",
+    "II Kings": "מלכים ב",
+    "Isaiah": "ישעיהו",
+    "Jeremiah": "ירמיהו",
+    "Ezekiel": "יחזקאל",
+    "Hosea": "הושע",
+    "Joel": "יואל",
+    "Amos": "עמוס",
+    "Obadiah": "עובדיה",
+    "Jonah": "יונה",
+    "Micah": "מיכה",
+    "Nahum": "נחום",
+    "Habakkuk": "חבקוק",
+    "Zephaniah": "צפניה",
+    "Haggai": "חגי",
+    "Zechariah": "זכריה",
+    "Malachi": "מלאכי",
 }
 
 _REF = re.compile(r"^(?P<book>.+?)\s+(?P<chapter>\d+):(?P<verse>\d+)$")
@@ -122,12 +156,14 @@ def library_root() -> Path:
 
 
 def load_book(name: str, root: Path | None = None) -> Book:
-    """Everything the library holds for one book of the Torah."""
+    """Everything the library holds for one book of the Torah or the Prophets."""
+    from ..ids import slug
+
     root = root or library_root()
-    hebrew = BOOKS.get(name)
+    hebrew = BOOKS.get(name) or NEVIIM.get(name)
     if hebrew is None:
         raise MissingBook(name, root)
-    return book_in(name, root / f"{hebrew}-he")
+    return book_in(name, root / f"{slug(hebrew)}-he")
 
 
 def book_in(name: str, folder: Path) -> Book:
@@ -203,6 +239,85 @@ def _within(segment: Segment, book: str, first: Verse, last: Verse) -> bool:
     return where == book and first <= place <= last
 
 
+@dataclass(slots=True)
+class _Run:
+    """The blocks and segments of a reading as it is being cut, and what has been taken.
+
+    One of these per cut, so a verse two ranges both claim — which happens where an
+    aliyah begins mid-verse in some traditions, and where a haftarah's pieces abut — is
+    taken by the first, and no verse is ever read twice.
+    """
+
+    blocks: list[Block]
+    segments: list[Segment]
+    taken: set[str]
+    seen_chapters: set[tuple[str, int]]
+
+    def heading(self, head_id: str, text: str, level: int) -> None:
+        self.blocks.append(
+            Block(id=head_id, kind=BlockKind.heading, level=level, text=text, ref="")
+        )
+        self.segments.append(
+            Segment(
+                id=head_id,
+                block_id=head_id,
+                block_index=len(self.blocks) - 1,
+                index=0,
+                kind=BlockKind.heading,
+                level=level,
+                text=text,
+                ref="",
+            )
+        )
+
+    def take(self, name: str, book: Book, first: Verse, last: Verse) -> None:
+        """Every verse of `book` from `first` to `last`, in order, with a line where a
+        chapter turns inside the range."""
+        for segment in book.segmented.segments:
+            if segment.id in self.taken:
+                continue
+            if segment.kind is BlockKind.heading:
+                continue
+            if not _within(segment, name, first, last):
+                continue
+            parsed = parse_ref(segment.ref)
+            # Where a chapter turns inside the reading, say so — but at level 3, so the
+            # section above stays the section and this is a line inside it.
+            if parsed is not None and (name, parsed[1].chapter) not in self.seen_chapters:
+                self.seen_chapters.add((name, parsed[1].chapter))
+                if parsed[1].verse != 1 or len(self.seen_chapters) > 1:
+                    named = book.document.title or name
+                    self.heading(
+                        f"chapter-{reading_slug(name)}-{parsed[1].chapter:03d}",
+                        f"{named} {parsed[1].chapter}",
+                        3,
+                    )
+            self.taken.add(segment.id)
+            self.blocks.append(
+                Block(
+                    id=segment.block_id,
+                    kind=segment.kind,
+                    level=segment.level,
+                    text=segment.text,
+                    ref=segment.ref,
+                    language=segment.language,
+                )
+            )
+            self.segments.append(
+                Segment(
+                    id=segment.id,
+                    block_id=segment.block_id,
+                    block_index=len(self.blocks) - 1,
+                    index=segment.index,
+                    kind=segment.kind,
+                    level=segment.level,
+                    text=segment.text,
+                    ref=segment.ref,
+                    language=segment.language,
+                )
+            )
+
+
 def cut(reading: Reading, books: dict[str, Book]) -> Portion:
     """The reading, as a document of its own.
 
@@ -210,10 +325,7 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
     range. A verse that two aliyot both claim — which happens where an aliyah begins
     mid-verse in some traditions — is taken by the first, so no verse is ever read twice.
     """
-    blocks: list[Block] = []
-    segments: list[Segment] = []
-    taken: set[str] = set()
-    seen_chapters: set[tuple[str, int]] = set()
+    run = _Run([], [], set(), set())
 
     for aliyah in reading.aliyot:
         book = books.get(aliyah.book)
@@ -224,85 +336,10 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
             continue
 
         name = ALIYOT[aliyah.number - 1] if aliyah.number <= len(ALIYOT) else str(aliyah.number)
-        head_id = f"aliyah-{aliyah.number:02d}"
-        blocks.append(
-            Block(
-                id=head_id,
-                kind=BlockKind.heading,
-                level=2,
-                text=name,
-                ref="",
-            )
-        )
-        segments.append(
-            Segment(
-                id=head_id,
-                block_id=head_id,
-                block_index=len(blocks) - 1,
-                index=0,
-                kind=BlockKind.heading,
-                level=2,
-                text=name,
-                ref="",
-            )
-        )
+        run.heading(f"aliyah-{aliyah.number:02d}", name, 2)
+        run.take(aliyah.book, book, first, last)
 
-        for segment in book.segmented.segments:
-            if segment.id in taken:
-                continue
-            if segment.kind is BlockKind.heading:
-                continue
-            if not _within(segment, aliyah.book, first, last):
-                continue
-            parsed = parse_ref(segment.ref)
-            # Where a chapter turns inside the reading, say so — but at level 3, so the
-            # aliyah above stays the section and this is a line inside it.
-            if parsed is not None and (aliyah.book, parsed[1].chapter) not in seen_chapters:
-                seen_chapters.add((aliyah.book, parsed[1].chapter))
-                if parsed[1].verse != 1 or len(seen_chapters) > 1:
-                    chapter_id = f"chapter-{aliyah.book[:3].lower()}-{parsed[1].chapter:03d}"
-                    named = books[aliyah.book].document.title or aliyah.book
-                    label = f"{named} {parsed[1].chapter}"
-                    blocks.append(
-                        Block(id=chapter_id, kind=BlockKind.heading, level=3, text=label, ref="")
-                    )
-                    segments.append(
-                        Segment(
-                            id=chapter_id,
-                            block_id=chapter_id,
-                            block_index=len(blocks) - 1,
-                            index=0,
-                            kind=BlockKind.heading,
-                            level=3,
-                            text=label,
-                            ref="",
-                        )
-                    )
-            taken.add(segment.id)
-            blocks.append(
-                Block(
-                    id=segment.block_id,
-                    kind=segment.kind,
-                    level=segment.level,
-                    text=segment.text,
-                    ref=segment.ref,
-                    language=segment.language,
-                )
-            )
-            segments.append(
-                Segment(
-                    id=segment.id,
-                    block_id=segment.block_id,
-                    block_index=len(blocks) - 1,
-                    index=segment.index,
-                    kind=segment.kind,
-                    level=segment.level,
-                    text=segment.text,
-                    ref=segment.ref,
-                    language=segment.language,
-                )
-            )
-
+    blocks, segments = run.blocks, run.segments
     first_book = books[reading.aliyot[0].book] if reading.aliyot else next(iter(books.values()))
     return assemble(
         blocks,
@@ -317,6 +354,46 @@ def cut(reading: Reading, books: dict[str, Book]) -> Portion:
         name=reading.name,
         ingester="parasha/1",
         reading=reading,
+    )
+
+
+def cut_haftarah(haftarah: Haftarah, books: dict[str, Book]) -> Portion:
+    """The haftarah, as a document of its own.
+
+    One section, not seven: the haftarah is called up once, so it takes one heading and
+    its pieces follow in the order they are read. Where a piece skips ahead in the same
+    book — Isaiah 27:6-28:13, then 29:22-23 — the chapter line inside the section says
+    where the reading has jumped to, which is all the page needs to say about it. The
+    verses carry their ids from the book they came out of, so the translation, the
+    annotation and the vowels come with them, the way they do for an aliyah.
+
+    `Portion.reading` is None: this is the second reading of a Shabbat, and the Shabbat
+    it belongs to is the calendar's to say, not the text's.
+    """
+    run = _Run([], [], set(), set())
+    run.heading("haftarah", HAFTARAH, 2)
+    for span in haftarah.spans:
+        book = books.get(span.book)
+        if book is None:
+            raise MissingBook(span.book, library_root())
+        first, last = parse_place(span.begin), parse_place(span.end)
+        if first is None or last is None:
+            continue
+        run.take(span.book, book, first, last)
+
+    first_book = books[haftarah.spans[0].book] if haftarah.spans else next(iter(books.values()))
+    named = " · ".join(
+        books[book].document.title or book for book in haftarah.books if book in books
+    )
+    return assemble(
+        run.blocks,
+        run.segments,
+        books,
+        first_book,
+        source=f"sefaria:{haftarah.summary}",
+        title=f"{HAFTARAH} — {named}" if named else HAFTARAH,
+        name=haftarah.summary,
+        ingester="parasha/1",
     )
 
 
@@ -439,6 +516,7 @@ def _glossaries(books: dict[str, Book]) -> dict[str, Glossary]:
     return out
 
 
-def books_for(reading: Reading, root: Path | None = None) -> dict[str, Book]:
-    """Load every book one reading touches, once each."""
+def books_for(reading: Reading | Haftarah, root: Path | None = None) -> dict[str, Book]:
+    """Load every book one reading touches, once each — the Torah reading's, or the
+    haftarah's, which answer `books` the same way."""
     return {name: load_book(name, root) for name in reading.books}

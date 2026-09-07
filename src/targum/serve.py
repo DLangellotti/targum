@@ -2812,9 +2812,12 @@ class Handler(BaseHTTPRequestHandler):
             if portion is None or portion.folder not in readable:
                 return self._send(404, b"not found", "text/plain")
             # A portion asked for by name is not a week, so it has neither a date nor a
-            # Hebrew one: it is read on a different one every year.
+            # Hebrew one: it is read on a different one every year. Its haftarah is the
+            # one it ordinarily has, for the same reason.
             shabbat = None
             hdate = ""
+            haftarah = index.haftarot.get(portion.haftarah) if portion.haftarah else None
+            haftarah_reason = ""
         else:
             portion = here
             if portion is None or portion.folder not in readable:
@@ -2824,6 +2827,10 @@ class Handler(BaseHTTPRequestHandler):
             shabbat = pointing_at()
             week = index.week(shabbat.isoformat(), schedule)
             hdate = week.hdate if week is not None else ""
+            # The week's haftarah, not the portion's: on a Shabbat Rosh Chodesh or in
+            # Chanukah the congregation reads the special one, and a page that named the
+            # portion's own would be naming the wrong thing to prepare.
+            haftarah, haftarah_reason = index.haftarah_on(shabbat.isoformat(), schedule)
 
         page = parasha_page(
             portion,
@@ -2835,6 +2842,12 @@ class Handler(BaseHTTPRequestHandler):
             taamim=taamim,
             shabbat=shabbat,
             hdate=hdate,
+            haftarah=haftarah,
+            haftarah_reason=haftarah_reason,
+            # The frame only where there is a reader behind it; the reference is said
+            # either way, because knowing what is read is most of what somebody
+            # preparing needs.
+            haftarah_readable=haftarah is not None and haftarah.folder in readable,
             address=self.address,
             # Where "all portions" goes: a reader with a shelf has them on it, in their
             # collection; a visitor has the list at the foot of this page.

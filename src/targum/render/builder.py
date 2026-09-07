@@ -1370,6 +1370,9 @@ def parasha_page(
     taamim: bool = True,
     shabbat: date | None = None,
     hdate: str = "",
+    haftarah: Any = None,
+    haftarah_reason: str = "",
+    haftarah_readable: bool = False,
     address: str = "",
     signed_in: bool = False,
 ) -> str:
@@ -1381,6 +1384,12 @@ def parasha_page(
     `signed_in` decides where "all portions" leads. A reader with a shelf has the
     fifty-four on it as one collection, and is sent to their own row in it; a visitor
     has the list at the foot of this page.
+
+    `haftarah` is the index's record of the second reading — the week's on the page
+    that means this Shabbat, the portion's own on a portion asked for by name — and
+    `haftarah_reason` is why it is not the portion's own, or "". The reference is
+    always said; the frame is drawn only where `haftarah_readable` says a reader was
+    built behind it.
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
@@ -1438,6 +1447,9 @@ def parasha_page(
             # The Hebrew date belongs to the Shabbat, not the portion — a portion falls
             # on a different one every year — so it arrives from the week's own record.
             hdate=hdate,
+            haftarah=haftarah,
+            haftarah_reason=haftarah_reason,
+            haftarah_readable=haftarah_readable,
             listed=listed or [],
             previous=previous,
             following=following,

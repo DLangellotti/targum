@@ -47,6 +47,10 @@ def built(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Index:
         shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
     library = tmp_path / "library"
     a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
+    # And the two haftarot the Deuteronomy readings in the fixture name: Isaiah for
+    # Nitzavim-Vayeilech, Habakkuk for the Shavuot Shabbat that displaces a portion.
+    a_book(library / "ישעיהו-he", "Isaiah", "ישעיהו", {61: 11, 62: 12, 63: 19})
+    a_book(library / "חבקוק-he", "Habakkuk", "חבקוק", {3: 19})
     return corpus_build.build(
         years=[2026],
         # Named, because only 2026 is cached here and the corpus span is nineteen
@@ -595,3 +599,124 @@ def test_the_served_page_carries_the_way_round_the_year(serving: int, built: Ind
     if len(listed) > 1:
         assert 'class="prev"' in nav
         assert 'class="next"' in nav
+
+
+# -- the haftarah ------------------------------------------------------------
+
+
+def test_the_haftarah_is_built_beside_the_portion(built: Index, tmp_path: Path) -> None:
+    """Every portion in the corpus that has a haftarah carries its reference, resolved
+    to a reader of its own under the corpus root."""
+    portion = built.portions["nitzavim-vayeilech"]
+    assert portion.haftarah == "isaiah-61-10-63-9"
+    record = built.haftarot[portion.haftarah]
+    assert record.summary == "Isaiah 61:10-63:9"
+    assert record.books == ["Isaiah"]
+    assert record.hebrew == "ישעיהו"
+    assert record.verses == 23
+    assert record.folder == "haftarah-isaiah-61-10-63-9"
+    # One section, so the renderer wrote `index.html` alone and that is what opens.
+    assert record.opens == "index.html"
+    reader = tmp_path / "parasha" / "read" / record.folder / "reader" / record.opens
+    assert reader.is_file()
+    assert not (reader.parent / "sec-0001.html").exists()
+    assert record.folder in corpus_build.readable(built), "a built haftarah is readable"
+
+    week = built.week("2026-09-05", cal.Schedule.diaspora)
+    assert week is not None
+    assert week.haftarah == "isaiah-61-10-63-9"
+    assert week.haftarah_reason == ""
+
+
+def test_a_festival_shabbat_carries_the_festivals_haftarah(built: Index) -> None:
+    """Shavuot's second day on Shabbat displaces Bamidbar or Nasso, and its haftarah
+    displaces theirs: the week and the built festival both say Habakkuk."""
+    week = built.week("2026-05-23", cal.Schedule.diaspora)
+    assert week is not None
+    assert week.slug == "shavuot-ii-on-shabbat"
+    assert week.haftarah == "habakkuk-3-1-19"
+    festival = built.portions[week.slug]
+    assert festival.kind is cal.ReadingKind.festival
+    assert festival.haftarah == "habakkuk-3-1-19"
+    assert built.haftarot["habakkuk-3-1-19"].folder == "haftarah-habakkuk-3-1-19"
+
+
+def test_the_variant_rite_is_recorded_on_the_week_and_the_portion(built: Index) -> None:
+    week = built.week("2026-05-23", cal.Schedule.diaspora)
+    assert week is not None
+    assert week.haftarah_sephardic == "Habakkuk 2:20-3:19"
+    assert built.portions[week.slug].haftarah_sephardic == "Habakkuk 2:20-3:19"
+
+
+def test_a_haftarah_whose_book_is_not_on_the_shelf_keeps_its_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reference is written down whether or not the text is built: the page can at
+    least say what is read. The missing book is named once, the way a missing book of
+    the Torah is."""
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    (tmp_path / "parasha" / "calendar").mkdir(parents=True)
+    for one in FIXTURES.glob("*.json"):
+        shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
+    library = tmp_path / "library"
+    a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
+    said: list[str] = []
+    index = corpus_build.build(
+        corpus_years=[2026],
+        years=[2026],
+        schedules=[cal.Schedule.diaspora],
+        library=library,
+        notify=said.append,
+    )
+    record = index.haftarot["isaiah-61-10-63-9"]
+    assert record.summary == "Isaiah 61:10-63:9"
+    assert record.folder == "", "no reader was built, and the record says so"
+    assert record.folder not in corpus_build.readable(index)
+    assert index.portions["nitzavim-vayeilech"].haftarah == "isaiah-61-10-63-9"
+    named = [line for line in said if "Isaiah is not built" in line]
+    assert len(named) == 1
+
+    from targum.render.builder import parasha_page
+
+    page = parasha_page(
+        index.portions["nitzavim-vayeilech"],
+        schedule=cal.Schedule.diaspora,
+        haftarah=record,
+        haftarah_readable=False,
+    )
+    assert "Isaiah 61:10-63:9" in page, "the reference is said"
+    assert 'id="haftarah"' not in page, "and no frame is drawn on nothing"
+
+
+def test_this_weeks_page_carries_the_haftarah(serving: int) -> None:
+    status, body = get(serving, "/parasha")
+    assert status == 200
+    assert "The haftarah" in body
+    assert "Isaiah 61:10-63:9" in body
+    assert "/parasha/read/haftarah-isaiah-61-10-63-9/reader/index.html" in body
+    assert "Read this week in place of" not in body, "an ordinary Shabbat gives no reason"
+
+
+def test_the_haftarahs_reader_is_served_under_the_corpus(serving: int) -> None:
+    status, body = get(serving, "/parasha/read/haftarah-isaiah-61-10-63-9/reader/index.html")
+    assert status == 200
+    assert "הפטרה" in unescape(body)
+    assert 'data-form="pointed"' in body
+    assert 'data-form="unaccented"' in body, "the chanting marks come off the haftarah too"
+
+
+def test_a_named_portion_shows_the_haftarah_it_ordinarily_has(serving: int) -> None:
+    status, body = get(serving, "/parasha/nitzavim-vayeilech")
+    assert status == 200
+    assert "Isaiah 61:10-63:9" in body
+
+
+def test_the_festival_page_shows_the_festivals_haftarah_and_not_the_variant(
+    serving: int,
+) -> None:
+    status, body = get(serving, "/parasha/shavuot-ii-on-shabbat")
+    assert status == 200
+    assert "Habakkuk 3:1-19" in body
+    assert "/parasha/read/haftarah-habakkuk-3-1-19/reader/index.html" in body
+    assert "2:20" not in body, "the Sephardic reading is recorded and not shown"
+    assert "Sephardic" not in body and "Ashkenazi" not in body, "no rite chooser"
