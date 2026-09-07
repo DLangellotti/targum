@@ -214,3 +214,29 @@ def test_the_page_lists_what_is_proposed_and_wanted(store: sqlite3.Connection) -
     assert "Wanted" in page and "ים" in page and ">3<" in page
     empty = back_office_page(found, 30)
     assert "Nothing waiting" in empty and 'name="credit"' not in empty
+
+
+def test_the_page_lists_what_went_wrong(store: sqlite3.Connection) -> None:
+    """targum-internal#24: the other half of "I find out it broke before she tells me".
+    Newest first, the traceback behind a disclosure, and nothing when nothing did."""
+    from targum.incidents import Incident
+
+    found = survey(store, today=date(2026, 9, 4))
+    page = back_office_page(
+        found,
+        30,
+        incidents=[
+            Incident(
+                at="2026-09-07T10:00:00+00:00",
+                where="build:translating",
+                kind="RuntimeError",
+                message="the box fell over",
+                trace="Traceback\nRuntimeError: the box fell over",
+                job="j1",
+            )
+        ],
+    )
+    assert "Incidents" in page and "build:translating" in page and "RuntimeError" in page
+    assert "<details" in page and "the box fell over" in page and ">j1<" in page
+    quiet = back_office_page(found, 30)
+    assert "Nothing has gone wrong lately." in quiet and "<details" not in quiet

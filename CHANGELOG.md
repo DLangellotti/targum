@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Somewhere errors are recorded, other than the journal (targum-internal#24). Every
+  exception a request or a build swallows — a route that raised, a build that died, a
+  look-up that failed — is written to `incidents.jsonl` beside the output, a ring of the
+  last two hundred, and the back office lists them newest first with the traceback's
+  tail behind a disclosure. A file on the box rather than a vendor, for the reason the
+  back office gives for itself; never a request body, an address or a reader's text.
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

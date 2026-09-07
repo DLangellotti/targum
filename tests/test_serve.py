@@ -2396,3 +2396,38 @@ def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path
     own, body = fetch(f"/thumb/notes?k={key}")
     assert own == 200
     assert body.endswith(b"1" * 40), "the asker's own, not the p3 shelf's"
+
+
+def test_what_escapes_a_route_is_written_down(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#24. An exception nobody caught still drops the connection, as
+    `socketserver` always did; what changed is that it leaves a trace somewhere other
+    than the journal, without the query string and without the key in it."""
+    import time
+
+    from targum import incidents
+    from targum.serve import Handler
+
+    port, key, out = served
+
+    def broken(self: Any) -> None:
+        raise RuntimeError("the health check itself fell over")
+
+    monkeypatch.setattr(Handler, "_health", broken)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request("GET", f"/health?k={key}")
+        try:
+            connection.getresponse()
+        except Exception:  # noqa: BLE001 - the connection is dropped, which is the point
+            pass
+    finally:
+        connection.close()
+    for _ in range(50):
+        found = incidents.recent(out / "incidents.jsonl")
+        if found:
+            break
+        time.sleep(0.05)
+    assert found and found[0].where == "/health" and found[0].kind == "RuntimeError"
+    assert key not in found[0].trace + found[0].message + found[0].where
