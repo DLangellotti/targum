@@ -52,6 +52,11 @@ from targum.vocalize.base import strip_nikkud  # noqa: E402
 #: A reference longer than this is a paragraph, and a recast eval is about sentences.
 MAX_WORDS = 12
 
+#: Who scores the recast. Not the writer: a model grading its own Hebrew prefers its own
+#: Hebrew, and the first pilot had Opus judging Opus. Decided 2026-09-07: Sonnet 5 judges,
+#: and `--judge` names another.
+JUDGE_MODEL = "claude-sonnet-5"
+
 JUDGE = """You are checking one line of Hebrew written by a language app for a learner.
 
 The learner wrote, in English:
@@ -136,12 +141,17 @@ def recast(client: object, system: list[dict[str, str]], english: str, usage: Us
 
 
 def judge(
-    client: object, english: str, reference: str, candidate: str, usage: Usage
+    client: object,
+    english: str,
+    reference: str,
+    candidate: str,
+    usage: Usage,
+    model: str = JUDGE_MODEL,
 ) -> tuple[str, str]:
     """ "yes", "no", or "none" where the judge wrote nothing — counted apart, never as a
     no: the first run counted empty replies as wrong and the number could not be read."""
     reply = client.messages.create(  # type: ignore[attr-defined]
-        model=CHAT_MODEL,
+        model=model,
         max_tokens=400,
         messages=[
             {
@@ -149,9 +159,9 @@ def judge(
                 "content": JUDGE.format(english=english, reference=reference, candidate=candidate),
             }
         ],
-        **output_config(CHAT_MODEL, EFFORT),
+        **output_config(model, EFFORT),
     )
-    usage.add(CHAT_MODEL, reply.usage.input_tokens, reply.usage.output_tokens)
+    usage.add(model, reply.usage.input_tokens, reply.usage.output_tokens)
     text = "".join(getattr(block, "text", "") for block in reply.content).strip()
     if not text:
         return "none", ""
@@ -171,6 +181,7 @@ def main() -> None:
     parser.add_argument(
         "--save", type=Path, help="write every pair, recast and verdict here, JSONL"
     )
+    parser.add_argument("--judge", default=JUDGE_MODEL, help="the model that scores the recast")
     args = parser.parse_args()
 
     import anthropic
@@ -246,7 +257,7 @@ def main() -> None:
         if not candidate:
             verdicts.append(("no", "no recast line"))
             continue
-        verdicts.append(judge(client, str(row["en"]), str(row["he"]), candidate, usage))
+        verdicts.append(judge(client, str(row["en"]), str(row["he"]), candidate, usage, args.judge))
         if (n + 1) % 20 == 0:
             print(f"  {n + 1}/{len(chosen)} judged", flush=True)
     unjudged = sum(1 for verdict, _ in verdicts if verdict == "none")
@@ -293,7 +304,7 @@ def main() -> None:
     riding = "on" if args.exemplars else "off"
     note = (
         f"known={args.known} pairs={len(chosen)} seed={args.seed} exemplars={riding} "
-        f"unjudged={unjudged}"
+        f"unjudged={unjudged} judge={args.judge}"
     )
     rows_out = [
         evals.Row(
