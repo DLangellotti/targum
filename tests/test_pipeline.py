@@ -79,7 +79,7 @@ def test_a_second_language_is_added_rather_than_swapped_in(
     assert named == ["null.natural.en.json", "null.natural.ru.json"]
 
     page = (out / "reader" / "index.html").read_text(encoding="utf-8")
-    assert page.count("<option") == 2, "the reader offers only one of the two"
+    assert page.count('class="rendering') == 2, "the reader offers only one of the two"
     for code in ("en", "ru"):
         assert f'"language": "{code}"' in page, f"{code} is not in the reader's own payload"
 
