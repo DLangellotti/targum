@@ -34,6 +34,72 @@ PUBLIC_HOSTS: tuple[str, ...] = (
     *sorted(YOUTUBE_HOSTS),
 )
 
+#: Where a reader can be sent to read Hebrew that no publisher list carries: the
+#: reference works, the science and language sites, the broadcaster, the papers outside
+#: the feed list. Public code, because which sites hold Hebrew is nobody's secret — the
+#: editorial choice of *which papers targum pulls* stays in `sources.json`.
+#:
+#: Every entry was fetched through `ingest.url` and parsed by `ingest.htmltext` on
+#: 2026-09-07, and the numbers below are that measurement: words of running prose off
+#: one real page, and what share of its letters were Hebrew. A site that would not
+#: answer, or answered with nothing a parser could read, is in `UNREACHABLE` instead
+#: with the reason — naming a site the fetch door cannot open only teaches the model to
+#: offer a reader a page that will not open.
+#:
+#: Named by the Hebrew subdomain wherever a project has one: `wikipedia.org` would put
+#: every language's Wikipedia in the list, and the point is Hebrew.
+READING_HOSTS: tuple[str, ...] = (
+    # Reference. The largest bodies of free modern Hebrew prose there are.
+    "he.wikipedia.org",  # 15,132 words, 99% Hebrew
+    "he.wikivoyage.org",  # 4,926 words, 99%
+    "he.wikiquote.org",  # 4,404 words, 99%
+    # Science and knowledge, written for a general reader.
+    "weizmann.ac.il",  # Davidson Institute, 1,150 words, 95%
+    "hayadan.org.il",  # 288, 99%
+    "geektime.co.il",  # 859, 92%
+    # The broadcaster and the papers the feed list does not carry.
+    "kan.org.il",  # 1,524 words, 100%
+    "shakuf.co.il",  # 1,035, 100%
+    "13tv.co.il",  # 773, 97%
+    "calcalist.co.il",  # 542, 92%
+    "inn.co.il",  # 1,597, 100%
+    "ice.co.il",  # 1,292, 99%
+    "one.co.il",  # 294, 100%
+    # Religious and haredi Hebrew, a register the papers above do not write in.
+    "kipa.co.il",  # 2,418 words, 100%
+    "srugim.co.il",  # 2,195, 100%
+    "kikar.co.il",  # 1,787, 100%
+    "bhol.co.il",  # 1,047, 99%
+    "yeshiva.org.il",  # 2,128, 96%
+    "mechon-mamre.org",  # Tanakh and Mishneh Torah, 417, 100%
+    # Song, language, health.
+    "zemereshet.co.il",  # 185 words, 94%
+    "safa-ivrit.org",  # 53, 100%
+    "infomed.co.il",  # 29,706 words but 36% — Latin drug and disease names throughout
+)
+
+#: Sites worth reading that targum cannot reach, kept as a record so they are not
+#: proposed again without a probe. Every one answered 403 to a browser user-agent as
+#: readily as to targum's, so it is the address they refuse, not the client — the same
+#: shape as the YouTube datacentre-IP block. Whether the box in Germany is refused too
+#: is untested: it needs one probe from the box, not a guess from a laptop.
+UNREACHABLE: dict[str, str] = {
+    "hebrew-academy.org.il": "403 to any client",
+    "nli.org.il": "403 to any client",
+    "davar1.co.il": "403 to any client",
+    "mekomit.co.il": "403, intermittent",
+    "ivrit.wzo.org.il": "403 to any client",
+    "adult-education.education.gov.il": "connection times out — the Ministry of "
+    "Education's easy-Hebrew newsletter, pointed and glossed, is the single best "
+    "learner text found and the one targum cannot open",
+    "chabad.org": "serves its own 404 to targum",
+    "sport5.co.il": "fetches, parses to nothing — rendered in the browser",
+    "clalit.co.il": "fetches, parses to nothing — rendered in the browser",
+    "cbs.gov.il": "fetches, parses to nothing — rendered in the browser",
+    "he.wikinews.org": "reachable, but dormant: 37 words on the front page",
+    "he.wikibooks.org": "reachable, but thin: no page found over 150 words",
+}
+
 #: What one entry in `sources.json` may say it is.
 KINDS = ("news", "podcast", "video", "text")
 
@@ -132,9 +198,14 @@ def allowed_domains() -> list[str]:
     """The hosts the server-side search may look at: the publishers' and the public ones.
 
     Deduplicated in first-seen order and capped at what the API takes, with the
-    publishers first so a long list loses a reference site before it loses a paper.
-    A publisher is named by its site (`site()`); the public hosts are named as written,
-    because he.wikisource.org is a choice and wikisource.org would not be.
+    publishers first so a long list loses a reference site before it loses a paper, and
+    the reading hosts last so the fetchers' own homes outlive them. A publisher is named
+    by its site (`site()`); the rest are named as written, because he.wikisource.org is
+    a choice and wikisource.org would not be.
+
+    The cap is the API's: `allowed_domains` takes 1-64 entries, and a list long enough
+    to make the request too large comes back as a `request_too_large` search error
+    rather than a refusal, which reads like the search failing for no reason.
     """
     hosts: list[str] = []
     for publisher in load():
@@ -142,7 +213,7 @@ def allowed_domains() -> list[str]:
             host = site(address)
             if host and host not in hosts:
                 hosts.append(host)
-    for host in PUBLIC_HOSTS:
+    for host in (*PUBLIC_HOSTS, *READING_HOSTS):
         if host not in hosts:
             hosts.append(host)
     return hosts[:MAX_DOMAINS]

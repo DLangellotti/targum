@@ -521,3 +521,22 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
+
+
+def test_the_search_stands_in_israel_so_a_hebrew_question_gets_hebrew_writing() -> None:
+    """Unlocalised, a search run from a server in Germany answers a Hebrew question with
+    the English-language coverage of Israel rather than with Israeli writing."""
+    searching = [
+        one for one in tools.anthropic_tools(web_search=True) if one.get("name") == "web_search"
+    ]
+    assert len(searching) == 1
+    where = searching[0]["user_location"]
+    assert where["country"] == "IL" and where["type"] == "approximate"
+    assert where["timezone"] == "Asia/Jerusalem"
+
+
+def test_the_search_names_domains_or_blocks_them_but_never_both() -> None:
+    """The API returns a 400 when a request carries both lists."""
+    for tool in tools.anthropic_tools(web_search=True):
+        if tool.get("name") == "web_search":
+            assert not ("allowed_domains" in tool and "blocked_domains" in tool)

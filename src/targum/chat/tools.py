@@ -510,6 +510,18 @@ _HEBREW = frozenset(chr(code) for code in range(0x05D0, 0x05EB))
 #: How many searches one turn may make. Three is a question answered; more is browsing.
 WEB_SEARCH_USES = 3
 
+#: Where the search should stand when it looks. The API localises results to this, and
+#: an unlocalised search run from a server in Germany answers a Hebrew question with the
+#: English-language coverage of Israel rather than with Israeli writing about the thing
+#: asked about. Costs nothing and narrows nothing: a reader may still be shown any host
+#: in `allowed_domains`, and may still bring whatever link they like themselves.
+SEARCH_FROM = {
+    "type": "approximate",
+    "city": "Tel Aviv",
+    "country": "IL",
+    "timezone": "Asia/Jerusalem",
+}
+
 
 def _hebrew_share(text: str) -> float:
     letters = [ch for ch in text if ch.isalpha()]
@@ -873,9 +885,13 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     """The registry in the shape the Messages API takes.
 
     With `web_search`, Anthropic's server-side search rides along, held to the hosts in
-    `sources.allowed_domains()`. The model does not run it and neither do we: the API
-    does, and what it finds comes back as blocks in the reply. Anything it surfaces is
-    still described and quoted through the same doors as a pasted link.
+    `sources.allowed_domains()` and standing in Israel (`SEARCH_FROM`). The model does
+    not run it and neither do we: the API does, and what it finds comes back as blocks
+    in the reply. Anything it surfaces is still described and quoted through the same
+    doors as a pasted link.
+
+    `allowed_domains` and `blocked_domains` are mutually exclusive — sending both is a
+    400 — so opening the search up means giving this list up, not adding to it.
     """
     tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
@@ -888,6 +904,7 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
                 "name": "web_search",
                 "max_uses": WEB_SEARCH_USES,
                 "allowed_domains": sources_module.allowed_domains(),
+                "user_location": SEARCH_FROM,
             }
         )
     return tools

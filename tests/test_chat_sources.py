@@ -91,3 +91,37 @@ def test_a_broken_file_is_an_empty_list(monkeypatch: Any, tmp_path: Path) -> Non
     path.write_text("{not json", encoding="utf-8")
     monkeypatch.setenv("TARGUM_SOURCES", str(path))
     assert sources.load() == []
+
+
+def test_hebrew_wikipedia_is_a_place_the_search_may_look(monkeypatch: Any, tmp_path: Path) -> None:
+    """The largest body of free modern Hebrew prose there is; a reader asking for an
+    article about anything lands there or nowhere."""
+    monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "missing.json"))
+    assert "he.wikipedia.org" in sources.allowed_domains()
+
+
+def test_every_reading_host_is_named_by_its_hebrew_subdomain_where_it_has_one() -> None:
+    """`wikipedia.org` would put every language's Wikipedia in the list; the point is
+    Hebrew. The same reason `he.wikisource.org` has always been written out in full."""
+    for host in sources.READING_HOSTS:
+        assert not host.startswith("www."), host
+        if "wiki" in host:
+            assert host.startswith("he."), f"{host} is not the Hebrew project"
+
+
+def test_a_site_that_cannot_be_fetched_is_recorded_and_never_offered(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Naming a host the fetch door cannot open teaches the model to offer a reader a
+    page that will not open. The record exists so it is not proposed again untested."""
+    monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "missing.json"))
+    hosts = sources.allowed_domains()
+    for host, why in sources.UNREACHABLE.items():
+        assert host not in hosts, f"{host} is unreachable ({why}) and must not be offered"
+        assert why, f"{host} needs a reason recorded"
+
+
+def test_the_domain_list_stays_inside_what_the_api_takes() -> None:
+    """1-64 entries; a list long enough to make the request too large comes back as a
+    `request_too_large` search error, which reads like the search failing for no reason."""
+    assert 1 <= len(sources.PUBLIC_HOSTS) + len(sources.READING_HOSTS) <= sources.MAX_DOMAINS
