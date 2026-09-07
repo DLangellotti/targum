@@ -73,3 +73,15 @@ def test_a_turns_seed_is_stable_and_moves_with_the_turn() -> None:
     assert exemplars.turn_seed("c1", 1) == exemplars.turn_seed("c1", 1)
     assert exemplars.turn_seed("c1", 1) != exemplars.turn_seed("c1", 2)
     assert exemplars.turn_seed("c1", 1) != exemplars.turn_seed("c2", 1)
+
+
+def test_a_saved_word_the_reader_does_not_know_yet_is_still_brought_back() -> None:
+    """A word saved last week is on the ledger as learning, not known, so the known
+    list does not carry it — and a sentence using it is the bring-back the research
+    asks for. Found on the first full pool (2026-09-07): with לחם saved and 14,360
+    sentences inside a 300-word ledger, not one carried bread."""
+    pool = exemplars.load(FIXTURE)
+    allowed = {"בוקר", "טוב", "קנה", "שוק"}
+    assert exemplars.pick(pool, allowed) == [pool[0]], "the market sentence needs לחם"
+    picked = exemplars.pick(pool, allowed, lately=["לחם"])
+    assert picked[0].id == 1000001, "saved, so inside the reader's words, and first"

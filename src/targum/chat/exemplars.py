@@ -138,10 +138,13 @@ def pick(
     """
     if count <= 0 or not pool:
         return []
-    inside = [row for row in pool if row.lemmas and row.lemmas <= allowed]
+    saved = set(lately)
+    # A word saved lately is on the ledger but usually not yet known, and the whole
+    # point of a bring-back is to meet it again: it is inside the reader's words here.
+    within = set(allowed) | saved
+    inside = [row for row in pool if row.lemmas and row.lemmas <= within]
     if not inside:
         return []
-    saved = set(lately)
     draw = random.Random(seed)
     draw.shuffle(inside)
     # Originals before translations, bring-backs before either. The shuffle above is
