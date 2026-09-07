@@ -261,12 +261,18 @@ def test_a_conversation_photographed_over_two_screens_is_one_dialogue(
 
     folder = tmp_path / "chat"
     folder.mkdir()
-    for n in (1, 2):
-        Image.new("RGB", (10 + n, 10), "white").save(folder / f"{n:02d}-screen.png")
-    answers = iter(["[conversation]\nאמא: שלום\n\nme: שלום אמא", "[conversation]\nאמא: מה נשמע?"])
+    screens = {}
+    for n, said in (
+        (1, "[conversation]\nאמא: שלום\n\nme: שלום אמא"),
+        (2, "[conversation]\nאמא: מה נשמע?"),
+    ):
+        path = folder / f"{n:02d}-screen.png"
+        Image.new("RGB", (10 + n, 10), "white").save(path)
+        # By the picture, not by the order asked: pages are read four at a time.
+        screens[vision.prepared(path)[0]] = said
 
     def pretend(image, media_type, *, model, usage, client):  # noqa: ANN001
-        return vision.parse(next(answers))
+        return vision.parse(screens[image])
 
     monkeypatch.setattr(vision, "read_one", pretend)
     document = ingest.load(str(folder))
