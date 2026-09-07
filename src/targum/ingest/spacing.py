@@ -12,6 +12,12 @@ is already repaired, so nothing here can cost a reader a millisecond.
 Splitting a word that was never glued is worse than leaving a glued one alone — one is
 a text with a seam in it, the other is a text this changed the words of. So the rules
 are ordered by what they can prove, and only the ones that can prove it get to write.
+
+A character model that puts spaces back (`dicta-il/dictabert-char-spacefix`) was tried as
+a proposer under these rules and is not here (targum-internal#151, 2026-09-07). Measured
+over the shelf, what the rules leave glued is not glue: it is Yiddish, loanwords, Aramaic
+and names the lexicon does not hold, and every split the model proposed there and the
+lexicon accepted was a word taken apart. `scripts/measure_glue.py` holds the count.
 """
 
 from __future__ import annotations

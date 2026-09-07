@@ -177,6 +177,16 @@ for the same reason: a credit in a file nobody opens is not a credit. It is keye
 annotator that actually ran, so a reader built before the swap does not claim a credit it
 did not earn.
 
+A second DICTA model was tried and not adopted. `dicta-il/dictabert-char-spacefix`
+(licence field `cc-by-4.0` on its card, 2026-09-07) restores missing spaces, and
+targum-internal#151 asked whether it could propose seams that `ingest/spacing.py`'s
+rules cannot see. It was run once, locally, over the 1,667 unknown-and-splittable words
+on the shelf: it passed the issue's bar on 96 and every one of them was a loanword, an
+Aramaic form or a name rather than a glued pair (`scripts/measure_glue.py --spacefix`).
+So it is not part of any install, no reader is built with it, and the credit at the foot
+of a reader does not name it. The hosted DICTA tools, NonCommercial by their terms, were
+not called.
+
 The biblical half never needed a model at all: the Tanakh is looked up in the Open
 Scriptures morphology, CC BY 4.0, hand-tagged.
 
