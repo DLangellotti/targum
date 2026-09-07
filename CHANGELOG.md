@@ -41,6 +41,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on no other day; the current streak is refused, not unbuilt — design.md §12 records
   the decision of 2026-09-03 and `test_brand.py` pins the absence. The reader now
   carries `charts.js` for the arithmetic, so three pages cannot disagree about it.
+- The Hebrew of a daf, from Sefaria (targum-internal#193): `sefaria:daf:<tractate>` is
+  the tractate's Mishnah in the Romm edition, the daf's own printing, a perek a heading
+  and a mishnah a verse; `sefaria:Rashi on <tractate>` and `sefaria:Tosafot on
+  <tractate>` are the Vilna commentaries, an amud a heading and a comment a paragraph,
+  every block carrying its address — `Mishnah Berakhot 1:1`, `Rashi on Berakhot 2a:3:1`
+  — in `ref`. Public domain or nothing: the shelf admits CC-BY and CC0, a daf does not,
+  because a daf is one object. Never `fill_in_missing_segments`. Rabbinic, not
+  scripture, and pointed by the pipeline because Romm and Vilna print no vowels. The
+  order of a daf is a contract this side owns: the perek table from Sefaria's index,
+  and `reading_key`, which puts a mishnah before the Gemara on it and ends a perek
+  mid-daf where the index says, for #192's Gemara blocks to sort into.
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once
