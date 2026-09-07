@@ -530,14 +530,26 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send"},
         ],
-        answers={"/prepare": QUOTE},
+        answers={"/prepare": QUOTE, "/build": dict(QUOTE, stage="working")},
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare"], "no line was said"
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"], "no line was said"
     (card,) = page["cards"]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
-    assert card["more"] == "/add?k=k"
+    assert card["title"] == QUOTE["title"]
+    assert card["button"] == "", "Send was the press: no button to press again"
+    assert card["note"] == "Building. It will appear above when it is ready."
+    assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
+
+
+def test_a_quote_the_rails_refused_says_why_on_its_card() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers={"/prepare": dict(QUOTE, stage="blocked", blocked="Too long.")},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare"], "not pressed"
+    (card,) = page["cards"]
+    assert card["note"] == "Too long." and "refused" in card["cls"]
 
 
 def test_a_line_sent_with_a_file_follows_its_card() -> None:
@@ -546,9 +558,14 @@ def test_a_line_sent_with_a_file_follows_its_card() -> None:
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send", "text": "what is this about"},
         ],
-        answers={"/prepare": QUOTE, "/chat/say": {"chat": "abc", "turn": 1}},
+        answers={
+            "/prepare": QUOTE,
+            "/build": dict(QUOTE, stage="working"),
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare", "/chat/say"]
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/build", "/chat/say"]
+    assert page["posted"][2]["body"]["brought"] == "j1", "the model is told what was sent"
     assert len(page["cards"]) == 1
     assert [t["text"] for t in page["turns"] if t["cls"].startswith("chat-turn me")] == [
         "what is this about"
@@ -564,6 +581,7 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
             "/upload/u1/1": {},
             "/upload/u1/end": {"upload": "u1"},
             "/prepare": dict(QUOTE, audio=True, seconds=600, parts=1),
+            "/build": dict(QUOTE, audio=True, seconds=600, parts=1, stage="working"),
         },
     )
     assert [p["path"] for p in page["posted"]] == [
@@ -572,8 +590,9 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
         "/upload/u1/1",
         "/upload/u1/end",
         "/prepare",
+        "/build",
     ]
-    assert page["posted"][-1]["body"]["upload"] == "u1"
+    assert page["posted"][-2]["body"]["upload"] == "u1"
     (card,) = page["cards"]
     assert card["meta"].startswith("10 minutes of audio")
 
@@ -596,7 +615,7 @@ def test_a_text_brought_from_the_front_door_is_a_card_in_a_fresh_thread() -> Non
         answers={
             "/chat/list": {"chats": [{"id": "old", "title": "older"}], "usable": True},
             "/chat/old": {"chat": {"id": "old"}, "turns": []},
-            "/job/j1": PAGES,
+            "/job/j1": dict(PAGES, stage="working"),
         },
         hash="#job=j1",
     )
@@ -604,7 +623,8 @@ def test_a_text_brought_from_the_front_door_is_a_card_in_a_fresh_thread() -> Non
     assert card["excerpt"] == PAGES["excerpt"]
     assert card["doubt"] == "1 line could not be read clearly."
     assert card["meta"].startswith("2 pages · 12 sentences")
-    assert card["button"] == "Read this"
+    assert card["button"] == "" and card["note"].startswith("Building."), "already pressed"
+    assert "started" in card["cls"]
     assert not any(p["path"] == "/chat/old" for p in page["posted"]), "not the newest thread"
 
 
@@ -669,6 +689,7 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
             "/upload/u1/0": {},
             "/upload/u1/end": {"upload": "u1", "picture": True},
             "/prepare": dict(QUOTE, pages=2, doubtful=0, excerpt=["שורה ראשונה"]),
+            "/build": dict(QUOTE, pages=2, stage="working"),
         },
     )
     assert [p["path"] for p in page["posted"]] == [
@@ -679,8 +700,9 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
         "/upload/u1/0",
         "/upload/u1/end",
         "/prepare",
+        "/build",
     ]
-    assert page["posted"][-1]["body"]["uploads"] == ["u1", "u1"]
+    assert page["posted"][-2]["body"]["uploads"] == ["u1", "u1"]
     (card,) = page["cards"]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["title"] == QUOTE["title"] and "started" in card["cls"]
     assert card["meta"].startswith("2 pages")

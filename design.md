@@ -368,10 +368,13 @@ word, and Speak where the browser records. A line typed there opens a conversati
 goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in one
 press: a file, a picture or a recording is held in the box as a chip until Send, goes up
 as it did there, is priced, and the card the model's quote draws is a turn in the
-conversation — on Learn the conversation page opens on it, the way it opens on a line —
-its button the only spend and its "More options" the Add page, kept for a translation
-or a transcript of the reader's own. (Until 2026-09-07 the card stood under the box on
-Learn; "I'm chatting, I think I should be pressing Send" — and so it is.) Chat is no longer a place in the nav and Upload
+conversation, on Learn too, where the conversation page opens on it the way it opens on
+a line. Send with a file in the box is the press, so the card arrives already building
+and is the build's progress; its "More options" is the Add page, kept for a translation
+or a transcript of the reader's own. A line sent with the file reaches the model with a
+note of what was sent, so it answers about the text rather than asking for it. (Until 2026-09-07 the card stood under the
+box on Learn with a button to press: "I'm chatting, I think I should be pressing Send",
+and "I originally just gave the file… it should have been enough to just open it".) Chat is no longer a place in the nav and Upload
 is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
 the conversation page marks Learn, the way Learn's own lists do.
 

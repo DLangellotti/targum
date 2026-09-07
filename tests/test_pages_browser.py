@@ -434,11 +434,17 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
             prepared.append(request.post_data_json)
             route.fulfill(status=200, content_type="application/json", body=json.dumps(quote))
         elif path == "job/j1":
-            route.fulfill(status=200, content_type="application/json", body=json.dumps(quote))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="working")),
+            )
         elif path == "build":
             built.append(request.post_data_json)
             route.fulfill(
-                status=200, content_type="application/json", body=json.dumps({"stage": "working"})
+                status=200,
+                content_type="application/json",
+                body=json.dumps(dict(quote, stage="working")),
             )
         else:
             route.fulfill(status=200, content_type="application/json", body="{}")
@@ -453,12 +459,11 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
     open_page.click("#chat-send")
     open_page.wait_for_url("**/chat?**", timeout=5000)
-    open_page.wait_for_selector(".chat-turn .quote-card", timeout=5000)
+    open_page.wait_for_selector(".chat-turn .quote-card.started", timeout=5000)
     cards = open_page.locator(".quote-card").count()
     excerpt = open_page.locator(".quote-excerpt").inner_text()
     doubt = open_page.locator(".quote-doubt").inner_text()
-    open_page.click(".quote-go")
-    open_page.wait_for_timeout(300)
+    buttons = open_page.locator(".quote-go").count()
     context.close()
 
     assert chips == 2, "one chip a file"
@@ -466,4 +471,5 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     assert cards == 1, "several pictures are one text and one card, in the thread"
     assert "נָסַעְתִּי לַנֶּגֶב" in excerpt
     assert doubt == "1 line could not be read clearly."
-    assert built == [{"id": "j1"}]
+    assert built == [{"id": "j1"}], "Send was the press"
+    assert buttons == 0, "nothing left to press"

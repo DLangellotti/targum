@@ -230,9 +230,12 @@ class Asked:
     heard_seconds: float = 0.0
 
 
-def framed(text: str, about: dict[str, str] | None) -> str:
-    """The reader's line as the model sees it: their note of where they are, then what
-    they asked. The page shows only what they asked (`said`); this is `content`."""
+def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | None = None) -> str:
+    """The reader's line as the model sees it: their note of where they are, or of
+    what they have just brought, then what they asked. The page shows only what they
+    asked (`said`); this is `content`."""
+    if brought:
+        return "\n".join([*brought_note(brought), "Their line:", text])
     if not about:
         return text
     where = []
@@ -253,6 +256,39 @@ def framed(text: str, about: dict[str, str] | None) -> str:
     lines.append("Their question:")
     lines.append(text)
     return "\n".join(lines)
+
+
+def brought_note(brought: dict[str, Any]) -> list[str]:
+    """What the reader sent with their line, said to the model as a fact it can use:
+    the text's name, its size, its first lines, and whether it is already building —
+    so it never asks for a file it has been given (2026-09-07)."""
+    title = str(brought.get("title") or "a text")
+    facts = []
+    if brought.get("pages"):
+        facts.append(f"{brought['pages']} pages")
+    if brought.get("segments"):
+        facts.append(f"{brought['segments']} sentences")
+    lines = [
+        f"The reader has just sent a text through the box with this line: {title}"
+        + (f" ({', '.join(facts)})" if facts else "")
+        + "."
+    ]
+    excerpt = [str(line) for line in brought.get("excerpt") or [] if str(line).strip()]
+    if excerpt:
+        lines.append("Its first lines, as read: " + " / ".join(excerpt))
+    stage = str(brought.get("stage") or "")
+    if stage in ("working", "done"):
+        lines.append(
+            "It is being built now and will open from the strip at the top of their page "
+            "when it is ready. They do not need to send it again, and you cannot open it."
+        )
+    elif brought.get("blocked") or brought.get("error"):
+        lines.append(
+            "It could not be built: " + str(brought.get("blocked") or brought.get("error"))
+        )
+    else:
+        lines.append("Its card is in the thread, waiting on their press.")
+    return lines
 
 
 class Chats:
@@ -366,6 +402,7 @@ class Chats:
         admin: bool,
         heard_seconds: float = 0.0,
         about: dict[str, str] | None = None,
+        brought: dict[str, Any] | None = None,
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -373,6 +410,8 @@ class Chats:
         text, the section, the sentence, the word. It rides in the turn the model sees
         and not in what the page shows back, and it opens the conversation in English:
         a question about a form is answered about the form, whatever the reader's shelf.
+        `brought` is the text the reader sent with the line, from its own job: it rides
+        the same way, and the conversation keeps its language.
         """
         if self.store is None:
             raise RuntimeError("a chat needs a store")
@@ -384,7 +423,9 @@ class Chats:
             # A question from a word's card is about the text, in English, for everyone.
             mode = "talk" if self.library.talks(home, person_id) and not about else "find"
             chat_id = self.store.chat_open(person_id, mode=mode)
-        n = self.store.chat_say(chat_id, "user", framed(text, about), text, stage="working")
+        n = self.store.chat_say(
+            chat_id, "user", framed(text, about, brought), text, stage="working"
+        )
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
         asked = Asked(chat_id, n, person, home, admin, heard_seconds)

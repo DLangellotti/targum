@@ -213,6 +213,18 @@
   // same door the Add page's button posts to: the press is the spend, and nothing the
   // model holds can make it. "More options" is the Add page, for the two things only
   // its form can say: a translation you have, a transcript you have.
+  // Start the build a quote priced: the press, made by the reader's own hand — on the
+  // card's button for the model's quote, or by Send with a file in the box, which is
+  // the same person saying the same thing (2026-09-07). Resolves to the job's state.
+  function start(job) {
+    return ask("/build", { id: job.id });
+  }
+
+  // The door to a reader that a finished build opened.
+  function door(reader) {
+    return keyed("/reader/" + String(reader).split("/").map(encodeURIComponent).join("/"));
+  }
+
   function quoteCard(host, job) {
     var card = document.createElement("div");
     // Not `quote`: that is the reader's own class for a quotation inside a text, and
@@ -278,7 +290,7 @@
       go.textContent = "Read this";
       go.onclick = function () {
         go.disabled = true;
-        ask("/build", { id: job.id }).then(function (state) {
+        start(job).then(function (state) {
           if (state.error || state.blocked) {
             note.textContent = state.error || state.blocked;
             card.classList.add("refused");
@@ -295,6 +307,18 @@
       more.href = keyed("/add");
       more.textContent = "More options";
       card.appendChild(more);
+    } else if (job.stage === "working" || job.stage === "reading") {
+      // Sent from the box, so already pressed: the card is its progress.
+      note.textContent = "Building. It will appear above when it is ready.";
+      card.classList.add("started");
+      if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+    } else if (job.stage === "done" && job.reader) {
+      var open = document.createElement("a");
+      open.className = "quote-go quote-open";
+      open.href = door(job.reader);
+      open.textContent = "Open";
+      card.appendChild(open);
+      card.classList.add("started");
     } else {
       note.textContent = job.blocked || job.error || "This cannot be built now.";
       card.classList.add("refused");
@@ -335,6 +359,8 @@
     isPdf: isPdf,
     listed: listed,
     upload: upload,
+    start: start,
+    door: door,
     uploadInChunks: uploadInChunks,
     readFile: readFile,
     options: options,

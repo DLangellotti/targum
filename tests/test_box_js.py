@@ -150,21 +150,35 @@ def test_the_x_on_a_chip_lets_that_file_go() -> None:
     assert page["held"] == [] and page["heldHidden"] is True
 
 
-def test_send_brings_the_held_file_and_opens_the_conversation_page_on_its_card() -> None:
+STARTED = dict(QUOTE, stage="working")
+
+
+def test_send_brings_the_held_file_starts_it_and_opens_the_conversation_page() -> None:
     """The Add page's job in one press, from the box: the file read whole, `/prepare`
-    asked, and the conversation page opened with the job in the hash — where the card
-    is a turn in the thread, never a thing under this box."""
+    asked, `/build` pressed — Send with a file is the press (2026-09-07) — and the
+    conversation page opened with the job in the hash, where the card is a turn in the
+    thread showing the build's progress, never a thing under this box."""
     page = run(
         do=[
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send"},
         ],
-        answers={"/prepare": QUOTE},
+        answers={"/prepare": QUOTE, "/build": STARTED},
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare"], "no line was said"
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/build"], "no line was said"
     assert page["posted"][0]["body"]["name"] == "story.txt"
+    assert page["posted"][1]["body"] == {"id": "j1"}
     assert page["went"] == "/chat?k=k#job=j1"
     assert page["held"] == []
+
+
+def test_a_quote_the_rails_refused_is_not_pressed() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers={"/prepare": dict(QUOTE, stage="blocked", blocked="Too long.")},
+    )
+    assert [p["path"] for p in page["posted"]] == ["/prepare"]
+    assert page["went"] == "/chat?k=k#job=j1", "the card says why, in the thread"
 
 
 def test_a_line_typed_alongside_opens_the_conversation_the_card_lands_in() -> None:
@@ -173,10 +187,14 @@ def test_a_line_typed_alongside_opens_the_conversation_the_card_lands_in() -> No
             {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
             {"type": "send", "text": "read this with me"},
         ],
-        answers={"/prepare": QUOTE, "/chat/say": {"chat": "abc", "turn": 1}},
+        answers={"/prepare": QUOTE, "/build": STARTED, "/chat/say": {"chat": "abc", "turn": 1}},
     )
-    assert [p["path"] for p in page["posted"]] == ["/prepare", "/chat/say"]
-    assert page["posted"][1]["body"] == {"chat": "", "text": "read this with me"}
+    assert [p["path"] for p in page["posted"]] == ["/prepare", "/build", "/chat/say"]
+    assert page["posted"][2]["body"] == {
+        "chat": "",
+        "text": "read this with me",
+        "brought": "j1",
+    }, "the model is told what was sent"
     assert page["went"] == "/chat?k=k#abc&job=j1"
 
 
@@ -192,8 +210,9 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces() -> None:
         "/upload/u1/2",
         "/upload/u1/end",
         "/prepare",
+        "/build",
     ]
-    assert page["posted"][-1]["body"]["upload"] == "u1"
+    assert page["posted"][-2]["body"]["upload"] == "u1"
     assert page["went"] == "/chat?k=k#job=j1"
 
 
@@ -246,8 +265,9 @@ def test_several_pictures_chosen_together_are_one_text() -> None:
         "/upload/u1/0",
         "/upload/u1/end",
         "/prepare",
+        "/build",
     ]
-    assert page["posted"][-1]["body"]["uploads"] == ["u1", "u1"], "one text, in order"
+    assert page["posted"][-2]["body"]["uploads"] == ["u1", "u1"], "one text, in order"
     assert page["went"] == "/chat?k=k#job=j1"
 
 
@@ -256,9 +276,9 @@ def test_a_pdf_goes_up_the_chunked_door_and_is_priced_as_one_upload() -> None:
         do=[{"type": "file", "file": {"name": "handout.pdf", "size": 10}}, {"type": "send"}],
         answers={**PICTURES, "/upload/u1/end": {"upload": "u1", "pages": 3}, "/prepare": QUOTE},
     )
-    assert [p["path"] for p in page["posted"]][-2:] == ["/upload/u1/end", "/prepare"]
-    assert page["posted"][-1]["body"]["upload"] == "u1"
-    assert "content" not in page["posted"][-1]["body"], "not read whole as base64"
+    assert [p["path"] for p in page["posted"]][-3:] == ["/upload/u1/end", "/prepare", "/build"]
+    assert page["posted"][-2]["body"]["upload"] == "u1"
+    assert "content" not in page["posted"][-2]["body"], "not read whole as base64"
 
 
 def test_pictures_and_a_text_chosen_together_are_refused_under_the_box() -> None:

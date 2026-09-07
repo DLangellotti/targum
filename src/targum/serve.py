@@ -3989,7 +3989,19 @@ class Handler(BaseHTTPRequestHandler):
             }
             if not about.get("surface") and not about.get("sentence"):
                 about = None
-        asked = self.chats.say(person, self._home(), chat_id, text, admin=admin, about=about)
+        # The text sent with the line, if one was: read from its own job, never from
+        # the payload, so what the model is told about it is what the server knows.
+        brought = None
+        sent = self._own_job(str(payload.get("brought") or ""))
+        if sent is not None:
+            state = sent.state()
+            brought = {
+                key: state[key]
+                for key in ("title", "pages", "segments", "excerpt", "stage", "blocked", "error")
+            }
+        asked = self.chats.say(
+            person, self._home(), chat_id, text, admin=admin, about=about, brought=brought
+        )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
     def _chat_save(self, payload: dict[str, Any]) -> None:

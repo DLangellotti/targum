@@ -372,16 +372,27 @@
           line.textContent = job.error;
           return;
         }
-        quoteCard(li, job);
+        // Send with a file in the box is the press (2026-09-07): started here, and
+        // the card is its progress. A quote the rails refused shows its sentence.
+        if (job.stage !== "ready") {
+          quoteCard(li, job);
+          return job;
+        }
+        return bringing.start(job).then(function (state) {
+          quoteCard(li, state);
+          return state;
+        });
       })
       .catch(function (why) {
         li.className = "chat-turn them bad";
         line.textContent = String(why || "That did not go through. Try again.");
       })
-      .then(function () {
+      .then(function (job) {
         busy = false;
         send.disabled = false;
         if (file) file.value = "";
+        // The job, for a line sent with the file: the model is told what was sent.
+        return job;
       });
   }
   if (bring && file) {
@@ -404,8 +415,8 @@
       held = [];
       showHeld();
       field.value = "";
-      brought(files).then(function () {
-        if (text) say(text);
+      brought(files).then(function (job) {
+        if (text) say(text, job && job.id);
       });
       return;
     }
@@ -688,14 +699,17 @@
 
   /* --- asking -------------------------------------------------------------- */
 
-  function say(text) {
+  function say(text, brought) {
     if (busy || !text) return;
     if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
     busy = true;
     send.disabled = true;
     turn("user", text);
     var answer = turn("assistant", "", "working");
-    ask("/chat/say", { chat: current, text: text }).then(function (got) {
+    var line = { chat: current, text: text };
+    // The text sent with the line, by its job, so the model knows what it was given.
+    if (brought) line.brought = brought;
+    ask("/chat/say", line).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";
         render(answer.querySelector(".chat-line"), got.error);

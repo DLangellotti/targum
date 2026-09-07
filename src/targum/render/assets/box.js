@@ -180,10 +180,18 @@
         if (job.error) return refused(job);
         held = [];
         showHeld();
-        if (!text) return go("", job.id);
-        return ask("/chat/say", { chat: "", text: text }).then(function (got) {
-          // A refused line still leaves the card a home: a fresh thread.
-          go(got.error ? "" : got.chat, job.id);
+        // Send with a file in the box is the press: the reader chose the file and
+        // sent it, and a card asking them to say so again was a second surface
+        // ("I originally just gave the file… it should have been enough to just
+        // open it", 2026-09-07). Started here; the card on the next page is its
+        // progress, and a refusal is said on the card in the same words.
+        var started = job.stage === "ready" ? bringing.start(job) : Promise.resolve(job);
+        return started.then(function () {
+          if (!text) return go("", job.id);
+          return ask("/chat/say", { chat: "", text: text, brought: job.id }).then(function (got) {
+            // A refused line still leaves the card a home: a fresh thread.
+            go(got.error ? "" : got.chat, job.id);
+          });
         });
       })
       .catch(function (why) {
