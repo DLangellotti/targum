@@ -38,6 +38,14 @@ class Cache:
         paid for a second time. Warm workers share this directory."""
         write_atomic(self._path(stage, key), json.dumps(value, ensure_ascii=False))
 
+    def drop(self, stage: str, key: str) -> bool:
+        """Take one record out — the author's hand on a wrong answer. True if it was there."""
+        path = self._path(stage, key)
+        if not path.is_file():
+            return False
+        path.unlink()
+        return True
+
     def clear(self) -> int:
         """Drop cached work but keep downloaded language models."""
         removed = 0

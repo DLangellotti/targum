@@ -1790,6 +1790,85 @@ def gloss_command(
     )
 
 
+@app.command(name="correct")
+def correct_command(
+    lemma: Annotated[str, typer.Argument(help="The dictionary form the gloss is filed under.")],
+    meaning: Annotated[
+        str | None, typer.Option("--meaning", help="What the word means. This stands for good.")
+    ] = None,
+    forget: Annotated[
+        bool, typer.Option("--forget", help="Take the gloss out; the next look-up buys it again.")
+    ] = False,
+    source: Annotated[str, typer.Option("--source", help="The word's language.")] = "he",
+    to: Annotated[str, typer.Option("--to", help="The gloss's language.")] = "en",
+    context: Annotated[
+        str, typer.Option("--context", help="The sentence you judged it in, if one.")
+    ] = "",
+    reason: Annotated[str, typer.Option("--reason", help="Why, in a few words.")] = "",
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Correct a gloss by hand, and write the judgement down (targum-internal#164).
+
+    The one thing no model lab has is a record of human judgement about Hebrew at the
+    word level, with provenance. Deleting a cache file by hand applied a correction and
+    threw the judgement away; this applies it and keeps it.
+    """
+    from .accounts import Store
+    from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, forget_gloss, set_gloss
+    from .serve import default_store
+
+    if forget == bool(meaning):
+        fail(TargumError("Say what the word means, or say --forget.", "One or the other."))
+    provider_name = AnthropicGlosses(GLOSS_MODEL).name
+    if forget:
+        before = forget_gloss(lemma, source, to, provider_name)
+        after = ""
+    else:
+        before = set_gloss(lemma, source, to, provider_name, Sense(str(meaning), grounded=True))
+        after = str(meaning)
+    keeping = Store(store or default_store())
+    row = keeping.correct(
+        "gloss",
+        who="author",
+        licence="targum",
+        term=lemma,
+        language=source,
+        target=to,
+        before=before.gloss if before else "",
+        after=after,
+        context=context,
+        reason=reason,
+    )
+    was = f"was {before.gloss!r}" if before else "was not glossed"
+    console.print(
+        f"[green]Recorded[/green] #{row}: {lemma} {was}, now {after!r}"
+        if after
+        else f"[green]Recorded[/green] #{row}: {lemma} {was}, forgotten"
+    )
+
+
+@app.command(name="corrections")
+def corrections_command(
+    stage: Annotated[str, typer.Option("--stage", help="gloss, lemma, pointing…")] = "",
+    limit: Annotated[int, typer.Option("--limit", help="How many, newest first.")] = 50,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """The judgements written down so far, newest first (targum-internal#164)."""
+    from .accounts import Store
+    from .serve import default_store
+
+    rows = Store(store or default_store()).corrections(stage, limit)
+    if not rows:
+        console.print("[dim]No corrections yet.[/dim]")
+        return
+    for row in rows:
+        console.print(
+            f"#{row['id']} {row['stage']} {row['who']} {row['language']}>{row['target']} "
+            f"[bold]{row['term']}[/bold]: {row['before']!r} -> {row['after']!r}"
+            + (f" [dim]{row['reason']}[/dim]" if row["reason"] else "")
+        )
+
+
 @app.command(name="dictionary")
 def dictionary_command(
     shelf: Annotated[

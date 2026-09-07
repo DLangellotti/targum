@@ -89,7 +89,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -503,6 +503,30 @@ CREATE TABLE IF NOT EXISTS wanted (
   first    INTEGER NOT NULL DEFAULT 0,
   last     INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (query, source)
+);
+
+-- Schema 14 adds this (targum-internal#164, door 1). Every human judgement about a
+-- word, kept with provenance: what stood before, what stands after, who decided, under
+-- what licence the judgement is held, and the sentence they saw. Today the author's
+-- hand edits on a gloss (`targum correct`) and a grounding at a reader's tap write
+-- here; the editor's and the reader's doors come later. A row is a labelled example
+-- and the only training data the company owns outright; nothing here is deleted by
+-- applying it. `who` is author, editor, reader or model — never a name or an id.
+CREATE TABLE IF NOT EXISTS correction (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  at       INTEGER NOT NULL,
+  stage    TEXT    NOT NULL,
+  language TEXT    NOT NULL DEFAULT '',
+  target   TEXT    NOT NULL DEFAULT '',
+  term     TEXT    NOT NULL DEFAULT '',
+  text     TEXT    NOT NULL DEFAULT '',
+  span     TEXT    NOT NULL DEFAULT '',
+  before   TEXT    NOT NULL DEFAULT '',
+  after    TEXT    NOT NULL DEFAULT '',
+  who      TEXT    NOT NULL,
+  licence  TEXT    NOT NULL DEFAULT '',
+  context  TEXT    NOT NULL DEFAULT '',
+  reason   TEXT    NOT NULL DEFAULT ''
 );
 """
 
@@ -1718,6 +1742,66 @@ class Store:
             db.execute(
                 "UPDATE proposed SET state = ?, by = ? WHERE id = ?", (state, by, proposal_id)
             )
+
+    # --- corrections (targum-internal#164, door 1) ---------------------------------
+
+    def correct(
+        self,
+        stage: str,
+        *,
+        who: str,
+        term: str = "",
+        language: str = "",
+        target: str = "",
+        text: str = "",
+        span: str = "",
+        before: str = "",
+        after: str = "",
+        licence: str = "",
+        context: str = "",
+        reason: str = "",
+    ) -> int:
+        """Write one judgement down. Returns the row's id.
+
+        `who` is a role, never a person: the store is the company's record of what was
+        decided about Hebrew, and a reader's name is not part of that. The sentence is
+        cut short because a judgement wants the line it was made on, not the page.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "INSERT INTO correction (at, stage, language, target, term, text, span,"
+                " before, after, who, licence, context, reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    now(),
+                    stage,
+                    language,
+                    target,
+                    term,
+                    text,
+                    span,
+                    before,
+                    after,
+                    who,
+                    licence,
+                    context[:500],
+                    reason[:300],
+                ),
+            )
+            return int(cursor.lastrowid or 0)
+
+    def corrections(self, stage: str = "", limit: int = 100) -> list[dict[str, Any]]:
+        """The latest judgements, newest first, all stages or one."""
+        if stage:
+            rows = self.db.execute(
+                "SELECT * FROM correction WHERE stage = ? ORDER BY at DESC, id DESC LIMIT ?",
+                (stage, limit),
+            ).fetchall()
+        else:
+            rows = self.db.execute(
+                "SELECT * FROM correction ORDER BY at DESC, id DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def want(self, query: str, source: str, standing: str = "") -> None:
         """Count one ask the shelf could not answer. Keyed on the words and the link,

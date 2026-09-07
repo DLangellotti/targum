@@ -91,6 +91,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   credit for the words; `LICENSING.md` records the licence, the measurement and the
   gate. `scripts/measure_pointing.py` and `evals/ledger.jsonl` (stage `vocalize`) hold
   the numbers (targum-internal#148).
+- The correction store, door 1 (targum-internal#164). Every human judgement about a
+  word is written down with its provenance — what stood before, what stands after, who
+  decided (a role, never a name), the licence the judgement is held under, and the
+  sentence they saw — in a `correction` table of the accounts store (schema 14).
+  `targum correct <lemma> --meaning …` and `--forget` apply the author's hand to a
+  gloss and keep the judgement, where deleting a cache file by hand used to throw it
+  away; a grounding at a reader's tap writes the bare sense that stood and the grounded
+  one that stands; `targum corrections` lists them. The editor's and the reader's doors,
+  the harness export and the notice text are the rest of the card.
 - The chat is handed a few sentences a Hebrew speaker wrote, inside the reader's own
   words, to write in their idiom rather than translate from English. They are Tatoeba's
   (CC BY 2.0 FR), only those by contributors who declare Hebrew native, lemmatized once

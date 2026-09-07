@@ -433,6 +433,7 @@ def gloss_one(
     *,
     cache: Cache | None = None,
     context: str = "",
+    on_grounded: Grounded | None = None,
 ) -> Sense | None:
     """One word, looked up because someone asked for it.
 
@@ -485,7 +486,69 @@ def gloss_one(
         return held
     sense = Sense(*found)._replace(grounded=bool(context))
     cache.put("gloss", key, _record(sense, grounded=sense.grounded))
+    # A grounding is a judgement with a sentence behind it, and the store keeps those
+    # (targum-internal#164): what stood bare, what stands grounded, and the line.
+    if context and on_grounded is not None:
+        on_grounded(held, sense, context)
     return sense
+
+
+#: What a grounding tells whoever asked to be told: the sense that stood before, if one
+#: did, the sense that stands now, and the sentence that decided it.
+Grounded = Callable[[Sense | None, Sense, str], None]
+
+
+def _held(cache: Cache, key: str) -> Sense | None:
+    stored = cache.get("gloss", key)
+    return _sense_of(stored) if isinstance(stored, dict) and stored.get("gloss") else None
+
+
+def forget_gloss(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider_name: str,
+    *,
+    cache: Cache | None = None,
+) -> Sense | None:
+    """The author's hand on a wrong gloss: take it out, so the next look-up buys it
+    again. Returns what stood, for the record. Deleting the cache file by hand was how
+    this was done until 2026-09-07, and it left no trace of the decision."""
+    cache = cache or Cache()
+    key = cache.key(
+        "gloss",
+        lemma=lemma,
+        source=source_language,
+        target=target_language,
+        provider=provider_name,
+    )
+    held = _held(cache, key)
+    cache.drop("gloss", key)
+    return held
+
+
+def set_gloss(
+    lemma: str,
+    source_language: str,
+    target_language: str,
+    provider_name: str,
+    sense: Sense,
+    *,
+    cache: Cache | None = None,
+) -> Sense | None:
+    """The author's hand on a gloss: this is what the word means, and it stands for
+    good — written grounded, so no sentence buys it again. Returns what stood."""
+    cache = cache or Cache()
+    key = cache.key(
+        "gloss",
+        lemma=lemma,
+        source=source_language,
+        target=target_language,
+        provider=provider_name,
+    )
+    held = _held(cache, key)
+    cache.put("gloss", key, _record(sense, grounded=True))
+    return held
 
 
 def build_glossary(
