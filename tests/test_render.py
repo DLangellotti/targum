@@ -4296,6 +4296,14 @@ def suggestion(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object])
     return str(next_after(document).get("id", ""))
 
 
+def reason(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object]) -> str:
+    from targum.render.builder import next_after
+
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    document = Document(source=source, language="he", blocks=[], content_hash="h")
+    return str(next_after(document).get("because", ""))
+
+
 def test_the_next_text_is_the_next_step_up(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = catalogue_of(
         ("here", "s:here", 10, "modern"),
@@ -4365,6 +4373,44 @@ def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyP
         ("news-a", "s:news", 6, "modern"),
     )
     assert suggestion(monkeypatch, "dialogue:03-which-way", rows) == "news-a"
+
+
+def test_the_offer_says_why_it_is_the_offer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An offer nobody explained is a curator's opinion; an explained one is a fact about
+    the catalogue, which a reader can disagree with (targum-internal#176). The sentence
+    is what the pick actually did — which pool it came from, and whether anything was
+    harder — and not a phrase chosen to sound helpful."""
+    modern = catalogue_of(
+        ("here", "s:here", 10, "modern"),
+        ("above", "s:above", 12, "modern"),
+        ("scripture", "s:bible", 11, "biblical"),
+    )
+    assert reason(monkeypatch, "s:here", modern) == "A step up from this one."
+
+    crossing = catalogue_of(
+        ("here", "s:here", 10, "modern"), ("scripture", "s:bible", 11, "biblical")
+    )
+    assert reason(monkeypatch, "s:here", crossing) == "A step up, in a different Hebrew."
+
+    hardest = catalogue_of(("here", "s:here", 40, "modern"), ("near", "s:near", 36, "modern"))
+    assert reason(monkeypatch, "s:here", hardest) == "About as hard as this one."
+
+    scenes = catalogue_of(
+        ("scene-01-nice-to-meet-you", "dialogue:01-nice-to-meet-you", 5, "modern"),
+        ("scene-02-in-a-cafe", "dialogue:02-in-a-cafe", 0, "modern"),
+    )
+    assert reason(monkeypatch, "dialogue:01-nice-to-meet-you", scenes) == "Next in the sequence."
+
+
+def test_an_upload_is_not_told_it_is_a_step_up_from_something_nobody_measured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A text the catalogue never heard of has no difficulty, so the easiest thing is
+    offered — and calling that a step up would be a claim about a text nobody read."""
+    rows = catalogue_of(("easy", "s:easy", 5, "modern"), ("hard", "s:hard", 30, "modern"))
+    assert reason(monkeypatch, "https://example.com/mine.txt", rows) == (
+        "The easiest text on the shelf."
+    )
 
 
 def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
