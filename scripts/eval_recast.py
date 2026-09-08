@@ -20,11 +20,21 @@ synthetic reader's words (`chat/exemplars.py`) the way a live turn does; run bot
 the difference is #218's number. The sentences sent as turns are never among the
 exemplars: `pick` is handed the pool with the eval's own rows removed.
 
+**Two references.** Tatoeba is the default, and three volunteers wrote 96% of it.
+`--reference flores` scores against FLORES+ instead (`chat/flores.py`): 1,012 `devtest`
+sentences from web articles, each rendered by a professional translator, CC BY-SA and
+therefore evaluation only — fetched with `targum models fetch flores` and never shipped
+(targum-internal#221). Rows land in the ledger under `corpus=flores-plus`, so the two
+references are two lines and not one. FLORES+ sentences are news sentences and run long,
+so the length cap is wider there; `--max-words` names either.
+
 **What it costs.** N chat turns and N judge calls at the chat's model. Nothing is cached
 by design: the question is what the model does today.
 
     set -a && . ./.env && set +a && \\
       .venv/bin/python scripts/eval_recast.py --pool ~/.targum/exemplars.jsonl --pairs 200
+    set -a && . ./.env && set +a && \\
+      .venv/bin/python scripts/eval_recast.py --reference flores --pairs 200 --save out.jsonl
 """
 
 from __future__ import annotations
@@ -42,7 +52,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum import evals  # noqa: E402
 from targum.annotate import lemma  # noqa: E402
 from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
-from targum.chat import CHAT_MODEL, EFFORT, exemplars, hebrew, prompts  # noqa: E402
+from targum.chat import CHAT_MODEL, EFFORT, exemplars, flores, hebrew, prompts  # noqa: E402
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Segment  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
@@ -51,6 +61,15 @@ from targum.vocalize.base import strip_nikkud  # noqa: E402
 
 #: A reference longer than this is a paragraph, and a recast eval is about sentences.
 MAX_WORDS = 12
+
+#: FLORES+ is sentences from news and encyclopaedia articles, and a Hebrew rendering of
+#: one runs to twenty words as a matter of course. Capped at twelve, the reference would
+#: be a tenth of the split and the short tenth; capped here it is most of it, and a
+#: reader's own line can be this long.
+FLORES_MAX_WORDS = 30
+
+#: What each reference is called in the ledger. Two references are two lines, not one.
+CORPUS = {"tatoeba": "tatoeba", "flores": "flores-plus"}
 
 #: Who scores the recast. Not the writer: a model grading its own Hebrew prefers its own
 #: Hebrew, and the first pilot had Opus judging Opus. Decided 2026-09-07: Sonnet 5 judges,
@@ -75,7 +94,7 @@ not. Ignore the vowel points. Answer YES or NO on the first line, then one short
 saying why."""
 
 
-def pool_rows(path: Path) -> list[dict[str, Any]]:
+def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
     """English originals with a native Hebrew rendering, at sentence length. Streamed
     and filtered on the way in: the whole pool as Python objects is what tipped an
     8 GB laptop into killing the run."""
@@ -89,10 +108,32 @@ def pool_rows(path: Path) -> list[dict[str, Any]]:
             if (
                 raw.get("from_english")
                 and raw.get("en")
-                and len(str(raw["he"]).split()) <= MAX_WORDS
+                and len(str(raw["he"]).split()) <= max_words
             ):
                 rows.append(raw)
     return rows
+
+
+def flores_rows(split: str, max_words: int = FLORES_MAX_WORDS) -> list[dict[str, Any]]:
+    """FLORES+ pairs in the shape the pool's rows have, so the rest of the eval does not
+    know which reference it is scoring against. `id` is FLORES+'s own and is not a
+    Tatoeba id, which is why the exemplar pool is never held out against it."""
+    return [
+        {"id": pair.id, "en": pair.en, "he": pair.he}
+        for pair in flores.load(split)
+        if len(pair.he.split()) <= max_words
+    ]
+
+
+def reference_rows(
+    reference: str, pool: Path | None, split: str, max_words: int | None
+) -> list[dict[str, Any]]:
+    """The rows the eval draws from, by reference."""
+    if reference == "flores":
+        return flores_rows(split, max_words if max_words is not None else FLORES_MAX_WORDS)
+    if pool is None:
+        sys.exit("--pool is required with the Tatoeba reference")
+    return pool_rows(pool, max_words if max_words is not None else MAX_WORDS)
 
 
 def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, Any]]:
@@ -171,7 +212,23 @@ def judge(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--pool", type=Path, required=True)
+    parser.add_argument(
+        "--pool", type=Path, help="the Tatoeba pool; the reference by default, the exemplars always"
+    )
+    parser.add_argument(
+        "--reference",
+        choices=sorted(CORPUS),
+        default="tatoeba",
+        help="whose Hebrew the recast is scored against",
+    )
+    parser.add_argument(
+        "--split", choices=flores.SPLITS, default=flores.DEFAULT_SPLIT, help="FLORES+ only"
+    )
+    parser.add_argument(
+        "--max-words",
+        type=int,
+        help=f"longest reference kept; {MAX_WORDS} for Tatoeba, {FLORES_MAX_WORDS} for FLORES+",
+    )
     parser.add_argument("--pairs", type=int, default=200)
     parser.add_argument("--known", type=int, default=300)
     parser.add_argument("--seed", type=int, default=1)
@@ -193,12 +250,22 @@ def main() -> None:
     allowed = set(common) | set(known)
     ledger = hebrew.ledger_block(EMPTY, known, common)
 
-    rows = pool_rows(args.pool)
+    if args.exemplars and args.pool is None:
+        sys.exit("--exemplars rides the Tatoeba pool: name it with --pool")
+    rows = reference_rows(args.reference, args.pool, args.split, args.max_words)
     chosen = sample(rows, args.pairs, args.seed)
     if not chosen:
+        if args.reference == "flores":
+            sys.exit("no FLORES+ pairs; run targum models fetch flores first")
         sys.exit("no English-original rows in the pool; build it with --limit first")
-    held_out = {int(row["id"]) for row in chosen}
-    pool = [row for row in exemplars.load(args.pool) if row.id not in held_out]
+    # The sentences sent as turns are never among the exemplars. Only the Tatoeba
+    # reference can collide with the Tatoeba pool: a FLORES+ id is a different number.
+    held_out = {int(row["id"]) for row in chosen} if args.reference == "tatoeba" else set()
+    pool = (
+        [row for row in exemplars.load(args.pool) if row.id not in held_out]
+        if args.exemplars
+        else []
+    )
 
     client = anthropic.Anthropic()
     usage = Usage()
@@ -286,7 +353,10 @@ def main() -> None:
                     + "\n"
                 )
 
-    print(f"{len(chosen)} pairs, exemplars {'on' if args.exemplars else 'off'}, known={args.known}")
+    print(
+        f"{len(chosen)} pairs against {CORPUS[args.reference]}, "
+        f"exemplars {'on' if args.exemplars else 'off'}, known={args.known}"
+    )
     print(
         f"judge says right: {ok_share:.1%} of {judged} judged   lemma overlap: {overlap:.3f}   "
         f"no recast: {unpaired}   judge wrote nothing: {unjudged}"
@@ -305,7 +375,9 @@ def main() -> None:
     note = (
         f"known={args.known} pairs={len(chosen)} seed={args.seed} exemplars={riding} "
         f"unjudged={unjudged} judge={args.judge}"
+        + (f" split={args.split}" if args.reference == "flores" else "")
     )
+    corpus = CORPUS[args.reference]
     rows_out = [
         evals.Row(
             today,
@@ -315,7 +387,7 @@ def main() -> None:
             "judge_ok_share",
             round(ok_share, 4),
             len(chosen),
-            corpus="tatoeba",
+            corpus=corpus,
             note=note,
         ),
         evals.Row(
@@ -326,7 +398,7 @@ def main() -> None:
             "lemma_overlap",
             round(overlap, 4),
             len(chosen),
-            corpus="tatoeba",
+            corpus=corpus,
             note=note,
         ),
         evals.Row(
@@ -337,7 +409,7 @@ def main() -> None:
             "unpaired",
             float(unpaired),
             len(chosen),
-            corpus="tatoeba",
+            corpus=corpus,
             note=note,
         ),
     ]
