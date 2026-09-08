@@ -633,7 +633,12 @@ def refused(ctx: Ctx | None, host: str, error: Any) -> dict[str, Any] | None:
 
     shut = url_module.shut(error)
     if ctx is not None and ctx.store is not None:
-        ctx.store.reach(host, not shut, str(error.status or "no answer"))
+        # Which door this ended at. `via` is the last one the fetch tried, so a host that
+        # refused both reads `proxy`: it is refusing the egress too, which is the fact
+        # worth having before anybody buys a second one (targum-internal#226).
+        ctx.store.reach(
+            host, not shut, str(error.status or "no answer"), getattr(error, "via", "direct")
+        )
     if not shut:
         return None
     return {
@@ -757,7 +762,9 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     except TargumError as error:
         return {"error": error.message}
     if ctx is not None and ctx.store is not None:
-        ctx.store.reach(host, True)
+        # And through which door it opened. A host recorded open through `proxy` is one
+        # targum reaches only because it pays to (targum-internal#226).
+        ctx.store.reach(host, True, "", getattr(got, "via", "direct"))
     if not got.is_html:
         return {
             "kind": "file",

@@ -86,10 +86,14 @@ SESSION_DAYS = 90
 #    later, the hours — rather than in a second counter beside it that would drift. The
 #    chat tables are new, so `CREATE TABLE IF NOT EXISTS` is the whole migration.
 #
+# 15: reached.egress — which door the last knock at a host went through. A host that
+#    refuses this address and answers the egress is a different fact from one that
+#    refuses both, and without the column the two are one row (targum-internal#226).
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -187,6 +191,10 @@ MIGRATIONS: tuple[str, ...] = (
     # on the reader's row, so a page that comes back to the conversation draws every
     # word with its state without reading the lines again. See `chat/record.py`.
     "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
+    # Which door the last knock at a host went through. Everything knocked before this
+    # existed was knocked from the box itself, so `direct` is the right thing for a row
+    # that predates the column as well as the default for a new one.
+    "ALTER TABLE reached ADD COLUMN egress TEXT NOT NULL DEFAULT 'direct'",
 )
 
 SCHEMA = """
@@ -512,13 +520,18 @@ CREATE TABLE IF NOT EXISTS wanted (
 -- Deliberately not seeded from `chat/sources.py:UNREACHABLE`, which was measured from a
 -- laptop: a box in another country is a different caller and has to knock for itself.
 -- `open` is what the last knock found, so a host that comes back clears itself.
+-- `egress` is which door the last knock went through: `direct`, or `proxy` where the
+-- fetch was refused here and retried through the egress. `open = 1, egress = 'proxy'` is
+-- a host targum can reach only because it pays to, which is worth knowing separately
+-- from one that answers anybody (targum-internal#226).
 CREATE TABLE IF NOT EXISTS reached (
-  host  TEXT    NOT NULL PRIMARY KEY,
-  open  INTEGER NOT NULL DEFAULT 0,
-  why   TEXT    NOT NULL DEFAULT '',
-  tries INTEGER NOT NULL DEFAULT 0,
-  first INTEGER NOT NULL DEFAULT 0,
-  last  INTEGER NOT NULL DEFAULT 0
+  host   TEXT    NOT NULL PRIMARY KEY,
+  open   INTEGER NOT NULL DEFAULT 0,
+  why    TEXT    NOT NULL DEFAULT '',
+  tries  INTEGER NOT NULL DEFAULT 0,
+  first  INTEGER NOT NULL DEFAULT 0,
+  last   INTEGER NOT NULL DEFAULT 0,
+  egress TEXT    NOT NULL DEFAULT 'direct'
 );
 
 -- Schema 14 adds this (targum-internal#164, door 1). Every human judgement about a
@@ -1861,20 +1874,32 @@ class Store:
                 (query, source, standing, now(), now()),
             )
 
-    def reach(self, host: str, open: bool, why: str = "") -> None:
-        """Record what the fetch door found at a host. Keyed on the host alone."""
+    def reach(self, host: str, open: bool, why: str = "", egress: str = "direct") -> None:
+        """Record what the fetch door found at a host, and through which door.
+
+        Keyed on the host alone. `egress` is what the last knock used, so a host that
+        only answers the proxy reads `open = 1, egress = 'proxy'` — the pair that says
+        the egress is earning its keep (targum-internal#226).
+        """
         host = host.strip().lower()[:200]
         if not host:
             return
         with self.write() as db:
             db.execute(
-                "INSERT INTO reached (host, open, why, tries, first, last)"
-                " VALUES (?, ?, ?, 1, ?, ?)"
+                "INSERT INTO reached (host, open, why, tries, first, last, egress)"
+                " VALUES (?, ?, ?, 1, ?, ?, ?)"
                 " ON CONFLICT(host) DO UPDATE SET"
                 "   open = excluded.open, why = excluded.why,"
-                "   tries = tries + 1, last = excluded.last",
-                (host, 1 if open else 0, why.strip()[:200], now(), now()),
+                "   tries = tries + 1, last = excluded.last, egress = excluded.egress",
+                (host, 1 if open else 0, why.strip()[:200], now(), now(), egress),
             )
+
+    def egress_of(self, host: str) -> str:
+        """Which door last reached this host, or "" where nobody has knocked."""
+        row = self.db.execute(
+            "SELECT egress FROM reached WHERE host = ?", (host.strip().lower()[:200],)
+        ).fetchone()
+        return str(row["egress"]) if row else ""
 
     def closed(self, days: int = 30, limit: int = 12) -> list[str]:
         """Hosts whose last knock was refused, most recently first.
