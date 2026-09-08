@@ -911,9 +911,15 @@ def test_models_fetch_he_fetches_dicta_and_nothing_of_stanzas(monkeypatch, tmp_p
     DICTA, so no model of Stanza's is fetched for it (targum-internal#146)."""
     from targum import segment as segment_module
     from targum.annotate import dicta
+    from targum.vocalize import dicta as menaked
 
     monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path / "models"))
     monkeypatch.setattr(dicta.DictaLemmatizer, "model", lambda self: (object(), object()))
+    # `models fetch he` takes the menaked as well, and it is 1.2 GB. Said to be already
+    # here rather than fetched: this test is about which models Hebrew asks for, not
+    # about downloading one, and unstubbed it had CI pull the weights on every run
+    # (targum-internal#229).
+    monkeypatch.setattr(menaked, "downloaded", lambda: True)
 
     def refuse(*args: object, **kwargs: object) -> None:
         raise AssertionError("Stanza was asked for a Hebrew model")

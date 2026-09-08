@@ -239,6 +239,7 @@ def test_a_book_is_priced_by_the_chapter_it_will_buy(tmp_path: Path) -> None:
             out_root=tmp_path / "out",
             difficulty=False,
             gloss=False,
+            segmenter=Splitter(),
         )
         plan = build.plan(chapters=chapters)
         return plan.estimated_cost, plan.buying
@@ -265,6 +266,7 @@ def test_an_article_is_priced_whole(tmp_path: Path) -> None:
         out_root=tmp_path / "out",
         difficulty=False,
         gloss=False,
+        segmenter=Splitter(),
     )
     plan = build.plan(chapters=1)
     assert plan.chapters == 1
@@ -322,6 +324,18 @@ def _novel(tmp_path: Path, chapters: int = 6, sentences: int = 30) -> Path:
     return source
 
 
+class Splitter:
+    """Splits on a full stop, like the conftest fake — redeclared because tests never
+    import each other. Here so these tests need no Stanza model: they are about what a
+    chapter costs, not about where an English sentence ends, and the real segmenter made
+    CI download a language model on every run (targum-internal#229)."""
+
+    name = "fake/1"
+
+    def split(self, texts: list[str], language: str) -> list[list[str]]:
+        return [[one.strip() + "." for one in text.split(".") if one.strip()] for text in texts]
+
+
 def _build(source: Path, out: Path):  # type: ignore[no-untyped-def]
     from targum.models import Style
     from targum.pipeline import Build
@@ -333,6 +347,7 @@ def _build(source: Path, out: Path):  # type: ignore[no-untyped-def]
         out_root=out,
         difficulty=False,
         gloss=False,
+        segmenter=Splitter(),
     )
 
 
