@@ -7,10 +7,13 @@ gitignored for the same reason and is absent from a public checkout). So the cha
 `sources.json` — named by `TARGUM_SOURCES`, else beside the catalogue — and a box with
 no such file simply has nowhere to search.
 
-The same list is what the server-side search is allowed to look at. `allowed_domains` is
-a **relevance** list, not a permission list: its job is to keep the model on Hebrew a
-reader would actually study, not to decide what a reader may bring to their own shelf.
-What a reader imports is refused only on SSRF, format and spend (targum-internal#126).
+`allowed_domains()` is the same list as the API's `allowed_domains` would take, and until
+2026-09-08 the server-side search was held to it. It is not any more: a list the model
+cannot see made a gap in it look like an answer — a Hebrew Wikipedia article asked for,
+four newspapers handed back — and the card that let a reader widen one turn cost a second
+turn every time. The list stays as the record of which sites are known and measured. What
+a reader imports was never gated on it: refused only on SSRF, format and spend
+(targum-internal#126).
 """
 
 from __future__ import annotations

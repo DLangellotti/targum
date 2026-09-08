@@ -173,7 +173,17 @@ TRASHED = "trashed"
 # the code targum wrote will run.
 #: What a word's card may say about where the reader is, and how much of each. The
 #: sentence is the long one; the rest name things.
-ABOUT_FIELDS = {"document": 200, "section": 20, "sentence": 1000, "surface": 80, "lemma": 80}
+ABOUT_FIELDS = {
+    "document": 200,
+    "section": 20,
+    "sentence": 1000,
+    "surface": 80,
+    "lemma": 80,
+    # What the card says the word means. Without it the model answered a reader who
+    # said "the definition here is change, not teachings" with a correct parsing and no
+    # idea it was contradicting the card (2026-09-08).
+    "meaning": 200,
+}
 
 POLICY = (
     "default-src 'none'; "
@@ -4109,10 +4119,6 @@ class Handler(BaseHTTPRequestHandler):
                 )
             }
             brought["from"] = sent_as(sent)
-        # The press on the card `offer_wider_search` left: this one turn's search gives
-        # up the host list. It comes from the page because it is the reader's own hand
-        # on the card's button, the way `/build` and Send-with-a-file are; a model
-        # cannot set it, and it does not carry into the turn after.
         asked = self.chats.say(
             person,
             self._home(),
@@ -4121,7 +4127,6 @@ class Handler(BaseHTTPRequestHandler):
             admin=admin,
             about=about,
             brought=brought,
-            wider=bool(payload.get("wider")),
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
@@ -5139,15 +5144,48 @@ class Handler(BaseHTTPRequestHandler):
             self.library.shared.resolve(),
             self.library.weekly.resolve(),
         )
+        wanted = unquote(relative)
         for root in roots:
-            target = (root / unquote(relative)).resolve()
+            target = (root / wanted).resolve()
             if target.is_file() and root in target.parents:
                 moving = self.MEDIA_KINDS.get(target.suffix.lower())
                 if moving:
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
                 return self._send(200, target.read_bytes(), kind)
+        # A door the model wrote by hand. It is told to copy a path exactly as the tool
+        # returned it, and it copied בסטארטאפ as בסטארטאף — twice in one conversation
+        # (2026-09-08) — because a final letter is how Hebrew is spelled and a folder
+        # name is not Hebrew. A folder that differs from the one asked for only in its
+        # final letters is the folder meant; sent on rather than served in place, so the
+        # page's own relative addresses (a video part beside it) still resolve.
+        folder, _, rest = wanted.partition("/")
+        if folder and rest:
+            for root in roots:
+                real = _spelled_like(root, folder)
+                if real is not None and real != folder:
+                    query = urlparse(self.path).query
+                    where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
+                    return self._sent_on(where)
         return self._send(404, b"not found", "text/plain")
+
+
+def _spelled_like(root: Path, folder: str) -> str | None:
+    """The one folder under `root` whose name is `folder` with its final letters spelled
+    the other way — ף for פ, or פ for ף — or None. Two such folders would be a tie no
+    rule should break, so that is None too."""
+    from .annotate.moves import FINALS
+
+    folded = folder.translate(FINALS)
+    try:
+        found = [
+            child.name
+            for child in root.iterdir()
+            if child.is_dir() and child.name.translate(FINALS) == folded
+        ]
+    except OSError:
+        return None
+    return found[0] if len(found) == 1 else None
 
 
 def default_store() -> Path:

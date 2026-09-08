@@ -159,6 +159,46 @@ def test_my_shelf_is_mine_and_the_shared_one(world) -> None:
     assert tools.search_my_shelf(ctx, {"query": "רות"})["count"] == 1
 
 
+def test_my_shelf_says_when_each_text_was_read(world) -> None:
+    """ "What was the last targum I read?" was answered "the list does not keep times"
+    (2026-09-08). The reader's sync had always written when a text was opened and
+    finished; the tool now hands them over, newest opened first."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    hashes = {row["name"]: row["document"] for row in library.readers(home)}
+    assert hashes["ruth-he"], "the fixture reader carries its document hash"
+    before = tools.search_my_shelf(ctx, {})
+    assert {row["last_opened"] for row in before["texts"]} == {""}, "nothing opened yet"
+    assert before["now"].endswith("+00:00")
+    store.push(
+        person,
+        {
+            "docs": [
+                {
+                    "hash": hashes["ruth-he"],
+                    "title": "Ruth",
+                    "language": "he",
+                    "updated": 1_788_000_000_000,
+                    "opened": 1_788_000_000_000,
+                    "done": 0,
+                    "seen": 1_788_000_000_000,
+                }
+            ],
+            "sections": [
+                {"hash": hashes["ruth-he"], "section": "2", "at": 1_788_001_000_000, "seen": 2}
+            ],
+        },
+    )
+    got = tools.search_my_shelf(ctx, {})
+    assert got["texts"][0]["name"] == "ruth-he", "the last one opened comes first"
+    ruth = got["texts"][0]
+    assert ruth["last_opened"] == "2026-08-29T10:40+00:00"
+    assert ruth["finished"] == "2026-08-29T10:56+00:00", "the last chapter finished"
+    assert isinstance(ruth["days_since_opened"], int) and ruth["days_since_opened"] >= 0
+    # (The fixture's two readers are built from one document and share its hash, so
+    # the never-opened case is the `before` assertion above, not Esther's row here.)
+
+
 def test_another_reader_sees_neither_my_shelf_nor_my_words(world) -> None:
     library, store, person, home = world
     other = signed_in(store, "other@example.com")
@@ -560,12 +600,22 @@ def test_the_search_carries_no_country_the_api_refuses() -> None:
     assert tools.SEARCH_UNAVAILABLE_FROM["country"] == "IL", "kept as the record of why"
 
 
-@pytest.mark.parametrize("wider", [False, True])
-def test_no_web_search_block_carries_a_location_either_way(wider: bool) -> None:
-    """Widened or not. The widened block is built on the same dictionary, so a location
-    added back for one case would ride out in both."""
-    for tool in tools.anthropic_tools(web_search=True, wider=wider):
+def test_no_web_search_block_carries_a_location() -> None:
+    for tool in tools.anthropic_tools(web_search=True):
         assert "user_location" not in tool
+
+
+def test_the_search_is_held_to_no_list_and_allows_six_a_turn() -> None:
+    """Until 2026-09-08 the search was held to the known Hebrew sites and a card let a
+    reader widen one turn; a list the model could not see handed back plausible wrong
+    answers, and the card cost a second turn every time. The whole web, in Hebrew, and
+    six searches a turn: a cent apiece, inside the turn's own meter."""
+    (searching,) = [
+        t for t in tools.anthropic_tools(web_search=True) if t.get("name") == "web_search"
+    ]
+    assert "allowed_domains" not in searching and "blocked_domains" not in searching
+    assert searching["max_uses"] == tools.WEB_SEARCH_USES == 6
+    assert "offer_wider_search" not in [t["name"] for t in tools.anthropic_tools(web_search=True)]
 
 
 def test_the_search_names_domains_or_blocks_them_but_never_both() -> None:
@@ -573,62 +623,6 @@ def test_the_search_names_domains_or_blocks_them_but_never_both() -> None:
     for tool in tools.anthropic_tools(web_search=True):
         if tool.get("name") == "web_search":
             assert not ("allowed_domains" in tool and "blocked_domains" in tool)
-
-
-def test_widening_gives_the_host_list_up_rather_than_adding_to_it() -> None:
-    """The API takes `allowed_domains` or `blocked_domains` and refuses a request
-    carrying both, so there is no setting between the list and the whole web."""
-    (narrow,) = [t for t in tools.anthropic_tools(web_search=True) if t.get("name") == "web_search"]
-    (wide,) = [
-        t
-        for t in tools.anthropic_tools(web_search=True, wider=True)
-        if t.get("name") == "web_search"
-    ]
-    assert narrow["allowed_domains"], "held to the list by default"
-    assert "allowed_domains" not in wide and "blocked_domains" not in wide
-    assert "user_location" not in wide and "user_location" not in narrow, (
-        "neither stands anywhere: the API does not take Israel — see "
-        "test_the_search_carries_no_country_the_api_refuses"
-    )
-    assert wide["max_uses"] == narrow["max_uses"], "still three searches a turn"
-
-
-def test_the_offer_carries_the_words_that_would_be_searched() -> None:
-    """A reader reads the question before agreeing to it, not after."""
-    got = tools.offer_wider_search(None, {"asked": "מתכונים בעברית", "why": "I got newspapers."})
-    assert got["offered"]["asked"] == "מתכונים בעברית"
-    assert got["offered"]["why"] == "I got newspapers."
-    assert got["offered"]["sites"] > 0
-    assert "press" in got["note"]
-
-
-def test_an_offer_with_nothing_to_search_is_refused() -> None:
-    assert "error" in tools.offer_wider_search(None, {})
-    assert "error" in tools.offer_wider_search(None, {"asked": "  "})
-    assert "error" in tools.offer_wider_search(None, {"asked": "x" * 201})
-
-
-def test_the_model_cannot_widen_its_own_search() -> None:
-    """`offer_wider_search` leaves a card and nothing else: no tool the model holds
-    changes what the next turn may look at."""
-    got = tools.offer_wider_search(None, {"asked": "anything"})
-    assert "wider" not in json.dumps(got).lower() or "offered" in got
-    (narrow,) = [t for t in tools.anthropic_tools(web_search=True) if t.get("name") == "web_search"]
-    assert narrow["allowed_domains"], "an offer does not widen the turn it was made in"
-
-
-def test_a_widened_turn_cannot_offer_to_widen_again() -> None:
-    """Otherwise every widened turn ends in another card offering to widen it."""
-    assert "offer_wider_search" in [t["name"] for t in tools.anthropic_tools(web_search=True)]
-    assert "offer_wider_search" not in [
-        t["name"] for t in tools.anthropic_tools(web_search=True, wider=True)
-    ]
-
-
-def test_no_search_on_the_box_means_no_card_that_would_do_nothing() -> None:
-    """Pressing a card that widens a search a box does not run is a button that lies."""
-    assert "offer_wider_search" not in [t["name"] for t in tools.anthropic_tools(web_search=False)]
-    assert "offer_wider_search" in [t["name"] for t in tools.anthropic_tools(web_search=True)]
 
 
 class Door:

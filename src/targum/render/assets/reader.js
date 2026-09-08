@@ -3482,6 +3482,8 @@ var targumReader = function () {
           sentence: sentenceOf(word),
           surface: shown,
           lemma: lemma,
+          // What the card says, so an answer can disagree with it out loud.
+          meaning: glosses[index] || "",
         },
       }),
     })

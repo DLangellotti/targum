@@ -1575,6 +1575,30 @@ class Store:
         ).fetchall()
         return {str(row["hash"]) for row in rows}
 
+    def read_times(self, person_id: int | None) -> dict[str, dict[str, int]]:
+        """When this person last opened each text and when they finished it, by hash, in
+        the milliseconds the page clocks them in. `doc.opened` is written by the reader
+        on every open and synced from every device, so it is the shelf's own clock; a
+        text opened on no device is left out. `finished` is the later of `doc.done` and
+        the last chapter finished, because a targum finishes a chapter at a time."""
+        if person_id is None:
+            return {}
+        rows = self.db.execute(
+            "SELECT d.hash, d.opened, d.done, COALESCE(MAX(s.at), 0) AS chapter"
+            " FROM doc d LEFT JOIN section s"
+            " ON s.person = d.person AND s.hash = d.hash AND s.gone = 0"
+            " WHERE d.person = ? AND d.gone = 0 AND d.opened > 0"
+            " GROUP BY d.hash",
+            (person_id,),
+        ).fetchall()
+        return {
+            str(row["hash"]): {
+                "opened": int(row["opened"]),
+                "finished": max(int(row["done"] or 0), int(row["chapter"] or 0)),
+            }
+            for row in rows
+        }
+
     def hours_used(self, owner: int | None, month_from: int) -> float:
         """Seconds of recording this person's builds have spent since a moment — the
         same sum `claim` holds them to, read without claiming anything."""
