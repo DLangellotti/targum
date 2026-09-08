@@ -44,6 +44,21 @@ PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q
 which also drops the gitignored private half from the import path, so the skips match
 what CI's public checkout sees.
 
+**And that is why the private half needs a run of its own, from the main checkout.** The
+eight gitignored modules that ship in the wheel — the weekly's writer and voice, the
+dialogue writer, the recording cutter and aligner — exist nowhere else: not in CI's
+public checkout, not in any worktree. So no lint, no type check and no test sees them
+unless you are standing in the main checkout, and a rename in the public half breaks one
+of them with every check still green (targum-internal#230). There,
+
+```
+uv run ruff check src/targum && uv run mypy && .venv/bin/python -m pytest -q tests/test_private_half.py
+```
+
+`tests/test_private_half.py` imports each of the eight where it exists and skips where it
+does not, so the same file is honest on both kinds of tree. Three lint errors were found
+sitting in the private half on 2026-09-09, the first time anything looked.
+
 ## The API key is in `.env`, and nothing loads it for you
 
 `ANTHROPIC_API_KEY` lives in `.env` (gitignored, never committed). Neither `uv run` nor
