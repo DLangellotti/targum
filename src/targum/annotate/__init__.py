@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from ..errors import TargumError
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
 from ..vocalize.base import map_span, pointed_positions, strip_nikkud
 from . import register as register_module
@@ -221,6 +222,28 @@ class Annotator:
                 banded[segment_id] = marked
 
         banded = self._pronounce(banded, segmented, vocalization)
+
+        # A text whose words nothing here could read comes out with no tokens at all,
+        # and until now said so nowhere. Both roads to it are deliberate: `unread` leaves
+        # a block alone rather than let a Hebrew model at another language, and
+        # `ScriptureLemmatizer` skips Aramaic the tagging cannot place rather than hand
+        # it to the fallback, which is the same rule one layer down. Each is right about
+        # its own block. Neither is right about a document where *every* block goes that
+        # way — Targum Onkelos is exactly that shape (targum-internal#65) — and what gets
+        # written then is a reader in which not one word can be tapped, from a build that
+        # reported success.
+        #
+        # `ScriptureLemmatizer.reads` predicts it in as many words: a whole book "would
+        # come out blank with nothing saying why". This is the something that says why,
+        # and it says it where the Stanza path already refuses a language it has no
+        # models for, in that path's own words.
+        if not banded and any(
+            in_script(one.text, segmented.language) for one in segmented.segments
+        ):
+            raise TargumError(
+                f"No word of this '{segmented.language}' text could be read.",
+                "Build it without --words to read it with the translation only.",
+            )
 
         rated = self.bands.supports(segmented.language)
         return Annotation(

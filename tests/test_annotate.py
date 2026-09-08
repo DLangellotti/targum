@@ -19,6 +19,7 @@ from targum.annotate.gloss import (
 )
 from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
+from targum.errors import TargumError
 from targum.models import VERB_MARK, Annotation, Segment, SegmentedDocument, Token
 
 
@@ -107,6 +108,47 @@ def document(texts: list[str], language: str = "he") -> SegmentedDocument:
 
 def annotator() -> Annotator:
     return Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands())
+
+
+class ReadsNothing:
+    """A lemmatizer that answers nothing for everything, which is what the scripture
+    path does to a wholly Aramaic text: it skips every block rather than hand Aramaic
+    to a Hebrew model, and skipping every block is a blank book."""
+
+    name = "reads-nothing/1"
+
+    def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+        return {}
+
+
+def test_a_text_no_word_of_which_could_be_read_is_refused_rather_than_written_blank() -> None:
+    """Targum Onkelos's shape (targum-internal#65). `unread` and the scripture path each
+    leave a block alone rather than let a Hebrew model at another language, and each is
+    right about its own block; a document where every block goes that way is a reader in
+    which not one word can be tapped, written by a build that reported success.
+
+    `ScriptureLemmatizer.reads` predicted it: a whole book "would come out blank with
+    nothing saying why". The refusal is worded the way the Stanza path already refuses a
+    language it has no models for."""
+    onkelos = document(["בְּקַדְמִין בְּרָא יְיָ", "יָת שְׁמַיָּא וְיָת אַרְעָא"], language="arc")
+    with pytest.raises(TargumError, match="could be read") as refused:
+        Annotator(lemmatizer=ReadsNothing(), bands=FakeBands()).annotate(onkelos)
+    assert "without --words" in (refused.value.hint or "")
+
+
+def test_a_text_with_no_words_in_it_at_all_is_not_refused() -> None:
+    """The check asks whether anything was there to read, so a document of numerals and
+    punctuation is not a failure — it is a document with nothing to tap, honestly."""
+    Annotator(lemmatizer=ReadsNothing(), bands=FakeBands()).annotate(document(["1234", "— , ;"]))
+
+
+def test_one_unreadable_block_among_readable_ones_is_still_only_a_gap() -> None:
+    """Daniel's shape, and the rule this must not undo: an Aramaic verse the tagging
+    cannot place is left without tokens while the Hebrew around it is read."""
+    mixed = document(["בראשית ברא", "יָת שְׁמַיָּא"])
+    mixed.segments[1].language = "arc"
+    annotation = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands()).annotate(mixed)
+    assert annotation.tokens, "the Hebrew was read"
 
 
 # --- bands -------------------------------------------------------------------
