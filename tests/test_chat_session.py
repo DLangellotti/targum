@@ -827,7 +827,10 @@ def test_the_turn_a_reader_widened_gives_the_host_list_up(tmp_path: Path) -> Non
     )
     (searching,) = [t for t in client.requests[0]["tools"] if t.get("name") == "web_search"]
     assert "allowed_domains" not in searching and "blocked_domains" not in searching
-    assert searching["user_location"]["country"] == "IL"
+    assert "user_location" not in searching, (
+        "the API refuses a search standing in Israel and fails the whole turn for it — "
+        "see test_the_search_carries_no_country_the_api_refuses"
+    )
 
 
 def test_a_press_widens_nothing_after_its_own_turn(tmp_path: Path) -> None:

@@ -525,16 +525,42 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
 
 
-def test_the_search_stands_in_israel_so_a_hebrew_question_gets_hebrew_writing() -> None:
-    """Unlocalised, a search run from a server in Germany answers a Hebrew question with
-    the English-language coverage of Israel rather than with Israeli writing."""
-    searching = [
+def test_the_search_carries_no_country_the_api_refuses() -> None:
+    """The search would rather stand in Israel, and the API does not offer it.
+
+    This test replaces one that asserted `user_location` was `IL`, which is what the code
+    sent and what the endpoint rejects:
+
+        tools.0.web_search_20260209: Country code IL is not supported.
+
+    The tool block is validated before the model is reached, so the 400 failed the whole
+    turn rather than the search — every conversation, on every message, showing the reader
+    "The conversation could not continue." The mocked tests all passed, because a mock is
+    never asked whether the block is one the API would take.
+
+    Measured against the live endpoint on 2026-09-08: `IL`, `CY` and `EG` are refused;
+    `US`, `GB`, `DE` and no location at all are accepted. So there is no value of
+    `country` that means what this wanted, and naming a country that is accepted would
+    stand the search somewhere it should not be — which is the failure the removed test's
+    own docstring described.
+
+    Pinned as an absence, since what matters is that nothing goes out that the API will
+    not take. If localisation becomes available, this test is the place the reason for
+    its absence is written down.
+    """
+    (searching,) = [
         one for one in tools.anthropic_tools(web_search=True) if one.get("name") == "web_search"
     ]
-    assert len(searching) == 1
-    where = searching[0]["user_location"]
-    assert where["country"] == "IL" and where["type"] == "approximate"
-    assert where["timezone"] == "Asia/Jerusalem"
+    assert "user_location" not in searching
+    assert tools.SEARCH_UNAVAILABLE_FROM["country"] == "IL", "kept as the record of why"
+
+
+@pytest.mark.parametrize("wider", [False, True])
+def test_no_web_search_block_carries_a_location_either_way(wider: bool) -> None:
+    """Widened or not. The widened block is built on the same dictionary, so a location
+    added back for one case would ride out in both."""
+    for tool in tools.anthropic_tools(web_search=True, wider=wider):
+        assert "user_location" not in tool
 
 
 def test_the_search_names_domains_or_blocks_them_but_never_both() -> None:
@@ -555,7 +581,10 @@ def test_widening_gives_the_host_list_up_rather_than_adding_to_it() -> None:
     ]
     assert narrow["allowed_domains"], "held to the list by default"
     assert "allowed_domains" not in wide and "blocked_domains" not in wide
-    assert wide["user_location"] == narrow["user_location"], "still standing in Israel"
+    assert "user_location" not in wide and "user_location" not in narrow, (
+        "neither stands anywhere: the API does not take Israel — see "
+        "test_the_search_carries_no_country_the_api_refuses"
+    )
     assert wide["max_uses"] == narrow["max_uses"], "still three searches a turn"
 
 

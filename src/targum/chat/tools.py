@@ -510,17 +510,35 @@ _HEBREW = frozenset(chr(code) for code in range(0x05D0, 0x05EB))
 #: How many searches one turn may make. Three is a question answered; more is browsing.
 WEB_SEARCH_USES = 3
 
-#: Where the search should stand when it looks. The API localises results to this, and
-#: an unlocalised search run from a server in Germany answers a Hebrew question with the
-#: English-language coverage of Israel rather than with Israeli writing about the thing
-#: asked about. Costs nothing and narrows nothing: a reader may still be shown any host
-#: in `allowed_domains`, and may still bring whatever link they like themselves.
-SEARCH_FROM = {
-    "type": "approximate",
-    "city": "Tel Aviv",
-    "country": "IL",
-    "timezone": "Asia/Jerusalem",
-}
+#: Where the search would stand if it could, and it cannot.
+#:
+#: The search wants to look from Israel: an unlocalised search run from a server in
+#: Germany answers a Hebrew question with the English-language coverage of Israel rather
+#: than with Israeli writing about the thing asked about. `user_location` is the API's
+#: setting for exactly that, and **it does not take Israel.** Measured against the live
+#: endpoint on 2026-09-08:
+#:
+#:     IL  400  Country code IL is not supported.
+#:     CY  400  Country code CY is not supported.
+#:     EG  400  Country code EG is not supported.
+#:     US  200      GB  200      DE  200      (none)  200
+#:
+#: So this is not a value to correct, it is a door that is shut. Sending `IL` is a 400 on
+#: *every* turn — the whole conversation, not the search — because the tool block is
+#: rejected before the model is reached, and the reader is told the conversation could
+#: not continue. Naming another country would be worse than nothing: standing in Germany
+#: is the exact failure the paragraph above describes, and standing in the United States
+#: is that failure with more confidence.
+#:
+#: Nothing is lost that was ever had. What keeps the search on Hebrew is what always kept
+#: it there: the hosts in `allowed_domains()`, the Hebrew the model searches in, and the
+#: share of Hebrew letters `describe_source` counts before a source is offered. Localising
+#: on top of those was the improvement; it is unavailable, and the floor is unchanged.
+#:
+#: Kept as a name rather than deleted so that re-adding it means reading this first.
+#: `test_the_search_carries_no_country_the_api_refuses` fails if it goes back into a tool
+#: block (targum-internal#126).
+SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asia/Jerusalem"}
 
 
 def _hebrew_share(text: str) -> float:
@@ -977,8 +995,8 @@ BY_NAME: dict[str, Tool] = {tool.name: tool for tool in REGISTRY}
 def anthropic_tools(*, web_search: bool = False, wider: bool = False) -> list[dict[str, Any]]:
     """The registry in the shape the Messages API takes.
 
-    With `web_search`, Anthropic's server-side search rides along, standing in Israel
-    (`SEARCH_FROM`) and held to the hosts in `sources.allowed_domains()` — unless
+    With `web_search`, Anthropic's server-side search rides along, held to the hosts in
+    `sources.allowed_domains()` — unless
     `wider`, which is the one turn a reader pressed `offer_wider_search`'s card to
     widen. The model does not run it and neither do we: the API does, and what it finds
     comes back as blocks in the reply. Anything it surfaces is still described and
@@ -1002,14 +1020,15 @@ def anthropic_tools(*, web_search: bool = False, wider: bool = False) -> list[di
             "type": "web_search_20260209",
             "name": "web_search",
             "max_uses": WEB_SEARCH_USES,
-            "user_location": SEARCH_FROM,
+            # No `user_location`: the API does not take Israel, and a block carrying one
+            # it refuses fails the turn rather than the search. See `SEARCH_UNAVAILABLE_FROM`.
         }
         if not wider:
             # Widened, the list is *given up*, not added to: the API takes
             # `allowed_domains` or `blocked_domains` and refuses a request carrying
             # both, and there is no third setting between them. What keeps a widened
-            # search on Hebrew is where it stands (`SEARCH_FROM`), the Hebrew the model
-            # searches in, and the share of Hebrew letters `describe_source` counts
+            # search on Hebrew is the Hebrew the model searches in and the share of
+            # Hebrew letters `describe_source` counts
             # before anything is offered — never a refusal, which is the reader's
             # side of the door and stays open (targum-internal#126).
             searching["allowed_domains"] = sources_module.allowed_domains()
