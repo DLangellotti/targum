@@ -81,6 +81,12 @@ SESSION_DAYS = 90
 #    is not a second place for the setting — it is the one place, and the browser keeps a
 #    copy of it the way it keeps a copy of the words. Old `reads` rows are read across
 #    once for anybody who has signed in; the table stays on disk, empty of meaning.
+# 15: reached.egress — which way out the knock that last set a row's `open` went,
+#    `direct` or `proxy` (targum-internal#226). A host shut direct may be open through
+#    the proxy, and a memory that cannot tell the two apart keeps the model away from
+#    sites that now work. `reached` itself was a new table at 14 and needed no entry
+#    here; a new column on an existing table does, because `CREATE TABLE IF NOT EXISTS`
+#    skips a table that is already there.
 # 12: job.kind, and the two chat tables. A conversation turn takes a `job` row of its
 #    own kind so that it lands in the same ledger a build does — the money rails and,
 #    later, the hours — rather than in a second counter beside it that would drift. The
@@ -89,7 +95,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -187,6 +193,8 @@ MIGRATIONS: tuple[str, ...] = (
     # on the reader's row, so a page that comes back to the conversation draws every
     # word with its state without reading the lines again. See `chat/record.py`.
     "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
+    # Which way out the last knock went. Schema 15; see the note above SCHEMA_VERSION.
+    "ALTER TABLE reached ADD COLUMN egress TEXT NOT NULL DEFAULT 'direct'",
 )
 
 SCHEMA = """
@@ -513,12 +521,13 @@ CREATE TABLE IF NOT EXISTS wanted (
 -- laptop: a box in another country is a different caller and has to knock for itself.
 -- `open` is what the last knock found, so a host that comes back clears itself.
 CREATE TABLE IF NOT EXISTS reached (
-  host  TEXT    NOT NULL PRIMARY KEY,
-  open  INTEGER NOT NULL DEFAULT 0,
-  why   TEXT    NOT NULL DEFAULT '',
-  tries INTEGER NOT NULL DEFAULT 0,
-  first INTEGER NOT NULL DEFAULT 0,
-  last  INTEGER NOT NULL DEFAULT 0
+  host   TEXT    NOT NULL PRIMARY KEY,
+  open   INTEGER NOT NULL DEFAULT 0,
+  why    TEXT    NOT NULL DEFAULT '',
+  tries  INTEGER NOT NULL DEFAULT 0,
+  first  INTEGER NOT NULL DEFAULT 0,
+  last   INTEGER NOT NULL DEFAULT 0,
+  egress TEXT    NOT NULL DEFAULT 'direct'
 );
 
 -- Schema 14 adds this (targum-internal#164, door 1). Every human judgement about a
@@ -1837,19 +1846,20 @@ class Store:
                 (query, source, standing, now(), now()),
             )
 
-    def reach(self, host: str, open: bool, why: str = "") -> None:
-        """Record what the fetch door found at a host. Keyed on the host alone."""
+    def reach(self, host: str, open: bool, why: str = "", egress: str = "direct") -> None:
+        """Record what the fetch door found at a host, and which way out it went.
+        Keyed on the host alone."""
         host = host.strip().lower()[:200]
         if not host:
             return
         with self.write() as db:
             db.execute(
-                "INSERT INTO reached (host, open, why, tries, first, last)"
-                " VALUES (?, ?, ?, 1, ?, ?)"
+                "INSERT INTO reached (host, open, why, tries, first, last, egress)"
+                " VALUES (?, ?, ?, 1, ?, ?, ?)"
                 " ON CONFLICT(host) DO UPDATE SET"
-                "   open = excluded.open, why = excluded.why,"
+                "   open = excluded.open, why = excluded.why, egress = excluded.egress,"
                 "   tries = tries + 1, last = excluded.last",
-                (host, 1 if open else 0, why.strip()[:200], now(), now()),
+                (host, 1 if open else 0, why.strip()[:200], now(), now(), egress[:16]),
             )
 
     def closed(self, days: int = 30, limit: int = 12) -> list[str]:

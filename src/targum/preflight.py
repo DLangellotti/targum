@@ -188,6 +188,41 @@ def check_ytdlp() -> Check:
     return Check("yt-dlp", False, "YouTube imports are off without yt-dlp.", fix, fatal=False)
 
 
+def check_fetch_egress(connect: bool = True) -> Check:
+    """Whether the exit a refused page is retried through is listening.
+
+    Silent when nothing is set: a fetch that finds no proxy simply is not retried, and
+    on a laptop that is the ordinary thing. Set and not listening is the loud case, the
+    same shape `check_ytdlp_proxy` is loud about, and for the same reason. The address is
+    never printed as given — a residential proxy is bought with a username and a password
+    in the URL, and this line goes over SSH and into the journal.
+    """
+    from .ingest import url as url_module
+
+    where = url_module.egress()
+    if not where:
+        return Check("Fetch egress", True, "refused pages are not retried", fatal=False)
+    parsed = urlparse(where)
+    if not parsed.hostname:
+        return Check("Fetch egress", False, "the proxy names no host.", "Use scheme://host:port.")
+    port = parsed.port or (1080 if "socks" in (parsed.scheme or "") else 8080)
+    named = f"{parsed.hostname}:{port}"
+    if not connect:
+        return Check("Fetch egress", True, f"{named}, not knocked on", fatal=False)
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=POT_TIMEOUT):
+            pass
+    except OSError as error:
+        return Check(
+            "Fetch egress",
+            False,
+            f"{named} did not answer — {error}",
+            "Every refused page stays refused until it does.",
+            fatal=False,
+        )
+    return Check("Fetch egress", True, f"{named} answers", fatal=False)
+
+
 def check_ytdlp_proxy(connect: bool = True) -> Check:
     """Whether the egress YouTube is fetched through is listening.
 
@@ -509,6 +544,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_ffmpeg())
     checks.append(check_ytdlp())
     checks.append(check_ytdlp_proxy(connect=connect))
+    checks.append(check_fetch_egress(connect=connect))
     checks.append(check_pot(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())

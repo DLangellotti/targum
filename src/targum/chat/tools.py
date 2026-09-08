@@ -576,10 +576,25 @@ def refused(ctx: Ctx | None, host: str, error: Any) -> dict[str, Any] | None:
     from ..ingest import url as url_module
 
     shut = url_module.shut(error)
+    challenge = bool(getattr(error, "challenge", False))
+    via = str(getattr(error, "via", "direct"))
     if ctx is not None and ctx.store is not None:
-        ctx.store.reach(host, not shut, str(error.status or "no answer"))
+        why = "bot check" if challenge else str(error.status or "no answer")
+        ctx.store.reach(host, not shut, why, egress=via)
     if not shut:
         return None
+    if challenge:
+        # Not a host that did not answer: one that answered with a check a browser
+        # passes and this door did not. Said as what it is, because the reader's own
+        # browser will open it and "does not answer" would be false.
+        return {
+            "error": f"{host} runs a bot check that targum could not pass, so the page "
+            "cannot be read or built here. It opens in the reader's own browser.",
+            "host_shut": True,
+            "challenge": True,
+            "advice": "Offer something else rather than this, and say plainly that the "
+            "site checks for a browser and targum is not one.",
+        }
     return {
         "error": f"{host} does not answer targum. It may open in the reader's own browser; "
         "it will not open here, so nothing can be built from it.",
@@ -701,7 +716,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     except TargumError as error:
         return {"error": error.message}
     if ctx is not None and ctx.store is not None:
-        ctx.store.reach(host, True)
+        ctx.store.reach(host, True, egress=got.via)
     if not got.is_html:
         return {
             "kind": "file",

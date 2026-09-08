@@ -26,11 +26,27 @@ class Unreachable(TargumError):
     """
 
     def __init__(
-        self, message: str, hint: str | None = None, *, status: int | None = None, host: str = ""
+        self,
+        message: str,
+        hint: str | None = None,
+        *,
+        status: int | None = None,
+        host: str = "",
+        challenge: bool = False,
+        via: str = "direct",
     ) -> None:
         super().__init__(message, hint)
         self.status = status
         self.host = host
+        #: The host answered with a bot check rather than a page — Cloudflare's
+        #: `cf-mitigated: challenge`, measured on 2026-09-08 as what six of the seven
+        #: "unreachable" Hebrew hosts actually do. Not an address block: the laptop and
+        #: the box got the identical answer. Worth telling a reader apart from a host
+        #: that never answered, because their own browser passes the check.
+        self.challenge = challenge
+        #: Which way out the failing knock went: `direct` or `proxy`. The record of a
+        #: shut door has to say which door.
+        self.via = via
 
 
 class ProviderError(TargumError):

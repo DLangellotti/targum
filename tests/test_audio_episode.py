@@ -54,38 +54,39 @@ def test_an_audio_address_is_its_own_episode() -> None:
 
 @contextlib.contextmanager
 def _answering(pages: dict[str, tuple[str, bytes]]) -> Iterator[None]:
-    """Swap httpx's network for a table, keeping the streaming shape ssrf tests use."""
+    """Swap the door's client for a table, keeping the streaming shape ssrf tests use.
 
-    class Stream:
+    The seam is `url._session` since the door became a browser's (2026-09-08); the
+    table answers `get()` with the shape that client's responses have."""
+    from targum.ingest import url as url_module
+
+    class Answer:
         def __init__(self, url: str) -> None:
             kind, body = pages[url]
-            self.is_redirect = False
-            self.headers = {"Content-Type": kind}
-            self.charset_encoding = "utf-8"
+            self.status_code = 200
+            self.headers = {"content-type": kind}
+            self.charset = "utf-8"
+            self.encoding = None
             self._body = body
 
-        def raise_for_status(self) -> None:
-            return None
-
-        def iter_bytes(self) -> Iterator[bytes]:
+        def iter_content(self, chunk_size: int | None = None) -> Iterator[bytes]:
             yield self._body
 
-        def __enter__(self) -> Stream:
-            return self
-
-        def __exit__(self, *args: object) -> None:
+        def close(self) -> None:
             return None
 
-    real = httpx.Client.stream
+    class Client:
+        def get(self, url: str, **kwargs: object) -> Answer:
+            return Answer(str(url))
 
-    def fake(self: httpx.Client, method: str, url: str, **kwargs: object) -> Stream:
-        return Stream(str(url))
-
-    httpx.Client.stream = fake  # type: ignore[method-assign, assignment]
+    real_session, real_polite = url_module._session, url_module.POLITE_S
+    url_module._session = lambda proxy="": Client()  # type: ignore[assignment]
+    url_module.POLITE_S = 0.0
     try:
         yield
     finally:
-        httpx.Client.stream = real  # type: ignore[method-assign]
+        url_module._session = real_session  # type: ignore[assignment]
+        url_module.POLITE_S = real_polite
 
 
 def test_an_episode_page_yields_its_one_enclosure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -149,24 +150,23 @@ def test_a_download_that_redirects_into_the_private_network_is_refused(
             raise TargumError(f"{host} is on a private network, so targum will not fetch it.")
 
     monkeypatch.setattr(url_module, "_reachable", literal_only)
+    monkeypatch.setattr(url_module, "POLITE_S", 0.0)
 
     class Redirect:
-        is_redirect = True
+        status_code = 302
         headers = {"location": "http://169.254.169.254/latest/meta-data/"}
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args: object) -> None:
+        def close(self) -> None:
             return None
 
     sent: list[str] = []
 
-    def fake(self, method, url, **kwargs):
-        sent.append(str(url))
-        return Redirect()
+    class Client:
+        def get(self, url, **kwargs):
+            sent.append(str(url))
+            return Redirect()
 
-    monkeypatch.setattr(httpx.Client, "stream", fake)
+    monkeypatch.setattr(url_module, "_session", lambda proxy="": Client())
     with pytest.raises(TargumError, match="private network"):
         download("https://cdn.example/ep.mp3", tmp_path / "ep.mp3")
     # The second request was never sent.
@@ -214,24 +214,23 @@ def test_a_declared_length_over_the_cap_is_refused_before_a_byte_lands(
     from targum.ingest.url import download
 
     monkeypatch.setattr(url_module, "_reachable", lambda target: None)
+    monkeypatch.setattr(url_module, "POLITE_S", 0.0)
 
     class Declared:
-        is_redirect = False
+        status_code = 200
         headers = {"content-length": str(10**10)}
 
-        def raise_for_status(self) -> None:
-            return None
-
-        def iter_bytes(self):
+        def iter_content(self, chunk_size=None):
             yield b""
 
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args: object) -> None:
+        def close(self) -> None:
             return None
 
-    monkeypatch.setattr(httpx.Client, "stream", lambda self, method, url, **kw: Declared())
+    class Client:
+        def get(self, url, **kwargs):
+            return Declared()
+
+    monkeypatch.setattr(url_module, "_session", lambda proxy="": Client())
     with pytest.raises(TargumError, match="too big"):
         download("https://cdn.example/ep.mp3", tmp_path / "ep.mp3")
 
