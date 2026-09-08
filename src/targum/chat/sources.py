@@ -46,6 +46,13 @@ PUBLIC_HOSTS: tuple[str, ...] = (
 #: with the reason — naming a site the fetch door cannot open only teaches the model to
 #: offer a reader a page that will not open.
 #:
+#: The numbers are a moment, not a property. On 2026-09-08 kan.org.il and geektime.co.il
+#: — 1,524 and 859 words the day before — answered the same door with a Cloudflare bot
+#: check, after an afternoon of careless probing from the one address. The door has since
+#: become a browser's (`ingest/url.py:BROWSER`) and knocks politely (`POLITE_S`), and the
+#: box learns for itself which doors open (`accounts.Store.reach`); a count here is what
+#: one page held once, not a promise.
+#:
 #: Named by the Hebrew subdomain wherever a project has one: `wikipedia.org` would put
 #: every language's Wikipedia in the list, and the point is Hebrew.
 READING_HOSTS: tuple[str, ...] = (
@@ -78,21 +85,26 @@ READING_HOSTS: tuple[str, ...] = (
     "infomed.co.il",  # 29,706 words but 36% — Latin drug and disease names throughout
 )
 
-#: Sites worth reading that targum cannot reach, kept as a record so they are not
-#: proposed again without a probe. Every one answered 403 to a browser user-agent as
-#: readily as to targum's, so it is the address they refuse, not the client — the same
-#: shape as the YouTube datacentre-IP block. Whether the box in Germany is refused too
-#: is untested: it needs one probe from the box, not a guess from a laptop.
+#: Sites worth reading that targum could not reach, kept as a record so they are not
+#: proposed again without a probe. First written 2026-09-07 as "403 to any client, so it
+#: is the address they refuse"; corrected 2026-09-08 when the box was probed and answered
+#: identically to the laptop. The 403s are Cloudflare's bot check (`cf-mitigated:
+#: challenge`), served to any client whose TLS handshake is not a browser's — a full
+#: Chrome header set on plain curl gets the same page. Not an address block, which is
+#: why two networks agreed. A browser's handshake opened kan.org.il from a burned laptop
+#: address; whether it opens these from the box's clean one is what the box probe
+#: (targum-internal#226) measures, and `reached` will record the answer on its own.
 UNREACHABLE: dict[str, str] = {
-    "hebrew-academy.org.il": "403 to any client",
-    "nli.org.il": "403 to any client",
-    "davar1.co.il": "403 to any client",
-    "mekomit.co.il": "403, intermittent",
-    "ivrit.wzo.org.il": "403 to any client",
-    "adult-education.education.gov.il": "connection times out — the Ministry of "
-    "Education's easy-Hebrew newsletter, pointed and glossed, is the single best "
-    "learner text found and the one targum cannot open",
-    "chabad.org": "serves its own 404 to targum",
+    "hebrew-academy.org.il": "bot check; and robots.txt says Disallow: / to every "
+    "crawler — the one host here to ask rather than fetch",
+    "nli.org.il": "bot check",
+    "davar1.co.il": "bot check; robots.txt allows articles",
+    "mekomit.co.il": "bot check, intermittent; robots.txt allows articles",
+    "ivrit.wzo.org.il": "bot check",
+    "adult-education.education.gov.il": "TCP connects, TLS handshake hangs — the one "
+    "here a proxy might fix. The Ministry of Education's easy-Hebrew newsletter, pointed "
+    "and glossed, is the single best learner text found and the one targum cannot open",
+    "chabad.org": "bot check (recorded on 2026-09-07 as its own 404; it is not)",
     "sport5.co.il": "fetches, parses to nothing — rendered in the browser",
     "clalit.co.il": "fetches, parses to nothing — rendered in the browser",
     "cbs.gov.il": "fetches, parses to nothing — rendered in the browser",
