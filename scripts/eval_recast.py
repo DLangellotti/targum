@@ -20,13 +20,16 @@ synthetic reader's words (`chat/exemplars.py`) the way a live turn does; run bot
 the difference is #218's number. The sentences sent as turns are never among the
 exemplars: `pick` is handed the pool with the eval's own rows removed.
 
-**Two references.** Tatoeba is the default, and three volunteers wrote 96% of it.
+**Three references.** Tatoeba is the default, and three volunteers wrote 96% of it.
 `--reference flores` scores against FLORES+ instead (`chat/flores.py`): 1,012 `devtest`
 sentences from web articles, each rendered by a professional translator, CC BY-SA and
 therefore evaluation only — fetched with `targum models fetch flores` and never shipped
-(targum-internal#221). Rows land in the ledger under `corpus=flores-plus`, so the two
-references are two lines and not one. FLORES+ sentences are news sentences and run long,
-so the length cap is wider there; `--max-words` names either.
+(targum-internal#221). `--reference ntrex` is NTREX-128 (`chat/ntrex.py`), the WMT 2019
+news test set on the same terms, a second register so the number is not one corpus's
+house style (targum-internal#222). Rows land in the ledger under `corpus=flores-plus`
+and `corpus=ntrex-128`, so the references are separate lines and not one. Both are
+sentences from articles and run long, so the length cap is wider there than Tatoeba's;
+`--max-words` names any.
 
 **What it costs.** N chat turns and N judge calls at the chat's model. Nothing is cached
 by design: the question is what the model does today.
@@ -52,7 +55,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum import evals  # noqa: E402
 from targum.annotate import lemma  # noqa: E402
 from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
-from targum.chat import CHAT_MODEL, EFFORT, exemplars, flores, hebrew, prompts  # noqa: E402
+from targum.chat import CHAT_MODEL, EFFORT, exemplars, flores, hebrew, ntrex, prompts  # noqa: E402
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Segment  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
@@ -62,14 +65,14 @@ from targum.vocalize.base import strip_nikkud  # noqa: E402
 #: A reference longer than this is a paragraph, and a recast eval is about sentences.
 MAX_WORDS = 12
 
-#: FLORES+ is sentences from news and encyclopaedia articles, and a Hebrew rendering of
-#: one runs to twenty words as a matter of course. Capped at twelve, the reference would
-#: be a tenth of the split and the short tenth; capped here it is most of it, and a
-#: reader's own line can be this long.
-FLORES_MAX_WORDS = 30
+#: FLORES+ and NTREX are sentences from news and encyclopaedia articles, and a Hebrew
+#: rendering of one runs to twenty words as a matter of course. Capped at twelve, the
+#: reference would be a tenth of the set and the short tenth; capped here it is most of
+#: it, and a reader's own line can be this long.
+ARTICLE_MAX_WORDS = 30
 
-#: What each reference is called in the ledger. Two references are two lines, not one.
-CORPUS = {"tatoeba": "tatoeba", "flores": "flores-plus"}
+#: What each reference is called in the ledger. Three references are three lines.
+CORPUS = {"tatoeba": "tatoeba", "flores": "flores-plus", "ntrex": "ntrex-128"}
 
 #: Who scores the recast. Not the writer: a model grading its own Hebrew prefers its own
 #: Hebrew, and the first pilot had Opus judging Opus. Decided 2026-09-07: Sonnet 5 judges,
@@ -114,13 +117,15 @@ def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
     return rows
 
 
-def flores_rows(split: str, max_words: int = FLORES_MAX_WORDS) -> list[dict[str, Any]]:
-    """FLORES+ pairs in the shape the pool's rows have, so the rest of the eval does not
-    know which reference it is scoring against. `id` is FLORES+'s own and is not a
-    Tatoeba id, which is why the exemplar pool is never held out against it."""
+def article_rows(
+    pairs: list[flores.Pair], max_words: int = ARTICLE_MAX_WORDS
+) -> list[dict[str, Any]]:
+    """FLORES+ or NTREX pairs in the shape the pool's rows have, so the rest of the eval
+    does not know which reference it is scoring against. `id` is the corpus's own and is
+    not a Tatoeba id, which is why the exemplar pool is never held out against it."""
     return [
         {"id": pair.id, "en": pair.en, "he": pair.he}
-        for pair in flores.load(split)
+        for pair in pairs
         if len(pair.he.split()) <= max_words
     ]
 
@@ -130,7 +135,9 @@ def reference_rows(
 ) -> list[dict[str, Any]]:
     """The rows the eval draws from, by reference."""
     if reference == "flores":
-        return flores_rows(split, max_words if max_words is not None else FLORES_MAX_WORDS)
+        return article_rows(flores.load(split), max_words or ARTICLE_MAX_WORDS)
+    if reference == "ntrex":
+        return article_rows(ntrex.load(), max_words or ARTICLE_MAX_WORDS)
     if pool is None:
         sys.exit("--pool is required with the Tatoeba reference")
     return pool_rows(pool, max_words if max_words is not None else MAX_WORDS)
@@ -227,7 +234,7 @@ def main() -> None:
     parser.add_argument(
         "--max-words",
         type=int,
-        help=f"longest reference kept; {MAX_WORDS} for Tatoeba, {FLORES_MAX_WORDS} for FLORES+",
+        help=f"longest reference kept; {MAX_WORDS} for Tatoeba, {ARTICLE_MAX_WORDS} otherwise",
     )
     parser.add_argument("--pairs", type=int, default=200)
     parser.add_argument("--known", type=int, default=300)
@@ -255,8 +262,8 @@ def main() -> None:
     rows = reference_rows(args.reference, args.pool, args.split, args.max_words)
     chosen = sample(rows, args.pairs, args.seed)
     if not chosen:
-        if args.reference == "flores":
-            sys.exit("no FLORES+ pairs; run targum models fetch flores first")
+        if args.reference != "tatoeba":
+            sys.exit(f"no {CORPUS[args.reference]} pairs; run targum models fetch {args.reference}")
         sys.exit("no English-original rows in the pool; build it with --limit first")
     # The sentences sent as turns are never among the exemplars. Only the Tatoeba
     # reference can collide with the Tatoeba pool: a FLORES+ id is a different number.
