@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The chat's shelf says when each text was last opened and finished. "What was the
+  last targum I read?" was answered "the list does not keep times" (2026-09-08); the
+  reader's own sync had always clocked every open and every chapter finished, and only
+  the tool left them out. `search_my_shelf` comes back newest opened first with
+  `last_opened`, `days_since_opened` and `finished` on each row and `now` beside the
+  list, so the model can count as well as read.
 - The haftarah, under the reading on `/parasha`. Hebcal was already returning it on the
   call the calendar makes and the parser was throwing it away; now it is parsed beside
   the aliyot — `Reading.haftarah`, not a third `ReadingKind`, because it is the second
@@ -408,6 +414,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The chat's web search looks at the whole web, six searches a turn instead of three.
+  Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
+  one turn: a list the model could not see made a gap in it look like an answer, and the
+  card cost a second turn every time the list failed. A search is a cent inside the
+  turn's own meter; what keeps the answers Hebrew is the Hebrew the model searches in
+  and the Hebrew share `describe_source` counts before anything is offered. Gone with
+  it: `offer_wider_search`, the `wider` flag through `/chat/say`, the "wider" stream
+  event and the Look wider card. `sources.allowed_domains()` stays as the record of
+  which sites are known and measured.
+- A verb's meaning is filed apart from a noun spelled like it. DICTA names many verbs by
+  their present participle, and off the Tanakh a participle is a noun as often as not:
+  מְשַׁנּוֹת, "are changing", was filed under משנה with מִשְׁנָה and its card read
+  "doctrine; teachings" beside the verb's own grammar line. `Token.glossed_as` now files
+  every verb under its lemma with " (verb)" after it, the way a pointed headword files a
+  contested biblical spelling; the lemma stays the word's identity for marks and bands.
+  Computed rather than stored, so a plain `targum rebuild` re-keys every page without
+  re-annotating; the changed keys are bare until re-bought (about $4.20 for every verb
+  through `rebuild --gloss`, or a word at a time on tap). `targum correct` takes
+  `'משנה (verb)'` for the verb. The card's question to the chat now carries what the card
+  shows, and the note says the model cannot change it.
+- The Hebrew contract no longer says "give the reader something to answer". With "a reply
+  may also simply end" one bullet earlier and the bring-back words in the same block, the
+  model was ending every reply in homework built from those words.
 - Web search rides along unless the box says not (`TARGUM_WEB_SEARCH=0`). It was off
   unless asked for, and a reader who asked for something to read online was told the
   box could not look. Three searches a turn at most, each counted, inside the same
@@ -468,6 +497,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- A door the model spelled with the wrong final letter opens. Told to copy a reader's
+  path exactly as the tool returned it, the model wrote בסטארטאף for the folder
+  בסטארטאפ, twice in one conversation, and the door answered "not found". A name that
+  differs from a folder's only in its final letters is sent on to that folder, query and
+  all, where exactly one folder matches.
 - A mark that moved to a word's new name when the annotator changed (targum-internal#141)
   now reaches the account. The move stamped nothing and buried nothing, so the sync never
   sent the record under its new name and the account kept the old one: a second device
