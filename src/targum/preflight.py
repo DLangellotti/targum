@@ -313,6 +313,12 @@ def check_shelf(out: Path) -> Check:
 
     `scripts/shelf_versions.py` is the same survey with the detail — which component, by
     home, and the ingester's separate and sharper version of the question.
+
+    The line says "with artifacts", because that is the population the survey walks: a
+    text with an `annotation.json` beside it. The parasha corpus keeps none, so this
+    line said "all 164 Hebrew texts on the current annotator" over a box whose fifty-four
+    portions were the stalest thing on it (targum-internal#227). `check_parasha` counts
+    those; this one now says out loud what it does not.
     """
     from .annotate.versions import survey
 
@@ -325,17 +331,80 @@ def check_shelf(out: Path) -> Check:
         return Check(
             "shelf",
             True,
-            f"all {shelf.total} Hebrew texts on the current annotator",
+            f"all {shelf.total} Hebrew texts with artifacts on the current annotator",
             fatal=False,
         )
     moved = ", ".join(list(shelf.moved())[:3])
     return Check(
         "shelf",
         False,
-        f"{len(shelf.behind)} of {shelf.total} Hebrew texts are behind the current annotator"
-        + (f" ({moved})" if moved else ""),
+        f"{len(shelf.behind)} of {shelf.total} Hebrew texts with artifacts are behind the "
+        "current annotator" + (f" ({moved})" if moved else ""),
         "targum rebuild --words — and note it re-annotates, which on a box without a GPU "
         "is about a text a minute. scripts/shelf_versions.py --list names them.",
+        fatal=False,
+    )
+
+
+def parasha_root(out: Path) -> Path:
+    """Where the parasha corpus is, asked the way the server asks (`parasha.calendar.root`)
+    and falling back beside the shelf rather than to the working directory, because a
+    preflight is run from wherever the deploy happens to be standing."""
+    named = os.environ.get("TARGUM_PARASHA_DIR", "").strip()
+    return Path(named).expanduser() if named else out / "parasha"
+
+
+def check_parasha(out: Path) -> Check:
+    """How many readings of the parasha corpus are behind the books they were cut from.
+
+    The portions are the free door, and they keep no artifact: `rebuild --words` cannot
+    reach one, and the deploy that re-annotated every book on the shelf on 2026-09-08
+    left Nitzavim serving verbs with no binyan and no grammar line, under a shelf line
+    that read as an all-clear (targum-internal#227). What moves a portion is
+    `targum parasha build` on a machine whose library is current, and
+    `deploy/ship-parasha.sh` — so that is what the fix says, rather than the rebuild.
+
+    A warning, not a failure, for the reason the shelf's is: an older page is still a
+    page. A corpus cut before the index recorded its annotator cannot be read either
+    way, and is said as such rather than counted as current.
+    """
+    from .annotate.versions import survey_corpus
+
+    corpus = parasha_root(out)
+    if not (corpus / "index.json").is_file():
+        return Check("parasha", True, f"no parasha corpus at {corpus}", fatal=False)
+    shelf = survey_corpus(corpus, out / "library")
+    if not shelf.total:
+        return Check("parasha", True, f"the corpus at {corpus} lists nothing built", fatal=False)
+    recut = (
+        "targum parasha build, on a machine whose library is on the current annotator, "
+        "then deploy/ship-parasha.sh. The corpus keeps no artifacts, so rebuild --words "
+        "cannot reach it."
+    )
+    if shelf.behind:
+        moved = ", ".join(list(shelf.moved())[:3])
+        return Check(
+            "parasha",
+            False,
+            f"{len(shelf.behind)} of {shelf.total} readings were cut from an older annotation "
+            "than the shelf carries now" + (f" ({moved})" if moved else ""),
+            recut,
+            fatal=False,
+        )
+    if shelf.unknown:
+        return Check(
+            "parasha",
+            False,
+            f"{shelf.unknown} of {shelf.total} readings were cut before the corpus recorded "
+            "its annotator, or from a book not on this shelf; whether they are behind cannot "
+            "be read off the disk",
+            recut + " A re-cut also writes the name down.",
+            fatal=False,
+        )
+    return Check(
+        "parasha",
+        True,
+        f"all {shelf.total} readings cut from the annotation the shelf carries now",
         fatal=False,
     )
 
@@ -513,6 +582,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_shelf(out))
+    checks.append(check_parasha(out))
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

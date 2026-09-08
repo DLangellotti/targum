@@ -291,6 +291,10 @@ def build(
                 if portion.annotation is not None
                 else 0
             ),
+            # And whose annotation it was, for the same reason: with no artifact beside
+            # the reader, this is the one line that can say later whether the portion
+            # is behind the book it was cut from (targum-internal#227).
+            annotator=portion.annotation.annotator if portion.annotation is not None else "",
             opening=opening,
             opening_ref=opening_ref,
             folder=slug,
@@ -355,6 +359,7 @@ def build(
         record.opening = opening
         record.opening_ref = opening_ref
         record.folder = folder_name
+        record.annotator = portion.annotation.annotator if portion.annotation is not None else ""
         say(f"  haftarah {reference.summary} — {portion.verses} verses")
 
     for schedule in schedules:

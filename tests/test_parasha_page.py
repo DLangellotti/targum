@@ -7,6 +7,7 @@ a stubbed corpus would not exercise the two gates that keep the reader folder sh
 
 from __future__ import annotations
 
+import json
 import shutil
 import threading
 from collections.abc import Iterator
@@ -720,3 +721,29 @@ def test_the_festival_page_shows_the_festivals_haftarah_and_not_the_variant(
     assert "/parasha/read/haftarah-habakkuk-3-1-19/reader/index.html" in body
     assert "2:20" not in body, "the Sephardic reading is recorded and not shown"
     assert "Sephardic" not in body and "Ashkenazi" not in body, "no rite chooser"
+
+
+def test_the_corpus_records_which_annotation_it_was_cut_from(tmp_path: Path, built: Index) -> None:
+    """The corpus keeps no artifact beside its readers, so this one string in the index
+    is all that can say whether a portion is behind the book it came from. Read back the
+    way `targum preflight` reads it: level with the shelf as built, behind it once the
+    shelf's annotation moves on and the corpus has not been cut again
+    (targum-internal#227)."""
+    from targum.annotate.versions import survey_corpus
+
+    assert built.portions["nitzavim-vayeilech"].annotator == "test/1"
+    assert built.haftarot["isaiah-61-10-63-9"].annotator == "test/1"
+    library = tmp_path / "library"
+    corpus = tmp_path / "parasha"
+
+    level = survey_corpus(corpus, library)
+    assert (level.current, level.behind, level.unknown) == (level.total, [], 0)
+
+    for book in ("דברים-he", "ישעיהו-he", "חבקוק-he"):
+        path = library / book / "annotation.json"
+        moved = json.loads(path.read_text(encoding="utf-8"))
+        moved["annotator"] = "test/2"
+        path.write_text(json.dumps(moved, ensure_ascii=False), encoding="utf-8")
+    behind = survey_corpus(corpus, library)
+    assert behind.current == 0 and len(behind.behind) == behind.total
+    assert behind.moved() == {"test/1 -> test/2": behind.total}
