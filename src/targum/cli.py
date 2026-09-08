@@ -2536,7 +2536,8 @@ def models_fetch(
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
-    their own, or 'gold' for the treebanks the annotator is scored against."""
+    their own, 'gold' for the treebanks the annotator is scored against, or 'flores' for
+    the FLORES+ sentences the chat's recast is scored against."""
     from .align import embedding
 
     if language in {"menaked", "nikkud", "vowels", "pointing"}:
@@ -2575,6 +2576,24 @@ def models_fetch(
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {got} files · {gold.CREDIT} · {gold.LICENCE}")
+        return
+
+    if language in {"flores", "flores+", "floresplus"}:
+        from .chat import flores
+
+        if flores.available():
+            console.print("[dim]FLORES+ is already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching FLORES+ ({flores.DEFAULT_SPLIT}), {flores.LICENCE}. For scoring "
+            f"the chat's recast only: nothing here is trained on or shipped. Gated: the "
+            f"token in {flores.TOKEN_VARIABLES[0]} is sent.[/dim]"
+        )
+        try:
+            got = flores.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(f"[green]Downloaded[/green] {got} files · {flores.CREDIT} · {flores.LICENCE}")
         return
 
     if language in {"embeddings", "align", "aligner"}:

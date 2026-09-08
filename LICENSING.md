@@ -264,6 +264,28 @@ If that ever stops being true — if a model is tuned on them, or a table derive
 ships — the ShareAlike term reaches the corpus and this paragraph is wrong. It is written
 down here so that would have to be a decision rather than a drift.
 
+### FLORES+, which the chat's recast is scored against, and which never ships
+
+The chat opens every reply with the reader's line recast into Hebrew, and since
+2026-09-07 that line is measured against a Hebrew a person wrote of the same English
+(`scripts/eval_recast.py`; targum-internal#219). Tatoeba is one reference for that and
+three volunteers wrote most of it. **FLORES+** (`openlanguagedata/flores_plus`, the Open
+Language Data Initiative) is the other: 2,009 sentences from 842 web articles, each
+rendered into Hebrew by a professional translator, and the same sentences in two hundred
+languages, so the number is one anybody can set beside their own (targum-internal#221).
+
+**It is CC BY-SA 4.0, which is the one door the text bar keeps shut**, so it is used
+for exactly one thing, on the terms the treebanks above set. Nothing is trained on it,
+nothing derived from it is served, and no build reads it. It is fetched by `targum
+models fetch flores` to the same directory as the gold sets, with the operator's own
+Hugging Face token because the dataset is gated, and the recast is scored against it on
+a developer's machine. Its whole contribution to the corpus is a row in
+`evals/ledger.jsonl` with `corpus=flores-plus`.
+
+If that ever stops being true — if a sentence of it reaches a prompt the way Tatoeba's
+do, or a page — the ShareAlike term reaches whatever it touched and this paragraph is
+wrong. It is written down here so that would have to be a decision rather than a drift.
+
 ### Tatoeba's sentences, which the chat reads for the idiom
 
 Since 2026-09-07 the chat is handed a few sentences a Hebrew speaker wrote, inside the
