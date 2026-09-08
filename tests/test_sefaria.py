@@ -163,6 +163,59 @@ def test_a_shape_this_does_not_read_is_refused(monkeypatch: pytest.MonkeyPatch) 
         sefaria.SefariaFetcher().load("Ruth")
 
 
+def test_a_treatise_of_a_complex_work_is_read_like_any_other_chapters_of_verses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`isComplex` is a fact about the index a reference belongs to, not about the answer.
+
+    A section of the Mishneh Torah is its own index and reads false; a treatise of the
+    Duties of the Heart is a node of one and reads true — and the two come back the same
+    shape, chapters of paragraphs. Refusing on it cost the two vocalized mussar works for
+    a reason that was never about them (targum-internal#120).
+    """
+    body = json.loads((FIXTURES / "ruth.he.json").read_text(encoding="utf-8"))
+    body["isComplex"] = True
+    monkeypatch.setattr(sefaria, "get", lambda url: json.dumps(body))
+    assert sefaria.SefariaFetcher().load("Ruth").blocks
+
+
+def test_sefarias_own_complaint_about_a_reference_is_the_one_repeated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A complex work asked for whole is refused by Sefaria, which says to name a part.
+    Read as a missing edition it blamed the edition for a reference that never
+    resolved."""
+    monkeypatch.setattr(
+        sefaria,
+        "get",
+        lambda url: json.dumps({"error": "You passed 'Duties of the Heart', please pass a ref"}),
+    )
+    with pytest.raises(TargumError, match="would not read") as caught:
+        sefaria.SefariaFetcher().load("Chovot HaLevavot")
+    assert "please pass a ref" in (caught.value.hint or "")
+
+
+def test_the_two_vocalized_mussar_works_name_both_their_sides() -> None:
+    """Measured against Sefaria on 2026-09-08, treatise by treatise: the Hebrew is
+    Public Domain and vocalized, the English is CC-BY, and eight of the ten Duties of the
+    Heart treatises pair chapter for chapter. The Second and the Third have no English in
+    that translation at all, so they are not pinned — a row for either would fail at
+    build with a pairing error instead of saying what is missing."""
+    assert sefaria.version_for("he", "Mesilat Yesharim 1") == "Sefaria Vocalized Edition"
+    assert "Path of the Just" in sefaria.version_for("en", "Mesilat Yesharim")
+    unity = "Chovot HaLevavot, First Treatise on Unity"
+    assert sefaria.version_for("he", f"{unity} 3") == "Vocalized Edition"
+    assert "Sebag" in sefaria.version_for("en", unity)
+    assert len(sefaria.MUSSAR) == 9, "one work and eight treatises"
+    # The other half of the pairing this shelf keeps: a work in `BEYOND_TANAKH` and not
+    # in `BEYOND_SCRIPTURE` is banded against the Tanakh, which on a mussar text would
+    # hand a reader an unrated word wherever a rabbinic one appears.
+    for name in sefaria.MUSSAR:
+        assert not is_biblical(f"sefaria:{name}"), name
+    for name in ("Second Treatise on Examination", "Third Treatise on Service of God"):
+        assert f"Chovot HaLevavot, {name}" not in sefaria.BEYOND_TANAKH, "no English yet"
+
+
 def test_a_book_with_no_chosen_english_is_refused() -> None:
     """Every text on the shelf names the edition its English comes from, and one that
     names none is refused rather than quietly missing from a list.
