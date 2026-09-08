@@ -386,6 +386,9 @@ def evals(
     ] = "lemma",
     ledger: Annotated[Path | None, typer.Option("--ledger", help="Which ledger file.")] = None,
     note: Annotated[str, typer.Option("--note", help="What was different about this run.")] = "",
+    check: Annotated[
+        bool, typer.Option("--check", help="Exit 1 where a score crosses evals/floors.json.")
+    ] = False,
 ) -> None:
     """Where each stage stands, and what its last change did to it.
 
@@ -401,6 +404,11 @@ def evals(
     The ledger is a file in the repository, appended to and never rewritten. A score is a
     number about content rather than content, so it is public, and keeping it in git
     means the commit that moved a number sits beside the number.
+
+    `--check` reads `evals/floors.json` — where each measurement may not fall below, or
+    rise above, for the system the shelf runs — and exits 1 naming every line crossed.
+    `tests/test_evals.py` runs the same check over the committed ledger, so a PR that
+    records a worse number fails CI until the floor is moved in the same PR, in the open.
     """
     from . import evals as ledger_module
 
@@ -413,7 +421,15 @@ def evals(
             return
         written = ledger_module.append(rows, path)
         console.print(f"[green]Recorded[/green] {written} rows to {path}")
-    typer.echo(ledger_module.table(ledger_module.read(path)))
+    rows_read = ledger_module.read(path)
+    typer.echo(ledger_module.table(rows_read))
+    if check:
+        crossed = ledger_module.breaches(rows_read, ledger_module.floors())
+        for one in crossed:
+            console.print(f"[red]below the floor[/red] {one}")
+        if crossed:
+            raise typer.Exit(code=1)
+        console.print("[green]Every floor holds.[/green]")
 
 
 @app.command()

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from targum import evals
 
 
@@ -146,3 +148,69 @@ def test_rows_are_written_one_per_line_and_stay_readable(tmp_path: Path) -> None
     lines = path.read_text().splitlines()
     assert len(lines) == 2
     assert json.loads(lines[0])["stage"] == "lemma"
+
+
+# --- floors: the line a PR may not cross ------------------------------------------
+
+
+def floor(**over: object) -> evals.Floor:
+    base: dict[str, object] = {
+        "stage": "lemma",
+        "corpus": "iahltwiki",
+        "metric": "lemma",
+        "system": "dicta",
+        "at_least": 0.8,
+    }
+    base.update(over)
+    return evals.Floor(**base)  # type: ignore[arg-type]
+
+
+def test_a_floor_is_read_off_the_newest_row_of_its_own_system() -> None:
+    """The ledger holds every system ever measured against a key. A comparison run of a
+    worse system is a measurement, not a regression, so the floor names its system, and
+    a name that carries a revision after it still matches."""
+    rows = [
+        row(system="stanza/1", score=0.70),
+        row(system="dicta/joint", version="2", score=0.85),
+        row(system="stanza/1", score=0.69),
+    ]
+    assert evals.breaches(rows, [floor()]) == []
+    dropped = rows + [row(system="dicta/joint", version="3", score=0.79)]
+    (crossed,) = evals.breaches(dropped, [floor()])
+    assert crossed.row.version == "3" and "wanted at least 0.8" in str(crossed)
+
+
+def test_a_count_of_failures_wants_a_ceiling() -> None:
+    rows = [row(metric="unpaired", score=1.0), row(metric="unpaired", score=7.0)]
+    assert evals.breaches(rows, [floor(metric="unpaired", at_least=None, at_most=5)])
+    assert not evals.breaches(rows[:1], [floor(metric="unpaired", at_least=None, at_most=5)])
+
+
+def test_a_floor_nobody_has_measured_yet_is_not_a_breach() -> None:
+    """A gate that failed on a stage nobody has run would be a gate everybody learns to
+    ignore. The floor waits."""
+    assert evals.breaches([row()], [floor(stage="align", corpus="", metric="f1")]) == []
+    assert evals.breaches([], [floor()]) == []
+
+
+def test_a_floor_sets_exactly_one_line(tmp_path: Path) -> None:
+    path = tmp_path / "floors.json"
+    path.write_text(json.dumps([{"stage": "lemma", "corpus": "", "metric": "m", "system": "s"}]))
+    with pytest.raises(ValueError, match="exactly one"):
+        evals.floors(path)
+    path.write_text(
+        json.dumps([{"stage": "lemma", "corpus": "", "metric": "m", "system": "s", "at_most": 1}])
+    )
+    assert evals.floors(path)[0].line() == "at most 1"
+    assert evals.floors(tmp_path / "none.json") == []
+
+
+def test_the_committed_ledger_holds_every_floor_in_the_repository() -> None:
+    """The gate itself. A PR that appends a score below its floor fails here, and the
+    way through is to move the floor in `evals/floors.json` in the same PR, where the
+    reviewer sees the number go down (targum-internal#163, criterion 5)."""
+    here = Path(__file__).parent.parent / "evals"
+    limits = evals.floors(here / "floors.json")
+    assert limits, "the floors file is part of the repository"
+    crossed = evals.breaches(evals.read(here / "ledger.jsonl"), limits)
+    assert not crossed, "\n".join(str(one) for one in crossed)
