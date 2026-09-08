@@ -305,6 +305,7 @@ def test_a_book_glosses_only_the_chapter_it_bought(tmp_path: Path, monkeypatch) 
         out_root=tmp_path / "out",
         difficulty=False,
         gloss=True,
+        segmenter=Splitter(),
     )
     result = build.run(chapters=1)
 
