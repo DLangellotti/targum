@@ -139,11 +139,17 @@ class SmtpMailer:
         # them linkify only as far as the break — which is a link that does not work,
         # in the one email where that is the whole product failing. The body is ASCII
         # and short, and `test_the_link_is_never_wrapped` is what keeps it that way.
-        # A title in the body may not be ASCII; the encoder falls back on its own.
+        # A title in the body may not be ASCII, and every word of a Russian or Hebrew
+        # email is (targum-internal#186). Base64 for that, named rather than left to the
+        # encoder: unnamed it picks 8bit, which is raw UTF-8 on the wire and only safe
+        # where the whole SMTP path advertises 8BITMIME. Quoted-printable is 7-bit safe
+        # and puts the soft break back inside the token, which is the failure the line
+        # above exists to avoid. Base64 wraps too, and a client decodes it whole before
+        # it looks for a link, so the token arrives in one piece.
         try:
             note.set_content(body, cte="7bit")
         except (UnicodeEncodeError, ValueError):
-            note.set_content(body)
+            note.set_content(body, cte="base64")
         if self._open is not None:
             self._open.send_message(note)
             return

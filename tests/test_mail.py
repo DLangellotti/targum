@@ -25,6 +25,57 @@ def compose(link: str) -> str:
     return note.as_string()
 
 
+def sent(subject: str, body: str) -> bytes:
+    """What an `SmtpMailer` really puts on the wire, through its own `_deliver`.
+
+    `compose` above rebuilds the message the way the mailer does, which tests the
+    intention; this holds the mailer to it.
+    """
+    from targum.mail import SmtpMailer
+
+    kept: list[object] = []
+
+    class Session:
+        def send_message(self, note: object) -> None:
+            kept.append(note)
+
+    mailer = SmtpMailer("smtp.example.com", 587, "u", "p", "targum <hello@targum.page>")
+    object.__setattr__(mailer, "_open", Session())
+    mailer.notify("reader@example.com", subject, body)
+    return kept[0].as_bytes()  # type: ignore[attr-defined]
+
+
+def test_a_link_in_a_russian_email_arrives_in_one_piece() -> None:
+    """The email targum sends in a language that is not English (targum-internal#186).
+
+    Non-ASCII cannot go 7-bit, and what it falls back to decides whether the link works.
+    Unnamed, the encoder picks 8bit — raw UTF-8 on the wire, safe only where the whole
+    path advertises 8BITMIME. Quoted-printable is safe and puts a soft break back inside
+    the token. Base64 is safe and does not, because a client decodes it whole first.
+    """
+    import base64
+
+    token = secrets.token_urlsafe(32)
+    link = f"https://targum.page/account/enter?t={token}"
+    raw = sent("Ваша ссылка для входа", f"Вот ваша ссылка:\n\n{link}\n")
+
+    assert all(byte < 128 for byte in raw), "8-bit on the wire needs 8BITMIME end to end"
+    # `as_bytes` ends its lines with a bare newline, so the blank line is found rather
+    # than assumed to be CRLF.
+    separator = b"\r\n\r\n" if b"\r\n\r\n" in raw else b"\n\n"
+    head, _, encoded = raw.partition(separator)
+    assert b"base64" in head.lower(), head
+    assert link in base64.b64decode(encoded).decode(), "the token did not survive decoding"
+
+
+def test_a_subject_that_is_not_latin_is_encoded_for_the_header() -> None:
+    """RFC 2047, which `EmailMessage` does on its own — pinned because the day it stops
+    being true is the day a Russian reader gets a subject line of mojibake."""
+    raw = sent("Ваша ссылка для входа", "text\n")
+    assert b"=?utf-8?" in raw, "the subject went out unencoded"
+    assert all(byte < 128 for byte in raw)
+
+
 def test_the_link_is_never_wrapped() -> None:
     """Quoted-printable wraps at 76 characters and a real link is 79.
 
