@@ -286,6 +286,24 @@ If that ever stops being true — if a sentence of it reaches a prompt the way T
 do, or a page — the ShareAlike term reaches whatever it touched and this paragraph is
 wrong. It is written down here so that would have to be a decision rather than a drift.
 
+### HeQ, which the chat's answers about a text are scored against
+
+The chat answers a question about the text on the reader's screen, in English, and
+nothing measured whether the answer was right. **HeQ** — 30,147 reading-comprehension
+questions over 4,401 paragraphs of Hebrew Wikipedia and Geektime, each answered by a
+person with the span of the paragraph that answers it; annotated by Webiks for MAFAT
+under the National NLP Plan of Israel — is the reference (`chat/heq.py`,
+`scripts/eval_ask.py`; targum-internal#223).
+
+**It is CC BY 4.0**: attribution, nothing else owed, and the licence `licensing.verdict`
+marks exportable. It is used for one thing all the same. Nothing is trained on it
+(targum-internal#161's row is evaluation), nothing derived from it is served, and no
+build reads it; it is fetched by `targum models fetch heq` to the directory the gold
+sets sit in, and its contribution to the corpus is a row in `evals/ledger.jsonl` with
+`corpus=heq`. The credit the licence asks for is here, and in the module's header. Its
+paragraphs would pass the text bar as a shelf, and that is a separate decision, not this
+one.
+
 ### Tatoeba's sentences, which the chat reads for the idiom
 
 Since 2026-09-07 the chat is handed a few sentences a Hebrew speaker wrote, inside the
