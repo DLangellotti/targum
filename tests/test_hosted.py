@@ -222,6 +222,24 @@ def test_health_reports_the_store_rather_than_only_the_process() -> None:
     assert "self.store.anyone()" in Path("src/targum/serve.py").read_text()
 
 
+def test_health_counts_what_is_waiting_apart_from_what_has_been_seen(
+    hosted: tuple[int, str],
+) -> None:
+    """One number under the wrong name told an operator nothing.
+
+    `jobs` is never pruned, so a box that had served a hundred builds reported
+    `queue: 100` and a box with a hundred waiting reported the same. It is the number
+    that would have shown targum-internal#228 — every chat turn hanging until four dead
+    workers left the queue growing with nobody on it — and it could not.
+    """
+    port, _ = hosted
+    status, body = ask(port, "/health", "targum.page")
+    assert status == 200
+    said = json.loads(body)
+    assert said["queue"] == 0, "nothing is waiting on a box nobody has asked for anything"
+    assert "jobs" in said, "and how many it has seen is its own number"
+
+
 # -- the public surface -------------------------------------------------------
 
 
