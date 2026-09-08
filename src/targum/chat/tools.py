@@ -560,8 +560,11 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 #: Hebrew letters, for saying how much of a page is Hebrew before anybody pays to read it.
 _HEBREW = frozenset(chr(code) for code in range(0x05D0, 0x05EB))
 
-#: How many searches one turn may make. Three is a question answered; more is browsing.
-WEB_SEARCH_USES = 3
+#: How many searches one turn may make. Three was "a question answered; more is
+#: browsing", and it was also what a reader called stingy (2026-09-08): a Hebrew question
+#: on the whole web is often two searches to find the ground and two more to find the
+#: text. Six is a cent apiece at most, inside the turn's own meter.
+WEB_SEARCH_USES = 6
 
 #: Where the search would stand if it could, and it cannot.
 #:
@@ -584,9 +587,9 @@ WEB_SEARCH_USES = 3
 #: is that failure with more confidence.
 #:
 #: Nothing is lost that was ever had. What keeps the search on Hebrew is what always kept
-#: it there: the hosts in `allowed_domains()`, the Hebrew the model searches in, and the
-#: share of Hebrew letters `describe_source` counts before a source is offered. Localising
-#: on top of those was the improvement; it is unavailable, and the floor is unchanged.
+#: it there: the Hebrew the model searches in, and the share of Hebrew letters
+#: `describe_source` counts before a source is offered. Localising on top of those was
+#: the improvement; it is unavailable, and the floor is unchanged.
 #:
 #: Kept as a name rather than deleted so that re-adding it means reading this first.
 #: `test_the_search_carries_no_country_the_api_refuses` fails if it goes back into a tool
@@ -840,40 +843,6 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def offer_wider_search(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """Offer to look beyond the sites this box knows, and leave a card to press.
-
-    Not `quote_*`, because there is nothing to price: a search is already inside the
-    turn's own meter, and every turn is a `job` row of kind `chat` whether it searches
-    or not. What the press consents to is **scope** — where the search may look — and
-    that is a thing only a reader may widen, for the same reason only a reader may start
-    a build. The model may ask. It cannot press, and it cannot widen its own next turn.
-
-    The card carries the words that would be searched, so a reader reads the question
-    before agreeing to it rather than after. One press widens one turn: a conversation
-    does not stay open because it was opened once.
-    """
-    asked = str(args.get("asked") or "").strip()
-    if not asked:
-        return {"error": "Say what you would look for, in the words you would search."}
-    if len(asked) > 200:
-        return {"error": "That is long for a search. Say it in a line."}
-    why = str(args.get("why") or "").strip()[:300]
-    return {
-        "offered": {
-            "asked": asked,
-            "why": why,
-            "sites": len(sources_module.allowed_domains()),
-        },
-        "note": (
-            "The page shows the reader a card from this with a button that asks again "
-            "across the whole web; you cannot press it. Say in one line what you were "
-            "looking for and what came back instead. Do not offer this twice in a row, "
-            "and do not offer it where the reader asked for something the shelf holds."
-        ),
-    }
-
-
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
@@ -998,29 +967,6 @@ REGISTRY: tuple[Tool, ...] = (
         search_sources,
     ),
     Tool(
-        "offer_wider_search",
-        "Offer to search the whole web instead of the sites targum knows. Use it when a "
-        "search came back with things that are not what you asked for, or came back with "
-        "nothing: the search is held to a fixed list of Hebrew sites, and the list is "
-        "invisible to you, so results that look plausible but answer a different question "
-        "are what a gap in it looks like. Returns the card the reader presses to ask "
-        "again, wider; you cannot press it, and the next turn is only widened if they do.",
-        _schema(
-            {
-                "asked": {
-                    "type": "string",
-                    "description": "The words to search, as the reader would read them.",
-                },
-                "why": {
-                    "type": "string",
-                    "description": "One line: what you wanted and what came back instead.",
-                },
-            },
-            ("asked",),
-        ),
-        offer_wider_search,
-    ),
-    Tool(
         "quote_conversation",
         "Write this conversation down as a Hebrew text with its English and price reading "
         "it back, for nothing. The page shows a card; the reader presses it and the "
@@ -1046,47 +992,38 @@ REGISTRY: tuple[Tool, ...] = (
 BY_NAME: dict[str, Tool] = {tool.name: tool for tool in REGISTRY}
 
 
-def anthropic_tools(*, web_search: bool = False, wider: bool = False) -> list[dict[str, Any]]:
+def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     """The registry in the shape the Messages API takes.
 
-    With `web_search`, Anthropic's server-side search rides along, held to the hosts in
-    `sources.allowed_domains()` — unless
-    `wider`, which is the one turn a reader pressed `offer_wider_search`'s card to
-    widen. The model does not run it and neither do we: the API does, and what it finds
-    comes back as blocks in the reply. Anything it surfaces is still described and
-    quoted through the same doors as a pasted link.
+    With `web_search`, Anthropic's server-side search rides along, over the whole web.
+    The model does not run it and neither do we: the API does, and what it finds comes
+    back as blocks in the reply. Anything it surfaces is still described and quoted
+    through the same doors as a pasted link.
 
-    `allowed_domains` and `blocked_domains` are mutually exclusive — sending both is a
-    400 — so opening the search up means giving this list up, not adding to it.
+    Until 2026-09-08 the search was held to `sources.allowed_domains()`, with a card a
+    reader could press to widen one turn. The list's failure was never emptiness but
+    substitution: a Hebrew Wikipedia article asked for and four newspapers handed back,
+    because Wikipedia was not on the list and ynet was, and neither the model nor the
+    reader could see why. The card fixed that at the price of a second turn every time,
+    and a reader called it stingy. What keeps the search on Hebrew is the Hebrew the
+    model searches in and the Hebrew share `describe_source` counts before anything is
+    offered; the list added a failure mode and not a floor.
     """
     tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
         for tool in REGISTRY
-        # The card is only held where pressing it would do something: on a box with no
-        # search (`TARGUM_WEB_SEARCH=0`) there is no list to give up, and on a turn a
-        # reader already widened there is nothing left to widen. The prompt asks the
-        # model not to offer twice running; this is why it cannot, and it is also what
-        # closes the loop where every widened turn ends in another offer to widen.
-        if tool.name != "offer_wider_search" or (web_search and not wider)
     ]
     if web_search:
-        searching: dict[str, Any] = {
-            "type": "web_search_20260209",
-            "name": "web_search",
-            "max_uses": WEB_SEARCH_USES,
-            # No `user_location`: the API does not take Israel, and a block carrying one
-            # it refuses fails the turn rather than the search. See `SEARCH_UNAVAILABLE_FROM`.
-        }
-        if not wider:
-            # Widened, the list is *given up*, not added to: the API takes
-            # `allowed_domains` or `blocked_domains` and refuses a request carrying
-            # both, and there is no third setting between them. What keeps a widened
-            # search on Hebrew is the Hebrew the model searches in and the share of
-            # Hebrew letters `describe_source` counts
-            # before anything is offered — never a refusal, which is the reader's
-            # side of the door and stays open (targum-internal#126).
-            searching["allowed_domains"] = sources_module.allowed_domains()
-        tools.append(searching)
+        tools.append(
+            {
+                "type": "web_search_20260209",
+                "name": "web_search",
+                "max_uses": WEB_SEARCH_USES,
+                # No `user_location`: the API does not take Israel, and a block carrying
+                # one it refuses fails the turn rather than the search. See
+                # `SEARCH_UNAVAILABLE_FROM`. No `allowed_domains` either; see above.
+            }
+        )
     return tools
 
 

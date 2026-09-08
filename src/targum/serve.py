@@ -4119,10 +4119,6 @@ class Handler(BaseHTTPRequestHandler):
                 )
             }
             brought["from"] = sent_as(sent)
-        # The press on the card `offer_wider_search` left: this one turn's search gives
-        # up the host list. It comes from the page because it is the reader's own hand
-        # on the card's button, the way `/build` and Send-with-a-file are; a model
-        # cannot set it, and it does not carry into the turn after.
         asked = self.chats.say(
             person,
             self._home(),
@@ -4131,7 +4127,6 @@ class Handler(BaseHTTPRequestHandler):
             admin=admin,
             about=about,
             brought=brought,
-            wider=bool(payload.get("wider")),
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 

@@ -490,20 +490,3 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     )
     assert status == 200
     assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "not theirs: no note"
-
-
-def test_the_press_to_look_wider_comes_from_the_page_and_only_from_the_page(chatting) -> None:
-    """A widened search is the reader's own hand on a card's button, the way `/build`
-    is. The model may leave the card; nothing it can say sets this."""
-    port, key, _, chats = chatting
-    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"text": "recipes", "wider": True})
-    pressed = chats.queue.get()
-    assert pressed.wider is True
-
-    _, plain, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more"})
-    assert chats.queue.get().wider is False, "held to the list unless pressed again"
-
-    _, odd, _ = call(
-        port, "POST", f"/chat/say?k={key}", {"chat": plain["chat"], "text": "x", "wider": "yes"}
-    )
-    assert chats.queue.get().wider is True, "any truthy value is a press; a missing one is not"
