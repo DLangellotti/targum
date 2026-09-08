@@ -285,10 +285,15 @@ class Entry:
 
     #: The source text's own licence and the credit it asks for, on an entry that has
     #: no `Rendering` to carry them — a text promoted from a reader's shelf
-    #: (`promote.py`), whose English targum bought. Empty on the curated shelf, whose
-    #: sources are public domain by selection.
+    #: (`promote.py`), whose English targum bought — and, since 2026-09-08, on every
+    #: curated row too, filled from what the source itself says by
+    #: `scripts/backfill_licences.py` (targum-internal#115). Empty means nobody has
+    #: checked, and `licensing.verdict` reads empty as unknown, never as free.
     licence: str = ""
     credit: str = ""
+    #: Where the licence was read, so the claim can be re-checked against the page rather
+    #: than against somebody's summary of it. Empty rather than guessed.
+    licence_url: str = ""
 
     @property
     def sample(self) -> list[Line]:
@@ -502,6 +507,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         model=str(raw.get("model", "")),
         licence=str(raw.get("licence", "")),
         credit=str(raw.get("credit", "")),
+        licence_url=str(raw.get("licence_url", "")),
     )
 
 

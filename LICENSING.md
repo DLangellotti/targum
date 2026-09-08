@@ -365,7 +365,7 @@ so there is one answer rather than a field that has to be kept true:
 
 | standing | meaning |
 | --- | --- |
-| **free** | public domain or CC0. Nothing is owed; credited anyway. |
+| **free** | public domain or CC0, or targum's own writing (`targum`). Nothing is owed; credited anyway. |
 | **owed** | usable commercially, and something travels with it — a credit, or ShareAlike. |
 | **closed** | NonCommercial, or anything NoDerivatives touches. Not usable in a paid offering. |
 | **unknown** | nothing recorded, or terms nobody here recognises. **Not** treated as free. |
@@ -375,6 +375,15 @@ block a business**: CC BY-SA permits commercial use and requires derivatives to 
 under the same terms, so a corpus built on it can be sold and cannot be kept secret.
 **NonCommercial is the term that closes a door**, because it bites on the commercial
 character of the offering rather than on which individual reader paid.
+
+**Texts record it on the catalogue row.** Since 2026-09-08 every entry carries
+`licence`, `credit` and `licence_url`, filled by `scripts/backfill_licences.py` from what
+the source itself says and from nothing else: the edition's licence off Sefaria's API for
+a Sefaria or siddur text, the Creative Commons link in the page's own footer for a news
+article, Project Ben-Yehuda's public-domain terms for its texts, the curation record for
+a video, and `targum` for the dialogues targum wrote. A page that says nothing is left
+empty and listed, which `targum licences` reports as unknown — the seven Hebrew
+Wikisource pages, on the day this was written (targum-internal#115).
 
 Ask the corpus rather than remember it:
 
