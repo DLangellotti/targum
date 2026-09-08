@@ -52,6 +52,14 @@ class Portion(BaseModel):
     #: The Sephardic reading for the same, as Hebcal's range line, where it differs.
     #: Recorded and not shown.
     haftarah_sephardic: str = ""
+    #: The annotator name the book's annotation carried when this was cut from it. The
+    #: corpus keeps no artifact beside its readers, so this one string is the only thing
+    #: that can say whether a portion's words are behind the shelf it came from — and
+    #: without it the deploy's "all texts on the current annotator" was true of every
+    #: text that keeps artifacts and silent about the fifty-four that do not
+    #: (targum-internal#227). "" on a corpus cut before this was written down, which
+    #: `annotate.versions.survey_corpus` counts as unknown rather than as current.
+    annotator: str = ""
 
     @property
     def doubled(self) -> bool:
@@ -110,6 +118,8 @@ class Haftarah(BaseModel):
     #: the portion does. Decided at build from what was written, the way `daily.opens_at`
     #: decides it off the disk.
     opens: str = "index.html"
+    #: As `Portion.annotator`: what the book's annotation was called when this was cut.
+    annotator: str = ""
 
 
 class Week(BaseModel):

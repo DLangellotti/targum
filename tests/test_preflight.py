@@ -18,6 +18,7 @@ from targum.preflight import (
     check_api_key,
     check_disk,
     check_mail,
+    check_parasha,
     check_paths,
     check_pot,
     check_scripture,
@@ -531,3 +532,96 @@ def test_asking_about_a_shelf_that_is_not_there_is_not_reassuring(tmp_path: Path
     with pytest.raises(FileNotFoundError):
         survey(tmp_path / "not-a-shelf")
     assert check_shelf(tmp_path / "not-a-shelf").ok, "the deploy path still says it plainly"
+
+
+def test_the_shelf_line_says_what_it_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The line "all 164 Hebrew texts on the current annotator" was true of the texts that keep an
+    `annotation.json` and silent about the fifty-four portions that do not, which were
+    the stalest thing on the box (targum-internal#227). The scope is part of the line."""
+    monkeypatch.setattr("targum.annotate.versions.current_name", lambda source: "oshb/2")
+    out = tmp_path / "targum-out"
+    built(out, "library", "one-he", "oshb/2")
+    assert "with artifacts" in check_shelf(out).detail
+
+
+# --- the corpus against the shelf it was cut from ------------------------------
+
+
+def a_corpus(corpus: Path, readings: dict[str, tuple[str, str]]) -> None:
+    """A parasha index as a build leaves it: each reading's folder, first book and the
+    annotator it was cut with. Portions and haftarot share the shape."""
+    portions = {
+        slug: {"slug": slug, "folder": slug, "books": [book], "annotator": annotator}
+        for slug, (book, annotator) in readings.items()
+    }
+    corpus.mkdir(parents=True)
+    (corpus / "index.json").write_text(json.dumps({"portions": portions}), encoding="utf-8")
+
+
+def test_a_portion_cut_from_an_older_annotation_is_said_out_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The deploy of 2026-09-08 re-annotated every book on the shelf and Nitzavim went on
+    serving verbs with no binyan, because `rebuild --words` cannot reach a corpus that
+    keeps no artifacts. The remedy is a re-cut and a ship, not a rebuild, and the check
+    says so."""
+    out = tmp_path / "targum-out"
+    built(out, "library", "דברים-he", "oshb/2+register/2+phonikud/2")
+    built(out, "library", "ישעיהו-he", "oshb/2+register/2+phonikud/2")
+    corpus = tmp_path / "elsewhere" / "parasha"
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(corpus))
+    a_corpus(
+        corpus,
+        {
+            "nitzavim": ("Deuteronomy", "oshb/2+register/1+phonikud/2"),
+            "haftarah-isaiah-61-10-63-9": ("Isaiah", "oshb/2+register/2+phonikud/2"),
+        },
+    )
+
+    check = check_parasha(out)
+    assert not check.ok and not check.fatal, "an older page is still a page"
+    assert "1 of 2" in check.detail
+    assert "register/1 -> register/2" in check.detail
+    assert "parasha build" in check.fix and "ship-parasha" in check.fix
+    assert "rebuild --words cannot reach it" in check.fix
+
+
+def test_a_corpus_cut_before_the_name_was_recorded_is_not_called_current(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every corpus shipped before this field existed. Unknown is the honest answer, and
+    it is a warning rather than an all-clear, because "all current" over readings nobody
+    can read either way is exactly the silence the check exists to break."""
+    out = tmp_path / "targum-out"
+    built(out, "library", "דברים-he", "oshb/2")
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    a_corpus(out / "parasha", {"nitzavim": ("Deuteronomy", "")})
+
+    check = check_parasha(out)
+    assert not check.ok and not check.fatal
+    assert "before the corpus recorded its annotator" in check.detail
+    assert "writes the name down" in check.fix
+
+
+def test_a_corpus_level_with_the_shelf_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "targum-out"
+    built(out, "library", "דברים-he", "oshb/2+register/2")
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    a_corpus(out / "parasha", {"nitzavim": ("Deuteronomy", "oshb/2+register/2")})
+    check = check_parasha(out)
+    assert check.ok and "all 1 readings" in check.detail
+
+
+def test_a_box_without_a_parasha_corpus_is_not_scolded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.annotate.versions import survey_corpus
+
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    assert check_parasha(tmp_path / "targum-out").ok
+    with pytest.raises(FileNotFoundError):
+        survey_corpus(tmp_path / "not-a-corpus", tmp_path / "library")

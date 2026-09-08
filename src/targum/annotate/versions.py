@@ -141,3 +141,66 @@ def survey(out: Path, home: str = "") -> Shelf:
         else:
             shelf.current += 1
     return shelf
+
+
+def survey_corpus(corpus: Path, library: Path) -> Shelf:
+    """Which readings of the parasha corpus are behind the books they were cut from.
+
+    A different question from `survey`, with a different remedy. The corpus keeps no
+    artifact beside its readers — `parasha/build.py` says so — so `rebuild --words`
+    never touches a portion, and the deploy that re-annotated every book on the shelf
+    left every portion exactly as it was. That is how the free door came to serve verbs
+    with no binyan and no grammar line the day after the fix for them was deployed
+    (targum-internal#227). What moves a portion is cutting it again from the shelf and
+    shipping it, so the comparison here is against the *library book's* recorded
+    annotator, not against the code: "would a re-cut change this?" is the question, and
+    whether the library itself is behind the code is `survey`'s to answer beside it.
+
+    Read off `index.json` alone. A reading is behind where its recorded annotator differs
+    from the one its first book carries now; unknown where the corpus was cut before the
+    name was recorded, or where the book is not on this shelf. Unknown is not current:
+    fifty-four readings with no name on them are the population the old check silently
+    excluded, and this counts them so that the line cannot read as an all-clear.
+
+    Raises where there is no corpus, for the reason `survey` does.
+    """
+    from ..ids import slug
+    from ..parasha.cut import BOOKS, NEVIIM
+
+    index_path = corpus / "index.json"
+    if not index_path.is_file():
+        raise FileNotFoundError(f"no parasha corpus at {corpus}")
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    shelf = Shelf()
+    # The name each book on the shelf carries, read once per book.
+    carried: dict[str, str | None] = {}
+
+    def carries(book: str) -> str | None:
+        if book not in carried:
+            hebrew = BOOKS.get(book) or NEVIIM.get(book)
+            annotation = library / f"{slug(hebrew)}-he" / "annotation.json" if hebrew else None
+            try:
+                carried[book] = (
+                    json.loads(annotation.read_text(encoding="utf-8")).get("annotator") or None
+                    if annotation is not None
+                    else None
+                )
+            except (OSError, ValueError):
+                carried[book] = None
+        return carried[book]
+
+    readings = list(index.get("portions", {}).values()) + list(index.get("haftarot", {}).values())
+    for reading in sorted(readings, key=lambda one: str(one.get("folder", ""))):
+        folder = reading.get("folder")
+        if not folder:
+            continue
+        have = reading.get("annotator", "")
+        books = reading.get("books") or []
+        want = carries(books[0]) if books else None
+        if not have or want is None:
+            shelf.unknown += 1
+        elif have != want:
+            shelf.behind.append((str(corpus / "read" / folder), have, want))
+        else:
+            shelf.current += 1
+    return shelf
