@@ -409,6 +409,56 @@ def check_parasha(out: Path) -> Check:
     )
 
 
+def check_daily(out: Path) -> Check:
+    """How many days of the daily window are behind the books they were cut from.
+
+    The parasha's question, asked of the other corpus that keeps no artifact: Mishna
+    Yomi, Nach Yomi and Tanakh Yomi are cut nightly on a laptop from that laptop's shelf
+    and shipped (`deploy/ship-daily.sh`), so a box whose shelf was just re-annotated
+    still serves the days as they were cut. `check_parasha` says why the line exists;
+    the remedy here is the nightly build run from a current shelf, not the rebuild.
+    """
+    from .annotate.versions import survey_daily
+
+    corpus = parasha_root(out) / "daily"
+    if not (corpus / "index.json").is_file():
+        return Check("daily", True, f"no daily corpus at {corpus}", fatal=False)
+    shelf = survey_daily(corpus, out / "library")
+    if not shelf.total:
+        return Check("daily", True, f"the window at {corpus} holds no days", fatal=False)
+    recut = (
+        "targum daily build, on a machine whose library is on the current annotator, "
+        "then deploy/ship-daily.sh. The window keeps no artifacts, so rebuild --words "
+        "cannot reach it."
+    )
+    if shelf.behind:
+        moved = ", ".join(list(shelf.moved())[:3])
+        return Check(
+            "daily",
+            False,
+            f"{len(shelf.behind)} of {shelf.total} days were cut from an older annotation "
+            "than the shelf carries now" + (f" ({moved})" if moved else ""),
+            recut,
+            fatal=False,
+        )
+    if shelf.unknown:
+        return Check(
+            "daily",
+            False,
+            f"{shelf.unknown} of {shelf.total} days were cut before the window recorded its "
+            "annotator, or from a book not on this shelf; whether they are behind cannot be "
+            "read off the disk",
+            recut + " The next nightly build writes the name down.",
+            fatal=False,
+        )
+    return Check(
+        "daily",
+        True,
+        f"all {shelf.total} days cut from the annotation the shelf carries now",
+        fatal=False,
+    )
+
+
 def check_transcriber() -> Check:
     """Whether a recording without a transcript can be heard, and on whose key."""
     from .transcribe import build, default_name
@@ -583,6 +633,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_scripture())
     checks.append(check_shelf(out))
     checks.append(check_parasha(out))
+    checks.append(check_daily(out))
     checks.append(check_backups_leave())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)

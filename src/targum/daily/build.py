@@ -115,6 +115,11 @@ def build(
             "hdate": one.hdate,
             "reference": one.reference,
             "units": sum(1 for block in portion.document.blocks if block.kind.value != "heading"),
+            # Whose annotation the day was cut with, and from which folder on the shelf:
+            # the corpus keeps no artifact, so these two strings are all that can say
+            # later whether the day is behind the book (targum-internal#227).
+            "annotator": portion.annotation.annotator if portion.annotation is not None else "",
+            "books": list(portion.books),
         }
 
     index: dict[str, Any] = {

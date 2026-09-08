@@ -206,6 +206,11 @@ class Portion:
     annotation: Annotation | None
     vocalization: Vocalization | None
     glossaries: dict[str, Glossary]
+    #: The library folders this was cut from — `דברים-he` — first book first. The
+    #: corpus keeps no artifact beside its readers, so a survey asking whether a day is
+    #: behind the shelf needs to know which book on the shelf to ask
+    #: (targum-internal#227, the daily half).
+    books: tuple[str, ...] = ()
 
     @property
     def verses(self) -> int:
@@ -441,6 +446,7 @@ def assemble(
         annotation=_annotation(books, kept, document.content_hash),
         vocalization=_vocalization(books, kept, document.content_hash),
         glossaries=_glossaries(books),
+        books=tuple(book.folder.name for book in books.values()),
     )
 
 
