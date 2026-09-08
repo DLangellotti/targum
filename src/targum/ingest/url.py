@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,33 @@ from .htmltext import paragraphs_from_html
 
 USER_AGENT = "targum/0.1 (+https://github.com/DLangellotti/targum)"
 TIMEOUT = 30.0
+
+#: The way out for a host that refuses this address. Seven of the 42 Hebrew hosts probed
+#: on 2026-09-07 refuse the caller rather than the client — a browser User-Agent gets the
+#: same 403 — including the Ministry of Education's news in easy Hebrew, which is the best
+#: learner text found anywhere (targum-internal#226). Nothing installed here answers that;
+#: the request has to leave from somewhere else.
+#:
+#: Its own knob rather than YouTube's, because the two meters differ by three orders of
+#: magnitude: an article is half a megabyte and a video is hundreds. One account, two
+#: knobs — and YouTube's is read as a fallback, so a box that has bought one egress does
+#: not need the same URL written twice.
+FETCH_PROXY_ENV = "TARGUM_FETCH_PROXY"
+FALLBACK_PROXY_ENV = "TARGUM_YTDLP_PROXY"
+
+
+def egress() -> str:
+    """The proxy a refused fetch is retried through, or "" for none.
+
+    Read at call time and not at import, so setting it takes effect on the next request
+    and unsetting it is the whole of the rollback.
+    """
+    for name in (FETCH_PROXY_ENV, FALLBACK_PROXY_ENV):
+        found = os.environ.get(name, "").strip()
+        if found:
+            return found
+    return ""
+
 
 # An article a reader wants is hundreds of kilobytes. There was a timeout but no size
 # limit, so a server that answers slowly and forever could take the machine down
@@ -44,6 +72,13 @@ def _reachable(url: str) -> None:
 
     Checked on every hop rather than once: a public URL that redirects to a private
     address is the ordinary shape of this, and it defeats checking only the first.
+
+    **Advisory behind a proxy.** When a fetch is retried through the egress, the name is
+    resolved at the far end and this check has resolved it here — two answers to one
+    question, and only the far one decides where the packet goes. It is still made,
+    because a name that resolves to a private address here is refused before anything
+    leaves at all, and because the retry only ever happens for an address that already
+    passed it once. What it stops being is a guarantee (targum-internal#226).
 
     What this does not stop is a name that answers with a public address here and a
     private one when httpx connects a moment later. Closing that means pinning the
@@ -91,6 +126,10 @@ class Fetched:
     #: of `text` as mojibake — decoded here as UTF-8 because that is all the header said.
     #: A parser given the bytes honours the declaration instead.
     raw: bytes = b""
+    #: Which door this came through: `direct`, or `proxy` where the host refused this
+    #: address and the retry cleared it. Recorded rather than inferred, so "the site is
+    #: reachable" and "the site is reachable from the egress we pay for" stay apart.
+    via: str = "direct"
 
     @property
     def is_html(self) -> bool:
@@ -118,13 +157,38 @@ def shut(error: Unreachable) -> bool:
 
 
 def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
+    """A page, direct — and, where the host refuses this address, once more through the
+    egress if one is set.
+
+    The direct attempt always happens first: most hosts answer it, the retry costs one
+    fast 403 on the ones that do not, and a proxy asked for every page is a bill nobody
+    reads. Only a refusal is retried — `shut()` is what says a knock will be refused
+    again — so a 404 stays a 404 and is not paid for twice.
+    """
+    try:
+        return _once(url, params)
+    except Unreachable as refused:
+        where = egress()
+        if not where or not shut(refused) or refused.via != "direct":
+            raise
+        return _once(url, params, proxy=where)
+
+
+def _once(url: str, params: dict[str, str] | None = None, proxy: str = "") -> Fetched:
     import httpx
 
     target = url
+    via = "proxy" if proxy else "direct"
     with httpx.Client(
         timeout=TIMEOUT,
         follow_redirects=False,
         headers={"User-Agent": USER_AGENT},
+        proxy=proxy or None,
+        # The knob is the only way out. `httpx` trusts `HTTP_PROXY` and friends by
+        # default, so an environment variable nobody meant as a targum setting would
+        # route every fetch through somebody's proxy while `via` still said `direct` —
+        # a bill and a lie at once.
+        trust_env=False,
     ) as client:
         for _ in range(MAX_REDIRECTS + 1):
             _reachable(target)
@@ -156,6 +220,7 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
                         body.decode(response.charset_encoding or "utf-8", errors="replace"),
                         response.headers.get("Content-Type", ""),
                         bytes(body),
+                        via,
                     )
             except TargumError:
                 raise
@@ -169,11 +234,13 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
                     str(exc),
                     status=getattr(answered, "status_code", None),
                     host=urlparse(target).hostname or "",
+                    via=via,
                 ) from exc
     raise Unreachable(
         f"Could not fetch {url}",
         f"More than {MAX_REDIRECTS} redirects",
         host=urlparse(target).hostname or "",
+        via=via,
     )
 
 
@@ -198,6 +265,11 @@ def download(url: str, into: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Download
     its cousins put two or three trackers between a feed and its audio, and any one of
     them could point inward. The body goes to disk as it arrives: a recording does not
     fit in memory, and would not be text if it did.
+
+    **Never through the egress**, unlike `fetch`. An episode is 30 to 100 MB against an
+    article's half a megabyte, and a gigabyte-scale proxied download is the one thing
+    here that could make a bill surprising. A geo-blocked podcast stays unfetched until
+    somebody decides otherwise (targum-internal#226).
     """
     import httpx
 
@@ -207,6 +279,7 @@ def download(url: str, into: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Download
         timeout=TIMEOUT,
         follow_redirects=False,
         headers={"User-Agent": USER_AGENT},
+        trust_env=False,
     ) as client:
         for _ in range(MAX_REDIRECTS + 1):
             _reachable(target)

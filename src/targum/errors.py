@@ -26,11 +26,21 @@ class Unreachable(TargumError):
     """
 
     def __init__(
-        self, message: str, hint: str | None = None, *, status: int | None = None, host: str = ""
+        self,
+        message: str,
+        hint: str | None = None,
+        *,
+        status: int | None = None,
+        host: str = "",
+        via: str = "direct",
     ) -> None:
         super().__init__(message, hint)
         self.status = status
         self.host = host
+        #: Which door this knock went through — `direct`, or `proxy` where the fetch
+        #: retried through the egress. What makes "the host refuses us" and "the host
+        #: refuses us even from there" two different facts (targum-internal#226).
+        self.via = via
 
 
 class ProviderError(TargumError):

@@ -240,6 +240,61 @@ def check_ytdlp_proxy(connect: bool = True) -> Check:
     return Check("YouTube egress", True, f"{named} answers")
 
 
+def check_fetch_egress(connect: bool = True) -> Check:
+    """Whether the egress an ordinary page is retried through is listening.
+
+    The sibling of the YouTube check above and a different meter: an article is half a
+    megabyte where a video is hundreds, so the two have one account and two knobs. Seven
+    of the 42 Hebrew hosts probed on 2026-09-07 refuse this caller outright — the Academy
+    of the Hebrew Language, the National Library, and the Ministry of Education's news in
+    easy Hebrew, which is the best learner text found anywhere. Nothing installed here
+    answers that (targum-internal#226).
+
+    Unset is not a failure. Every fetch goes direct, which is what a laptop wants and
+    what the box did until somebody bought a way out; what it costs is those seven hosts,
+    said plainly on a hosted box and silently on a laptop. Set and not listening is the
+    loud one, for the reason the YouTube check gives: it is the shape a tunnel fails in.
+    """
+    from .ingest import url as url_module
+
+    where = url_module.egress()
+    if not where:
+        if not _hosted():
+            return Check("fetch egress", True, "pages are fetched from here", fatal=False)
+        return Check(
+            "fetch egress",
+            True,
+            "no proxy; a host that refuses this address stays unread",
+            f"Set {url_module.FETCH_PROXY_ENV} to open the seven Hebrew hosts that refuse "
+            "a non-Israeli caller. Until then the chat records them shut and offers "
+            "readers something else.",
+            fatal=False,
+        )
+    parsed = urlparse(where)
+    if not parsed.hostname:
+        return Check("fetch egress", False, "the proxy names no host.", "Use scheme://host:port.")
+    # Never the address as given: a residential proxy carries its credentials in the URL,
+    # and this line is printed over SSH and again into the journal. The same reasoning as
+    # `check_ytdlp_proxy`, which is why the two read alike.
+    port = parsed.port or (1080 if "socks" in (parsed.scheme or "") else 8080)
+    named = f"{parsed.hostname}:{port}"
+    if not connect:
+        return Check("fetch egress", True, f"{named}, not knocked on", fatal=False)
+    try:
+        with socket.create_connection((parsed.hostname, port), timeout=POT_TIMEOUT):
+            pass
+    except OSError as error:
+        return Check(
+            "fetch egress",
+            False,
+            f"{named} did not answer — {error}",
+            "A refused host is retried through this and the retry now fails too, so the "
+            "reader waits twice for the same nothing.",
+            fatal=False,
+        )
+    return Check("fetch egress", True, f"{named} answers")
+
+
 def check_pot(connect: bool = True) -> Check:
     """Whether the token minter is answering, which on a box is what makes yt-dlp work.
 
@@ -628,6 +683,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_ffmpeg())
     checks.append(check_ytdlp())
     checks.append(check_ytdlp_proxy(connect=connect))
+    checks.append(check_fetch_egress(connect=connect))
     checks.append(check_pot(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
