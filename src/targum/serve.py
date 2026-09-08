@@ -3363,12 +3363,27 @@ class Handler(BaseHTTPRequestHandler):
         purpose: a process that is running with a database it can no longer read is the
         failure worth catching, and one that only answers "yes I am a process" would
         report that as healthy.
+
+        `queue` is what is waiting; `jobs` is how many this process has seen since it
+        started. They used to be one number under the first name, and the first name was
+        the wrong one: `jobs` is never pruned, so a healthy box that had served a hundred
+        builds read `queue: 100` and an operator had no way to tell that from a hundred
+        waiting. It is the number that would have shown targum-internal#228 — every chat
+        turn hanging until four dead workers left the queue growing with nobody on it —
+        and it showed 172 either way.
         """
         try:
             self.store.anyone()
         except Exception:
             return self._json({"ok": False, "store": False}, 503)
-        self._json({"ok": True, "store": True, "queue": len(self.library.jobs)})
+        self._json(
+            {
+                "ok": True,
+                "store": True,
+                "queue": self.library.queue.qsize(),
+                "jobs": len(self.library.jobs),
+            }
+        )
 
     def _asked_for_the_back_office(self) -> bool:
         """Whether this request arrived on the operator's own name."""
