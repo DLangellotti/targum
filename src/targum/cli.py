@@ -2053,7 +2053,7 @@ def licences() -> None:
         from .catalogue import everything
 
         for entry in everything():
-            rows.append(("text", entry.id, str(getattr(entry, "licence", "") or "")))
+            rows.append(("text", entry.id, entry.licence))
     except Exception:  # noqa: BLE001 - a private catalogue is absent on a public checkout
         pass
 

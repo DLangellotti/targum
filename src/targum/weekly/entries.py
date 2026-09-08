@@ -77,6 +77,10 @@ def entries_for(issue: Issue) -> list[Entry]:
                 # reader built the ordinary way. Empty means "the hosted default", which
                 # is what `serve` already falls back to and what is wanted.
                 model="",
+                # The weekly's Hebrew is targum's own writing, and `licensing.verdict`
+                # reads `targum` as nothing owed to anybody — the standing an empty
+                # field would misreport as unknown (targum-internal#115).
+                licence="targum",
             )
         )
     return out

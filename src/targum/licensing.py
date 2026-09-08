@@ -82,6 +82,11 @@ def _flat(licence: str) -> str:
 
 _PUBLIC = ("public domain", "publicdomain", "cc0", "pd", "no known copyright")
 
+#: What targum wrote for itself — the dialogues, the weekly's own prose. Not public
+#: domain, and nothing is owed to anybody: it stands as `free` because that is the one
+#: standing that means "may leave, and no credit travels", which is the truth of it.
+_OWN = "targum"
+
 
 def verdict(licence: str) -> Verdict:
     """What this licence string allows.
@@ -129,6 +134,15 @@ def verdict(licence: str) -> Verdict:
             attribution=False,
             sharealike=False,
             because="public domain: nothing is owed, and it is credited anyway",
+        )
+    if flat == _OWN or flat.startswith(_OWN + " "):
+        return Verdict(
+            Standing.free,
+            exportable=True,
+            derivatives=True,
+            attribution=False,
+            sharealike=False,
+            because="targum's own writing: nothing is owed to anybody",
         )
 
     parts = flat.split()
