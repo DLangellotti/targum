@@ -708,3 +708,11 @@ def test_the_weeks_haftarah_wins_over_the_portions_on_each_schedule() -> None:
     assert own is not None and own.summary == "Jeremiah 34:8-22, 33:25-26"
     assert why == ""
     assert index.haftarah_on("2026-02-21", cal.Schedule.diaspora) == (None, "")
+
+
+def test_the_cut_says_which_folders_on_the_shelf_it_came_from(corpus: Path, library: Path) -> None:
+    """The corpus keeps no artifact beside its readers, so the folder is all a later
+    survey has to ask the shelf by (targum-internal#227)."""
+    reading = a_reading(corpus)
+    portion = cutmod.cut(reading, cutmod.books_for(reading, library))
+    assert portion.books == ("דברים-he",)

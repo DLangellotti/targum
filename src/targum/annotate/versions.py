@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 #: A versioned piece of an annotator name: `register/2`, `oshb/2`, `tanakh/1`. The name is
 #: a `+`-joined pile of these mixed with unversioned model identifiers, and only these can
@@ -190,6 +192,55 @@ def survey_corpus(corpus: Path, library: Path) -> Shelf:
         return carried[book]
 
     readings = list(index.get("portions", {}).values()) + list(index.get("haftarot", {}).values())
+    return _behind_the_shelf(shelf, readings, carries, corpus / "read")
+
+
+def survey_daily(corpus: Path, library: Path) -> Shelf:
+    """Which days of the daily window are behind the books they were cut from.
+
+    The same question as `survey_corpus`, of the daily corpus — Mishna Yomi, Nach Yomi,
+    Tanakh Yomi — which is cut nightly on a laptop from that laptop's shelf and shipped,
+    so it is exactly as current as the shelf it was cut from and no rebuild on the box
+    reaches it. Each day records the annotator it was cut with and the folder it came
+    from; the folder is asked directly, since a day's book is found through the
+    catalogue rather than a table of names.
+    """
+    index_path = corpus / "index.json"
+    if not index_path.is_file():
+        raise FileNotFoundError(f"no daily corpus at {corpus}")
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    shelf = Shelf()
+    carried: dict[str, str | None] = {}
+
+    def carries(folder: str) -> str | None:
+        if folder not in carried:
+            try:
+                carried[folder] = (
+                    json.loads(
+                        (library / folder / "annotation.json").read_text(encoding="utf-8")
+                    ).get("annotator")
+                    or None
+                )
+            except (OSError, ValueError):
+                carried[folder] = None
+        return carried[folder]
+
+    days = [
+        {"folder": f"{cycle}/{day}", **record}
+        for cycle, by_day in sorted(index.get("cycles", {}).items())
+        for day, record in sorted(by_day.items())
+    ]
+    return _behind_the_shelf(shelf, days, carries, corpus / "read")
+
+
+def _behind_the_shelf(
+    shelf: Shelf,
+    readings: list[dict[str, Any]],
+    carries: Callable[[str], str | None],
+    read: Path,
+) -> Shelf:
+    """Count readings against the shelf. `carries` answers with the annotator the
+    reading's first book carries now, by the name the reading records for it."""
     for reading in sorted(readings, key=lambda one: str(one.get("folder", ""))):
         folder = reading.get("folder")
         if not folder:
@@ -200,7 +251,7 @@ def survey_corpus(corpus: Path, library: Path) -> Shelf:
         if not have or want is None:
             shelf.unknown += 1
         elif have != want:
-            shelf.behind.append((str(corpus / "read" / folder), have, want))
+            shelf.behind.append((str(read / folder), have, want))
         else:
             shelf.current += 1
     return shelf

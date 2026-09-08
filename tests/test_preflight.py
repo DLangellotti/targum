@@ -16,6 +16,7 @@ from targum.preflight import (
     check_account_required,
     check_address,
     check_api_key,
+    check_daily,
     check_disk,
     check_mail,
     check_parasha,
@@ -625,3 +626,52 @@ def test_a_box_without_a_parasha_corpus_is_not_scolded(
     assert check_parasha(tmp_path / "targum-out").ok
     with pytest.raises(FileNotFoundError):
         survey_corpus(tmp_path / "not-a-corpus", tmp_path / "library")
+
+
+# --- the daily window against the shelf it was cut from -----------------------
+
+
+def a_window(corpus: Path, days: dict[str, tuple[str, str]]) -> None:
+    """A daily index as a build leaves it: `cycle/day` to the folder it was cut from and
+    the annotator it was cut with."""
+    cycles: dict[str, dict[str, dict[str, object]]] = {}
+    for key, (book, annotator) in days.items():
+        cycle, day = key.split("/")
+        cycles.setdefault(cycle, {})[day] = {"books": [book], "annotator": annotator}
+    corpus.mkdir(parents=True)
+    (corpus / "index.json").write_text(json.dumps({"cycles": cycles}), encoding="utf-8")
+
+
+def test_a_day_cut_from_an_older_annotation_is_said_out_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The daily window is cut nightly on a laptop from that laptop's shelf, so a box
+    whose shelf was re-annotated still serves the days as they were cut, and the line
+    that said "all texts with artifacts" never counted them (targum-internal#227)."""
+    out = tmp_path / "targum-out"
+    built(out, "library", "ברכות-he", "oshb/2+register/2")
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    a_window(
+        out / "parasha" / "daily",
+        {
+            "mishna-yomi/2026-09-08": ("ברכות-he", "oshb/2+register/1"),
+            "mishna-yomi/2026-09-09": ("ברכות-he", "oshb/2+register/2"),
+            "nach-yomi/2026-09-08": ("ברכות-he", ""),
+        },
+    )
+    check = check_daily(out)
+    assert not check.ok and not check.fatal
+    assert "1 of 3 days" in check.detail and "register/1 -> register/2" in check.detail
+    assert "daily build" in check.fix and "ship-daily" in check.fix
+
+
+def test_a_window_level_with_the_shelf_says_so_and_a_box_without_one_is_not_scolded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "targum-out"
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    assert check_daily(out).ok
+    built(out, "library", "ברכות-he", "oshb/2")
+    a_window(out / "parasha" / "daily", {"mishna-yomi/2026-09-08": ("ברכות-he", "oshb/2")})
+    check = check_daily(out)
+    assert check.ok and "all 1 days" in check.detail
