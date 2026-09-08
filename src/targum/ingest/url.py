@@ -5,6 +5,8 @@ from __future__ import annotations
 import ipaddress
 import os
 import socket
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,35 +23,30 @@ from .base import (
 )
 from .htmltext import paragraphs_from_html
 
+#: What targum is, kept for the record and for `robots.txt` — but no longer what the
+#: wire sees. Decided 2026-09-08: the door presents a browser, fingerprint and
+#: User-Agent alike. Six of the seven Hebrew hosts recorded as unreachable were not
+#: refusing an address; they were serving Cloudflare's bot check to anything whose TLS
+#: handshake did not look like a browser's, and `httpx` never will. A reader asking for
+#: one page is a reader, not a crawler, and this door opens what their own browser opens.
 USER_AGENT = "targum/0.1 (+https://github.com/DLangellotti/targum)"
+#: The browser the handshake imitates. `curl_cffi` sends the matching User-Agent
+#: itself; setting our own on top would give a fingerprint that disagrees with its
+#: headers, which is its own tell — israelhayom.co.il refused exactly that.
+BROWSER = "chrome"
 TIMEOUT = 30.0
 
-#: The way out for a host that refuses this address. Seven of the 42 Hebrew hosts probed
-#: on 2026-09-07 refuse the caller rather than the client — a browser User-Agent gets the
-#: same 403 — including the Ministry of Education's news in easy Hebrew, which is the best
-#: learner text found anywhere (targum-internal#226). Nothing installed here answers that;
-#: the request has to leave from somewhere else.
-#:
-#: Its own knob rather than YouTube's, because the two meters differ by three orders of
-#: magnitude: an article is half a megabyte and a video is hundreds. One account, two
-#: knobs — and YouTube's is read as a fallback, so a box that has bought one egress does
-#: not need the same URL written twice.
+#: The least time between two knocks on one host, in seconds. The fetch door is polite
+#: because it has to be: one afternoon of careless probing from a laptop on 2026-09-08
+#: had that address served a bot check by hosts that answered it in the morning, and
+#: the box's address is the product's. A reader never notices a second and a half.
+POLITE_S = 1.5
+
+#: Where a refused fetch is retried from. `TARGUM_FETCH_PROXY`, else the YouTube
+#: egress (targum-internal#205), so a box with one proxy stays a one-knob box; two knobs
+#: because geo-targeting on a residential provider is a parameter on the same account,
+#: and articles can ask for an Israeli exit while video takes whatever YouTube tolerates.
 FETCH_PROXY_ENV = "TARGUM_FETCH_PROXY"
-FALLBACK_PROXY_ENV = "TARGUM_YTDLP_PROXY"
-
-
-def egress() -> str:
-    """The proxy a refused fetch is retried through, or "" for none.
-
-    Read at call time and not at import, so setting it takes effect on the next request
-    and unsetting it is the whole of the rollback.
-    """
-    for name in (FETCH_PROXY_ENV, FALLBACK_PROXY_ENV):
-        found = os.environ.get(name, "").strip()
-        if found:
-            return found
-    return ""
-
 
 # An article a reader wants is hundreds of kilobytes. There was a timeout but no size
 # limit, so a server that answers slowly and forever could take the machine down
@@ -72,13 +69,6 @@ def _reachable(url: str) -> None:
 
     Checked on every hop rather than once: a public URL that redirects to a private
     address is the ordinary shape of this, and it defeats checking only the first.
-
-    **Advisory behind a proxy.** When a fetch is retried through the egress, the name is
-    resolved at the far end and this check has resolved it here — two answers to one
-    question, and only the far one decides where the packet goes. It is still made,
-    because a name that resolves to a private address here is refused before anything
-    leaves at all, and because the retry only ever happens for an address that already
-    passed it once. What it stops being is a guarantee (targum-internal#226).
 
     What this does not stop is a name that answers with a public address here and a
     private one when httpx connects a moment later. Closing that means pinning the
@@ -126,9 +116,8 @@ class Fetched:
     #: of `text` as mojibake — decoded here as UTF-8 because that is all the header said.
     #: A parser given the bytes honours the declaration instead.
     raw: bytes = b""
-    #: Which door this came through: `direct`, or `proxy` where the host refused this
-    #: address and the retry cleared it. Recorded rather than inferred, so "the site is
-    #: reachable" and "the site is reachable from the egress we pay for" stay apart.
+    #: How it was got: `direct`, or `proxy` after a direct knock was refused. Recorded
+    #: beside the host (`accounts.Store.reach`) so the memory of a shut door says which.
     via: str = "direct"
 
     @property
@@ -156,92 +145,149 @@ def shut(error: Unreachable) -> bool:
     return error.status in REFUSED or error.status >= 500
 
 
-def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
-    """A page, direct — and, where the host refuses this address, once more through the
-    egress if one is set.
+def egress() -> str:
+    """Where a refused fetch is retried from, or "" for nowhere."""
+    from ..video.youtube import proxy as youtube_proxy
 
-    The direct attempt always happens first: most hosts answer it, the retry costs one
-    fast 403 on the ones that do not, and a proxy asked for every page is a bill nobody
-    reads. Only a refusal is retried — `shut()` is what says a knock will be refused
-    again — so a 404 stays a 404 and is not paid for twice.
+    return os.environ.get(FETCH_PROXY_ENV, "").strip() or youtube_proxy()
+
+
+_last_knock: dict[str, float] = {}
+_knock_lock = threading.Lock()
+
+
+def _polite(host: str) -> None:
+    """Wait out `POLITE_S` since the last knock on `host`, if it was that recent."""
+    with _knock_lock:
+        wait = POLITE_S - (time.monotonic() - _last_knock.get(host, -POLITE_S))
+        _last_knock[host] = time.monotonic() + max(0.0, wait)
+    if wait > 0:
+        time.sleep(wait)
+
+
+def _session(proxy: str = "") -> Any:
+    """One browser-shaped client. A function so a test can hand back a fake."""
+    from curl_cffi import requests
+
+    # Annotated because `curl_cffi` ships no stubs, so mypy cannot infer what a Session
+    # is and asks rather than guessing.
+    session: Any = requests.Session()
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
+    return session
+
+
+def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> tuple[Any, str]:
+    """Walk to the page, checking every hop, and return the streaming response.
+
+    Redirects are followed by hand rather than by the client, because every hop has to
+    pass `_reachable`: a public URL that redirects to a private address is the ordinary
+    shape of an SSRF, and it defeats checking only the first. Behind a proxy that check
+    is advisory — the proxy resolves the name — and what stands in for it is that only
+    https is ever retried that way: TLS is end-to-end through CONNECT, so the proxy
+    cannot substitute an origin without failing certificate validation.
     """
-    try:
-        return _once(url, params)
-    except Unreachable as refused:
-        where = egress()
-        if not where or not shut(refused) or refused.via != "direct":
-            raise
-        return _once(url, params, proxy=where)
-
-
-def _once(url: str, params: dict[str, str] | None = None, proxy: str = "") -> Fetched:
-    import httpx
-
     target = url
-    via = "proxy" if proxy else "direct"
-    with httpx.Client(
-        timeout=TIMEOUT,
-        follow_redirects=False,
-        headers={"User-Agent": USER_AGENT},
-        proxy=proxy or None,
-        # The knob is the only way out. `httpx` trusts `HTTP_PROXY` and friends by
-        # default, so an environment variable nobody meant as a targum setting would
-        # route every fetch through somebody's proxy while `via` still said `direct` —
-        # a bill and a lie at once.
-        trust_env=False,
-    ) as client:
-        for _ in range(MAX_REDIRECTS + 1):
-            _reachable(target)
-            try:
-                with client.stream("GET", target, params=params) as response:
-                    if response.is_redirect:
-                        location = response.headers.get("location")
-                        if not location:
-                            raise TargumError(
-                                f"Could not fetch {url}", "Redirect with nowhere to go"
-                            )
-                        # Relative locations are legal, and the query belongs to the
-                        # address it was written for, not to wherever it points.
-                        target, params = urljoin(target, location), None
-                        continue
-                    response.raise_for_status()
-                    declared = response.headers.get("content-length")
-                    if declared and declared.isdigit() and int(declared) > MAX_BYTES:
-                        raise TargumError(f"{url} is too big to read.", "Try a single article.")
-                    body = bytearray()
-                    for chunk in response.iter_bytes():
-                        body += chunk
-                        if len(body) > MAX_BYTES:
-                            raise TargumError(
-                                f"{url} is too big to read.",
-                                "targum stops at 8 MB. Try a single article.",
-                            )
-                    return Fetched(
-                        body.decode(response.charset_encoding or "utf-8", errors="replace"),
-                        response.headers.get("Content-Type", ""),
-                        bytes(body),
-                        via,
-                    )
-            except TargumError:
-                raise
-            except Exception as exc:
-                # A status where the server gave one, none where the connection never
-                # got that far. `Unreachable` is a `TargumError`, so every caller that
-                # only wanted a sentence still gets one.
-                answered = getattr(exc, "response", None)
-                raise Unreachable(
-                    f"Could not fetch {url}",
-                    str(exc),
-                    status=getattr(answered, "status_code", None),
-                    host=urlparse(target).hostname or "",
-                    via=via,
-                ) from exc
+    session = _session(proxy)
+    for _ in range(MAX_REDIRECTS + 1):
+        _reachable(target)
+        host = urlparse(target).hostname or ""
+        _polite(host)
+        try:
+            response = session.get(
+                target,
+                params=params,
+                timeout=TIMEOUT,
+                allow_redirects=False,
+                impersonate=BROWSER,
+                stream=True,
+            )
+        except Exception as exc:
+            # Never got an answer at all: a timeout, a refused connection, a name that
+            # does not resolve. No status, so `shut()` reads it as a shut door.
+            raise Unreachable(f"Could not fetch {url}", str(exc), host=host, via=via) from exc
+        status = int(response.status_code)
+        if 300 <= status < 400:
+            location = response.headers.get("location")
+            response.close()
+            if not location:
+                raise TargumError(f"Could not fetch {url}", "Redirect with nowhere to go")
+            # Relative locations are legal, and the query belongs to the address it
+            # was written for, not to wherever it points.
+            target, params = urljoin(target, location), None
+            continue
+        if status >= 400:
+            challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
+            response.close()
+            raise Unreachable(
+                f"Could not fetch {url}",
+                "a bot check, not a page" if challenge else f"HTTP {status}",
+                status=status,
+                host=host,
+                challenge=challenge,
+                via=via,
+            )
+        return response, target
     raise Unreachable(
         f"Could not fetch {url}",
         f"More than {MAX_REDIRECTS} redirects",
         host=urlparse(target).hostname or "",
         via=via,
     )
+
+
+def _retry_through_proxy(url: str, error: Unreachable) -> str:
+    """The proxy to try next, or "" — only for a shut door, only over https."""
+    where = egress()
+    if not where or error.via != "direct" or not shut(error):
+        return ""
+    if urlparse(url).scheme != "https":
+        # Plain http through a proxy has no origin authentication at all: a hostile
+        # or compromised exit could serve anything for any address, and targum would
+        # build it onto a reader's shelf.
+        return ""
+    return where
+
+
+def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
+    """A page, direct; then once through the proxy if the direct knock was refused.
+
+    A fallback and not a route, which makes it selective by construction: a host only
+    ever leaves through the proxy after a direct attempt refused it, so Gutenberg,
+    Wikisource and every feed poll stay off a metered exit that none of them need.
+    """
+    try:
+        return _read(url, params, via="direct")
+    except Unreachable as error:
+        proxy = _retry_through_proxy(url, error)
+        if not proxy:
+            raise
+        return _read(url, params, via="proxy", proxy=proxy)
+
+
+def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "") -> Fetched:
+    response, _ = _open(url, params, via=via, proxy=proxy)
+    try:
+        declared = response.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > MAX_BYTES:
+            raise TargumError(f"{url} is too big to read.", "Try a single article.")
+        body = bytearray()
+        for chunk in response.iter_content():
+            body += chunk
+            if len(body) > MAX_BYTES:
+                raise TargumError(
+                    f"{url} is too big to read.",
+                    "targum stops at 8 MB. Try a single article.",
+                )
+        encoding = response.charset or response.encoding or "utf-8"
+        return Fetched(
+            body.decode(encoding, errors="replace"),
+            response.headers.get("content-type", ""),
+            bytes(body),
+            via=via,
+        )
+    finally:
+        response.close()
 
 
 @dataclass(frozen=True)
@@ -251,6 +297,7 @@ class Downloaded:
     path: Path
     content_type: str
     final_url: str
+    via: str = "direct"
 
 
 #: A podcast episode or an audiobook chapter, not an article. Streamed to disk rather
@@ -261,61 +308,47 @@ MAX_AUDIO_BYTES = 1024 * 1024 * 1024
 def download(url: str, into: Path, max_bytes: int = MAX_AUDIO_BYTES) -> Downloaded:
     """A large file, through the same door and past the same checks as every fetch.
 
-    The redirect chain is walked by hand with `_reachable` on every hop — podtrac and
-    its cousins put two or three trackers between a feed and its audio, and any one of
-    them could point inward. The body goes to disk as it arrives: a recording does not
-    fit in memory, and would not be text if it did.
-
-    **Never through the egress**, unlike `fetch`. An episode is 30 to 100 MB against an
-    article's half a megabyte, and a gigabyte-scale proxied download is the one thing
-    here that could make a bill surprising. A geo-blocked podcast stays unfetched until
-    somebody decides otherwise (targum-internal#226).
+    Retried through the proxy on the same terms as a page. Decided 2026-09-08, having
+    first been left out for the size of the bill: a recording is metered against the
+    reader's hours before it is fetched (`serve._prepare_*` sets `job.audio` and
+    `job.seconds`), so the allowance already bounds what a proxied episode can cost.
     """
-    import httpx
-
     into.parent.mkdir(parents=True, exist_ok=True)
-    target = url
-    with httpx.Client(
-        timeout=TIMEOUT,
-        follow_redirects=False,
-        headers={"User-Agent": USER_AGENT},
-        trust_env=False,
-    ) as client:
-        for _ in range(MAX_REDIRECTS + 1):
-            _reachable(target)
-            try:
-                with client.stream("GET", target) as response:
-                    if response.is_redirect:
-                        location = response.headers.get("location")
-                        if not location:
-                            raise TargumError(
-                                f"Could not fetch {url}", "Redirect with nowhere to go"
-                            )
-                        target = urljoin(target, location)
-                        continue
-                    response.raise_for_status()
-                    declared = response.headers.get("content-length")
-                    if declared and declared.isdigit() and int(declared) > max_bytes:
-                        raise TargumError(f"{url} is too big to fetch.")
-                    written = 0
-                    with into.open("wb") as out:
-                        for chunk in response.iter_bytes():
-                            written += len(chunk)
-                            if written > max_bytes:
-                                raise TargumError(
-                                    f"{url} is too big to fetch.",
-                                    f"targum stops at {max_bytes // (1024 * 1024)} MB.",
-                                )
-                            out.write(chunk)
-                    return Downloaded(into, response.headers.get("Content-Type", ""), target)
-            except TargumError:
-                into.unlink(missing_ok=True)
-                raise
-            except Exception as exc:
-                into.unlink(missing_ok=True)
-                raise TargumError(f"Could not fetch {url}", str(exc)) from exc
-    into.unlink(missing_ok=True)
-    raise TargumError(f"Could not fetch {url}", f"More than {MAX_REDIRECTS} redirects")
+    try:
+        return _pull(url, into, max_bytes, via="direct")
+    except Unreachable as error:
+        proxy = _retry_through_proxy(url, error)
+        if not proxy:
+            raise
+        return _pull(url, into, max_bytes, via="proxy", proxy=proxy)
+
+
+def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") -> Downloaded:
+    try:
+        response, target = _open(url, None, via=via, proxy=proxy)
+    except TargumError:
+        into.unlink(missing_ok=True)
+        raise
+    try:
+        declared = response.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > max_bytes:
+            raise TargumError(f"{url} is too big to fetch.")
+        written = 0
+        with into.open("wb") as out:
+            for chunk in response.iter_content():
+                written += len(chunk)
+                if written > max_bytes:
+                    raise TargumError(
+                        f"{url} is too big to fetch.",
+                        f"targum stops at {max_bytes // (1024 * 1024)} MB.",
+                    )
+                out.write(chunk)
+        return Downloaded(into, response.headers.get("content-type", ""), target, via=via)
+    except TargumError:
+        into.unlink(missing_ok=True)
+        raise
+    finally:
+        response.close()
 
 
 class UrlIngester:

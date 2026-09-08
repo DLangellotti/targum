@@ -1891,15 +1891,8 @@ class Store:
                 " ON CONFLICT(host) DO UPDATE SET"
                 "   open = excluded.open, why = excluded.why,"
                 "   tries = tries + 1, last = excluded.last, egress = excluded.egress",
-                (host, 1 if open else 0, why.strip()[:200], now(), now(), egress),
+                (host, 1 if open else 0, why.strip()[:200], now(), now(), egress[:16]),
             )
-
-    def egress_of(self, host: str) -> str:
-        """Which door last reached this host, or "" where nobody has knocked."""
-        row = self.db.execute(
-            "SELECT egress FROM reached WHERE host = ?", (host.strip().lower()[:200],)
-        ).fetchone()
-        return str(row["egress"]) if row else ""
 
     def closed(self, days: int = 30, limit: int = 12) -> list[str]:
         """Hosts whose last knock was refused, most recently first.
