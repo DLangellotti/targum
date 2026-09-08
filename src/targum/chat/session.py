@@ -352,6 +352,24 @@ def brought_note(brought: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _conversing_in(learning: set[str]) -> str:
+    """Which of a reader's languages the conversation is held in.
+
+    Hebrew wherever it is one of them, because that is what the chat is for: the contract
+    is Hebrew, the record is Hebrew, and the ledger it grades against is the reader's
+    Hebrew. Anything else is a fallback for a reader who is not learning Hebrew at all.
+
+    This was `sorted(...)[0]`, which is alphabetical and therefore arbitrary. Since the
+    scripture path learned to read Daniel and Ezra, a reader who opens either is learning
+    `arc` as well as `he` — and `arc` sorts first. Their conversations were held in
+    Aramaic: banded against a frequency table that does not exist, which raised inside the
+    worker rather than being answered (targum-internal#228).
+    """
+    if not learning:
+        return "he"
+    return "he" if "he" in learning else sorted(learning)[0]
+
+
 class Chats:
     """The workers that answer turns, and the feeds their answers stream through."""
 
@@ -420,7 +438,7 @@ class Chats:
 
         store = self.store
         person_id = person.id if person else None
-        language = next(iter(sorted(store.learning(person_id))), "he") if person_id else "he"
+        language = _conversing_in(store.learning(person_id)) if person_id else "he"
         # The same sets `Handler._reads` and `_learning` compute: everything where there
         # is nobody to ask, the account's own answer where there is.
         into = {code for code, _ in INTO}
@@ -452,8 +470,46 @@ class Chats:
             asked = self.queue.get()
             try:
                 self.answer(asked)
+            except Exception as error:  # noqa: BLE001 - a worker outlives the turn it lost
+                # `answer` guards the model call and nothing before it, so anything the
+                # ledger block raises arrives here — and here used to be nowhere. The
+                # thread died, the turn stayed `working` for ever with no error against
+                # it, and the reader watched three dots that were never going to stop.
+                # Worse, the pool is four threads: four such turns and the chat is gone
+                # for everybody until the service restarts. That is what a conversation
+                # in Aramaic did on 2026-09-08 (targum-internal#228).
+                self._collapsed(asked, error)
             finally:
                 self.queue.task_done()
+
+    def _collapsed(self, asked: Asked, error: Exception) -> None:
+        """A turn that failed where `answer` was not watching.
+
+        Says the same sentence to the reader that `answer` says, marks the turn failed so
+        the page stops waiting, and writes the traceback where the operator will find it.
+        Every step is guarded: this runs because something already went wrong, and a
+        handler that raises takes the worker with it after all.
+        """
+        traceback.print_exc()
+        said = "The conversation could not continue. Try again."
+        try:
+            if self.store is not None:
+                self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)
+        except Exception:  # noqa: BLE001 - the store is the thing that may be broken
+            pass
+        try:
+            if (incidents := getattr(self.library, "incidents", None)) is not None:
+                from .. import incidents as incidents_module
+
+                incidents_module.record(incidents, "chat:turn", error)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            if (feed := self.feeds.get((asked.chat_id, asked.n))) is not None:
+                feed.put("error", {"message": said, "detail": type(error).__name__})
+                feed.close()
+        except Exception:  # noqa: BLE001
+            pass
 
     # -- asking -----------------------------------------------------------------
 

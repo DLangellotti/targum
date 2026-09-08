@@ -249,6 +249,11 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
     job = library.jobs[quote["id"]]
     assert job.owner == person.id and job.home == home and job.options["to"] == "en"
     assert job.kind == "build", "a quoted job is a build the strip will follow"
+    assert job.options.get("words"), (
+        "a text built from the chat has words a reader can tap. Without this the build "
+        "writes no annotation.json, the reader has no marks and no control over them, "
+        "and nothing says so: the job reports done"
+    )
     assert store.committed(0) == 0.0, "nothing was claimed"
     assert not [tool for tool in tools.REGISTRY if tool.spends or tool.needs_consent]
 
@@ -701,3 +706,20 @@ def test_the_door_is_still_knocked_on_for_a_reader_who_brings_the_link(
     door = _door(monkeypatch)
     tools._describe(ctx, {"url": "https://shut.example/an-article"})
     assert "https://shut.example/an-article" in door.asked, "knocked anyway"
+
+
+def test_every_door_the_chat_builds_through_asks_for_words() -> None:
+    """The two doors are `quote_build` and `quote_conversation`, and both had forgotten.
+
+    Pinned on the constant rather than on either call site, so a third door that spreads
+    `BUILD_OPTIONS` gets it, and one that writes its own literal is the thing this cannot
+    catch — which is why the constant exists.
+
+    `serve._prepare` reads `difficulty=bool(options.get("words"))` and `Pipeline.annotate`
+    returns None without it, so a missing key is a reader with no tappable word and no
+    error anywhere.
+    """
+    assert tools.BUILD_OPTIONS == {"words": True}
+    assert "gloss" not in tools.BUILD_OPTIONS, (
+        "half a build's cost, mostly unread; a word is bought from the card instead"
+    )
