@@ -2369,6 +2369,41 @@ def test_a_catalogue_cover_is_still_shared(tmp_path: Path) -> None:
         assert not OWNED.match(entry.id), f"{entry.id} reads as somebody's upload"
 
 
+def test_a_door_spelled_with_the_wrong_final_letter_still_opens(
+    served: tuple[int, str, Path],
+) -> None:
+    """The model is told to copy a reader's path exactly and wrote בסטארטאף for the
+    folder בסטארטאפ, and the door answered "not found" (2026-09-08). A name that differs
+    only in its final letters is sent on to the folder it meant, query and all, so the
+    page's relative addresses still resolve; a name that differs otherwise is still 404."""
+    from urllib.parse import quote
+
+    port, key, out = served
+    real = out / "local" / "כלי-בסטארטאפ-שלו,-ועכשיו-he" / "reader"
+    real.mkdir(parents=True)
+    (real / "index.html").write_text("<p>here</p>", encoding="utf-8")
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Location") or ""
+        finally:
+            connection.close()
+
+    wrong = quote("כלי-בסטארטאף-שלו,-ועכשיו-he")
+    status, _, where = fetch(f"/reader/{wrong}/reader/index.html?k={key}")
+    assert status == 302
+    assert where == f"/reader/{quote('כלי-בסטארטאפ-שלו,-ועכשיו-he')}/reader/index.html?k={key}"
+    status, body, _ = fetch(where)
+    assert status == 200 and body == b"<p>here</p>"
+    status, _, where = fetch(f"/reader/{quote('כלי-בסטארטאפ-שלה-he')}/reader/index.html?k={key}")
+    assert status == 404 and not where, "a different word is not a spelling"
+    status, _, _ = fetch(f"/reader/{wrong}?k={key}")
+    assert status == 404, "a folder with nothing under it is not a door"
+
+
 def test_one_readers_cover_is_not_served_to_another(served: tuple[int, str, Path]) -> None:
     """The route puts the asker's own home on the name. Asking for a name that already
     carries one is asking for a file by somebody else's key, and `thumbs/` being one
