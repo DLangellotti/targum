@@ -1,0 +1,16 @@
+[
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "word_exact", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.87, "why": "0.8900 on 2026-09-07; the menaked is the production pointer since targum#117"},
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "letter_vowel", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.96, "why": "0.9692 on 2026-09-07"},
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "letter_dagesh", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.98, "why": "0.9899 on 2026-09-07"},
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "shin_dot", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.98, "why": "0.9975 on 2026-09-07, 0.9918 before the walk"},
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "qamats_qatan_recall", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.75, "why": "0.7895 on 2026-09-07; Nakdimon reads 0.0 here, which is the reason for the swap"},
+  {"stage": "vocalize", "corpus": "dicta-modern", "metric": "skeleton_kept", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.99, "why": "1.0 on 2026-09-07; a letter changed is a bug, not a score"},
+  {"stage": "vocalize", "corpus": "ben-yehuda", "metric": "word_exact", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.68, "why": "0.7004 on 2026-09-07"},
+  {"stage": "vocalize", "corpus": "ben-yehuda", "metric": "letter_vowel", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.89, "why": "0.9056 on 2026-09-07"},
+  {"stage": "vocalize", "corpus": "ben-yehuda", "metric": "skeleton_kept", "system": "dicta-il/dictabert-large-char-menaked", "at_least": 0.99, "why": "1.0 on 2026-09-07 with the walk; 0.904 without it, which is what the walk fixed"},
+  {"stage": "recast", "corpus": "tatoeba", "metric": "judge_ok_share", "system": "chat", "at_least": 0.35, "why": "0.41 to 0.73 on 2026-09-07 across exemplars off and on; a floor for a collapse, not a ranking"},
+  {"stage": "recast", "corpus": "tatoeba", "metric": "lemma_overlap", "system": "chat", "at_least": 0.45, "why": "0.525 to 0.5635 on 2026-09-07"},
+  {"stage": "recast", "corpus": "tatoeba", "metric": "unpaired", "system": "chat", "at_most": 5, "why": "0 or 1 of 200 on 2026-09-07; a count, not a rate"},
+  {"stage": "grading", "corpus": "", "metric": "outside_share", "system": "chat", "at_most": 0.25, "why": "0.1844 to 0.2124 on 2026-09-07"},
+  {"stage": "grading", "corpus": "", "metric": "unpaired_lines", "system": "chat", "at_most": 5, "why": "0 or 1 on 2026-09-07; a count, not a rate"}
+]

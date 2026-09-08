@@ -18,3 +18,19 @@ The stages, and what writes them:
 
 Every chat eval spends model calls and caches nothing: the question is what the model does
 today. Load the key first (`set -a && . ./.env && set +a`).
+
+## Floors
+
+`floors.json` is where each measurement may not fall below — or, for a count of
+failures, rise above — for the system the shelf actually runs. One line per floor:
+the key, the system as a prefix, `at_least` or `at_most`, and a `why` that names the
+number it was set from. `tests/test_evals.py` checks the committed ledger against it,
+so a PR that records a worse score fails CI until the floor is moved in the same PR,
+where a reviewer sees it; `targum evals --check` is the same check by hand
+(targum-internal#163, criterion 5).
+
+Floors are for a collapse, not a ranking: they sit a little under the number the
+production system last scored, and a comparison run of some other system is a
+measurement rather than a breach, which is why each names its system. A stage nobody
+has run yet has no floor, and gets one with its first real row.
+

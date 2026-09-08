@@ -38,6 +38,11 @@ from typing import Any
 #: In the repository, beside the code that produced the numbers.
 DEFAULT = Path("evals/ledger.jsonl")
 
+#: Where a score may not fall below, or rise above, before a PR fails. One file, beside
+#: the ledger, so that accepting a worse number is an edit a reviewer sees rather than a
+#: threshold argued with somewhere else (targum-internal#163, criterion 5).
+FLOORS = Path("evals/floors.json")
+
 #: The stages #163 names, and the chat's two (`grading`, #213; `recast`, #219). Not an
 #: enum: a stage nobody has written yet should be recordable the day somebody does,
 #: without this file being the thing in the way.
@@ -138,6 +143,85 @@ def moved(rows: Sequence[Row], key: tuple[str, str, str]) -> tuple[Row, Row] | N
         if (row.system, row.version) != (last.system, last.version):
             return (row, last)
     return None
+
+
+@dataclasses.dataclass(frozen=True)
+class Floor:
+    """One line a measurement may not cross, for one system.
+
+    Named for the system because the ledger holds every system ever measured against a
+    key — the one the shelf runs and the ones it was compared with — and a comparison run
+    of a worse system is a measurement, not a regression. `system` is a prefix, so a
+    name that carries a revision after it still matches. One of `at_least` and `at_most`
+    is set: a rate wants a floor, a count of failures wants a ceiling.
+    """
+
+    stage: str
+    corpus: str
+    metric: str
+    system: str
+    at_least: float | None = None
+    at_most: float | None = None
+    why: str = ""
+
+    def key(self) -> tuple[str, str, str]:
+        return (self.stage, self.corpus, self.metric)
+
+    def holds(self, score: float) -> bool:
+        if self.at_least is not None and score < self.at_least:
+            return False
+        return not (self.at_most is not None and score > self.at_most)
+
+    def line(self) -> str:
+        if self.at_least is not None:
+            return f"at least {self.at_least}"
+        return f"at most {self.at_most}"
+
+
+@dataclasses.dataclass(frozen=True)
+class Breach:
+    floor: Floor
+    row: Row
+
+    def __str__(self) -> str:
+        return (
+            f"{self.row.stage} {self.row.metric} on {self.row.corpus or '-'}: "
+            f"{self.row.system} scored {self.row.score} on {self.row.at}, "
+            f"wanted {self.floor.line()}"
+        )
+
+
+def floors(path: Path = FLOORS) -> list[Floor]:
+    """Every floor in the file. No file, no floors — and no gate, which is said in the
+    table rather than hidden."""
+    if not path.exists():
+        return []
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    out: list[Floor] = []
+    for raw in loaded:
+        one = Floor(**raw)
+        if (one.at_least is None) == (one.at_most is None):
+            raise ValueError(f"a floor sets exactly one of at_least and at_most: {raw}")
+        out.append(one)
+    return out
+
+
+def breaches(rows: Sequence[Row], limits: Sequence[Floor]) -> list[Breach]:
+    """Every floor the ledger's newest matching row crosses.
+
+    Newest by position, among the rows of the floor's key whose system starts with the
+    floor's. A floor with no row yet is not a breach: nothing has been measured, and a
+    gate that failed on a stage nobody has run would be a gate everybody learns to
+    ignore. It is the table's job to say that the floor is waiting.
+    """
+    found: list[Breach] = []
+    for floor in limits:
+        matching = [
+            row for row in rows if row.key() == floor.key() and row.system.startswith(floor.system)
+        ]
+        if matching and not floor.holds(matching[-1].score):
+            found.append(Breach(floor, matching[-1]))
+    return found
 
 
 def rows_from_scorecard(
