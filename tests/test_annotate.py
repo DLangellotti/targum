@@ -9,10 +9,17 @@ import pytest
 
 from targum.annotate import BAND_COUNT, BAND_NAMES, Annotator
 from targum.annotate.frequency import CUTS, FrequencyBands
-from targum.annotate.gloss import build_glossary, entries_for, estimate, gloss_one, unique_lemmas
+from targum.annotate.gloss import (
+    build_glossary,
+    entries_for,
+    estimate,
+    filed_as,
+    gloss_one,
+    unique_lemmas,
+)
 from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
-from targum.models import Annotation, Segment, SegmentedDocument, Token
+from targum.models import VERB_MARK, Annotation, Segment, SegmentedDocument, Token
 
 
 class FakeLemmatizer:
@@ -384,6 +391,52 @@ def test_a_word_is_glossed_in_the_sentence_it_was_met_in() -> None:
         "form: עם\nin: וַיֵּצֵא עִם הָעָם\n\nform: בית"
     )
     assert entries_for(["בית"]) == "form: בית"
+
+
+def test_a_verb_is_filed_apart_from_the_noun_spelled_like_it() -> None:
+    """DICTA names the verb לשנות by its participle משנה, which is also the noun מִשְׁנָה,
+    and one key held one meaning for both: the card on מְשַׁנּוֹת, "are changing", read
+    "doctrine; teachings" (2026-09-08). A verb is filed with its part of speech after the
+    lemma; the noun keeps the bare lemma; a pointed headword still wins; and a token
+    from before parts of speech were recorded is untouched, because nothing says."""
+    verb = Token(start=0, end=5, surface="משנות", lemma="משנה", band=2, pos="VERB")
+    noun = Token(start=0, end=4, surface="משנה", lemma="משנה", band=2, pos="NOUN")
+    assert verb.glossed_as == "משנה" + VERB_MARK == "משנה (verb)"
+    assert noun.glossed_as == "משנה"
+    assert verb.lemma == noun.lemma, "the lemma is still the word's identity"
+    assert (verb.head, noun.head) == ("משנה (verb)", "")
+    pointed = Token(start=0, end=3, surface="אלה", lemma="אלה", band=1, pos="VERB", headword="אָלָה")
+    assert pointed.glossed_as == "אָלָה" and pointed.head == "אָלָה"
+    untagged = Token(start=0, end=4, surface="כתב", lemma="כתב", band=1)
+    assert untagged.glossed_as == "כתב" and untagged.head == ""
+
+    # The build buys the verb and the noun as two forms, and the form goes to the model
+    # with its mark on, which is what tells it which word to gloss.
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="n",
+        tokens={"s": [verb, noun]},
+    )
+    assert sorted(unique_lemmas(annotation)) == ["משנה", "משנה (verb)"]
+    assert entries_for(["משנה (verb)"], {"משנה (verb)": "הן משנות את הדרך"}) == (
+        "form: משנה (verb)\nin: הן משנות את הדרך"
+    )
+
+
+def test_an_answer_that_dropped_the_verb_mark_still_lands_on_the_verb() -> None:
+    """The one instruction the model drops most is "return the form exactly": asked for
+    משנה (verb) it may answer משנה. That answer is the verb's — unless the same batch
+    asked for the bare noun too, in which case the bare answer is the noun's and the
+    verb waits for an answer that kept its mark."""
+    assert filed_as(["משנה (verb)", "בית"]) == {
+        "משנה (verb)": "משנה (verb)",
+        "בית": "בית",
+        "משנה": "משנה (verb)",
+    }
+    assert filed_as(["משנה (verb)", "משנה"]) == {"משנה (verb)": "משנה (verb)", "משנה": "משנה"}
 
 
 def test_looking_one_word_up_carries_its_sentence_and_is_free_the_second_time(

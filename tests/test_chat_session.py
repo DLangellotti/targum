@@ -738,6 +738,28 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     )
 
 
+def test_a_card_s_meaning_is_in_the_note_so_the_model_can_dispute_it() -> None:
+    """A reader wrote "the definition here is change, not teachings" under a card and
+    the model parsed the verb correctly without knowing what the card said
+    (2026-09-08). The note now carries the card's line, and says the model cannot
+    change it."""
+    framed = session_module.framed(
+        "I think the definition here is change, not teachings",
+        {
+            "document": "youtube-he",
+            "sentence": "המתחרות משנות את הדרך",
+            "surface": "משנות",
+            "lemma": "משנה",
+            "meaning": "doctrine; teachings",
+        },
+    )
+    assert "The card shows the meaning: doctrine; teachings." in framed
+    assert "you cannot change the card" in framed
+    assert framed.endswith("Their question:\nI think the definition here is change, not teachings")
+    bare = session_module.framed("?", {"surface": "משנות", "sentence": "s"})
+    assert "The card shows" not in bare
+
+
 def test_a_byte_the_model_could_not_write_never_reaches_the_reader(tmp_path: Path) -> None:
     """A byte-level tokenizer emits a byte that is not a character and the API hands it
     back as U+FFFD. It happened in pointed Hebrew on 2026-09-07 — מָסָךְ שֶ�ל, the shin

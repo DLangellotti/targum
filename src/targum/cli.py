@@ -1792,7 +1792,13 @@ def gloss_command(
 
 @app.command(name="correct")
 def correct_command(
-    lemma: Annotated[str, typer.Argument(help="The dictionary form the gloss is filed under.")],
+    lemma: Annotated[
+        str,
+        typer.Argument(
+            help="The dictionary form the gloss is filed under. A verb is filed with "
+            "(verb) after it: 'משנה (verb)' is the verb, 'משנה' the noun."
+        ),
+    ],
     meaning: Annotated[
         str | None, typer.Option("--meaning", help="What the word means. This stands for good.")
     ] = None,

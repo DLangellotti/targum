@@ -22,6 +22,11 @@ from .paths import write_atomic
 # 4: added Vocalization.
 SCHEMA_VERSION = 4
 
+#: What a verb's meaning is filed under, after its lemma: `משנה (verb)`. A key and a
+#: form both — it goes to the model as the form to gloss, so the model knows which word
+#: the spelling is — and never a display string: the card shows the lemma.
+VERB_MARK = " (verb)"
+
 # BCP-47 primary subtags written right to left.
 RTL_LANGUAGES = frozenset({"he", "iw", "ar", "fa", "ur", "yi", "ji", "arc", "dv", "ps", "sd", "ug"})
 
@@ -317,8 +322,31 @@ class Token(Artifact):
     @property
     def glossed_as(self) -> str:
         """The form a meaning is bought and filed under: the headword where two words
-        share a spelling, the lemma everywhere else."""
-        return self.headword or self.lemma
+        share a spelling, the lemma with `VERB_MARK` on a verb, the lemma everywhere else.
+
+        The mark, since 2026-09-08. DICTA names many verbs by their present participle,
+        and in modern Hebrew a participle is a noun as often as not: מְשַׁנּוֹת, "are
+        changing", was filed under משנה, which is also מִשְׁנָה, and the card on the verb
+        read "doctrine; teachings" with the noun's plural beside the verb's grammar line.
+        Nothing pointed tells the two apart off the Tanakh, so the part of speech does —
+        for every verb rather than the participle-shaped ones alone (decided 2026-09-08:
+        one rule, no heuristic about which spellings collide). The lemma stays the word's
+        identity for marks and bands, exactly as under a pointed headword; only where
+        the meaning is filed moves. Computed rather than stored so it reaches every
+        annotation already written without re-annotating a library.
+        """
+        if self.headword:
+            return self.headword
+        if self.pos == "VERB":
+            return self.lemma + VERB_MARK
+        return self.lemma
+
+    @property
+    def head(self) -> str:
+        """What the page carries beside the lemma so the meaning is looked up by the
+        word rather than the spelling; empty wherever `glossed_as` is the lemma."""
+        filed = self.glossed_as
+        return "" if filed == self.lemma else filed
 
 
 class Annotation(Artifact):

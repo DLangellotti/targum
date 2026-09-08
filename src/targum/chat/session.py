@@ -289,6 +289,15 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
         lines.append(word + ".")
     if about.get("sentence"):
         lines.append(f"The sentence: {about['sentence']}")
+    if about.get("meaning"):
+        # The card's own line, so a reader who disputes it is answered about it. The
+        # model cannot change it — a meaning is corrected by hand (`targum correct`) —
+        # and it is told so, so it neither promises to nor pretends it did.
+        lines.append(
+            f"The card shows the meaning: {about['meaning']}. If that is the wrong word "
+            "for this sentence, say so plainly; you cannot change the card, and the "
+            "reader can write their own meaning under it."
+        )
     lines.append("Their question:")
     lines.append(text)
     return "\n".join(lines)

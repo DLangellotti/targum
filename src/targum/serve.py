@@ -173,7 +173,17 @@ TRASHED = "trashed"
 # the code targum wrote will run.
 #: What a word's card may say about where the reader is, and how much of each. The
 #: sentence is the long one; the rest name things.
-ABOUT_FIELDS = {"document": 200, "section": 20, "sentence": 1000, "surface": 80, "lemma": 80}
+ABOUT_FIELDS = {
+    "document": 200,
+    "section": 20,
+    "sentence": 1000,
+    "surface": 80,
+    "lemma": 80,
+    # What the card says the word means. Without it the model answered a reader who
+    # said "the definition here is change, not teachings" with a correct parsing and no
+    # idea it was contradicting the card (2026-09-08).
+    "meaning": 200,
+}
 
 POLICY = (
     "default-src 'none'; "

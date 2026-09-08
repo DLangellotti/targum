@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from ..cache import Cache
 from ..errors import ProviderError, TargumError
-from ..models import Annotation, Glossary
+from ..models import VERB_MARK, Annotation, Glossary
 from ..translate.prompts import language_name
 from . import closed, oshb
 
@@ -104,6 +104,8 @@ For each {source} dictionary form you are given, return one short {target} gloss
 
 - Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
   reader met it in after `in:`. Gloss the form, and return it exactly as it was given.
+- A form may end in `(verb)`. It says which word a shared spelling is here: gloss the
+  verb, not a noun spelled the same, and return the form with `(verb)` still on it.
 - Two to six words. The most common sense first — or, where a sentence is given, the
   sense the form has there — and a second sense only when the word is genuinely
   ambiguous, separated by a semicolon. The gloss is kept for every text, not this one.
@@ -120,6 +122,18 @@ For each {source} dictionary form you are given, return one short {target} gloss
   what it does instead of a translation.
 - If a form is not a word of {source}, return it with an empty gloss rather than
   guessing."""
+
+
+def filed_as(batch: list[str]) -> dict[str, str]:
+    """What a returned form is filed under: itself, or — where the model was asked for
+    `משנה (verb)` and handed back `משנה`, the one instruction it drops most — the marked
+    form it was asked for. Only where that is unambiguous: a batch that asked for both
+    the verb and the bare noun keeps the bare answer for the noun."""
+    wanted = {form: form for form in batch}
+    for form in batch:
+        if form.endswith(VERB_MARK):
+            wanted.setdefault(form[: -len(VERB_MARK)], form)
+    return wanted
 
 
 def entries_for(lemmas: list[str], contexts: Mapping[str, str] | None = None) -> str:
@@ -194,10 +208,11 @@ class AnthropicGlosses:
             )
             parsed: Any = response.parsed_output
             if isinstance(parsed, _Batch):
-                wanted = set(batch)
+                wanted = filed_as(batch)
                 for entry in parsed.entries:
-                    if entry.lemma in wanted and entry.gloss.strip():
-                        out[entry.lemma] = Sense(
+                    asked = wanted.get(entry.lemma.strip())
+                    if asked and entry.gloss.strip():
+                        out[asked] = Sense(
                             entry.gloss.strip(),
                             entry.part_of_speech.strip(),
                             entry.citation.strip(),

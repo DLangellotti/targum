@@ -4475,6 +4475,32 @@ def test_two_words_with_one_spelling_are_two_rows_with_one_lemma(tmp_path: Path)
     plain = annotation_with([Token(start=0, end=3, surface="בית", lemma="בית", band=1)])
     assert "heads" not in data_of(plain, glossary)
 
+    # Off the Tanakh nothing is pointed, and the part of speech does the same work: the
+    # verb משנה and the noun משנה are two rows, the verb's meaning looked up under its
+    # marked form and the noun's under the bare one (2026-09-08).
+    modern = annotation_with(
+        [
+            Token(start=0, end=3, surface="משנות", lemma="משנה", band=2, pos="VERB"),
+            Token(start=4, end=7, surface="משנה", lemma="משנה", band=2, pos="NOUN"),
+            Token(start=8, end=11, surface="משנים", lemma="משנה", band=2, pos="VERB"),
+        ]
+    )
+    both = Glossary(
+        source_language="he",
+        target_language="en",
+        provider="p",
+        entries={"משנה (verb)": "to change", "משנה": "Mishnah; doctrine"},
+        citations={"משנה (verb)": "לְשַׁנּוֹת"},
+        plurals={"משנה": "משניות"},
+    )
+    data = data_of(modern, both)
+    assert data["lemmas"] == ["משנה", "משנה"]
+    assert data["heads"] == ["משנה (verb)", ""]
+    assert data["glosses"]["en"] == ["to change", "Mishnah; doctrine"]
+    assert data["citations"] == ["לְשַׁנּוֹת", ""] and data["plurals"] == ["", "משניות"]
+    rows = data["words"][segments[0].id]
+    assert [row[4] for row in rows] == [0, 1, 0], "both verb forms are the one verb row"
+
 
 def test_a_word_after_an_emoji_is_marked_where_the_browser_counts(tmp_path: Path) -> None:
     """The reader slices the sentence in JavaScript, which counts a calendar glyph as

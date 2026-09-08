@@ -1921,9 +1921,10 @@ def render(
         # row each, because a row has one meaning and they have two. The lemma is
         # repeated on both — it is what the reader's marks are filed under, and a mark
         # on one is a mark on the other — and the pointed headword rides beside it in
-        # `heads`, which is what the meaning is looked up by. Empty on every row of
-        # every word that has the spelling to itself, and the table is left out where
-        # no row on the page needs it.
+        # `heads`, which is what the meaning is looked up by. A verb rides there too,
+        # marked as one (`Token.head`): משנה the verb and משנה the noun are two rows.
+        # Empty on every row of every word that has the spelling to itself, and the
+        # table is left out where no row on the page needs it.
         lemma_at: dict[tuple[str, str], int] = {}
         heads: list[str] = []
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
@@ -1960,11 +1961,11 @@ def render(
                     continue
                 rows: list[list[int]] = []
                 for token in tokens:
-                    word = (token.lemma, token.headword or "")
+                    word = (token.lemma, token.head)
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
-                        heads.append(token.headword or "")
+                        heads.append(token.head)
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
                         registers.append(token.word_register or "")

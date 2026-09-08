@@ -400,6 +400,7 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
                 "sentence": "s" * 2000,
                 "surface": "וַיִּלְחֲצוּ",
                 "lemma": "לחץ",
+                "meaning": "press; oppress" + "m" * 300,
                 "colour": "not a field",
             },
         },
@@ -409,6 +410,8 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
     assert turn["said"] == "why this form?"
     assert "judges-he" in turn["content"] and "not a field" not in turn["content"]
     assert "s" * 1000 in turn["content"] and "s" * 1001 not in turn["content"], "capped"
+    assert "The card shows the meaning: press; oppress" in turn["content"]
+    assert "m" * 300 not in turn["content"], "capped too"
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "find"
 
