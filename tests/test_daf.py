@@ -241,3 +241,32 @@ def test_the_registry_reaches_all_three_by_name(monkeypatch: pytest.MonkeyPatch)
     assert load("sefaria:Tosafot on Berakhot").title.startswith("תוספות")
     with pytest.raises(TargumError, match="No tractate"):
         load("sefaria:daf:")
+
+
+def test_a_commentary_on_the_tanakh_is_not_a_commentary_on_a_daf() -> None:
+    """Rashi wrote on the Chumash too, and `<Who> on <Name>` claimed that as well.
+
+    It sent `Rashi on Genesis` here, where the pinned edition is the Vilna — which
+    exists for tractates and not for the Chumash — and the reader was told "Sefaria has
+    no 'Vilna Edition' of Rashi on Genesis". True, and about the wrong thing: what is
+    missing is a reader for a commentary numbered by chapter and verse, where a verse
+    carries several comments (targum-internal#200).
+    """
+    assert daf.commentary_of("Rashi on Berakhot") == ("Rashi", "Berakhot")
+    assert daf.commentary_of("Tosafot on Bava Metzia") == ("Tosafot", "Bava Metzia")
+    for book in ("Genesis", "Song of Songs", "Isaiah"):
+        assert daf.commentary_of(f"Rashi on {book}") is None, book
+
+
+def test_a_commentary_on_the_tanakh_is_refused_in_its_own_words(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """And not for a missing edition of a book that has several."""
+
+    def never(url: str) -> str:
+        raise AssertionError(f"asked Sefaria about a commentary it cannot read: {url}")
+
+    monkeypatch.setattr(sefaria, "get", never)
+    with pytest.raises(TargumError, match="does not read Rashi on the Tanakh yet") as refused:
+        sefaria.SefariaFetcher().load("Rashi on Genesis")
+    assert "Rashi on Berakhot" in (refused.value.hint or ""), "it says what it does read"

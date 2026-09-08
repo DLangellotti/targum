@@ -75,11 +75,26 @@ _DAF = re.compile(r"^(?P<number>\d+)(?P<side>[ab])$")
 
 
 def commentary_of(ref: str) -> tuple[str, str] | None:
-    """`Rashi on Berakhot` -> ("Rashi", "Berakhot"), for the commentators this reads."""
+    """`Rashi on Berakhot` -> ("Rashi", "Berakhot"), for the commentators this reads.
+
+    A tractate, and not merely anything with a name. Rashi wrote on the Torah as well,
+    and this pattern claimed that too: `Rashi on Genesis` came here, asked Sefaria for
+    the Vilna edition — which exists for tractates and not for the Chumash — and was
+    refused with "Sefaria has no 'Vilna Edition' of Rashi on Genesis". True, and about
+    the wrong thing. What targum lacks there is a reader for a commentary numbered by
+    chapter and verse (targum-internal#200), not an edition, and `sefaria.py` says so
+    now that this declines it.
+    """
     match = _COMMENTARY.match(ref.strip())
     if not match or match.group("who") not in COMMENTARIES:
         return None
-    return match.group("who"), match.group("tractate").strip()
+    subject = match.group("tractate").strip()
+    # Imported here rather than at the top: `sefaria.py` reads this module.
+    from .sefaria import ENGLISH
+
+    if subject in ENGLISH:
+        return None
+    return match.group("who"), subject
 
 
 def daf_index(daf: str) -> int:

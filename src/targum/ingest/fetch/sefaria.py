@@ -64,6 +64,10 @@ from ..url import get
 
 API = "https://www.sefaria.org/api/v3/texts/{ref}?version={version}"
 
+#: `Rashi on Genesis` and its cousins, for the one thing this file does with them: say
+#: plainly that it cannot read one, rather than refuse it for a missing edition.
+_COMMENTARY_REF = re.compile(r"^(?P<who>[A-Z][A-Za-z]+) on (?P<book>[A-Z][A-Za-z ]+?)\s*$")
+
 DEFAULT_LANGUAGE = "he"
 
 # What may be served commercially, with attribution where the licence asks for it.
@@ -664,4 +668,17 @@ class SefariaFetcher:
             found = daf_module.load(ref)
             if found is not None:
                 return found
+            # A commentary the daf module declined: Rashi on the Chumash rather than on
+            # a tractate. Refused here in its own words, because everything below reads
+            # chapters of verses and a commentary is three deep — a verse carries
+            # several comments — so it would otherwise be turned away for a missing
+            # edition of a book that has one (targum-internal#200).
+            commentary = _COMMENTARY_REF.match(ref.strip())
+            if commentary is not None:
+                raise TargumError(
+                    f"targum does not read {commentary.group('who')} on the Tanakh yet.",
+                    "Commentaries on the Talmud it does read: try "
+                    "'sefaria:Rashi on Berakhot'. On a book of the Tanakh a commentary "
+                    "is a comment or several on each verse, which needs its own reader.",
+                )
         return document_from_payload(_payload(ref, language), ref, language)
