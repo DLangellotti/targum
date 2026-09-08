@@ -282,9 +282,17 @@ Hugging Face token because the dataset is gated, and the recast is scored agains
 a developer's machine. Its whole contribution to the corpus is a row in
 `evals/ledger.jsonl` with `corpus=flores-plus`.
 
-If that ever stops being true — if a sentence of it reaches a prompt the way Tatoeba's
-do, or a page — the ShareAlike term reaches whatever it touched and this paragraph is
-wrong. It is written down here so that would have to be a decision rather than a drift.
+**NTREX-128** (`MicrosoftTranslator/NTREX`, Microsoft Translator) stands beside it on
+the same terms: the WMT 2019 news test set, 1,997 English sentences with a professional
+Hebrew rendering each, CC BY-SA 4.0, fetched by `targum models fetch ntrex` to the same
+directory and used for the same one thing, as `corpus=ntrex-128`. Two references in two
+registers keep the recast number from being one corpus's house style
+(targum-internal#222).
+
+If that ever stops being true of either — if a sentence reaches a prompt the way
+Tatoeba's do, or a page — the ShareAlike term reaches whatever it touched and this
+paragraph is wrong. It is written down here so that would have to be a decision rather
+than a drift.
 
 ### HeQ, which the chat's answers about a text are scored against
 

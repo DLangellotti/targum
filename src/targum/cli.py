@@ -2537,8 +2537,9 @@ def models_fetch(
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
     their own, 'gold' for the treebanks the annotator is scored against, 'flores' for
-    the FLORES+ sentences the chat's recast is scored against, or 'heq' for the questions
-    its answers about a text are scored against."""
+    the FLORES+ sentences the chat's recast is scored against, 'ntrex' for the news
+    sentences beside them, or 'heq' for the questions its answers about a text are
+    scored against."""
     from .align import embedding
 
     if language in {"menaked", "nikkud", "vowels", "pointing"}:
@@ -2595,6 +2596,23 @@ def models_fetch(
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {got} files · {flores.CREDIT} · {flores.LICENCE}")
+        return
+
+    if language in {"ntrex", "ntrex-128"}:
+        from .chat import ntrex
+
+        if ntrex.available():
+            console.print("[dim]NTREX-128 is already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching NTREX-128, {ntrex.LICENCE}. For scoring the chat's recast only: "
+            f"nothing here is trained on or shipped.[/dim]"
+        )
+        try:
+            got = ntrex.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(f"[green]Downloaded[/green] {got} files · {ntrex.CREDIT} · {ntrex.LICENCE}")
         return
 
     if language in {"heq", "questions"}:
