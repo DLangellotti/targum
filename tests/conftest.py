@@ -13,6 +13,14 @@ import pytest
 # at the top of conftest, because a fixture would be too late for a module-level import.
 os.environ["TARGUM_CATALOGUE"] = str(Path(__file__).parent / "fixtures" / "catalogue.json")
 
+# Weights already on disk are used without asking Hugging Face whether they are still
+# current. `needs_dicta_model` has already decided the model must be local, and without
+# this the loader revalidates its cache over the network on every run: five tests
+# contacting a CDN nobody meant to depend on, and 78 seconds of `test_weekly_verify`
+# against 7 (targum-internal#229). Here for the same reason as the line above —
+# `huggingface_hub` reads it when it is imported, and a fixture is too late.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+
 from targum.models import Block, BlockKind, Document, SegmentedDocument, Translation
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -182,13 +190,67 @@ def weekly_root(monkeypatch: pytest.MonkeyPatch) -> Path:
     return root
 
 
+#: Where a test may still connect. The suite starts real HTTP servers and talks to them,
+#: which is the point of several files; everything else is somebody else's machine.
+LOOPBACK = frozenset({"127.0.0.1", "::1", "localhost", ""})
+
+
 @pytest.fixture(autouse=True)
-def offline(request: pytest.FixtureRequest) -> None:
-    """The suite stays offline and free unless TARGUM_NETWORK_TESTS is set."""
+def offline(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The suite stays offline and free unless TARGUM_NETWORK_TESTS is set.
+
+    This used to be a promise rather than a rule: it skipped the two tests carrying the
+    `network` marker and trusted every other test not to reach out. On 2026-09-08 that
+    trust turned out to have lapsed. When the fetch door stopped being httpx's, three
+    tests in `test_ssrf.py` went on patching `httpx.Client.stream`, intercepted nothing,
+    and made real requests to example.com — so the checks standing between a reader's
+    pasted link and a hosted box's metadata endpoint had quietly stopped running, and
+    the suite was green (targum-internal#229).
+
+    So the promise is enforced. An outbound connection to anything but loopback fails
+    with a sentence saying what happened, and so does a knock on the real fetch door,
+    which does its connecting inside libcurl where a socket patch cannot see it. A test
+    that means to reach the network says so with the marker.
+    """
     import os
 
-    if request.node.get_closest_marker("network") and not os.environ.get("TARGUM_NETWORK_TESTS"):
-        pytest.skip("set TARGUM_NETWORK_TESTS=1 to run tests that reach the network")
+    if request.node.get_closest_marker("network"):
+        if not os.environ.get("TARGUM_NETWORK_TESTS"):
+            pytest.skip("set TARGUM_NETWORK_TESTS=1 to run tests that reach the network")
+        return
+
+    connect = socket.socket.connect
+
+    def refuse(self: socket.socket, address: object) -> None:
+        host = address[0] if isinstance(address, tuple) else None
+        if self.family == getattr(socket, "AF_UNIX", -1) or str(host) in LOOPBACK:
+            connect(self, address)  # type: ignore[arg-type]
+            return
+        raise AssertionError(
+            f"This test opened a connection to {address!r}. The suite runs offline: fake "
+            "what the network would have said, or mark the test `network` if it really "
+            "has to go out."
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+
+    class Shut:
+        """The fetch door, built but not knocked on.
+
+        Built rather than refused outright because `ingest.url._open` makes its client
+        before it checks the address, so refusing construction would fail every test of
+        an address that is turned away before anything leaves.
+        """
+
+        def get(self, url: str, **kw: object) -> None:
+            raise AssertionError(
+                f"This test knocked on the real fetch door: {url}. Patch "
+                "`ingest.url._session` with a scripted client, as `test_url_door.py` does."
+            )
+
+    from targum.ingest import url as url_door
+
+    monkeypatch.setattr(url_door, "_session", lambda proxy="": Shut())
 
 
 @pytest.fixture
