@@ -111,9 +111,13 @@ def annotator() -> Annotator:
 
 
 class ReadsNothing:
-    """A lemmatizer that answers nothing for everything, which is what the scripture
-    path does to a wholly Aramaic text: it skips every block rather than hand Aramaic
-    to a Hebrew model, and skipping every block is a blank book."""
+    """A lemmatizer that answers nothing at all, which is what the scripture path does
+    to a wholly Aramaic text: it skips every block rather than hand Aramaic to a Hebrew
+    model, and skipping every block is a blank book.
+
+    Answering *nothing* and answering *no words* are different, and only this is the
+    first: a lemmatizer that returns a key per segment has read the text and found
+    nothing in it, which can be true of a real one."""
 
     name = "reads-nothing/1"
 
@@ -140,6 +144,23 @@ def test_a_text_with_no_words_in_it_at_all_is_not_refused() -> None:
     """The check asks whether anything was there to read, so a document of numerals and
     punctuation is not a failure — it is a document with nothing to tap, honestly."""
     Annotator(lemmatizer=ReadsNothing(), bands=FakeBands()).annotate(document(["1234", "— , ;"]))
+
+
+def test_a_lemmatizer_that_read_the_text_and_found_no_words_is_not_refused() -> None:
+    """The other half of the same line. `ScriptureLemmatizer` answers with nothing at
+    all for a text it cannot place; a model that answers with a key per segment and no
+    words in them has read it, and a text with nothing in it is a fact about the text."""
+
+    class FoundNothing(ReadsNothing):
+        name = "found-nothing/1"
+
+        def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+            return {segment.id: [] for segment in segments}
+
+    annotation = Annotator(lemmatizer=FoundNothing(), bands=FakeBands()).annotate(
+        document(["בראשית ברא"])
+    )
+    assert annotation.tokens == {}
 
 
 def test_one_unreadable_block_among_readable_ones_is_still_only_a_gap() -> None:

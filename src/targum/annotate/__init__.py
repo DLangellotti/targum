@@ -237,8 +237,17 @@ class Annotator:
         # come out blank with nothing saying why". This is the something that says why,
         # and it says it where the Stanza path already refuses a language it has no
         # models for, in that path's own words.
-        if not banded and any(
-            in_script(one.text, segmented.language) for one in segmented.segments
+        #
+        # Asked of `by_segment` rather than of the tokens, because the two say different
+        # things. A lemmatizer that answered — a key per segment, no words in them — read
+        # the text and found nothing in it, which is a fact about the text and can be
+        # true of a real one. A lemmatizer that answered *nothing at all* was never in a
+        # position to read it: every segment was skipped before it, or it skipped them
+        # itself. Only the second is this.
+        if (
+            not by_segment
+            and segmented.segments
+            and any(in_script(one.text, segmented.language) for one in segmented.segments)
         ):
             raise TargumError(
                 f"No word of this '{segmented.language}' text could be read.",
