@@ -159,6 +159,46 @@ def test_my_shelf_is_mine_and_the_shared_one(world) -> None:
     assert tools.search_my_shelf(ctx, {"query": "רות"})["count"] == 1
 
 
+def test_my_shelf_says_when_each_text_was_read(world) -> None:
+    """ "What was the last targum I read?" was answered "the list does not keep times"
+    (2026-09-08). The reader's sync had always written when a text was opened and
+    finished; the tool now hands them over, newest opened first."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    hashes = {row["name"]: row["document"] for row in library.readers(home)}
+    assert hashes["ruth-he"], "the fixture reader carries its document hash"
+    before = tools.search_my_shelf(ctx, {})
+    assert {row["last_opened"] for row in before["texts"]} == {""}, "nothing opened yet"
+    assert before["now"].endswith("+00:00")
+    store.push(
+        person,
+        {
+            "docs": [
+                {
+                    "hash": hashes["ruth-he"],
+                    "title": "Ruth",
+                    "language": "he",
+                    "updated": 1_788_000_000_000,
+                    "opened": 1_788_000_000_000,
+                    "done": 0,
+                    "seen": 1_788_000_000_000,
+                }
+            ],
+            "sections": [
+                {"hash": hashes["ruth-he"], "section": "2", "at": 1_788_001_000_000, "seen": 2}
+            ],
+        },
+    )
+    got = tools.search_my_shelf(ctx, {})
+    assert got["texts"][0]["name"] == "ruth-he", "the last one opened comes first"
+    ruth = got["texts"][0]
+    assert ruth["last_opened"] == "2026-08-29T10:40+00:00"
+    assert ruth["finished"] == "2026-08-29T10:56+00:00", "the last chapter finished"
+    assert isinstance(ruth["days_since_opened"], int) and ruth["days_since_opened"] >= 0
+    # (The fixture's two readers are built from one document and share its hash, so
+    # the never-opened case is the `before` assertion above, not Esther's row here.)
+
+
 def test_another_reader_sees_neither_my_shelf_nor_my_words(world) -> None:
     library, store, person, home = world
     other = signed_in(store, "other@example.com")

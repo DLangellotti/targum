@@ -27,6 +27,7 @@ import re
 import secrets
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, urlparse
@@ -271,12 +272,27 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _when(clock: int) -> str:
+    """A page's millisecond clock as a date and time the model can read and count from."""
+    return datetime.fromtimestamp(clock / 1000, tz=UTC).isoformat(timespec="minutes")
+
+
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
     language = str(args.get("language") or "")
     mine, shared = _shelf(ctx)
+    # When each text was last opened and finished, from the reader's own sync. The
+    # model answered "what was the last targum I read?" with "the list does not keep
+    # times" (2026-09-08) — the store always had, and the tool left them out. Newest
+    # opened first, so the answer to that question is the first row.
+    times = ctx.store.read_times(ctx.person.id) if ctx.store and ctx.person else {}
+    now = int(datetime.now(tz=UTC).timestamp() * 1000)
     rows = []
-    for row in [*mine, *shared]:
+    ordered = sorted(
+        [*mine, *shared],
+        key=lambda row: -times.get(str(row.get("document") or ""), {}).get("opened", 0),
+    )
+    for row in ordered:
         if language and str(row.get("language") or "") != language:
             continue
         text = " ".join(str(row.get(k) or "") for k in ("title", "author", "name")).lower()
@@ -296,9 +312,23 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "known_share": row.get("known"),
                 "words_not_met": row.get("fresh"),
                 "words": row.get("words", 0),
+                **_read_when(times.get(str(row.get("document") or "")), now),
             }
         )
-    return {"count": len(rows), "texts": rows}
+    return {"count": len(rows), "now": _when(now), "texts": rows}
+
+
+def _read_when(clocks: dict[str, int] | None, now: int) -> dict[str, Any]:
+    """`last_opened`, `days_since_opened` and `finished` for one row; a text never
+    opened on any device says so rather than dating itself."""
+    if not clocks or not clocks.get("opened"):
+        return {"last_opened": "", "days_since_opened": None, "finished": ""}
+    opened = clocks["opened"]
+    return {
+        "last_opened": _when(opened),
+        "days_since_opened": max(0, (now - opened) // 86_400_000),
+        "finished": _when(clocks["finished"]) if clocks.get("finished") else "",
+    }
 
 
 def my_vocabulary(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -888,8 +918,9 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "search_my_shelf",
-        "The reader's own built texts and the shared starter shelf, each with its link, "
-        "which languages it opens in, chapters ready, and how much of it they know.",
+        "The reader's own built texts and the shared starter shelf, newest opened first, "
+        "each with its link, which languages it opens in, chapters ready, how much of it "
+        "they know, when they last opened it and when they finished it.",
         _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
         search_my_shelf,
     ),
