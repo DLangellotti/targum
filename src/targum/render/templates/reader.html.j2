@@ -578,7 +578,11 @@
       `/library/<id>` is a different page — the public one, off unless the shelves are —
       and linking there gave a signed-in reader "not found". -#}
   <a class="next-up-link" href="/library#{{ suggested.id }}">{{ suggested.title }}{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
-  {% if suggested.blurb %}<span class="next-up-why">{{ suggested.blurb }}</span>{% endif %}
+  {#- Why this one, and how long it is. The blurb used to stand here, and a blurb says
+      what a text is rather than why it is next: an offer nobody explained is a curator's
+      opinion (targum-internal#176). The blurb is one tap away on the library row this
+      links to. -#}
+  {% if suggested.because %}<span class="next-up-why">{{ suggested.because }}{% if suggested.minutes %} · {{ suggested.minutes }} min{% endif %}</span>{% endif %}
 </aside>
 {% endif %}
 

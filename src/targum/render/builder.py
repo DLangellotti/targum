@@ -732,6 +732,13 @@ def next_after(document: Document) -> dict[str, str]:
     So: the next step up. The nearest text harder than this one, in the same Hebrew,
     because somebody who has just finished a dialogue is not looking for Psalms — and the
     shorter of two at the same difficulty, because the step should be one thing at a time.
+
+    **And why, in a sentence the page shows.** An unexplained offer is a curator's
+    opinion; an explained one is a fact about the catalogue, and the reader can disagree
+    with it (targum-internal#176). The reason is what this function actually did — which
+    pool it drew from, and whether anything was harder — rather than a phrase chosen to
+    sound helpful. It went out carrying the text's own blurb, which says what the text is
+    and not why it is next.
     """
     from ..catalogue import CATALOGUE, scene_number
 
@@ -751,6 +758,7 @@ def next_after(document: Document) -> dict[str, str]:
                 "blurb": following.blurb,
                 "minutes": str(following.minutes),
                 "scene": f"Scene {scene_number(following.id)}",
+                "because": "Next in the sequence.",
             }
     here = mine.difficulty if mine else 0
     rest = [
@@ -765,13 +773,24 @@ def next_after(document: Document) -> dict[str, str]:
     # Same register first. Falling back to any of them is better than offering nothing,
     # but a learner reading modern Hebrew should not be handed scripture by arithmetic.
     same = [entry for entry in rest if mine is not None and entry.register is mine.register]
+    pick = None
+    because = ""
     for pool in (same, rest):
         harder = [entry for entry in pool if entry.difficulty > here]
         if harder:
             pick = min(harder, key=lambda entry: (entry.difficulty, entry.words))
+            if mine is None:
+                # An upload, which the catalogue has never measured. It is not a step up
+                # from anything, and saying so would be a claim about a text nobody read.
+                because = "The easiest text on the shelf."
+            elif pool is same:
+                because = "A step up from this one."
+            else:
+                because = "A step up, in a different Hebrew."
             break
-    else:
+    if pick is None:
         pick = min(rest, key=lambda entry: (abs(entry.difficulty - here), entry.words))
+        because = "About as hard as this one."
     return {
         "id": pick.id,
         "title": pick.title,
@@ -779,6 +798,7 @@ def next_after(document: Document) -> dict[str, str]:
         "blurb": pick.blurb,
         "minutes": str(pick.minutes),
         "scene": "",
+        "because": because,
     }
 
 
