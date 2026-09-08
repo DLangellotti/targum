@@ -228,7 +228,45 @@ def is_mishnah(book: str) -> bool:
     return book.startswith("Mishnah ") or book == "Pirkei Avot"
 
 
+#: The two vocalized mussar works, both pinned in the same shape as the Mishneh Torah's
+#: sections: one row per unit a reader opens, both sides named, licences asserted per
+#: fetch like everything else here.
+#:
+#: **Mesillat Yesharim is one row** because Sefaria files its twenty-six chapters under
+#: the index's default node, so the work's own name addresses them. Its author's
+#: introduction is a node beside them and is a run of paragraphs rather than chapters, so
+#: it is not here: the shelf carries the book, not the front matter.
+#:
+#: **The Duties of the Heart is eight rows and has ten treatises.** The Second and the
+#: Third have no English in the Sebag translation at all — measured 2026-09-08, both
+#: sides asked treatise by treatise: eight pair exactly, chapter for chapter, and those
+#: two answer with an edition and nothing in it. A row for either would fail at build
+#: with a pairing error, so they wait for an English rather than pretending to have one.
+#: The author's introduction is the same shape as Mesillat Yesharim's and is left out for
+#: the same reason.
+MUSSAR: dict[str, Pair] = {
+    "Mesilat Yesharim": Pair(
+        "Sefaria Vocalized Edition", "Path of the Just. Trans. Rabbi Yosef Sebag"
+    ),
+    **{
+        f"Chovot HaLevavot, {treatise}": Pair(
+            "Vocalized Edition", "Duties of the Heart, trans. Rabbi Yosef Sebag"
+        )
+        for treatise in (
+            "First Treatise on Unity",
+            "Fourth Treatise on Trust",
+            "Fifth Treatise on Devotion",
+            "Sixth Treatise on Submission",
+            "Seventh Treatise on Repentance",
+            "Eighth Treatise on Examining the Soul",
+            "Ninth Treatise on Abstinence",
+            "Tenth Treatise on Devotion to God",
+        )
+    },
+}
+
 BEYOND_TANAKH: dict[str, Pair] = {
+    **MUSSAR,
     # The Kuzari's English is Hirschfeld's, and there is no Hebrew here on purpose:
     # Sefaria's Ibn Tibbon is Ben-Yehuda's and CC-BY-SA. The vocalized Zifroni text of the
     # same translation is on Hebrew Wikisource, so the Hebrew side is
@@ -487,6 +525,12 @@ def _payload(ref: str, language: str) -> dict[str, Any]:
             f"Sefaria sent something that is not JSON for {ref}.", str(error)
         ) from error
 
+    # Sefaria's own complaint about the reference, said in its words. Without this it
+    # arrives as "Sefaria has no '<edition>' of <ref>", which blames the edition for a
+    # reference the API never resolved — and the message it actually sends is the useful
+    # one: a complex work asked for whole answers "please pass a more specific ref".
+    if body.get("error"):
+        raise TargumError(f"Sefaria would not read {ref}.", str(body["error"]))
     editions = body.get("versions") or []
     if not editions:
         offered = [v.get("versionTitle", "") for v in (body.get("available_versions") or [])][:5]
@@ -503,11 +547,23 @@ def _payload(ref: str, language: str) -> dict[str, Any]:
             "Only public domain, CC0 and CC-BY editions go on the shelf.",
         )
     # Talmud and the commentaries are shaped differently, and a wrong shape here would
-    # produce headings over the wrong things rather than an error.
-    if body.get("isComplex") or body.get("textDepth") != 2:
+    # produce headings over the wrong things rather than an error. The depth of what came
+    # back is what decides that: two is chapters of verses, which is the only shape the
+    # rest of this file lays out.
+    #
+    # `isComplex` used to be refused beside it and is not, since 2026-09-08. It is a fact
+    # about the *index* a reference belongs to, not about the answer: a section of the
+    # Mishneh Torah is its own index and reads false, while a treatise of the Duties of
+    # the Heart is a node of one and reads true — and the two are the same shape, ten
+    # chapters of paragraphs. Refusing on it cost the two vocalized mussar works this
+    # shelf was told it could have, and cost them for a reason that was never about them
+    # (targum-internal#120). What it was guarding against is guarded still: a complex work
+    # asked for whole is refused by Sefaria itself, which answers "please pass a more
+    # specific ref" and is surfaced above.
+    if body.get("textDepth") != 2:
         raise TargumError(
             f"{ref} is not a plain chapters-and-verses text.",
-            "This reads Tanakh. Other shapes need their own handling.",
+            "This reads chapters of verses. Other shapes need their own handling.",
         )
     return {"edition": edition, "body": body, "licence": licence, "version": version}
 

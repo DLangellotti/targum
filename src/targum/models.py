@@ -57,6 +57,9 @@ def direction_for(language: str) -> str:
 #: And the Hebrew of a daf (targum-internal#193): the Mishnah in the daf's own edition,
 #: `sefaria:daf:<tractate>`, and the commentaries, `Rashi on <tractate>` and
 #: `Tosafot on <tractate>`. Rabbinic, not scripture, like the Mishnah above.
+#: And the two vocalized mussar works (targum-internal#120). Both spellings of each,
+#: because Sefaria answers to its English index title and to the transliterated one, and
+#: a work banded as scripture because it was typed the other way would be wrong quietly.
 BEYOND_SCRIPTURE = (
     "Mishneh Torah",
     "Mishnah",
@@ -65,6 +68,10 @@ BEYOND_SCRIPTURE = (
     "daf:",
     "Rashi on ",
     "Tosafot on ",
+    "Mesilat Yesharim",
+    "Mesillat Yesharim",
+    "Chovot HaLevavot",
+    "Duties of the Heart",
 )
 
 
