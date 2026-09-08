@@ -147,6 +147,10 @@ def test_quoting_writes_the_file_and_never_claims(world, monkeypatch: Any) -> No
     quote = got["quote"]
     job = library.jobs[quote["id"]]
     assert job.source.endswith(f"chats/{chat_id}.chat") and job.owner == person.id
+    assert job.options.get("words"), (
+        "a conversation read back is Hebrew the reader is learning from, so its words "
+        "are tappable — the door that most needed this was the one that lacked it"
+    )
     assert got["lines"] == 5 and got["dropped"] == 1 and "not in the record" in got["note"]
     assert store.chat_owned(person.id, chat_id)["saved"] == job.id  # type: ignore[index]
     assert store.committed(0) == 0.0

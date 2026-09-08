@@ -42,6 +42,29 @@ if TYPE_CHECKING:
     from ..serve import Library
 
 
+#: What every build the chat starts asks for, on top of where the text comes from and
+#: what it is translated into.
+#:
+#: `words` is the whole of it, and it was missing. `serve._prepare` reads
+#: `difficulty=bool(options.get("words"))` and `Pipeline.annotate` opens with
+#: `if not self.difficulty: return None` — so a build quoted here wrote no
+#: `annotation.json`, and the reader that came back had no word a reader could tap and no
+#: control to govern them. Silently: the job reported `done`, nothing was logged, and the
+#: page simply had no marks on it.
+#:
+#: The Add page has always sent it, and says why in a comment this borrows:
+#: "Being able to tap a word is most of what this is for, and a checkbox asking whether
+#: you want that is a question nobody should have to answer."
+#:
+#: A constant rather than a literal at each door because there are two — a link or a
+#: catalogue id through `quote_build`, and a conversation read back through
+#: `save_conversation` — and both had forgotten. A third would have too.
+#:
+#: `gloss` is deliberately not here. It is about half of what a build costs and most of
+#: it is never read; a word is bought from the card when somebody actually wants it.
+BUILD_OPTIONS: dict[str, Any] = {"words": True}
+
+
 @dataclass
 class Ctx:
     """Who is asking, and what the server knows about them."""
@@ -366,7 +389,7 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if wanted not in reads:
         return {"error": f"{language_name(wanted)} is not in the reader's profile."}
 
-    payload: dict[str, Any] = {"to": wanted}
+    payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted}
     catalogue_id = str(args.get("catalogue_id") or "").strip()
     source = str(args.get("source") or "").strip()
     if catalogue_id:
@@ -461,7 +484,7 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = Job(
         id=secrets.token_hex(8),
         source=str(path),
-        options={"to": "en", "from": "he"},
+        options={**BUILD_OPTIONS, "to": "en", "from": "he"},
         owner=ctx.person_id,
         admin=ctx.admin,
         home=ctx.home,
