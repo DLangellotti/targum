@@ -168,6 +168,16 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   systemd-run --quiet --unit=targum-deploy \
     --description="targum deploy: rebuild, seed, restart" \
     /bin/bash -euo pipefail -c '
+      # The weights the tree expects, before the rebuild that expects them. The menaked
+      # points modern Hebrew since targum#109, and a box without its 1.2 GB compares
+      # Nakdimon with Nakdimon and re-points nothing, quietly, so a deploy would report
+      # done with every modern reader still on the old pointing. Already downloaded is
+      # a one-line no-op; inside the unit, because the wheel it comes with was only
+      # installed above and the fetch is minutes the laptop need not hold a line for.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum models fetch menaked
+
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums
