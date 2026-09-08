@@ -732,3 +732,71 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     assert "sent a recording" in session_module.framed(
         "?", None, {"title": "t", "from": "recording"}
     )
+
+
+# --- a turn that fails where `answer` is not watching ---------------------------------
+
+
+def test_a_conversation_in_a_language_wordfreq_cannot_band_is_still_answered() -> None:
+    """Aramaic has no wordfreq list, and wordfreq raises rather than answering nothing.
+
+    `common_words` runs before `answer`'s own guard, so this arrived in `_drain` — which
+    caught nothing. The thread died, the turn stayed `working` with no error against it,
+    and the reader watched three dots for ever (targum-internal#228).
+    """
+    from targum.chat.hebrew import common_words
+
+    assert common_words(language="arc") == [], "a missing list is not an error"
+    assert common_words(language="he"), "and Hebrew still has one"
+
+
+def test_the_conversation_is_held_in_hebrew_when_the_reader_is_learning_it() -> None:
+    """The pick was `sorted(...)[0]`, which is alphabetical and therefore arbitrary.
+
+    Since the scripture path learned to read Daniel and Ezra, a reader who opens either is
+    learning `arc` as well as `he` — and `arc` sorts first, so their conversations were
+    held in Aramaic. The chat's contract, record and ledger are all Hebrew.
+    """
+    assert session_module._conversing_in({"arc", "he"}) == "he"
+    assert session_module._conversing_in({"he"}) == "he"
+    assert session_module._conversing_in(set()) == "he"
+    assert session_module._conversing_in({"arc"}) == "arc", "someone learning only that"
+
+
+def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) -> None:
+    """The pool is four threads. Four turns that raise outside `answer` and the chat is
+    gone for everybody until the service restarts — which is what happened on the box.
+
+    Driven through the real pool rather than around it: one worker, a turn that raises
+    the way Aramaic did, and then a second turn. The second is the whole point — before
+    this the thread was dead and the second turn was never picked up at all.
+    """
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+
+    lost: list[str] = []
+
+    def explode(asked: Any) -> None:
+        lost.append(asked.chat_id)
+        raise LookupError("No wordlist 'best' available for language 'arc'")
+
+    monkeypatch.setattr(chats, "answer", explode)
+    chats.start_workers(1)
+
+    first = chats.say(None, library.home(None), "", "hi", admin=False)
+    chats.queue.join()
+
+    row = next(r for r in store.chat_turns(first.chat_id) if r["n"] == first.n)
+    assert row["stage"] == "failed", "the page stops waiting"
+    assert row["error"] == "The conversation could not continue. Try again."
+    feed = chats.feed_for(first.chat_id, first.n)
+    assert feed is not None
+    said = [json.loads(data) for kind, data in feed.events if kind == "error"]
+    assert said and said[0]["message"] == "The conversation could not continue. Try again."
+    assert "wordlist" not in json.dumps(said), "the library's own words never reach a reader"
+
+    second = chats.say(None, library.home(None), "", "again", admin=False)
+    chats.queue.join()
+    assert len(lost) == 2, "the worker came back for the next turn rather than dying with the last"
+    after = next(r for r in store.chat_turns(second.chat_id) if r["n"] == second.n)
+    assert after["stage"] == "failed"

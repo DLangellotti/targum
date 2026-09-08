@@ -196,15 +196,27 @@ def common_words(n: int = COMMON, language: str = "he") -> list[str]:
     From wordfreq, the same table the reader's bands come from, so "common" here means
     the same thing it means on their word cards. Empty where the `difficulty` extra is
     not installed — the prompt then stands on the ledger alone, and says nothing false.
+
+    **And empty for a language wordfreq has no list for**, which is the same situation
+    and was not the same code. wordfreq raises `LookupError` there rather than answering
+    nothing, and Aramaic is such a language: since the scripture path learned to read
+    Daniel and Ezra, a reader who opens either is learning `arc`, and a conversation in
+    `arc` reached this and killed the worker thread that was answering it
+    (targum-internal#228). A missing list is a fact about wordfreq, not about the reader.
     """
     try:
         from wordfreq import top_n_list, zipf_frequency
     except ImportError:
         return []
     code = language.split("-")[0].lower()
-    return [
-        word for word in top_n_list(code, n * 2) if zipf_frequency(word, code) >= BAND_FLOOR_ZIPF
-    ][:n]
+    try:
+        return [
+            word
+            for word in top_n_list(code, n * 2)
+            if zipf_frequency(word, code) >= BAND_FLOOR_ZIPF
+        ][:n]
+    except LookupError:
+        return []
 
 
 def known_words(
