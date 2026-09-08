@@ -101,6 +101,22 @@ def replayable(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+#: A byte-level tokenizer can emit a byte that is not a character, and the API hands it
+#: back decoded as U+FFFD. It happens rarely and it happened in pointed Hebrew: one turn
+#: on 2026-09-07 wrote מָסָךְ שֶ�ל, the shin dot dropped and a black diamond left in its
+#: place. Nothing downstream survives it — the annotator lemmatised the word as `[unk]`
+#: and banded it 6, so it entered the reader's ledger as a word nobody knows, and the
+#: transcript would have carried the diamond into any targum built from the conversation.
+#: The mark is dropped rather than guessed: `שֶל` is a real word missing a point, and
+#: putting the point back would be inventing what the model did not write.
+BROKEN = "�"
+
+
+def written(text: str) -> str:
+    """Model-written text, with what is not a character taken out."""
+    return text.replace(BROKEN, "") if BROKEN in text else text
+
+
 def _content(reply: Any) -> list[dict[str, Any]]:
     """A reply's content blocks as plain dicts, exactly as they must be replayed.
 
@@ -110,11 +126,18 @@ def _content(reply: Any) -> list[dict[str, Any]]:
     """
     dump = getattr(reply, "model_dump", None)
     if callable(dump):
-        return replayable([dict(block) for block in dump()["content"]])
-    out: list[dict[str, Any]] = []
-    for block in reply.content:
-        out.append(dict(block) if isinstance(block, dict) else dict(vars(block)))
-    return replayable(out)
+        blocks = replayable([dict(block) for block in dump()["content"]])
+    else:
+        out: list[dict[str, Any]] = []
+        for block in reply.content:
+            out.append(dict(block) if isinstance(block, dict) else dict(vars(block)))
+        blocks = replayable(out)
+    for block in blocks:
+        # Only a text block. A thinking block is signed and a tool-use block is replayed
+        # as it came; neither is ours to touch.
+        if block.get("type") == "text" and isinstance(block.get("text"), str):
+            block["text"] = written(block["text"])
+    return blocks
 
 
 def _said(blocks: list[dict[str, Any]]) -> str:
@@ -132,6 +155,7 @@ def run_turn(
     keep: Callable[[str, list[dict[str, Any]], str], None],
     *,
     web_search: bool = False,
+    wider: bool = False,
     contract: str = "",
     ledger: str = "",
 ) -> Usage:
@@ -140,8 +164,9 @@ def run_turn(
     `keep(role, content, said)` is called for every API message this turn produces, in
     order, so the store holds the conversation as the API will need to see it again.
     `contract` is a stable block added to the system prompt (the Hebrew mode's rules);
-    `ledger` is the per-reader block, or the plain one where none is given. Returns what
-    the turn cost.
+    `ledger` is the per-reader block, or the plain one where none is given. `wider` is
+    one turn a reader pressed to widen: the search gives its host list up for this turn
+    only, and nothing carries it into the next. Returns what the turn cost.
     """
     usage = ctx.usage
     messages = list(history)
@@ -157,14 +182,14 @@ def run_turn(
                 {"type": "text", "text": ledger or prompts.ledger(ctx.level)},
             ],
             output_config={"effort": EFFORT},
-            tools=tools_module.anthropic_tools(web_search=web_search),
+            tools=tools_module.anthropic_tools(web_search=web_search, wider=wider),
             messages=messages,
         ) as stream:
             for event in stream:
                 if getattr(event, "type", "") == "content_block_delta":
                     delta = getattr(event, "delta", None)
                     if getattr(delta, "type", "") == "text_delta":
-                        feed.put("text", str(getattr(delta, "text", "")))
+                        feed.put("text", written(str(getattr(delta, "text", ""))))
             reply = stream.get_final_message()
         got = getattr(reply, "usage", None)
         if got is not None:
@@ -202,6 +227,13 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "offer_wider_search" and not failed:
+                # The same rule, for the only other card the model may leave: the words
+                # that would be searched come from the tool result the reader can see,
+                # not from the sentence the model writes around it.
+                offered = json.loads(text).get("offered")
+                if offered:
+                    feed.put("wider", offered)
             results.append(
                 {
                     "type": "tool_result",
@@ -229,6 +261,9 @@ class Asked:
     #: Seconds of the reader's own voice this turn came from, already metered by the
     #: request that heard it. Zero for a typed line.
     heard_seconds: float = 0.0
+    #: Whether the reader pressed to widen this one turn's search past the host list.
+    #: Set only by `/chat/say` from the card's own button, never by a model.
+    wider: bool = False
 
 
 def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | None = None) -> str:
@@ -489,6 +524,7 @@ class Chats:
         heard_seconds: float = 0.0,
         about: dict[str, str] | None = None,
         brought: dict[str, Any] | None = None,
+        wider: bool = False,
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -497,7 +533,8 @@ class Chats:
         and not in what the page shows back, and it opens the conversation in English:
         a question about a form is answered about the form, whatever the reader's shelf.
         `brought` is the text the reader sent with the line, from its own job: it rides
-        the same way, and the conversation keeps its language.
+        the same way, and the conversation keeps its language. `wider` is the press on
+        the card `offer_wider_search` left: it widens this turn's search and no other.
         """
         if self.store is None:
             raise RuntimeError("a chat needs a store")
@@ -514,7 +551,7 @@ class Chats:
         )
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
-        asked = Asked(chat_id, n, person, home, admin, heard_seconds)
+        asked = Asked(chat_id, n, person, home, admin, heard_seconds, wider)
         self.queue.put(asked)
         return asked
 
@@ -619,6 +656,12 @@ class Chats:
             )
             if picked:
                 ledger = ledger + "\n\n" + exemplars_module.block(picked)
+        # Where the fetch door was refused. After the breakpoint with the ledger, because
+        # it changes as the box knocks, and a changing block before the breakpoint would
+        # throw the cached prefix away every time it learned something.
+        shut = prompts.shut_hosts(store.closed())
+        if shut:
+            ledger = ledger + "\n\n" + shut
         try:
             spent = run_turn(
                 self.client(),
@@ -627,6 +670,7 @@ class Chats:
                 feed,
                 keep,
                 web_search=self.web_search,
+                wider=asked.wider,
                 contract=contract,
                 ledger=ledger,
             )

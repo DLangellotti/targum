@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from ..errors import TargumError
+from ..errors import TargumError, Unreachable
 from ..models import Document
 from .base import (
     Paragraph,
@@ -100,6 +100,23 @@ class Fetched:
         return not kind or "html" in kind or "xml" in kind
 
 
+#: Statuses that mean the host refused this caller, not that a page is missing. A 404
+#: is the opposite news: the server answered, so the door is open and the address was
+#: wrong. 5xx is counted as shut because the effect is the same — nothing opens — and a
+#: site that is down today is not worth offering a reader today.
+REFUSED = frozenset({401, 403, 407, 429, 451})
+
+
+def shut(error: Unreachable) -> bool:
+    """Whether a failed fetch says the host will refuse the next knock too."""
+    if error.status is None:
+        # Never got an answer at all: a timeout, a refused connection, a name that does
+        # not resolve. Measured on 2026-09-07, this and 403 are what an Israeli site
+        # does to an address outside Israel.
+        return True
+    return error.status in REFUSED or error.status >= 500
+
+
 def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
     import httpx
 
@@ -143,8 +160,21 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
             except TargumError:
                 raise
             except Exception as exc:
-                raise TargumError(f"Could not fetch {url}", str(exc)) from exc
-    raise TargumError(f"Could not fetch {url}", f"More than {MAX_REDIRECTS} redirects")
+                # A status where the server gave one, none where the connection never
+                # got that far. `Unreachable` is a `TargumError`, so every caller that
+                # only wanted a sentence still gets one.
+                answered = getattr(exc, "response", None)
+                raise Unreachable(
+                    f"Could not fetch {url}",
+                    str(exc),
+                    status=getattr(answered, "status_code", None),
+                    host=urlparse(target).hostname or "",
+                ) from exc
+    raise Unreachable(
+        f"Could not fetch {url}",
+        f"More than {MAX_REDIRECTS} redirects",
+        host=urlparse(target).hostname or "",
+    )
 
 
 @dataclass(frozen=True)

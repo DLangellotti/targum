@@ -505,6 +505,22 @@ CREATE TABLE IF NOT EXISTS wanted (
   PRIMARY KEY (query, source)
 );
 
+-- What the fetch door found when it knocked. A property of this box's network and not
+-- of any reader, so no row names one: an Israeli publisher that refuses an address
+-- outside Israel refuses it for everybody here. Written by `describe_source` on the way
+-- past, read back so the model is not left offering readers doors that will not open.
+-- Deliberately not seeded from `chat/sources.py:UNREACHABLE`, which was measured from a
+-- laptop: a box in another country is a different caller and has to knock for itself.
+-- `open` is what the last knock found, so a host that comes back clears itself.
+CREATE TABLE IF NOT EXISTS reached (
+  host  TEXT    NOT NULL PRIMARY KEY,
+  open  INTEGER NOT NULL DEFAULT 0,
+  why   TEXT    NOT NULL DEFAULT '',
+  tries INTEGER NOT NULL DEFAULT 0,
+  first INTEGER NOT NULL DEFAULT 0,
+  last  INTEGER NOT NULL DEFAULT 0
+);
+
 -- Schema 14 adds this (targum-internal#164, door 1). Every human judgement about a
 -- word, kept with provenance: what stood before, what stands after, who decided, under
 -- what licence the judgement is held, and the sentence they saw. Today the author's
@@ -1820,6 +1836,35 @@ class Store:
                 "                   ELSE wanted.standing END",
                 (query, source, standing, now(), now()),
             )
+
+    def reach(self, host: str, open: bool, why: str = "") -> None:
+        """Record what the fetch door found at a host. Keyed on the host alone."""
+        host = host.strip().lower()[:200]
+        if not host:
+            return
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO reached (host, open, why, tries, first, last)"
+                " VALUES (?, ?, ?, 1, ?, ?)"
+                " ON CONFLICT(host) DO UPDATE SET"
+                "   open = excluded.open, why = excluded.why,"
+                "   tries = tries + 1, last = excluded.last",
+                (host, 1 if open else 0, why.strip()[:200], now(), now()),
+            )
+
+    def closed(self, days: int = 30, limit: int = 12) -> list[str]:
+        """Hosts whose last knock was refused, most recently first.
+
+        Bounded in time and in number because it goes into a prompt: it is a hint about
+        where not to send a reader, not a blocklist. Nothing here refuses anybody — a
+        reader who pastes one of these links is still fetched, and may still be right
+        that it works now (targum-internal#126).
+        """
+        rows = self.db.execute(
+            "SELECT host FROM reached WHERE open = 0 AND last >= ? ORDER BY last DESC LIMIT ?",
+            (now() - days * 24 * 60 * 60 * 1000, limit),
+        ).fetchall()
+        return [str(row["host"]) for row in rows]
 
     def wanted(self, limit: int = 20) -> list[dict[str, Any]]:
         rows = self.db.execute(

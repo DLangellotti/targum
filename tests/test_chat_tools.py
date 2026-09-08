@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -526,6 +528,184 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
+
+
+def test_the_search_carries_no_country_the_api_refuses() -> None:
+    """The search would rather stand in Israel, and the API does not offer it.
+
+    This test replaces one that asserted `user_location` was `IL`, which is what the code
+    sent and what the endpoint rejects:
+
+        tools.0.web_search_20260209: Country code IL is not supported.
+
+    The tool block is validated before the model is reached, so the 400 failed the whole
+    turn rather than the search — every conversation, on every message, showing the reader
+    "The conversation could not continue." The mocked tests all passed, because a mock is
+    never asked whether the block is one the API would take.
+
+    Measured against the live endpoint on 2026-09-08: `IL`, `CY` and `EG` are refused;
+    `US`, `GB`, `DE` and no location at all are accepted. So there is no value of
+    `country` that means what this wanted, and naming a country that is accepted would
+    stand the search somewhere it should not be — which is the failure the removed test's
+    own docstring described.
+
+    Pinned as an absence, since what matters is that nothing goes out that the API will
+    not take. If localisation becomes available, this test is the place the reason for
+    its absence is written down.
+    """
+    (searching,) = [
+        one for one in tools.anthropic_tools(web_search=True) if one.get("name") == "web_search"
+    ]
+    assert "user_location" not in searching
+    assert tools.SEARCH_UNAVAILABLE_FROM["country"] == "IL", "kept as the record of why"
+
+
+@pytest.mark.parametrize("wider", [False, True])
+def test_no_web_search_block_carries_a_location_either_way(wider: bool) -> None:
+    """Widened or not. The widened block is built on the same dictionary, so a location
+    added back for one case would ride out in both."""
+    for tool in tools.anthropic_tools(web_search=True, wider=wider):
+        assert "user_location" not in tool
+
+
+def test_the_search_names_domains_or_blocks_them_but_never_both() -> None:
+    """The API returns a 400 when a request carries both lists."""
+    for tool in tools.anthropic_tools(web_search=True):
+        if tool.get("name") == "web_search":
+            assert not ("allowed_domains" in tool and "blocked_domains" in tool)
+
+
+def test_widening_gives_the_host_list_up_rather_than_adding_to_it() -> None:
+    """The API takes `allowed_domains` or `blocked_domains` and refuses a request
+    carrying both, so there is no setting between the list and the whole web."""
+    (narrow,) = [t for t in tools.anthropic_tools(web_search=True) if t.get("name") == "web_search"]
+    (wide,) = [
+        t
+        for t in tools.anthropic_tools(web_search=True, wider=True)
+        if t.get("name") == "web_search"
+    ]
+    assert narrow["allowed_domains"], "held to the list by default"
+    assert "allowed_domains" not in wide and "blocked_domains" not in wide
+    assert "user_location" not in wide and "user_location" not in narrow, (
+        "neither stands anywhere: the API does not take Israel — see "
+        "test_the_search_carries_no_country_the_api_refuses"
+    )
+    assert wide["max_uses"] == narrow["max_uses"], "still three searches a turn"
+
+
+def test_the_offer_carries_the_words_that_would_be_searched() -> None:
+    """A reader reads the question before agreeing to it, not after."""
+    got = tools.offer_wider_search(None, {"asked": "מתכונים בעברית", "why": "I got newspapers."})
+    assert got["offered"]["asked"] == "מתכונים בעברית"
+    assert got["offered"]["why"] == "I got newspapers."
+    assert got["offered"]["sites"] > 0
+    assert "press" in got["note"]
+
+
+def test_an_offer_with_nothing_to_search_is_refused() -> None:
+    assert "error" in tools.offer_wider_search(None, {})
+    assert "error" in tools.offer_wider_search(None, {"asked": "  "})
+    assert "error" in tools.offer_wider_search(None, {"asked": "x" * 201})
+
+
+def test_the_model_cannot_widen_its_own_search() -> None:
+    """`offer_wider_search` leaves a card and nothing else: no tool the model holds
+    changes what the next turn may look at."""
+    got = tools.offer_wider_search(None, {"asked": "anything"})
+    assert "wider" not in json.dumps(got).lower() or "offered" in got
+    (narrow,) = [t for t in tools.anthropic_tools(web_search=True) if t.get("name") == "web_search"]
+    assert narrow["allowed_domains"], "an offer does not widen the turn it was made in"
+
+
+def test_a_widened_turn_cannot_offer_to_widen_again() -> None:
+    """Otherwise every widened turn ends in another card offering to widen it."""
+    assert "offer_wider_search" in [t["name"] for t in tools.anthropic_tools(web_search=True)]
+    assert "offer_wider_search" not in [
+        t["name"] for t in tools.anthropic_tools(web_search=True, wider=True)
+    ]
+
+
+def test_no_search_on_the_box_means_no_card_that_would_do_nothing() -> None:
+    """Pressing a card that widens a search a box does not run is a button that lies."""
+    assert "offer_wider_search" not in [t["name"] for t in tools.anthropic_tools(web_search=False)]
+    assert "offer_wider_search" in [t["name"] for t in tools.anthropic_tools(web_search=True)]
+
+
+class Door:
+    """A fetch door that answers however a test says, so no network is touched."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.asked: list[str] = []
+
+    def fetch(self, url: str, params: Any = None) -> Any:
+        self.asked.append(url)
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(
+            text="<html><body><p>שלום עולם.</p></body></html>",
+            is_html=True,
+            content_type="text/html",
+        )
+
+
+def _door(monkeypatch: Any, error: Exception | None = None) -> Door:
+    from targum.ingest import url as url_module
+
+    door = Door(error)
+    monkeypatch.setattr(url_module, "fetch", door.fetch)
+    return door
+
+
+def test_a_host_that_refuses_the_box_is_remembered_and_a_missing_page_is_not(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A 403 is a door that will be shut next time; a 404 is one address mistyped."""
+    from targum.errors import Unreachable
+
+    store = Store(tmp_path / "words.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    _door(monkeypatch, Unreachable("no", "403", status=403, host="shut.example"))
+    got = tools._describe(ctx, {"url": "https://shut.example/a"})
+    assert got["host_shut"] is True and "does not answer targum" in got["error"]
+    assert store.closed() == ["shut.example"]
+
+    _door(monkeypatch, Unreachable("no", "404", status=404, host="fine.example"))
+    got = tools._describe(ctx, {"url": "https://fine.example/gone"})
+    assert "host_shut" not in got, "a missing page says nothing about the host"
+    assert "fine.example" not in store.closed()
+
+
+def test_a_host_that_answers_clears_itself(tmp_path: Path, monkeypatch: Any) -> None:
+    from targum.errors import Unreachable
+
+    store = Store(tmp_path / "words.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    _door(monkeypatch, Unreachable("no", "timed out", status=None, host="flaky.example"))
+    tools._describe(ctx, {"url": "https://flaky.example/a"})
+    assert store.closed() == ["flaky.example"]
+    _door(monkeypatch)
+    tools._describe(ctx, {"url": "https://flaky.example/a"})
+    assert store.closed() == [], "it came back, so it is not a shut door any more"
+
+
+def test_the_door_is_still_knocked_on_for_a_reader_who_brings_the_link(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The record informs what the model offers. It never refuses an import: a site that
+    refused targum yesterday may answer today, and only knocking finds out."""
+    store = Store(tmp_path / "words.db")
+    ctx = tools.Ctx(
+        person=None, home=tmp_path, library=None, store=store, chat_id="c", level=level.EMPTY
+    )
+    store.reach("shut.example", False, "403")
+    door = _door(monkeypatch)
+    tools._describe(ctx, {"url": "https://shut.example/an-article"})
+    assert "https://shut.example/an-article" in door.asked, "knocked anyway"
 
 
 def test_every_door_the_chat_builds_through_asks_for_words() -> None:

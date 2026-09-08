@@ -142,7 +142,11 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
     assert sent["messages"][-1]["role"] == "user"
     assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}, "the stable half is cached"
     assert "cache_control" not in sent["system"][1], "the ledger sits after the breakpoint"
-    assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
+    # The whole registry but the one card that only exists where a search does: this
+    # turn was answered on a box with no web_search, so there is no list to widen.
+    assert [tool["name"] for tool in sent["tools"]] == [
+        tool.name for tool in tools.REGISTRY if tool.name != "offer_wider_search"
+    ]
 
 
 def test_tool_results_go_back_in_one_message_in_order(tmp_path: Path) -> None:
@@ -732,6 +736,139 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     assert "sent a recording" in session_module.framed(
         "?", None, {"title": "t", "from": "recording"}
     )
+
+
+def test_a_byte_the_model_could_not_write_never_reaches_the_reader(tmp_path: Path) -> None:
+    """A byte-level tokenizer emits a byte that is not a character and the API hands it
+    back as U+FFFD. It happened in pointed Hebrew on 2026-09-07 — מָסָךְ שֶ�ל, the shin
+    dot gone and a black diamond in its place, which the annotator then lemmatised as
+    `[unk]` and put on the reader's ledger. Dropped on the way in, in the stream and in
+    what is kept, so nothing downstream ever sees one."""
+    library, store = world(tmp_path)
+    broken = "מָסָךְ שֶ�ל וָואטְסְאַפּ."
+    client = Script([reply([{"type": "text", "text": broken}])])
+    feed = session_module.Feed()
+    kept: list[tuple[str, list[dict[str, Any]], str]] = []
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "מה זה"}],
+        feed,
+        lambda role, content, said: kept.append((role, content, said)),
+    )
+    assert "�" not in feed.text(), "the live stream shows no diamond"
+    assert kept[0][2] == "מָסָךְ שֶל וָואטְסְאַפּ.", "the point is not guessed back, only the byte goes"
+    assert "�" not in kept[0][1][0]["text"], "nor does what is replayed to the API"
+
+
+def test_a_thinking_block_is_never_touched_on_the_way_through(tmp_path: Path) -> None:
+    """Its signature is over what the model wrote; a block changed by us is a 400."""
+    library, store = world(tmp_path)
+    signed = {"type": "thinking", "thinking": "a�b", "signature": "sig"}
+    client = Script([reply([signed, {"type": "text", "text": "ok"}])])
+    kept: list[list[dict[str, Any]]] = []
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "hi"}],
+        session_module.Feed(),
+        lambda role, content, said: kept.append(content),
+    )
+    assert kept[0][0]["thinking"] == "a�b"
+
+
+def test_a_press_widens_one_turn_and_the_offer_reaches_the_page(tmp_path: Path) -> None:
+    """The card's words come from the tool result the reader can see, not from the
+    sentence the model writes around it — the same rule the quote card keeps."""
+    library, store = world(tmp_path)
+    offer = {
+        "id": "t1",
+        "type": "tool_use",
+        "name": "offer_wider_search",
+        "input": {"asked": "מתכונים בעברית", "why": "I asked for recipes and got news."},
+    }
+    client = Script(
+        [
+            reply([{"type": "text", "text": "Not what you asked for."}, offer], stop="tool_use"),
+            reply([{"type": "text", "text": "Say the word."}]),
+        ]
+    )
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "find me recipes"}],
+        feed,
+        lambda role, content, said: None,
+        web_search=True,
+    )
+    widened = [json.loads(data) for kind, data in feed.events if kind == "wider"]
+    assert widened == [
+        {
+            "asked": "מתכונים בעברית",
+            "why": "I asked for recipes and got news.",
+            "sites": widened[0]["sites"],
+        }
+    ]
+    assert client.requests[0]["tools"][-1]["allowed_domains"], "the offer's own turn is held"
+
+
+def test_the_turn_a_reader_widened_gives_the_host_list_up(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    client = Script([reply([{"type": "text", "text": "Looking wider."}])])
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "מתכונים בעברית"}],
+        session_module.Feed(),
+        lambda role, content, said: None,
+        web_search=True,
+        wider=True,
+    )
+    (searching,) = [t for t in client.requests[0]["tools"] if t.get("name") == "web_search"]
+    assert "allowed_domains" not in searching and "blocked_domains" not in searching
+    assert "user_location" not in searching, (
+        "the API refuses a search standing in Israel and fails the whole turn for it — "
+        "see test_the_search_carries_no_country_the_api_refuses"
+    )
+
+
+def test_a_press_widens_nothing_after_its_own_turn(tmp_path: Path) -> None:
+    """One press, one turn. A conversation does not stay open because it was opened."""
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    home = library.home(None)
+    pressed = chats.say(None, home, "", "מתכונים", admin=False, wider=True)
+    assert pressed.wider is True
+    after = chats.say(None, home, pressed.chat_id, "ועוד משהו", admin=False)
+    assert after.wider is False, "the turn after a press is held to the list again"
+
+
+def test_the_model_is_told_which_doors_are_shut(tmp_path: Path) -> None:
+    """After the breakpoint with the ledger, because it changes as the box knocks and a
+    changing block before the breakpoint throws the cached prefix away each time."""
+    library, store = world(tmp_path)
+    store.reach("hebrew-academy.org.il", False, "403")
+    store.reach("nli.org.il", False, "403")
+    store.reach("he.wikipedia.org", True)
+    chats = session_module.Chats(
+        library, store, client_factory=lambda: Script([reply([{"type": "text", "text": "ok"}])])
+    )
+    chats.answer(chats.say(None, library.home(None), "", "מה לקרוא", admin=False))
+    (client,) = [chats._client]
+    ledger = client.requests[0]["system"][1]["text"]
+    assert "hebrew-academy.org.il" in ledger and "nli.org.il" in ledger
+    assert "he.wikipedia.org" not in ledger, "a host that answers is not on the list"
+    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+
+
+def test_no_shut_doors_means_no_block_at_all(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    chats = session_module.Chats(
+        library, store, client_factory=lambda: Script([reply([{"type": "text", "text": "ok"}])])
+    )
+    chats.answer(chats.say(None, library.home(None), "", "מה לקרוא", admin=False))
+    assert "did not answer targum" not in chats._client.requests[0]["system"][1]["text"]
 
 
 # --- a turn that fails where `answer` is not watching ---------------------------------

@@ -43,6 +43,15 @@ it has Hebrew subtitles, an episode's length, an article's words - before you qu
 Where web_search is offered, use it for what the publishers' feeds do not hold, and
 describe what it finds before quoting. Never fetch anything yourself; you cannot.
 
+The search is held to a fixed list of Hebrew sites, and the list is invisible to you, so
+a gap in it does not look like a gap: you ask for one thing and are handed a plausible
+other thing from a site that is on the list. When what comes back answers a different
+question than the one you asked, say so plainly and use offer_wider_search, which leaves
+a card the reader can press to ask again across the whole web. You cannot press it, and
+your next turn is only widened if they do. A link you already know is not searching, and
+describe_source will open it wherever it lives - reach for that first, and offer the
+card when you have nothing to reach for.
+
 The reader may name a rung of the ulpan ladder as what they want to read at — RUNGS —
 sometimes as "a bit above bet" or "bet plus". Take it as the vocabulary that rung is
 reckoned to want, set against their own counts in the ledger below: at their own rung,
@@ -118,3 +127,21 @@ SYSTEM = SYSTEM.replace("RUNGS", RUNGS)
 def ledger(level: level_module.Level) -> str:
     """The per-reader block, placed after the cache breakpoint because it changes."""
     return level_module.describe(level)
+
+
+def shut_hosts(hosts: list[str]) -> str:
+    """The hosts this box knocked on and was refused, for the block after the ledger.
+
+    A hint, not a rule, and never a refusal: it rides after the cache breakpoint because
+    it changes as the box learns, and it says what happened rather than what to do — a
+    site that refused targum yesterday may open for the reader's own browser today, and
+    saying so is more use to them than silence.
+    """
+    if not hosts:
+        return ""
+    return (
+        "These sites did not answer targum when it last knocked, so a link on one of them "
+        "cannot be opened or built here: " + ", ".join(hosts) + ". Do not offer them. If a "
+        "reader brings one themselves, say plainly that targum cannot reach it and that it "
+        "may still open in their own browser."
+    )
