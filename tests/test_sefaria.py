@@ -203,10 +203,17 @@ def test_the_two_vocalized_mussar_works_name_both_their_sides() -> None:
     build with a pairing error instead of saying what is missing."""
     assert sefaria.version_for("he", "Mesilat Yesharim 1") == "Sefaria Vocalized Edition"
     assert "Path of the Just" in sefaria.version_for("en", "Mesilat Yesharim")
+    # Sefaria answers to both spellings and its index now returns the double-`l` as the
+    # title, so a ref written the way Sefaria spells it today must find the same pin.
+    # Written the other way it fell through to the Tanakh default and was refused with
+    # "Sefaria has no 'Tanach with Ta'amei Hamikra' of Mesillat Yesharim", which reads
+    # like a missing book rather than a missing pin.
+    assert sefaria.version_for("he", "Mesillat Yesharim 1") == "Sefaria Vocalized Edition"
+    assert "Path of the Just" in sefaria.version_for("en", "Mesillat Yesharim")
     unity = "Chovot HaLevavot, First Treatise on Unity"
     assert sefaria.version_for("he", f"{unity} 3") == "Vocalized Edition"
     assert "Sebag" in sefaria.version_for("en", unity)
-    assert len(sefaria.MUSSAR) == 9, "one work and eight treatises"
+    assert len(sefaria.MUSSAR) == 10, "one work under two spellings, and eight treatises"
     # The other half of the pairing this shelf keeps: a work in `BEYOND_TANAKH` and not
     # in `BEYOND_SCRIPTURE` is banded against the Tanakh, which on a mussar text would
     # hand a reader an unrated word wherever a rabbinic one appears.
