@@ -45,19 +45,34 @@ which also drops the gitignored private half from the import path, so the skips 
 what CI's public checkout sees.
 
 **And that is why the private half needs a run of its own, from the main checkout.** The
-eight gitignored modules that ship in the wheel — the weekly's writer and voice, the
-dialogue writer, the recording cutter and aligner — exist nowhere else: not in CI's
-public checkout, not in any worktree. So no lint, no type check and no test sees them
+eight gitignored modules — the weekly's writer and voice, the dialogue writer, the
+recording cutter and aligner — exist nowhere else: not in CI's public checkout, not in
+any worktree, and **not in the wheel either** (hatchling drops VCS-ignored files; the
+only one added back is `activity.json`). So no lint, no type check and no test sees them
 unless you are standing in the main checkout, and a rename in the public half breaks one
-of them with every check still green (targum-internal#230). There,
+of them with every check still green (targum-internal#230).
+
+**A pre-push hook runs those checks here, so it is not something to remember.** Install
+it once per clone — `.git/hooks` is not shared, and this is the only clone with a private
+half to check:
+
+```
+./deploy/hooks/install.sh
+```
+
+It runs `ruff check`, `ruff format --check`, `mypy` and `tests/test_private_half.py` over
+the eight, and it is silent and instant in a tree that has none of them, which is every
+worktree. `git push --no-verify` skips it. To run the same checks by hand:
 
 ```
 uv run ruff check src/targum && uv run mypy && .venv/bin/python -m pytest -q tests/test_private_half.py
 ```
 
 `tests/test_private_half.py` imports each of the eight where it exists and skips where it
-does not, so the same file is honest on both kinds of tree. Three lint errors were found
-sitting in the private half on 2026-09-09, the first time anything looked.
+does not, so the same file is honest on both kinds of tree. It also refuses a *partly*
+copied checkout, which would build a wheel with holes in it. Three lint errors were found
+sitting in the private half on 2026-09-09, the first time anything looked; installing the
+hook the same day found three more and a formatting divergence.
 
 ## The API key is in `.env`, and nothing loads it for you
 
