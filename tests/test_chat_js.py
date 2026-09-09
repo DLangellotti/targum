@@ -710,3 +710,19 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"] and "started" in card["cls"]
     assert card["meta"].startswith("2 pages")
+
+
+def test_the_chat_page_starts_the_sync_like_every_other_page() -> None:
+    """Signed in, the chat used to say "Sign in".
+
+    `TargumSync.start()` is what asks `/account/me`, and the header is rendered with the
+    signed-out button and filled from the answer — so a reader talking to targum was
+    told to sign in. Every other page calls it: Learn, Library, Progress, Add, Yours.
+    This one did not, and the page works either way because it authenticates
+    server-side with `TARGUM_KEY`, which is why nothing looked wrong.
+
+    The half that is not cosmetic: `start()` runs the first `exchange()`, so a reader who
+    came straight to the chat and stayed had no word sync at all that visit
+    (targum-internal#232).
+    """
+    assert run()["syncStarted"] is True
