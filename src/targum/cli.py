@@ -2065,11 +2065,28 @@ def licences() -> None:
                 continue
             rows.append(("recording", one.parent.name, str(held.get("licence") or "")))
 
+    # A targum is two texts. The English beside the Hebrew is a separate work under a
+    # separate licence, recorded per translation since targum-internal#115, and it ships
+    # in the same reader — so it is a row here too. It was not, and 90 of 131
+    # translations sit under a standing worse than the source they are beside
+    # (targum-internal#234). Nothing was closed; the count of what is owed was simply
+    # short by that many.
+    disagree: list[tuple[str, str, str]] = []
     try:
         from .catalogue import everything
 
         for entry in everything():
             rows.append(("text", entry.id, entry.licence))
+            for beside in entry.translations:
+                rows.append(("translation", f"{entry.id} · {beside.name}", beside.licence))
+                if _worse(beside.licence, entry.licence):
+                    disagree.append(
+                        (
+                            entry.id,
+                            verdict(entry.licence).standing.value,
+                            verdict(beside.licence).standing.value,
+                        )
+                    )
     except Exception:  # noqa: BLE001 - a private catalogue is absent on a public checkout
         pass
 
@@ -2111,6 +2128,21 @@ def licences() -> None:
     leaving = sum(n for standing, n in counts.items() if verdict_allows(standing))
     console.print(f"\n[bold]{leaving}[/bold] of {len(rows)} sources may leave targum.")
 
+    # The number somebody preparing an export actually needs, and which neither column
+    # above shows: a text can be free in Hebrew and owed in English, and the obligation
+    # rides on the pair rather than on either half.
+    if disagree:
+        pairs: dict[tuple[str, str], int] = {}
+        for _id, source, translated in disagree:
+            pairs[(source, translated)] = pairs.get((source, translated), 0) + 1
+        console.print(
+            f"\n[yellow]{len(disagree)}[/yellow] texts stand differently in the two languages"
+        )
+        for (source, translated), count in sorted(pairs.items(), key=lambda kv: -kv[1]):
+            console.print(
+                f"  [dim]{count:>4}  {source} in the source, {translated} in the translation[/dim]"
+            )
+
     unchecked = [
         (kind, name)
         for kind, name, licence in rows
@@ -2122,6 +2154,20 @@ def licences() -> None:
             console.print(f"  [dim]{kind}[/dim]  {name}")
         if len(unchecked) > 12:
             console.print(f"  [dim]… and {len(unchecked) - 12} more[/dim]")
+
+
+def _worse(translated: str, source: str) -> bool:
+    """Whether a translation stands worse than the text it sits beside.
+
+    Ordered by how much it constrains what may leave: nothing owed, something owed,
+    nobody has checked, may not leave. `unknown` ranks above `owed` on purpose — this
+    command's own rule is that an unchecked licence is not an absent one, so a blank
+    beside a Public Domain source is worth reporting.
+    """
+    from .licensing import Standing, verdict
+
+    rank = {Standing.free: 0, Standing.owed: 1, Standing.unknown: 2, Standing.closed: 3}
+    return rank[verdict(translated).standing] > rank[verdict(source).standing]
 
 
 def verdict_allows(standing: object) -> bool:

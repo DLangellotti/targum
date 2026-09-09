@@ -821,6 +821,56 @@ def test_licences_reports_the_corpus_by_what_may_leave(
     assert "unchecked" in result.output, "it names what to go and check"
 
 
+def test_licences_counts_the_translation_beside_the_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A targum is two texts, and the report used to read only one of them.
+
+    The English beside the Hebrew is a separate work under a separate licence and ships
+    in the same reader. Reading `entry.licence` alone said "nothing owed" about 88 texts
+    whose translation owes a credit (targum-internal#234). Nothing was closed — the
+    count of what is owed was short by that many, which is the kind of wrong that only
+    shows up when somebody prepares an export.
+    """
+    from targum.catalogue import Entry, Rendering
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "targum.catalogue.everything",
+        lambda: [
+            Entry(
+                id="both-free",
+                title="a",
+                author="a",
+                language="he",
+                source="sefaria:A",
+                blurb="a",
+                words=10,
+                licence="Public Domain",
+                translations=[Rendering(name="En", source="sefaria:en:A", licence="Public Domain")],
+            ),
+            Entry(
+                id="free-then-owed",
+                title="b",
+                author="b",
+                language="he",
+                source="sefaria:B",
+                blurb="b",
+                words=10,
+                licence="Public Domain",
+                translations=[Rendering(name="En", source="sefaria:en:B", licence="CC-BY")],
+            ),
+        ],
+    )
+
+    result = runner.invoke(app, ["licences"])
+
+    assert result.exit_code == 0, result.output
+    assert "of 4 sources" in result.output, "two texts and two translations, not two rows"
+    assert "1 texts stand differently in the two languages" in result.output
+    assert "free in the source, owed in the translation" in result.output
+
+
 def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
