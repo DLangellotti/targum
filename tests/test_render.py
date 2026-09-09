@@ -419,6 +419,75 @@ def test_the_foot_of_a_section_offers_the_next_one_by_name(tmp_path: Path) -> No
     assert 'class="next-up here" id="next-up" dir="ltr" hidden>' in first
 
 
+def test_the_page_carries_the_second_pick_because_it_cannot_fetch_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ "Something else" draws from a list written into the page (targum-internal#233).
+
+    A reader fetches nothing, so a refusal cannot ask the library for another text. The
+    alternatives ride in a data attribute; the control is rendered only where there is
+    something behind it, and it ships hidden like the aside around it.
+    """
+    import json as _json
+
+    rows = catalogue_of(
+        ("here", "s:here", 10, "modern"),
+        ("first", "s:first", 12, "modern"),
+        ("second", "s:second", 14, "modern"),
+    )
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    segments = [paragraph(0), paragraph(1)]
+    segmented = make_segmented(segments)
+    document = Document(source="s:here", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader")[0].read_text(
+        encoding="utf-8"
+    )
+
+    assert 'id="next-up-else"' in page, "a way to disagree with the offer"
+    assert "Something else" in page
+    assert 'id="next-up-else" data-more="' in page
+    # The offer itself is the first pick; the attribute carries only what is left.
+    assert ">s:first<" not in page
+    carried = page.split('data-more="')[1].split('"')[0]
+    drawn = _json.loads(carried.replace("&#34;", '"').replace("&amp;", "&"))
+    assert [one["id"] for one in drawn] == ["second"], "the rest, and not the one on show"
+    assert drawn[0]["because"], "each keeps its own reason rather than saying 'another one'"
+
+
+def test_a_shelf_with_nothing_else_renders_no_way_to_ask_for_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A control that offers for ever is offering nothing, and one that is there and
+    inert is worse than one that is not there."""
+    rows = catalogue_of(("here", "s:here", 10, "modern"), ("only", "s:only", 12, "modern"))
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    segments = [paragraph(0), paragraph(1)]
+    segmented = make_segmented(segments)
+    document = Document(source="s:here", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader")[0].read_text(
+        encoding="utf-8"
+    )
+
+    assert 'class="next-up-link"' in page, "there is still an offer"
+    assert 'id="next-up-else"' not in page, "and nothing to draw, so nothing offering to draw"
+
+
 def test_the_contents_page_says_how_long_each_section_is(tmp_path: Path) -> None:
     """The same figure the library gives a whole text, one level down: a reader deciding
     whether to start one more chapter is asking the question the shelf answers."""
@@ -4293,7 +4362,8 @@ def suggestion(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object])
 
     monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
     document = Document(source=source, language="he", blocks=[], content_hash="h")
-    return str(next_after(document).get("id", ""))
+    picks = next_after(document)
+    return str(picks[0].get("id", "")) if picks else ""
 
 
 def reason(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object]) -> str:
@@ -4301,7 +4371,8 @@ def reason(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object]) -> 
 
     monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
     document = Document(source=source, language="he", blocks=[], content_hash="h")
-    return str(next_after(document).get("because", ""))
+    picks = next_after(document)
+    return str(picks[0].get("because", "")) if picks else ""
 
 
 def test_the_next_text_is_the_next_step_up(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4364,7 +4435,7 @@ def test_after_a_scene_comes_the_next_scene(monkeypatch: pytest.MonkeyPatch) -> 
     offered = next_after(
         Document(source="dialogue:01-nice-to-meet-you", language="he", blocks=[], content_hash="h")
     )
-    assert offered["scene"] == "Scene 2"
+    assert offered[0]["scene"] == "Scene 2"
 
 
 def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4411,6 +4482,72 @@ def test_an_upload_is_not_told_it_is_a_step_up_from_something_nobody_measured(
     assert reason(monkeypatch, "https://example.com/mine.txt", rows) == (
         "The easiest text on the shelf."
     )
+
+
+def offers(monkeypatch: pytest.MonkeyPatch, source: str, rows: list[object]) -> list[dict]:
+    from targum.render.builder import next_after
+
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    return next_after(Document(source=source, language="he", blocks=[], content_hash="h"))
+
+
+def test_something_else_has_something_else_to_draw(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Three picks written into the page, because the page fetches nothing and cannot ask
+    for a second one (targum-internal#233). The first is the offer; the rest are what the
+    link draws."""
+    rows = catalogue_of(
+        ("here", "s:here", 10, "modern"),
+        ("first", "s:first", 12, "modern"),
+        ("second", "s:second", 14, "modern"),
+        ("third", "s:third", 16, "modern"),
+        ("fourth", "s:fourth", 18, "modern"),
+    )
+    drawn = offers(monkeypatch, "s:here", rows)
+    assert [one["id"] for one in drawn] == ["first", "second", "third"], "nearest first, three"
+    assert len({one["id"] for one in drawn}) == 3, "and never the same text twice"
+
+
+def test_every_draw_says_what_is_true_of_that_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The reason must not degrade into "another one" on the second draw. A text from the
+    wider pool still says it is a different Hebrew; one below this text says it is easier
+    rather than pretending to be a step up. A refusal that lied about what it was
+    offering would be worse than no refusal at all."""
+    rows = catalogue_of(
+        ("here", "s:here", 20, "modern"),
+        ("up-same", "s:up-same", 22, "modern"),
+        ("up-other", "s:up-other", 24, "biblical"),
+        ("well-below", "s:below", 4, "modern"),
+    )
+    drawn = offers(monkeypatch, "s:here", rows)
+    assert [one["because"] for one in drawn] == [
+        "A step up from this one.",
+        "A step up, in a different Hebrew.",
+        "Easier than this one.",
+    ]
+
+
+def test_a_shelf_with_one_other_text_offers_no_second_draw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The link is rendered only where there is something behind it. A control that
+    offers for ever is offering nothing."""
+    rows = catalogue_of(("here", "s:here", 10, "modern"), ("only", "s:only", 12, "modern"))
+    assert len(offers(monkeypatch, "s:here", rows)) == 1
+
+
+def test_after_a_scene_the_step_up_still_fills_the_rest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The sequence leads, because after scene 3 comes scene 4. But a reader who does not
+    want the next scene should still have somewhere to go."""
+    rows = catalogue_of(
+        ("scene-01-nice-to-meet-you", "dialogue:01-nice-to-meet-you", 5, "modern"),
+        ("scene-02-in-a-cafe", "dialogue:02-in-a-cafe", 0, "modern"),
+        ("news-a", "s:news-a", 6, "modern"),
+        ("news-b", "s:news-b", 9, "modern"),
+    )
+    drawn = offers(monkeypatch, "dialogue:01-nice-to-meet-you", rows)
+    assert drawn[0]["id"] == "scene-02-in-a-cafe"
+    assert drawn[0]["because"] == "Next in the sequence."
+    assert [one["id"] for one in drawn[1:]] == ["news-a", "news-b"]
 
 
 def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(

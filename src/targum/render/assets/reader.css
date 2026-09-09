@@ -1902,6 +1902,25 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 /* The blurb takes the rest of the row and steps out of the way when there is no room
    for it: the name is the offer and the sentence is the reason. */
 .next-up-why { flex: 1 1 14rem; }
+
+/* A way to disagree with the offer, and it is meant to be quieter than the offer: the
+   reader who wants this one takes it, and the one who does not should find the door
+   without being pointed at it. A button rather than a link because it goes nowhere. */
+.next-up-else {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.next-up-else:hover { color: var(--ink); }
+.next-up-else:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.next-up-else[hidden] { display: none; }
 .finished > span[hidden] { display: none; }
 /* Both of them belong to the end of the text, so neither appears until the reader is at
    it. The suggestion was left out of this when it was added and turned up under page one
