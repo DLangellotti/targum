@@ -392,6 +392,10 @@ def cover_prompt(entry: Entry) -> str:
         # of the kind that was left out — which is what happened to the scenes.
         Kind.dialogue: "a short scene of everyday conversation",
         Kind.talk: "a recorded lesson, explained aloud",
+        # Said this way round on purpose: the brand rules below already refuse ritual
+        # objects of any tradition, and the honest subject of a prayer book is not an
+        # object but the hour it is opened at.
+        Kind.liturgy: "a book of daily prayer, read at the same hour each morning",
     }[entry.kind]
     return (
         f"A cover image for {kind}: {entry.title} — {entry.author}. {entry.blurb} "
