@@ -128,3 +128,37 @@ def test_video_is_asked_of_the_disk_and_only_where_there_is_sound() -> None:
         state = entry.state()
         assert "video" in state
         assert not state["video"] or state["spoken"], entry.id
+
+
+def _labelled(name: str) -> set[str]:
+    """The values the library page has a word for, read out of its own list.
+
+    Parsed rather than duplicated here, because a copy of the list in a test is a second
+    thing to keep in step and the first one to go stale.
+    """
+    import re
+
+    assets = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
+    text = (assets / "library.js").read_text(encoding="utf-8")
+    block = re.search(rf"var {name} = \[(.*?)\];", text, re.S)
+    assert block, f"{name} is not a list in library.js any more"
+    return set(re.findall(r'\["([a-z]+)",', block.group(1)))
+
+
+def test_every_kind_and_register_has_a_word_a_reader_would_use() -> None:
+    """A value with no label shows as an empty column and no chip, and says nothing.
+
+    `named()` in library.js returns "" for a value it does not know, so adding to either
+    enum without adding to the list beside it is silent: the text is on the shelf, its
+    kind column is blank, and the filter that would find it is not offered. This is the
+    check that makes that loud, added when `Kind.liturgy` went in for the siddur
+    (targum-internal#120).
+    """
+    from targum.catalogue import Kind, Register
+
+    # `Register.none` is the empty string — "anything not in Hebrew, where the axis does
+    # not apply" — and there is nothing for a Hebrew library to call it.
+    registers = {one.value for one in Register if one.value}
+
+    assert {one.value for one in Kind} <= _labelled("KINDS"), "a kind with no word for it"
+    assert registers <= _labelled("REGISTERS"), "a register with no word for it"
