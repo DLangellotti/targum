@@ -26,7 +26,7 @@ import threading
 import time
 import traceback
 import webbrowser
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import cache, lru_cache
@@ -760,8 +760,86 @@ class Drawable:
     language: str
 
 
+class Jobs(dict[str, Job]):
+    """Every job the process knows about, with the ones that can be in a line indexed.
+
+    A plain dict held all of these and `Library.mine` walked the whole thing to answer
+    "where am I in the queue?". Since 2026-09-05 every chat turn is a job row — which is
+    right, because it is how the spending rails see a turn — so that dict grows with
+    every turn anybody ever takes, and a question about the two builds in the queue was
+    being answered by walking a hundred thousand conversations
+    (targum-internal#231).
+
+    So the builds are indexed as they arrive, and the index forgets a build at exactly
+    the moment `mine` stops showing it: settled, and older than `Library.RECENT_MS`.
+    That is not a second policy to keep in step with the first — it is the same
+    condition, which is why `waiting` takes the cutoff rather than deciding one.
+
+    **What this deliberately does not change is what the server remembers.** `self` still
+    holds every job, `/job/<id>` still answers about one from three months ago, and the
+    ledger on disk is still the record. Only the per-request cost moves.
+
+    The index is maintained here rather than at the thirteen places that assign a job,
+    because an index the caller has to remember to update is an index that drifts. The
+    tests that assign a whole dict at once go through `Library.jobs`'s setter, which
+    wraps a plain mapping in this.
+    """
+
+    def __init__(self, initial: Mapping[str, Job] | None = None) -> None:
+        super().__init__()
+        self.builds: dict[str, Job] = {}
+        if initial:
+            self.update(initial)
+
+    def __setitem__(self, key: str, job: Job) -> None:
+        super().__setitem__(key, job)
+        if job.kind == "build":
+            self.builds[key] = job
+
+    # `dict.update` does not go through `__setitem__` on a subclass, so it is spelled
+    # out. A silent bypass here would be a drifted index, which shows up as a build
+    # missing from somebody's strip rather than as an error.
+    def update(self, *args: Any, **kwargs: Job) -> None:
+        for key, job in dict(*args, **kwargs).items():
+            self[key] = job
+
+    def waiting(self, cutoff: int) -> list[Job]:
+        """The builds worth answering about, and a sweep of the ones that are not.
+
+        Everything settled before `cutoff` is dropped from the index on the way past:
+        it is on disk, it is still in the registry, and nothing will ask about it again.
+        A key that has left the registry by any route goes too, which is why removal is
+        checked here rather than hooked in `__delitem__` and `pop` — an index that can
+        only be right if every caller remembers it is an index that eventually is not.
+
+        A copy is taken first because a worker thread may finish a build while this
+        runs, and mutating what you are iterating is how that would show up.
+        """
+        keep: list[Job] = []
+        for key, job in list(self.builds.items()):
+            gone = key not in self
+            settled = job.stage in ("done", "failed", "blocked") and job.made < cutoff
+            if gone or settled:
+                self.builds.pop(key, None)
+                continue
+            keep.append(job)
+        return keep
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
+
+    #: Every job this process knows about. A `Jobs` rather than a plain dict, because
+    #: the builds are indexed inside it; the setter wraps a plain mapping so that
+    #: `library.jobs = {...}` — which several tests do to stage a queue — keeps the
+    #: index rather than quietly replacing the thing that maintains it.
+    @property
+    def jobs(self) -> Jobs:
+        return self._jobs
+
+    @jobs.setter
+    def jobs(self, value: Mapping[str, Job]) -> None:
+        self._jobs = value if isinstance(value, Jobs) else Jobs(value)
 
     def __init__(
         self,
@@ -806,7 +884,9 @@ class Library:
         self.empty_trash()
         self.purge_departed()
         self._committed = 0.0
-        self.jobs: dict[str, Job] = {}
+        # Every job, with the builds indexed beside them; see `Jobs`. Assigned through
+        # the property below so a plain dict handed in by a test is wrapped, not lost.
+        self.jobs = Jobs()
         # The quota's view of each home, cached a minute: a gigabyte arrives in a
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
@@ -916,16 +996,18 @@ class Library:
         """
         # Builds only, on both counts: a chat turn is never in this line, so one that is
         # working must not put every waiting build one place further back.
-        builds = [job for job in self.jobs.values() if job.kind == "build"]
+        #
+        # Asked of the index rather than of every job ever run. `Jobs.waiting` also
+        # sweeps what the loop below would have skipped anyway, so this walks the line
+        # and the last hour rather than the whole history (targum-internal#231).
+        cutoff = now() - self.RECENT_MS
+        builds = self.jobs.waiting(cutoff)
         working = any(job.stage == "working" for job in builds)
         waiting = sorted((job for job in builds if job.stage == "queued"), key=lambda j: j.made)
         position = {job.id: index + (1 if working else 0) for index, job in enumerate(waiting)}
-        cutoff = now() - self.RECENT_MS
         out: list[dict[str, Any]] = []
         for job in sorted(builds, key=lambda j: j.made, reverse=True):
             if job.owner != owner:
-                continue
-            if job.stage in ("done", "failed", "blocked") and job.made < cutoff:
                 continue
             if job.stage in ("reading", "ready"):
                 # Priced and not yet started: nothing is building, so there is nothing

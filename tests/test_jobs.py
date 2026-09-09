@@ -124,3 +124,46 @@ def test_putting_the_strip_away_is_a_promise_kept(tmp_path: Path) -> None:
     plain = Library(tmp_path)
     plain.jobs = {"w": job("w", None, "working", now())}
     assert plain.mine(None)[0]["mail"] is False
+
+
+def test_the_line_is_not_answered_by_walking_history(tmp_path: Path) -> None:
+    """"Where am I in the line?" costs the line, not everything ever run.
+
+    Every chat turn is a job row, so the registry grows with every turn anybody takes.
+    It used to be filtered on each call to find the two builds in the queue
+    (targum-internal#231). The builds are indexed now, and a build that has been settled
+    for longer than an hour leaves the index on the next sweep — the same condition
+    `mine` uses to stop showing it, so there is only one rule.
+    """
+    library = Library(tmp_path)
+    library.jobs.update(
+        {f"chat-{n}": job(f"chat-{n}", 1, "done", now(), kind="chat") for n in range(5_000)}
+    )
+    library.jobs["old"] = job("old", 1, "done", now() - library.RECENT_MS - 1)
+    library.jobs["a"] = job("a", 1, "working", 100)
+    library.jobs["b"] = job("b", 1, "queued", 200)
+
+    assert len(library.jobs) == 5_003, "the registry still holds everything"
+    assert set(library.jobs.builds) == {"old", "a", "b"}, "a chat turn is never in the line"
+
+    mine = library.mine(1)
+
+    assert [one["id"] for one in mine] == ["b", "a"], "the settled one is an hour past"
+    assert set(library.jobs.builds) == {"a", "b"}, "and has left the index on the way past"
+
+
+def test_a_job_that_leaves_the_registry_leaves_the_index(tmp_path: Path) -> None:
+    """Removal is noticed on the sweep rather than hooked on every route out."""
+    library = Library(tmp_path)
+    library.jobs["a"] = job("a", 1, "queued", 100)
+    del library.jobs["a"]
+    assert library.mine(1) == []
+    assert library.jobs.builds == {}
+
+
+def test_a_dict_assigned_over_the_registry_still_indexes(tmp_path: Path) -> None:
+    """Several tests stage a queue by assigning a whole dict; that must not lose it."""
+    library = Library(tmp_path)
+    library.jobs = {"a": job("a", 1, "queued", 100), "c": job("c", 1, "done", now(), kind="chat")}
+    assert set(library.jobs.builds) == {"a"}
+    assert [one["id"] for one in library.mine(1)] == ["a"]
