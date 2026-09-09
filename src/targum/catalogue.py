@@ -110,6 +110,11 @@ class Kind(StrEnum):
     #: eventually — Hebrew first, the translation second, and a gloss that stops repeating
     #: itself by the tenth morning. `document` would have been the shrug, and `Kind` exists
     #: so a reader is told what they are holding (targum-internal#120, decided 2026-09-09).
+    #:
+    #: It was not a filing waiting to happen. The three weekday services were already on
+    #: the shelf under `prose`, which `library.js` labels "Bible narrative — the Bible's
+    #: story books" in as many words. So this is a correction, of the same shape as the
+    #: one `talk` was added to make.
     liturgy = "liturgy"
 
 
@@ -394,8 +399,10 @@ def cover_prompt(entry: Entry) -> str:
         Kind.talk: "a recorded lesson, explained aloud",
         # Said this way round on purpose: the brand rules below already refuse ritual
         # objects of any tradition, and the honest subject of a prayer book is not an
-        # object but the hour it is opened at.
-        Kind.liturgy: "a book of daily prayer, read at the same hour each morning",
+        # object but the hour it is opened at. "Each day" rather than "each morning",
+        # because the first three rows filed here are Shacharit, Minchah and Maariv and
+        # two of them are not the morning.
+        Kind.liturgy: "a book of daily prayer, read at the same hour each day",
     }[entry.kind]
     return (
         f"A cover image for {kind}: {entry.title} — {entry.author}. {entry.blurb} "
