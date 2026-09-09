@@ -2494,7 +2494,13 @@ class Library:
             # the catalogue is translated on Opus, and its 25k lemmas are cached under
             # Sonnet. Quoting or buying them under Opus paid twice for the same words.
             gloss_model=GLOSS_MODEL,
-            difficulty=bool(options.get("words")),
+            # On unless a door says otherwise, and none does. Being able to tap a word is
+            # most of what a reader is for, and this key was the one thing a door had to
+            # remember: the chat's two doors forgot it once (targum 8b4cf17), and the
+            # part and chapter doors — which write their own options — never had it. So
+            # buying a recording's second part rebuilt the whole reader with no word
+            # to tap, the first part's marks included, and the job said `done`.
+            difficulty=bool(options.get("words", True)),
             # A catalogue text arrives with a translation somebody already made, so
             # nothing is asked of a model and nothing is spent.
             translations=[str(t) for t in options.get("translations") or []],

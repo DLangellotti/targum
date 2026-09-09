@@ -36,6 +36,35 @@ def test_buying_a_part_goes_through_run_part_not_run_chapter(tmp_path: Path) -> 
     assert took == ["part"]
 
 
+def test_buying_a_later_part_or_chapter_still_annotates_the_words(tmp_path: Path) -> None:
+    """A recording's second part rebuilt the whole reader with no word a reader could
+    tap — the first part's marks included.
+
+    `_builder` read `difficulty=bool(options.get("words"))`, and the part door writes
+    its own options without it, so `Pipeline.annotate` returned None and the reader
+    that came back had no marks, no error, and a job that said `done`. The chapter door
+    writes its own options too; it renders the annotation already on disk and never
+    reaches `annotate`, so it lost nothing, and it is here so that a rewrite which does
+    annotate cannot forget. The Add page, the Learn page and both chat doors send
+    `words: true` and had already been through this once
+    (`test_every_door_the_chat_builds_through_asks_for_words`); the fix this time is at
+    the one place every door meets, so the next door cannot forget either. Nothing
+    anywhere asks for a reader without words.
+    """
+    library = Library(tmp_path)
+    for options in (
+        {"parts": [2], "folder": "talk-en", "to": "en"},
+        {"chapters": [2], "folder": "book-en", "to": "en"},
+        {"to": "en"},
+    ):
+        build = library._builder(Job(id="a", source="s", options=options))
+        assert build.difficulty is True, options
+    # Nothing asks for a reader without words, but a door that says so out loud is
+    # still heard.
+    build = library._builder(Job(id="a", source="s", options={"to": "en", "words": False}))
+    assert build.difficulty is False
+
+
 def test_a_prepared_audio_job_reports_seconds_and_parts(fake_audio, tmp_path: Path) -> None:
     """The card shows a clock and a count, never dollars — so the facts ride on the
     job's state for the page to shape."""

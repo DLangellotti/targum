@@ -497,6 +497,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- Buying a recording's second part, or a book's next chapter, no longer rebuilds the
+  reader without a word to tap. Every reader is built through one place, and that place
+  read `words` off the door's options and took silence for no; the part and chapter
+  doors write their own options and never said it, so the reader came back with no
+  marks — the first part's included — and the job said `done`. The chat's two doors had
+  been through this once and were mended one at a time. Now a door that says nothing
+  gets words, since nothing anywhere asks for a reader without them, and a door that
+  says `words: false` out loud is still heard.
 - A door the model spelled with the wrong final letter opens. Told to copy a reader's
   path exactly as the tool returned it, the model wrote בסטארטאף for the folder
   בסטארטאפ, twice in one conversation, and the door answered "not found". A name that
