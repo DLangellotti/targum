@@ -40,13 +40,16 @@ def test_buying_a_later_part_or_chapter_still_annotates_the_words(tmp_path: Path
     """A recording's second part rebuilt the whole reader with no word a reader could
     tap — the first part's marks included.
 
-    `_builder` read `difficulty=bool(options.get("words"))`, and the part and chapter
-    doors write their own options without it, so `Pipeline.annotate` returned None and
-    the reader that came back had no marks, no error, and a job that said `done`. The
-    Add page, the Learn page and both chat doors send `words: true` and had already
-    been through this once (`test_every_door_the_chat_builds_through_asks_for_words`);
-    the fix this time is at the one place every door meets, so the next door cannot
-    forget either. Nothing anywhere asks for a reader without words.
+    `_builder` read `difficulty=bool(options.get("words"))`, and the part door writes
+    its own options without it, so `Pipeline.annotate` returned None and the reader
+    that came back had no marks, no error, and a job that said `done`. The chapter door
+    writes its own options too; it renders the annotation already on disk and never
+    reaches `annotate`, so it lost nothing, and it is here so that a rewrite which does
+    annotate cannot forget. The Add page, the Learn page and both chat doors send
+    `words: true` and had already been through this once
+    (`test_every_door_the_chat_builds_through_asks_for_words`); the fix this time is at
+    the one place every door meets, so the next door cannot forget either. Nothing
+    anywhere asks for a reader without words.
     """
     library = Library(tmp_path)
     for options in (

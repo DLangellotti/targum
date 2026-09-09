@@ -709,9 +709,10 @@ def test_every_door_the_chat_builds_through_asks_for_words() -> None:
     `BUILD_OPTIONS` gets it, and one that writes its own literal is the thing this cannot
     catch — which is why the constant exists.
 
-    `serve._prepare` reads `difficulty=bool(options.get("words"))` and `Pipeline.annotate`
-    returns None without it, so a missing key is a reader with no tappable word and no
-    error anywhere.
+    `Library._builder` read `difficulty=bool(options.get("words"))` and `Pipeline.annotate`
+    returns None without it, so a missing key was a reader with no tappable word and no
+    error anywhere. Since `_builder` reads `options.get("words", True)` a missing key is
+    words; the constant stays as the chat's way of saying so out loud.
     """
     assert tools.BUILD_OPTIONS == {"words": True}
     assert "gloss" not in tools.BUILD_OPTIONS, (
