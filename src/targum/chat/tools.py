@@ -59,7 +59,11 @@ if TYPE_CHECKING:
 #:
 #: A constant rather than a literal at each door because there are two — a link or a
 #: catalogue id through `quote_build`, and a conversation read back through
-#: `save_conversation` — and both had forgotten. A third would have too.
+#: `save_conversation` — and both had forgotten. A third would have too, and did: the
+#: part and chapter doors in `serve` write their own options and never carried it, so
+#: buying a recording's second part rebuilt the reader without a word to tap. Since
+#: then `_builder` reads `options.get("words", True)`, so a door that says nothing
+#: gets words; this constant stays as the chat's way of saying so out loud.
 #:
 #: `gloss` is deliberately not here. It is about half of what a build costs and most of
 #: it is never read; a word is bought from the card when somebody actually wants it.
