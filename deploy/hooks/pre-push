@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# The checks nothing else runs: the private half, in the one checkout that has it.
+#
+# Eight modules are gitignored. CI has a public checkout and never sees them; a
+# `git worktree` of a tracked branch does not carry ignored files either, and worktrees
+# are where most of the work happens here. So the main checkout is the only place they
+# exist, and nothing routinely checked them (targum-internal#230).
+#
+# That matters because they depend on the public half. A rename in `recording/`,
+# `weekly/index.py` or `models.py` breaks one of them while every check stays green, and
+# the failure surfaces at the next weekly or dialogue build, by hand, days later.
+#
+# A push is the right moment: it is when a public-half change stops being local. It is
+# also the last moment the two halves are in front of each other, because what goes to
+# GitHub is only ever one of them.
+#
+# Install:  ./deploy/hooks/install.sh
+# Skip once (a broken private half you are not the cause of):  git push --no-verify
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT" || exit 0
+
+# Named, not discovered, and the same list `tests/test_private_half.py` keeps: a private
+# module quietly disappearing should be noticed rather than silently be one less thing
+# checked.
+#
+# `dialogue/voice.py` and `dialogue/shelf.py` are in `.gitignore` and are deliberately
+# not here: they have never been written. The ignore lines are a plan for where those
+# modules will go, not a gap in this list.
+PRIVATE=(
+  src/targum/dialogue/write.py
+  src/targum/recording/attach.py
+  src/targum/recording/cut.py
+  src/targum/weekly/facts.py
+  src/targum/weekly/prompts.py
+  src/targum/weekly/sources.py
+  src/targum/weekly/voice.py
+  src/targum/weekly/write.py
+)
+
+HERE=()
+for one in "${PRIVATE[@]}"; do
+  [ -f "$one" ] && HERE+=("$one")
+done
+
+# No private half: a worktree, a fresh clone, CI. Nothing to check and nothing to say —
+# this hook is about a tree that has them, and being noisy in a tree that does not is how
+# a hook gets uninstalled.
+[ ${#HERE[@]} -eq 0 ] && exit 0
+
+# Some but not all is the state worth refusing: a half-copied checkout builds a wheel
+# that is missing modules and says nothing about it.
+if [ ${#HERE[@]} -ne ${#PRIVATE[@]} ]; then
+  echo "pre-push: ${#HERE[@]} of ${#PRIVATE[@]} private modules are here." >&2
+  echo "  A partial private half builds a wheel with holes in it. Copy the rest, or" >&2
+  echo "  push from a worktree, which has none of them and is checked as CI checks it." >&2
+  exit 1
+fi
+
+RUFF=(uv run ruff)
+MYPY=(uv run mypy)
+PYTEST=(env PYTHONPATH="$ROOT/src" .venv/bin/python -m pytest)
+FAILED=0
+
+say() { printf '%s %s\n' "$1" "$2"; }
+
+# ruff reads an explicitly named file even when git ignores it, which is the whole
+# reason this can be a hook rather than a config change.
+if "${RUFF[@]}" check "${HERE[@]}" >/dev/null; then
+  say "  ok" "ruff · private half"
+else
+  "${RUFF[@]}" check "${HERE[@]}"
+  FAILED=1
+fi
+if "${RUFF[@]}" format --check "${HERE[@]}" >/dev/null; then
+  say "  ok" "ruff format · private half"
+else
+  "${RUFF[@]}" format --check "${HERE[@]}"
+  FAILED=1
+fi
+
+# mypy's `files = ["src/targum"]` already reaches them; it is run here because in a
+# worktree it silently checks eight fewer files and this is the tree where it does not.
+if "${MYPY[@]}" >/dev/null; then say "  ok" "mypy · whole package"; else "${MYPY[@]}"; FAILED=1; fi
+
+# The import check, which is the one that catches a rename in the public half.
+if "${PYTEST[@]}" -q tests/test_private_half.py >/dev/null 2>&1; then
+  say "  ok" "imports · private half"
+else
+  "${PYTEST[@]}" -q tests/test_private_half.py
+  FAILED=1
+fi
+
+if [ "$FAILED" -ne 0 ]; then
+  echo >&2
+  echo "pre-push: the private half does not pass its own checks." >&2
+  echo "  These files are not in the repository, so a fix here is not a commit — edit" >&2
+  echo "  them in place and push again. --no-verify skips this." >&2
+  exit 1
+fi
+exit 0
