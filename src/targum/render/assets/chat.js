@@ -834,6 +834,15 @@
   if (fresh) fresh.onclick = startNew;
   if (mic) mic.onclick = toggleRecording;
 
+  // The account, and the words. Every other page starts the sync — Learn, Library,
+  // Progress, Add, Yours — and this one did not, so `/account/me` was never asked here.
+  // Two things followed: the header kept the signed-out button it is rendered with, so a
+  // reader talking to targum was told to sign in; and `start()`'s first `exchange()`
+  // never ran, so a reader who came straight to the chat and stayed had no word sync at
+  // all that visit. The page itself works either way — it authenticates server-side with
+  // `TARGUM_KEY` — which is why nothing looked wrong (targum-internal#232).
+  if (window.TargumSync) window.TargumSync.start();
+
   load();
 
   window.TargumChat = {

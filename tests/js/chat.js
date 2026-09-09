@@ -132,6 +132,17 @@ global.FileReader = class {
   }
 };
 
+// The sync, as every page's script finds it. Recorded rather than stubbed away: the
+// chat page did not start it for a while, and nothing said so (targum-internal#232).
+let syncStarted = false;
+global.window.TargumSync = {
+  start: () => {
+    syncStarted = true;
+    return Promise.resolve(true);
+  },
+  onChange: () => {},
+};
+
 require(path.join(assets, "bring.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
@@ -312,6 +323,7 @@ function drawn() {
       list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,
+      syncStarted,
     }),
   );
 })();
