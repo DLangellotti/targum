@@ -248,10 +248,18 @@ def is_mishnah(book: str) -> bool:
 #: with a pairing error, so they wait for an English rather than pretending to have one.
 #: The author's introduction is the same shape as Mesillat Yesharim's and is left out for
 #: the same reason.
+#:
+#: **Both spellings of Mesillat Yesharim are pinned.** Sefaria answers to `Mesilat
+#: Yesharim` and to `Mesillat Yesharim`, and its index now returns the double-`l` as the
+#: book's title — so a ref written the way Sefaria spells it today missed this pin and
+#: fell through to the default, whose message is *"Sefaria has no 'Tanach with Ta'amei
+#: Hamikra' of Mesillat Yesharim"*. That reads like a missing text rather than a missing
+#: pin, which is the wrong thing to be told about a book that is there.
 MUSSAR: dict[str, Pair] = {
-    "Mesilat Yesharim": Pair(
-        "Sefaria Vocalized Edition", "Path of the Just. Trans. Rabbi Yosef Sebag"
-    ),
+    **{
+        spelling: Pair("Sefaria Vocalized Edition", "Path of the Just. Trans. Rabbi Yosef Sebag")
+        for spelling in ("Mesilat Yesharim", "Mesillat Yesharim")
+    },
     **{
         f"Chovot HaLevavot, {treatise}": Pair(
             "Vocalized Edition", "Duties of the Heart, trans. Rabbi Yosef Sebag"
