@@ -583,6 +583,12 @@
       opinion (targum-internal#176). The blurb is one tap away on the library row this
       links to. -#}
   {% if suggested.because %}<span class="next-up-why">{{ suggested.because }}{% if suggested.minutes %} · {{ suggested.minutes }} min{% endif %}</span>{% endif %}
+  {#- A way to disagree, and nothing more (targum-internal#233). It draws again from a
+      list written into the page — the page fetches nothing — and remembers nothing: a
+      refusal the server kept would turn a door into a profile nobody asked to build.
+      Rendered only where there is a second pick, so a shelf of two texts does not offer
+      to draw for ever. Hidden until the script arms it, like the aside around it. -#}
+  {% if suggested_more %}<button type="button" class="next-up-else" id="next-up-else" data-more="{{ suggested_more|e }}" hidden>Something else</button>{% endif %}
 </aside>
 {% endif %}
 

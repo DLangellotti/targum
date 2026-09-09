@@ -6889,6 +6889,57 @@ var targumReader = function () {
   // works off a disk — it is not waiting to find out how the page was opened, and it is
   // waiting for something else entirely: the section being finished.
   if (next && !next.classList.contains("here")) next.hidden = false;
+
+  /* And a way to disagree with it (targum-internal#233).
+   *
+   * One offer, and a link beside it that draws again. No state, no preference, nothing
+   * sent anywhere: the alternatives are written into the page, because the page fetches
+   * nothing, and a refusal the server remembered would turn a door into a profile
+   * nobody asked to build. The point of the offer is that saying yes costs nothing, and
+   * this is what makes saying no cost nothing too.
+   *
+   * Each pick carries its own reason, so the second is "a step up, in a different
+   * Hebrew" or "easier than this one" and never "another one". The list runs out rather
+   * than looping: a control that offers for ever is offering nothing.
+   */
+  var elsewhere = document.getElementById("next-up-else");
+  if (!next || !elsewhere) return;
+  var more;
+  try {
+    more = JSON.parse(elsewhere.getAttribute("data-more") || "[]");
+  } catch (error) {
+    return;
+  }
+  if (!more.length) return;
+  elsewhere.hidden = false;
+
+  var link = next.querySelector(".next-up-link");
+  var lead = next.querySelector(".next-up-lead");
+  var why = next.querySelector(".next-up-why");
+
+  elsewhere.addEventListener("click", function () {
+    var pick = more.shift();
+    if (!pick) return;
+    if (link) {
+      link.href = "/library#" + encodeURIComponent(pick.id);
+      link.textContent = pick.title;
+      if (pick.english) {
+        var english = document.createElement("span");
+        english.className = "next-up-english";
+        english.lang = "en";
+        english.textContent = "· " + pick.english;
+        link.appendChild(document.createTextNode(" "));
+        link.appendChild(english);
+      }
+    }
+    if (lead) lead.textContent = "Read next" + (pick.scene ? " · " + pick.scene : "");
+    if (why) {
+      why.textContent = pick.because + (pick.minutes ? " · " + pick.minutes + " min" : "");
+      why.hidden = !pick.because;
+    }
+    // Nothing left to draw, so the control goes rather than sitting there inert.
+    if (!more.length) elsewhere.hidden = true;
+  });
 })();
 
 /* --- the next chapter, bought before it is needed ---------------------------

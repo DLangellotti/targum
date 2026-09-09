@@ -721,7 +721,18 @@ def _this_week() -> dict[str, Any] | None:
     }
 
 
-def next_after(document: Document) -> dict[str, str]:
+#: How many texts to write into the page. One is the offer; the rest are what
+#: "something else" draws. Three because two is barely a choice and a page that carries a
+#: shelf is a library, which is the thing this door exists not to be.
+OFFERS = 3
+
+#: How far apart two texts can be and still be called about as hard as each other. The
+#: number is the width of one of the library's own levels (`library.js:LEVELS`): easier
+#: is up to one word in five new, middling about one in four, harder more than that.
+LEVEL = 5
+
+
+def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     """What to read after this one, decided when the reader is written.
 
     A reader fetches nothing, so it cannot ask a library what else there is — the answer
@@ -739,27 +750,47 @@ def next_after(document: Document) -> dict[str, str]:
     pool it drew from, and whether anything was harder — rather than a phrase chosen to
     sound helpful. It went out carrying the text's own blurb, which says what the text is
     and not why it is next.
+
+    **A list, not one.** The reader shows the first and offers to draw again
+    (targum-internal#233). Every pick keeps the reason that is true of *it*, so the
+    second and third are not "another one" — a text drawn from the wider pool still says
+    it is a different Hebrew, and one below this text says it is easier rather than
+    pretending to be a step up. A refusal that lied about what it was offering would be
+    worse than no refusal.
     """
     from ..catalogue import CATALOGUE, scene_number
 
     mine = next((entry for entry in CATALOGUE if entry.source == document.source), None)
+    out: list[dict[str, str]] = []
+    taken: set[str] = set()
+
+    def offer(entry: Any, because: str, scene: str = "") -> None:
+        if entry.id in taken or len(out) >= count:
+            return
+        taken.add(entry.id)
+        out.append(
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "english": entry.english,
+                "blurb": entry.blurb,
+                "minutes": str(entry.minutes),
+                "scene": scene,
+                "because": because,
+            }
+        )
+
     # A scene is one of a numbered sequence, and after scene 3 comes scene 4 — not the
-    # nearest harder text, whose measured share is noise at twenty words. Past the last
-    # scene the step-up below takes over.
+    # nearest harder text, whose measured share is noise at twenty words. It leads; the
+    # step-up below fills the rest, so drawing again after a scene still offers
+    # something. Past the last scene the step-up is all there is.
     if mine is not None and scene_number(mine.id):
         following = next(
             (e for e in CATALOGUE if scene_number(e.id) == scene_number(mine.id) + 1), None
         )
         if following is not None:
-            return {
-                "id": following.id,
-                "title": following.title,
-                "english": following.english,
-                "blurb": following.blurb,
-                "minutes": str(following.minutes),
-                "scene": f"Scene {scene_number(following.id)}",
-                "because": "Next in the sequence.",
-            }
+            offer(following, "Next in the sequence.", f"Scene {scene_number(following.id)}")
+
     here = mine.difficulty if mine else 0
     rest = [
         entry
@@ -769,37 +800,38 @@ def next_after(document: Document) -> dict[str, str]:
         and (mine is None or entry.id != mine.id)
     ]
     if not rest:
-        return {}
+        return out
     # Same register first. Falling back to any of them is better than offering nothing,
     # but a learner reading modern Hebrew should not be handed scripture by arithmetic.
     same = [entry for entry in rest if mine is not None and entry.register is mine.register]
-    pick = None
-    because = ""
-    for pool in (same, rest):
-        harder = [entry for entry in pool if entry.difficulty > here]
-        if harder:
-            pick = min(harder, key=lambda entry: (entry.difficulty, entry.words))
-            if mine is None:
-                # An upload, which the catalogue has never measured. It is not a step up
-                # from anything, and saying so would be a claim about a text nobody read.
-                because = "The easiest text on the shelf."
-            elif pool is same:
-                because = "A step up from this one."
-            else:
-                because = "A step up, in a different Hebrew."
+    for pool, label in (
+        (same, "A step up from this one."),
+        (rest, "A step up, in a different Hebrew."),
+    ):
+        harder = sorted(
+            (entry for entry in pool if entry.difficulty > here),
+            key=lambda entry: (entry.difficulty, entry.words),
+        )
+        for entry in harder:
+            # An upload, which the catalogue has never measured. It is not a step up from
+            # anything, and saying so would be a claim about a text nobody read.
+            offer(entry, "The easiest text on the shelf." if mine is None else label)
+
+    # Nothing harder, or not enough of it. The nearest by difficulty is a door out where
+    # a dead end would otherwise be, and it says which way it went: a text well below this
+    # one is an honest thing to offer somebody who has now refused twice, and a dishonest
+    # thing to call about as hard.
+    #
+    # Five points, because that is roughly what the library's own levels are worth —
+    # easier is up to one word in five, middling about one in four, harder more than that
+    # (`library.js:LEVELS`). Inside a level "about as hard" is true; a level away it is
+    # not, and the third draw is the one that would reach that far.
+    for entry in sorted(rest, key=lambda entry: (abs(entry.difficulty - here), entry.words)):
+        if len(out) >= count:
             break
-    if pick is None:
-        pick = min(rest, key=lambda entry: (abs(entry.difficulty - here), entry.words))
-        because = "About as hard as this one."
-    return {
-        "id": pick.id,
-        "title": pick.title,
-        "english": pick.english,
-        "blurb": pick.blurb,
-        "minutes": str(pick.minutes),
-        "scene": "",
-        "because": because,
-    }
+        near = abs(entry.difficulty - here) <= LEVEL
+        offer(entry, "About as hard as this one." if near else "Easier than this one.")
+    return out
 
 
 def learn_page(token: str) -> str:
@@ -1844,10 +1876,14 @@ def render(
     from ..audio import manifest as manifest_module
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
+    offers = next_after(document)
     shared = {
         "has_audio": has_audio,
-        # What to read next, worked out here because a reader cannot ask anybody.
-        "suggested": next_after(document),
+        # What to read next, worked out here because a reader cannot ask anybody. The
+        # first is the offer; the rest are what "something else" draws, written into the
+        # page because the page fetches nothing (targum-internal#233).
+        "suggested": offers[0] if offers else {},
+        "suggested_more": json.dumps(offers[1:], ensure_ascii=False) if offers[1:] else "",
         "parts": parts,
         "document": document,
         "siblings": siblings or [],
