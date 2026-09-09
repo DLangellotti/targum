@@ -103,6 +103,14 @@ class Kind(StrEnum):
     #: heart filed there is labelled "Bible narrative", which is not a near miss. It is
     #: also the register a learner meets in a classroom and nowhere else on this shelf.
     talk = "talk"
+    #: Prayer: the siddur, the haggadah, a piyyut in its place in a service. Its own value
+    #: rather than `document` or `prose` because it is the only thing on this shelf a
+    #: reader does not read *once*. It is the same words in the same order every day, which
+    #: is why it is the best text here to learn from and why it wants a page of its own
+    #: eventually — Hebrew first, the translation second, and a gloss that stops repeating
+    #: itself by the tenth morning. `document` would have been the shrug, and `Kind` exists
+    #: so a reader is told what they are holding (targum-internal#120, decided 2026-09-09).
+    liturgy = "liturgy"
 
 
 class Register(StrEnum):

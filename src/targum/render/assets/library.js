@@ -63,6 +63,7 @@
     ["poetry", "Poetry"],
     ["document", "Documents"],
     ["play", "Plays"],
+    ["liturgy", "Prayer"],
   ];
 
   /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
@@ -134,6 +135,7 @@
       talk: "Talks — lectures and explainers, with the video beside them.",
       article: "News — the Israeli press, in the week it was written.",
       play: "Plays — a speaker, then a line.",
+      liturgy: "Prayer — the siddur and the service, the same words every day.",
     },
     register: {
       biblical: "Biblical — the Hebrew of the Bible.",
