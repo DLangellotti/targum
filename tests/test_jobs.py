@@ -127,7 +127,7 @@ def test_putting_the_strip_away_is_a_promise_kept(tmp_path: Path) -> None:
 
 
 def test_the_line_is_not_answered_by_walking_history(tmp_path: Path) -> None:
-    """"Where am I in the line?" costs the line, not everything ever run.
+    """A reader's place in the line costs the line, not everything ever run.
 
     Every chat turn is a job row, so the registry grows with every turn anybody takes.
     It used to be filtered on each call to find the two builds in the queue
