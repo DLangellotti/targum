@@ -22,6 +22,12 @@ states them, so the field is a claim that can be re-checked at `licence_url`:
   have none, and they are left empty and listed rather than assumed public domain by
   selection, which is what `promote.py`'s table does and what this refuses to write down.
 
+**Both sides of a targum.** The English beside the Hebrew is a separate work under a
+separate licence and ships in the same reader, so every `translations` entry is filled
+the same way. A Sefaria rendering names its language in the ref — `sefaria:en:Ruth` —
+and the Hebrew side does not, which is the only difference between the two readers
+(targum-internal#234).
+
 A dry run prints what it would write, one line per entry with the rule that produced it,
 and a count by standing. `--write` writes it back.
 
@@ -152,6 +158,30 @@ def from_sefaria(source: str, fetch: Fetch) -> Terms | None:
     return from_edition(editions[0], name, "sefaria") if editions else None
 
 
+def from_sefaria_rendering(source: str, fetch: Fetch) -> Terms | None:
+    """The same question asked of a *translation's* edition rather than the Hebrew's.
+
+    A rendering's source carries the language — `sefaria:en:Ruth` — and `from_sefaria`
+    hardcodes `he`, so it would ask for `en:Ruth 1:1`, which is not a reference. Split
+    the language off and ask the pinning table for that side.
+    """
+    rest = source.split(":", 1)[1]
+    language, _, name = rest.partition(":")
+    if not name:
+        return None
+    ref = first_verse(name)
+    try:
+        version = sefaria.version_for(language, ref)
+    except Exception:  # noqa: BLE001 - a reference the pinning table does not know
+        return None
+    if not version:
+        return None
+    tag = "hebrew" if language == "he" else "english"
+    url = sefaria.API.format(ref=quote(ref), version=quote(f"{tag}|{version}", safe="|"))
+    editions = json.loads(fetch(url)).get("versions") or []
+    return from_edition(editions[0], name, f"sefaria:{language}") if editions else None
+
+
 def from_siddur(source: str, fetch: Fetch) -> Terms | None:
     """The first leaf of the service, for the licence on the pinned Hebrew edition."""
     path = source.split(":", 1)[1].split(", ")
@@ -218,10 +248,15 @@ def from_video(source: str, videos: Path) -> Terms | None:
     )
 
 
-def terms_for(source: str, fetch: Fetch, videos: Path) -> Terms | None:
-    """What the source says its terms are, by family; None where it says nothing."""
+def terms_for(source: str, fetch: Fetch, videos: Path, rendering: bool = False) -> Terms | None:
+    """What the source says its terms are, by family; None where it says nothing.
+
+    `rendering` says this is the *translation* beside a text rather than the text — the
+    only difference is that a Sefaria rendering names its language in the ref and the
+    Hebrew side does not (targum-internal#234).
+    """
     if source.startswith("sefaria:"):
-        return from_sefaria(source, fetch)
+        return from_sefaria_rendering(source, fetch) if rendering else from_sefaria(source, fetch)
     if source.startswith("siddur:"):
         return from_siddur(source, fetch)
     if source.startswith("wikisource:"):
@@ -298,6 +333,33 @@ def main() -> int:
             raw["credit"] = terms.credit
             raw["licence_url"] = terms.licence_url
         filled += 1
+
+    # The translation beside each text, which is a separate work under a separate licence
+    # and ships in the same reader. `targum licences` read only the Hebrew's until
+    # targum-internal#234, so nothing ever needed these filled and 88 of them were owed.
+    for raw in entries:
+        for beside in raw.get("translations") or []:
+            source = str(beside.get("source", ""))
+            if args.only and not source.startswith(args.only):
+                continue
+            if beside.get("licence") and not args.redo:
+                continue
+            name = f"{raw['id']} · {beside.get('name', '')}"
+            try:
+                terms = terms_for(source, fetch, videos, rendering=True)
+            except Exception as error:  # noqa: BLE001 - one source failing is a line
+                failed.append(f"{name}\t{type(error).__name__}: {error}")
+                continue
+            if terms is None:
+                silent.append(f"{name}\t{source}")
+                continue
+            standing = verdict(terms.licence).standing.value
+            standings[standing] = standings.get(standing, 0) + 1
+            print(f"{name}\t{terms.rule}\t{standing}\t{terms.licence}\t{terms.credit}")
+            if args.write:
+                beside["licence"] = terms.licence
+                beside["publisher"] = terms.credit
+            filled += 1
 
     if args.write and filled:
         indent = 2 if "\n  " in text[:200] else None
