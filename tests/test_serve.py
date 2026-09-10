@@ -2496,3 +2496,25 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     assert measured.state()["known_line"] == "You know about 7 words in 10 here."
     unmeasured = Job(id="k", source="x")
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
+
+
+def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#245: pages of fifty, in order, a band each, the meaning only where
+    the glossary already holds one — nothing is bought."""
+    pytest.importorskip("wordfreq")
+    port, token, _ = served
+    status, payload = get(port, f"/words/common?k={token}")
+    assert status == 200 and len(payload["words"]) == 50 and payload["offset"] == 0
+    assert payload["next"] == 50 and payload["into"] == "en"
+    first = payload["words"][0]
+    assert set(first) == {"form", "band", "meaning"} and first["band"] in ("easy", "fairly easy")
+    status, second = get(port, f"/words/common?offset=50&limit=10&k={token}")
+    assert len(second["words"]) == 10 and second["next"] == 60
+    assert (
+        second["words"][0]["form"]
+        == get(port, f"/words/common?offset=50&k={token}")[1]["words"][0]["form"]
+    )
+    status, end = get(port, f"/words/common?offset=2990&k={token}")
+    assert end["next"] is None, "the list stops at the commonest few thousand"

@@ -380,3 +380,43 @@ table.rows tr.editor-row td {
   main { padding-inline: 1rem; gap: 1rem; }
   .panel { padding: 0.9rem 1rem 1rem; }
 }
+
+/* Words you may already know (targum-internal#245): the same rows as Your Words, and
+   two working controls at the foot — ink for the press that marks a page known, since
+   it asks the reader to act, and a bordered one to pass. */
+.claim-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-block-start: 0.75rem; }
+.claim-yes {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.claim-yes:hover { background: var(--ink-soft); }
+.claim-yes:disabled { opacity: 0.5; cursor: default; }
+.claim-no {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.claim-no:hover { background: var(--paper-raised); }
+.claim-no:disabled { opacity: 0.5; cursor: default; }
+.claim-said { font-size: 0.8125rem; color: var(--ink-soft); }
+.claim[hidden] { display: none; }
+
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .claim-yes,
+  .claim-no {
+    min-height: 44px;
+  }
+}

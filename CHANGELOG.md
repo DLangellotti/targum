@@ -414,6 +414,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Words you may already know, on Learn under Your Words: the commonest words of modern
+  Hebrew that are not on the ledger, fifty at a time, with the meaning the glossary
+  already holds, and "I know all of these" — every mark an ordinary known word, so the
+  count rises because it did, and never a level a reader could claim. "Not these" passes
+  a page over. `/words/common` serves the list and buys nothing; a reader with no ledger
+  who says they read Hebrew is told once where it is (targum-internal#245, from the
+  notes of 2026-09-10).
 - How much of a text a reader already has is estimated before it is quoted: the
   ledger's known forms and the commonest words against the text's tokens, a prefix or
   two allowed, no lemmatizer. The card says it in words — "You know about 7 words in

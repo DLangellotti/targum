@@ -229,3 +229,10 @@ def test_why_a_recast_changed_something_rides_with_the_recast_and_nowhere_else()
     assert hebrew.length(said) == 2, "a why line is not Hebrew the reader is asked to read"
     plain = hebrew.pairs("> שָׁלוֹם.\n= Hello.\nמָה שְׁלוֹמְךָ?\n= How are you?")
     assert all(p.why == "" for p in plain)
+
+
+def test_a_reader_with_no_ledger_is_told_once_where_the_common_words_are() -> None:
+    """targum-internal#245: a reader who already reads Hebrew arrives with a ledger of
+    nothing; the way up is Words you may already know, said once, never a level."""
+    block = hebrew.ledger_block(level.EMPTY, [], ["של", "את"])
+    assert "Words you may already know" in block and "never what level they are" in block

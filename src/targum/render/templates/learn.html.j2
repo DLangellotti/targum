@@ -202,6 +202,35 @@
     </div>
   </section>
 
+  {#- Words you may already know (2026-09-10, targum-internal#245). A reader who reads
+      Hebrew already arrives with a ledger of nothing, and the level is a real count of
+      known words: rather than a level they could claim, the commonest words they have
+      not met, fifty at a time, with "I know all of these" — every mark a real known
+      word, so the count rises because it should. Hebrew only, drawn by `claim.js`,
+      and hidden until it has rows to show. -#}
+  <section class="panel claim" id="claim-panel" hidden>
+    <h2>Words you may already know</h2>
+    <p class="note">The commonest words of modern Hebrew that are not on your ledger yet.
+      Mark the page you know and the next fifty come up.</p>
+    <div class="table-wrap">
+      <table class="rows" id="claim-table">
+        <thead>
+          <tr>
+            <th scope="col">Word</th>
+            <th scope="col">Meaning</th>
+            <th scope="col">How common</th>
+          </tr>
+        </thead>
+        <tbody id="claim-rows"></tbody>
+      </table>
+    </div>
+    <div class="claim-actions">
+      <button type="button" class="claim-yes" id="claim-yes">I know all of these</button>
+      <button type="button" class="claim-no" id="claim-no">Not these</button>
+      <span class="claim-said" id="claim-said"></span>
+    </div>
+  </section>
+
   <section class="panel">
     <div class="list-controls">
       <h2>{% include '_fold.html.j2' %}<span id="phrases-title">Your Phrases</span></button></h2>
@@ -250,6 +279,7 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
+<script>{{ asset('claim.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
 <script>{{ asset('chips.js') }}</script>
 <script>{{ asset('first.js') }}</script>

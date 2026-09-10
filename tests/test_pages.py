@@ -269,6 +269,19 @@ def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_m
         assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name
 
 
+def test_words_you_may_already_know_stand_on_learn() -> None:
+    """targum-internal#245: the way to say your level is higher than your count is to
+    raise the count for real, a page of the commonest words at a time."""
+    learn = PAGES["learn"]
+    assert learn.count('id="claim-panel"') == 1 and 'id="claim-yes"' in learn
+    assert "Words you may already know" in learn and "TargumClaim" in learn
+    assert (
+        learn.index('id="word-table"')
+        < learn.index('id="claim-panel"')
+        < learn.index('id="phrase-list"')
+    ), "under Your Words, above Your Phrases"
+
+
 # -- what each page says it is --------------------------------------------------
 
 

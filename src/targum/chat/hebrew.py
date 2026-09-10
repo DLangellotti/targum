@@ -414,7 +414,9 @@ def ledger_block(
             "words, keep every sentence short, and in your first reply ask what they have "
             "read in Hebrew so far - never what level they are - and offer them one short "
             "text to start with (suggest_next), because words are marked while reading and "
-            "that is how their ledger begins."
+            "that is how their ledger begins. If they say they already read Hebrew, tell "
+            "them once that Learn has a list called Words you may already know, where "
+            "marking the common words they know lets you write with them."
         )
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))

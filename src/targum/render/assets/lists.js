@@ -578,6 +578,12 @@
   window.TargumLists = {
     mount: mount,
     draw: draw,
+    // The ledger changed under this list — a page of common words marked known
+    // (`claim.js`, targum-internal#245) — so the count above and the rows here redraw.
+    changed: function () {
+      if (onChanged) onChanged();
+      draw();
+    },
     onMeaningLanguage: function (fn) {
       redrawing = fn;
     },

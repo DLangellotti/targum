@@ -3762,6 +3762,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/words/common":
+            return self._common_words(parse_qs(urlparse(self.path).query))
         if route == "/account/export":
             # Everything the account holds, for somebody who wants to take it away. A
             # download rather than a page: the point of this is that it needs nobody's
@@ -4303,6 +4305,57 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"quote": answer["quote"], "lines": answer.get("lines", 0)})
 
     # -- accounts -----------------------------------------------------------
+
+    #: How many of the commonest words the page may ask for at once, and how far down the
+    #: list it may go: past a few thousand the "commonest" claim stops meaning much.
+    COMMON_PAGE = 50
+    COMMON_REACH = 3000
+
+    def _common_words(self, query: dict[str, list[str]]) -> None:
+        """The commonest words of modern Hebrew, in order, with the meaning the glossary
+        already holds and the band each sits in (targum-internal#245). For "Words you
+        may already know" on Learn: a reader who reads Hebrew already marks the ones
+        they know, fifty at a time, and the count rises because the count did. The
+        page leaves out what is on the ledger; nothing here is bought — a word the
+        glossary does not hold is shown bare."""
+        from .annotate.base import BAND_NAMES
+        from .annotate.frequency import FrequencyBands
+        from .annotate.gloss import cached_gloss, gloss_provider_name
+        from .chat import hebrew as hebrew_module
+
+        try:
+            offset = max(0, int(query.get("offset", ["0"])[0]))
+            limit = max(
+                1, min(self.COMMON_PAGE, int(query.get("limit", [str(self.COMMON_PAGE)])[0]))
+            )
+        except ValueError:
+            offset, limit = 0, self.COMMON_PAGE
+        offset = min(offset, self.COMMON_REACH)
+        forms = hebrew_module.common_words(n=min(self.COMMON_REACH, offset + limit))
+        page = forms[offset : offset + limit]
+        target = hebrew_module.gloss_language(self._reads(self._person()))
+        bands = FrequencyBands()
+        provider = gloss_provider_name()
+        rows = []
+        for form in page:
+            held = cached_gloss(form, "he", target, provider)
+            rows.append(
+                {
+                    "form": form,
+                    "band": BAND_NAMES.get(bands.band(form, "he"), ""),
+                    "meaning": held.gloss if held else "",
+                }
+            )
+        self._json(
+            {
+                "words": rows,
+                "offset": offset,
+                "next": offset + len(page)
+                if len(page) == limit and offset + limit < self.COMMON_REACH
+                else None,
+                "into": target,
+            }
+        )
 
     def _hours(self, person_id: int | None) -> dict[str, Any]:
         """The month's hours, used and allowed, and when the month turns. Reckoned in one
