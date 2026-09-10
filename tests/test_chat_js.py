@@ -344,7 +344,8 @@ def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> 
     assert page["posted"] == [{"path": "/chat/hear", "body": "<blob audio/webm>"}]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"]
     assert [t["text"] for t in page["turns"]] == ["שלום לך", ""]
-    assert page["mic"]["pressed"] == "false" and page["mic"]["text"] == "Speak"
+    assert page["mic"]["pressed"] == "false" and page["mic"]["label"] == "Speak"
+    assert page["mic"]["text"] == "", "the word is the label, not the face (2026-09-10)"
 
 
 def test_an_answer_in_hebrew_mode_can_be_heard() -> None:

@@ -451,6 +451,8 @@
       held = [];
       showHeld();
       field.value = "";
+    grow();
+      grow();
       brought(files, !spec).then(function (job) {
         if (spec) say(spec, job && job.id);
       });
@@ -514,14 +516,32 @@
       });
   }
 
+  // A glyph from the sprite the page carries (`_glyphs.html.j2`), for a control drawn
+  // here rather than in the template. The SVG namespace is the whole difference: an
+  // `svg` made by createElement is an unknown HTML element and draws nothing.
+  var SVG = "http://www.w3.org/2000/svg";
+  function glyph(name) {
+    var svg = document.createElementNS(SVG, "svg");
+    svg.setAttribute("class", "glyph");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var use = document.createElementNS(SVG, "use");
+    use.setAttribute("href", "#glyph-" + name);
+    svg.appendChild(use);
+    return svg;
+  }
+
   // Hear an answer. The clip is made on the first press and kept, and its seconds come
-  // out of the same hours a recording does — the press is the spend.
+  // out of the same hours a recording does — the press is the spend. A loudspeaker
+  // since 2026-09-10, with the word as its label.
   function playButton(li, chat, n) {
     if (li.querySelector(".chat-play")) return;
     var button = document.createElement("button");
     button.type = "button";
     button.className = "chat-play";
-    button.textContent = "Hear";
+    button.setAttribute("aria-label", "Hear");
+    button.setAttribute("title", "Hear");
+    button.appendChild(glyph("hear"));
     button.onclick = function () {
       button.disabled = true;
       var audio = document.createElement("audio");
@@ -824,6 +844,15 @@
     event.preventDefault();
     submit();
   });
+  // The field grows with what is typed, to the height the stylesheet caps it at, and
+  // shrinks back when the line is sent: one row at rest (2026-09-10). Browsers with
+  // `field-sizing` do this themselves; the rest are done by hand here.
+  function grow() {
+    if (!field.scrollHeight) return;
+    field.style.blockSize = "auto";
+    field.style.blockSize = field.scrollHeight + "px";
+  }
+  field.addEventListener("input", grow);
   field.addEventListener("keydown", function (event) {
     // Enter sends, Shift+Enter breaks the line — the convention every chat shares.
     if (event.key === "Enter" && !event.shiftKey) {

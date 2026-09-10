@@ -3,17 +3,22 @@
     front door (2026-09-06, design.md §12), and the conversation page, where it is the
     composer — and two copies of a box drift the way two copies of a nav bar did.
 
-    Left to right: the `+`, which holds a file, a picture or a recording in the box for
-    Send to bring (it used to be Upload, a corner of the nav; it is a thing you do while
-    asking, not a place, and since 2026-09-06 the Add page is its "More options"); the
-    field; Speak, shown only where the browser records and the reader
-    has modern Hebrew to speak (the page's script decides both); and Send, the working
-    action, in the accent.
+    Left to right, on one row since 2026-09-10 (targum-internal#235): the `+`, which
+    holds a file, a picture or a recording in the box for Send to bring (it used to be
+    Upload, a corner of the nav; it is a thing you do while asking, not a place, and
+    since 2026-09-06 the Add page is its "More options"); the field; Speak, shown only
+    where the browser records and the reader has modern Hebrew to speak (the page's
+    script decides both); and Send, the working action, in the accent. Speak and Send
+    are glyphs from `_glyphs.html.j2` with the word as their label — the notes of
+    2026-09-10: "default to icons in lieu of text" — and the `+` stays typed (§7).
 
     Set `placeholder` before including. Every id here is what `chat.js` and `box.js`
     look for. -#}
+{% include '_glyphs.html.j2' %}
 <form class="composer" id="composer">
-  <textarea id="say" rows="2" placeholder="{{ placeholder }}" spellcheck="true"
+  {#- One row from the start: the field grows with what is typed, to six lines or so,
+      and then scrolls. `rows="1"` is the resting height; the stylesheet does the rest. -#}
+  <textarea id="say" rows="1" placeholder="{{ placeholder }}" spellcheck="true"
             aria-label="Your message"></textarea>
   {#- A file, a recording or a book, chosen here and priced in place: the Add page's
       job in one press, since 2026-09-06. A link goes in the field like anything else
@@ -32,8 +37,9 @@
   <ul class="chat-held" id="chat-held" hidden></ul>
   {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
       as a line — seconds, not a conversation. -#}
-  <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden>Speak</button>
-  <button type="submit" class="chat-send" id="chat-send">Send</button>
+  <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden
+          aria-label="Speak" title="Speak"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg></button>
+  <button type="submit" class="chat-send" id="chat-send" aria-label="Send" title="Send"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-send"/></svg></button>
 </form>
 {#- What went wrong with a line, said under the box in words (§6), never in colour
     alone. -#}

@@ -28,6 +28,8 @@ from targum.render.builder import (
     you_page,
 )
 
+TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "templates"
+
 PAGES = {
     "learn": learn_page("k"),
     "you": you_page("k"),
@@ -181,6 +183,47 @@ def test_the_box_is_the_front_door() -> None:
         page = PAGES[name]
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
             assert page.count(control) == 1, f"{name}: {control} once"
+
+
+def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
+    """Since 2026-09-10 (targum-internal#235) Speak, Send and Hear are drawn, not written:
+    a microphone, an arrow, a loudspeaker from one sprite, each to §7 — sixteen pixels,
+    no fill, a stroke at 1.4 with round caps — and the word kept as the label, so a
+    screen reader says what the button used to say. The `+` stays typed, as §7 keeps
+    typed characters as themselves."""
+    sprite = (TEMPLATES / "_glyphs.html.j2").read_text(encoding="utf-8")
+    symbols = re.findall(r'<symbol id="glyph-(\w+)" viewBox="([^"]+)">', sprite)
+    assert sorted(name for name, _ in symbols) == ["hear", "mic", "send", "stop"]
+    assert all(box == "0 0 16 16" for _, box in symbols), "§7: a 16px viewBox"
+    assert 'fill="' not in sprite and "stroke=" not in sprite, "the stroke is the stylesheet's"
+    glyph = (ASSETS / "composer.css").read_text(encoding="utf-8")
+    rule = glyph[glyph.index(".glyph {") : glyph.index("}", glyph.index(".glyph {"))]
+    for line in (
+        "fill: none",
+        "stroke: currentColor",
+        "stroke-width: 1.4",
+        "stroke-linecap: round",
+    ):
+        assert line in rule, f"§7: {line}"
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        assert page.count('<svg class="glyphs"') == 1, f"{name}: the sprite, once"
+        for control, word, glyph_name in (
+            ("chat-mic", "Speak", "mic"),
+            ("chat-send", "Send", "send"),
+        ):
+            button = re.search(rf'<button[^>]*id="{control}"[^>]*>(.*?)</button>', page, re.S)
+            assert button, control
+            tag = page[page.rfind("<button", 0, button.start(1)) : button.start(1)]
+            assert f'aria-label="{word}"' in tag and f'title="{word}"' in tag, control
+            assert f'href="#glyph-{glyph_name}"' in button.group(1), control
+            assert not re.sub(r"<[^>]+>", "", button.group(1)).strip(), f"{control}: no words"
+        plus = re.search(r'<button[^>]*id="chat-bring"[^>]*>(.*?)</button>', page, re.S)
+        assert plus and plus.group(1).strip() == "+", "the + is typed (§7)"
+    chat = (ASSETS / "chat.js").read_text(encoding="utf-8")
+    assert 'button.setAttribute("aria-label", "Hear")' in chat and 'glyph("hear")' in chat
+    speak = (ASSETS / "speak.js").read_text(encoding="utf-8")
+    assert "textContent" not in speak, "Speak and Stop are labels now, not faces"
 
 
 # -- what each page says it is --------------------------------------------------
