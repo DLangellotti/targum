@@ -423,6 +423,13 @@ saved word wants eight to twelve more meetings; the chat-first products the surv
 at never return one. Only words a newspaper would use come back: a word saved in Judges
 that no newspaper uses stays in Judges.
 
+The English under each line is folded since 2026-09-10 (targum-internal#241). "I would
+just ignore the Hebrew and read the English": with the English open under every line,
+that is what happened. A tap on the pair opens it — the gesture that opens a word's
+gloss — and one Show English at the head of the thread opens all of it, remembered. The
+recast stays open: it is the reader's own words and the correction. A reader with no
+known words sees it all open, because folded Hebrew is a wall to somebody with no words.
+
 The reason is the chat plan's sentence: where a choice is between a better conversation
 and a better record, take the record. Drawing the thread as the text is the record made
 visible while it is being made, and it costs no second surface. If the thread ever becomes

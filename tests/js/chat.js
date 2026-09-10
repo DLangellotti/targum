@@ -80,7 +80,10 @@ install({
   },
   TargumBuilding: { ask: () => strip.asked++ },
   // The reader's own ledger, as the reader writes it, when the payload gives one.
-  stored: payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
+  stored: Object.assign(
+    payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
+    payload.stored || {},
+  ),
 });
 /* A glyph is made through createElementNS, which the stub document has no need of
    otherwise: the Hear button draws its loudspeaker this way (2026-09-10). */
@@ -206,6 +209,8 @@ function pairsDrawn() {
       out.push({
         he: he.textContent,
         en: node.children[1].textContent,
+        // Folded or open (#241).
+        enHidden: node.children[1].hidden,
         recast: String(node.className).split(" ").includes("recast"),
         // The words the line was drawn with, each with its state on the ledger.
         words: he.children
@@ -314,6 +319,20 @@ function drawn() {
       chip.onclick();
       for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "pair") {
+      // A tap on the n-th pair, off its Hebrew line (#241).
+      const found = [];
+      const walk = (node) => {
+        if (String(node.className).split(" ")[0] === "chat-pair") found.push(node);
+        (node.children || []).forEach(walk);
+      };
+      walk(turns);
+      const pair = found[step.n || 0];
+      if (pair.onclick) pair.onclick({ target: pair.children[0] });
+    }
+    if (step.type === "english") {
+      byId["chat-english"].onclick();
+    }
     if (step.type === "pill") {
       byId["chat-open-list"].onclick();
     }
@@ -365,6 +384,12 @@ function drawn() {
         li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
       ),
       hash: global.location.hash,
+      english: {
+        hidden: byId["chat-english"].hidden,
+        pressed: byId["chat-english"].attrs["aria-pressed"],
+        text: byId["chat-english"].textContent,
+        kept: global.localStorage.getItem("targum:chat-english"),
+      },
       chips: {
         hidden: byId["chat-chips"].hidden,
         ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),

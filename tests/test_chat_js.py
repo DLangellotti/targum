@@ -23,12 +23,14 @@ def run(
     record: bool = False,
     hash: str = "",
     ledger: dict[str, Any] | None = None,
+    stored: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "key": key,
         "record": record,
         "hash": hash,
         "ledger": ledger,
+        "stored": stored or {},
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
     }
@@ -922,3 +924,81 @@ def test_a_word_i_am_stuck_on_asks_for_the_word_in_the_field() -> None:
     )
     assert page["posted"] == []
     assert page["placeholder"] == "The word, and the sentence it was in"
+
+
+# -- the English, on tap (targum-internal#241) --------------------------------------
+
+REPLY = "> שָׁלוֹם\n= hello\nמַה שְּׁלוֹמְךָ?\n= How are you?\nיֵשׁ לִי סֵפֶר.\n= I have a book."
+KNOWN = {"שלום": {"status": 9}}
+
+
+def said(**extra: Any) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": REPLY}, ensure_ascii=False),
+            },
+            *extra.pop("then", []),
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+        **extra,
+    )
+
+
+def test_the_english_is_folded_under_the_hebrew_and_the_recast_is_open() -> None:
+    """ "I would just ignore the Hebrew and read the English." With the English open
+    under every line, it was (notes of 2026-09-10). Folded now; the recast is the
+    reader's own words and the correction, and stays open."""
+    page = said(ledger=KNOWN)
+    assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
+    assert [p["recast"] for p in page["pairs"]] == [True, False, False]
+    assert not page["english"]["hidden"] and page["english"]["text"] == "Show English"
+
+
+def test_a_reader_with_no_known_words_sees_the_english_open() -> None:
+    page = said()
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
+    assert page["english"]["hidden"], "nothing to fold for them, so no toggle"
+
+
+def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
+    page = said(ledger=KNOWN, then=[{"type": "pair", "n": 1}])
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, True]
+    again = said(ledger=KNOWN, then=[{"type": "pair", "n": 1}, {"type": "pair", "n": 1}])
+    assert [p["enHidden"] for p in again["pairs"]] == [False, True, True]
+
+
+def test_show_english_opens_all_of_it_and_is_remembered() -> None:
+    page = said(ledger=KNOWN, then=[{"type": "english"}])
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
+    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide English"
+    assert page["english"]["kept"] == "open"
+    remembered = said(ledger=KNOWN, stored={"targum:chat-english": "open"})
+    assert [p["enHidden"] for p in remembered["pairs"]] == [False, False, False]
+    assert remembered["english"]["pressed"] == "true"
+
+
+def test_a_reopened_thread_folds_its_english_and_offers_the_toggle() -> None:
+    """The stored-turns path: a conversation opened from the list, not streamed. The
+    toggle looked for a pair before the line was on the page and hid itself."""
+    page = run(
+        ledger=KNOWN,
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "t", "seen": 1}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hello", "stage": "done", "error": ""},
+                    {"n": 2, "role": "assistant", "said": REPLY, "stage": "done", "error": ""},
+                ],
+            },
+        },
+    )
+    assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
+    assert not page["english"]["hidden"]

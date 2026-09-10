@@ -34,6 +34,11 @@
   </aside>
 
   <section class="chat-thread" aria-live="polite">
+    {#- The English under every Hebrew line is folded, and a tap on the pair opens it
+        (2026-09-10, targum-internal#241): "I would just ignore the Hebrew and read the
+        English." This opens all of it at once, and is remembered. Hidden until there
+        is a pair to open, and for a reader with no known words, who sees it all open. -#}
+    <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>Show English</button>
     {#- What this is, said once to a reader with no conversations yet. The copy is the
         product's register: precise, unpatronising, no selling. -#}
     <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.

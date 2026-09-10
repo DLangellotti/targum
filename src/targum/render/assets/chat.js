@@ -107,6 +107,67 @@
     }
   }
 
+  // Whether the ledger has anything marked known in it: a reader with nothing yet is
+  // shown the English open, because hidden Hebrew is a wall to somebody with no words.
+  function hasKnown() {
+    var kept = ledger();
+    for (var lemma in kept) {
+      if (kept[lemma] && kept[lemma].status === 9) return true;
+    }
+    return false;
+  }
+
+  /* --- the English, on tap (targum-internal#241) --------------------------------
+   *
+   * "I would just ignore the Hebrew and read the English." With the English open under
+   * every line, it was. It is folded now and a tap on the pair opens it — the gesture
+   * that opens a word's gloss — with one Show English at the head of the thread for
+   * all of it at once, remembered. The recast is always open: it is the correction,
+   * and the reader's own words. A reader with no known words sees it all open.
+   */
+  var ENGLISH_KEY = "targum:chat-english";
+  var englishOpen = false;
+  try {
+    englishOpen = localStorage.getItem(ENGLISH_KEY) === "open";
+  } catch (e) {
+    englishOpen = false;
+  }
+  var englishToggle = document.getElementById("chat-english");
+
+  function englishShown(p) {
+    return !!(p.recast || englishOpen || !hasKnown());
+  }
+
+  function drawEnglishToggle() {
+    if (!englishToggle) return;
+    englishToggle.textContent = englishOpen ? "Hide English" : "Show English";
+    englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
+    englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
+  }
+
+  function foldAll() {
+    Array.prototype.forEach.call(turns.querySelectorAll(".chat-pair"), function (pair) {
+      var en = pair.querySelector(".chat-en");
+      if (!en) return;
+      var recast = String(pair.className).split(" ").indexOf("recast") >= 0;
+      en.hidden = !(recast || englishOpen || !hasKnown());
+    });
+    drawEnglishToggle();
+  }
+
+  if (englishToggle) {
+    englishToggle.onclick = function () {
+      englishOpen = !englishOpen;
+      try {
+        if (window.targumKeep) window.targumKeep(ENGLISH_KEY, englishOpen ? "open" : "folded");
+        else localStorage.setItem(ENGLISH_KEY, englishOpen ? "open" : "folded");
+      } catch (e) {
+        /* nothing to remember it in; the thread still obeys the press */
+      }
+      foldAll();
+    };
+  }
+
   // What the reader's ledger says about one dictionary form: "known", "learning", or
   // "new" — and nothing for a name or a number, which are not vocabulary.
   function stateOf(word, kept) {
@@ -282,10 +343,30 @@
         var en = document.createElement("span");
         en.className = "chat-en";
         en.textContent = p.en;
+        en.hidden = !englishShown(p);
         pair.appendChild(he);
         pair.appendChild(en);
+        if (!p.recast) {
+          // A tap on the pair — not on a word, which has a card of its own — opens
+          // or folds its English. Reachable from a keyboard as a control is.
+          pair.setAttribute("tabindex", "0");
+          pair.setAttribute("title", "The English");
+          pair.onclick = function (event) {
+            var hit = event && event.target;
+            if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
+            if (hit && String(hit.className || "").split(" ").indexOf("chat-look") >= 0) return;
+            en.hidden = !en.hidden;
+          };
+          pair.onkeydown = function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              en.hidden = !en.hidden;
+            }
+          };
+        }
         target.appendChild(pair);
       });
+      drawEnglishToggle();
       return;
     }
     var pieces = String(text || "").split(PATH);
@@ -577,6 +658,9 @@
     turns.appendChild(li);
     if (empty) empty.hidden = true;
     if (chips) chips.show(false);
+    // Now that the line is on the page: the toggle looks for a pair in the thread, and
+    // a line rendered before it was appended found none (the stored-turns path).
+    drawEnglishToggle();
     return li;
   }
 
@@ -847,6 +931,7 @@
     tell("");
     if (empty) empty.hidden = false;
     if (chips) chips.show(true);
+    drawEnglishToggle();
     field.focus();
   }
 

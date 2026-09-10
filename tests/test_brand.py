@@ -186,6 +186,8 @@ THUMBED = (
     # first hands back (2026-09-10, targum-internal#240).
     ".chat-ask",
     ".chat-another",
+    # And Show English at the head of the thread (2026-09-10, targum-internal#241).
+    ".chat-english",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
     # And the door a path becomes: the reader opens a text, never the model.

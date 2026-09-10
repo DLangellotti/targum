@@ -414,6 +414,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The English under each Hebrew line in a conversation is folded, and a tap on the pair
+  opens it — the gesture that opens a word's gloss — with one Show English at the head
+  of the thread for all of it, remembered. The recast stays open, and a reader with no
+  known words sees it all open. "I would just ignore the Hebrew and read the English"
+  (targum-internal#241, from the notes of 2026-09-10).
 - The things most readers ask are buttons under the box on Learn and in the empty state
   of the conversation page: "Something to read", "Continue *title*", "Use my new
   words", "What do I know", "News today", "A word I am stuck on" — each drawn from the
