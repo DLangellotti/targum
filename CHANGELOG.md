@@ -414,6 +414,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- A reply is at most three Hebrew sentences, the recast left out; one sentence and the
+  door when a text is handed over; six lines at most when the answer is a list. "A few
+  Hebrew sentences" was a median of 36 words over five lines, ten with their English, on
+  the conversations stored so far, and the notes of 2026-09-10 called it too much to
+  read. `scripts/measure_reply_length.py` counts what real readers got, and
+  `scripts/eval_grading.py` now records `hebrew_words_median`, with a floor of 25 in
+  `evals/floors.json` (targum-internal#236).
 - The chat's web search looks at the whole web, six searches a turn instead of three.
   Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
   one turn: a list the model could not see made a gap in it look like an answer, and the

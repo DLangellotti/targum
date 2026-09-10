@@ -12,5 +12,6 @@
   {"stage": "recast", "corpus": "tatoeba", "metric": "lemma_overlap", "system": "chat", "at_least": 0.45, "why": "0.525 to 0.5635 on 2026-09-07"},
   {"stage": "recast", "corpus": "tatoeba", "metric": "unpaired", "system": "chat", "at_most": 5, "why": "0 or 1 of 200 on 2026-09-07; a count, not a rate"},
   {"stage": "grading", "corpus": "", "metric": "outside_share", "system": "chat", "at_most": 0.25, "why": "0.1844 to 0.2124 on 2026-09-07"},
-  {"stage": "grading", "corpus": "", "metric": "unpaired_lines", "system": "chat", "at_most": 5, "why": "0 or 1 on 2026-09-07; a count, not a rate"}
+  {"stage": "grading", "corpus": "", "metric": "unpaired_lines", "system": "chat", "at_most": 5, "why": "0 or 1 on 2026-09-07; a count, not a rate"},
+  {"stage": "grading", "corpus": "", "metric": "hebrew_words_median", "system": "chat", "at_most": 25, "why": "the contract caps a reply at three Hebrew sentences since 2026-09-10 (targum-internal#236); the stored conversations ran a median of 36 words, recast left out, under 'a few'"}
 ]

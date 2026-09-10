@@ -26,6 +26,7 @@ fell (`record.outside_share`), and until the eval answers, no page says "at your
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -86,6 +87,13 @@ MODERN_BAND = 4
 RECAST = "> "
 ENGLISH = "= "
 
+#: How many Hebrew sentences a reply may run to, and how many lines when the answer is a
+#: list. Numbers rather than "a few" since 2026-09-10 (targum-internal#236): measured on
+#: the stored conversations, "a few" was a median of 36 Hebrew words over five lines,
+#: ten with their English, and the notes of that day called it too much to read.
+MOST_SENTENCES = 3
+MOST_LISTED = 6
+
 CONTRACT = f"""This conversation is in Hebrew, whatever language the reader writes in.
 Every reply, including one that finds, offers or quotes a text, keeps to this:
 
@@ -137,12 +145,15 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   "{ENGLISH}" line like every other word — and use a word you brought in again a few
   lines later. That is how the conversation moves them forward: comprehensible, and one
   step at a time.
-- Keep it short: a few Hebrew sentences. (Until 2026-09-08 this line also said "and
-  give the reader something to answer", and every reply ended in homework built from
-  the bring-back words: "write me a sentence about what you will read the day after
-  tomorrow, and if there is a limit of time, that too." The bullet above already says
-  when to ask.) When you offer texts, one Hebrew line per text with its English, and the text's door
-  under it.
+- Keep it short: at most {MOST_SENTENCES} Hebrew sentences in a reply, after the
+  "{RECAST}" line, which does not count. A reply that hands over a text — a door, a
+  card — is one sentence and the door. More only when the reader asks for more, or asks
+  a question whose answer is a list, and then at most {MOST_LISTED} lines. (Until
+  2026-09-08 this line also said "and give the reader something to answer", and every
+  reply ended in homework built from the bring-back words; until 2026-09-10 it said "a
+  few Hebrew sentences", and a few was five lines, ten with their English, which the
+  notes of that day called too much to read.) When you offer texts, one Hebrew line per
+  text with its English, and the text's door under it.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -191,6 +202,18 @@ def pairs(text: str) -> list[Pair]:
 
 def _has_hebrew(text: str) -> bool:
     return any("א" <= ch <= "ת" for ch in text)
+
+
+def length(text: str) -> int:
+    """How many Hebrew words a reply is, the way a reader meets them: over the model's
+    own lines, the "> " recast left out because it is the reader's sentence said back.
+    A word is a run of Hebrew letters and points; the number is what the cap in the
+    contract is about, and what `scripts/eval_grading.py` and
+    `scripts/measure_reply_length.py` count."""
+    return sum(len(_WORD.findall(pair.hebrew)) for pair in pairs(text) if not pair.recast)
+
+
+_WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*")
 
 
 def common_words(n: int = COMMON, language: str = "he") -> list[str]:
