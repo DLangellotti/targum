@@ -218,6 +218,44 @@ def test_a_refused_press_says_why_on_the_card() -> None:
     assert page["stripAsked"] == 0
 
 
+def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> None:
+    """The count stood in the side column on every visit: the metric "right in your face"
+    (notes of 2026-09-10, targum-internal#237). Now it is on Your Progress and in the
+    account panel, and the box says it only past three quarters used, with the day the
+    month turns, so the cap is not the first anybody hears of it."""
+    page = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 6.5, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert page["hours"] == "6.5 of 8 hours used this month. Resets 1 October."
+    assert not page["hoursHidden"]
+    quiet = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 5.9, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert quiet["hours"] == "" and quiet["hoursHidden"]
+    unlimited = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 100, "allowed": None, "ends": "1 October"},
+            }
+        }
+    )
+    assert unlimited["hoursHidden"], "no cap, no line"
+
+
 def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
     page = run(
         do=[
@@ -239,7 +277,7 @@ def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
             "/chat/say": {"chat": "abc", "turn": 1},
         },
     )
-    assert page["hours"] == "1.5 of 8 hours this month"
+    assert page["hours"] == "" and page["hoursHidden"], "under three quarters, nothing is said"
     pairs = [{k: p[k] for k in ("he", "en", "recast")} for p in page["pairs"]]
     assert pairs == [
         {"he": "שָׁלוֹם", "en": "hello", "recast": True},
@@ -344,7 +382,8 @@ def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> 
     assert page["posted"] == [{"path": "/chat/hear", "body": "<blob audio/webm>"}]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"]
     assert [t["text"] for t in page["turns"]] == ["שלום לך", ""]
-    assert page["mic"]["pressed"] == "false" and page["mic"]["text"] == "Speak"
+    assert page["mic"]["pressed"] == "false" and page["mic"]["label"] == "Speak"
+    assert page["mic"]["text"] == "", "the word is the label, not the face (2026-09-10)"
 
 
 def test_an_answer_in_hebrew_mode_can_be_heard() -> None:

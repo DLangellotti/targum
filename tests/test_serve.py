@@ -377,6 +377,10 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     status, payload, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert payload["signedIn"] is True
     assert payload["email"] == "reader@example.com"
+    # The month's hours ride with who is signed in, for the panel and Your Progress
+    # (targum-internal#237): a fresh account has used none, and the month has an end.
+    assert payload["hours"]["used"] == 0 and payload["hours"]["ends"]
+    assert "allowed" in payload["hours"]
 
     # The same link a second time is spent, and lands on a page offering another
     # rather than on an error: clicking an old email twice is an ordinary thing to do.

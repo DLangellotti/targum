@@ -129,6 +129,7 @@ require(path.join(assets, "box.js"));
       heldHidden: byId["chat-held"].hidden,
       field: byId["say"].value,
       mic: { hidden: byId["chat-mic"].hidden },
+      hours: { text: byId["chat-hours"].textContent, hidden: byId["chat-hours"].hidden },
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,
     }),

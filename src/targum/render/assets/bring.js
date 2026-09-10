@@ -185,6 +185,20 @@
     return start + "about " + mins + " minutes.";
   }
 
+  //: Past this share of the month's hours the box says so, above the field. Below it
+  //: the count is on Your Progress and in the account panel, and nowhere else
+  //: (2026-09-10, targum-internal#237).
+  var HOURS_WARN = 0.75;
+
+  // The line above the box when the month's hours are nearly gone, or nothing.
+  function hoursWarning(got) {
+    if (!got || got.allowed === null || got.allowed === undefined) return "";
+    if (!(got.used >= got.allowed * HOURS_WARN)) return "";
+    var line = got.used + " of " + got.allowed + " hours used this month.";
+    if (got.ends) line += " Resets " + got.ends + ".";
+    return line;
+  }
+
   function hours(seconds) {
     var h = seconds / 3600;
     if (h < 1) return Math.max(1, Math.round(seconds / 60)) + " minutes of audio";
@@ -412,6 +426,8 @@
     bring: bring,
     wait: wait,
     hours: hours,
+    hoursWarning: hoursWarning,
+    HOURS_WARN: HOURS_WARN,
     plain: plain,
     quoteCard: quoteCard,
   };

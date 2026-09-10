@@ -77,6 +77,10 @@ install({
   // The reader's own ledger, as the reader writes it, when the payload gives one.
   stored: payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
 });
+/* A glyph is made through createElementNS, which the stub document has no need of
+   otherwise: the Hear button draws its loudspeaker this way (2026-09-10). */
+const { element } = require("./dom.js");
+global.document.createElementNS = (namespace, tag) => element(tag);
 
 // An <audio> element that records what it was asked to play rather than playing it.
 const madeElement = global.document.createElement;
@@ -313,10 +317,13 @@ function drawn() {
       foot: foot(),
       doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
+      hoursHidden: byId["chat-hours"] ? byId["chat-hours"].hidden : true,
       stripAsked: strip.asked,
       mic: {
         hidden: byId["chat-mic"].hidden,
         pressed: byId["chat-mic"].attrs["aria-pressed"],
+        // The word is the label since 2026-09-10; the face is a glyph.
+        label: byId["chat-mic"].attrs["aria-label"],
         text: byId["chat-mic"].textContent,
       },
       plays,

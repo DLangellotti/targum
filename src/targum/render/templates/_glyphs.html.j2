@@ -1,0 +1,17 @@
+{#- The glyphs the box and the thread draw, once, for `<use>` to point at.
+
+    §7 in four strokes: a 16px viewBox, no fill, `currentColor` at 1.4, round caps —
+    line diagrams of what they do. The `+` beside them is not here on purpose: §7 keeps
+    typed characters as themselves, and a plus is one.
+
+    Since 2026-09-10 the box's three actions are drawn rather than written — a
+    microphone, an arrow, a loudspeaker — with the word kept as the control's label,
+    so what a screen reader says is what the button used to say. The sprite is zero by
+    zero and off the page rather than `hidden`: a `display: none` sprite is one some
+    browsers will not draw a `<use>` from. -#}
+<svg class="glyphs" aria-hidden="true" focusable="false">
+  <symbol id="glyph-mic" viewBox="0 0 16 16"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M4 7.5a4 4 0 0 0 8 0M8 11.5v2.5M5.5 14h5"/></symbol>
+  <symbol id="glyph-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5"/></symbol>
+  <symbol id="glyph-send" viewBox="0 0 16 16"><path d="M2.5 8h11M9.5 4l4 4-4 4"/></symbol>
+  <symbol id="glyph-hear" viewBox="0 0 16 16"><path d="M2.5 6h2.5l3.5-3v10l-3.5-3H2.5z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M13 3.5a6 6 0 0 1 0 9"/></symbol>
+</svg>

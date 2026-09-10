@@ -33,6 +33,7 @@
   var file = document.getElementById("chat-file");
   var heldList = document.getElementById("chat-held");
   var said = document.getElementById("chat-said");
+  var hoursLine = document.getElementById("chat-hours");
   if (!form || !field || !send) return;
   // The conversation page carries the same box and its own script for it; this one
   // stands down there rather than answering the same press twice.
@@ -126,6 +127,15 @@
     if (!text) return;
     say(text);
   });
+  // The field grows with what is typed, to the height the stylesheet caps it at, and
+  // shrinks back when the line is sent: one row at rest (2026-09-10). Browsers with
+  // `field-sizing` do this themselves; the rest are done by hand here.
+  function grow() {
+    if (!field.scrollHeight) return;
+    field.style.blockSize = "auto";
+    field.style.blockSize = field.scrollHeight + "px";
+  }
+  field.addEventListener("input", grow);
   field.addEventListener("keydown", function (event) {
     // Enter sends, Shift+Enter breaks the line — the convention every chat shares.
     if (event.key === "Enter" && !event.shiftKey) {
@@ -229,6 +239,12 @@
     usable = answer.usable !== false;
     talk = answer.talk !== false;
     showMic();
+    // The month's hours, only when they are nearly gone (targum-internal#237).
+    if (hoursLine && bringing) {
+      var line = bringing.hoursWarning(answer.hours);
+      hoursLine.textContent = line;
+      hoursLine.hidden = !line;
+    }
   });
 
   window.TargumBox = { say: say, hear: hear, bring: bringHeld };

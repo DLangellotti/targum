@@ -139,13 +139,16 @@ body.chat > .chat-main {
 /* --- hearing an answer ----------------------------------------------------- */
 
 /* Hear is a working action like Speak, so it takes the same treatment: ink border, not
-   the accent the send button holds (§4: one accent, rationed). */
+   the accent the send button holds (§4: one accent, rationed) — a small ring with the
+   loudspeaker in it, since 2026-09-10, and the word as its label. */
 .chat-play {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.6rem;
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
   border: 1px solid var(--ink-soft);
-  border-radius: 6px;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -153,12 +156,6 @@ body.chat > .chat-main {
 }
 .chat-play:hover { background: var(--paper-raised); }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
-.chat-hours {
-  margin: 0.25rem 0 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
 
 /* --- Hebrew, with the English under every line ------------------------------
    The record's own shape: a Hebrew line in the reading face at its own leading, its
