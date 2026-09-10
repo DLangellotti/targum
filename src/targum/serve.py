@@ -1771,7 +1771,7 @@ class Library:
         build, a text that is not Hebrew, or one too short to measure."""
         if self.store is None or job.owner is None:
             return None
-        if str(getattr(document, "language", "") or "").split("-")[0] != "he":
+        if str(getattr(document, "language", "") or "").split("-")[0] not in ("he",):
             return None
         from .chat import hebrew as hebrew_module
 
