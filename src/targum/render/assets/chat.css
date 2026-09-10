@@ -316,7 +316,7 @@ body.chat > .chat-main {
 .chat-turn .chat-pair.recast.corrected .chat-en::before { content: "corrected"; }
 .chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .chat-turn .chat-pair .chat-why {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink-soft);
   padding-inline-start: 0.6rem;
