@@ -313,6 +313,7 @@ function drawn() {
       foot: foot(),
       doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
+      hoursHidden: byId["chat-hours"] ? byId["chat-hours"].hidden : true,
       stripAsked: strip.asked,
       mic: {
         hidden: byId["chat-mic"].hidden,

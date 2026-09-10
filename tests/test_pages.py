@@ -183,6 +183,23 @@ def test_the_box_is_the_front_door() -> None:
             assert page.count(control) == 1, f"{name}: {control} once"
 
 
+def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> None:
+    """Until 2026-09-10 the month's hours stood in the conversation page's side column on
+    every visit. Now the count is under the ledger on Your Progress and in the account
+    panel on every page, and the box says it only when the hours are nearly gone
+    (targum-internal#237)."""
+    for name, page in PAGES.items():
+        assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
+    assert PAGES["progress"].count('id="hours-line"') == 1
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
+        assert page.index('id="chat-hours"') < page.index('id="composer"'), name
+    chat = PAGES["chat"]
+    aside = chat[chat.index('class="chat-side"') : chat.index("</aside>")]
+    assert "chat-hours" not in aside, "not in the side column any more"
+
+
 # -- what each page says it is --------------------------------------------------
 
 

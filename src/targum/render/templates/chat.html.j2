@@ -20,9 +20,6 @@
   <aside class="chat-side">
     <button type="button" id="chat-new" class="chat-new">New</button>
     <ul class="chat-list" id="chat-list"></ul>
-    {#- The one limit a reader is told about, in the unit they were told it, on the page
-        before the cap is met. Conversation comes out of the same hours a recording does. -#}
-    <p class="chat-hours" id="chat-hours" hidden></p>
   </aside>
 
   <section class="chat-thread" aria-live="polite">
@@ -36,6 +33,12 @@
   {#- The box, shared with the front door (`_composer.html.j2`). One conversation,
       always in Hebrew, graded to the reader's own words, with the English under every
       line — whatever language they write in. -#}
+  {#- The month's hours, above the box and only when they matter: past three quarters
+      used, so the cap is not the first anybody hears of it, and never before — the whole
+      count is on Your Progress, and a line in every reader's face on every visit was the
+      metric "right in your face" (2026-09-10, targum-internal#237). Conversation comes
+      out of the same hours a recording does. -#}
+  <p class="chat-hours" id="chat-hours" hidden></p>
   {% set placeholder = 'Write in Hebrew, or in English' %}
   {% include '_composer.html.j2' %}
 </main>

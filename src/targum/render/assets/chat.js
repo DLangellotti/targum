@@ -55,14 +55,15 @@
   }
   showMic();
 
+  // The month's hours, above the box, and only past three quarters of them: the cap
+  // should not be the first a reader hears of it, and a count on every visit was the
+  // metric in everybody's face (2026-09-10, targum-internal#237). The whole count is on
+  // Your Progress and in the account panel.
   function drawHours(got) {
     if (!hoursLine || !got) return;
-    if (got.allowed === null || got.allowed === undefined) {
-      hoursLine.hidden = true;
-      return;
-    }
-    hoursLine.textContent = got.used + " of " + got.allowed + " hours this month";
-    hoursLine.hidden = false;
+    var line = window.TargumBring ? window.TargumBring.hoursWarning(got) : "";
+    hoursLine.textContent = line;
+    hoursLine.hidden = !line;
   }
 
   // A failed request is an answer with an error in it, never a rejection left to the

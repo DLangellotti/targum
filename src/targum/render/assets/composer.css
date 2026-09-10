@@ -206,6 +206,11 @@
 .chat-send:hover { filter: brightness(1.08); }
 .chat-send:disabled { opacity: 0.5; cursor: default; }
 
+/* The month's hours, above the box, only past three quarters used (targum-internal#237):
+   a quiet line in words, never a colour — it is information, not an error. */
+.chat-hours { margin: 0 0 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.chat-hours[hidden] { display: none; }
+
 .chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
 .chat-said[hidden] { display: none; }
 

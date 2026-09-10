@@ -414,6 +414,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The month's hours are off the conversation page, where they stood in the side column
+  on every visit. The count is under the ledger on Your Progress, with the day the
+  month turns, and in the account panel on every page; the box says it only once three
+  quarters are used, so the cap is not the first anybody hears of it. `/account/me`
+  carries the hours, reckoned in the one place `/chat/list` already reckoned them
+  (targum-internal#237, from the notes of 2026-09-10).
 - The chat's web search looks at the whole web, six searches a turn instead of three.
   Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
   one turn: a list the model could not see made a gap in it look like an answer, and the

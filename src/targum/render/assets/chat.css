@@ -153,12 +153,6 @@ body.chat > .chat-main {
 }
 .chat-play:hover { background: var(--paper-raised); }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
-.chat-hours {
-  margin: 0.25rem 0 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
 
 /* --- Hebrew, with the English under every line ------------------------------
    The record's own shape: a Hebrew line in the reading face at its own leading, its

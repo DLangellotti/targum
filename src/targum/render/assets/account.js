@@ -50,6 +50,7 @@
       open.className = "";
       open.textContent = "Sign in";
       open.title = "Sign in";
+      drawHours(null);
       return;
     }
 
@@ -68,6 +69,27 @@
     }
     open.appendChild(document.createTextNode(who.initials || "?"));
     whom.textContent = who.name ? who.name + " · " + who.email : who.email;
+    drawHours(who.hours);
+  }
+
+  // The month's hours, in the panel and — where the page has the line — under the
+  // ledger on Your Progress: the real count, off the chat page where it stood in every
+  // reader's face on every visit (2026-09-10, targum-internal#237). Nothing where there
+  // is no cap.
+  var hoursLine = document.getElementById("account-hours");
+  var ledgerLine = document.getElementById("hours-line");
+  function drawHours(got) {
+    var has = got && got.allowed !== null && got.allowed !== undefined;
+    if (hoursLine) {
+      hoursLine.textContent = has ? got.used + " of " + got.allowed + " hours this month" : "";
+      hoursLine.hidden = !has;
+    }
+    if (ledgerLine) {
+      ledgerLine.textContent = has
+        ? got.used + " of " + got.allowed + " hours this month" + (got.ends ? " · resets " + got.ends : "")
+        : "";
+      ledgerLine.hidden = !has;
+    }
   }
 
   open.addEventListener("click", function () {

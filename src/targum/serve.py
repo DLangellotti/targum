@@ -3872,10 +3872,9 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
-            # The hours beside the list, so the clock is on the page before the cap is
-            # met: the one limit a reader is told about, in the unit they were told.
-            allowed = self.library.upload_seconds
-            used = store.hours_used(person_id, self.library._month_from())
+            # The hours beside the list: the one limit a reader is told about, in the
+            # unit they were told. The page says them only when they matter (2026-09-10,
+            # targum-internal#237); the whole count lives on Your Progress.
             return self._json(
                 {
                     "chats": store.chats(person_id),
@@ -3884,11 +3883,7 @@ class Handler(BaseHTTPRequestHandler):
                     # with modern Hebrew to speak. Scripture-only readers are answered
                     # in English, about the text (`Library.talks`).
                     "talk": self.library.talks(self._home(), person_id),
-                    "hours": {
-                        "used": round(used / 3600, 2),
-                        "allowed": None if allowed is None else round(allowed / 3600, 2),
-                        "ends": self.library._month_ends(),
-                    },
+                    "hours": self._hours(person_id),
                 }
             )
         pieces = rest.split("/")
@@ -4257,6 +4252,21 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- accounts -----------------------------------------------------------
 
+    def _hours(self, person_id: int | None) -> dict[str, Any]:
+        """The month's hours, used and allowed, and when the month turns. Reckoned in one
+        place for the two answers that carry it: the conversation list, and who is
+        signed in — which every page asks, so Your Progress and the account panel can
+        say the count without a request of their own (targum-internal#237)."""
+        allowed = self.library.upload_seconds
+        # `self.store` rather than the chat's: the same store, and this answer is owed
+        # whether or not a conversation is configured at all.
+        used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
+        return {
+            "used": round(used / 3600, 2),
+            "allowed": None if allowed is None else round(allowed / 3600, 2),
+            "ends": self.library._month_ends(),
+        }
+
     def _me(self) -> None:
         person = self._person()
         if person is None:
@@ -4266,6 +4276,9 @@ class Handler(BaseHTTPRequestHandler):
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
+            # The month's hours, for the account panel and Your Progress: the real count,
+            # off the chat page where it stood in every reader's face (2026-09-10).
+            "hours": self._hours(person.id),
             # Which languages this account is learning, and which it is offered a
             # translation into. The pages that offer either narrow to these; `_prepare`
             # refuses anything else whatever a picker was showing, because a picker is

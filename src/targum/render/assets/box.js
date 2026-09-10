@@ -33,6 +33,7 @@
   var file = document.getElementById("chat-file");
   var heldList = document.getElementById("chat-held");
   var said = document.getElementById("chat-said");
+  var hoursLine = document.getElementById("chat-hours");
   if (!form || !field || !send) return;
   // The conversation page carries the same box and its own script for it; this one
   // stands down there rather than answering the same press twice.
@@ -229,6 +230,12 @@
     usable = answer.usable !== false;
     talk = answer.talk !== false;
     showMic();
+    // The month's hours, only when they are nearly gone (targum-internal#237).
+    if (hoursLine && bringing) {
+      var line = bringing.hoursWarning(answer.hours);
+      hoursLine.textContent = line;
+      hoursLine.hidden = !line;
+    }
   });
 
   window.TargumBox = { say: say, hear: hear, bring: bringHeld };

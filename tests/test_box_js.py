@@ -61,6 +61,33 @@ QUOTE = {
 }
 
 
+def test_the_front_door_says_the_hours_only_when_they_are_nearly_gone() -> None:
+    """The same line the conversation page draws, above the same box (targum-internal#237)."""
+    page = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 7, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert page["hours"] == {
+        "text": "7 of 8 hours used this month. Resets 1 October.",
+        "hidden": False,
+    }
+    quiet = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 1.5, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert quiet["hours"]["hidden"] and quiet["hours"]["text"] == ""
+
+
 def test_a_line_opens_a_conversation_and_goes_to_it() -> None:
     page = run(
         do=[{"type": "say", "text": "something short for tonight"}],
