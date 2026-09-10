@@ -87,6 +87,7 @@ global.FileReader = class {
 };
 
 require(path.join(assets, "bring.js"));
+require(path.join(assets, "chips.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
@@ -117,6 +118,13 @@ require(path.join(assets, "box.js"));
       // The × on the n-th chip: let that file go.
       byId["chat-held"].children[step.index].children[1].onclick();
     }
+    if (step.type === "chip") {
+      const chip = (byId["chat-chips"].children || [])
+        .map((li) => li.children[0])
+        .find((b) => b.attrs["data-chip"] === step.id);
+      chip.onclick();
+      for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "send") {
       byId["say"].value = step.text || "";
       byId["composer"].fire("submit", { preventDefault() {} });
@@ -135,6 +143,11 @@ require(path.join(assets, "box.js"));
       field: byId["say"].value,
       mic: { hidden: byId["chat-mic"].hidden },
       asked: opened.map((u) => u.replace(/[?&]k=[^&]*/, "")),
+      chips: {
+        hidden: byId["chat-chips"].hidden,
+        ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),
+      },
+      placeholder: byId["say"].placeholder,
       // The last three conversations under the box, and where each goes (#238).
       recent: {
         hidden: byId["recent-chats"].hidden,

@@ -61,6 +61,48 @@ QUOTE = {
 }
 
 
+def test_the_chips_under_the_box_send_a_line_or_open_a_door_or_ask_for_the_word() -> None:
+    """targum-internal#240: on Learn the chips stand under the box. Most are Send with
+    a fixed line; Continue is a door to the reader; the word one asks for the word; and
+    the first posts `/chat/suggest` and opens the conversation on the card it hands
+    back, the way a text sent with a line does."""
+    chips = [
+        {"id": "read", "line": "Something to read"},
+        {"id": "continue", "line": "Continue רות", "reader": "ruth-he/reader/index.html"},
+        {"id": "know", "line": "What do I know"},
+        {"id": "stuck", "line": "A word I am stuck on"},
+    ]
+    listed = {"chats": [], "usable": True, "chips": chips}
+    page = run(answers={"/chat/list": listed})
+    assert (
+        page["chips"]["ids"] == ["read", "continue", "know", "stuck"]
+        and not page["chips"]["hidden"]
+    )
+    said = run(
+        do=[{"type": "chip", "id": "know"}],
+        answers={"/chat/list": listed, "/chat/say": {"chat": "abc"}},
+    )
+    assert said["posted"] == [
+        {"path": "/chat/say", "body": {"chat": "", "text": "What do I know?"}}
+    ]
+    assert said["went"] == "/chat?k=k#abc"
+    door = run(do=[{"type": "chip", "id": "continue"}], answers={"/chat/list": listed})
+    assert door["went"] == "/reader/ruth-he/reader/index.html?k=k" and door["posted"] == []
+    read = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": listed,
+            "/chat/suggest": {"chat": "abc", "quote": {"id": "j1", "stage": "ready"}},
+        },
+    )
+    assert read["posted"] == [{"path": "/chat/suggest", "body": {"chat": ""}}]
+    assert read["went"] == "/chat?k=k#abc&job=j1", "opened on the card, no model turn"
+    stuck = run(do=[{"type": "chip", "id": "stuck"}], answers={"/chat/list": listed})
+    assert stuck["placeholder"] == "The word, and the sentence it was in" and stuck["posted"] == []
+    none = run(answers={"/chat/list": {"chats": [], "usable": True}})
+    assert none["chips"]["hidden"]
+
+
 def test_the_front_door_shows_the_last_three_conversations_and_the_door_to_all() -> None:
     """targum-internal#238: the only way to a past conversation was to already be on the
     conversation page. Learn asks for three, draws them under the box with when each

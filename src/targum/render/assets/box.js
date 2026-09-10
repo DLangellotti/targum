@@ -271,6 +271,36 @@
     recent.hidden = chats.length === 0;
   }
 
+  // The chips under the box (targum-internal#240). A line goes the way a typed line
+  // goes; the first posts `/chat/suggest` and opens the conversation on the card it
+  // hands back, the way a text sent with a line does (`job=` in the hash).
+  var chips = window.TargumChips;
+  function suggest() {
+    if (busy) return;
+    if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
+    busy = true;
+    send.disabled = true;
+    tell("");
+    ask("/chat/suggest", { chat: "" }).then(function (got) {
+      if (got.error) return refused(got);
+      go(got.chat, got.quote && got.quote.id);
+    });
+  }
+  function drawChips(list) {
+    if (!chips) return;
+    chips.draw(list, {
+      suggest: suggest,
+      say: say,
+      open: function (reader) {
+        window.location.href = bringing ? bringing.door(reader) : keyed("/reader/" + reader);
+      },
+      stuck: function () {
+        field.placeholder = "The word, and the sentence it was in";
+        field.focus();
+      },
+    });
+  }
+
   showMic();
   ask("/chat/list?limit=" + RECENT).then(function (answer) {
     if (answer.error) return;
@@ -278,6 +308,7 @@
     talk = answer.talk !== false;
     showMic();
     drawRecent(answer.chats || []);
+    drawChips(answer.chips || []);
     // The month's hours, only when they are nearly gone (targum-internal#237).
     if (hoursLine && bringing) {
       var line = bringing.hoursWarning(answer.hours);

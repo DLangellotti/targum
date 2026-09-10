@@ -972,3 +972,97 @@ def test_what_the_cache_did_reaches_the_receipt(tmp_path: Path) -> None:
     )
     assert usage.cache_read_tokens == 4000 and usage.cache_write_tokens == 300
     assert usage.state()["cache_read"] == 4000 and usage.state()["cache_write"] == 300
+
+
+# -- the chips, and the ask that never reaches the model (targum-internal#240) ------
+
+
+def test_the_chips_stand_only_where_their_condition_holds(tmp_path: Path) -> None:
+    """Drawn from the record, never a static list: a stranger gets the two that are
+    always true; a reader with words saved this fortnight and words marked known gets
+    the two that bring them back."""
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    stranger = [chip["id"] for chip in chats.chips(None, library.home(None))]
+    assert stranger == ["read", "stuck"] or stranger == ["read", "news", "stuck"]
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שלום",
+                    "status": 9,
+                    "band": "easy",
+                    "at": 1,
+                    "seen": 1,
+                },
+                {
+                    "language": "he",
+                    "lemma": "ספר",
+                    "status": 1,
+                    "band": "easy",
+                    "at": now,
+                    "seen": now,
+                },
+            ]
+        },
+    )
+    mine = [chip["id"] for chip in chats.chips(person, library.home(person))]
+    assert mine[0] == "read" and mine[-1] == "stuck"
+    assert "words" in mine and "know" in mine
+    assert "continue" not in mine, "nothing opened, nothing to continue"
+    assert len(mine) <= 7
+
+
+def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeypatch: Any) -> None:
+    """The one line most readers press: `suggest_next` and a card, no turn, no job of
+    kind chat, nothing spent; the exchange written into the conversation; "Another"
+    skips what was offered."""
+    from targum.chat import tools
+
+    library, store = world(tmp_path)
+    client = Script([])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    monkeypatch.setattr(
+        tools,
+        "suggest_next",
+        lambda ctx, args: {
+            "suggestions": [
+                {"id": "ruth", "title": "רות", "because": "50% of its words are ones you know."},
+                {"id": "esther", "title": "אסתר", "because": "Not measured yet."},
+            ]
+        },
+    )
+    quoted: list[str] = []
+
+    def quote_build(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        quoted.append(args["catalogue_id"])
+        return {
+            "quote": {
+                "id": "j-" + args["catalogue_id"],
+                "stage": "ready",
+                "title": args["catalogue_id"],
+            }
+        }
+
+    monkeypatch.setattr(tools, "quote_build", quote_build)
+    got = chats.suggest(person, home, "", admin=False)
+    assert got["quote"]["id"] == "j-ruth" and got["more"] is True and got["offered"] == ["ruth"]
+    assert got["said"].startswith(chats.SUGGEST_SAID) and "50% of its words" in got["said"]
+    assert client.requests == [], "the model was never asked"
+    assert not [job for job in library.jobs.values() if job.kind == "chat"], "no chat job, no spend"
+    turns = store.chat_turns(got["chat"])
+    assert [(t["role"], t["said"]) for t in turns] == [
+        ("user", "Something to read"),
+        ("assistant", got["said"]),
+    ]
+    again = chats.suggest(person, home, got["chat"], admin=False, skip=got["offered"])
+    assert again["quote"]["id"] == "j-esther" and again["more"] is False
+    assert quoted == ["ruth", "esther"]
+    nothing = chats.suggest(person, home, got["chat"], admin=False, skip=["ruth", "esther"])
+    assert nothing["status"] == 404

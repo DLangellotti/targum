@@ -844,3 +844,81 @@ def test_on_a_phone_the_pill_opens_the_list_and_a_row_closes_it() -> None:
         },
     )
     assert not closed["listOpen"] and closed["pillExpanded"] == "false"
+
+
+# -- the chips (targum-internal#240) ------------------------------------------------
+
+CHIPS = [
+    {"id": "read", "line": "Something to read"},
+    {"id": "continue", "line": "Continue רות", "reader": "ruth-he/reader/index.html"},
+    {"id": "words", "line": "Use my new words"},
+    {"id": "stuck", "line": "A word I am stuck on"},
+]
+
+
+def test_the_chips_stand_in_the_empty_state_and_go_once_there_is_a_turn() -> None:
+    page = run(answers={"/chat/list": {"chats": [], "usable": True, "chips": CHIPS}})
+    assert page["chips"]["ids"] == ["read", "continue", "words", "stuck"]
+    assert page["chips"]["lines"][1] == "Continue רות" and not page["chips"]["hidden"]
+    said = run(
+        do=[{"type": "chip", "id": "words"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert said["posted"][0] == {
+        "path": "/chat/say",
+        "body": {"chat": "", "text": "Use my new words in a short conversation."},
+    }, "a chip is Send with a fixed line"
+    assert said["chips"]["hidden"], "a thread with a turn in it has no chips"
+
+
+def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> None:
+    quote = {"id": "j1", "stage": "ready", "title": "רות", "segments": 40, "estimate": 1}
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "הִנֵּה מַשֶּׁהוּ לִקְרוֹא.\n= Here is something to read.",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": True,
+            },
+        },
+    )
+    assert page["posted"][0] == {"path": "/chat/suggest", "body": {"chat": "", "skip": []}}
+    assert not any(p["path"] == "/chat/say" for p in page["posted"]), "the model was not asked"
+    assert [t["text"] for t in page["turns"]][:1] == ["Something to read"]
+    assert page["cards"] and page["cards"][0]["title"] == "רות"
+    assert page["hash"] == "#abc" and page["chips"]["hidden"]
+    another = run(
+        do=[{"type": "chip", "id": "read"}, {"type": "press", "selector": "chat-another"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": True,
+            },
+        },
+    )
+    assert another["posted"][1] == {
+        "path": "/chat/suggest",
+        "body": {"chat": "abc", "skip": ["ruth"]},
+    }
+
+
+def test_a_word_i_am_stuck_on_asks_for_the_word_in_the_field() -> None:
+    page = run(
+        do=[{"type": "chip", "id": "stuck"}],
+        answers={"/chat/list": {"chats": [], "usable": True, "chips": CHIPS}},
+    )
+    assert page["posted"] == []
+    assert page["placeholder"] == "The word, and the sentence it was in"

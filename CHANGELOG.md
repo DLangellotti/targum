@@ -414,6 +414,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The things most readers ask are buttons under the box on Learn and in the empty state
+  of the conversation page: "Something to read", "Continue *title*", "Use my new
+  words", "What do I know", "News today", "A word I am stuck on" — each drawn from the
+  record and standing only where its condition holds, never under an answer. A press is
+  Send with a fixed line; the first is answered by the server from the library with no
+  model turn and no spend, as the same card the model's own quote hands the page, with
+  "Another" under it (targum-internal#240, from the notes of 2026-09-10; design.md §12
+  records that this reverses a cut of 2026-09-06).
 - A way back to a conversation. A row writes the conversation into the address, and the
   address opens what it names, so a conversation can be linked to and the back button
   goes to the one before; each row says when it was last opened. On a phone the list is

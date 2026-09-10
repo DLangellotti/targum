@@ -156,6 +156,7 @@ global.window.TargumSync = {
 };
 
 require(path.join(assets, "bring.js"));
+require(path.join(assets, "chips.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
@@ -305,6 +306,14 @@ function drawn() {
       (windowListeners.hashchange || []).forEach((h) => h({}));
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "chip") {
+      // A press on the chip with that id (#240).
+      const chip = (byId["chat-chips"].children || [])
+        .map((li) => li.children[0])
+        .find((b) => b.attrs["data-chip"] === step.id);
+      chip.onclick();
+      for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "pill") {
       byId["chat-open-list"].onclick();
     }
@@ -333,6 +342,7 @@ function drawn() {
       went: global.location.href,
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
+      placeholder: byId["say"].placeholder,
       pairs: pairsDrawn(),
       foot: foot(),
       doors: doors(),
@@ -355,6 +365,11 @@ function drawn() {
         li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
       ),
       hash: global.location.hash,
+      chips: {
+        hidden: byId["chat-chips"].hidden,
+        ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),
+        lines: (byId["chat-chips"].children || []).map((li) => li.children[0].textContent),
+      },
       asked: opened.map((u) => u.replace(/[?&]k=[^&]*/, "")),
       listOpen: byId["chat-list"].classList.contains("open"),
       pillExpanded: byId["chat-open-list"].attrs["aria-expanded"],

@@ -576,6 +576,7 @@
     li.appendChild(line);
     turns.appendChild(li);
     if (empty) empty.hidden = true;
+    if (chips) chips.show(false);
     return li;
   }
 
@@ -770,6 +771,7 @@
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
       moreFrom = chats.length === PAGE ? PAGE : 0;
+      drawChips(answer.chips || []);
       usable = answer.usable !== false;
       talk = answer.talk !== false;
       showMic();
@@ -844,7 +846,69 @@
     turns.textContent = "";
     tell("");
     if (empty) empty.hidden = false;
+    if (chips) chips.show(true);
     field.focus();
+  }
+
+  /* --- the chips ---------------------------------------------------------------
+   *
+   * The things most readers ask, as buttons, in the empty state and nowhere else
+   * (targum-internal#240): a thread with a turn in it has no chips under it. A press
+   * is Send with a fixed line; the first is answered without the model — `/chat/suggest`
+   * hands back the exchange and a card, and "Another" under the card asks for the next.
+   */
+  var chips = window.TargumChips;
+  var offered = [];
+
+  function drawChips(list) {
+    if (!chips) return;
+    chips.draw(list, {
+      suggest: suggest,
+      say: function (line) {
+        say(line);
+      },
+      open: function (reader) {
+        window.location.href = bringing.door(reader);
+      },
+      stuck: function () {
+        field.placeholder = "The word, and the sentence it was in";
+        field.focus();
+      },
+    });
+    chips.show(!current);
+  }
+
+  function suggest() {
+    if (busy) return;
+    if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
+    busy = true;
+    send.disabled = true;
+    tell("");
+    ask("/chat/suggest", { chat: current, skip: offered }).then(function (got) {
+      busy = false;
+      send.disabled = false;
+      if (got.error) return tell(got.error);
+      var wasNew = !current;
+      current = got.chat;
+      remember(current);
+      if (chips) chips.show(false);
+      turn("user", got.said ? "Something to read" : "");
+      var li = turn("assistant", got.said || "", "");
+      if (got.quote) quoteCard(li, got.quote);
+      offered = offered.concat(got.offered || []);
+      if (got.more) {
+        var another = document.createElement("button");
+        another.type = "button";
+        another.className = "chat-another";
+        another.textContent = "Another";
+        another.onclick = function () {
+          another.disabled = true;
+          suggest();
+        };
+        li.appendChild(another);
+      }
+      if (wasNew) load();
+    });
   }
 
   /* --- asking -------------------------------------------------------------- */

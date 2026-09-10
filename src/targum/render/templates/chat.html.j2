@@ -38,6 +38,7 @@
         product's register: precise, unpatronising, no selling. -#}
     <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.
       targum answers from the library and your own shelf.</p>
+    {% include '_chips.html.j2' %}
     <ol class="turns" id="turns"></ol>
   </section>
 
@@ -62,6 +63,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+<script>{{ asset('chips.js') }}</script>
 <script>{{ asset('speak.js') }}</script>
 <script>{{ asset('chat.js') }}</script>
 </body>

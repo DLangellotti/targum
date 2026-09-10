@@ -331,6 +331,28 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### The things most readers ask are buttons — 2026-09-10
+
+The entry of 2026-09-06 below cut "starter chips under the box" as a gimmick. From the
+notes of 2026-09-10 — "most prompts will be nearly identical, i.e. give me something to
+read; we should suggest the top five to seven things to ask; largely a push-the-button
+facility with the option of a custom prompt" — they return, and this records the
+reversal so it is not argued again.
+
+What is different from what was cut: the chips are drawn from the record and never from
+a list. Each stands only where its condition holds — a text in progress, words saved
+this fortnight, words marked known, publishers with feeds — so a stranger sees two and
+nobody sees more than seven. They stand under the box on Learn and in the empty state of
+the conversation page, and never under an answer: follow-up chips after each reply were
+cut the same day and stay cut. And the first of them, "Something to read", never
+reaches the model: the page asks the server, the server asks the library the way the
+model's own tool would, and what comes back is the card — priced, not started, the
+reader's press still the spend. The commonest ask costs nothing, which is the cache the
+note asked for.
+
+Ink-bordered pills on paper, working controls with no accent (§4); fixed lines, so a
+press is the same ask every time; no counts and no level on any of them.
+
 ### The list of conversations is a way back — 2026-09-10
 
 The entry of 2026-09-06 below cut "a History sheet" as a gimmick. From the notes of

@@ -32,6 +32,7 @@
   <p class="chat-hours" id="chat-hours" hidden></p>
   {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
   {% include '_composer.html.j2' %}
+  {% include '_chips.html.j2' %}
 
   {#- The way back to a conversation, from the page a reader lands on (2026-09-10,
       targum-internal#238): the last three, by title and when, and the door to all of
@@ -248,6 +249,7 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+<script>{{ asset('chips.js') }}</script>
 <script>{{ asset('speak.js') }}</script>
 <script>{{ asset('box.js') }}</script>
 </body>

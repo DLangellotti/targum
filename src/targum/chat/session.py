@@ -18,8 +18,9 @@ import json
 import os
 import queue
 import threading
+import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -29,6 +30,7 @@ from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
 from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
+from . import sources as sources_module
 from . import tools as tools_module
 from .record import Recorder, outside_share
 
@@ -483,6 +485,118 @@ class Chats:
             learning=(store.learning(person_id) & reading) if person else reading,
             admin=admin,
         )
+
+    #: How far back "new words" reaches for the chip that brings them back, in the
+    #: milliseconds the ledger keeps `at` in: a fortnight.
+    NEW_WORDS_MS = 14 * 24 * 3600 * 1000
+
+    def chips(self, person: Person | None, home: Path) -> list[dict[str, str]]:
+        """The things most readers ask, as buttons (targum-internal#240, from the notes
+        of 2026-09-10: "most prompts will be nearly identical"). Drawn from the record,
+        never a static list: each stands only where its condition holds, and the first
+        never reaches the model at all — `suggest` answers it from `suggest_next` with
+        no turn and no spend. This reverses the cut of starter chips on 2026-09-06;
+        design.md §12 records why."""
+        chips: list[dict[str, str]] = [{"id": "read", "line": "Something to read"}]
+        store = self.store
+        if store is not None and person is not None:
+            # The text in progress: the most recently opened, not yet finished (the
+            # carry card's own question, answered off the same clocks).
+            ctx = self.context(person, home, "", False)
+            times = store.read_times(person.id)
+            mine, shared = tools_module._shelf(ctx)
+            opened = sorted(
+                (
+                    (times[str(row.get("document") or "")]["opened"], row)
+                    for row in [*mine, *shared]
+                    if str(row.get("document") or "") in times
+                    and not times[str(row.get("document") or "")].get("finished")
+                ),
+                key=lambda pair: -pair[0],
+            )
+            if opened:
+                row = opened[0][1]
+                chips.append(
+                    {
+                        "id": "continue",
+                        "line": f"Continue {row['title']}",
+                        "reader": str(row["reader"]),
+                    }
+                )
+            since = int(time.time() * 1000) - self.NEW_WORDS_MS
+            fresh = store.db.execute(
+                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0"
+                " AND status IS NOT NULL AND status < 9 AND status > 0 AND at >= ?",
+                (person.id, since),
+            ).fetchone()
+            if int(fresh["n"]) > 0:
+                chips.append({"id": "words", "line": "Use my new words"})
+            known = store.db.execute(
+                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status = 9",
+                (person.id,),
+            ).fetchone()
+            if int(known["n"]) > 0:
+                chips.append({"id": "know", "line": "What do I know"})
+        if any(one.feed for one in sources_module.load()):
+            chips.append({"id": "news", "line": "News today"})
+        chips.append({"id": "stuck", "line": "A word I am stuck on"})
+        return chips
+
+    #: What the page says for the reader when the first chip is pressed, and what
+    #: targum says back — fixed lines, pointed as the contract asks, because no model
+    #: writes this turn. The English carries the reason the text was chosen.
+    SUGGEST_ASKED = "Something to read"
+    SUGGEST_SAID = "הִנֵּה מַשֶּׁהוּ לִקְרוֹא."
+
+    def suggest(
+        self,
+        person: Person | None,
+        home: Path,
+        chat_id: str,
+        *,
+        admin: bool,
+        skip: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        """ "Something to read", answered without the model (targum-internal#240).
+
+        The one line most readers will press, and the answer to it is `suggest_next` and
+        a card: the same card the model's own `quote_build` hands the page, priced and
+        not started. No turn is run, no `job` of kind `chat` is written and nothing is
+        spent — the press is the ask, the card's button is still the build's press. The
+        exchange is written into the conversation so the thread reads back whole.
+        `skip` names texts already offered, for "Another". Returns what the page draws,
+        or `{"error", "status"}`.
+        """
+        if self.store is None:
+            raise RuntimeError("a chat needs a store")
+        store = self.store
+        person_id = person.id if person else None
+        ctx = self.context(person, home, chat_id, admin)
+        found = tools_module.suggest_next(ctx, {"limit": 10})
+        left = {str(one) for one in skip}
+        rows = [row for row in found.get("suggestions", []) if row["id"] not in left]
+        if not rows:
+            return {"error": "Nothing left to suggest. Ask for something.", "status": 404}
+        top = rows[0]
+        quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
+        quote = quoted.get("quote")
+        if quote is None:
+            return {"error": quoted.get("error") or "That cannot be built now.", "status": 409}
+        if not chat_id:
+            mode = "talk" if self.library.talks(home, person_id) else "find"
+            chat_id = store.chat_open(person_id, mode=mode)
+        because = str(top.get("because") or "").strip()
+        said = f"{self.SUGGEST_SAID}\n= Here is something to read. {because}".rstrip()
+        n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
+        store.chat_say(chat_id, "assistant", [{"type": "text", "text": said}], said)
+        return {
+            "chat": chat_id,
+            "turn": n,
+            "said": said,
+            "quote": quote,
+            "offered": [top["id"]],
+            "more": len(rows) > 1,
+        }
 
     def start_workers(self, count: int = CHAT_WORKERS) -> None:
         for _ in range(count):

@@ -243,6 +243,23 @@ def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> 
     assert "chat-hours" not in aside, "not in the side column any more"
 
 
+def test_the_chips_stand_on_both_pages_that_carry_the_box() -> None:
+    """targum-internal#240: under the box on Learn, in the empty state on the
+    conversation page, drawn by one script both pages carry."""
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        assert page.count('id="chat-chips"') == 1, name
+        assert "TargumChips" in page, f"{name}: chips.js rides"
+    chat = PAGES["chat"]
+    assert chat.index('id="chat-empty"') < chat.index('id="chat-chips"') < chat.index('id="turns"')
+    learn = PAGES["learn"]
+    assert (
+        learn.index('id="composer"')
+        < learn.index('id="chat-chips"')
+        < learn.index('id="recent-chats"')
+    )
+
+
 # -- what each page says it is --------------------------------------------------
 
 

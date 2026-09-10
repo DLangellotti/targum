@@ -255,8 +255,55 @@
 .chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
 .chat-said[hidden] { display: none; }
 
+/* The chips: the things most readers ask, as buttons (targum-internal#240). Ink-bordered
+   pills on paper, working controls with no accent (§4), wrapping as a row of words
+   does. Hidden where there are none, and on the conversation page once a thread has a
+   turn in it. */
+.chat-chips {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chat-chips[hidden] { display: none; }
+.chat-ask {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-ask:hover { background: var(--paper-raised); }
+.chat-ask:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* "Another", under the card the first chip hands back: the next text, the same way. */
+.chat-another {
+  font: inherit;
+  font-size: 0.8125rem;
+  margin-block-start: 0.5rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  justify-self: start;
+}
+.chat-another:hover { background: var(--paper-raised); }
+.chat-another:disabled { opacity: 0.5; cursor: default; }
+
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
+  .chat-ask,
+  .chat-another,
   .chat-send,
   .chat-mic,
   .chat-bring,

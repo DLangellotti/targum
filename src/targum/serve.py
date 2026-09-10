@@ -3819,6 +3819,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/chat/say":
             return self._chat_say(payload)
+        if route == "/chat/suggest":
+            return self._chat_suggest(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -3892,6 +3894,7 @@ class Handler(BaseHTTPRequestHandler):
                     # in English, about the text (`Library.talks`).
                     "talk": self.library.talks(self._home(), person_id),
                     "hours": self._hours(person_id),
+                    "chips": self.chats.chips(person, self._home()),
                 }
             )
         pieces = rest.split("/")
@@ -4235,6 +4238,24 @@ class Handler(BaseHTTPRequestHandler):
             brought=brought,
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
+
+    def _chat_suggest(self, payload: dict[str, Any]) -> None:
+        """The commonest ask, answered without the model (targum-internal#240): the
+        press is the ask, the card's button is still the build's press, and no turn is
+        run. `Chats.suggest` does the work; this is the door."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        skip = [str(one) for one in payload.get("skip") or [] if isinstance(one, str)]
+        admin = bool(person and self.store.is_admin(person.email))
+        answer = self.chats.suggest(person, self._home(), chat_id, admin=admin, skip=skip)
+        if "error" in answer:
+            return self._json({"error": answer["error"]}, int(answer.get("status") or 409))
+        return self._json(answer)
 
     def _chat_save(self, payload: dict[str, Any]) -> None:
         """Save as targum, pressed at the foot of the record: the conversation written
