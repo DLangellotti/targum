@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import random
+import statistics
 import sys
 from collections.abc import Sequence
 from datetime import date
@@ -185,8 +186,13 @@ def main() -> None:
     kept = [pair.hebrew for reply in replies for pair in hebrew.pairs(reply)]
     unpaired = sum(1 for reply in replies for pair in hebrew.pairs(reply) if not pair.english)
     share, counted = outside_share(kept, allowed)
+    # How long a reply runs, the recast left out (targum-internal#236): the contract
+    # caps it in sentences, and the floor reads the median in words.
+    words = [hebrew.length(reply) for reply in replies]
+    median_words = float(statistics.median(words)) if words else 0.0
     print(f"{args.turns} turns, {len(kept)} Hebrew lines, {counted} content lemmas")
     print(f"outside the list: {share:.1%}   lines without their English: {unpaired}")
+    print(f"Hebrew words a reply: median {median_words:g}, max {max(words) if words else 0}")
     print(f"spent ${usage.cost():.2f} over {usage.calls} calls")
 
     today = date.today().isoformat()
@@ -208,6 +214,9 @@ def main() -> None:
         ),
         evals.Row(
             today, "grading", "chat", CHAT_MODEL, "unpaired_lines", float(unpaired), len(kept)
+        ),
+        evals.Row(
+            today, "grading", "chat", CHAT_MODEL, "hebrew_words_median", median_words, len(words)
         ),
     ]
     evals.append(rows, args.ledger)

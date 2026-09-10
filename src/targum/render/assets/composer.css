@@ -9,13 +9,42 @@
 .composer {
   display: grid;
   grid-template-areas:
-    "say say say"
-    "held held held"
-    "bring mic send";
-  grid-template-columns: auto minmax(0, 1fr) auto;
+    "held held held held"
+    "bring say mic send";
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 0.6rem;
-  align-items: center;
+  align-items: end;
 }
+.composer textarea { grid-area: say; }
+.composer .chat-held { grid-area: held; }
+.composer .chat-bring { grid-area: bring; }
+.composer .chat-mic { grid-area: mic; }
+.composer .chat-send { grid-area: send; }
+
+/* The sprite the glyphs come from: on the page so `<use>` can reach it, and no size at
+   all so it takes no room. Not `hidden` — a `display: none` sprite is one some browsers
+   draw nothing from. */
+.glyphs {
+  position: absolute;
+  inline-size: 0;
+  block-size: 0;
+  overflow: hidden;
+}
+/* A glyph, drawn as §7 says: sixteen pixels, a stroke at text weight, no fill. The
+   colour is the control's own. */
+.glyph {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+/* The arrow points the way the page reads. */
+[dir="rtl"] .chat-send .glyph { transform: scaleX(-1); }
+
 .composer textarea { grid-area: say; }
 .composer .chat-held { grid-area: held; }
 .composer .chat-bring { grid-area: bring; }
@@ -31,8 +60,13 @@
   border-radius: 6px;
   background: var(--paper);
   color: var(--ink);
-  resize: vertical;
-  min-height: 2.75rem;
+  /* One row at rest, growing with what is typed to six lines or so, then scrolling;
+     the grip is gone because the field sizes itself. `field-sizing` where the browser
+     has it; the pages' scripts do the same by hand where it does not. */
+  resize: none;
+  field-sizing: content;
+  min-block-size: 2.4rem;
+  max-block-size: 9.5rem;
   width: 100%;
 }
 .composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
@@ -176,34 +210,41 @@
 
 
 /* Speak is a working action, so it takes the working treatment: ink border, not the
-   accent the one send button holds (§4: one accent, rationed). Recording is a state
-   said in words as well as in ink, never in a colour alone (§6). */
+   accent the one send button holds (§4: one accent, rationed) — a ring the size of the
+   `+`, with the microphone in it. Recording is a state said in words (the label reads
+   Stop) as well as in ink, never in a colour alone (§6). */
 .chat-mic {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.6rem 0.9rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
   border: 1px solid var(--ink-soft);
-  border-radius: 6px;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
 }
 .chat-mic:hover { background: var(--paper-raised); }
+.chat-mic:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .chat-mic[hidden] { display: none; }
 
+/* Send: the one accent on the row, and an arrow in it. */
 .chat-send {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.6rem 1rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
   background: var(--accent);
   color: var(--paper);
   cursor: pointer;
 }
 .chat-send:hover { filter: brightness(1.08); }
+.chat-send:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .chat-send:disabled { opacity: 0.5; cursor: default; }
 
 /* The month's hours, above the box, only past three quarters used (targum-internal#237):

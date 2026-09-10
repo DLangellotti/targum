@@ -20,9 +20,18 @@
   var recorder = null;
   var recorded = [];
 
-  // `mic` is the button, so it can say which press this is: "Speak" at rest, "Stop"
-  // while recording, and `aria-pressed` either way. `onClip(blob)` is called once the
-  // clip is whole; `onFail(message)` when the microphone would not open.
+  // `mic` is the button, so it can say which press this is: Speak at rest, Stop while
+  // recording, and `aria-pressed` either way. Since 2026-09-10 the word is the label
+  // and the glyph is the face: a microphone at rest, a square while recording.
+  // `onClip(blob)` is called once the clip is whole; `onFail(message)` when the
+  // microphone would not open.
+  function say(mic, word, glyph) {
+    mic.setAttribute("aria-label", word);
+    mic.setAttribute("title", word);
+    var use = mic.querySelector(".glyph-use");
+    if (use) use.setAttribute("href", "#glyph-" + glyph);
+  }
+
   function toggle(mic, onClip, onFail) {
     if (!can) return false;
     if (recorder) {
@@ -43,12 +52,12 @@
           var clip = new Blob(recorded, { type: recorder.mimeType || "audio/webm" });
           recorder = null;
           mic.setAttribute("aria-pressed", "false");
-          mic.textContent = "Speak";
+          say(mic, "Speak", "mic");
           onClip(clip);
         };
         recorder.start();
         mic.setAttribute("aria-pressed", "true");
-        mic.textContent = "Stop";
+        say(mic, "Stop", "stop");
       },
       function () {
         onFail("The microphone could not be opened.");

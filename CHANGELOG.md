@@ -420,6 +420,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   quarters are used, so the cap is not the first anybody hears of it. `/account/me`
   carries the hours, reckoned in the one place `/chat/list` already reckoned them
   (targum-internal#237, from the notes of 2026-09-10).
+- A reply is at most three Hebrew sentences, the recast left out; one sentence and the
+  door when a text is handed over; six lines at most when the answer is a list. "A few
+  Hebrew sentences" was a median of 36 words over five lines, ten with their English, on
+  the conversations stored so far, and the notes of 2026-09-10 called it too much to
+  read. `scripts/measure_reply_length.py` counts what real readers got, and
+  `scripts/eval_grading.py` now records `hebrew_words_median`, with a floor of 25 in
+  `evals/floors.json` (targum-internal#236).
+- The box is one row: the `+`, the field, Speak and Send side by side, on a phone as on
+  a desk, where the three buttons used to sit on a row under the field. Speak, Send and
+  Hear are drawn rather than written — a microphone, an arrow, a loudspeaker, from one
+  sprite to §7 — with the word kept as each control's label, so nothing a screen reader
+  says has changed; the `+` stays typed. The field grows with what is typed and shrinks
+  back when the line is sent (targum-internal#235, from the notes of 2026-09-10).
 - The chat's web search looks at the whole web, six searches a turn instead of three.
   Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
   one turn: a list the model could not see made a gap in it look like an answer, and the

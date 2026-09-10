@@ -372,6 +372,62 @@ def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(brows
     assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
 
 
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_box_is_one_row_at_every_width(browser, width: int) -> None:
+    """Since 2026-09-10 (targum-internal#235) the `+`, the field, Speak and Send share
+    the field's row, on a phone as on a desk; the buttons used to sit on a row under it.
+    Measured, because a grid template is a promise the stylesheet cannot prove — one
+    control with a minimum width the column cannot give would wrap the row."""
+    html = chat_page(TOKEN)
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {"chats": [], "usable": True, "talk": True}
+        elif "/account/me" in request.url:
+            body = {
+                "signedIn": True,
+                "email": "r@example.org",
+                "counts": {},
+                "learning": ["he"],
+                "reads": ["en"],
+            }
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}")
+    page.wait_for_timeout(300)
+    # A plain http origin has no microphone, so the page hides Speak; shown by hand here
+    # so the row is measured with all four of its controls in it.
+    page.evaluate("() => { document.getElementById('chat-mic').hidden = false; }")
+    boxes = page.evaluate(
+        """() => Object.fromEntries(['chat-bring', 'say', 'chat-mic', 'chat-send'].map((id) => {
+          const node = document.getElementById(id);
+          const r = node.getBoundingClientRect();
+          return [id, { bottom: r.bottom, left: r.left, right: r.right, hidden: node.hidden }];
+        }))"""
+    )
+    words = page.evaluate(
+        """() => ['chat-mic', 'chat-send']
+          .map((id) => document.getElementById(id).textContent.trim())"""
+    )
+    context.close()
+    shown = {name: box for name, box in boxes.items() if not box["hidden"]}
+    assert sorted(shown) == ["chat-bring", "chat-mic", "chat-send", "say"]
+    # The buttons sit on the field's baseline, so it is the bottoms that agree: the field
+    # itself may be two lines tall where its placeholder wraps.
+    bottoms = {name: box["bottom"] for name, box in shown.items()}
+    assert max(bottoms.values()) - min(bottoms.values()) < 4, f"one row at {width}px: {bottoms}"
+    assert shown["chat-bring"]["right"] <= shown["say"]["left"] + 1
+    assert shown["say"]["right"] <= shown["chat-mic"]["left"] + 1
+    assert shown["chat-mic"]["right"] <= shown["chat-send"]["left"] + 1
+    assert words == ["", ""], "glyphs, with the word as the label"
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up

@@ -22,6 +22,26 @@ def test_the_voice_rules_are_in_the_prompt() -> None:
     assert "Second person" in said
 
 
+def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:
+    """ "A few Hebrew sentences" was a median of 42 words over five lines, ten with their
+    English, and the notes of 2026-09-10 called it too much to read (targum-internal#236).
+    The cap is a number in both prompts now, and the recast does not count."""
+    from targum.chat import hebrew
+
+    assert hebrew.MOST_SENTENCES == 3
+    assert f"at most {hebrew.MOST_SENTENCES} Hebrew sentences" in hebrew.CONTRACT
+    assert "is one sentence and the door" in hebrew.CONTRACT
+    assert f"at most {hebrew.MOST_LISTED} lines" in hebrew.CONTRACT
+    said = " ".join(prompts.SYSTEM.split())
+    assert "At most three sentences in a reply" in said
+    assert "one sentence before a card or a door" in said
+    reply = (
+        "> שלום, מה לקרוא?\n= Hello\nיש לי משהו קצר בשבילך.\n= I have\nזה סיפור על ילד.\n= story"
+    )
+    assert hebrew.length(reply) == 9, "the recast is the reader's line and is not counted"
+    assert hebrew.length("= only English") == 0
+
+
 def test_the_prompt_keeps_its_own_rules() -> None:
     """A prompt that broke §6 while teaching it would be the one place nobody checked."""
     assert "!" not in prompts.SYSTEM
