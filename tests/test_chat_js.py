@@ -1025,7 +1025,10 @@ WORDS = {
 }
 
 
-def corrected(asked: str, **extra: Any) -> dict[str, Any]:
+RIGHT = "> אֶתְמוֹל הָלַכְתִּי לַחֲנוּת.\n= Yesterday I went to the shop.\nיָפֶה מְאוֹד.\n= Very nice."
+
+
+def corrected(asked: str, reply: str = FIXED, **extra: Any) -> dict[str, Any]:
     return run(
         do=[
             {"type": "say", "text": asked},
@@ -1033,7 +1036,7 @@ def corrected(asked: str, **extra: Any) -> dict[str, Any]:
             {
                 "type": "stream",
                 "event": "done",
-                "data": json.dumps({"text": FIXED}, ensure_ascii=False),
+                "data": json.dumps({"text": reply}, ensure_ascii=False),
             },
             *extra.pop("then", []),
         ],
@@ -1054,13 +1057,17 @@ def test_a_recast_that_changed_something_says_so_and_marks_the_words() -> None:
     assert not page["pairs"][1]["corrected"] and page["pairs"][1]["why"] is None
 
 
-def test_a_right_line_or_an_english_one_is_not_called_corrected() -> None:
-    right = corrected("אני הלכתי אתמול לחנות", ledger=KNOWN)
+def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
+    """The model judges: a right line is often recast in a more Hebrew order, and without
+    a "~ " line that is idiom, not a correction. A line written in English is recast,
+    never corrected, and carries no marks even when the model explains."""
+    right = corrected("אני הלכתי אתמול לחנות", reply=RIGHT, ledger=KNOWN)
     assert not right["pairs"][0]["corrected"] and right["pairs"][0]["fixed"] == []
-    english = corrected("I went to the shop yesterday", ledger=KNOWN)
-    assert not english["pairs"][0]["corrected"], (
-        "a line written in English is recast, not corrected"
-    )
+    assert right["pairs"][0]["why"] is None
+    english = corrected("I went to the shop yesterday", reply=RIGHT, ledger=KNOWN)
+    assert not english["pairs"][0]["corrected"]
+    explained = corrected("I went to the shop yesterday", ledger=KNOWN)
+    assert explained["pairs"][0]["fixed"] == [], "nothing to mark against an English line"
 
 
 def test_why_opens_on_a_tap_and_is_open_for_a_reader_with_no_words() -> None:
