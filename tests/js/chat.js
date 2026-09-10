@@ -184,6 +184,7 @@ function cards() {
         english: title && title.children[1] ? title.children[1].textContent : "",
         meta: by("quote-meta") ? by("quote-meta").textContent : "",
         note: by("quote-note") ? by("quote-note").textContent : "",
+        known: by("quote-known") ? by("quote-known").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
               excerpt: by("quote-excerpt")

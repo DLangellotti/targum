@@ -1075,3 +1075,47 @@ def test_why_opens_on_a_tap_and_is_open_for_a_reader_with_no_words() -> None:
     assert page["pairs"][0]["why"]["hidden"] is False
     fresh = corrected("אני הלך אתמול לחנות")
     assert fresh["pairs"][0]["why"]["hidden"] is False, "open by default with nothing on the ledger"
+
+
+def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
+    """targum-internal#244."""
+    quote = {
+        "id": "j1",
+        "stage": "ready",
+        "title": "רות",
+        "segments": 40,
+        "estimate": 1,
+        "known_line": "You know about 7 words in 10 here.",
+    }
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": False,
+            },
+        },
+    )
+    assert page["cards"][0]["known"] == "You know about 7 words in 10 here."
+    bare = dict(quote)
+    del bare["known_line"]
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": bare,
+                "offered": ["ruth"],
+                "more": False,
+            },
+        },
+    )
+    assert page["cards"][0]["known"] == "", "nothing where it was not measured"

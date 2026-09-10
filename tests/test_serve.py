@@ -2484,3 +2484,15 @@ def test_the_conversation_list_is_a_page_not_everything_ever(tmp_path: Path) -> 
     assert [len(page) for page in pages] == [3, 3, 1]
     assert {row["id"] for page in pages for row in page} == ids, "every one, once, across pages"
     assert store.chats(None, limit=3, offset=9) == []
+
+
+def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
+    """targum-internal#244: on the job's state, in a number for the model and in words
+    for the card; nothing where it was not measured."""
+    from targum.serve import Job
+
+    measured = Job(id="j", source="x", known_share=0.734)
+    assert measured.state()["known_share"] == 0.73
+    assert measured.state()["known_line"] == "You know about 7 words in 10 here."
+    unmeasured = Job(id="k", source="x")
+    assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""

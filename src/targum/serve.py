@@ -36,6 +36,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
+from . import level as level_module
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
@@ -642,6 +643,10 @@ class Job:
     #: Whether the pictures were a messaging conversation, read as its messages.
     conversation: bool = False
     reading: float = 0.0
+    #: How much of the text the reader already has, estimated at quote time from the
+    #: ledger (`level.known_share`, targum-internal#244); None where nobody is signed
+    #: in or the text is too short to say.
+    known_share: float | None = None
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -682,6 +687,8 @@ class Job:
             "doubtful": self.doubtful,
             "conversation": self.conversation,
             "excerpt": list(self.excerpt),
+            "known_share": None if self.known_share is None else round(self.known_share, 2),
+            "known_line": level_module.words_in_ten(self.known_share),
         }
 
 
@@ -1717,6 +1724,7 @@ class Library:
             job.title = plan.document.title or job.source
             job.language = plan.document.language
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
+            job.known_share = self._known_share(job, plan.document)
             job.chapters = plan.chapters
             job.estimate = plan.estimated_cost
             if plan.audio is not None:
@@ -1755,6 +1763,21 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    def _known_share(self, job: Job, document: Any) -> float | None:
+        """How much of a text the reader already has, at quote time (targum-internal#244):
+        the ledger's known forms and the commonest words against the text's tokens. The
+        card says it in words; the model is given the number. Nothing for a signed-out
+        build, a text that is not Hebrew, or one too short to measure."""
+        if self.store is None or job.owner is None:
+            return None
+        if str(getattr(document, "language", "") or "").split("-")[0] != "he":
+            return None
+        from .chat import hebrew as hebrew_module
+
+        forms = self.store.known_forms(job.owner, "he") | set(hebrew_module.common_words())
+        text = "\n".join(str(getattr(block, "text", "") or "") for block in document.blocks)
+        return level_module.known_share(text, forms)
 
     def _read_pages(self, job: Job) -> str:
         """Read a source that arrived as pages, or say why it may not be read.

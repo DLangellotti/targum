@@ -315,6 +315,14 @@
     if (job.stage === "ready") facts.push(wait(job));
     meta.textContent = facts.join(" · ");
     card.appendChild(meta);
+    // How much of it the reader already has, in words, never a percentage or a level
+    // (targum-internal#244). Absent where it was not measured.
+    if (job.known_line) {
+      var known = document.createElement("p");
+      known.className = "quote-known";
+      known.textContent = job.known_line;
+      card.appendChild(known);
+    }
     // A text that arrived as pages shows its first lines as read: for a picture the
     // filename says nothing, and what will be built should be seen before it is.
     if (job.excerpt && job.excerpt.length) {

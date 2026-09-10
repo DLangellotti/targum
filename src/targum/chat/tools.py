@@ -34,6 +34,7 @@ from urllib.parse import quote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
+from .. import level as level_module
 from ..level import Level
 from ..usage import Usage
 from . import hebrew as hebrew_module
@@ -234,6 +235,10 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     register = str(args.get("register") or "")
     kind = str(args.get("kind") or "")
     ceiling = args.get("max_looked_up_percent")
+    if ceiling is None:
+        # The reader's own ceiling when the model names none (targum-internal#244):
+        # by the rung the ledger reaches, from `level.LOOKED_UP_CEILING`.
+        ceiling = level_module.ceiling_for(ctx.level)
     minutes = args.get("max_minutes")
     limit = max(1, min(int(args.get("limit") or 10), 20))
     mine, shared = _shelf(ctx)
@@ -257,7 +262,10 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if not found and query and ctx.store is not None:
         # What the shelf could not answer is what the operator most wants to know.
         ctx.store.want(query, "")
-    return {"count": len(found), "texts": found[:limit]}
+    out: dict[str, Any] = {"count": len(found), "texts": found[:limit]}
+    if ceiling is not None and args.get("max_looked_up_percent") is None:
+        out["ceiling_applied"] = int(ceiling)
+    return out
 
 
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -389,6 +397,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         known = row.get("known_share")
         if known is not None:
             row["because"] = f"{round(float(known) * 100)}% of its words are ones you know."
+            row["known_line"] = level_module.words_in_ten(float(known))
             rank = (0.0, -float(known))
         elif entry.difficulty:
             row["because"] = (
@@ -604,6 +613,15 @@ WEB_SEARCH_USES = 6
 SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asia/Jerusalem"}
 
 
+def _known_share(ctx: Ctx | None, text: str) -> float | None:
+    """`level.known_share` against this reader's known forms and the commonest words;
+    None where there is nobody to measure for."""
+    if ctx is None or ctx.store is None or ctx.person is None:
+        return None
+    forms = ctx.store.known_forms(ctx.person.id, "he") | set(hebrew_module.common_words())
+    return level_module.known_share(text, forms)
+
+
 def _hebrew_share(text: str) -> float:
     letters = [ch for ch in text if ch.isalpha()]
     if not letters:
@@ -801,12 +819,17 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         advice.append(f"Only {round(share * 100)}% of the letters on the page are Hebrew.")
     if words < 80:
         advice.append("Very little text was found on the page.")
+    # How much of it this reader already has, cheaply, before it is quoted
+    # (targum-internal#244): the number for the model, the words for the reader.
+    known = _known_share(ctx, body) if share >= 0.5 else None
     return {
         "kind": "article",
         "title": title,
         "words": words,
         "minutes": max(1, round(words / 130)),
         "hebrew_share": round(share, 2),
+        "known_share": None if known is None else round(known, 2),
+        "known_line": level_module.words_in_ten(known),
         "advice": advice,
         "quote_with": url,
         **_licence_row(""),

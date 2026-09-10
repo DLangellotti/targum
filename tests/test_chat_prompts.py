@@ -150,3 +150,12 @@ def test_the_gloss_line_is_in_the_language_the_reader_reads() -> None:
     assert "Do not think of an English sentence and translate it" in russian, "still about Hebrew"
     assert hebrew.gloss_language({"ru"}) == "ru"
     assert hebrew.gloss_language({"ru", "en"}) == "en" and hebrew.gloss_language(set()) == "en"
+
+
+def test_the_level_target_is_a_number_the_tools_carry() -> None:
+    """targum-internal#244: level-awareness was one prompt sentence and the model's
+    discretion. The tools carry known_share now and the prompt names the target."""
+    said = " ".join(prompts.SYSTEM.split())
+    assert "known_share of 0.8 or more" in said and "0.65 or more" in said
+    assert "applies the reader's own ceiling" in said
+    assert "never as a percentage or a level" in said

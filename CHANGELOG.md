@@ -414,6 +414,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- How much of a text a reader already has is estimated before it is quoted: the
+  ledger's known forms and the commonest words against the text's tokens, a prefix or
+  two allowed, no lemmatizer. The card says it in words — "You know about 7 words in
+  10 here" — `describe_source` and every quote carry the number, the library search
+  applies the reader's own ceiling when the model names none, and the prompt names the
+  target: 0.8 for a first read, 0.65 for something harder (targum-internal#244, from
+  the notes of 2026-09-10).
 - The line under each Hebrew line in a conversation is in the language the account
   reads into, where it was English by name: the contract names it, the record's
   meanings are looked up in it, and the read-back builds into it. A first visit from a

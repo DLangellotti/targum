@@ -1554,6 +1554,26 @@ class Store:
             for row in rows
         ]
 
+    def known_forms(self, person_id: int | None, language: str) -> set[str]:
+        """Every form the reader has marked known — the dictionary form and the surface
+        it was met in — bare of points, for the cheap known-share estimate
+        (`level.known_share`, targum-internal#244)."""
+        if person_id is None:
+            return set()
+        from .vocalize.base import strip_nikkud
+
+        rows = self.db.execute(
+            "SELECT lemma, surface FROM word"
+            " WHERE person = ? AND language = ? AND gone = 0 AND status = 9",
+            (person_id, language.split("-")[0].lower()),
+        )
+        out: set[str] = set()
+        for row in rows:
+            for form in (row["lemma"], row["surface"]):
+                if form:
+                    out.add(strip_nikkud(str(form))[0])
+        return out
+
     def activity(self, person_id: int | None) -> dict[str, Any]:
         """The days someone read on, and how many sections and texts they finished."""
         if person_id is None:

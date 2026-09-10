@@ -459,6 +459,10 @@ def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
     # The extractor keeps the page's title as a paragraph too, so a few over two hundred.
     assert 200 <= got["words"] <= 210 and got["minutes"] == 2 and got["hebrew_share"] == 1.0
     assert got["advice"] == []
+    # How much of it this reader has, before it is quoted (targum-internal#244): שלום is
+    # on their ledger, and the page is two hundred of it.
+    assert got["known_share"] is not None and got["known_share"] >= 0.97
+    assert got["known_line"] == "You know nearly every word here."
 
 
 def test_what_describe_refuses_is_the_door_not_the_licence(world, monkeypatch) -> None:
@@ -718,3 +722,25 @@ def test_every_door_the_chat_builds_through_asks_for_words() -> None:
     assert "gloss" not in tools.BUILD_OPTIONS, (
         "half a build's cost, mostly unread; a word is bought from the card instead"
     )
+
+
+def test_search_library_applies_the_reader_s_own_ceiling_when_the_model_names_none(
+    world,
+) -> None:
+    """targum-internal#244: no tool consumed the ledger; now the library search does,
+    with the model's own number winning where it gives one."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    mine = tools.search_library(ctx, {"limit": 20})
+    assert mine["ceiling_applied"] == 40, "two known words: the first rung's ceiling"
+    assert all((row["looked_up_percent"] or 0) <= 40 for row in mine["texts"])
+    theirs = tools.search_library(ctx, {"limit": 20, "max_looked_up_percent": 90})
+    assert "ceiling_applied" not in theirs
+
+
+def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.suggest_next(ctx, {"limit": 3})
+    top = got["suggestions"][0]
+    assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
