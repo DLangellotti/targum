@@ -18,7 +18,18 @@
       hairline list rather than a raised panel: §9, one raised layer per view, and the
       thread is the one. -#}
   <aside class="chat-side">
-    <button type="button" id="chat-new" class="chat-new">New</button>
+    <div class="chat-side-head">
+      <button type="button" id="chat-new" class="chat-new">New</button>
+      {#- On a phone the list is not in the flow — it stood under the whole thread and
+          the box, past everything — but behind this: the page's one overlay, a sheet
+          (2026-09-10, targum-internal#238). Drawn only at phone width; the stylesheet
+          decides. -#}
+      <button type="button" id="chat-open-list" class="chat-open-list"
+              aria-expanded="false" aria-controls="chat-list">Conversations</button>
+    </div>
+    {#- Newest first, each with when it was last opened; "More" at the foot for the next
+        page. A row writes the conversation into the address, so a conversation can be
+        linked to and the back button goes to the one before. -#}
     <ul class="chat-list" id="chat-list"></ul>
   </aside>
 

@@ -178,6 +178,10 @@ THUMBED = (
     ".chat-send",
     ".chat-new",
     ".chat-list button",
+    # And the pill that opens the list as a sheet on a phone, and More at its foot
+    # (2026-09-10, targum-internal#238).
+    ".chat-open-list",
+    ".chat-more",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
     # And the door a path becomes: the reader opens a text, never the model.

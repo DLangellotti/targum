@@ -2470,3 +2470,17 @@ def test_what_escapes_a_route_is_written_down(
         time.sleep(0.05)
     assert found and found[0].where == "/health" and found[0].kind == "RuntimeError"
     assert key not in found[0].trace + found[0].message + found[0].where
+
+
+def test_the_conversation_list_is_a_page_not_everything_ever(tmp_path: Path) -> None:
+    """targum-internal#238: `Store.chats` returned every conversation a person ever had.
+    A page of fifty by default, `limit` and `offset` on the request, newest first."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    ids = {store.chat_open(None, "he") for _ in range(7)}
+    assert len(store.chats(None)) == 7
+    pages = [store.chats(None, limit=3, offset=at) for at in (0, 3, 6)]
+    assert [len(page) for page in pages] == [3, 3, 1]
+    assert {row["id"] for page in pages for row in page} == ids, "every one, once, across pages"
+    assert store.chats(None, limit=3, offset=9) == []

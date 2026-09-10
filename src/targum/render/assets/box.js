@@ -233,12 +233,51 @@
     };
   }
 
+  // The way back to a conversation from the front door (targum-internal#238): the last
+  // three, by title and when, and the door to all of them. Nothing for a reader who has
+  // had none.
+  var recent = document.getElementById("recent-chats");
+  var recentList = document.getElementById("recent-chats-list");
+  var recentAll = document.getElementById("recent-chats-all");
+  var RECENT = 3;
+  function ago(stamp) {
+    if (!stamp) return "";
+    var minutes = Math.round((Date.now() - stamp) / 60000);
+    if (minutes < 2) return "just now";
+    if (minutes < 60) return minutes + " minutes ago";
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+    var days = Math.round(hours / 24);
+    if (days === 1) return "yesterday";
+    if (days < 30) return days + " days ago";
+    return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  function drawRecent(chats) {
+    if (!recent || !recentList) return;
+    recentList.textContent = "";
+    chats.slice(0, RECENT).forEach(function (chat) {
+      var li = document.createElement("li");
+      var link = document.createElement("a");
+      link.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
+      link.textContent = chat.title || "Untitled";
+      li.appendChild(link);
+      var when = document.createElement("span");
+      when.className = "when";
+      when.textContent = ago(chat.seen);
+      li.appendChild(when);
+      recentList.appendChild(li);
+    });
+    if (recentAll) recentAll.href = keyed("/chat");
+    recent.hidden = chats.length === 0;
+  }
+
   showMic();
-  ask("/chat/list").then(function (answer) {
+  ask("/chat/list?limit=" + RECENT).then(function (answer) {
     if (answer.error) return;
     usable = answer.usable !== false;
     talk = answer.talk !== false;
     showMic();
+    drawRecent(answer.chats || []);
     // The month's hours, only when they are nearly gone (targum-internal#237).
     if (hoursLine && bringing) {
       var line = bringing.hoursWarning(answer.hours);

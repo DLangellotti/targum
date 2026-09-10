@@ -71,8 +71,13 @@ if (payload.record) {
     }
   };
 }
+// What the page listens to on the window — `hashchange`, since #238 — so a step can fire it.
+const windowListeners = {};
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
+  addEventListener: (type, handler) => {
+    (windowListeners[type] = windowListeners[type] || []).push(handler);
+  },
   TargumBuilding: { ask: () => strip.asked++ },
   // The reader's own ledger, as the reader writes it, when the payload gives one.
   stored: payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
@@ -110,7 +115,10 @@ global.fetch = (url, options) => {
             : "<chunk>",
     });
   }
-  return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
+  // An answer keyed by the whole path with its query, the key left out, comes first —
+  // "/chat/list?limit=50&offset=50" is a different page from "/chat/list" (#238).
+  const full = String(url).replace(/[?&]k=[^&]*/, "");
+  return Promise.resolve({ json: () => Promise.resolve(answers[full] || answers[at] || {}) });
 };
 
 // Arrived from the front door with a conversation in the hash, when the payload says so.
@@ -290,6 +298,16 @@ function drawn() {
       await new Promise((resolve) => setImmediate(resolve));
       byId["chat-mic"].onclick();
     }
+    if (step.type === "hash") {
+      // The address changed by the back button or a typed link: the page opens what
+      // it names (#238).
+      global.location.hash = global.window.location.hash = step.hash || "";
+      (windowListeners.hashchange || []).forEach((h) => h({}));
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "pill") {
+      byId["chat-open-list"].onclick();
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -298,7 +316,9 @@ function drawn() {
         (node.children || []).forEach(walk);
       };
       walk(turns);
+      walk(byId["chat-list"]);
       found[found.length - 1].onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     // Let the promises settle between steps.
     await new Promise((resolve) => setImmediate(resolve));
@@ -327,7 +347,17 @@ function drawn() {
         text: byId["chat-mic"].textContent,
       },
       plays,
-      list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
+      // Each row's title; its "when" beside it; the address the page wrote (#238).
+      list: (byId["chat-list"].children || []).map((li) =>
+        li.children[0].children.length ? li.children[0].children[0].textContent : li.children[0].textContent,
+      ),
+      whens: (byId["chat-list"].children || []).map((li) =>
+        li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
+      ),
+      hash: global.location.hash,
+      asked: opened.map((u) => u.replace(/[?&]k=[^&]*/, "")),
+      listOpen: byId["chat-list"].classList.contains("open"),
+      pillExpanded: byId["chat-open-list"].attrs["aria-expanded"],
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,
       syncStarted,

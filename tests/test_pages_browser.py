@@ -428,6 +428,79 @@ def test_the_box_is_one_row_at_every_width(browser, width: int) -> None:
     assert words == ["", ""], "glyphs, with the word as the label"
 
 
+def test_on_a_phone_the_list_is_a_sheet_behind_a_pill_at_the_top(browser) -> None:
+    """targum-internal#238. The list stood under the whole thread and the box on a phone,
+    past everything. Now the side comes first as one row, the list is out of the flow,
+    and the pill opens it as a sheet over the page; at a desk the pill is not drawn and
+    the list stands in its column. Measured, because `display` under a media query is
+    a promise the file cannot prove."""
+    html = chat_page(TOKEN)
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {
+                "chats": [{"id": "a", "title": "Something to read", "seen": 1}],
+                "usable": True,
+                "talk": True,
+            }
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": []}
+        elif "/account/me" in request.url:
+            body = {"signedIn": False}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    seen = {}
+    for width in (390, 1280):
+        context = browser.new_context(viewport={"width": width, "height": 800})
+        page = context.new_page()
+        page.route("http://chat.test/**", answer)
+        page.goto(f"http://chat.test/chat?k={TOKEN}")
+        page.wait_for_timeout(300)
+        before = page.evaluate(
+            """() => ({
+              pill: getComputedStyle(document.getElementById('chat-open-list')).display,
+              list: getComputedStyle(document.getElementById('chat-list')).display,
+              sideTop: document.querySelector('.chat-side').getBoundingClientRect().top,
+              threadTop: document.querySelector('.chat-thread').getBoundingClientRect().top,
+            })"""
+        )
+        if width == 390:
+            page.click("#chat-open-list")
+            page.wait_for_timeout(100)
+            opened = page.evaluate(
+                """() => ({
+                  list: getComputedStyle(document.getElementById('chat-list')).display,
+                  position: getComputedStyle(document.getElementById('chat-list')).position,
+                })"""
+            )
+            page.click(".chat-list button")
+            page.wait_for_timeout(200)
+            after = page.evaluate(
+                """() => ({
+                  list: getComputedStyle(document.getElementById('chat-list')).display,
+                  hash: location.hash,
+                })"""
+            )
+            seen["phone"] = (before, opened, after)
+        else:
+            seen["desk"] = before
+        context.close()
+
+    before, opened, after = seen["phone"]
+    assert before["pill"] != "none" and before["list"] == "none", "a pill, no list in the flow"
+    assert before["sideTop"] < before["threadTop"], "the side comes first"
+    assert opened["list"] != "none" and opened["position"] == "fixed", "the sheet"
+    assert after["list"] == "none" and after["hash"] == "#a", (
+        "a row closes it and writes the address"
+    )
+    assert seen["desk"]["pill"] == "none" and seen["desk"]["list"] != "none", (
+        "at a desk, the column"
+    )
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up

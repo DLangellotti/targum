@@ -33,6 +33,17 @@
   {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
   {% include '_composer.html.j2' %}
 
+  {#- The way back to a conversation, from the page a reader lands on (2026-09-10,
+      targum-internal#238): the last three, by title and when, and the door to all of
+      them. A hairline line under the box, the shape the weekly takes above the doors —
+      not a card, because the cards below have this page's one raised layer. Hidden for
+      a reader who has had none. Filled by `box.js`, from the same answer that says
+      whether Speak is offered. -#}
+  <div class="recent-chats" id="recent-chats" hidden>
+    <ul id="recent-chats-list"></ul>
+    <a id="recent-chats-all" href="/chat">All conversations</a>
+  </div>
+
   {#- What you were in the middle of, and beside it what to do when you are not. The
       card carries the accent because it is the one primary action here; the list beside
       it is quiet. -#}

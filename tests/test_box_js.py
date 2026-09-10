@@ -61,6 +61,37 @@ QUOTE = {
 }
 
 
+def test_the_front_door_shows_the_last_three_conversations_and_the_door_to_all() -> None:
+    """targum-internal#238: the only way to a past conversation was to already be on the
+    conversation page. Learn asks for three, draws them under the box with when each
+    was last opened, and links to all of them; a reader with none sees nothing."""
+    import time as clock
+
+    now = int(clock.time() * 1000)
+    chats = [
+        {"id": "a", "title": "Something to read", "seen": now},
+        {"id": "b", "title": "מה לקרוא", "seen": now - 24 * 3600 * 1000},
+        {"id": "c", "title": "Third", "seen": now - 3 * 24 * 3600 * 1000},
+    ]
+    page = run(answers={"/chat/list": {"chats": chats, "usable": True}})
+    assert "/chat/list?limit=3" in page["asked"], "three, not every conversation ever"
+    assert not page["recent"]["hidden"]
+    assert [row["title"] for row in page["recent"]["rows"]] == [
+        "Something to read",
+        "מה לקרוא",
+        "Third",
+    ]
+    assert [row["when"] for row in page["recent"]["rows"]] == [
+        "just now",
+        "yesterday",
+        "3 days ago",
+    ]
+    assert page["recent"]["rows"][0]["href"] == "/chat?k=k#a"
+    assert page["recent"]["all"] == "/chat?k=k"
+    none = run(answers={"/chat/list": {"chats": [], "usable": True}})
+    assert none["recent"]["hidden"]
+
+
 def test_the_front_door_says_the_hours_only_when_they_are_nearly_gone() -> None:
     """The same line the conversation page draws, above the same box (targum-internal#237)."""
     page = run(

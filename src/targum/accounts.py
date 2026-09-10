@@ -1657,15 +1657,17 @@ class Store:
             )
         return chat_id
 
-    def chats(self, person_id: int | None) -> list[dict[str, Any]]:
-        """Somebody's conversations, most recent first."""
+    def chats(
+        self, person_id: int | None, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Somebody's conversations, most recent first, a page at a time."""
         rows = self.db.execute(
             "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
             "       chat.saved, chat.mode,"
             "       (SELECT COUNT(*) FROM chat_turn"
             "         WHERE chat_turn.chat = chat.id AND said != '') AS turns"
-            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC",
-            (person_id,),
+            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC LIMIT ? OFFSET ?",
+            (person_id, limit, offset),
         ).fetchall()
         return [dict(row) for row in rows]
 

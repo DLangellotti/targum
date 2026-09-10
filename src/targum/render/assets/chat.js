@@ -579,22 +579,117 @@
     return li;
   }
 
+  // When a conversation was last opened, in the words a person uses for it.
+  function ago(stamp) {
+    if (!stamp) return "";
+    var minutes = Math.round((Date.now() - stamp) / 60000);
+    if (minutes < 2) return "just now";
+    if (minutes < 60) return minutes + " minutes ago";
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+    var days = Math.round(hours / 24);
+    if (days === 1) return "yesterday";
+    if (days < 30) return days + " days ago";
+    return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+
+  //: A page of the list, and the size the server pages it at.
+  var PAGE = 50;
+  var moreFrom = 0;
+
   function drawList() {
     list.textContent = "";
     chats.forEach(function (chat) {
       var li = document.createElement("li");
       var button = document.createElement("button");
       button.type = "button";
-      button.textContent = chat.title || "Untitled";
+      var title = document.createElement("span");
+      title.className = "chat-title";
+      title.textContent = chat.title || "Untitled";
+      button.appendChild(title);
+      var when = document.createElement("span");
+      when.className = "chat-when";
+      when.textContent = ago(chat.seen);
+      button.appendChild(when);
       button.setAttribute("data-chat", chat.id);
       if (chat.id === current) button.className = "on";
       button.onclick = function () {
+        showList(false);
         open(chat.id);
       };
       li.appendChild(button);
       list.appendChild(li);
     });
+    // The next page, where there may be one: the list used to be every conversation
+    // ever, in one answer (targum-internal#238).
+    if (moreFrom) {
+      var li = document.createElement("li");
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "chat-more";
+      more.textContent = "More";
+      more.onclick = function () {
+        more.disabled = true;
+        ask("/chat/list?limit=" + PAGE + "&offset=" + moreFrom).then(function (answer) {
+          if (answer.error) return tell(answer.error);
+          var got = answer.chats || [];
+          chats = chats.concat(got);
+          moreFrom = got.length === PAGE ? moreFrom + PAGE : 0;
+          drawList();
+        });
+      };
+      li.appendChild(more);
+      list.appendChild(li);
+    }
   }
+
+  // The list as a sheet on a phone (targum-internal#238): the pill opens it, choosing a
+  // row or pressing Escape closes it. At a desk the stylesheet draws the list in its
+  // column and the pill not at all, and this is a class nothing reads.
+  var listPill = document.getElementById("chat-open-list");
+  function showList(showing) {
+    if (!listPill) return;
+    list.classList.toggle("open", !!showing);
+    listPill.setAttribute("aria-expanded", showing ? "true" : "false");
+  }
+  if (listPill) {
+    listPill.onclick = function () {
+      showList(listPill.getAttribute("aria-expanded") !== "true");
+    };
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") showList(false);
+    });
+  }
+
+  // The conversation in the address (targum-internal#238): a row writes it there, so a
+  // conversation can be linked to and the back button goes to the one before; the
+  // address, changed by either, opens what it names.
+  function named() {
+    var wanted = "";
+    try {
+      String(window.location.hash || "")
+        .slice(1)
+        .split("&")
+        .forEach(function (part) {
+          if (part && part.indexOf("job=") !== 0) wanted = decodeURIComponent(part);
+        });
+    } catch (e) {
+      wanted = "";
+    }
+    return wanted;
+  }
+  function remember(id) {
+    var hash = id ? "#" + encodeURIComponent(id) : "";
+    if ((window.location.hash || "") !== hash) window.location.hash = hash;
+  }
+  window.addEventListener("hashchange", function () {
+    var wanted = named();
+    if (wanted && wanted !== current) {
+      if (chats.some(function (chat) { return chat.id === wanted; })) open(wanted);
+    } else if (!wanted && current) {
+      startNew();
+    }
+  });
 
   /* --- the foot of the record -------------------------------------------------
    *
@@ -674,6 +769,7 @@
     return ask("/chat/list").then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
+      moreFrom = chats.length === PAGE ? PAGE : 0;
       usable = answer.usable !== false;
       talk = answer.talk !== false;
       showMic();
@@ -713,6 +809,7 @@
 
   function open(id) {
     current = id;
+    remember(id);
     drawList();
     turns.textContent = "";
     tell("");
@@ -741,6 +838,8 @@
 
   function startNew() {
     current = "";
+    remember("");
+    showList(false);
     drawList();
     turns.textContent = "";
     tell("");

@@ -31,14 +31,17 @@ body.chat > .chat-main {
   gap: 1rem 2rem;
   align-items: start;
 }
+/* On a phone the side comes first and is one row — New, and the pill that opens the
+   list as a sheet (targum-internal#238). It used to come last, under the whole thread
+   and the box, which on a phone is past everything. */
 @media (max-width: 48rem) {
   .chat-main {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
+      "side"
       "thread"
       "compose"
-      "said"
-      "side";
+      "said";
   }
 }
 
@@ -49,6 +52,22 @@ body.chat > .chat-main {
    the thread, where its titles were cut off behind the raised paper. The column is
    14rem; what does not fit in it is cut short with an ellipsis, on the button. */
 .chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.chat-side-head { display: flex; gap: 0.5rem; align-items: center; }
+/* The pill that opens the list on a phone: an ink-bordered working control, drawn only
+   where the list is a sheet. At a desk the list stands in its column and this is not. */
+.chat-open-list {
+  display: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-open-list:hover { background: var(--paper-raised); }
+.chat-open-list[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
 .chat-new {
   justify-self: start;
   font: inherit;
@@ -88,6 +107,32 @@ body.chat > .chat-main {
 }
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
 .chat-list button.on { color: var(--ink); font-weight: 600; }
+/* The title, and under it when it was last opened (targum-internal#238). */
+.chat-list .chat-title { display: block; overflow: hidden; text-overflow: ellipsis; }
+.chat-list .chat-when { display: block; font-size: 0.8125rem; color: var(--ink-soft); font-weight: 400; }
+.chat-list .chat-more { color: var(--ink); text-align: center; }
+.chat-list .chat-more:disabled { opacity: 0.5; cursor: default; }
+
+/* On a phone the list is a sheet: the page's one overlay, with the shadow §8 allows an
+   overlay, opened by the pill and closed by a row or Escape (targum-internal#238). */
+@media (max-width: 48rem) {
+  .chat-open-list { display: inline-block; }
+  .chat-list { display: none; }
+  .chat-list.open {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    max-block-size: 70vh;
+    overflow: auto;
+    padding: 0.5rem 1rem 1rem;
+    background: var(--paper);
+    border-block-start: 1px solid var(--rule);
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 0.12);
+    z-index: 5;
+  }
+}
 
 /* --- the thread -----------------------------------------------------------
    Every class here is prefixed: this page carries `reader.css` for its tokens, and the
@@ -280,6 +325,8 @@ body.chat > .chat-main {
 /* §8: a control a thumb presses answers a tap over 44px. The box's own controls are
    given theirs in composer.css. */
 @media (hover: none) and (pointer: coarse) {
+  .chat-open-list,
+  .chat-more,
   .chat-new,
   .chat-list button,
   .chat-door,

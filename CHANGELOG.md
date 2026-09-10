@@ -414,6 +414,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- A way back to a conversation. A row writes the conversation into the address, and the
+  address opens what it names, so a conversation can be linked to and the back button
+  goes to the one before; each row says when it was last opened. On a phone the list is
+  a sheet behind a pill at the top of the page, where it used to sit under the whole
+  thread. Learn carries the last three under the box with the door to all of them. The
+  list is a page of fifty with More at its foot, where it used to be every conversation
+  ever in one answer (targum-internal#238, from the notes of 2026-09-10; design.md §12
+  records that this reverses a cut of 2026-09-06).
 - The chat's prompt is cached whole. The block after the breakpoint — the reader's
   words, the bring-back slice, the exemplars — was drawn afresh every turn, and since
   the history comes after it, the whole conversation fell out of the cache every turn;

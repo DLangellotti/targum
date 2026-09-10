@@ -46,8 +46,10 @@ install({ TARGUM_KEY: payload.key === undefined ? "k" : payload.key });
 
 const posted = [];
 const answers = payload.answers || {};
+const opened = [];
 global.fetch = (url, options) => {
   const at = String(url).split("?")[0];
+  opened.push(String(url));
   if (options && options.method === "POST") {
     posted.push({
       path: at,
@@ -59,7 +61,10 @@ global.fetch = (url, options) => {
             : "<chunk>",
     });
   }
-  return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
+  // An answer keyed by the whole path with its query, the key left out, comes first —
+  // "/chat/list?limit=50&offset=50" is a different page from "/chat/list" (#238).
+  const full = String(url).replace(/[?&]k=[^&]*/, "");
+  return Promise.resolve({ json: () => Promise.resolve(answers[full] || answers[at] || {}) });
 };
 
 
@@ -129,6 +134,17 @@ require(path.join(assets, "box.js"));
       heldHidden: byId["chat-held"].hidden,
       field: byId["say"].value,
       mic: { hidden: byId["chat-mic"].hidden },
+      asked: opened.map((u) => u.replace(/[?&]k=[^&]*/, "")),
+      // The last three conversations under the box, and where each goes (#238).
+      recent: {
+        hidden: byId["recent-chats"].hidden,
+        rows: (byId["recent-chats-list"].children || []).map((li) => ({
+          title: li.children[0].textContent,
+          href: li.children[0].href,
+          when: li.children[1].textContent,
+        })),
+        all: byId["recent-chats-all"].href,
+      },
       hours: { text: byId["chat-hours"].textContent, hidden: byId["chat-hours"].hidden },
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,

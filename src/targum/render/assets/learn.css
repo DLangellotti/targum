@@ -400,3 +400,46 @@ body.learn .nothing .hint {
 .weekly-line.done a {
   color: var(--ink-soft);
 }
+
+/* The way back to a conversation, under the box (targum-internal#238): a hairline line
+   in the weekly's shape — not a card, the cards below have the page's one raised layer.
+   The last three by title and when, and the door to all of them. */
+.recent-chats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1rem;
+  margin: 0.75rem 0 1.25rem;
+  padding-block-end: 0.6rem;
+  border-block-end: 1px solid var(--rule);
+  font-size: 0.9375rem;
+}
+.recent-chats[hidden] { display: none; }
+.recent-chats ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  min-width: 0;
+}
+.recent-chats li { display: inline-flex; align-items: baseline; gap: 0.4rem; max-width: 100%; }
+.recent-chats li a {
+  color: var(--ink);
+  font-family: var(--reading);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18rem;
+}
+.recent-chats li a:hover { text-decoration: underline; }
+.recent-chats .when,
+.recent-chats > a {
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+}
+.recent-chats > a { margin-inline-start: auto; text-decoration: none; }
+.recent-chats > a:hover { text-decoration: underline; }

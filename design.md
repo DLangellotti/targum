@@ -331,6 +331,26 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### The list of conversations is a way back — 2026-09-10
+
+The entry of 2026-09-06 below cut "a History sheet" as a gimmick. From the notes of
+2026-09-10 — "need a way to navigate to chat history in the UI" — it returns, and this
+records the reversal so it is not argued again. What was true on 2026-09-06 was that the
+only door to a past conversation was to already be on the conversation page, and on a
+phone the list stood under the whole thread and the box, past everything. What the box
+made the front door did not give was a way back to what was said through it.
+
+So: a row writes the conversation into the address, and the address opens what it names,
+so a conversation can be linked to and the back button goes to the one before. Each row
+says when it was last opened, in a person's words. On a phone the list is a sheet behind
+an ink pill at the top of the page — the page's one overlay, with the shadow §8 allows
+an overlay — and at a desk it stands in its column as before. And Learn carries the
+last three under the box, a hairline line in the weekly's shape, with the door to all
+of them: not a card, because the cards below have that page's one raised layer.
+
+What it does not overturn: the list is titles and times, never counts or a level; the
+thread stays the conversation page's raised layer; nothing here is a board of doors.
+
 ### A picture is read before it is priced — 2026-09-07
 
 Everything else the `+` brings is priced before a cent is spent. A picture cannot be:

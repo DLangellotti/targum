@@ -765,3 +765,82 @@ def test_the_chat_page_starts_the_sync_like_every_other_page() -> None:
     (targum-internal#232).
     """
     assert run()["syncStarted"] is True
+
+
+# -- the way back to a conversation (targum-internal#238) -------------------------
+
+
+def test_a_row_writes_the_conversation_into_the_address_and_the_address_opens_one() -> None:
+    """A row used to change the thread and leave the address alone, so a conversation
+    could not be linked to and the back button did nothing. Now `open` writes the hash
+    and a changed hash opens what it names, or a fresh one when it names nothing."""
+    two = {
+        "chats": [
+            {"id": "abc", "title": "First", "seen": 1},
+            {"id": "def", "title": "Second", "seen": 1},
+        ],
+        "usable": True,
+    }
+    page = run(
+        answers={
+            "/chat/list": two,
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+            "/chat/def": {"chat": {"id": "def"}, "turns": []},
+        },
+    )
+    assert page["hash"] == "#abc", "the newest, written into the address"
+    page = run(
+        do=[{"type": "hash", "hash": "#def"}],
+        answers={
+            "/chat/list": two,
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+            "/chat/def": {"chat": {"id": "def"}, "turns": []},
+        },
+    )
+    assert page["hash"] == "#def"
+    assert page["asked"][-1] == "/chat/def", "the address changed, so the page opened it"
+    fresh = run(
+        do=[{"type": "hash", "hash": ""}],
+        answers={"/chat/list": two, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+    )
+    assert fresh["hash"] == "" and fresh["turns"] == []
+
+
+def test_the_list_says_when_and_pages_at_fifty() -> None:
+    import time as clock
+
+    now = int(clock.time() * 1000)
+    day = 24 * 3600 * 1000
+    first = [{"id": f"c{n}", "title": f"Chat {n}", "seen": now - n * day} for n in range(50)]
+    second = [{"id": f"c{n}", "title": f"Chat {n}", "seen": now - n * day} for n in range(50, 60)]
+    page = run(
+        do=[{"type": "press", "selector": "chat-more"}],
+        answers={
+            "/chat/list": {"chats": first, "usable": True},
+            "/chat/list?limit=50&offset=50": {"chats": second, "usable": True},
+            "/chat/c0": {"chat": {"id": "c0"}, "turns": []},
+        },
+    )
+    assert page["whens"][:3] == ["just now", "yesterday", "2 days ago"]
+    assert len(page["list"]) == 60 and page["list"][-1] == "Chat 59"
+    assert "/chat/list?limit=50&offset=50" in page["asked"]
+    assert "More" not in page["list"], "ten came back, so there is no next page"
+
+
+def test_on_a_phone_the_pill_opens_the_list_and_a_row_closes_it() -> None:
+    page = run(
+        do=[{"type": "pill"}],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "First", "seen": 1}], "usable": True},
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+        },
+    )
+    assert page["listOpen"] and page["pillExpanded"] == "true"
+    closed = run(
+        do=[{"type": "pill"}, {"type": "pill"}],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "First", "seen": 1}], "usable": True},
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+        },
+    )
+    assert not closed["listOpen"] and closed["pillExpanded"] == "false"

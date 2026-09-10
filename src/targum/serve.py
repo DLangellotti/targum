@@ -3875,9 +3875,17 @@ class Handler(BaseHTTPRequestHandler):
             # The hours beside the list: the one limit a reader is told about, in the
             # unit they were told. The page says them only when they matter (2026-09-10,
             # targum-internal#237); the whole count lives on Your Progress.
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                limit = min(200, max(1, int(query.get("limit", ["50"])[0])))
+                offset = max(0, int(query.get("offset", ["0"])[0]))
+            except ValueError:
+                limit, offset = 50, 0
             return self._json(
                 {
-                    "chats": store.chats(person_id),
+                    # A page of them, newest first (targum-internal#238): the list used to
+                    # be every conversation ever, and the page draws "More" at its foot.
+                    "chats": store.chats(person_id, limit=limit, offset=offset),
                     "usable": self.chats.usable,
                     # Whether Speak is offered and the Hebrew contract rides: a reader
                     # with modern Hebrew to speak. Scripture-only readers are answered
