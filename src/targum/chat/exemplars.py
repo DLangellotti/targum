@@ -171,7 +171,21 @@ def block(picked: list[Exemplar]) -> str:
 
 
 def turn_seed(chat_id: str, n: int) -> int:
-    """A seed that is the same for one turn every time and different for the next."""
+    """A seed that is the same for one turn every time and different for the next.
+
+    Not what a conversation uses since 2026-09-10 — see `conversation_seed` — but the
+    right seed where every call is its own conversation, as in the evals."""
     import zlib
 
     return zlib.crc32(f"{chat_id}:{n}".encode())
+
+
+def conversation_seed(chat_id: str) -> int:
+    """A seed that is the same on every turn of one conversation and different for the
+    next conversation (targum-internal#239). The ledger block after the cache
+    breakpoint is drawn from it, and a block that changed every turn threw the whole
+    conversation out of the cache every turn: the prefix is cached, and the history
+    comes after the block."""
+    import zlib
+
+    return zlib.crc32(chat_id.encode())

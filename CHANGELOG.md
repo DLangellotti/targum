@@ -414,6 +414,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The chat's prompt is cached whole. The block after the breakpoint — the reader's
+  words, the bring-back slice, the exemplars — was drawn afresh every turn, and since
+  the history comes after it, the whole conversation fell out of the cache every turn;
+  one conversation now sees one draw, seeded by its id, and the next conversation the
+  next. The ledger block and the last message carry breakpoints of their own, so a turn
+  reads the history back rather than paying for it again, and what the cache read and
+  wrote is counted and priced on the receipt, where until now it was read past
+  (targum-internal#239, from the notes of 2026-09-10).
 - The chat's web search looks at the whole web, six searches a turn instead of three.
   Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
   one turn: a list the model could not see made a gap in it look like an answer, and the

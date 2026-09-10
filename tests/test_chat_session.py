@@ -141,7 +141,12 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
     sent = client.requests[0]
     assert sent["messages"][-1]["role"] == "user"
     assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}, "the stable half is cached"
-    assert "cache_control" not in sent["system"][1], "the ledger sits after the breakpoint"
+    assert sent["system"][1]["cache_control"] == {"type": "ephemeral"}, (
+        "the ledger after its own breakpoint, since it holds still for a conversation (#239)"
+    )
+    assert sent["messages"][-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}, (
+        "and the last message, so the next turn reads the history back from the cache"
+    )
     # The whole registry: this turn was answered on a box with no web_search.
     assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
 
@@ -675,7 +680,9 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     chats.answer(asked)
     block = client.requests[0]["system"][1]["text"]
     assert "Sentences a Hebrew speaker wrote" in block and "בוקר טוב. = Good morning." in block
-    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+    assert client.requests[0]["system"][1]["cache_control"] == {"type": "ephemeral"}, (
+        "after the stable half's breakpoint, under its own"
+    )
     assert "הסערה" not in block, "a sentence outside the reader's words is not picked"
 
     found = chats.say(
@@ -812,7 +819,7 @@ def test_the_model_is_told_which_doors_are_shut(tmp_path: Path) -> None:
     ledger = client.requests[0]["system"][1]["text"]
     assert "hebrew-academy.org.il" in ledger and "nli.org.il" in ledger
     assert "he.wikipedia.org" not in ledger, "a host that answers is not on the list"
-    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+    assert client.requests[0]["system"][1]["cache_control"] == {"type": "ephemeral"}
 
 
 def test_no_shut_doors_means_no_block_at_all(tmp_path: Path) -> None:
@@ -890,3 +897,78 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
     assert len(lost) == 2, "the worker came back for the next turn rather than dying with the last"
     after = next(r for r in store.chat_turns(second.chat_id) if r["n"] == second.n)
     assert after["stage"] == "failed"
+
+
+def test_the_ledger_block_holds_still_for_a_conversation_and_moves_for_the_next(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#239. The bring-back slice and the exemplars were drawn afresh every
+    turn, which redrew the block after the breakpoint every turn — and the history comes
+    after that block, so the whole conversation fell out of the cache each time. One
+    conversation now sees one draw; a second conversation sees another."""
+    from targum.chat import exemplars
+
+    pool = exemplars.load(Path(__file__).parent / "fixtures" / "exemplars.jsonl")
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": now, "seen": now}
+                for w in ("בוקר", "טוב", "מה", "את", "עושה")
+            ]
+        },
+    )
+    reply_text = "> בּוֹקֶר טוֹב.\n= Good morning.\nמָה שְׁלוֹמְךָ?\n= How are you?"
+    client = Script([reply([{"type": "text", "text": reply_text}])] * 4)
+    chats = session_module.Chats(library, store, client_factory=lambda: client, exemplars=pool)
+    home = library.home(person)
+    first = chats.say(person, home, "", "Good morning", admin=False)
+    chats.answer(first)
+    chats.answer(chats.say(person, home, first.chat_id, "Good morning again", admin=False))
+    one, two = (request["system"][1]["text"] for request in client.requests[:2])
+    assert one == two, "the same block on both turns of one conversation"
+    assert exemplars.conversation_seed("a") != exemplars.conversation_seed("b")
+    assert exemplars.conversation_seed("a") == exemplars.conversation_seed("a")
+
+
+def test_a_marked_message_is_a_copy_and_the_store_s_is_untouched() -> None:
+    history = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t", "content": "x"}]},
+    ]
+    sent = session_module.marked(history)
+    assert sent[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in history[-1]["content"][-1], "the stored history is as it was"
+    assert sent[:-1] == history[:-1]
+    plain = session_module.marked([{"role": "user", "content": "hello"}])
+    assert plain[0]["content"] == [
+        {"type": "text", "text": "hello", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert session_module.marked([]) == []
+
+
+def test_what_the_cache_did_reaches_the_receipt(tmp_path: Path) -> None:
+    """Cache reads and writes were read past, so the receipt could not say whether
+    caching saved anything (targum-internal#239). Now they are counted and priced."""
+    library, store = world(tmp_path)
+    answer = reply([{"type": "text", "text": "Try Ruth first."}])
+    answer.usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        cache_read_input_tokens=4000,
+        cache_creation_input_tokens=300,
+    )
+    client = Script([answer])
+    usage = session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "what should I read"}],
+        session_module.Feed(),
+        lambda role, content, said: None,
+    )
+    assert usage.cache_read_tokens == 4000 and usage.cache_write_tokens == 300
+    assert usage.state()["cache_read"] == 4000 and usage.state()["cache_write"] == 300

@@ -36,13 +36,40 @@ class Usage:
     # And a web search the API ran for the chat is bought per search. Counted here so a
     # turn that searched three times settles for what it cost, not for its tokens alone.
     searches: int = 0
+    # What the chat's prompt cache did (targum-internal#239): tokens read back from it,
+    # which cost a tenth of the input price, and tokens written into it, which cost a
+    # quarter more. Both were read past until 2026-09-10, so the receipt could not say
+    # whether caching the prompt saved anything. Per model, like the tokens.
+    cache_by_model: dict[str, tuple[int, int]] = field(default_factory=dict)
 
-    def add(self, model: str, input_tokens: int, output_tokens: int) -> None:
+    #: What a cached token costs against a fresh one: read, and written.
+    CACHE_READ = 0.1
+    CACHE_WRITE = 1.25
+
+    def add(
+        self,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_read: int = 0,
+        cache_write: int = 0,
+    ) -> None:
         self.calls += 1
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
         was_in, was_out = self.by_model.get(model, (0, 0))
         self.by_model[model] = (was_in + input_tokens, was_out + output_tokens)
+        if cache_read or cache_write:
+            read, wrote = self.cache_by_model.get(model, (0, 0))
+            self.cache_by_model[model] = (read + cache_read, wrote + cache_write)
+
+    @property
+    def cache_read_tokens(self) -> int:
+        return sum(read for read, _ in self.cache_by_model.values())
+
+    @property
+    def cache_write_tokens(self) -> int:
+        return sum(wrote for _, wrote in self.cache_by_model.values())
 
     def add_seconds(self, model: str, seconds: float) -> None:
         self.calls += 1
@@ -65,6 +92,10 @@ class Usage:
             total.by_model[model] = (was_in + used_in, was_out + used_out)
         for model, seconds in other.seconds_by_model.items():
             total.seconds_by_model[model] = total.seconds_by_model.get(model, 0.0) + seconds
+        total.cache_by_model = dict(self.cache_by_model)
+        for model, (read, wrote) in other.cache_by_model.items():
+            was_read, was_wrote = total.cache_by_model.get(model, (0, 0))
+            total.cache_by_model[model] = (was_read + read, was_wrote + wrote)
         return total
 
     def cost(self) -> float:
@@ -79,6 +110,13 @@ class Usage:
                 # Counted, not priced. Better than inventing a number for it.
                 continue
             total += (used_in * prices[0] + used_out * prices[1]) / 1_000_000
+        for model, (read, wrote) in self.cache_by_model.items():
+            prices = PRICES.get(model)
+            if prices is None:
+                continue
+            total += (
+                read * prices[0] * self.CACHE_READ + wrote * prices[0] * self.CACHE_WRITE
+            ) / 1_000_000
         for model, seconds in self.seconds_by_model.items():
             rate = MINUTES.get(model)
             if rate is None:
@@ -99,4 +137,7 @@ class Usage:
             state["seconds"] = round(sum(self.seconds_by_model.values()), 1)
         if self.searches:
             state["searches"] = self.searches
+        if self.cache_by_model:
+            state["cache_read"] = self.cache_read_tokens
+            state["cache_write"] = self.cache_write_tokens
         return state

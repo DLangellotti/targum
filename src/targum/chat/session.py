@@ -147,6 +147,29 @@ def _said(blocks: list[dict[str, Any]]) -> str:
 ClientFactory = Callable[[], Any]
 
 
+#: The one kind of cache breakpoint the API takes.
+CACHED = {"type": "ephemeral"}
+
+
+def marked(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The messages as sent, with a cache breakpoint on the last block of the last one
+    (targum-internal#239): the API caches a prefix, and marking the end of the history
+    is what lets the next turn read all of it back rather than pay for it again. A copy
+    of that one message, never the stored one — the store holds the conversation as the
+    API saw it, and a marker is not part of what was said."""
+    if not messages:
+        return messages
+    last = dict(messages[-1])
+    content = last.get("content")
+    if isinstance(content, str):
+        last["content"] = [{"type": "text", "text": content, "cache_control": CACHED}]
+    elif isinstance(content, list) and content:
+        blocks = [dict(block) for block in content]
+        blocks[-1]["cache_control"] = CACHED
+        last["content"] = blocks
+    return [*messages[:-1], last]
+
+
 def run_turn(
     client: Any,
     ctx: tools_module.Ctx,
@@ -174,14 +197,21 @@ def run_turn(
             model=CHAT_MODEL,
             max_tokens=MAX_TOKENS,
             system=[
-                # The stable half first and cached; the ledger after the breakpoint, so a
-                # reader marking one word does not throw the whole prefix away.
-                {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": ledger or prompts.ledger(ctx.level)},
+                # Three breakpoints (targum-internal#239). The stable half first, so a
+                # reader marking one word does not throw the whole prefix away; the
+                # ledger after it, cached too, now that it holds still for a whole
+                # conversation; and the last message, so the next turn reads this
+                # turn's history from the cache rather than sending it again.
+                {"type": "text", "text": stable, "cache_control": CACHED},
+                {
+                    "type": "text",
+                    "text": ledger or prompts.ledger(ctx.level),
+                    "cache_control": CACHED,
+                },
             ],
             output_config={"effort": EFFORT},
             tools=tools_module.anthropic_tools(web_search=web_search),
-            messages=messages,
+            messages=marked(messages),
         ) as stream:
             for event in stream:
                 if getattr(event, "type", "") == "content_block_delta":
@@ -195,6 +225,8 @@ def run_turn(
                 CHAT_MODEL,
                 int(getattr(got, "input_tokens", 0) or 0),
                 int(getattr(got, "output_tokens", 0) or 0),
+                cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
+                cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
             )
         blocks = _content(reply)
         # A search the API ran on the turn's behalf is billed per search, not per token,
@@ -635,8 +667,12 @@ class Chats:
         # The reader's own words come back into a conversation in Hebrew, and only
         # there: a question about a text is answered about the text. By status, and a
         # different slice of the ledger on every turn.
+        # One slice of the ledger and one draw of exemplars for the whole conversation
+        # (targum-internal#239): the block sits after the breakpoint and before the
+        # history, so a block that changed every turn cost the cache the history.
+        seed = exemplars_module.conversation_seed(asked.chat_id)
         returning = (
-            hebrew_module.bring_back(store, person_id, language, turn=asked.n) if contract else None
+            hebrew_module.bring_back(store, person_id, language, seed=seed) if contract else None
         )
         ledger = hebrew_module.ledger_block(level, known, common, returning)
         if contract and self.exemplars:
@@ -647,7 +683,7 @@ class Chats:
                 self.exemplars,
                 set(known) | set(common),
                 returning.words() if returning else (),
-                seed=exemplars_module.turn_seed(asked.chat_id, asked.n),
+                seed=seed,
             )
             if picked:
                 ledger = ledger + "\n\n" + exemplars_module.block(picked)

@@ -531,3 +531,21 @@ def test_a_search_is_bought_per_search_and_counted() -> None:
     assert spent.state()["searches"] == 2
     assert (spent + Usage()).searches == 2
     assert "searches" not in Usage().state(), "absent rather than zero"
+
+
+def test_cache_reads_and_writes_are_counted_and_priced() -> None:
+    """targum-internal#239: a token read from the cache is a tenth of a fresh one, a
+    token written is a quarter more, and the receipt says both."""
+    usage = Usage()
+    usage.add("claude-opus-5", 100, 10, cache_read=1_000_000, cache_write=1_000_000)
+    assert usage.cache_read_tokens == 1_000_000 and usage.cache_write_tokens == 1_000_000
+    fresh = Usage()
+    fresh.add("claude-opus-5", 100, 10)
+    assert usage.cost() - fresh.cost() == pytest.approx(5.0 * 0.1 + 5.0 * 1.25)
+    assert usage.state()["cache_read"] == 1_000_000
+    assert "cache_read" not in fresh.state()
+    both = usage + usage
+    assert both.cache_read_tokens == 2_000_000
+    unpriced = Usage()
+    unpriced.add("nobody-priced-this", 1, 1, cache_read=1_000_000)
+    assert unpriced.cost() == 0

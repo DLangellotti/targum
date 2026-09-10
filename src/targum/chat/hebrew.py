@@ -73,8 +73,11 @@ LATELY_MS = 7 * 24 * 3600 * 1000
 #: whole ledger, a few at a time, not only what was saved this week (decided 2026-09-07:
 #: the conversation is where a word is met again when the reader is not reading). A
 #: word met once needs the most meetings and a nearly-known one the fewest, and a few
-#: known words from long ago stay alive. Rotated by turn, so a conversation moves
-#: through the ledger rather than repeating its first page.
+#: known words from long ago stay alive. Rotated by conversation since 2026-09-10
+#: (targum-internal#239): a slice that moved every turn moved the block the model is
+#: given every turn, and everything after it in the prompt — the whole history — fell
+#: out of the cache with it. One conversation now sees one slice; the next conversation
+#: sees the next.
 BRING_BACK = {1: 5, 2: 4, 3: 3}
 KNOWN_BACK = 3
 BRING_BACK_PHRASES = 6
@@ -261,13 +264,15 @@ class Returning:
 NOTHING_RETURNING = Returning([], [], [], [], [])
 
 
-def rotate(pool: list[str], want: int, turn: int) -> list[str]:
-    """`want` of `pool`, starting `want` further along on each turn and wrapping, so
-    every turn's slice is different and a conversation walks the whole list."""
+def rotate(pool: list[str], want: int, seed: int) -> list[str]:
+    """`want` of `pool`, starting `want` further along for each `seed` and wrapping, so
+    two conversations see two slices and the ledger is walked across them. Until
+    2026-09-10 the seed was the turn number, and every turn's slice was different;
+    that cost the cache the whole conversation each turn (targum-internal#239)."""
     if not pool or want <= 0:
         return []
     want = min(want, len(pool))
-    start = (turn * want) % len(pool)
+    start = (seed * want) % len(pool)
     return [pool[(start + i) % len(pool)] for i in range(want)]
 
 
@@ -276,7 +281,7 @@ def bring_back(
     person_id: int | None,
     language: str,
     now_ms: int | None = None,
-    turn: int = 0,
+    seed: int = 0,
 ) -> Returning:
     """The reader's words, for the conversation to carry back — the one thing the
     chat-first products never do, and the thing the research says a saved word needs.
@@ -302,13 +307,13 @@ def bring_back(
     # The learning ones newest first, so a word saved yesterday is met tomorrow; the
     # known ones oldest first, since a word ticked off last month is the one at risk.
     learning = {s: [lemma for _, lemma in sorted(pools[s], reverse=True)] for s in (1, 2, 3)}
-    picked = {s: rotate(learning[s], BRING_BACK[s], turn) for s in (1, 2, 3)}
+    picked = {s: rotate(learning[s], BRING_BACK[s], seed) for s in (1, 2, 3)}
     left = sum(BRING_BACK.values()) - sum(len(got) for got in picked.values())
     for status in (1, 2, 3):
         if left <= 0:
             break
         rest = [lemma for lemma in learning[status] if lemma not in picked[status]]
-        more = rotate(rest, left, turn)
+        more = rotate(rest, left, seed)
         picked[status] = picked[status] + more
         left -= len(more)
     since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
@@ -316,7 +321,7 @@ def bring_back(
         new=picked[1],
         learning=picked[2],
         nearly=picked[3],
-        known=rotate([lemma for _, lemma in sorted(pools[9])], KNOWN_BACK, turn),
+        known=rotate([lemma for _, lemma in sorted(pools[9])], KNOWN_BACK, seed),
         phrases=store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES),
     )
 
