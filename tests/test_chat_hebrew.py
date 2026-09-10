@@ -214,3 +214,18 @@ def test_a_slice_of_the_ledger_is_drawn_by_conversation_not_by_turn() -> None:
     assert hebrew.rotate(pool, 3, 7) != hebrew.rotate(pool, 3, 8)
     assert hebrew.rotate(pool, 3, 0) == ["w0", "w1", "w2"]
     assert hebrew.rotate(pool, 3, 1) == ["w3", "w4", "w5"]
+
+
+def test_why_a_recast_changed_something_rides_with_the_recast_and_nowhere_else() -> None:
+    """targum-internal#242: one "~ " line, directly under the recast's English, is the
+    recast's; a "~ " anywhere else is the contract broken and is dropped."""
+    said = (
+        "> אֲנִי הָלַכְתִּי אֶתְמוֹל.\n= I went yesterday.\n~ Past tense: הָלַכְתִּי, not הָלַךְ.\n"
+        "יָפֶה.\n= Nice.\n~ stray\nעוֹד.\n= More."
+    )
+    read = hebrew.pairs(said)
+    assert [p.why for p in read] == ["Past tense: הָלַכְתִּי, not הָלַךְ.", "", ""]
+    assert read[0].recast and read[0].english == "I went yesterday."
+    assert hebrew.length(said) == 2, "a why line is not Hebrew the reader is asked to read"
+    plain = hebrew.pairs("> שָׁלוֹם.\n= Hello.\nמָה שְׁלוֹמְךָ?\n= How are you?")
+    assert all(p.why == "" for p in plain)

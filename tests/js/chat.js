@@ -211,6 +211,15 @@ function pairsDrawn() {
         en: node.children[1].textContent,
         // Folded or open (#241).
         enHidden: node.children[1].hidden,
+        // Corrected, and why (#242).
+        corrected: String(node.className).split(" ").includes("corrected"),
+        fixed: he.children
+          .filter((c) => String(c.className).split(" ").includes("fix"))
+          .map((c) => c.textContent),
+        why: (() => {
+          const w = node.children.find((c) => String(c.className).split(" ")[0] === "chat-why");
+          return w ? { text: w.textContent, hidden: w.hidden } : null;
+        })(),
         recast: String(node.className).split(" ").includes("recast"),
         // The words the line was drawn with, each with its state on the ledger.
         words: he.children

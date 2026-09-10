@@ -120,3 +120,16 @@ def test_the_prompt_knows_what_the_product_takes_and_that_it_reads_pictures() ->
     assert "never say the reader sent words when they sent a picture" in SYSTEM
     assert "What targum does not take" in SYSTEM and "Spotify" in SYSTEM
     assert "explain it from the lines you were given" in SYSTEM
+
+
+def test_the_correction_says_why_once_and_never_lectures() -> None:
+    """targum-internal#242: the recast was the correction and never said so. One "~ "
+    line may now say what changed and the rule; the body still does not lecture."""
+    from targum.chat import hebrew
+
+    assert hebrew.WHY == "~ "
+    said = " ".join(hebrew.CONTRACT.split())
+    assert 'one line beginning "~ " directly under the recast\'s "= " line' in said
+    assert "Never on a line that was right" in said
+    assert "never a second sentence" in said
+    assert "Do not lecture about a mistake in the body" in said

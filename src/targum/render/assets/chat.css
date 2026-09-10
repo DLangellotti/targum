@@ -310,6 +310,19 @@ body.chat > .chat-main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+/* A recast that changed something says so in the label, and the words that changed
+   carry a mark — the state in words as well as ink (§4). Why, from the model's one
+   "~ " line, is folded under it and opened by a tap (targum-internal#242). */
+.chat-turn .chat-pair.recast.corrected .chat-en::before { content: "corrected"; }
+.chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
+.chat-turn .chat-pair .chat-why {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--rule);
+}
+.chat-turn .chat-pair .chat-why[hidden] { display: none; }
 /* --- what was sent --------------------------------------------------------- */
 
 /* The pictures a reader sent, in their own turn: small, side by side, a hairline

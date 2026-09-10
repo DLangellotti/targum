@@ -1002,3 +1002,69 @@ def test_a_reopened_thread_folds_its_english_and_offers_the_toggle() -> None:
     )
     assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
     assert not page["english"]["hidden"]
+
+
+# -- the correction, said so (targum-internal#242) ----------------------------------
+
+FIXED = (
+    "> אֲנִי הָלַכְתִּי אֶתְמוֹל לַחֲנוּת.\n= I went to the shop yesterday.\n"
+    "~ Past tense: הָלַכְתִּי, not הָלַךְ.\nיָפֶה מְאוֹד.\n= Very nice."
+)
+WORDS = {
+    "lines": [
+        {
+            "he": "אֲנִי הָלַכְתִּי אֶתְמוֹל לַחֲנוּת.",
+            "words": [
+                {"start": 0, "end": 5, "lemma": "אני", "pos": "PRON"},
+                {"start": 6, "end": 16, "lemma": "הלך", "pos": "VERB"},
+                {"start": 17, "end": 25, "lemma": "אתמול", "pos": "ADV"},
+                {"start": 26, "end": 34, "lemma": "חנות", "pos": "NOUN"},
+            ],
+        }
+    ]
+}
+
+
+def corrected(asked: str, **extra: Any) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": asked},
+            {"type": "stream", "event": "words", "data": json.dumps(WORDS, ensure_ascii=False)},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": FIXED}, ensure_ascii=False),
+            },
+            *extra.pop("then", []),
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+        **extra,
+    )
+
+
+def test_a_recast_that_changed_something_says_so_and_marks_the_words() -> None:
+    page = corrected("אני הלך אתמול לחנות", ledger=KNOWN)
+    recast = page["pairs"][0]
+    assert recast["corrected"], "the label reads corrected"
+    assert recast["fixed"] == ["הָלַכְתִּי"], "the word that changed, and only it"
+    assert recast["why"] == {"text": "Past tense: הָלַכְתִּי, not הָלַךְ.", "hidden": True}
+    assert not page["pairs"][1]["corrected"] and page["pairs"][1]["why"] is None
+
+
+def test_a_right_line_or_an_english_one_is_not_called_corrected() -> None:
+    right = corrected("אני הלכתי אתמול לחנות", ledger=KNOWN)
+    assert not right["pairs"][0]["corrected"] and right["pairs"][0]["fixed"] == []
+    english = corrected("I went to the shop yesterday", ledger=KNOWN)
+    assert not english["pairs"][0]["corrected"], (
+        "a line written in English is recast, not corrected"
+    )
+
+
+def test_why_opens_on_a_tap_and_is_open_for_a_reader_with_no_words() -> None:
+    page = corrected("אני הלך אתמול לחנות", ledger=KNOWN, then=[{"type": "pair", "n": 0}])
+    assert page["pairs"][0]["why"]["hidden"] is False
+    fresh = corrected("אני הלך אתמול לחנות")
+    assert fresh["pairs"][0]["why"]["hidden"] is False, "open by default with nothing on the ledger"

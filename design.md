@@ -430,6 +430,17 @@ gloss — and one Show English at the head of the thread opens all of it, rememb
 recast stays open: it is the reader's own words and the correction. A reader with no
 known words sees it all open, because folded Hebrew is a wall to somebody with no words.
 
+The recast says when it corrected (2026-09-10, targum-internal#242). It was always the
+correction — the reader's line said the way a Hebrew speaker says it — and it never said
+so: it rendered the same whether or not anything was changed, and "do not lecture" kept
+the model from saying why. Now a recast that differs from what the reader wrote in
+Hebrew is labelled corrected, the words that changed carry a mark, and the model's one
+"~ " line — what changed and the rule, one sentence, in the reader's language — is
+folded under it and opened by a tap on the pair; open for a reader with no words yet. A
+line that was right, or written in English, gets nothing. The body still does not
+lecture; a text written from the conversation carries the recast and never the why.
+There is no setting for it: the correction-policy setting cut on 2026-09-06 stays cut.
+
 The reason is the chat plan's sentence: where a choice is between a better conversation
 and a better record, take the record. Drawing the thread as the text is the record made
 visible while it is being made, and it costs no second surface. If the thread ever becomes

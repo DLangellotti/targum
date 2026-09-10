@@ -167,3 +167,21 @@ def test_the_shelf_files_a_conversation_as_a_dialogue(world) -> None:
     path, _, _ = transcript.write(store, home, chat_id, "Dov")
     shape = library._shape(home, str(path), "he", 20)
     assert shape["kind"] == "dialogue" and shape["register"] == "modern"
+
+
+def test_why_a_line_was_corrected_is_not_written_into_the_text(tmp_path: Path) -> None:
+    """targum-internal#242: the "~ " line is the page's, and a text written from the
+    conversation carries the recast and its English and nothing about why."""
+    from targum.chat import hebrew
+
+    said = "> אֲנִי הָלַכְתִּי.\n= I went.\n~ Past tense: הָלַכְתִּי, not הָלַךְ.\nיָפֶה.\n= Nice."
+    lines = [(p.hebrew, p.english, p.why) for p in hebrew.pairs(said)]
+    assert lines == [
+        ("אֲנִי הָלַכְתִּי.", "I went.", "Past tense: הָלַכְתִּי, not הָלַךְ."),
+        ("יָפֶה.", "Nice.", ""),
+    ]
+    from targum.chat import transcript
+
+    text = "\n".join(f"{p.hebrew}\n{p.english}" for p in hebrew.pairs(said))
+    assert "~" not in text and "Past tense" not in text
+    assert transcript  # the writer reads pairs the same way; the why never reaches a Line

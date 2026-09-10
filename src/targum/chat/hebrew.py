@@ -89,6 +89,13 @@ MODERN_BAND = 4
 
 RECAST = "> "
 ENGLISH = "= "
+#: One line, at most one a reply, directly under the recast's English, only when the
+#: recast changed something: what changed and the rule, in the reader's language
+#: (2026-09-10, targum-internal#242). The correction used to be silent — the recast
+#: rendered the same whether or not anything was changed — and the notes of that day
+#: asked for "a correction and an explanation". Folded on the page; a text written
+#: from the conversation drops it.
+WHY = "~ "
 
 #: How many Hebrew sentences a reply may run to, and how many lines when the answer is a
 #: list. Numbers rather than "a few" since 2026-09-10 (targum-internal#236): measured on
@@ -114,8 +121,14 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   speaker says it: correct and idiomatic, in Hebrew word order, in one clean sentence
   or two. Never carry their grammar mistakes, their slips or their English word order
   into it — the recast is the correction, and a wrong recast becomes the line of record.
-  Then answer. Do not lecture about a mistake; the corrected line is the whole
-  correction.
+  If the recast changed anything the reader wrote in Hebrew — a wrong form, a missing
+  word, English word order — one line beginning "{WHY}" directly under the recast's
+  "{ENGLISH}" line: one sentence in the reader's language naming what changed and the
+  rule, like "{WHY}Past tense: הָלַכְתִּי, not הָלַךְ." Never on a line that was right,
+  never for a line written in English or another language, never a second sentence,
+  and nowhere else in the reply. Then answer. Do not lecture about a mistake in the
+  body; the corrected line is the correction, and the one "{WHY}" line is the whole
+  explanation.
 - Write your own lines in Hebrew first, as a Hebrew speaker would say them to a
   friend: the idiom, the word order and the register of spoken Israeli Hebrew, and the
   plain words. Do not think of an English sentence and translate it — no calques: not
@@ -170,6 +183,8 @@ class Pair:
     hebrew: str
     english: str
     recast: bool = False
+    #: Why the recast changed what the reader wrote, from the "~ " line, or nothing.
+    why: str = ""
 
 
 def pairs(text: str) -> list[Pair]:
@@ -185,6 +200,12 @@ def pairs(text: str) -> list[Pair]:
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
+            continue
+        if line.startswith(WHY):
+            # Belongs to the recast just closed, and to nothing else: a "~ " anywhere
+            # else in a reply is the contract broken, and is dropped.
+            if pending is None and out and out[-1].recast and not out[-1].why:
+                out[-1] = Pair(out[-1].hebrew, out[-1].english, True, line[len(WHY) :].strip())
             continue
         if line.startswith(ENGLISH):
             if pending is not None:

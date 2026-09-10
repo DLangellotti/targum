@@ -414,6 +414,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The recast says when it corrected. A recast that differs from what the reader wrote
+  in Hebrew is labelled corrected, the words that changed carry a mark, and one folded
+  line under it — the model's `~ ` line, what changed and the rule, one sentence — opens
+  on a tap; open for a reader with no words yet. A line that was right, or written in
+  English, gets nothing, the body still does not lecture, and a text written from the
+  conversation carries no `~ ` line (targum-internal#242, from the notes of
+  2026-09-10).
 - The English under each Hebrew line in a conversation is folded, and a tap on the pair
   opens it — the gesture that opens a word's gloss — with one Show English at the head
   of the thread for all of it, remembered. The recast stays open, and a reader with no

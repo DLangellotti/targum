@@ -307,6 +307,13 @@
         }
         return;
       }
+      if (line.indexOf("~ ") === 0) {
+        // Why the recast changed what the reader wrote: the recast's, and nothing
+        // else's (targum-internal#242).
+        var last = out[out.length - 1];
+        if (!pending && last && last.recast && !last.why) last.why = line.slice(2).trim();
+        return;
+      }
       if (pending) {
         out.push(pending);
         pending = null;
@@ -323,7 +330,36 @@
     return out;
   }
 
-  function render(target, text, words) {
+  /* --- the correction, said so (targum-internal#242) -----------------------------
+   *
+   * The recast was always the correction and never said so: it rendered the same
+   * whether or not anything was changed. Now a recast that differs from what the reader
+   * wrote in Hebrew is labelled "corrected", the words that changed are marked, and the
+   * model's one "~ " line — what changed and the rule — is folded under it, opened by
+   * a tap on the pair. Open by default for a reader with no known words.
+   */
+  var lastAsked = "";
+
+  // A Hebrew line without its points or punctuation, as words, for saying whether the
+  // recast changed anything and which words.
+  function bare(text) {
+    return String(text || "")
+      .replace(/[\u0591-\u05c7]/g, "")
+      .replace(/[.,:;!?()"'״׳־\u2013\u2014-]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+  function correctedBy(asked, recast) {
+    var was = bare(asked);
+    if (!was.some(function (w) { return /[\u05d0-\u05ea]/.test(w); })) return null;
+    var now = bare(recast);
+    if (was.join(" ") === now.join(" ")) return null;
+    var had = {};
+    was.forEach(function (w) { had[w] = true; });
+    return now.filter(function (w) { return !had[w]; });
+  }
+
+  function render(target, text, words, asked) {
     target.textContent = "";
     var found = pairs(text);
     // A turn written by the contract is drawn as pairs; anything else as a line.
@@ -346,6 +382,41 @@
         en.hidden = !englishShown(p);
         pair.appendChild(he);
         pair.appendChild(en);
+        if (p.recast && p.why) {
+          // Corrected when the model says so — its "~ " line — and not when the words
+          // merely differ: a right line is often recast in a more Hebrew order, and
+          // that is idiom, not a correction. The words that changed are what the
+          // recast has that the reader's own Hebrew line did not.
+          var changed = correctedBy(asked === undefined ? lastAsked : asked, p.he) || [];
+          {
+            pair.className += " corrected";
+            var fixed = {};
+            changed.forEach(function (w) { fixed[w] = true; });
+            Array.prototype.forEach.call(he.querySelectorAll(".chat-w"), function (span) {
+              if (fixed[bare(span.textContent).join(" ")]) span.className += " fix";
+            });
+            if (p.why) {
+              var why = document.createElement("span");
+              why.className = "chat-why";
+              why.textContent = p.why;
+              why.hidden = hasKnown();
+              pair.appendChild(why);
+              pair.setAttribute("tabindex", "0");
+              pair.setAttribute("title", "Why it was corrected");
+              pair.onclick = function (event) {
+                var hit = event && event.target;
+                if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
+                why.hidden = !why.hidden;
+              };
+              pair.onkeydown = function (event) {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  why.hidden = !why.hidden;
+                }
+              };
+            }
+          }
+        }
         if (!p.recast) {
           // A tap on the pair — not on a word, which has a card of its own — opens
           // or folds its English. Reachable from a keyboard as a control is.
@@ -645,6 +716,7 @@
   }
 
   function turn(role, text, state, words) {
+    if (role === "user") lastAsked = text;
     var li = document.createElement("li");
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
     var who = document.createElement("span");
