@@ -414,6 +414,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The line under each Hebrew line in a conversation is in the language the account
+  reads into, where it was English by name: the contract names it, the record's
+  meanings are looked up in it, and the read-back builds into it. A first visit from a
+  browser in Russian is asked once, in Russian, whether the lines should be in it;
+  never guessed silently (targum-internal#243, from the notes of 2026-09-10).
 - The recast says when it corrected. A recast that differs from what the reader wrote
   in Hebrew is labelled corrected, the words that changed carry a mark, and one folded
   line under it — the model's `~ ` line, what changed and the rule, one sentence — opens

@@ -33,6 +33,7 @@
   {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
   {% include '_composer.html.j2' %}
   {% include '_chips.html.j2' %}
+  {% include '_first_language.html.j2' %}
 
   {#- The way back to a conversation, from the page a reader lands on (2026-09-10,
       targum-internal#238): the last three, by title and when, and the door to all of
@@ -234,6 +235,7 @@
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 window.TARGUM_WEEKLY = {{ weekly|tojson }};
@@ -250,6 +252,7 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('learn.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
 <script>{{ asset('chips.js') }}</script>
+<script>{{ asset('first.js') }}</script>
 <script>{{ asset('speak.js') }}</script>
 <script>{{ asset('box.js') }}</script>
 </body>

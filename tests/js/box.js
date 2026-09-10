@@ -88,6 +88,25 @@ global.FileReader = class {
 
 require(path.join(assets, "bring.js"));
 require(path.join(assets, "chips.js"));
+// The first visit's question (#243): the browser's language and who is signed in come
+// from the payload; lang.js is real, so `into` is read and written where it is.
+if (payload.language) {
+  Object.defineProperty(globalThis, "navigator", {
+    value: Object.assign({}, globalThis.navigator || {}, { language: payload.language }),
+    configurable: true,
+    writable: true,
+  });
+}
+global.window.TARGUM_INTO = payload.into || ["en", "ru"];
+global.window.TARGUM_LANGUAGES = { en: "English", ru: "Russian", he: "Hebrew" };
+global.window.TargumSync = {
+  who: payload.who || null,
+  reads: () => (payload.who && payload.who.reads) || null,
+  start: () => Promise.resolve(true),
+  onChange: () => {},
+};
+require(path.join(assets, "lang.js"));
+require(path.join(assets, "first.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
@@ -125,6 +144,10 @@ require(path.join(assets, "box.js"));
       chip.onclick();
       for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "first") {
+      byId[step.yes === false ? "chat-first-no" : "chat-first-yes"].onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "send") {
       byId["say"].value = step.text || "";
       byId["composer"].fire("submit", { preventDefault() {} });
@@ -148,6 +171,14 @@ require(path.join(assets, "box.js"));
         ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),
       },
       placeholder: byId["say"].placeholder,
+      first: {
+        hidden: byId["chat-first-lang"].hidden,
+        ask: byId["chat-first-ask"].textContent,
+        yes: byId["chat-first-yes"].textContent,
+        no: byId["chat-first-no"].textContent,
+        into: global.localStorage.getItem("targum:into"),
+        asked: global.localStorage.getItem("targum:asked-read"),
+      },
       // The last three conversations under the box, and where each goes (#238).
       recent: {
         hidden: byId["recent-chats"].hidden,

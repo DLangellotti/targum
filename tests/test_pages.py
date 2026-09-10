@@ -260,6 +260,15 @@ def test_the_chips_stand_on_both_pages_that_carry_the_box() -> None:
     )
 
 
+def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_may_ask() -> None:
+    """targum-internal#243."""
+    for name in ("learn", "chat"):
+        page = PAGES[name]
+        assert page.count('id="chat-first-lang"') == 1, name
+        assert "TargumFirst" in page, f"{name}: first.js rides"
+        assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name
+
+
 # -- what each page says it is --------------------------------------------------
 
 

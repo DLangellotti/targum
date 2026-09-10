@@ -133,3 +133,20 @@ def test_the_correction_says_why_once_and_never_lectures() -> None:
     assert "Never on a line that was right" in said
     assert "never a second sentence" in said
     assert "Do not lecture about a mistake in the body" in said
+
+
+def test_the_gloss_line_is_in_the_language_the_reader_reads() -> None:
+    """targum-internal#243: the line under each Hebrew line was English by name whatever
+    the account said it read. The contract names the reader's language now, and the
+    rules about the model thinking in English rather than Hebrew stay."""
+    from targum.chat import hebrew
+
+    assert hebrew.CONTRACT == hebrew.contract("English")
+    russian = " ".join(hebrew.contract("Russian").split())
+    assert 'The reader reads Russian: every "= " line is in Russian.' in russian
+    assert "Directly under it, on the next line, its Russian" in russian
+    assert "one sentence in Russian naming what changed" in russian
+    assert "No Russian and no English inside a Hebrew line" in russian
+    assert "Do not think of an English sentence and translate it" in russian, "still about Hebrew"
+    assert hebrew.gloss_language({"ru"}) == "ru"
+    assert hebrew.gloss_language({"ru", "en"}) == "en" and hebrew.gloss_language(set()) == "en"

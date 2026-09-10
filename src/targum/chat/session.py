@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .. import level as level_module
+from ..translate.prompts import language_name
 from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
 from . import exemplars as exemplars_module
@@ -547,6 +548,8 @@ class Chats:
     #: writes this turn. The English carries the reason the text was chosen.
     SUGGEST_ASKED = "Something to read"
     SUGGEST_SAID = "הִנֵּה מַשֶּׁהוּ לִקְרוֹא."
+    #: Its "= " line, in the languages the account may read (targum-internal#243).
+    SUGGEST_LINES = {"en": "Here is something to read.", "ru": "Вот что-то почитать."}
 
     def suggest(
         self,
@@ -586,7 +589,9 @@ class Chats:
             mode = "talk" if self.library.talks(home, person_id) else "find"
             chat_id = store.chat_open(person_id, mode=mode)
         because = str(top.get("because") or "").strip()
-        said = f"{self.SUGGEST_SAID}\n= Here is something to read. {because}".rstrip()
+        into = hebrew_module.gloss_language(ctx.reads)
+        line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
+        said = f"{self.SUGGEST_SAID}\n= {line} {because}".rstrip()
         n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
         store.chat_say(chat_id, "assistant", [{"type": "text", "text": said}], said)
         return {
@@ -775,7 +780,11 @@ class Chats:
         # not written Hebrew at — the conversation was opened as "find", and it stays in
         # English, about the text (`Library.talks`).
         opened = store.chat_owned(person_id, asked.chat_id) or {}
-        contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
+        # The "= " lines in the language the account reads (targum-internal#243).
+        into = hebrew_module.gloss_language(ctx.reads)
+        contract = (
+            "" if opened.get("mode") == "find" else hebrew_module.contract(language_name(into))
+        )
         known = hebrew_module.known_words(store, person_id, language)
         common = hebrew_module.common_words(language=language)
         # The reader's own words come back into a conversation in Hebrew, and only
@@ -836,6 +845,7 @@ class Chats:
                     feed,
                     language,
                     set(known) | set(common) | set(returning.words() if returning else []),
+                    target=into,
                 )
             feed.put(
                 "done",
@@ -861,7 +871,9 @@ class Chats:
             self.library.remember(job)
             feed.close()
 
-    def _record(self, asked: Asked, feed: Feed, language: str, allowed: set[str]) -> None:
+    def _record(
+        self, asked: Asked, feed: Feed, language: str, allowed: set[str], target: str = "en"
+    ) -> None:
         """Read the answer's Hebrew lines and hand the page their words.
 
         Kept on the reader's turn, as the words of its answer, and put on the feed as
@@ -873,7 +885,7 @@ class Chats:
         try:
             said = hebrew_module.pairs(feed.text())
             lines = [pair.hebrew for pair in said]
-            words = self.recorder.annotate(lines, language)
+            words = self.recorder.annotate(lines, language, target)
             payload = {
                 "lines": [{"he": he, "words": read} for he, read in zip(lines, words, strict=True)],
                 "outside": round(outside_share(words, allowed), 3),

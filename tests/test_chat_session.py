@@ -1066,3 +1066,31 @@ def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeyp
     assert quoted == ["ruth", "esther"]
     nothing = chats.suggest(person, home, got["chat"], admin=False, skip=["ruth", "esther"])
     assert nothing["status"] == 404
+
+
+def test_a_reader_of_russian_gets_russian_under_every_line(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """targum-internal#243: the contract and the record follow the language the account
+    reads into; the read-back builds into it too."""
+    from targum.chat import record
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        record.Recorder,
+        "annotate",
+        lambda self, lines, language="he", target="en": (seen.append(target), [[] for _ in lines])[
+            1
+        ],
+    )
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    store.choose(person, "reading", ["ru"])
+    reply_text = "> שָׁלוֹם.\n= Привет.\nמָה שְׁלוֹמְךָ?\n= Как дела?"
+    client = Script([reply([{"type": "text", "text": reply_text}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    home = library.home(person)
+    chats.answer(chats.say(person, home, "", "привет", admin=False))
+    system = client.requests[0]["system"][0]["text"]
+    assert 'every "= " line is in Russian' in " ".join(system.split())
+    assert seen == ["ru"], "the record's meanings are looked up in Russian"

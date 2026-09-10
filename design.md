@@ -441,6 +441,16 @@ line that was right, or written in English, gets nothing. The body still does no
 lecture; a text written from the conversation carries the recast and never the why.
 There is no setting for it: the correction-policy setting cut on 2026-09-06 stays cut.
 
+The line under each Hebrew line is in the language the reader reads (2026-09-10,
+targum-internal#243). It was English by name in the contract, whatever the account said
+it read into. Now the contract names the reader's language, the record's meanings are
+looked up in it, and the read-back builds into it. And the first visit asks the one
+thing nothing about a stranger says: a browser that speaks a language the conversation
+can gloss in — Russian, today — is asked once, in that language, whether the lines
+should be in it. Never a silent guess; the answer changes only on the press. The
+conversation itself stays Hebrew for everyone, as decided on 2026-09-06 and confirmed
+on 2026-09-10 against easing a new reader in through their own language.
+
 The reason is the chat plan's sentence: where a choice is between a better conversation
 and a better record, take the record. Drawing the thread as the text is the record made
 visible while it is being made, and it costs no second surface. If the thread ever becomes

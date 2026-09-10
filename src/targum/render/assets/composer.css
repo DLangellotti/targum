@@ -300,8 +300,36 @@
 .chat-another:hover { background: var(--paper-raised); }
 .chat-another:disabled { opacity: 0.5; cursor: default; }
 
+/* The first visit's one question, under the box (targum-internal#243): a line and two
+   ink-bordered answers, gone once pressed. */
+.chat-first-lang {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.chat-first-lang[hidden] { display: none; }
+.chat-first-yes,
+.chat-first-no {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-first-yes:hover,
+.chat-first-no:hover { background: var(--paper-raised); }
+
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
+  .chat-first-yes,
+  .chat-first-no,
   .chat-ask,
   .chat-another,
   .chat-send,

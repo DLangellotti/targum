@@ -847,7 +847,7 @@ def learn_page(token: str) -> str:
     from the browser's own stores, which is what lets one rendered page serve everybody.
     """
     from ..catalogue import everything
-    from ..translate.prompts import OFFERED, language_name
+    from ..translate.prompts import INTO, OFFERED, language_name
 
     return (
         _environment()
@@ -855,6 +855,9 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
+            # Which languages the conversation's "= " lines can be in, for the first
+            # visit's one question (targum-internal#243).
+            into=[code for code, _ in INTO],
             # The week's issue, if there is a readable one. Learn is the only surface
             # that knows who is reading, so it is the only one that can open the digest
             # at the reader's own rung rather than asking them to pick a level — see
@@ -955,13 +958,14 @@ def chat_page(token: str) -> str:
     page is chrome, not a reader — it talks to its own origin and nothing else, and
     `design.md` §12 records what that means for the fetch-nothing rule.
     """
-    from ..translate.prompts import OFFERED, language_name
+    from ..translate.prompts import INTO, OFFERED, language_name
 
     return (
         _environment()
         .get_template("chat.html.j2")
         .render(
             token=token,
+            into=[code for code, _ in INTO],
             languages=[(code, language_name(code)) for code in OFFERED],
         )
     )

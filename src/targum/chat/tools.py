@@ -36,6 +36,7 @@ from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from ..level import Level
 from ..usage import Usage
+from . import hebrew as hebrew_module
 from . import sources as sources_module
 
 if TYPE_CHECKING:
@@ -518,7 +519,9 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = Job(
         id=secrets.token_hex(8),
         source=str(path),
-        options={**BUILD_OPTIONS, "to": "en", "from": "he"},
+        # Into the language the reader reads (targum-internal#243): the "= " lines
+        # were written in it, and the pipeline carries them whole.
+        options={**BUILD_OPTIONS, "to": hebrew_module.gloss_language(ctx.reads), "from": "he"},
         owner=ctx.person_id,
         admin=ctx.admin,
         home=ctx.home,

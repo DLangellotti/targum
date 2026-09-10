@@ -26,12 +26,16 @@ def run(
     answers: dict[str, Any] | None = None,
     key: str = "k",
     record: bool = False,
+    language: str = "",
+    who: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "key": key,
         "record": record,
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
+        "language": language,
+        "who": who,
     }
     with tempfile.TemporaryDirectory() as where:
         path = Path(where) / "payload.json"
@@ -59,6 +63,40 @@ QUOTE = {
     "seconds": 0,
     "parts": 0,
 }
+
+
+def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
+    """targum-internal#243: nothing about a stranger is known but what their browser
+    says. A browser in Russian is asked, in Russian, once; the press stores the answer
+    in this browser (and on the account when there is one); English browsers and
+    readers who already read Russian are not asked."""
+    page = run(language="ru-RU")
+    assert not page["first"]["hidden"]
+    assert page["first"] == {
+        "hidden": False,
+        "ask": "Отвечать по-русски?",
+        "yes": "Да, по-русски",
+        "no": "English",
+        "into": None,
+        "asked": None,
+    }
+    yes = run(language="ru-RU", do=[{"type": "first", "yes": True}])
+    assert yes["first"]["hidden"] and yes["first"]["into"] == "ru" and yes["first"]["asked"] == "1"
+    assert yes["posted"] == [], "signed out: kept in the browser, nothing posted"
+    no = run(language="ru-RU", do=[{"type": "first", "yes": False}])
+    assert no["first"]["into"] == "en" and no["first"]["asked"] == "1"
+    english = run(language="en-GB")
+    assert english["first"]["hidden"]
+    reads = run(language="ru", who={"signedIn": True, "learning": ["he"], "reads": ["ru"]})
+    assert reads["first"]["hidden"], "already reads Russian, nothing to ask"
+    signed = run(
+        language="ru",
+        who={"signedIn": True, "learning": ["he"], "reads": ["en"]},
+        do=[{"type": "first", "yes": True}],
+    )
+    assert signed["posted"] == [
+        {"path": "/account/languages", "body": {"learning": ["he"], "reads": ["ru"]}}
+    ]
 
 
 def test_the_chips_under_the_box_send_a_line_or_open_a_door_or_ask_for_the_word() -> None:
