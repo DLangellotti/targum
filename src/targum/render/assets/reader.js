@@ -8197,3 +8197,106 @@ var targumReader = function () {
 
 if (window.TargumStore) window.TargumStore.ready(targumReader);
 else targumReader();
+
+
+/* --- hear a silent text ---------------------------------------------------------
+ *
+ * The door in This text on a section with no recording (targum-internal#246): the press
+ * asks the server to read the section aloud, waits for the build the way the strip does,
+ * and reopens the page, which now carries the audio and every per-line control. Its own
+ * scope, like the chapter buy: the key helpers and the folder name and nothing else.
+ * Off a disk there is no server to ask, and the door stays hidden.
+ */
+(function () {
+  "use strict";
+
+  var offer = document.getElementById("voice-offer");
+  var go = document.getElementById("voice-go");
+  var said = document.getElementById("voice-said");
+  if (!offer || !go) return;
+  if (location.protocol === "file:") {
+    offer.hidden = true;
+    return;
+  }
+  var passKey = "";
+  try {
+    passKey = new URLSearchParams(location.search).get("k") || "";
+  } catch (e) {
+    passKey = "";
+  }
+  function keyed(path) {
+    if (!passKey) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(passKey);
+  }
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (passKey) head["X-Targum-Key"] = passKey;
+    return head;
+  }
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function tell(text) {
+    if (said) said.textContent = text || "";
+  }
+
+  //: How often the page asks after the build. A test sets it to 0.
+  var POLL = 2000;
+
+  function follow(id) {
+    fetch(keyed("/job/" + encodeURIComponent(id)), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (state) {
+        if (state.error && !state.stage) return failed(state.error);
+        if (state.stage === "failed" || state.stage === "blocked") {
+          return failed(state.error || state.blocked || "That did not go through.");
+        }
+        if (state.stage === "done") {
+          tell("Ready.");
+          location.reload();
+          return;
+        }
+        setTimeout(function () {
+          follow(id);
+        }, window.TargumVoice.POLL);
+      })
+      .catch(function () {
+        failed("targum could not be reached. Try again.");
+      });
+  }
+
+  function failed(message) {
+    tell(message);
+    go.disabled = false;
+  }
+
+  go.onclick = function () {
+    go.disabled = true;
+    var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
+    tell("Reading it aloud. About " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    fetch(keyed("/voice"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name, section: Number(offer.getAttribute("data-section") || 1) }),
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (state) {
+        if (state.error) return failed(state.error);
+        if (state.ready) {
+          location.reload();
+          return;
+        }
+        follow(state.id);
+      })
+      .catch(function () {
+        failed("targum could not be reached. Try again.");
+      });
+  };
+
+  window.TargumVoice = { POLL: POLL };
+})();

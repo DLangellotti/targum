@@ -5266,3 +5266,45 @@ def test_a_sheet_caught_on_its_way_up_follows_the_finger(browser, built: Path) -
             assert abs(step - 20) <= 2, f"a jump of {step:.0f}px where the finger moved 20: {drawn}"
     finally:
         context.close()
+
+
+def test_hear_this_section_posts_the_press_and_reopens_the_page(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """targum-internal#246: the door in This text on a silent section. The press posts
+    `/voice` with the folder and the section, and a page whose audio is already there
+    is simply reopened. Over http, because off a disk there is no server and the door
+    is hidden."""
+    import json
+
+    from targum import speech, transcribe
+
+    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    built = chapter(tmp_path / "out")
+    html = built.read_text(encoding="utf-8")
+    assert 'id="voice-offer"' in html
+    posted: list[dict] = []
+    loads: list[str] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/voice" in request.url:
+            posted.append(request.post_data_json)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"ready": True})
+            )
+        else:
+            loads.append(request.url)
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector("#voice-go")
+    page.evaluate("() => document.getElementById('voice-go').click()")
+    page.wait_for_timeout(600)
+    context.close()
+    assert posted == [{"name": "a-build", "section": 1}], (
+        "the folder and the section, and nothing else"
+    )
+    assert len(loads) >= 2, "reopened once the audio was there"

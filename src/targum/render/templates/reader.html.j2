@@ -86,6 +86,19 @@
     {% endif %}
     <div class="bar-more" id="more">
       <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
+    {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
+        recording, the one door that makes one — a call to action, so ink (§9) — with
+        what it costs in the reader's own hours beside it. The press posts `/voice`;
+        the page is rewritten with the audio in it and reopened. Drawn only while the
+        voice has a price; never on a text that carries audio. -#}
+    {% if voice_offer %}
+    <div class="group voice-offer" id="voice-offer" data-section="{{ voice_offer.section }}" data-seconds="{{ voice_offer.seconds }}">
+      <span class="label">No recording</span>
+      <button type="button" class="voice-go" id="voice-go">Hear this section</button>
+      <span class="voice-cost">About {{ voice_offer.minutes }} minute{{ '' if voice_offer.minutes == 1 else 's' }} of your hours</span>
+      <span class="voice-said" id="voice-said" role="status"></span>
+    </div>
+    {% endif %}
     {% if spoken_audio %}
     {#- The strip's one-off actions, on a phone. The row carries play, the clock, the
         step, the speed and the picture, and on a narrow screen there is no width left

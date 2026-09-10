@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from html import unescape
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -4942,3 +4943,28 @@ def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Pat
     mine, theirs = _payload(alone), _payload(both)
     assert theirs["translations"]["t0"] == mine["translations"]["t0"]
     assert {**theirs, "translations": {"t0": theirs["translations"]["t0"]}} == mine
+
+
+# -- hear a silent text (targum-internal#246) ----------------------------------------
+
+
+def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation, monkeypatch: Any
+) -> None:
+    from targum import speech, transcribe
+
+    document = Document(
+        source="memory", title="Declaration", language="he", blocks=[], content_hash="abc123"
+    )
+    silent = render(document, segmented, [translation], tmp_path / "unpriced")[0].read_text(
+        encoding="utf-8"
+    )
+    assert 'id="voice-offer"' not in silent, "no price, no door"
+    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    offered = render(document, segmented, [translation], tmp_path / "priced")[0].read_text(
+        encoding="utf-8"
+    )
+    assert 'id="voice-offer"' in offered and 'data-section="1"' in offered
+    assert "Hear this section" in offered and "of your hours" in offered
+    assert "TargumVoice" in offered, "the press rides in the page"
+    assert "http" not in offered.split('id="voice-offer"')[1][:600], "still fetches nothing"

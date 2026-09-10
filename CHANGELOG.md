@@ -414,6 +414,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Hear a silent text. On a Hebrew section with no recording, This text carries one
+  door, "Hear this section", with what it costs in the reader's own hours beside it.
+  The press claims the estimate in the hours a recording comes out of, the section is
+  read aloud one line at a time so the spans are exact without an aligner, the lines
+  land as one part in the audio manifest beside the reader, and the page is rendered
+  again with the audio in it and every per-line control; settled to the clip's own
+  seconds. Drawn only while the voice has a price beside `transcribe.PRICES`, which it
+  does not yet: an unpriced voice is not for sale (targum-internal#246, from the notes
+  of 2026-09-10).
 - Words you may already know, on Learn under Your Words: the commonest words of modern
   Hebrew that are not on the ledger, fifty at a time, with the meaning the glossary
   already holds, and "I know all of these" — every mark an ordinary known word, so the

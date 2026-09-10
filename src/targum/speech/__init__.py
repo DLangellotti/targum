@@ -56,6 +56,15 @@ def available() -> tuple[bool, str]:
     return True, MODEL
 
 
+def priced() -> bool:
+    """Whether the voice has a rate in `transcribe.PRICES` — the condition on which it
+    may be sold to a reader (decided 2026-09-10, targum-internal#246): until the row is
+    there, seconds are counted and not costed, and nothing on a page offers them."""
+    from ..transcribe import PRICES
+
+    return NAME in PRICES
+
+
 def say(text: str, voice: str = VOICE, key: str | None = None) -> bytes:
     """One request, one clip. Returns WAV bytes."""
     import base64
@@ -111,7 +120,33 @@ def render(text: str, into: Path, voice: str = VOICE) -> Clip:
     """Say `text` and write the clip beside `into` (its suffix chosen here): mp3 where
     ffmpeg is present, at the bitrate the rest of the shelf's speech is at; the WAV
     itself where it is not. The seconds come off the WAV either way."""
-    spoken = say(text, voice)
+    return write(say(text, voice), into)
+
+
+def render_lines(
+    lines: list[str], into: Path, voice: str = VOICE
+) -> tuple[Clip, list[tuple[float, float]]]:
+    """Say each line and write them as one clip, with where each line sits in it.
+
+    One request a line, and the seconds of each read off its own WAV, so the spans are
+    exact without an aligner — the thing a reader's per-line play needs and a
+    whole-section clip could not give (targum-internal#246). The clip is one file for
+    the same reason an import's part is: a reader plays a slice of one file, and a
+    page that carries its audio inline carries one.
+    """
+    pcm = b""
+    spans: list[tuple[float, float]] = []
+    for line in lines:
+        spoken = say(line, voice) if line.strip() else wav(b"")
+        start = len(pcm) / BYTES_PER_SECOND
+        pcm += spoken[44:]
+        end = len(pcm) / BYTES_PER_SECOND
+        spans.append((round(start, 3), round(end, 3)))
+    return write(wav(pcm), into), spans
+
+
+def write(spoken: bytes, into: Path) -> Clip:
+    """One WAV this module made, written beside `into` as mp3 where ffmpeg is present."""
     seconds = duration(spoken)
     into.parent.mkdir(parents=True, exist_ok=True)
     if shutil.which("ffmpeg"):

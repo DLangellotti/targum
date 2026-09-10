@@ -3304,3 +3304,25 @@ html:fullscreen { background: var(--paper); }
     animation: none;
   }
 }
+
+/* Hear a silent text (targum-internal#246): the one door in This text that asks the
+   reader to act, so it takes ink (§9); what it costs, in their own hours, beside it. */
+.bar-more .voice-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.bar-more .voice-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.bar-more .voice-go:hover { background: var(--ink-soft); }
+.bar-more .voice-go:disabled { opacity: 0.5; cursor: default; }
+.bar-more .voice-cost, .bar-more .voice-said { font-size: 0.8125rem; color: var(--ink-soft); }
+.bar-more .voice-offer[hidden] { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .voice-go { min-height: 44px; }
+}

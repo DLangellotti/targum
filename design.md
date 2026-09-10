@@ -331,6 +331,20 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### A silent text can be given a voice, at the reader's press — 2026-09-10
+
+The entry of 2026-09-03 below says a text that carries media opens as its media. This is
+its other half, from the notes of 2026-09-10 (targum-internal#246): a Hebrew section
+with no recording carries, in This text, one door — "Hear this section" — with what it
+costs in the reader's own hours beside it, and nothing else about audio. The press is the
+spend, claimed at the estimate and settled to the clip; the section is read aloud a line
+at a time so every line has its clock; and the page is written again with the audio in
+it, the way an imported recording's is, so it still fetches nothing. Ink for the door,
+because it asks the reader to act (§9); the cost in minutes, never money (§6). The door
+is drawn only while the voice has a price, and it does not yet: an unpriced voice is not
+for sale, which is the decision of 2026-09-10 and the reason the door is not on any page
+today.
+
 ### The things most readers ask are buttons — 2026-09-10
 
 The entry of 2026-09-06 below cut "starter chips under the box" as a gimmick. From the

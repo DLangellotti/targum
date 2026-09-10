@@ -2086,6 +2086,21 @@ def render(
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
         spoken = speech(document, segments, folder)
+        # Hear a silent text (targum-internal#246): on a Hebrew section with no
+        # recording, and only while the voice has a price, the door and what it costs
+        # in the reader's own hours. Nothing where audio exists or the voice is unpriced.
+        voice_offer: dict[str, Any] | None = None
+        if not spoken.audio and document.language.split("-")[0] == "he":
+            from ..chat.hebrew import seconds_for, words_in
+            from ..speech import priced
+
+            if priced():
+                seconds = seconds_for(words_in(*(segment.text for segment in segments)))
+                voice_offer = {
+                    "section": section.number,
+                    "seconds": round(seconds),
+                    "minutes": max(1, round(seconds / 60)),
+                }
         # Who said each line. A scene's or a recording's speakers come with its audio;
         # a text that is turns without a sound — a saved conversation, a chat
         # photographed off a phone (2026-09-07) — carries the name on the block, and
@@ -2204,6 +2219,7 @@ def render(
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
+            voice_offer=voice_offer,
             spoken_video=spoken_video,
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.

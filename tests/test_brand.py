@@ -194,6 +194,8 @@ THUMBED = (
     # And the two presses under Words you may already know (2026-09-10, #245).
     ".claim-yes",
     ".claim-no",
+    # And the door that makes a silent section's audio (2026-09-10, #246).
+    ".voice-go",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
     # And the door a path becomes: the reader opens a text, never the model.

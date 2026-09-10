@@ -1178,7 +1178,10 @@ class Library:
         """Swap what a build reserved for what it spent — and, for a turn of
         conversation, the seconds it was reserved at for the seconds it ran to."""
         if self.store is not None:
-            self.store.settle(job.id, job.spent, length=job.seconds if job.kind == "chat" else None)
+            # A turn of conversation and a voice made for a text both come out of the
+            # hours, so both settle their seconds (targum-internal#246).
+            metered = job.kind in ("chat", "voice")
+            self.store.settle(job.id, job.spent, length=job.seconds if metered else None)
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
@@ -2040,7 +2043,7 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
-    def claim_turn(self, job: Job) -> str:
+    def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
 
         The same transaction a build takes, narrowed: the per-account ceiling is the
@@ -2062,9 +2065,11 @@ class Library:
             self._since(),
             owner=job.owner,
             per_account=None if admin else self.chat_budget,
-            kind="chat",
+            kind=kind,
             # Conversation comes out of the eight hours (decided 2026-09-05): the same
-            # sum a recording's seconds land in, so there is one ledger and not two.
+            # sum a recording's seconds land in, so there is one ledger and not two. A
+            # voice made for a text (kind `voice`, targum-internal#246) comes out of it
+            # the same way.
             month_from=self._month_from(),
             length=job.seconds,
             per_month_length=None if admin else self.upload_seconds,
@@ -2139,6 +2144,8 @@ class Library:
             return self.run_part(job)
         if job.options.get("chapters"):
             return self.run_chapter(job)
+        if job.options.get("voice"):
+            return self.run_voice(job)
         try:
             job.stage = "working"
             self.remember(job)
@@ -2401,6 +2408,110 @@ class Library:
 
         job.spent = builder.spent.cost()
         job.reader = f"{folder.name}/reader/{pages[0].name}"
+        job.stage = "done"
+        self.settle(job)
+        self.remember(job)
+        self.tell(job)
+
+    def run_voice(self, job: Job) -> None:
+        """Make the audio for one section of a silent text, and rewrite the reader
+        around it (targum-internal#246).
+
+        One request a line, so the spans are exact without an aligner; the lines land
+        as one part in the audio manifest beside the reader, the same file an import
+        keeps, and the page is rendered again from what is on disk — which is how the
+        clip ends up inline in it, and how every per-line control appears. The seconds
+        charged are the clip's, read off the WAV; the estimate the press was claimed at
+        is settled to them.
+        """
+        from . import speech
+        from .audio import manifest as manifest_module
+        from .models import Annotation, Document, SegmentedDocument, Vocalization, glossaries_in
+        from .models import read_artifact as read
+        from .render import render as render_reader
+        from .render import split_sections
+
+        folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+        if folder is None:
+            return self._blame(job, "That one is no longer on disk.")
+        document = read(Document, folder / "document.json")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            return self._blame(job, "That one is no longer on disk.")
+        number = int(job.options.get("section") or 0)
+        sections = split_sections(segmented)
+        section = next((one for one in sections if one.number == number), None)
+        if section is None:
+            return self._blame(job, "No such section.")
+        wanted = set(section.segment_ids)
+        segments = [segment for segment in segmented.segments if segment.id in wanted]
+        lines = [segment.text for segment in segments]
+        job.stage = "working"
+        job.total = len(lines)
+        job.message = "Reading it aloud…"
+        self.remember(job)
+        try:
+            clip, spans = speech.render_lines(lines, folder / "audio" / f"voice-{number:03d}")
+        except TargumError as error:
+            return self._blame(job, error.message)
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "voice", error, job=job.id)
+            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+        kept = manifest_module.load(folder) or manifest_module.AudioManifest(
+            source=str(folder),
+            sha256=str(document.content_hash or ""),
+            duration=0.0,
+            language="he",
+        )
+        kept.parts = [part for part in kept.parts if part.number != number]
+        kept.parts.append(
+            manifest_module.ManifestPart(
+                number=number,
+                title=section.title,
+                start=0.0,
+                end=clip.seconds,
+                audio=str(clip.path.relative_to(folder)),
+                transcribed=True,
+                provider=speech.NAME,
+                spans={
+                    segment.id: [start, end]
+                    for segment, (start, end) in zip(segments, spans, strict=True)
+                    if end > start
+                },
+            )
+        )
+        kept.parts.sort(key=lambda part: part.number)
+        kept.duration = sum(part.end - part.start for part in kept.parts)
+        manifest_module.write(folder, kept)
+        try:
+            builder = self._builder(job)
+            builder._resolved_out = folder
+            pages = render_reader(
+                document,
+                segmented,
+                builder.already_here([]),
+                folder / "reader",
+                annotation=read(Annotation, folder / "annotation.json"),
+                glossaries=glossaries_in(folder),
+                vocalization=read(Vocalization, folder / "vocalization.json"),
+                clean=False,
+                covers=self.out / "thumbs",
+                reads=sorted(self._reads_of(job.owner) or ()) or None,
+                folder=folder,
+            )
+        except TargumError as error:
+            return self._blame(job, error.message)
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "voice:render", error, job=job.id)
+            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+        job.seconds = clip.seconds
+        spent = Usage()
+        spent.add_seconds(speech.NAME, clip.seconds)
+        job.spent = spent.cost()
+        job.reader = f"{folder.name}/reader/{pages[0].name}"
+        job.message = ""
         job.stage = "done"
         self.settle(job)
         self.remember(job)
@@ -3846,6 +3957,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._chat_say(payload)
         if route == "/chat/suggest":
             return self._chat_suggest(payload)
+        if route == "/voice":
+            return self._voice(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -4263,6 +4376,72 @@ class Handler(BaseHTTPRequestHandler):
             brought=brought,
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
+
+    def _voice(self, payload: dict[str, Any]) -> None:
+        """Hear a silent text: the press in the reader that makes one section's audio
+        (targum-internal#246). The press is the spend — claimed at the estimate, in the
+        hours a recording comes out of, settled to the clip's own seconds — and only
+        where the voice has a price: an unpriced voice is not for sale.
+        """
+        from . import speech
+        from .audio import manifest as manifest_module
+        from .chat import hebrew as hebrew_module
+        from .models import SegmentedDocument
+        from .models import read_artifact as read
+        from .render import split_sections
+        from .transcribe import PRICES as MINUTES
+
+        home = self._home()
+        folder = self.library.within(home, str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        if not speech.priced():
+            return self._json({"error": "The voice has no price yet, so it is not for sale."}, 402)
+        usable, why = speech.available()
+        if not usable:
+            return self._json({"error": f"No voice on this box: {why}."}, 402)
+        try:
+            number = int(payload.get("section") or 0)
+        except (TypeError, ValueError):
+            return self._json({"error": "not found"}, 404)
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if segmented is None:
+            return self._json({"error": "not found"}, 404)
+        section = next((one for one in split_sections(segmented) if one.number == number), None)
+        if section is None:
+            return self._json({"error": "not found"}, 404)
+        kept = manifest_module.load(folder)
+        if kept is not None:
+            part = kept.part_for(section.segment_ids)
+            if part is not None and part.audio:
+                return self._json({"ready": True})
+        wanted = set(section.segment_ids)
+        words = hebrew_module.words_in(
+            *(segment.text for segment in segmented.segments if segment.id in wanted)
+        )
+        seconds = hebrew_module.seconds_for(words)
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=str(folder),
+            options={"voice": True, "folder": folder.name, "section": number},
+            owner=person.id if person else None,
+            home=home,
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="voice",
+            seconds=seconds,
+            estimate=seconds / 60 * MINUTES[speech.NAME],
+            title=section.title,
+        )
+        refused = self.library.claim_turn(job, kind="voice")
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            return self._json({"error": refused}, 402)
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        self.library.enqueue(job)
+        self._json(job.state())
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the
