@@ -124,6 +124,11 @@ global.fetch = (url, options) => {
   return Promise.resolve({ json: () => Promise.resolve(answers[full] || answers[at] || {}) });
 };
 
+// The thread as a viewport (#247): the stub has no layout, so the payload says how tall
+// the thread is and where it is scrolled to, and the page's own arithmetic is what is
+// read back.
+if (payload.thread) Object.assign(document.getElementById("chat-thread"), payload.thread);
+
 // Arrived from the front door with a conversation in the hash, when the payload says so.
 if (payload.hash) global.location.hash = global.window.location.hash = payload.hash;
 
@@ -394,6 +399,14 @@ function drawn() {
         li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
       ),
       hash: global.location.hash,
+      scrollTop: byId["chat-thread"] ? byId["chat-thread"].scrollTop : null,
+      labels: (turns.children || []).map((li) => li.attrs["aria-label"]),
+      partial: (() => {
+        const last = (turns.children || [])[turns.children.length - 1];
+        const line = last && lineOf(last);
+        const tail = line && line.children.find((c) => String(c.className) === "chat-partial");
+        return tail ? tail.textContent : null;
+      })(),
       english: {
         hidden: byId["chat-english"].hidden,
         pressed: byId["chat-english"].attrs["aria-pressed"],

@@ -501,6 +501,73 @@ def test_on_a_phone_the_list_is_a_sheet_behind_a_pill_at_the_top(browser) -> Non
     )
 
 
+def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
+    """targum-internal#247: the page is the viewport. Thirty turns, and the box is still
+    on screen at a phone's height, with the thread scrolling inside itself; and a
+    reader who asked for no motion gets none."""
+    html = chat_page(TOKEN)
+    turns = []
+    for n in range(30):
+        turns.append(
+            {"n": 2 * n + 1, "role": "user", "said": f"line {n}", "stage": "done", "error": ""}
+        )
+        turns.append(
+            {
+                "n": 2 * n + 2,
+                "role": "assistant",
+                "said": "שָׁלוֹם.\n= Hello.",
+                "stage": "done",
+                "error": "",
+            }
+        )
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {"chats": [{"id": "a", "title": "t", "seen": 1}], "usable": True, "talk": True}
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": turns}
+        elif "/account/me" in request.url:
+            body = {"signedIn": False}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    seen = {}
+    for width, height in ((390, 700), (1280, 800)):
+        context = browser.new_context(
+            viewport={"width": width, "height": height}, reduced_motion="reduce"
+        )
+        page = context.new_page()
+        page.route("http://chat.test/**", answer)
+        page.goto(f"http://chat.test/chat?k={TOKEN}")
+        page.wait_for_selector(".chat-turn")
+        page.wait_for_timeout(300)
+        seen[width] = page.evaluate(
+            """() => {
+              const send = document.getElementById('chat-send').getBoundingClientRect();
+              const thread = document.getElementById('chat-thread');
+              return {
+                sendBottom: send.bottom,
+                turns: document.querySelectorAll('.chat-turn').length,
+                scrolls: thread.scrollHeight > thread.clientHeight,
+                labels: [...document.querySelectorAll('.chat-who')].length,
+                motion: getComputedStyle(document.querySelector('.chat-turn')).animationName,
+              };
+            }"""
+        )
+        context.close()
+    for width, height in ((390, 700), (1280, 800)):
+        got = seen[width]
+        assert got["turns"] == 60
+        assert got["sendBottom"] <= height + 1, f"Send in view at {width}px: {got}"
+        assert got["scrolls"], "the thread scrolls inside itself"
+        assert got["labels"] == 0, "no word over a turn"
+        assert got["motion"] == "none", "asked for no motion, given none"
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up

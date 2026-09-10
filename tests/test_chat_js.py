@@ -24,8 +24,10 @@ def run(
     hash: str = "",
     ledger: dict[str, Any] | None = None,
     stored: dict[str, str] | None = None,
+    thread: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     payload = {
+        "thread": thread,
         "key": key,
         "record": record,
         "hash": hash,
@@ -1119,3 +1121,48 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         },
     )
     assert page["cards"][0]["known"] == "", "nothing where it was not measured"
+
+
+# -- the page as a viewport (targum-internal#247) -----------------------------------
+
+
+def test_a_turn_is_told_by_its_place_and_labelled_for_a_screen_reader() -> None:
+    page = said(ledger=KNOWN)
+    assert [t["cls"].split(" ")[1] for t in page["turns"]] == ["me", "them"]
+    assert page["labels"] == ["You", "targum"], "no label over the turn; the name is its aria-label"
+
+
+def test_streaming_appends_the_tail_and_draws_a_line_once_it_is_whole() -> None:
+    page = run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {"type": "stream", "event": "text", "data": "שָׁל"},
+            {"type": "stream", "event": "text", "data": "וֹם"},
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert page["partial"] == "שָׁלוֹם" and page["pairs"] == [], "the tail, and no pair yet"
+    whole = run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {"type": "stream", "event": "text", "data": "> שָׁלוֹם\n= hello\nמַה"},
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert [p["he"] for p in whole["pairs"]] == ["שָׁלוֹם"], "the whole line is a pair"
+    assert whole["partial"] == "מַה", "and the unfinished one is the tail"
+
+
+def test_the_thread_follows_the_newest_line_only_while_the_reader_was_at_the_bottom() -> None:
+    stuck = {"scrollHeight": 1000, "scrollTop": 700, "clientHeight": 300}
+    page = said(thread=stuck)
+    assert page["scrollTop"] == 1000, "at the bottom before, at the bottom after"
+    away = {"scrollHeight": 1000, "scrollTop": 100, "clientHeight": 300}
+    page = said(thread=away)
+    assert page["scrollTop"] == 100, "scrolled up to reread, and left there"

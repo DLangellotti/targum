@@ -6,40 +6,53 @@
    ink; targum's are the same ink under a quiet label, because this is not a messaging
    app and the two sides are not bubbles of two colours. */
 
+/* The page is the viewport (targum-internal#247, from the notes of 2026-09-10: "sleeker,
+   like the AI tools"): head, then the conversation filling what is left, then the foot.
+   The thread scrolls inside itself and the box stays in view at any length of
+   conversation, where it used to sit under a thread of unbounded height and scroll
+   away with it. Still one raised layer — the thread — and the box a hairline field. */
 body.chat {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  min-height: 100svh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100svh;
 }
 body.chat > .site-head { justify-self: stretch; }
 body.chat > .chat-main {
   justify-self: start;
   margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+  min-height: 0;
 }
 
 .chat-main {
   width: min(62rem, 100%);
-  padding: 1.5rem 1.25rem 2rem;
+  padding: 1rem 1.25rem 1rem;
   font-family: system-ui, sans-serif;
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "side thread"
+    "side hours"
     "side compose"
     "side said";
-  gap: 1rem 2rem;
-  align-items: start;
+  gap: 0.75rem 2rem;
+  align-items: stretch;
 }
+.chat-main > .chat-hours { grid-area: hours; }
+.chat-main > .composer { grid-area: compose; align-self: end; }
+.chat-main > .chat-said { grid-area: said; }
 /* On a phone the side comes first and is one row — New, and the pill that opens the
    list as a sheet (targum-internal#238). It used to come last, under the whole thread
    and the box, which on a phone is past everything. */
 @media (max-width: 48rem) {
   .chat-main {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
     grid-template-areas:
       "side"
       "thread"
+      "hours"
       "compose"
       "said";
   }
@@ -141,11 +154,13 @@ body.chat > .chat-main {
 
 .chat-thread {
   grid-area: thread;
-  min-height: 14rem;
+  min-height: 0;
   padding: 1rem 1.25rem;
   border: 1px solid var(--rule);
   border-radius: 8px;
   background: var(--paper-raised);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .chat-empty {
   margin: 0;
@@ -155,11 +170,37 @@ body.chat > .chat-main {
 }
 .turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
 .chat-turn { display: grid; gap: 0.2rem; }
-.chat-turn .chat-who {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-soft);
+/* Who said it is told by where it stands, not by a label over it (targum-internal#247):
+   the reader's lines are set in from the start edge, targum's from the end, the same
+   ink on both — this is not a messaging app and the two sides are not bubbles of two
+   colours. The name rides as the turn's label for a screen reader. */
+.chat-turn.me { margin-inline-start: 18%; }
+.chat-turn.them { margin-inline-end: 12%; }
+@media (max-width: 48rem) {
+  .chat-turn.me { margin-inline-start: 10%; }
+  .chat-turn.them { margin-inline-end: 6%; }
+}
+/* A new turn settles in with a short fade, the one motion this page has (§8), and none
+   where the reader has asked for none. */
+@keyframes chat-settle {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.chat-turn { animation: chat-settle 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-turn { animation: none; }
+}
+/* What is still arriving: the tail of a line the model has not finished, and a caret
+   at its end while it writes. Drawn as a bar in ink, not a blinking one. */
+.chat-turn .chat-partial { font-family: var(--reading); }
+.chat-turn.working .chat-line::after {
+  content: "";
+  display: inline-block;
+  inline-size: 2px;
+  block-size: 1em;
+  margin-inline-start: 0.15em;
+  vertical-align: -0.15em;
+  background: var(--ink-soft);
 }
 .chat-turn .chat-line {
   margin: 0;
@@ -179,7 +220,7 @@ body.chat > .chat-main {
   color: var(--ink-soft);
 }
 .chat-turn.bad .chat-line { color: var(--clay); }
-.chat-turn.working .chat-line:empty::after { content: "…"; color: var(--ink-soft); }
+.chat-turn.working .chat-line:empty::before { content: "…"; color: var(--ink-soft); }
 
 /* --- hearing an answer ----------------------------------------------------- */
 

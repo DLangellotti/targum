@@ -33,7 +33,10 @@
     <ul class="chat-list" id="chat-list"></ul>
   </aside>
 
-  <section class="chat-thread" aria-live="polite">
+  {#- The page is the viewport since 2026-09-10 (targum-internal#247): the thread
+      scrolls inside itself and the box stays in view at any length of conversation,
+      where it used to sit under a thread of unbounded height and scroll away with it. -#}
+  <section class="chat-thread" id="chat-thread" aria-live="polite">
     {#- The English under every Hebrew line is folded, and a tap on the pair opens it
         (2026-09-10, targum-internal#241): "I would just ignore the Hebrew and read the
         English." This opens all of it at once, and is remembered. Hidden until there

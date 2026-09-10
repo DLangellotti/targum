@@ -414,6 +414,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The conversation page is the viewport: the thread scrolls inside itself and the box
+  stays in view however long the conversation, where it sat under a thread of unbounded
+  height and scrolled away with it. Who said a turn is told by where it stands — the
+  reader's lines set in from the start, targum's from the end, the same ink — and the
+  name rides as the turn's label for a screen reader, where a word stood over every turn.
+  An answer arrives by appending its tail rather than redrawing the line on every piece,
+  with a caret while it writes; the thread follows the newest line only while the reader
+  was at the bottom; a new turn fades in over 200ms and not at all for a reader who asked
+  for no motion (targum-internal#247, from the notes of 2026-09-10).
 - Hear a silent text. On a Hebrew section with no recording, This text carries one
   door, "Hear this section", with what it costs in the reader's own hours beside it.
   The press claims the estimate in the hours a recording comes out of, the section is

@@ -715,19 +715,38 @@
     li.appendChild(button);
   }
 
+  /* --- the thread as a viewport (targum-internal#247) --------------------------
+   *
+   * The thread scrolls inside itself now. While an answer arrives the page keeps the
+   * reader at the newest line — but only while they were there: a reader who has
+   * scrolled up to reread is left where they are.
+   */
+  var thread = document.getElementById("chat-thread");
+  var STUCK = 80;
+  function atBottom() {
+    if (!thread || typeof thread.scrollHeight !== "number") return true;
+    return thread.scrollHeight - thread.scrollTop - thread.clientHeight < STUCK;
+  }
+  function keepBottom(was) {
+    if (was && thread && typeof thread.scrollHeight === "number") {
+      thread.scrollTop = thread.scrollHeight;
+    }
+  }
+
   function turn(role, text, state, words) {
     if (role === "user") lastAsked = text;
+    var was = atBottom();
     var li = document.createElement("li");
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
-    var who = document.createElement("span");
-    who.className = "chat-who";
-    who.textContent = role === "user" ? "You" : "targum";
+    // Who said it: where the turn stands says it on the page, and the name rides as
+    // the label a screen reader reads, where the word used to stand over every turn.
+    li.setAttribute("aria-label", role === "user" ? "You" : "targum");
     var line = document.createElement("p");
     line.className = "chat-line";
     render(line, text, words);
-    li.appendChild(who);
     li.appendChild(line);
     turns.appendChild(li);
+    keepBottom(was);
     if (empty) empty.hidden = true;
     if (chips) chips.show(false);
     // Now that the line is on the page: the toggle looks for a pair in the thread, and
@@ -1100,8 +1119,10 @@
     var text = "";
     var words = null;
     function finish(kind, payload) {
+      var was = atBottom();
       li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
       render(line, kind === "error" ? payload.message : payload.text || text, words);
+      keepBottom(was);
       if (kind !== "error") playButton(li, chat, n);
       if (kind !== "error") drawFoot(payload.seconds);
       busy = false;
@@ -1112,9 +1133,32 @@
     var path = "/chat/stream/" + encodeURIComponent(chat) + "/" + n;
     if (typeof EventSource === "function") {
       var source = new EventSource(keyed(path));
+      // The lines that are whole are drawn as pairs; the tail the model is still
+      // writing is appended as it comes rather than the whole line drawn again on
+      // every piece (targum-internal#247). A whole line is one with a newline after it.
+      var drawnUpTo = 0;
+      var partial = null;
       source.addEventListener("text", function (event) {
+        var was = atBottom();
         text += event.data;
-        render(line, text);
+        var cut = text.lastIndexOf("\n") + 1;
+        if (cut > drawnUpTo) {
+          render(line, text.slice(0, cut));
+          drawnUpTo = cut;
+          partial = null;
+        }
+        var tail = text.slice(cut);
+        if (tail) {
+          if (!partial) {
+            partial = document.createElement("span");
+            partial.className = "chat-partial";
+            line.appendChild(partial);
+          }
+          partial.textContent = tail;
+        } else if (partial) {
+          partial.textContent = "";
+        }
+        keepBottom(was);
       });
       source.addEventListener("tool", function () {
         // A lookup in progress. Said in the reader's words, not the tool's name.
@@ -1126,7 +1170,9 @@
       source.addEventListener("words", function (event) {
         // The lines read as a text is read: drawn again with their words marked.
         words = JSON.parse(event.data || "{}");
+        var was = atBottom();
         render(line, text, words);
+        keepBottom(was);
       });
       source.addEventListener("done", function (event) {
         source.close();

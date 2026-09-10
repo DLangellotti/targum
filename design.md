@@ -455,6 +455,16 @@ line that was right, or written in English, gets nothing. The body still does no
 lecture; a text written from the conversation carries the recast and never the why.
 There is no setting for it: the correction-policy setting cut on 2026-09-06 stays cut.
 
+The page is the viewport since 2026-09-10 (targum-internal#247): head, the thread
+filling what is left and scrolling inside itself, the box, the foot — so the box is on
+screen at any length of conversation. Who said a turn is told by where it stands, the
+reader's lines set in from the start and targum's from the end, the same ink on both, with
+the name as the turn's label for a screen reader; an answer appends as it arrives, with a
+caret; the thread follows the newest line only while the reader was at the bottom; and a
+turn fades in over 200ms, or not at all under prefers-reduced-motion. What it keeps: one
+raised layer, the thread; the box a hairline field; no bubbles, no avatars, no second
+column, no iframe — the shell cut on 2026-09-06 stays cut.
+
 The line under each Hebrew line is in the language the reader reads (2026-09-10,
 targum-internal#243). It was English by name in the contract, whatever the account said
 it read into. Now the contract names the reader's language, the record's meanings are
