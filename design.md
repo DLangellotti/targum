@@ -185,7 +185,9 @@ No icon font, no emoji, no icon library. Icons are tiny inline SVG strokes at te
 **16px viewBox, no fill, stroke `currentColor` at 1.4, round caps** — line diagrams of what
 they do (the three reading-mode glyphs are literally the three layouts). Typed characters
 elsewhere: ← → per reading direction, × to close and after a number as a multiplier
-(1.25×), A− A+ ? as themselves.
+(1.25×), A− A+ ? as themselves. The box's three actions are glyphs — a microphone, an
+arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the control's label
+(2026-09-10); the `+` beside them stays typed.
 
 ## 8 · Surfaces, states, motion
 
