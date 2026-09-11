@@ -727,7 +727,12 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
         "Good evening",
     ), "no Shabbat shalom: somebody on the internet on Shabbat does not get one"
     assert drawn["today"].endswith(" · This week: האזינו") and len(drawn["today"]) > 20
-    assert re.search(r"\(.*[\u05d0-\u05ea].*\)", drawn["today"]), "the Hebrew date, in parentheses"
+    inside = re.search(r"\((.*)\)", drawn["today"])
+    assert inside and re.search(r"[\u05d0-\u05ea]", inside.group(1)), (
+        "the Hebrew date, in parentheses"
+    )
+    assert not re.search(r"\d", inside.group(1)), "in Hebrew letters, not digits: כ״ט אלול תשפ״ו"
+    assert "״" in inside.group(1)
     unnamed = draw([reader("a", "א")], me={"signedIn": True, "name": ""})
     assert "," not in unnamed["greeting"] and unnamed["greeting"].endswith(".")
     assert "This week" not in unnamed["today"], "no portion on a box without one"

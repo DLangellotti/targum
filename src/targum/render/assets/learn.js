@@ -383,10 +383,44 @@
     return said + (name ? ", " + name : "") + ".";
   }
 
-  // The Hebrew date, in Hebrew letters, where the browser can reckon it.
+  // A number as Hebrew letters, the way a date is written: ט״ו and ט״ז rather than
+  // the Name's letters, gershayim before the last letter, a geresh on one alone.
+  var ONES = ["", "א", "ב", "ג", "ד", "ה", "ו", "ז", "ח", "ט"];
+  var TENS = ["", "י", "כ", "ל", "מ", "נ", "ס", "ע", "פ", "צ"];
+  var HUNDREDS = ["", "ק", "ר", "ש", "ת"];
+  function gematria(n) {
+    var letters = "";
+    n = Math.floor(n) % 1000;
+    while (n >= 400) {
+      letters += "ת";
+      n -= 400;
+    }
+    letters += HUNDREDS[Math.floor(n / 100)];
+    n %= 100;
+    if (n === 15) letters += "טו";
+    else if (n === 16) letters += "טז";
+    else letters += TENS[Math.floor(n / 10)] + ONES[n % 10];
+    if (!letters) return "";
+    if (letters.length === 1) return letters + "׳";
+    return letters.slice(0, -1) + "״" + letters.slice(-1);
+  }
+
+  // The Hebrew date, in Hebrew letters, where the browser can reckon the calendar.
+  // Intl writes the calendar but not its letters (an algorithmic numbering system is
+  // outside ECMA-402), so the day and the year are lettered here.
   function hebrewDate(now) {
     try {
-      return new Intl.DateTimeFormat("he-u-ca-hebrew-nu-hebr", { day: "numeric", month: "long", year: "numeric" }).format(now);
+      var parts = new Intl.DateTimeFormat("he-u-ca-hebrew", { day: "numeric", month: "long", year: "numeric" }).formatToParts(now);
+      var day = 0;
+      var year = 0;
+      var month = "";
+      parts.forEach(function (part) {
+        if (part.type === "day") day = parseInt(part.value, 10);
+        else if (part.type === "year") year = parseInt(part.value, 10);
+        else if (part.type === "month") month = part.value;
+      });
+      if (!day || !year || !month) return "";
+      return gematria(day) + " ב" + month + " " + gematria(year);
     } catch (e) {
       return "";
     }
