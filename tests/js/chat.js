@@ -200,6 +200,8 @@ require(path.join(assets, "first.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
+// The checklist the first exchange draws (2026-09-11).
+require(path.join(assets, "claim.js"));
 require(path.join(assets, "chat.js"));
 
 const turns = byId["turns"];
@@ -387,6 +389,18 @@ function drawn() {
     if (step.type === "pill") {
       byId["chat-open-list"].onclick();
     }
+    if (step.type === "claim") {
+      // The first exchange's checklist (2026-09-11): check all, mark, or pass.
+      const host = turns.querySelector(".chat-claim");
+      const part = (name) => host.querySelector("." + name);
+      if (step.what === "all") {
+        part("claim-all").checked = true;
+        part("claim-all").onchange();
+      }
+      if (step.what === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
+      if (step.what === "no") part("claim-no").onclick();
+      for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "row") {
       // A press on the list's row for that conversation.
       const row = (byId["chat-list"].children || [])
@@ -421,6 +435,20 @@ function drawn() {
       offered,
       replaced,
       freshHidden: !!byId["chat-new"].hidden,
+      chipsHidden: !!byId["chat-chips"].hidden,
+      emptyHidden: !!byId["chat-empty"].hidden,
+      claim: (() => {
+        const host = turns.querySelector(".chat-claim");
+        if (!host) return null;
+        const rows = host.querySelector(".claim-rows");
+        const done = host.querySelector(".chat-claim-done");
+        return {
+          rows: (rows ? rows.children : []).map((tr) => tr.children[1].textContent),
+          done: done ? done.textContent : "",
+          tableHidden: !!host.querySelector(".table-wrap").hidden,
+        };
+      })(),
+      ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
       placeholder: byId["say"].placeholder,

@@ -1298,3 +1298,64 @@ def test_the_chips_start_with_a_verb() -> None:
         },
     )
     assert said["posted"][0]["body"]["text"] == "Show me what I know."
+
+
+# -- the first exchange (2026-09-11) ------------------------------------------------
+
+COMMON = {
+    "/words/common?offset=0&limit=50": {
+        "words": [{"form": f, "meaning": "m", "band": "easy"} for f in ["של", "את", "הוא"]],
+        "offset": 0,
+        "next": None,
+    },
+    "/chat/list": {
+        "chats": [],
+        "usable": True,
+        "chips": [{"id": "read", "line": "Find me something"}],
+    },
+}
+
+
+def test_a_first_visit_opens_on_the_words_you_may_already_know() -> None:
+    """ "The checking words you know should be part of the onboarding process": a reader
+    with a ledger of nothing and no conversation is asked first which of the commonest
+    words they know — the checklist as targum's first turn, the chips held back until it
+    is answered. Marking writes real known words, says where the rest of the list lives,
+    and tells the page holding the frame that the count changed."""
+    page = run(embed=True, answers=COMMON)
+    assert page["claim"] and page["claim"]["rows"] == ["של", "את", "הוא"]
+    assert [t["text"] for t in page["turns"]][0].startswith("Before anything else")
+    assert page["chipsHidden"] and page["emptyHidden"], "the checklist first"
+    marked = run(
+        embed=True,
+        answers=COMMON,
+        do=[{"type": "claim", "what": "all"}, {"type": "claim", "what": "yes"}],
+    )
+    assert sorted(marked["ledger"]) == ["את", "הוא", "של"]
+    assert marked["claim"]["tableHidden"] and marked["claim"]["done"].startswith("Thank you")
+    assert not marked["chipsHidden"], "and then the things to ask"
+    assert {"type": "targum:changed"} in marked["offered"]
+    passed = run(embed=True, answers=COMMON, do=[{"type": "claim", "what": "no"}])
+    assert passed["ledger"] == {} and passed["claim"]["tableHidden"] and not passed["chipsHidden"]
+
+
+def test_the_first_exchange_is_not_drawn_twice_nor_for_a_reader_with_words() -> None:
+    known = run(embed=True, answers=COMMON, ledger={"של": {"status": 9}})
+    assert known["claim"] is None and not known["chipsHidden"], "a ledger with words has answered"
+    passed = run(embed=True, answers=COMMON, stored={"targum:claim-passed": json.dumps({"של": 1})})
+    assert passed["claim"] is None, "a page passed over is an answer too"
+    talked = run(embed=True, answers=dict(COMMON, **{"/chat/list": TWO}))
+    assert talked["claim"] is None, "a reader with conversations is not new"
+    nothing = run(
+        embed=True,
+        answers=dict(
+            COMMON, **{"/words/common?offset=0&limit=50": {"words": [], "offset": 0, "next": None}}
+        ),
+    )
+    assert nothing["claim"] is None and nothing["turns"] == [] and not nothing["chipsHidden"], (
+        "nothing to ask: the turn goes and the page is the page it always was"
+    )
+    whole = run(answers=COMMON)
+    assert whole["claim"] and whole["claim"]["rows"] == ["של", "את", "הוא"], (
+        "the conversation page itself asks too"
+    )

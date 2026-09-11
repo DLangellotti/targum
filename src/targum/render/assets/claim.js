@@ -15,7 +15,7 @@
  * first exchange on a first visit. `TargumClaim.mount(host, options)` builds the table
  * and the two presses inside `host`; `options.panel` is what to hide when there is
  * nothing to show, `options.once` stops after the first press, and `options.onMarked`
- * hears how many were marked.
+ * hears how many were marked, and `options.onEmpty` that there was nothing to show.
  */
 (function () {
   "use strict";
@@ -128,8 +128,11 @@
       all.indeterminate = count > 0 && count < shown.length;
     }
 
+    var drewSomething = false;
     function draw(words) {
       rows.textContent = "";
+      if (!words.length && !drewSomething && options.onEmpty) options.onEmpty();
+      if (words.length) drewSomething = true;
       shown = words;
       boxes = [];
       words.forEach(function (word, n) {

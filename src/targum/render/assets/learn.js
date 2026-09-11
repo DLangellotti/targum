@@ -418,6 +418,9 @@
     if (talk && talk.contentWindow && event.source !== talk.contentWindow) return;
     var data = event.data || {};
     if (data.type === "targum:open" && data.reader) offeredText(String(data.reader));
+    // A page of words marked known in the conversation's first exchange: the count
+    // above the sheet is drawn again from the ledger it just changed.
+    if (data.type === "targum:changed") reload();
   });
 
   /* --- what to read next ------------------------------------------------------

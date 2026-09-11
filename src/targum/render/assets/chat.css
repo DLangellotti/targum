@@ -453,3 +453,56 @@ body.embed .chat-turn.me { margin-inline-start: 10%; }
 body.embed .chat-empty { display: none; }
 body.embed .chat-side-head { justify-content: flex-end; }
 body.embed .chat-turn.them { margin-inline-end: 6%; }
+
+/* --- the first exchange (2026-09-11) -------------------------------------------
+   The may-already-know checklist as targum's first turn: the same rows Your Words
+   draws, in the thread, without the "how common" column a narrow frame has no room
+   for. Ink for the press that marks, a bordered one to pass, as on the page. */
+.chat-claim { margin-block-start: 0.6rem; }
+.chat-claim table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.chat-claim th {
+  text-align: start;
+  padding: 0 0.6rem 0.4rem 0;
+  border-block-end: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chat-claim td {
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+  vertical-align: baseline;
+}
+.chat-claim td:nth-child(2) { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.chat-claim td:nth-child(4), .chat-claim th:nth-child(4) { display: none; }
+.chat-claim .claim-tick { inline-size: 1.5rem; padding-inline-end: 0; }
+.chat-claim .claim-check { margin: 0; inline-size: 1.05rem; block-size: 1.05rem; accent-color: var(--teal); cursor: pointer; }
+.chat-claim label { cursor: pointer; }
+.chat-claim .claim-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-block-start: 0.75rem; }
+.chat-claim .claim-yes {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-claim .claim-yes:disabled { opacity: 0.5; cursor: default; }
+.chat-claim .claim-no {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-claim .claim-said { font-size: 0.8125rem; color: var(--ink-soft); }
+.chat-claim [hidden] { display: none; }
+.chat-claim-done { margin: 0.5rem 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-soft); }

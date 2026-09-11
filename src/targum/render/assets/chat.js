@@ -1027,7 +1027,8 @@
         });
       }
       if (chats.length && !EMBED) return open(chats[0].id);
-      if (empty) empty.hidden = !!current;
+      if (!chats.length) firstExchange();
+      if (empty) empty.hidden = !!current || welcomed;
     });
   }
 
@@ -1035,6 +1036,50 @@
   // itself, it is not drawn until then ("the 'new' button is completely pointless").
   function showFresh() {
     if (fresh && EMBED) fresh.hidden = !current;
+  }
+
+  // The first exchange (2026-09-11): a reader who arrives with a ledger of nothing and
+  // no conversation is asked, before anything else, which of the commonest words they
+  // already know — the checklist from Your Words, drawn as targum's first turn, once.
+  // Every check is a real known word, so the first answer is written at their level.
+  // Afterwards the checklist lives on Your Words alone.
+  var welcomed = false;
+  function firstExchange() {
+    var claim = window.TargumClaim;
+    if (welcomed || current || !claim || !claim.hebrew() || !claim.untouched()) return;
+    welcomed = true;
+    var li = turn(
+      "assistant",
+      "Before anything else: which of these words do you already know? Check them, and I will write at your level.",
+      ""
+    );
+    var host = document.createElement("div");
+    host.className = "chat-claim";
+    li.appendChild(host);
+    if (chips) chips.show(false);
+    claim.mount(host, {
+      panel: host,
+      once: true,
+      onEmpty: function () {
+        // Nothing to ask: the turn goes, and the page is the page it always was.
+        if (li.parentNode) li.parentNode.removeChild(li);
+        if (empty) empty.hidden = false;
+        if (chips) chips.show(true);
+      },
+      onMarked: function () {
+        // The count on the front page hears it, where this is framed there.
+        if (EMBED && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "targum:changed" }, window.location.origin);
+        }
+      },
+      onDone: function () {
+        var note = document.createElement("p");
+        note.className = "chat-claim-done";
+        note.textContent = "Thank you. The rest of the list is under Your words and phrases, behind your account.";
+        host.appendChild(note);
+        if (chips) chips.show(true);
+      },
+    });
   }
 
   function open(id) {
