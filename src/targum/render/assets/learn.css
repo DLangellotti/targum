@@ -651,12 +651,63 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   background: var(--card);
   box-shadow: var(--shadow-rest);
   max-inline-size: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
   align-self: flex-end;
 }
-.ways::-webkit-scrollbar { display: none; }
 .ways[hidden] { display: none; }
+/* The subscriptions door: one pill however many there are, a menu under it. */
+.ways-menu-host { position: relative; }
+.way-menu::after {
+  content: "";
+  display: inline-block;
+  inline-size: 0.4em;
+  block-size: 0.4em;
+  margin-inline-start: 0.5em;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: translateY(-0.2em) rotate(45deg);
+}
+.ways-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 0.5rem);
+  inset-inline-end: 0;
+  z-index: 20;
+  min-inline-size: 14rem;
+  max-block-size: 60vh;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+.ways-menu[hidden] { display: none; }
+.ways-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: start;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ways-item:hover { background: var(--teal-wash); }
+.ways-item.on { color: var(--teal); font-weight: 600; }
+.ways-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+/* A newest instalment not seen yet. */
+.ways-fresh {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--teal);
+  margin-inline-start: auto;
+}
 .way {
   font: inherit;
   font-family: var(--chrome);
@@ -674,7 +725,7 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 .way.on { background: var(--teal-wash); color: var(--teal); }
 .way:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 @media (hover: none) and (pointer: coarse) {
-  .way { min-block-size: 44px; }
+  .way, .ways-item { min-block-size: 44px; }
 }
 /* What this text is to the reader, over its title in the sheet's head. */
 .page-state {
@@ -702,6 +753,9 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   .front { gap: 1rem; margin-block-end: 1rem; }
   .front .learn-head { padding-inline: 1rem; }
   .front .ways { align-self: stretch; }
+  .front .way { flex: 1 1 auto; text-align: center; padding-inline: 0.6rem; font-size: 0.8125rem; }
+  .front .ways-menu-host { flex: 1 1 auto; display: flex; }
+  .front .ways-menu { inset-inline: 0; min-inline-size: 0; }
   .page-sheet { border-radius: 0; box-shadow: none; }
   .page-window {
     /* The screen between the ink bar and the bottom bar, less the sheet's foot

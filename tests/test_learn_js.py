@@ -776,13 +776,24 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     drawn = draw([mine], stored, series=[portion, digest])
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
-        ("The weekly portion", False),
+        ("Subscriptions", False),
     ]
+    assert drawn["menu"] == {
+        "open": False,
+        "items": [{"id": "series:parasha", "label": "The weekly portion", "fresh": False}],
+    }, "one door however many subscriptions, with a menu under it"
     assert drawn["carry"]["title"] == "ספר שלי"
+    opened = draw([mine], stored, series=[portion, digest], do=[{"door": "subscriptions"}])
+    assert opened["menu"]["open"], "the door opens its menu"
     week = draw([mine], stored, series=[portion, digest], do=[{"door": "series:parasha"}])
     assert week["carry"]["title"] == "האזינו" and week["carry"]["heading"] == "The weekly portion"
     assert week["carry"]["frame"].startswith("/parasha/read/haazinu/reader/sec-0001.html")
-    assert [d["on"] for d in week["doors"]] == [False, True]
+    assert [(d["label"], d["on"]) for d in week["doors"]] == [
+        ("Continue reading", False),
+        ("The weekly portion", True),
+    ], "the door says which subscription is in the sheet"
+    unseen = draw([mine], dict(stored, **{"targum:series-seen": "{}"}), series=[portion, digest])
+    assert unseen["menu"]["items"][0]["fresh"], "a newest instalment not seen yet is marked"
     alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
     assert alone["doors"] == [], "one door is no choice"
     nothing = draw([], {})
@@ -828,3 +839,30 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
     )
     none = draw([mine], stored)
     assert none["doors"] == [], "nothing suggested and nothing followed: one door, no row"
+
+
+def test_a_finished_suggestion_makes_way_for_the_next() -> None:
+    """David, 2026-09-11: "once a user has finished a 'suggested' text, a new one should
+    populate the suggested tab". What this browser records as finished goes up with the
+    ask, by catalogue id, so the server's pick is the next one; and the door is asked
+    again when the framed reader writes a finish."""
+    esther = reader("esther-he", "אסתר", "esther", document="esther-he", shared=True)
+    mine = reader("mine", "ספר שלי", document="d3", opened=5)
+    docs = {"esther-he": {"done": 1}, "d3": {"sections": {"1": 0}}}
+    drawn = draw(
+        [mine],
+        {"targum:opened": json.dumps({"d3": 5}), "targum:docs": json.dumps(docs)},
+        shared=[esther],
+        suggest={"id": "ruth", "title": "רות", "because": "Not measured yet."},
+    )
+    asked = [a["path"] for a in drawn["asked"] if a["path"].startswith("/suggest")]
+    assert asked == ["/suggest?skip=esther&k=k"], "finished, by catalogue id, and nothing else"
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    nothing_done = draw(
+        [mine],
+        {"targum:opened": json.dumps({"d3": 5})},
+        shared=[esther],
+        suggest={"id": "esther", "title": "אסתר", "because": "You know 50% of its words."},
+    )
+    asked = [a["path"] for a in nothing_done["asked"] if a["path"].startswith("/suggest")]
+    assert asked == ["/suggest?k=k"]

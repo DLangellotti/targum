@@ -4607,8 +4607,13 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         admin = bool(person and self.store.is_admin(person.email))
         ctx = self.chats.context(person, self._home(), "", admin)
-        rows = chat_tools.suggest_next(ctx, {"limit": 1}).get("suggestions") or []
-        return self._json({"suggestion": rows[0] if rows else None})
+        # What the page says the reader has finished, by catalogue id: that is kept in
+        # the browser, and a finished suggestion makes way for the next (2026-09-11).
+        skip = parse_qs(urlparse(self.path).query).get("skip", [""])[0]
+        done = {one.strip() for one in skip.split(",") if one.strip()}
+        rows = chat_tools.suggest_next(ctx, {"limit": 10}).get("suggestions") or []
+        left = [row for row in rows if str(row.get("id")) not in done]
+        return self._json({"suggestion": left[0] if left else None})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the

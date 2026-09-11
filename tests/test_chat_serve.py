@@ -589,6 +589,8 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
     status, got, _ = call(port, "GET", f"/suggest?k={key}")
     assert status == 200 and got == {"suggestion": picked[0]}
     assert store.chats(None) == [], "no conversation was opened for it"
+    status, got, _ = call(port, "GET", f"/suggest?skip=esther,%20x&k={key}")
+    assert got == {"suggestion": picked[1]}, "a finished suggestion makes way for the next"
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
     assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
     assert catalogue

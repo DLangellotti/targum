@@ -448,7 +448,10 @@
   // The row (David, 2026-09-11): Continue reading, Suggested, and your subscriptions.
   // The conversation is the pill at the foot of the page — a "let's talk about it"
   // here was one door too many — and whatever it offers opens in the sheet
-  // (`offeredText`). One door is no choice, and no row is drawn for it.
+  // (`offeredText`). One door is no choice, and no row is drawn for it. The
+  // subscriptions are one door with a menu under it, however many there are ("I don't
+  // feel this design can handle a user having many many subscriptions"): the door
+  // says Subscriptions, or the name of the one in the sheet.
   var doors = [];
   var showing = null;
   function drawDoors() {
@@ -458,17 +461,78 @@
     var shown = doors.filter(function (one) {
       return one.reader;
     });
-    row.hidden = !showing || shown.length < 2;
-    shown.forEach(function (one) {
-      var press = el("button", "way", one.label);
-      press.type = "button";
-      press.setAttribute("data-door", one.id);
-      press.addEventListener("click", function () {
+    var pills = shown.filter(function (one) {
+      return one.id.indexOf("series:") !== 0;
+    });
+    var series = shown.filter(function (one) {
+      return one.id.indexOf("series:") === 0;
+    });
+    row.hidden = !showing || pills.length + (series.length ? 1 : 0) < 2;
+    pills.forEach(function (one) {
+      row.appendChild(pill(one));
+    });
+    if (series.length) row.appendChild(menu(series));
+    markDoor(current);
+  }
+
+  function pill(one) {
+    var press = el("button", "way", one.label);
+    press.type = "button";
+    press.setAttribute("data-door", one.id);
+    press.addEventListener("click", function () {
+      drawCarry(one.reader, one.door);
+    });
+    return press;
+  }
+
+  // The subscriptions door and its menu: one row per followed series, a dot on one
+  // whose newest instalment this browser has not seen yet.
+  function menu(series) {
+    var host = el("div", "ways-menu-host");
+    var press = el("button", "way way-menu", "Subscriptions");
+    press.type = "button";
+    press.setAttribute("data-door", "subscriptions");
+    press.setAttribute("aria-haspopup", "menu");
+    press.setAttribute("aria-expanded", "false");
+    var list = el("div", "ways-menu");
+    list.setAttribute("role", "menu");
+    list.hidden = true;
+    series.forEach(function (one) {
+      var item = el("button", "ways-item", one.label);
+      item.type = "button";
+      item.setAttribute("role", "menuitem");
+      item.setAttribute("data-door", one.id);
+      if (one.fresh) item.appendChild(el("span", "ways-fresh", ""));
+      item.addEventListener("click", function () {
+        fold();
         drawCarry(one.reader, one.door);
       });
-      row.appendChild(press);
+      list.appendChild(item);
     });
-    markDoor(current);
+    function fold() {
+      list.hidden = true;
+      press.setAttribute("aria-expanded", "false");
+      if (document.removeEventListener) {
+        document.removeEventListener("click", away, true);
+        document.removeEventListener("keydown", escape);
+      }
+    }
+    function away(event) {
+      if (host.contains && !host.contains(event.target)) fold();
+    }
+    function escape(event) {
+      if (event.key === "Escape") fold();
+    }
+    press.addEventListener("click", function () {
+      if (!list.hidden) return fold();
+      list.hidden = false;
+      press.setAttribute("aria-expanded", "true");
+      document.addEventListener("click", away, true);
+      document.addEventListener("keydown", escape);
+    });
+    host.appendChild(press);
+    host.appendChild(list);
+    return host;
   }
 
   var current = "";
@@ -476,10 +540,21 @@
     current = id;
     var row = document.getElementById("doors");
     if (!row) return;
-    Array.prototype.forEach.call(row.children, function (press) {
-      var on = press.getAttribute("data-door") === id;
+    var presses = Array.prototype.slice.call(row.querySelectorAll(".way"));
+    presses = presses.concat(Array.prototype.slice.call(row.querySelectorAll(".ways-item")));
+    presses.forEach(function (press) {
+      var mine = press.getAttribute("data-door");
+      var on = mine === id || (mine === "subscriptions" && id.indexOf("series:") === 0);
       press.classList.toggle("on", on);
       press.setAttribute("aria-pressed", on ? "true" : "false");
+      // The subscriptions door says which one is in the sheet.
+      if (mine === "subscriptions") {
+        var named = "";
+        doors.forEach(function (one) {
+          if (one.id === id) named = one.label;
+        });
+        press.textContent = on && named ? named : "Subscriptions";
+      }
     });
   }
 
@@ -521,6 +596,10 @@
     var follow = window.TargumFollow;
     if (!follow) return [];
     var out = [];
+    var unseen = {};
+    follow.fresh(series).forEach(function (one) {
+      unseen[one.id] = true;
+    });
     series.forEach(function (one) {
       var inst = one.instalment;
       if (!inst || !follow.following(one.id)) return;
@@ -529,6 +608,7 @@
       out.push({
         id: "series:" + one.id,
         label: one.name,
+        fresh: !!unseen[one.id],
         reader: { name: "", title: inst.hebrew || inst.title, english: inst.hebrew ? inst.title : "", language: "he" },
         door: {
           id: "series:" + one.id,
@@ -887,17 +967,37 @@
       .catch(function () {});
   }
 
+  // What this reader has finished, by catalogue id, so it is not suggested again: a
+  // finished suggestion makes way for the next one (2026-09-11).
+  function finished() {
+    var docs = stored("targum:docs");
+    var ids = [];
+    everything.forEach(function (reader) {
+      if (!reader.entry || !docs[reader.document]) return;
+      var done = progress(reader) >= 1 || (scenes && scenes.finished(reader, docs));
+      if (done && ids.indexOf(reader.entry) < 0) ids.push(reader.entry);
+    });
+    return ids;
+  }
+
   function suggested() {
-    ask("/suggest")
+    var skip = finished();
+    ask("/suggest" + (skip.length ? "?skip=" + encodeURIComponent(skip.join(",")) : ""))
       .then(function (got) {
         var door = suggestedDoor(got && got.suggestion);
-        if (!door) return;
-        // After Continue reading, before the subscriptions and the way to talk.
-        doors.splice(doors.length && doors[0].id === "main" ? 1 : 0, 0, door);
+        doors = doors.filter(function (one) {
+          return one.id !== "suggested";
+        });
+        if (door) doors.splice(doors.length && doors[0].id === "main" ? 1 : 0, 0, door);
         drawDoors();
       })
       .catch(function () {});
   }
+  // The framed reader writes what it finishes into this browser's storage; the door
+  // is asked again so a finished suggestion makes way for the next one.
+  window.addEventListener("storage", function (event) {
+    if (event && event.key === "targum:docs") suggested();
+  });
 
   function landed() {
     var follow = window.TargumFollow;

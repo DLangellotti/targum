@@ -440,7 +440,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   count of words on the same line; beside them one control of doors, one press each:
   Continue reading, Suggested — a text that fits your level and interests, picked as
   the conversation's "Something to read" is but with no conversation (`GET /suggest`,
-  leaning towards the registers you already read) — and your subscriptions. The
+  leaning towards the registers you already read; a suggestion you have finished makes
+  way for the next) — and Subscriptions, one door however many you follow, with a menu
+  under it that marks a newest instalment you have not seen and names the one in the
+  sheet. The
   conversation stays the pill at the foot of the page, and whatever it offers opens in
   the sheet. The date carries the Hebrew date in parentheses. For a new reader the
   count's place says what to do here. The weekly is named Weekly News Digest wherever a

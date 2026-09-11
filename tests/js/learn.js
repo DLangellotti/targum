@@ -159,14 +159,26 @@ function phrases() {
 /** Do something to the page, the way a person would. */
 function act(step) {
   if (step.press) byId[step.press].fire("click", {});
-  // A door in the row above the sheet (2026-09-11), by its id.
+  // A door in the row above the sheet (2026-09-11), by its id — in the row or in the
+  // subscriptions menu under it.
   if (step.door) {
-    const found = at("doors").children.find((p) => p.attrs["data-door"] === step.door);
+    const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
   }
   // A text offered by the conversation in the drawer, handed over by `talk.js`.
   if (step.offer) global.window.TargumLearn.open(step.offer);
   if (step.changed) global.window.TargumLearn.changed();
+}
+
+/** Every element carrying a door id under `node`, in document order. */
+function withDoors(node) {
+  const out = [];
+  const walk = (n) => {
+    if (n.attrs && n.attrs["data-door"]) out.push(n);
+    (n.children || []).forEach(walk);
+  };
+  walk(node);
+  return out;
 }
 
 setTimeout(() => {
@@ -182,7 +194,22 @@ setTimeout(() => {
       today: at("today").textContent,
       doors: at("doors").hidden
         ? []
-        : at("doors").children.map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
+        : withDoors(at("doors"))
+            .filter((p) => !String(p.className).includes("ways-item"))
+            .map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
+      // The subscriptions menu: its rows, whether it is open, and which are fresh.
+      menu: (() => {
+        const list = withDoors(at("doors")).filter((p) => String(p.className).includes("ways-item"));
+        const box = list.length ? list[0].parentNode : null;
+        return {
+          open: box ? !box.hidden : false,
+          items: list.map((p) => ({
+            id: p.attrs["data-door"],
+            label: p.textContent,
+            fresh: (p.children || []).some((c) => String(c.className).includes("ways-fresh")),
+          })),
+        };
+      })(),
       hands: Object.keys(global.window.TargumLearn || {}),
       seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
       shelfNote: at("shelf-note").textContent,
