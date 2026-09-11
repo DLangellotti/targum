@@ -324,21 +324,19 @@ def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases(
     assert 'id="claim-panel"' not in PAGES["learn"] and "TargumClaim" not in PAGES["learn"]
 
 
-def test_the_library_carries_your_subscriptions_and_learn_hears_them() -> None:
-    """2026-09-11: "read this week ... should be like 'your subscriptions' and users can
-    subscribe to ... the weekly parasha, etc." The row is on the Library, above the list,
-    drawn by one script the Library and Learn both carry."""
-    library = PAGES["library"]
-    assert 'id="subscriptions"' in library and 'id="series"' in library
-    assert "Your subscriptions" in library and "TargumFollow" in library
-    assert library.index('id="subscriptions"') > library.index('id="catalogue"'), (
-        "under the list, not over it (2026-09-11)"
-    )
+def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> None:
+    """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
+    — let's keep the main pages as simple as possible". The row is a panel on the
+    profile, the account panel links to it, the Library carries nothing of it, and the
+    script that asks is in the bar on every page so the bell hears a landed instalment."""
+    you = PAGES["you"]
+    assert 'id="subscriptions"' in you and 'id="series"' in you and "Your subscriptions" in you
+    assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["learn"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:
+            assert 'class="to-you" href="/you#subscriptions"' in page, name
             assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
             assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
-    assert 'id="weekly-line"' not in PAGES["learn"], "the weekly line left Learn for the row"
 
 
 # -- what each page says it is --------------------------------------------------
@@ -487,11 +485,7 @@ def test_the_library_has_one_heading() -> None:
     and their trash. With nothing else on the page it only repeated the h1."""
     library = PAGES["library"]
     assert "Picked for you" not in library
-    # One h2 since 2026-09-11: the subscriptions row, which is a section of its own
-    # above the list and not the list's title.
-    assert (
-        re.findall(r'<h2 class="subs-title"', library) and len(re.findall(r"<h2\b", library)) == 1
-    )
+    assert len(re.findall(r"<h2\b", library)) == 0
 
 
 # -- the header every page wears --------------------------------------------------

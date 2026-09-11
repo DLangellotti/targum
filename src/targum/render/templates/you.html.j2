@@ -60,6 +60,19 @@
   </section>
 
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
+  {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
+      weekly portion, a learning cycle — each with where it is this week, one press to
+      follow and one to open. Following puts the newest instalment in the sheet on Learn
+      when it lands, in the bell, and in your inbox. Here, behind the account, and not on
+      the Library: the main pages stay as simple as they can. Drawn by `follow.js`;
+      hidden until the server has named a series. -#}
+  <section class="panel" id="subscriptions" hidden>
+    <h2>Your subscriptions</h2>
+    <p class="note">Series that come out on their own clock. Follow one and its newest
+      instalment opens on Learn when it lands, and you are told by email.</p>
+    <ul class="series" id="series"></ul>
+  </section>
+
   <section class="panel" id="ending" hidden>
     <h2>Your account</h2>
     <div class="row">
