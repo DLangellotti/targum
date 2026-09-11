@@ -636,8 +636,9 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   gap: 0 0.5rem;
 }
 .hello .today:empty, .hello .known-line:empty { display: none; }
-.hello .known-line { margin: 0; font-size: inherit; line-height: inherit; font-weight: 600; letter-spacing: 0; color: var(--ink); }
-.hello .today:not(:empty) + .known-line:not(:empty)::before { content: "·"; margin-inline-end: 0.5rem; font-weight: 400; color: var(--ink-soft); }
+.hello .known-line { margin: 0; font-size: 0.9375rem; line-height: inherit; font-weight: 600; letter-spacing: 0; color: var(--ink); }
+/* The dot stays with the date, so a count that wraps on a phone starts its own line clean. */
+.hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: " ·"; }
 /* The doors as one control (2026-09-11: "put the buttons together at the top, in a
    sleek design"): a card-coloured track with a soft shadow, each press a pill inside
    it, the one shown filled in the teal wash. */
