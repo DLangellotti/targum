@@ -421,8 +421,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   word in — and says it again as you move, so the drawer shows the sentence above the
   box, sends it with every line, and offers one press that asks what it means. A word's
   card still answers two turns in place, and "Continue in chat" now goes on in the
-  drawer beside the text. Off a disk the reader carries nothing to talk to, and the
-  page still fetches nothing by itself.
+  drawer beside the text. The conversation there is in Hebrew at your level, as it is
+  everywhere; only a word's card is answered in English, about the form. Off a disk the
+  reader carries nothing to talk to, and the page still fetches nothing by itself.
 - A command palette on every page (2026-09-11): ⌘K, or the search in the bar, finds a
   place, a text on your shelf or in the catalogue, or a conversation, and Enter goes
   there — a conversation opens in the drawer.

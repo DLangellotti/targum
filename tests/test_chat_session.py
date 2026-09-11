@@ -1097,3 +1097,26 @@ def test_a_reader_of_russian_gets_russian_under_every_line(
     system = client.requests[0]["system"][0]["text"]
     assert 'every "= " line is in Russian' in " ".join(system.split())
     assert seen == ["ru"], "the record's meanings are looked up in Russian"
+
+
+def test_a_line_from_inside_the_text_stays_in_hebrew_at_their_level(tmp_path: Path) -> None:
+    """2026-09-11: "the chat with the reader should be in Hebrew at your level". A note
+    that names the sentence and no word — the drawer in a reader — keeps the
+    conversation as it is: talk mode, the Hebrew contract, and the sentence in the turn
+    the model sees. Naming a word still opens it in English about the form."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    assert library.talks(home, person.id)
+    client = Script([reply([{"type": "text", "text": "בִּנְיָמִין יָצָא לַדֶּרֶךְ.\n= Benjamin set out."}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    about = {"document": "mendele", "section": "2", "sentence": "וַיֵּלֶךְ בִּנְיָמִין"}
+    asked = chats.say(person, home, "", "מה זה אומר?", admin=False, about=about)
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"
+    turns = store.chat_turns(asked.chat_id)
+    assert "The reader is reading the text mendele, section 2." in turns[0]["content"]
+    assert about["sentence"] in turns[0]["content"]
+    chats.answer(asked)
+    assert hebrew.CONTRACT.splitlines()[0] in client.requests[0]["system"][0]["text"]

@@ -678,10 +678,12 @@ class Chats:
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
-        `about` is where the reader is when the line came from a word's card — the
-        text, the section, the sentence, the word. It rides in the turn the model sees
-        and not in what the page shows back, and it opens the conversation in English:
-        a question about a form is answered about the form, whatever the reader's shelf.
+        `about` is where the reader is — the text, the section, the sentence, and, from
+        a word's card, the word. It rides in the turn the model sees and not in what the
+        page shows back. Naming a word opens the conversation in English: a question
+        about a form is answered about the form, whatever the reader's shelf. Naming only
+        the sentence (the drawer in a reader, 2026-09-11) keeps the conversation as it
+        is, in Hebrew at their level, about the text.
         `brought` is the text the reader sent with the line, from its own job: it rides
         the same way, and the conversation keeps its language.
         """
@@ -693,7 +695,10 @@ class Chats:
             # a scripture-only reader is answered in English, about the text. The same
             # question the page asks (`talk` on `/chat/list`), answered the same way.
             # A question from a word's card is about the text, in English, for everyone.
-            mode = "talk" if self.library.talks(home, person_id) and not about else "find"
+            # A line from the drawer in a reader (2026-09-11) names the sentence and no
+            # word: that is the conversation, in Hebrew at their level, about the text.
+            tapped = bool(about and about.get("surface"))
+            mode = "talk" if self.library.talks(home, person_id) and not tapped else "find"
             chat_id = self.store.chat_open(person_id, mode=mode)
         n = self.store.chat_say(
             chat_id, "user", framed(text, about, brought), text, stage="working"
