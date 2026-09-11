@@ -67,9 +67,9 @@
     if (job.stage === "blocked") return title + ": " + (job.blocked || "not now.");
     if (job.stage === "queued") {
       return job.behind === 1
-        ? "Waiting behind one other build: " + title
+        ? "Waiting behind one other text: " + title
         : job.behind > 1
-          ? "Waiting behind " + job.behind + " other builds: " + title
+          ? "Waiting behind " + job.behind + " other texts: " + title
           : "Waiting: " + title;
     }
     var far = job.total ? Math.round((job.done / job.total) * 100) + "%" : plain(job.message);

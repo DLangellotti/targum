@@ -166,6 +166,15 @@
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* Where the text is from: a quiet link under the title, the site's name (2026-09-11). */
+.quote-source {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--teal);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+}
+.quote-source:hover { border-block-end-color: var(--teal); }
 .quote-meta {
   margin: 0;
   font-family: ui-monospace, monospace;

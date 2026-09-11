@@ -353,7 +353,7 @@ def test_a_quote_that_cannot_be_built_says_why(world, monkeypatch) -> None:
     ctx = context(library, store, person, home)
     ctx.reads = {"en"}
     got = tools.quote_build(ctx, {"source": "https://example.com/novel"})
-    assert got["quote"]["blocked"].startswith("Too long") and "cannot be built" in got["note"]
+    assert got["quote"]["blocked"].startswith("Too long") and "cannot be made ready" in got["note"]
 
 
 def test_hours_are_hours(world) -> None:

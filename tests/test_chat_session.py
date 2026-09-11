@@ -727,14 +727,14 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     assert framed.startswith("The reader has just sent a text through the box")
     assert "It is called: מכתב (1 pages, 4 sentences)" in framed
     assert "Its first lines, as read: א / ב" in framed
-    assert "being built now" in framed
+    assert "getting ready now" in framed, "never 'built' to the reader (2026-09-11)"
     assert framed.endswith("Their line:\nhelp me learn it")
     waiting = session_module.framed("?", None, {"title": "t", "stage": "ready"})
     assert "waiting on their press" in waiting
     refused = session_module.framed(
         "?", None, {"title": "t", "stage": "blocked", "blocked": "Too long."}
     )
-    assert "could not be built: Too long." in refused
+    assert "could not be made ready: Too long." in refused
 
     # And what was sent is named as what it was: a screenshot is a picture, read.
     shot = session_module.framed(

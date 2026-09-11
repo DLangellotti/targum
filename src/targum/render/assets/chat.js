@@ -958,7 +958,7 @@
       parts.push(vocabulary + (vocabulary === 1 ? " word" : " words") + " · none marked yet");
     } else {
       parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
-      if (vocabulary) parts.push("you knew " + Math.round((known / vocabulary) * 100) + "% of this");
+      if (vocabulary) parts.push("you know " + Math.round((known / vocabulary) * 100) + "%");
     }
     counts.textContent = parts.join(" · ");
     li.appendChild(counts);
@@ -1110,7 +1110,13 @@
           pending = t.stage === "working" ? t.n : null;
           if (t.stage === "failed" && t.error) turn("assistant", t.error, "bad");
         } else if (t.said) {
-          playButton(turn("assistant", t.said, "", lastWords), id, lastAsked);
+          var li = turn("assistant", t.said, "", lastWords);
+          playButton(li, id, lastAsked);
+          // The cards this answer quoted, as the jobs stand now (2026-09-11): a
+          // conversation opened again keeps its cards, not only its words.
+          (t.quotes || []).forEach(function (job) {
+            quoteCard(li, job);
+          });
         }
       });
       if (empty) empty.hidden = true;

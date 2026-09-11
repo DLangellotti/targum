@@ -209,6 +209,56 @@ def test_a_handler_without_a_chat_answers_not_found(tmp_path: Path) -> None:
         server.server_close()
 
 
+def test_a_conversation_opened_again_carries_the_cards_it_quoted(chatting) -> None:
+    """The cards were drawn from the live stream only (2026-09-11: "don't see the link
+    to the article"). `/chat/<id>` now hands each answer the quotes in the tool results
+    before it, read back from the job where the process still holds it — so a card
+    pressed since says so — and from the stored quote where it does not."""
+    from targum.serve import Job
+
+    port, key, store, chats = chatting
+    chat = store.chat_open(None)
+    store.chat_say(chat, "user", "find me an article", "find me an article")
+    live = Job(
+        id="livejob1",
+        source="https://www.globes.co.il/news/article.aspx?did=1",
+        title="כתבה",
+        stage="done",
+        reader="p1/כתבה-he",
+    )
+    chats.library.jobs[live.id] = live
+    quoted_live = {"id": live.id, "title": "כתבה", "stage": "ready", "source": live.source}
+    gone = {"id": "gonejob1", "title": "אחרת", "stage": "ready", "source": "wikisource:he:x"}
+    store.chat_say(
+        chat,
+        "user",
+        [
+            {
+                "type": "tool_result",
+                "tool_use_id": "t1",
+                "content": json.dumps({"quote": quoted_live}),
+            },
+            {"type": "tool_result", "tool_use_id": "t2", "content": json.dumps({"quote": gone})},
+            {"type": "tool_result", "tool_use_id": "t3", "content": "not json"},
+        ],
+        "",
+    )
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "הנה"}], "הנה")
+    store.chat_say(chat, "user", "thanks", "thanks")
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "בבקשה"}], "בבקשה")
+    status, whole, _ = call(port, "GET", f"/chat/{chat}?k={key}")
+    assert status == 200
+    answers = [t for t in whole["turns"] if t["role"] == "assistant"]
+    quotes = answers[0]["quotes"]
+    assert [q["id"] for q in quotes] == [live.id, gone["id"]]
+    assert quotes[0]["stage"] == "done" and quotes[0]["reader"] == live.reader, (
+        "a job the process still holds is read back as it stands"
+    )
+    assert quotes[0]["source"] == live.source, "the card can link to where the text is from"
+    assert quotes[1] == gone, "a job the process lost is the quote as it was"
+    assert "quotes" not in answers[1], "only the answer that followed the quote carries it"
+
+
 def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:
     store = Store(tmp_path / "w.db")
     token = store.start_sign_in("reader@example.com")
@@ -481,7 +531,7 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     assert "It is called: הודעה מחברת הביטוח (9 sentences)" in turn["content"]
     assert "שורה ראשונה / שורה שנייה" in turn["content"]
     assert (
-        "being built now" in turn["content"] and "do not need to send it again" in turn["content"]
+        "getting ready now" in turn["content"] and "do not need to send it again" in turn["content"]
     )
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "talk", "the conversation keeps its language"

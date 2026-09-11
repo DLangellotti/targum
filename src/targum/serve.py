@@ -710,6 +710,10 @@ class Job:
             "excerpt": list(self.excerpt),
             "known_share": None if self.known_share is None else round(self.known_share, 2),
             "known_line": level_module.words_in_ten(self.known_share),
+            # Where the text is from, so the card can link to it (2026-09-11: "don't
+            # see the link to the article"). A link for a page on the web; a fetcher
+            # id or a filename otherwise, which the page shows no link for.
+            "source": self.source,
         }
 
 
@@ -4151,8 +4155,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "not found"}, 404)
             # Opened by its person: an answer made after this is one they have not seen.
             store.chat_opened(chat["id"])
-            turns = [
-                {
+            turns: list[dict[str, Any]] = []
+            # The cards a turn quoted come back with it (2026-09-11): they were drawn
+            # from the live stream only, so a conversation opened again — the drawer
+            # in a reader is reopened on every page it rides — had the model saying
+            # "press the card" over a thread with no card in it. A quote lives in
+            # the tool result the model was handed; it is drawn under the answer that
+            # followed, in the state the job is in now.
+            waiting: list[dict[str, Any]] = []
+            for turn in store.chat_turns(chat["id"]):
+                waiting.extend(self._quoted(turn))
+                if not (turn["said"] or turn["role"] == "user"):
+                    continue
+                entry: dict[str, Any] = {
                     "n": turn["n"],
                     "role": turn["role"],
                     "said": turn["said"],
@@ -4163,9 +4178,10 @@ class Handler(BaseHTTPRequestHandler):
                     # read (`chat/record.py`); None where none were.
                     "words": turn.get("words"),
                 }
-                for turn in store.chat_turns(chat["id"])
-                if turn["said"] or turn["role"] == "user"
-            ]
+                if turn["role"] == "assistant" and turn["said"] and waiting:
+                    entry["quotes"] = waiting
+                    waiting = []
+                turns.append(entry)
             return self._json(
                 {
                     "chat": chat,
@@ -4175,6 +4191,33 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         return self._json({"error": "not found"}, 404)
+
+    def _quoted(self, turn: dict[str, Any]) -> list[dict[str, Any]]:
+        """The cards quoted in a tool-result turn, as the jobs stand now.
+
+        A quote is the `quote` of a `quote_build` or `quote_conversation` result
+        (`Chats.answer`). The job it names is read back live where the process still
+        has it — built since, or refused — and the stored quote stands in where it
+        does not, which is a restart: the card then says what it said, and its press
+        finds out.
+        """
+        content = turn.get("content")
+        if turn.get("role") != "user" or not isinstance(content, list):
+            return []
+        found: list[dict[str, Any]] = []
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            try:
+                result = json.loads(str(block.get("content") or ""))
+            except json.JSONDecodeError:
+                continue
+            quote = result.get("quote") if isinstance(result, dict) else None
+            if not isinstance(quote, dict) or not quote.get("id"):
+                continue
+            job = self._own_job(str(quote["id"]))
+            found.append(job.state() if job is not None else quote)
+        return found
 
     def _chat_turn_state(self, chat_id: str, n: int) -> dict[str, Any]:
         """What became of the answer to turn `n`, from the live feed or the store.

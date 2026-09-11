@@ -279,8 +279,9 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row["how_to_open"] = (
         "Give the reader the link in `reader`."
         if built
-        else "Not built for this reader yet. Call quote_build with this id: the page shows "
-        "a card with a button, and the reader presses it. You cannot start one."
+        else "Not ready for this reader yet. Call quote_build with this id: the page shows "
+        "a card with a button, and the reader presses it to get the text ready. You "
+        "cannot start one."
     )
     return row
 
@@ -493,11 +494,12 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {
         "quote": state,
         "note": (
-            "The page shows the reader a card from this with a button that starts the "
-            "build; you cannot press it. Say what the text is and how long it will take "
-            "in their time — sentences, chapters, minutes, hours of audio — never in money."
+            "The page shows the reader a card from this with a button; pressing it gets "
+            "the text ready, and you cannot press it. Say what the text is and how long "
+            "it will take in their time — sentences, chapters, minutes, hours of audio — "
+            "never in money, and never as a build: to the reader it is getting ready."
             if state["stage"] == "ready"
-            else "This cannot be built now; the card says why. Tell the reader plainly."
+            else "This cannot be made ready now; the card says why. Tell the reader plainly."
         ),
     }
 

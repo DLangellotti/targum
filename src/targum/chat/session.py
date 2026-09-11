@@ -372,12 +372,12 @@ def brought_note(brought: dict[str, Any]) -> list[str]:
     stage = str(brought.get("stage") or "")
     if stage in ("working", "done"):
         lines.append(
-            "It is being built now and will open from the strip at the top of their page "
-            "when it is ready. They do not need to send it again, and you cannot open it."
+            "It is getting ready now and will open from the strip at the top of their "
+            "page when it is. They do not need to send it again, and you cannot open it."
         )
     elif brought.get("blocked") or brought.get("error"):
         lines.append(
-            "It could not be built: " + str(brought.get("blocked") or brought.get("error"))
+            "It could not be made ready: " + str(brought.get("blocked") or brought.get("error"))
         )
     else:
         lines.append("Its card is in the thread, waiting on their press.")
@@ -587,7 +587,7 @@ class Chats:
         quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
         quote = quoted.get("quote")
         if quote is None:
-            return {"error": quoted.get("error") or "That cannot be built now.", "status": 409}
+            return {"error": quoted.get("error") or "That cannot be made ready now.", "status": 409}
         if not chat_id:
             mode = "talk" if self.library.talks(home, person_id) else "find"
             chat_id = store.chat_open(person_id, mode=mode)

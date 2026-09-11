@@ -163,6 +163,12 @@
 
   // What a build will take, in the only currency the reader spends: their time. What
   // it costs us is our business and never theirs — they pay by the month.
+  // "globes.co.il" for a link into Globes: the host without its www.
+  function siteOf(url) {
+    var host = String(url).replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+    return host.replace(/^www\./, "");
+  }
+
   function wait(job) {
     if (job.audio && job.parts > 0) {
       // The wait is the first part's: hearing it, then translating it.
@@ -303,6 +309,18 @@
       title.appendChild(en);
     }
     card.appendChild(title);
+    // Where the text is from, as a link, when it is a page on the web (2026-09-11:
+    // "don't see the link to the article"): the site's name, opening in its own tab
+    // — from the drawer as much as from the page, and never inside the frame.
+    if (/^https?:\/\//.test(String(job.source || ""))) {
+      var from = document.createElement("a");
+      from.className = "quote-source";
+      from.href = job.source;
+      from.target = "_blank";
+      from.rel = "noopener";
+      from.textContent = siteOf(job.source);
+      card.appendChild(from);
+    }
     var meta = document.createElement("p");
     meta.className = "quote-meta";
     var facts = [];
@@ -360,7 +378,7 @@
             card.classList.add("refused");
             return;
           }
-          note.textContent = "Building. It will appear above when it is ready.";
+          note.textContent = "Getting it ready. It will appear above when it is.";
           card.classList.add("started");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
         });
@@ -372,8 +390,9 @@
       more.textContent = "More options";
       card.appendChild(more);
     } else if (job.stage === "working" || job.stage === "reading") {
-      // Sent from the box, so already pressed: the card is its progress.
-      note.textContent = "Building. It will appear above when it is ready.";
+      // Sent from the box, so already pressed: the card is its progress. "Getting it
+      // ready", never "building" (2026-09-11): a text is getting ready, then ready.
+      note.textContent = "Getting it ready. It will appear above when it is.";
       card.classList.add("started");
       if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
     } else if (job.stage === "done" && job.reader) {
@@ -384,7 +403,7 @@
       card.appendChild(open);
       card.classList.add("started");
     } else {
-      note.textContent = job.blocked || job.error || "This cannot be built now.";
+      note.textContent = job.blocked || job.error || "This cannot be made ready now.";
       card.classList.add("refused");
     }
     card.appendChild(note);

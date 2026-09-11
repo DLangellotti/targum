@@ -226,6 +226,9 @@ function cards() {
         known: by("quote-known") ? by("quote-known").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
+        source: by("quote-source")
+          ? { href: by("quote-source").href, text: by("quote-source").textContent, target: by("quote-source").target }
+          : null,
               excerpt: by("quote-excerpt")
           ? by("quote-excerpt")
               .children.filter((c) => String(c.tagName).toUpperCase() === "BDI")

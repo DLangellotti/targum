@@ -173,7 +173,7 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["button"] == "Read this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
-    assert card["note"].startswith("Building.") and card["cls"] == "quote-card started"
+    assert card["note"].startswith("Getting it ready.") and card["cls"] == "quote-card started"
     assert page["stripAsked"] == 1, "the strip is told to look again"
 
 
@@ -355,6 +355,52 @@ def test_the_microphone_is_kept_from_a_reader_with_no_modern_hebrew() -> None:
     assert page["mic"]["hidden"] is False
 
 
+def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_source() -> None:
+    """2026-09-11, David: "don't see the link to the article". The cards were drawn
+    from the live stream only, so a reopened conversation — the drawer, reopened on
+    every page of a reader — showed the model's "press the card" over no card. Now
+    `/chat/<id>` hands each answer the cards it quoted and the page draws them; and a
+    card for a page on the web links to it, by the site's name, in its own tab."""
+    quoted = dict(QUOTE, source="https://www.globes.co.il/news/article.aspx?did=1001553741")
+    page = run(
+        do=[],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "an article"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "find me an article", "stage": "done"},
+                    {"n": 2, "role": "user", "said": "", "stage": "done"},
+                    {
+                        "n": 3,
+                        "role": "assistant",
+                        "said": "מָצָאתִי כַּתָּבָה.\n= I found an article.",
+                        "stage": "done",
+                        "quotes": [quoted],
+                    },
+                ],
+            },
+        },
+        hash="#abc",
+    )
+    assert len(page["cards"]) == 1, "the card the answer quoted is drawn again"
+    card = page["cards"][0]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["source"] == {
+        "href": quoted["source"],
+        "text": "globes.co.il",
+        "target": "_blank",
+    }
+    page = run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(QUOTE, ensure_ascii=False)},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["cards"][0]["source"] is None, "a library text or a file has no page to link"
+
+
 def test_a_conversation_named_in_the_hash_is_the_one_opened() -> None:
     """The front door's box posts a line and lands here with the new conversation's id
     in the hash; the page opens that one, not the newest on the list."""
@@ -511,7 +557,7 @@ def test_the_foot_counts_what_was_not_met_and_never_names_a_level() -> None:
     page = record_page()
     foot = page["foot"]
     assert foot is not None and foot["save"]
-    assert foot["counts"] == "4 min · 1 word you have not met · you knew 50% of this", (
+    assert foot["counts"] == "4 min · 1 word you have not met · you know 50%", (
         "four minutes off the clock; מצפה not met; two of four vocabulary words known"
     )
     assert "level" not in foot["counts"] and "%" in foot["counts"]
@@ -592,7 +638,7 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"]
     assert card["button"] == "", "Send was the press: no button to press again"
-    assert card["note"] == "Building. It will appear above when it is ready."
+    assert card["note"] == "Getting it ready. It will appear above when it is."
     assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
