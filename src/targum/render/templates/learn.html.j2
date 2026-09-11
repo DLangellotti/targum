@@ -64,7 +64,9 @@
 
   <section class="panel" id="shelf-panel">
     <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span>Your targums</span></button></h2>
+      {#- No fold since phase 2 (2026-09-11): a shelf of five rows is not worth a control
+          to put away. -#}
+      <h2><span>Your targums</span></h2>
       <a class="see-all" id="shelf-more" href="/texts" hidden></a>
     </div>
     <div class="fold-body" id="shelf-body">

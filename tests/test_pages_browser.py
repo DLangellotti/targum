@@ -883,6 +883,7 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     page.wait_for_timeout(300)
     opened = page.evaluate(measure)
     page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
     closed = page.evaluate(measure)
     page.click("#talk-open")
     page.goto(f"http://learn.test/library?k={TOKEN}")

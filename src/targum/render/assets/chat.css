@@ -525,3 +525,14 @@ body.embed .chat-thread { box-shadow: none; }
 .chat-claim .claim-yes { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
 .chat-claim .claim-no { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
 .chat-english { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
+/* Phase 2 (2026-09-11): your turns in tint, targum's on the card, both with a card's
+   corners; the box in the drawer sits on a strip at its foot. */
+.chat-turn.me .chat-line {
+  background: var(--teal-wash);
+  border-radius: var(--radius-card);
+  padding: 0.55rem 0.9rem;
+}
+body.embed > .chat-main > .composer {
+  padding: 0.6rem 0 0.25rem;
+  border-block-start: 1px solid var(--hairline);
+}

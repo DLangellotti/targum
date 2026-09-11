@@ -686,3 +686,6 @@
 .series-open { border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
 .series-open:hover { background: var(--teal); color: var(--teal-ink); }
 .series-row { border-block-start: 1px solid var(--hairline); }
+.thumb { border-radius: var(--radius-row); }
+.books.shelf-rows li { border-radius: var(--radius-row); }
+.books.shelf-rows li:hover { background: var(--teal-wash); }

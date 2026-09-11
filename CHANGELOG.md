@@ -424,6 +424,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   §8 says its radii are the reader's and §13 carries the desk's; `test_brand.py` admits
   the new corners. Every chrome page changes a little at once and nothing changes shape.
   The plan: https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186.
+- Phase 2: Learn and the drawer. The shelf loses its column heads and its fold, its
+  covers take a row's corners, See all is a ghost pill, and the one label on the page is
+  a heading in normal case; in the drawer your turns are tint and targum's are on the
+  card, the box sits on its own strip at the foot, and the drawer settles out the way it
+  came in (2026-09-11).
 - Talk to targum is a pill at the foot of every page, and Learn is the reader's own
   highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
   opens up for you — doesn't actually have to live on any page. Learn page can literally

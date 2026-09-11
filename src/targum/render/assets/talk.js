@@ -36,9 +36,22 @@
     frame.setAttribute("src", frame.getAttribute("data-src") || keyed("/chat?embed=1"));
   }
 
+  var leaving = null;
   function show(on) {
     if (on) load();
-    drawer.hidden = !on;
+    clearTimeout(leaving);
+    drawer.classList.remove("leaving");
+    if (on) drawer.hidden = false;
+    else if (!drawer.hidden) {
+      // Out the way it came: the class plays the leaving animation, and the drawer is
+      // hidden once it has played. Under reduced motion the animation is none and the
+      // wait is only the wait.
+      drawer.classList.add("leaving");
+      leaving = setTimeout(function () {
+        drawer.classList.remove("leaving");
+        drawer.hidden = true;
+      }, 160);
+    }
     if (scrim) scrim.hidden = !on;
     pill.setAttribute("aria-expanded", on ? "true" : "false");
     document.body.classList.toggle("talking", on);

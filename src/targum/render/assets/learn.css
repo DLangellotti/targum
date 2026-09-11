@@ -550,3 +550,21 @@ body.learn .nothing .hint {
 .page-foot .open:hover { background: var(--teal); filter: brightness(1.08); }
 .step { border: 0; box-shadow: var(--shadow-raised); }
 .known-line { font-weight: 300; letter-spacing: -0.02em; }
+
+/* --- phase 2 (2026-09-11): Learn as the reader's highlight -------------------------
+   The one label on the page is a heading in normal case; the shelf has no column heads
+   and no fold, its covers are rows' corners, and See all is a ghost pill; the sheet's
+   foot is a glass strip under the reader. */
+.carry-on .label {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin: 0 0 0.6rem;
+}
+#shelf-panel .shelf-head { display: none; }
+#shelf-panel .list-controls h2 { font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; }
+.see-all { border: 0; border-radius: 999px; background: transparent; color: var(--teal); padding: 0.3rem 0.7rem; }
+.see-all:hover { background: var(--teal-wash); }
+.page-foot { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }

@@ -279,35 +279,6 @@ def test_a_short_shelf_is_not_offered_a_page_of_its_own() -> None:
 # -- folding a list away ---------------------------------------------------------
 
 
-def test_the_shelf_starts_open() -> None:
-    drawn = draw([reader("a", "א")])
-    assert drawn["folds"]["shelf"] == {"open": "true", "shown": True}
-
-
-def test_folding_the_shelf_shuts_it_and_is_remembered() -> None:
-    """Whether somebody wants the shelf open is theirs to decide. Kept in this browser:
-    it is the state of a screen, not a fact about a person. The word and phrase lists
-    that folded beside it left for Your Words on 2026-09-11."""
-    drawn = draw([reader("a", "א")], do=[{"fold": "shelf"}])
-    assert drawn["folds"]["shelf"] == {"open": "false", "shown": False}
-    assert json.loads(drawn["remembered"]) == {"shelf-body": 1}
-
-
-def test_a_shelf_folded_last_time_starts_folded() -> None:
-    drawn = draw([reader("a", "א")], {"targum:folded": json.dumps({"shelf-body": 1})})
-    assert drawn["folds"]["shelf"] == {"open": "false", "shown": False}
-
-
-def test_unfolding_forgets_it_rather_than_remembering_a_negative() -> None:
-    drawn = draw(
-        [reader("a", "א")],
-        {"targum:folded": json.dumps({"shelf-body": 1})},
-        do=[{"fold": "shelf"}],
-    )
-    assert drawn["folds"]["shelf"] == {"open": "true", "shown": True}
-    assert json.loads(drawn["remembered"]) == {}
-
-
 # -- what to read next -----------------------------------------------------------
 
 

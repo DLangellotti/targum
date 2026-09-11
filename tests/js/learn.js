@@ -21,24 +21,6 @@ const { install, byId, element } = require("./dom.js");
 const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
 const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 
-/* The fold buttons and the bodies they fold come from the template, so a stub document
-   has neither. Built here, wired the way the markup wires them — a button inside a panel
-   that also holds a `.fold-body` — because what is being tested is what learn.js does
-   with them: the toggle, the aria, and remembering it. */
-function foldPair(name) {
-  const body = element("div");
-  body.id = name + "-body";
-  const panel = element("section");
-  panel.querySelector = (selector) => (selector === ".fold-body" ? body : null);
-  const press = element("button");
-  press.closest = () => panel;
-  byId["fold-" + name] = press;
-  byId[name + "-body"] = body;
-  return press;
-}
-
-const folds = ["shelf"].map(foldPair);
-
 const windowListeners = {};
 install({
   TARGUM_KEY: "k",
@@ -61,7 +43,6 @@ install({
     beta: () => false,
     betaNote: () => "",
   },
-  selectors: { ".fold": folds },
 });
 
 /* Every call the page makes, in order. The shelf only ever asked for `/readers` and one
@@ -164,7 +145,6 @@ function phrases() {
 
 /** Do something to the page, the way a person would. */
 function act(step) {
-  if (step.fold) byId["fold-" + step.fold].fire("click", {});
   if (step.press) byId[step.press].fire("click", {});
   // A text offered by the conversation in the drawer, handed over by `talk.js`.
   if (step.offer) global.window.TargumLearn.open(step.offer);
@@ -181,13 +161,6 @@ setTimeout(() => {
       known: at("known-line").textContent,
       hands: Object.keys(global.window.TargumLearn || {}),
       seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
-      folds: {
-        shelf: {
-          open: byId["fold-shelf"].getAttribute("aria-expanded"),
-          shown: !byId["shelf-body"].hidden,
-        },
-      },
-      remembered: global.localStorage.getItem("targum:folded") || "",
       shelfNote: at("shelf-note").textContent,
       carry: {
         english: at("carry-english").hidden ? "" : at("carry-english").textContent,

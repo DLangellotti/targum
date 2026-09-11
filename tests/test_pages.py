@@ -745,10 +745,10 @@ def test_learn_caps_every_list_and_says_where_the_rest_is() -> None:
     assert 'id="shelf-more"' in learn and 'href="/texts"' in learn
 
 
-def test_the_shelf_on_learn_can_be_folded_away() -> None:
+def test_nothing_on_learn_folds() -> None:
+    """Phase 2 (2026-09-11): a shelf of five rows is not worth a control to put away."""
     learn = PAGES["learn"]
-    assert learn.count('class="fold"') == 1, "the shelf; the lists left for Your Words"
-    assert learn.count('class="fold-body"') == 1, "and it folds a body"
+    assert learn.count('class="fold"') == 0 and 'id="library-list"' in learn
 
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:

@@ -440,6 +440,11 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
   from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: none; }
 }
+@keyframes talk-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(0.5rem); }
+}
+.talk-drawer.leaving { animation: talk-out var(--out) var(--ease) forwards; }
 /* On a phone the drawer is a sheet up from the foot of the window, over a scrim. */
 @media (max-width: 48rem) {
   .talk-drawer {
@@ -455,7 +460,7 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
   .talk-cta { inset-inline: 0.75rem; inset-block-end: max(0.75rem, env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .talk-drawer { animation: none; }
+  .talk-drawer, .talk-drawer.leaving { animation: none; }
 }
 
 /* =====================================================================================
