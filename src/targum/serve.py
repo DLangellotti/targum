@@ -17,6 +17,7 @@ import email.utils
 import errno
 import gzip
 import json
+import logging
 import os
 import queue
 import re
@@ -287,7 +288,17 @@ CHAT_BUDGET = 1.00
 LEGAL_ROUTES = tuple(f"/{name}" for name in LEGAL)
 
 OPEN_TO_STRANGERS = frozenset(
-    {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
+    {
+        "/about",
+        "/account/signin",
+        "/account/enter",
+        "/account/sign-in",
+        "/account/me",
+        "/health",
+        # The door out of a series, followed from an email with no account at hand
+        # (2026-09-11): its token is the whole of what it needs.
+        "/series/stop",
+    }
 ) | frozenset(LEGAL_ROUTES)
 
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
@@ -350,7 +361,17 @@ def parasha_url(entry_id: str) -> str | None:
 #: The three the weekly's own door answers, all of them plain forms so they work with
 #: no JavaScript at all — which matters because two of them are followed out of an email
 #: client, where JavaScript is not a thing that exists.
+log = logging.getLogger(__name__)
+
 WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"})
+
+#: A series id as `series.py` names them: a slug, nothing else.
+SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
+
+#: How often the server looks for an instalment that landed since anyone was told
+#: (2026-09-11): the portion turns weekly and a cycle daily, so an hour is prompt enough
+#: and cheap — a look is one read of what is built and one query per series.
+ANNOUNCE_EVERY = 3600
 
 #: A file inside a published edition's built reader.
 #:
@@ -3399,6 +3420,59 @@ class Handler(BaseHTTPRequestHandler):
 
         return self._send(404, b"not found", "text/plain")
 
+    def _follows(self, payload: dict[str, Any] | None) -> None:
+        """Which series this account follows (2026-09-11), read or changed.
+
+        Reads the session's own address and never the payload's, as the weekly's door
+        does. The weekly stays on its own rails (`subscriber`); every other series is a
+        `follow` row. Signed out there is nothing to follow with, and the browser keeps
+        its own list.
+        """
+        person = self._person()
+        store = self.store
+        if person is None or store is None:
+            return self._json({"signedIn": False, "follows": []}, 401)
+        if payload is not None:
+            series = str(payload.get("series") or "").strip()
+            if not series or not SERIES_ID.match(series):
+                return self._json({"error": "Which series?"}, 400)
+            wanted = bool(payload.get("on", True))
+            if series == "weekly":
+                store.follow(person.email, wanted)
+            else:
+                store.follow_series(person.email, series, wanted)
+        follows = store.series_followed(person.email)
+        if store.following(person.email):
+            follows = ["weekly", *follows]
+        return self._json({"signedIn": True, "follows": follows})
+
+    def _series_stop(self, form: dict[str, str] | None) -> None:
+        """The one-click door out of a series, from an email: a page with a button, and
+        the button is what spends the token — a mail client that fetches every link must
+        not be able to answer for the person it was sent to."""
+        store = self.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        if form is None:
+            token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            page = weekly_note(
+                "Stop telling you when a new one comes out?",
+                address=self.address,
+                done=False,
+                pending={"action": "/series/stop", "token": token, "button": "Yes, stop"},
+                heading="your subscriptions",
+                home="/library",
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        store.stop_following(form.get("t", ""))
+        page = weekly_note(
+            "You will not be told about it again.",
+            address=self.address,
+            heading="your subscriptions",
+            home="/library",
+        )
+        return self._send(200, page.encode("utf-8"), HTML)
+
     def _weekly_follow(self, payload: dict[str, Any]) -> None:
         """The signed-in door. Reads the session's address and never the payload's."""
         person = self._person()
@@ -3803,6 +3877,9 @@ class Handler(BaseHTTPRequestHandler):
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
             return self._send(200, about_page().encode("utf-8"), HTML)
+        if route == "/series/stop":
+            # Followed out of an email, with no account and no key.
+            return self._series_stop(None)
         if route == "/account/signin":
             return self._send(200, signin_page().encode("utf-8"), HTML)
         if route == "/account/enter":
@@ -3880,6 +3957,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/account/follows":
+            return self._follows(None)
         if route == "/series":
             # What comes out on its own clock, and where each is this week (2026-09-11):
             # the page draws the row to follow, and Learn puts a new instalment of a
@@ -3946,6 +4025,8 @@ class Handler(BaseHTTPRequestHandler):
         # account check and before the start-up key, exactly as the door above is.
         if route in WEEKLY_POSTS and shelves_are_public():
             return self._weekly_post(route, self._form())
+        if route == "/series/stop":
+            return self._series_stop(self._form())
         if self._needs_account(route):
             return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
         if route != "/account/sign-in" and not self._authorised():
@@ -3983,6 +4064,8 @@ class Handler(BaseHTTPRequestHandler):
             # supply there is no way to sign somebody else's inbox up and nothing to
             # validate, which is a shorter argument than any amount of checking.
             return self._weekly_follow(payload)
+        if route == "/account/follows":
+            return self._follows(payload)
         if route == "/prepare":
             return self._prepare(payload)
         if route == "/build":
@@ -4586,6 +4669,10 @@ class Handler(BaseHTTPRequestHandler):
             # not a boundary.
             "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
+            # Which series this account follows (2026-09-11), so a browser that has just
+            # signed in draws the same row as the one they followed from.
+            "follows": (["weekly"] if self.store.following(person.email) else [])
+            + self.store.series_followed(person.email),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
@@ -5731,6 +5818,23 @@ def start(
         announce(address)
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(address)).start()
+    # Followers are told by email when a series' instalment lands (2026-09-11): hosted,
+    # with a mailer and an address to put in the link, and never on a laptop, where the
+    # console mailer would print a letter to nobody every hour.
+    if mailer is not None and public_address and require_account:
+        from . import series as series_module
+
+        def keep_telling() -> None:
+            while True:
+                time.sleep(ANNOUNCE_EVERY)
+                try:
+                    report = series_module.announce(keeping, mailer, public_address)
+                    if report.sent or report.failed or report.stopped:
+                        log.info("series: %s", report)
+                except Exception as error:  # noqa: BLE001 - never takes the server down
+                    log.warning("series: announcing failed: %s", error)
+
+        threading.Thread(target=keep_telling, name="series-announce", daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

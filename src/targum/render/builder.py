@@ -1558,8 +1558,11 @@ def weekly_note(
     address: str = "",
     done: bool = True,
     pending: dict[str, str] | None = None,
+    heading: str = "the weekly",
+    home: str = "/weekly",
 ) -> str:
-    """A sentence back from the weekly's own door.
+    """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
+    (`heading`, `home`): the same furniture, read out of a mail client.
 
     Separate from `weekly_page` because these are read in a mail client, arrived at from
     a link, by somebody who has no account and may never have seen targum. Nothing here
@@ -1575,6 +1578,8 @@ def weekly_note(
             message=message,
             done=done,
             pending=pending,
+            heading=heading,
+            home=home,
         )
     )
 

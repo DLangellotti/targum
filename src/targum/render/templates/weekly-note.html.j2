@@ -19,7 +19,7 @@
       switch at the other. The corner used to be pinned to the window's edge, which on a
       wide screen is nowhere near the page. -#}
   <div class="masthead">
-    <a class="brand" href="/weekly" aria-label="targum">
+    <a class="brand" href="{{ home }}" aria-label="targum">
       <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
         <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
         <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
@@ -31,7 +31,7 @@
     </div>
   </div>
 
-  <h1>the weekly</h1>
+  <h1>{{ heading }}</h1>
   <p class="lede">{{ message }}</p>
 
   {%- if pending %}
@@ -40,7 +40,7 @@
     <button class="go" type="submit">{{ pending.button }}</button>
   </form>
   {%- else %}
-  <p class="door"><a class="go" href="/weekly">Read this week</a></p>
+  <p class="door"><a class="go" href="{{ home }}">{% if home == '/weekly' %}Read this week{% else %}Back to targum{% endif %}</a></p>
   {%- endif %}
 </main>
 

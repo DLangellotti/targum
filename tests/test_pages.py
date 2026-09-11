@@ -331,8 +331,13 @@ def test_the_library_carries_your_subscriptions_and_learn_hears_them() -> None:
     library = PAGES["library"]
     assert 'id="subscriptions"' in library and 'id="series"' in library
     assert "Your subscriptions" in library and "TargumFollow" in library
-    assert library.index('id="subscriptions"') < library.index('id="catalogue"')
-    assert "TargumFollow" in PAGES["learn"], "the sheet takes what landed"
+    assert library.index('id="subscriptions"') > library.index('id="catalogue"'), (
+        "under the list, not over it (2026-09-11)"
+    )
+    for name, page in PAGES.items():
+        if 'class="site-head"' in page:
+            assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
+            assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
     assert 'id="weekly-line"' not in PAGES["learn"], "the weekly line left Learn for the row"
 
 

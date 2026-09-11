@@ -438,6 +438,23 @@ CREATE TABLE IF NOT EXISTS subscriber (
 );
 CREATE INDEX IF NOT EXISTS subscriber_state ON subscriber (state);
 
+-- Who follows which series (2026-09-11): the weekly portion, a learning cycle — anything
+-- that comes out on its own clock and is not the weekly, which has `subscriber` above.
+-- Keyed by address for the same reason: stopping must not touch an account. A row is
+-- never deleted; `state` says whether it is on. `instalment` is the last one mailed, so
+-- an announcement that runs twice mails nobody the second time.
+CREATE TABLE IF NOT EXISTS follow (
+  email      TEXT    NOT NULL,
+  series     TEXT    NOT NULL,
+  state      TEXT    NOT NULL DEFAULT 'on',
+  stop       TEXT    NOT NULL,
+  since      INTEGER NOT NULL,
+  ended      INTEGER NOT NULL DEFAULT 0,
+  sent       INTEGER NOT NULL DEFAULT 0,
+  instalment TEXT    NOT NULL DEFAULT '',
+  PRIMARY KEY (email, series)
+);
+
 -- A conversation, and its turns. Server-side, unlike a reader's words, which the
 -- browser keeps and the account mirrors: the same conversation has to be resumable
 -- from another client altogether, and a chat is not a reader. `person` is NULL on a
@@ -984,6 +1001,71 @@ class Store:
             db.execute(
                 "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                 (now(), row["email"]),
+            )
+            return True
+
+    # -- series (2026-09-11) ---------------------------------------------------------
+
+    def follow_series(self, email: str, series: str, on: bool = True) -> bool:
+        """Follow, or stop following, one series. Signed in, so nothing is confirmed."""
+        address = tidy(email)
+        if not address or not series:
+            raise ValueError("No address or no series given.")
+        with self.write() as db:
+            if not on:
+                db.execute(
+                    "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
+                    (now(), address, series),
+                )
+                return False
+            db.execute(
+                """
+                INSERT INTO follow (email, series, state, stop, since)
+                VALUES (?, ?, 'on', ?, ?)
+                ON CONFLICT(email, series) DO UPDATE SET state = 'on', since = ?
+                """,
+                (address, series, secrets.token_urlsafe(TOKEN_BYTES), now(), now()),
+            )
+        return True
+
+    def series_followed(self, email: str) -> list[str]:
+        rows = self.db.execute(
+            "SELECT series FROM follow WHERE email = ? AND state = 'on' ORDER BY series",
+            (tidy(email),),
+        ).fetchall()
+        return [str(row["series"]) for row in rows]
+
+    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str]]:
+        """Everyone to mail about this instalment, with the token that stops it.
+
+        Selected on "has not had this one", as the weekly's are, so a run that died
+        halfway resumes and one started twice sends nothing the second time.
+        """
+        rows = self.db.execute(
+            "SELECT email, stop FROM follow WHERE series = ? AND state = 'on' "
+            "AND (? = '' OR instalment != ?) ORDER BY since",
+            (series, not_sent, not_sent),
+        ).fetchall()
+        return [(str(row["email"]), str(row["stop"])) for row in rows]
+
+    def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
+        with self.write() as db:
+            db.execute(
+                "UPDATE follow SET sent = ?, instalment = ? WHERE email = ? AND series = ?",
+                (now(), instalment, tidy(email), series),
+            )
+
+    def stop_following(self, token: str) -> bool:
+        """One click, from an email, with no account and no JavaScript."""
+        if not token:
+            return False
+        with self.write() as db:
+            row = db.execute("SELECT email, series FROM follow WHERE stop = ?", (token,)).fetchone()
+            if row is None:
+                return False
+            db.execute(
+                "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
+                (now(), row["email"], row["series"]),
             )
             return True
 

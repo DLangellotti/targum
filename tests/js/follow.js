@@ -22,9 +22,18 @@ if (payload.seen) stored["targum:series-seen"] = JSON.stringify(payload.seen);
 install({ TARGUM_KEY: "k", stored });
 
 const asked = [];
-global.fetch = (url) => {
-  asked.push(String(url).replace(/[?&]k=[^&]*/, ""));
-  return Promise.resolve({ json: () => Promise.resolve({ series: payload.series || [] }) });
+global.fetch = (url, options) => {
+  const clean = String(url).replace(/[?&]k=[^&]*/, "");
+  asked.push(options && options.method === "POST" ? { path: clean, body: JSON.parse(options.body) } : clean);
+  // The account, where the payload says somebody is signed in; 401 otherwise.
+  if (clean === "/account/follows") {
+    const signedIn = !!payload.account;
+    return Promise.resolve({
+      ok: signedIn,
+      json: () => Promise.resolve(signedIn ? { signedIn: true, follows: payload.account } : {}),
+    });
+  }
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({ series: payload.series || [] }) });
 };
 
 const section = document.getElementById("subscriptions");

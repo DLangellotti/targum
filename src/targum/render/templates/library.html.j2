@@ -27,18 +27,6 @@
       here instead — under the heading and above every control — because it is the
       first thing that reader has to read, and thirteen chips they do not yet
       understand should not come before it. -#}
-  {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
-      weekly portion, a learning cycle — each with where it is this week, one press to
-      follow and one to open. Following puts the newest instalment in the sheet on Learn
-      when it lands, and in the bell. Drawn by `follow.js`; hidden until the server has
-      named a series. -#}
-  <section class="subscriptions" id="subscriptions" aria-labelledby="subs-title" hidden>
-    <h2 class="subs-title" id="subs-title">Your subscriptions</h2>
-    <p class="note">Series that come out on their own clock. Follow one and its newest
-      instalment opens on Learn when it lands.</p>
-    <ul class="series" id="series"></ul>
-  </section>
-
   <p class="note lead" id="picked-lead" hidden></p>
   <div class="tabs" id="where" role="tablist" aria-label="Which texts"></div>
 
@@ -78,6 +66,20 @@
     <p class="tally" id="tally"></p>
   </section>
 
+  {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
+      weekly portion, a learning cycle — each with where it is this week, one press to
+      follow and one to open. Following puts the newest instalment in the sheet on Learn
+      when it lands, and in the bell. Under the list, not over it: what to read comes first,
+      and following is a thing done once (2026-09-11). Drawn by `follow.js`; hidden
+      until the server has named a series. -#}
+  <section class="subscriptions" id="subscriptions" aria-labelledby="subs-title" hidden>
+    <h2 class="subs-title" id="subs-title">Your subscriptions</h2>
+    <p class="note">Series that come out on their own clock. Follow one and its newest
+      instalment opens on Learn when it lands.</p>
+    <ul class="series" id="series"></ul>
+  </section>
+
+
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
       add page. A link, not a form: this page's job is browsing, and a pricing-and-
       progress flow living inside it would have made both jobs worse. -#}
@@ -97,7 +99,6 @@ window.TARGUM_COLLECTIONS = {{ collections|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
-<script>{{ asset('follow.js') }}</script>
 <script>{{ asset('library.js') }}</script>
 </body>
 </html>

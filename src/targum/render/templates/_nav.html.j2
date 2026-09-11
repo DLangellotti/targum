@@ -86,3 +86,7 @@
   <p class="beta-note" id="beta-note" hidden></p>
   {%- endif %}
 </header>
+{#- What a reader follows, on every page (2026-09-11): the bell says when a followed
+    series' instalment lands, and Learn puts it in the sheet. Before `building.js`, which
+    every page includes after this header and which asks it. -#}
+<script>{{ asset('follow.js') }}</script>

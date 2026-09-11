@@ -2670,6 +2670,46 @@ def test_the_series_are_answered_with_where_each_is_this_week(
         assert set(one) >= {"id", "name", "what", "page", "instalment"}
 
 
+def test_the_series_you_follow_are_the_account_s_and_come_back_with_it(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """2026-09-11: following on the Library is kept on the account, so the same row
+    stands on every browser somebody signs in on, and the server knows whom to mail. The
+    weekly stays on its own rails; signed out there is nothing to follow with."""
+    port, key, _ = served
+    status, answer, _ = call(port, "GET", f"/account/follows?k={key}")
+    assert status == 401 and answer["follows"] == []
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+    assert status == 200 and answer["follows"] == ["parasha"]
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "weekly"}, cookie)
+    assert answer["follows"] == ["weekly", "parasha"]
+    status, me, _ = call(port, "GET", "/account/me", cookie=cookie)
+    assert me["follows"] == ["weekly", "parasha"], "and the account says so"
+    status, answer, _ = call(
+        port, "POST", "/account/follows", {"series": "parasha", "on": False}, cookie
+    )
+    assert answer["follows"] == ["weekly"]
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "../x"}, cookie)
+    assert status == 400
+
+
+def test_a_follower_can_stop_from_the_email_with_one_press(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, key, out = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+    book = Store(out.parent / "words.db")
+    ((email, stop),) = book.followers("parasha")
+    status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
+    assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
+    assert book.followers("parasha"), "fetching the link spent nothing"
+    status, body, _ = form(port, "/series/stop", {"t": stop})
+    assert status == 200 and b"not be told" in body
+    assert book.followers("parasha") == []
+
+
 def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
     served: tuple[int, str, Path],
 ) -> None:

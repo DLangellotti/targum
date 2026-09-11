@@ -64,3 +64,84 @@ def test_a_series_that_cannot_be_read_is_left_out_rather_than_failing(
     monkeypatch.setattr("targum.daily.calendar.for_day", lambda *a, **k: None)
     ids = [one["id"] for one in series.current()]
     assert "weekly" not in ids and "parasha" not in ids and ids, "the cycles still answer"
+
+
+# -- telling followers (2026-09-11) ---------------------------------------------------------
+
+PORTION = {
+    "id": "parasha",
+    "name": "The weekly portion",
+    "what": "This Shabbat's reading.",
+    "page": "/parasha",
+    "instalment": {"id": "ki-tavo", "title": "Ki Tavo", "hebrew": "כי תבוא", "when": "2026-09-12"},
+}
+WEEKLY = {
+    "id": "weekly",
+    "name": "The weekly",
+    "what": "",
+    "page": "/weekly",
+    "instalment": {"id": "w", "title": "t"},
+}
+QUIET = {
+    "id": "mishna-yomi",
+    "name": "Mishna Yomi",
+    "what": "",
+    "page": "/mishna-yomi",
+    "instalment": None,
+}
+
+
+def test_followers_are_told_once_about_an_instalment_and_the_weekly_is_left_to_its_own(
+    tmp_path: Any,
+) -> None:
+    import io
+
+    from targum import series
+    from targum.accounts import Store
+    from targum.mail import ConsoleMailer
+
+    store = Store(tmp_path / "words.db")
+    store.follow_series("a@example.org", "parasha")
+    store.follow_series("b@example.org", "parasha")
+    store.follow_series("c@example.org", "mishna-yomi")
+    store.follow("d@example.org", True)
+    box = io.StringIO()
+    report = series.announce(
+        store, ConsoleMailer(box), "https://targum.page", [WEEKLY, PORTION, QUIET], pause=0
+    )
+    assert report.sent == ["a@example.org", "b@example.org"], "the portion's followers"
+    told = box.getvalue()
+    assert "The weekly portion: Ki Tavo" in told and "כי תבוא" in told
+    assert "https://targum.page/parasha" in told and "/series/stop?t=" in told
+    assert "d@example.org" not in told, "the weekly has a mailout of its own"
+    again = series.announce(
+        store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
+    )
+    assert again.sent == [], "running it twice sends nothing the second time"
+    landed = dict(PORTION, instalment=dict(PORTION["instalment"], id="nitzavim", title="Nitzavim"))
+    later = series.announce(
+        store, ConsoleMailer(io.StringIO()), "https://targum.page", [landed], pause=0
+    )
+    assert later.sent == ["a@example.org", "b@example.org"], "the next instalment is news again"
+
+
+def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> None:
+    import io
+
+    from targum import series
+    from targum.accounts import Store
+    from targum.mail import ConsoleMailer
+
+    store = Store(tmp_path / "words.db")
+    store.follow_series("a@example.org", "parasha")
+    ((email, stop),) = store.followers("parasha")
+    assert email == "a@example.org" and store.series_followed("a@example.org") == ["parasha"]
+    assert store.stop_following(stop) and store.followers("parasha") == []
+    assert store.series_followed("a@example.org") == []
+    assert not store.stop_following("nonsense") and not store.stop_following("")
+    store.follow_series("a@example.org", "parasha")
+    store.follow_series("a@example.org", "parasha", False)
+    report = series.announce(
+        store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
+    )
+    assert report.sent == []

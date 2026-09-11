@@ -225,6 +225,20 @@
 
   ask();
 
+  // A followed series' instalment that landed (2026-09-11): said here on every page,
+  // with a door to its page; Learn puts it in the sheet as well.
+  if (window.TargumFollow) {
+    window.TargumFollow.list().then(function (series) {
+      window.TargumFollow.fresh(series).forEach(function (one) {
+        var inst = one.instalment;
+        note("series:" + one.id + ":" + inst.id, one.name + ": " + (inst.hebrew || inst.title), {
+          href: keyed(one.page || window.TargumFollow.readerOf(one)),
+          label: "Open",
+        });
+      });
+    });
+  }
+
   // Another script on the page that has just started a build asks the bell to look
   // again, rather than waiting for a poll that only runs while something is unfinished.
   window.TargumBuilding = { ask: ask };

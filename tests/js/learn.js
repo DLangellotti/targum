@@ -83,6 +83,8 @@ global.fetch = (path, options) => {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/series") === 0) {
     answer = { series: payload.series || [] };
+  } else if (String(path).indexOf("/account/follows") === 0) {
+    return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
   } else if (String(path).indexOf("/job/") === 0) {
     /* Finished on the first ask. A job that never reaches "done" leaves the page polling
        it every 700ms, and node does not exit while a timer is pending — the first run of

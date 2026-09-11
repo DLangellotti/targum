@@ -424,7 +424,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The Library carries Your subscriptions above the list: the weekly, the weekly portion
   and each learning cycle, each with where it is this week, Follow and Open;
   `GET /series` answers where each is. A followed series' newest instalment takes the
-  sheet on Learn the first time it is seen and is said in the bell.
+  sheet on Learn the first time it is seen and is said in the bell on every page.
+  Following is kept on the account (`/account/follows`) as well as in the browser, so
+  the row is the same wherever you sign in — and the server mails followers when an
+  instalment lands, once, with a one-press door out (`/series/stop`); the weekly keeps
+  its own mailout. The row stands under the list, not over it.
 - The reader on the front page works, and the conversation can be put away. The sheet
   is the reader itself, framed: a press in it marks a word, turns a page, opens a
   chapter; its own links stay in the frame and every other link opens the page; a visit

@@ -10,8 +10,15 @@ simply has no instalment.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from typing import Any
+import time
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .accounts import Store
+    from .mail import Mailer
 
 log = logging.getLogger(__name__)
 
@@ -129,3 +136,99 @@ def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str
             continue
         found.extend(got if isinstance(got, list) else [got])
     return found
+
+
+# -- telling followers (2026-09-11) --------------------------------------------------------
+#
+# The weekly has a mailout of its own (`weekly.mailout`) and is left to it; this is for
+# the rest. The same one property: running it twice sends nothing the second time.
+
+BATCH = 25
+PAUSE = 2.0
+
+SUBJECT = "{name}: {title}"
+
+BODY = """{name} — {title}{hebrew}
+
+It is on targum now: {where}
+
+You are getting this because you follow {name}. To stop: {stop}
+"""
+
+
+@dataclass
+class Report:
+    sent: list[str] = field(default_factory=list)
+    failed: list[tuple[str, str]] = field(default_factory=list)
+    stopped: str = ""
+
+    def __str__(self) -> str:
+        line = f"{len(self.sent)} sent"
+        if self.failed:
+            line += f", {len(self.failed)} failed"
+        if self.stopped:
+            line += f" — stopped: {self.stopped}"
+        return line
+
+
+def letter(one: dict[str, Any], address: str, stop_token: str) -> tuple[str, str]:
+    inst = one["instalment"]
+    hebrew = f" · {inst['hebrew']}" if inst.get("hebrew") else ""
+    where = f"{address.rstrip('/')}{one['page']}"
+    body = BODY.format(
+        name=one["name"],
+        title=inst["title"],
+        hebrew=hebrew,
+        where=where,
+        stop=f"{address.rstrip('/')}/series/stop?t={stop_token}",
+    )
+    return SUBJECT.format(name=one["name"], title=inst["title"]), body
+
+
+def announce(
+    store: Store,
+    mailer: Mailer,
+    address: str,
+    found: list[dict[str, Any]] | None = None,
+    *,
+    batch: int = BATCH,
+    pause: float = PAUSE,
+) -> Report:
+    """Mail everyone who follows a series and has not had its current instalment."""
+    from .mail import SmtpMailer
+
+    report = Report()
+    for one in found if found is not None else current():
+        if one["id"] == "weekly" or not one.get("instalment"):
+            continue
+        inst = one["instalment"]
+        waiting = store.followers(one["id"], not_sent=str(inst["id"]))
+        if not waiting:
+            continue
+        holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
+        try:
+            with holding:
+                for index, (email, stop_token) in enumerate(waiting):
+                    subject, body = letter(one, address, stop_token)
+                    unsubscribe = f"<{address.rstrip('/')}/series/stop?t={stop_token}>"
+                    try:
+                        mailer.notify(
+                            email,
+                            subject,
+                            body,
+                            {
+                                "List-Unsubscribe": unsubscribe,
+                                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                            },
+                        )
+                    except Exception as error:  # noqa: BLE001 - one bad address, not the run
+                        report.failed.append((email, str(error)))
+                        continue
+                    store.mark_series_sent(email, one["id"], str(inst["id"]))
+                    report.sent.append(email)
+                    if pause and batch and (index + 1) % batch == 0 and index + 1 < len(waiting):
+                        time.sleep(pause)
+        except Exception as error:  # noqa: BLE001 - the session itself, not one address
+            report.stopped = str(error)
+            break
+    return report

@@ -50,6 +50,38 @@
     if (on) kept[id] = 1;
     else delete kept[id];
     write(FOLLOWS, kept);
+    // Signed in, the account keeps the list too: it follows you to another browser,
+    // and it is what the server mails. Signed out the browser's own list is all there is.
+    if (typeof fetch === "function") {
+      fetch(keyed("/account/follows"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ series: id, on: !!on }),
+      }).catch(function () {});
+    }
+  }
+
+  // What the account says, over what this browser had: the same row on every browser
+  // somebody signs in on. Signed out the answer is 401 and nothing changes.
+  function sync() {
+    if (typeof fetch !== "function") return Promise.resolve(follows());
+    return fetch(keyed("/account/follows"), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        if (answer && answer.signedIn && Array.isArray(answer.follows)) {
+          var kept = {};
+          answer.follows.forEach(function (id) {
+            kept[id] = 1;
+          });
+          write(FOLLOWS, kept);
+        }
+        return follows();
+      })
+      .catch(function () {
+        return follows();
+      });
   }
   function seen() {
     return read(SEEN);
@@ -62,7 +94,10 @@
 
   function list() {
     if (typeof fetch !== "function") return Promise.resolve([]);
-    return fetch(keyed("/series"), { headers: keyHeaders({}) })
+    return sync()
+      .then(function () {
+        return fetch(keyed("/series"), { headers: keyHeaders({}) });
+      })
       .then(function (response) {
         return response.json();
       })
@@ -189,6 +224,7 @@
     follow: follow,
     seen: seen,
     markSeen: markSeen,
+    sync: sync,
     readerOf: readerOf,
     fresh: fresh,
     whenSaid: whenSaid,

@@ -78,7 +78,7 @@ QUIET = {
 
 def test_the_row_names_every_series_and_where_it_is_this_week() -> None:
     got = run(series=[WEEKLY, PARASHA, QUIET])
-    assert got["asked"] == ["/series"] and got["shown"]
+    assert got["asked"] == ["/account/follows", "/series"] and got["shown"]
     assert [r["id"] for r in got["rows"]] == ["weekly", "parasha", "mishna-yomi"]
     assert got["rows"][1]["now"].startswith("כי תבוא") and "Sep" in got["rows"][1]["now"]
     assert got["rows"][2]["now"] == "Nothing this week yet."
@@ -95,6 +95,16 @@ def test_following_is_a_press_that_says_so_and_is_remembered() -> None:
         series=[WEEKLY, PARASHA], follows={"parasha": 1}, do=[{"type": "follow", "id": "parasha"}]
     )
     assert off["follows"] == {} and off["rows"][1]["follow"] == "Follow"
+
+
+def test_following_reaches_the_account_and_the_account_s_list_wins() -> None:
+    """Signed in, a press is posted to the account, and what the account says stands
+    over what this browser had: the same row on every browser somebody signs in on."""
+    got = run(series=[WEEKLY, PARASHA], do=[{"type": "follow", "id": "parasha"}])
+    assert {"path": "/account/follows", "body": {"series": "parasha", "on": True}} in got["asked"]
+    theirs = run(series=[WEEKLY, PARASHA], follows={"weekly": 1}, account=["parasha"])
+    assert theirs["follows"] == {"parasha": 1}
+    assert theirs["rows"][1]["follow"] == "Following" and theirs["rows"][0]["follow"] == "Follow"
 
 
 def test_what_is_fresh_is_followed_unseen_and_newest_first() -> None:
