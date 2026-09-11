@@ -300,6 +300,30 @@ def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_m
         assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name
 
 
+def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases() -> None:
+    """2026-09-11: "words/phrases should be moved into a dedicated page you access by
+    clicking on your picture in the top right", and the checklist "after onboarding
+    accessible only on the words/phrases page". The account panel on every page links to
+    Your Words; the page holds the words, the may-already-know checklist and the
+    phrases, in that order; Learn holds none of them."""
+    words = PAGES["words"]
+    assert (
+        'id="word-table"' in words and 'id="claim-panel"' in words and 'id="phrase-list"' in words
+    )
+    assert (
+        words.index('id="word-table"')
+        < words.index('id="claim-panel"')
+        < words.index('id="phrase-list"')
+    )
+    assert "Words you may already know" in words and "TargumClaim" in words
+    assert 'id="claim-body"' in words, "the script builds the table into the panel's body"
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'class="to-you" href="/words"' in page, f"{name}: Your Words is in the account panel"
+    assert 'id="claim-panel"' not in PAGES["learn"] and "TargumClaim" not in PAGES["learn"]
+
+
 # -- what each page says it is --------------------------------------------------
 
 
@@ -728,7 +752,7 @@ def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     ("which", "has", "lacks"),
     [
         ("texts", 'id="library-list"', 'id="word-table"'),
-        ("words", 'id="word-table"', 'id="phrase-list"'),
+        ("words", 'id="word-table"', 'id="library-list"'),
         ("phrases", 'id="phrase-list"', 'id="word-table"'),
     ],
 )

@@ -582,7 +582,7 @@
     // (`claim.js`, targum-internal#245) — so the count above and the rows here redraw.
     changed: function () {
       if (onChanged) onChanged();
-      draw();
+      else draw(code, entry, limits);
     },
     onMeaningLanguage: function (fn) {
       redrawing = fn;

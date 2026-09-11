@@ -220,6 +220,8 @@ body {
   border-block-end: 1px solid var(--rule);
 }
 .account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
+.account-panel .yours-link { margin: 0 0 0.8rem; padding-block-end: 0.7rem; border-block-end: 1px solid var(--rule); }
+.account-panel .yours-link .to-you { color: var(--ink); font-weight: 600; }
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
    reserves for the primary action. Ink for what happened, clay for what did not. */
 .account-panel .said { margin: 0.6rem 0 0; color: var(--ink); }

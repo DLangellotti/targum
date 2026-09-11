@@ -105,7 +105,14 @@
     }
     document.getElementById("page").hidden = false;
 
-    lists.mount({ languages: names });
+    lists.mount({
+      languages: names,
+      // The ledger changed under the list — a page of common words marked known — so
+      // the rows are collected again rather than drawn from a store that is now stale.
+      onChanged: function () {
+        if (shown) show(shown);
+      },
+    });
     // Picking another language for the meanings redraws the same rows with the other
     // answer in them. The words themselves do not move: they are the same words.
     lists.onMeaningLanguage(function () {

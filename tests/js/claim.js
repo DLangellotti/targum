@@ -38,28 +38,33 @@ global.fetch = (url) => {
   return Promise.resolve({ json: () => Promise.resolve(answer) });
 };
 
-// The template draws the panel hidden until there are rows; the stub starts it that way.
+// The template draws the panel hidden until there are rows, with an empty body the
+// script builds the table into (2026-09-11); the stub starts it that way.
 document.getElementById("claim-panel").hidden = true;
+const body = document.getElementById("claim-body");
 require(path.join(assets, "claim.js"));
+// The parts, by the class each carries: the script builds them, so none has an id
+// the stub would know.
+const part = (name) => body.querySelector("." + name) || { hidden: true, children: [], textContent: "" };
 
 (async () => {
   for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   const boxOf = (form) =>
-    (byId["claim-rows"].children || [])
+    (part("claim-rows").children || [])
       .map((tr) => tr.children[0].children[0])
       .find((box) => box.attrs["data-form"] === form);
   for (const step of payload.do || []) {
     // The button is a real one: disabled, a press does nothing, as in a browser.
-    if (step.type === "yes" && !byId["claim-yes"].disabled) byId["claim-yes"].onclick();
-    if (step.type === "no") byId["claim-no"].onclick();
+    if (step.type === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
+    if (step.type === "no") part("claim-no").onclick();
     if (step.type === "check") {
       const box = boxOf(step.form);
       box.checked = step.on !== false;
       box.onchange();
     }
     if (step.type === "all") {
-      byId["claim-all"].checked = step.on !== false;
-      byId["claim-all"].onchange();
+      part("claim-all").checked = step.on !== false;
+      part("claim-all").onchange();
     }
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   }
@@ -67,16 +72,16 @@ require(path.join(assets, "claim.js"));
     JSON.stringify({
       asked,
       hidden: byId["claim-panel"].hidden,
-      rows: (byId["claim-rows"].children || []).map((tr) => ({
+      rows: (part("claim-rows").children || []).map((tr) => ({
         form: tr.children[1].textContent,
         meaning: tr.children[2].textContent,
         band: tr.children[3].textContent,
         checked: !!tr.children[0].children[0].checked,
         labelled: tr.children[1].children[0].attrs["for"] === tr.children[0].children[0].id,
       })),
-      yesDisabled: !!byId["claim-yes"].disabled,
-      all: { checked: !!byId["claim-all"].checked, some: !!byId["claim-all"].indeterminate },
-      said: byId["claim-said"].textContent,
+      yesDisabled: !!part("claim-yes").disabled,
+      all: { checked: !!part("claim-all").checked, some: !!part("claim-all").indeterminate },
+      said: part("claim-said").textContent,
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       passed: JSON.parse(global.localStorage.getItem("targum:claim-passed") || "{}"),
       touched,
