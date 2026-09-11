@@ -447,7 +447,7 @@ def test_nothing_known_is_not_said_on_the_first_card() -> None:
     drawn = draw([], shared=[reader("ruth", "רות", "ruth", known=0.0)])
     assert drawn["carry"]["known"] == ""
     later = draw([reader("a", "א", known=0.4)])
-    assert later["carry"]["known"] == "You know 40% of its words"
+    assert later["carry"]["known"] == "You know 40%"
 
 
 def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:

@@ -428,19 +428,6 @@ body.learn .nothing .hint {
 .front.expanded .talk { display: none; }
 .front.expanded .page-window { block-size: clamp(30rem, 78vh, 60rem); }
 .talk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
-.talk-hide {
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.talk-hide:hover { color: var(--ink); background: var(--ground); }
 .talk-cta {
   position: fixed;
   inset-block-end: 1rem;
@@ -559,18 +546,23 @@ body.learn .nothing .hint {
   text-decoration: none;
 }
 .page-foot .open:hover { background: var(--teal); }
-.page-foot .expand {
+/* Expand on the sheet and Hide on the card are one control in two places, and drawn
+   alike (2026-09-11): quiet, bordered, in the chrome's face. */
+.page-foot .expand,
+.talk-hide {
   font: inherit;
-  font-size: 0.875rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
   font-weight: 600;
-  padding: 0.4rem 0.8rem;
-  border: 1px solid var(--ink-soft);
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
   border-radius: 6px;
   background: transparent;
-  color: var(--ink);
+  color: var(--ink-soft);
   cursor: pointer;
 }
-.page-foot .expand:hover { background: var(--ground); }
+.page-foot .expand:hover,
+.talk-hide:hover { color: var(--ink); background: var(--ground); }
 
 /* A card on the desk: what everything that is not the sheet sits in. */
 .card {

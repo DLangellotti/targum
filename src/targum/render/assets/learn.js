@@ -161,7 +161,7 @@
     // "0% of its words" on the first card a new reader sees is true and unkind; the
     // line starts once there is something to say.
     if (!reader.known) return "";
-    return "You know " + Math.round(reader.known * 100) + "% of its words";
+    return "You know " + Math.round(reader.known * 100) + "%";
   }
 
   // The title in English under the Hebrew one, where the catalogue has one. An upload
