@@ -203,6 +203,7 @@ def _environment() -> Environment:
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     env.globals["hebrew_face"] = _hebrew_face
+    env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
     return env
 
@@ -320,6 +321,29 @@ def _hebrew_face(biblical: bool = False) -> Markup:
         f'@font-face{{font-family:"{family}";'
         f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
         f':root{{--reading-hebrew:"{family}", {_FALLBACK}}}'
+        "</style>"
+    )
+
+
+#: The chrome's own face (design.md §13, 2026-09-11): Source Sans 3, Adobe's, under the
+#: OFL, the variable Latin cut from Google Fonts and its italic. Carried in the page like
+#: the Hebrew faces, on chrome pages only: a reader fetches nothing and keeps system-ui in
+#: its bar, and a chrome page that merely named the face would get whatever the machine
+#: has, which is the wall of text §12 records.
+CHROME_FACE = ("Source Sans 3", "fonts/SourceSans3.woff2", "fonts/SourceSans3-Italic.woff2")
+
+
+@cache
+def _chrome_face() -> Markup:
+    """The chrome's face, in the page. `--chrome` in reader.css names it with its
+    fallbacks; this is what makes the name true."""
+    family, upright, italic = CHROME_FACE
+    return Markup(
+        "<style>"
+        f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
+        f'src:url({_data_uri(upright)}) format("woff2");font-display:block}}'
+        f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
+        f'src:url({_data_uri(italic)}) format("woff2");font-display:block}}'
         "</style>"
     )
 
@@ -847,7 +871,7 @@ def learn_page(token: str) -> str:
     from the browser's own stores, which is what lets one rendered page serve everybody.
     """
     from ..catalogue import everything
-    from ..translate.prompts import OFFERED, language_name
+    from ..translate.prompts import INTO, OFFERED, language_name
 
     return (
         _environment()
@@ -855,6 +879,9 @@ def learn_page(token: str) -> str:
         .render(
             token=token,
             languages=[(code, language_name(code)) for code in OFFERED],
+            # Which languages the conversation's "= " lines can be in, for the first
+            # visit's one question (targum-internal#243).
+            into=[code for code, _ in INTO],
             # The week's issue, if there is a readable one. Learn is the only surface
             # that knows who is reading, so it is the only one that can open the digest
             # at the reader's own rung rather than asking them to pick a level — see
@@ -945,7 +972,7 @@ def add_page(token: str, no_key: str = "") -> str:
     )
 
 
-def chat_page(token: str) -> str:
+def chat_page(token: str, embed: bool = False) -> str:
     """The conversation page: one conversation, in Hebrew, and the box under it.
 
     Reached from the box on Learn, which is the front door (2026-09-06): a line typed
@@ -954,15 +981,21 @@ def chat_page(token: str) -> str:
     `/chat/list` and the answers stream in, so one rendered page serves everybody. The
     page is chrome, not a reader — it talks to its own origin and nothing else, and
     `design.md` §12 records what that means for the fetch-nothing rule.
+
+    `embed` is the same page without the bar and the foot, for the frame on the front
+    page (design.md §13, 2026-09-11): the front page holds the conversation itself
+    rather than a copy of its box. Every link inside opens in the page that holds it.
     """
-    from ..translate.prompts import OFFERED, language_name
+    from ..translate.prompts import INTO, OFFERED, language_name
 
     return (
         _environment()
         .get_template("chat.html.j2")
         .render(
             token=token,
+            into=[code for code, _ in INTO],
             languages=[(code, language_name(code)) for code in OFFERED],
+            embed=embed,
         )
     )
 
@@ -1525,8 +1558,11 @@ def weekly_note(
     address: str = "",
     done: bool = True,
     pending: dict[str, str] | None = None,
+    heading: str = "the weekly",
+    home: str = "/weekly",
 ) -> str:
-    """A sentence back from the weekly's own door.
+    """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
+    (`heading`, `home`): the same furniture, read out of a mail client.
 
     Separate from `weekly_page` because these are read in a mail client, arrived at from
     a link, by somebody who has no account and may never have seen targum. Nothing here
@@ -1542,6 +1578,8 @@ def weekly_note(
             message=message,
             done=done,
             pending=pending,
+            heading=heading,
+            home=home,
         )
     )
 
@@ -2082,6 +2120,21 @@ def render(
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
         spoken = speech(document, segments, folder)
+        # Hear a silent text (targum-internal#246): on a Hebrew section with no
+        # recording, and only while the voice has a price, the door and what it costs
+        # in the reader's own hours. Nothing where audio exists or the voice is unpriced.
+        voice_offer: dict[str, Any] | None = None
+        if not spoken.audio and document.language.split("-")[0] == "he":
+            from ..chat.hebrew import seconds_for, words_in
+            from ..speech import priced
+
+            if priced():
+                seconds = seconds_for(words_in(*(segment.text for segment in segments)))
+                voice_offer = {
+                    "section": section.number,
+                    "seconds": round(seconds),
+                    "minutes": max(1, round(seconds / 60)),
+                }
         # Who said each line. A scene's or a recording's speakers come with its audio;
         # a text that is turns without a sound — a saved conversation, a chat
         # photographed off a phone (2026-09-07) — carries the name on the block, and
@@ -2200,6 +2253,7 @@ def render(
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
+            voice_offer=voice_offer,
             spoken_video=spoken_video,
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.

@@ -21,28 +21,18 @@ const { install, byId, element } = require("./dom.js");
 const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
 const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 
-/* The fold buttons and the bodies they fold come from the template, so a stub document
-   has neither. Built here, wired the way the markup wires them — a button inside a panel
-   that also holds a `.fold-body` — because what is being tested is what learn.js does
-   with them: the toggle, the aria, and remembering it. */
-function foldPair(name) {
-  const body = element("div");
-  body.id = name + "-body";
-  const panel = element("section");
-  panel.querySelector = (selector) => (selector === ".fold-body" ? body : null);
-  const press = element("button");
-  press.closest = () => panel;
-  byId["fold-" + name] = press;
-  byId[name + "-body"] = body;
-  return press;
-}
-
-const folds = ["shelf", "words", "phrases"].map(foldPair);
-
+const windowListeners = {};
 install({
   TARGUM_KEY: "k",
   TARGUM_LANGUAGES: { he: "Hebrew" },
+  addEventListener: (type, handler) => {
+    (windowListeners[type] = windowListeners[type] || []).push(handler);
+  },
+  // The bell (2026-09-11): what the page told it.
+  TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
+  // The drawer (2026-09-11): what the page asked it to do.
+  TargumTalk: { show: (on) => talks.push(on), open: (id) => talks.push("open:" + id) },
   stored: payload.stored || {},
   TargumLang: {
     HOME: "he",
@@ -55,7 +45,6 @@ install({
     beta: () => false,
     betaNote: () => "",
   },
-  selectors: { ".fold": folds },
 });
 
 /* Every call the page makes, in order. The shelf only ever asked for `/readers` and one
@@ -63,6 +52,14 @@ install({
    about that is which text was sent — a card that offered one book and built its
    neighbour would be unnoticeable and expensive. */
 const asked = [];
+const notices = [];
+const talks = [];
+const wheres = [];
+global.CustomEvent = function (type, init) {
+  this.type = type;
+  this.detail = init && init.detail;
+};
+global.document.dispatchEvent = (event) => wheres.push(event.detail);
 
 global.fetch = (path, options) => {
   asked.push({
@@ -72,6 +69,14 @@ global.fetch = (path, options) => {
   let answer = { id: "j1" }; // enough for `/prepare` to hand `/build` an id
   if (String(path).indexOf("/readers") === 0) {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
+  } else if (String(path).indexOf("/series") === 0) {
+    answer = { series: payload.series || [] };
+  } else if (String(path).indexOf("/account/me") === 0) {
+    answer = payload.me || { signedIn: false };
+  } else if (String(path).indexOf("/suggest") === 0) {
+    answer = { suggestion: payload.suggest || null };
+  } else if (String(path).indexOf("/account/follows") === 0) {
+    return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
   } else if (String(path).indexOf("/job/") === 0) {
     /* Finished on the first ask. A job that never reaches "done" leaves the page polling
        it every 700ms, and node does not exit while a timer is pending — the first run of
@@ -103,10 +108,10 @@ require(path.join(assets, "charts.js"));
 global.window.TargumCharts.growth = () => {};
 global.window.TargumCharts.tiles = () => {};
 
-require(path.join(assets, "lists.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
 require(path.join(assets, "scenes.js"));
+require(path.join(assets, "follow.js"));
 require(path.join(assets, "learn.js"));
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -153,8 +158,27 @@ function phrases() {
 
 /** Do something to the page, the way a person would. */
 function act(step) {
-  if (step.fold) byId["fold-" + step.fold].fire("click", {});
   if (step.press) byId[step.press].fire("click", {});
+  // A door in the row above the sheet (2026-09-11), by its id — in the row or in the
+  // subscriptions menu under it.
+  if (step.door) {
+    const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
+    if (found) found.fire("click", {});
+  }
+  // A text offered by the conversation in the drawer, handed over by `talk.js`.
+  if (step.offer) global.window.TargumLearn.open(step.offer);
+  if (step.changed) global.window.TargumLearn.changed();
+}
+
+/** Every element carrying a door id under `node`, in document order. */
+function withDoors(node) {
+  const out = [];
+  const walk = (n) => {
+    if (n.attrs && n.attrs["data-door"]) out.push(n);
+    (n.children || []).forEach(walk);
+  };
+  walk(node);
+  return out;
 }
 
 setTimeout(() => {
@@ -165,73 +189,53 @@ setTimeout(() => {
       asked: asked,
       went: global.location.href,
       known: at("known-line").textContent,
-      progress: at("step-progress").textContent,
-      suggested: at("suggest").hidden
-        ? null
-        : {
-            heading: at("suggest-heading").textContent,
-            title: at("suggest-title").textContent,
-            why: at("suggest-why").textContent,
-            blurb: at("suggest-blurb").textContent,
-            english: at("suggest-english").hidden ? "" : at("suggest-english").textContent,
-            track: at("suggest-track").hidden ? "" : at("suggest-track").textContent,
-            primary: at("suggest").classList.contains("primary"),
-            cover: tile(at("suggest-cover")),
-            // A button has no href. What it is offering is on the card itself.
-            entry: at("suggest").getAttribute("data-entry"),
-            disabled: at("suggest").disabled,
-          },
-      seeAll: {
-        shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent,
-        words: at("words-more").hidden ? "" : at("words-more").textContent,
-        phrases: at("phrases-more").hidden ? "" : at("phrases-more").textContent,
-      },
-      folds: ["shelf", "words", "phrases"].reduce(function (out, name) {
-        out[name] = {
-          open: byId["fold-" + name].getAttribute("aria-expanded"),
-          shown: !byId[name + "-body"].hidden,
+      // The greeting and today, and the row of doors (2026-09-11).
+      greeting: at("greeting").textContent,
+      today: at("today").textContent,
+      doors: at("doors").hidden
+        ? []
+        : withDoors(at("doors"))
+            .filter((p) => !String(p.className).includes("ways-item"))
+            .map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
+      // The subscriptions menu: its rows, whether it is open, and which are fresh.
+      menu: (() => {
+        const list = withDoors(at("doors")).filter((p) => String(p.className).includes("ways-item"));
+        const box = list.length ? list[0].parentNode : null;
+        return {
+          open: box ? !box.hidden : false,
+          items: list.map((p) => ({
+            id: p.attrs["data-door"],
+            label: p.textContent,
+            fresh: (p.children || []).some((c) => String(c.className).includes("ways-fresh")),
+          })),
         };
-        return out;
-      }, {}),
-      remembered: global.localStorage.getItem("targum:folded") || "",
-      exports: {
-        words: at("export-words").hidden,
-        phrases: at("export-phrases").hidden,
-      },
-      words: words(),
-      // The copy control every row carries, by what it says it copies.
-      copies: {
-        words: at("word-rows")
-          .children.filter((row) => !String(row.className).includes("editor-row"))
-          .map((row) => (row.children[0].querySelector(".copy") || { attrs: {} }).attrs["aria-label"]),
-        phrases: at("phrase-list").children.flatMap((group) =>
-          group.children[1].children.map(
-            (item) => (item.querySelector(".copy") || { attrs: {} }).attrs["aria-label"],
-          ),
-        ),
-      },
-      wordsTitle: at("words-title").textContent,
-      wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,
+      })(),
+      hands: Object.keys(global.window.TargumLearn || {}),
+      seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
       shelfNote: at("shelf-note").textContent,
-      editors: at("word-rows").children.filter((row) =>
-        String(row.className).includes("editor-row")
-      ).length,
-      phrases: phrases(),
-      phrasesTitle: at("phrases-title").textContent,
       carry: {
         english: at("carry-english").hidden ? "" : at("carry-english").textContent,
         known: at("carry-known").hidden ? "" : at("carry-known").textContent,
         title: at("carry-title").textContent,
-        hidden: at("carry").hidden,
+        hidden: at("carry-sheet").hidden,
+        // The window: the reader itself, framed as a picture (§13, 2026-09-11).
+        frame: at("carry-window").hidden ? "" : at("carry-frame").getAttribute("src") || "",
         heading: at("carry-heading").textContent,
         track: at("carry-track").hidden ? "" : at("carry-track").textContent,
         meta: at("carry-meta").textContent,
         primary: at("carry").classList.contains("primary"),
         entry: at("carry").getAttribute("data-entry") || "",
         cover: tile(carry),
-        // The box is the link now, so this is where the href is.
+        // Open, in the foot, goes to the reader's own page.
         href: at("carry").href || "",
+        // How far through: the line's share, or nothing while it is hidden.
+        progress: at("carry-progress").hidden ? "" : String(at("carry-progress").style["--done"] || ""),
       },
+      // A subscription that landed (2026-09-11): what the bell was told, what was seen.
+      notices,
+      talks,
+      wheres,
+      seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
       head: at("shelf-head").hidden,
       shelf: at("library-list").children.map((row) => {
         const link = row.children[0];

@@ -59,6 +59,8 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "library": Library(out),
             "token": token,
             "page": "<html>start</html>",
+            "chatting": '<html><body class="chat"><div class="site-head"></div></body></html>',
+            "embedded": '<html><body class="chat embed"></body></html>',
             "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
             "lists": {
@@ -377,6 +379,10 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     status, payload, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert payload["signedIn"] is True
     assert payload["email"] == "reader@example.com"
+    # The month's hours ride with who is signed in, for the panel and Your Progress
+    # (targum-internal#237): a fresh account has used none, and the month has an end.
+    assert payload["hours"]["used"] == 0 and payload["hours"]["ends"]
+    assert "allowed" in payload["hours"]
 
     # The same link a second time is spent, and lands on a page offering another
     # rather than on an error: clicking an old email twice is an ordinary thing to do.
@@ -2466,3 +2472,268 @@ def test_what_escapes_a_route_is_written_down(
         time.sleep(0.05)
     assert found and found[0].where == "/health" and found[0].kind == "RuntimeError"
     assert key not in found[0].trace + found[0].message + found[0].where
+
+
+def test_the_conversation_list_is_a_page_not_everything_ever(tmp_path: Path) -> None:
+    """targum-internal#238: `Store.chats` returned every conversation a person ever had.
+    A page of fifty by default, `limit` and `offset` on the request, newest first."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    ids = {store.chat_open(None, "he") for _ in range(7)}
+    assert len(store.chats(None)) == 7
+    pages = [store.chats(None, limit=3, offset=at) for at in (0, 3, 6)]
+    assert [len(page) for page in pages] == [3, 3, 1]
+    assert {row["id"] for page in pages for row in page} == ids, "every one, once, across pages"
+    assert store.chats(None, limit=3, offset=9) == []
+
+
+def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
+    """targum-internal#244: on the job's state, in a number for the model and in words
+    for the card; nothing where it was not measured."""
+    from targum.serve import Job
+
+    measured = Job(id="j", source="x", known_share=0.734)
+    assert measured.state()["known_share"] == 0.73
+    assert measured.state()["known_line"] == "You know about 7 words in 10 here."
+    unmeasured = Job(id="k", source="x")
+    assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
+
+
+def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#245: pages of fifty, in order, a band each, the meaning only where
+    the glossary already holds one — nothing is bought."""
+    pytest.importorskip("wordfreq")
+    port, token, _ = served
+    status, payload = get(port, f"/words/common?k={token}")
+    assert status == 200 and len(payload["words"]) == 50 and payload["offset"] == 0
+    assert payload["next"] == 50 and payload["into"] == "en"
+    first = payload["words"][0]
+    assert set(first) == {"form", "band", "meaning"} and first["band"] in ("easy", "fairly easy")
+    status, second = get(port, f"/words/common?offset=50&limit=10&k={token}")
+    assert len(second["words"]) == 10 and second["next"] == 60
+    assert (
+        second["words"][0]["form"]
+        == get(port, f"/words/common?offset=50&k={token}")[1]["words"][0]["form"]
+    )
+    status, end = get(port, f"/words/common?offset=2990&k={token}")
+    assert end["next"] is None, "the list stops at the commonest few thousand"
+
+
+# -- hear a silent text (targum-internal#246) ----------------------------------------
+
+
+def _priced(monkeypatch: Any, rate: float = 0.02) -> None:
+    from targum import speech, transcribe
+
+    monkeypatch.setitem(transcribe.PRICES, speech.NAME, rate)
+    monkeypatch.setenv(speech.KEY, "test")
+
+
+def test_an_unpriced_voice_is_not_for_sale(served: tuple[int, str, Path]) -> None:
+    port, key, out = served
+    _book(out / "local" / "book-he", chapters=2, translated=2)
+    status, answer, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 1})
+    assert status == 402 and "no price" in answer["error"]
+
+
+def test_hear_this_section_is_a_job_claimed_at_the_estimate(
+    served: tuple[int, str, Path], monkeypatch: Any
+) -> None:
+    """The press is the spend: claimed in the hours a recording comes out of, at the
+    estimate, and only once for a section that has its audio already."""
+    from targum.audio import manifest as manifest_module
+
+    _priced(monkeypatch)
+    port, key, out = served
+    folder = out / "local" / "book-he"
+    _book(folder, chapters=2, translated=2)
+    status, answer, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 2})
+    assert (
+        status == 200
+        and answer["id"]
+        and answer["stage"] in ("queued", "working", "done", "failed")
+    )
+    assert answer["seconds"] > 0, "estimated from the section's words"
+    status, missing, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 9})
+    assert status == 404
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source=str(folder),
+            sha256="book",
+            duration=3.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=0.0,
+                    end=3.0,
+                    audio="audio/voice-001.mp3",
+                    spans={"s1-0": [0, 1]},
+                )
+            ],
+        ),
+    )
+    status, ready, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 1})
+    assert ready == {"ready": True}, "audio already there: nothing to make, nothing to claim"
+
+
+def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The runner: one part in the manifest beside the reader, spans keyed by segment,
+    the page rendered again with the folder named so the audio is found, and the seconds
+    settled to the clip's own — in the same sum a recording's land in."""
+    from targum import render as render_module
+    from targum import speech
+    from targum.accounts import Store
+    from targum.audio import manifest as manifest_module
+    from targum.serve import Job, Library
+
+    _priced(monkeypatch)
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    person = store.finish_sign_in(store.start_sign_in("r@example.com"))[0]  # type: ignore[index]
+    home = library.home(person)
+    folder = home / "book-he"
+    _book(folder, chapters=2, translated=2)
+    # `_book` writes the least document.json a chapter buy needs to be *queued*; the
+    # runner reads the document back whole, the way `run_chapter` does.
+    from targum.models import Document
+
+    Document(source="memory", title="A Book", language="he", blocks=[], content_hash="book").write(
+        folder / "document.json"
+    )
+
+    def render_lines(lines: list[str], into: Path, voice: str = "") -> Any:
+        into.parent.mkdir(parents=True, exist_ok=True)
+        clip = into.with_suffix(".mp3")
+        clip.write_bytes(b"mp3")
+        spans = [(float(n), float(n + 1)) for n in range(len(lines))]
+        return speech.Clip(clip, "audio/mpeg", float(len(lines))), spans
+
+    monkeypatch.setattr(speech, "render_lines", render_lines)
+    rendered: dict[str, Any] = {}
+
+    def render(
+        document: Any, segmented: Any, translations: Any, out_dir: Path, **kw: Any
+    ) -> list[Path]:
+        rendered.update(kw)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "index.html").write_text("<p>with audio</p>", encoding="utf-8")
+        return [out_dir / "index.html"]
+
+    monkeypatch.setattr(render_module, "render", render)
+    job = Job(
+        id="v1",
+        source=str(folder),
+        options={"voice": True, "folder": "book-he", "section": 1},
+        owner=person.id,
+        home=home,
+        kind="voice",
+        seconds=30.0,
+        estimate=0.01,
+    )
+    assert library.claim_turn(job, kind="voice") == ""
+    library.jobs[job.id] = job
+    library.run(job)
+    assert job.stage == "done", job.error
+    assert job.seconds == 4.0, "a heading and three lines"
+    assert job.reader == "book-he/reader/index.html"
+    assert rendered["folder"] == folder, "named, so the page finds the manifest beside it"
+    kept = manifest_module.load(folder)
+    assert kept is not None and [p.number for p in kept.parts] == [1]
+    part = kept.parts[0]
+    assert part.audio == "audio/voice-001.mp3" and part.provider == speech.NAME
+    assert part.spans["s1-0"] == [1.0, 2.0] and part.spans["h1"] == [0.0, 1.0]
+    assert store.hours_used(person.id, 0) == pytest.approx(4.0), (
+        "settled to the clip, not the estimate"
+    )
+    assert job.spent == pytest.approx(4.0 / 60 * 0.02)
+
+
+def test_the_series_are_answered_with_where_each_is_this_week(
+    served: tuple[int, str, Path],
+) -> None:
+    """2026-09-11: the Library's subscriptions row and Learn's sheet ask the same thing."""
+    port, key, _ = served
+    status, answer = get(port, f"/series?k={key}")
+    assert status == 200
+    ids = [one["id"] for one in answer["series"]]
+    assert "weekly" in ids, "the weekly is on every shelf"
+    for one in answer["series"]:
+        assert set(one) >= {"id", "name", "what", "page", "instalment"}
+
+
+def test_the_series_you_follow_are_the_account_s_and_come_back_with_it(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """2026-09-11: following on the Library is kept on the account, so the same row
+    stands on every browser somebody signs in on, and the server knows whom to mail. The
+    weekly stays on its own rails; signed out there is nothing to follow with."""
+    port, key, _ = served
+    status, answer, _ = call(port, "GET", f"/account/follows?k={key}")
+    assert status == 401 and answer["follows"] == []
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+    assert status == 200 and answer["follows"] == ["parasha"]
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "weekly"}, cookie)
+    assert answer["follows"] == ["weekly", "parasha"]
+    status, me, _ = call(port, "GET", "/account/me", cookie=cookie)
+    assert me["follows"] == ["weekly", "parasha"], "and the account says so"
+    status, answer, _ = call(
+        port, "POST", "/account/follows", {"series": "parasha", "on": False}, cookie
+    )
+    assert answer["follows"] == ["weekly"]
+    status, answer, _ = call(port, "POST", "/account/follows", {"series": "../x"}, cookie)
+    assert status == 400
+
+
+def test_a_follower_can_stop_from_the_email_with_one_press(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, key, out = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+    book = Store(out.parent / "words.db")
+    ((email, stop),) = book.followers("parasha")
+    status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
+    assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
+    assert book.followers("parasha"), "fetching the link spent nothing"
+    status, body, _ = form(port, "/series/stop", {"t": stop})
+    assert status == 200 and b"not be told" in body
+    assert book.followers("parasha") == []
+
+
+def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
+    served: tuple[int, str, Path],
+) -> None:
+    """design.md §13 (2026-09-11): the front page frames a reader and the conversation.
+    Its policy lets it frame its own origin and nothing else; the framed conversation,
+    `/chat?embed=1`, may be framed by this origin only and carries no bar; the page at
+    `/chat` keeps the guard every other page has."""
+    from http.client import HTTPConnection
+
+    port, token, _ = served
+
+    def fetch(path: str) -> tuple[str, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", path)
+        response = connection.getresponse()
+        body = response.read().decode("utf-8")
+        policy = response.getheader("Content-Security-Policy") or ""
+        connection.close()
+        return policy, body
+
+    policy, _ = fetch(f"/?k={token}")
+    assert "frame-src 'self'" in policy and "frame-ancestors 'none'" in policy
+    policy, body = fetch(f"/chat?embed=1&k={token}")
+    assert "frame-ancestors 'self'" in policy and "frame-src" not in policy
+    assert 'class="chat embed"' in body and "site-head" not in body
+    policy, body = fetch(f"/chat?k={token}")
+    assert "frame-ancestors 'none'" in policy and "site-head" in body and "embed" not in body

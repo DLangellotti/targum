@@ -195,6 +195,10 @@ MIGRATIONS: tuple[str, ...] = (
     # existed was knocked from the box itself, so `direct` is the right thing for a row
     # that predates the column as well as the default for a new one.
     "ALTER TABLE reached ADD COLUMN egress TEXT NOT NULL DEFAULT 'direct'",
+    # When the person last opened a conversation (2026-09-11): `seen` moves with every
+    # turn, the answer's included, so it cannot say whether an answer arrived while they
+    # were away. This can.
+    "ALTER TABLE chat ADD COLUMN opened INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -437,6 +441,23 @@ CREATE TABLE IF NOT EXISTS subscriber (
   bounces INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS subscriber_state ON subscriber (state);
+
+-- Who follows which series (2026-09-11): the weekly portion, a learning cycle — anything
+-- that comes out on its own clock and is not the weekly, which has `subscriber` above.
+-- Keyed by address for the same reason: stopping must not touch an account. A row is
+-- never deleted; `state` says whether it is on. `instalment` is the last one mailed, so
+-- an announcement that runs twice mails nobody the second time.
+CREATE TABLE IF NOT EXISTS follow (
+  email      TEXT    NOT NULL,
+  series     TEXT    NOT NULL,
+  state      TEXT    NOT NULL DEFAULT 'on',
+  stop       TEXT    NOT NULL,
+  since      INTEGER NOT NULL,
+  ended      INTEGER NOT NULL DEFAULT 0,
+  sent       INTEGER NOT NULL DEFAULT 0,
+  instalment TEXT    NOT NULL DEFAULT '',
+  PRIMARY KEY (email, series)
+);
 
 -- A conversation, and its turns. Server-side, unlike a reader's words, which the
 -- browser keeps and the account mirrors: the same conversation has to be resumable
@@ -984,6 +1005,71 @@ class Store:
             db.execute(
                 "UPDATE subscriber SET state = 'off', ended = ? WHERE email = ?",
                 (now(), row["email"]),
+            )
+            return True
+
+    # -- series (2026-09-11) ---------------------------------------------------------
+
+    def follow_series(self, email: str, series: str, on: bool = True) -> bool:
+        """Follow, or stop following, one series. Signed in, so nothing is confirmed."""
+        address = tidy(email)
+        if not address or not series:
+            raise ValueError("No address or no series given.")
+        with self.write() as db:
+            if not on:
+                db.execute(
+                    "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
+                    (now(), address, series),
+                )
+                return False
+            db.execute(
+                """
+                INSERT INTO follow (email, series, state, stop, since)
+                VALUES (?, ?, 'on', ?, ?)
+                ON CONFLICT(email, series) DO UPDATE SET state = 'on', since = ?
+                """,
+                (address, series, secrets.token_urlsafe(TOKEN_BYTES), now(), now()),
+            )
+        return True
+
+    def series_followed(self, email: str) -> list[str]:
+        rows = self.db.execute(
+            "SELECT series FROM follow WHERE email = ? AND state = 'on' ORDER BY series",
+            (tidy(email),),
+        ).fetchall()
+        return [str(row["series"]) for row in rows]
+
+    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str]]:
+        """Everyone to mail about this instalment, with the token that stops it.
+
+        Selected on "has not had this one", as the weekly's are, so a run that died
+        halfway resumes and one started twice sends nothing the second time.
+        """
+        rows = self.db.execute(
+            "SELECT email, stop FROM follow WHERE series = ? AND state = 'on' "
+            "AND (? = '' OR instalment != ?) ORDER BY since",
+            (series, not_sent, not_sent),
+        ).fetchall()
+        return [(str(row["email"]), str(row["stop"])) for row in rows]
+
+    def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
+        with self.write() as db:
+            db.execute(
+                "UPDATE follow SET sent = ?, instalment = ? WHERE email = ? AND series = ?",
+                (now(), instalment, tidy(email), series),
+            )
+
+    def stop_following(self, token: str) -> bool:
+        """One click, from an email, with no account and no JavaScript."""
+        if not token:
+            return False
+        with self.write() as db:
+            row = db.execute("SELECT email, series FROM follow WHERE stop = ?", (token,)).fetchone()
+            if row is None:
+                return False
+            db.execute(
+                "UPDATE follow SET state = 'off', ended = ? WHERE email = ? AND series = ?",
+                (now(), row["email"], row["series"]),
             )
             return True
 
@@ -1554,6 +1640,26 @@ class Store:
             for row in rows
         ]
 
+    def known_forms(self, person_id: int | None, language: str) -> set[str]:
+        """Every form the reader has marked known — the dictionary form and the surface
+        it was met in — bare of points, for the cheap known-share estimate
+        (`level.known_share`, targum-internal#244)."""
+        if person_id is None:
+            return set()
+        from .vocalize.base import strip_nikkud
+
+        rows = self.db.execute(
+            "SELECT lemma, surface FROM word"
+            " WHERE person = ? AND language = ? AND gone = 0 AND status = 9",
+            (person_id, language.split("-")[0].lower()),
+        )
+        out: set[str] = set()
+        for row in rows:
+            for form in (row["lemma"], row["surface"]):
+                if form:
+                    out.add(strip_nikkud(str(form))[0])
+        return out
+
     def activity(self, person_id: int | None) -> dict[str, Any]:
         """The days someone read on, and how many sections and texts they finished."""
         if person_id is None:
@@ -1657,17 +1763,29 @@ class Store:
             )
         return chat_id
 
-    def chats(self, person_id: int | None) -> list[dict[str, Any]]:
-        """Somebody's conversations, most recent first."""
+    def chats(
+        self, person_id: int | None, limit: int = 50, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        """Somebody's conversations, most recent first, a page at a time."""
         rows = self.db.execute(
             "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
-            "       chat.saved, chat.mode,"
+            "       chat.saved, chat.mode, chat.opened,"
             "       (SELECT COUNT(*) FROM chat_turn"
-            "         WHERE chat_turn.chat = chat.id AND said != '') AS turns"
-            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC",
-            (person_id,),
+            "         WHERE chat_turn.chat = chat.id AND said != '') AS turns,"
+            # When targum last finished answering, so the bell can say an answer arrived
+            # while the person was away (2026-09-11): later than `opened`, it did.
+            "       (SELECT COALESCE(MAX(made), 0) FROM chat_turn"
+            "         WHERE chat_turn.chat = chat.id AND role = 'assistant'"
+            "         AND stage = 'done') AS answered"
+            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC LIMIT ? OFFSET ?",
+            (person_id, limit, offset),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def chat_opened(self, chat_id: str) -> None:
+        """The person opened this conversation now."""
+        with self.write() as db:
+            db.execute("UPDATE chat SET opened = ? WHERE id = ?", (now(), chat_id))
 
     def chat_owned(self, person_id: int | None, chat_id: str) -> dict[str, Any] | None:
         """One conversation, but only if it is the asker's."""

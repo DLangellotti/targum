@@ -85,6 +85,58 @@ var targumReader = function () {
   // straight off the disk has neither, and everything that needs them is skipped.
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
+  // Framed in the front page as a picture of itself (design.md §13, 2026-09-11): the
+  // address says so, and a picture is not a visit — no day is counted, no opening is
+  // written, and the first-time hint is not shown to somebody who is not here.
+  var PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
+  if (PREVIEW) document.documentElement.classList.add("preview");
+
+  // Framed, a link to another page of this text stays in the frame and keeps the key
+  // and the flag it arrived with; a link anywhere else — Learn, the library, the chat,
+  // the web — opens in the page that holds the frame, never inside it.
+  // Where a text's own pages live: under `/reader/`, or under a series' `/read/` — the
+  // weekly portion's, a learning cycle's.
+  var OWN_PAGE = /^\/(reader\/|[a-z0-9-]+\/read\/)/;
+  function framed(href) {
+    if (!PREVIEW) return href;
+    var url;
+    try {
+      url = new URL(href, location.href);
+    } catch (e) {
+      return href;
+    }
+    if (url.origin !== location.origin || !OWN_PAGE.test(url.pathname)) return href;
+    if (passKey && !url.searchParams.get("k")) url.searchParams.set("k", passKey);
+    url.searchParams.set("preview", "1");
+    return url.href;
+  }
+  if (PREVIEW) {
+    document.addEventListener("click", function (event) {
+      var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!link || event.defaultPrevented || link.target) return;
+      var href = link.getAttribute("href") || "";
+      if (href.charAt(0) === "#") return;
+      var url;
+      try {
+        url = new URL(href, location.href);
+      } catch (e) {
+        return;
+      }
+      event.preventDefault();
+      var to = url.href;
+      var where = window;
+      if (url.origin === location.origin && OWN_PAGE.test(url.pathname)) {
+        to = framed(to);
+      } else {
+        try {
+          where = window.top || window;
+        } catch (e) {
+          where = window;
+        }
+      }
+      where.location.assign(to);
+    });
+  }
 
   // Whether the server will answer a question that costs something — a word looked
   // up, a glossary waited for. The start-up key says yes on a machine somebody runs
@@ -429,30 +481,47 @@ var targumReader = function () {
   // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
   // question about their evening. Built from the parts rather than sliced off an ISO
   // string, which is UTC and lands on the wrong day either side of midnight.
-  try {
-    var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
-    opened[documentId] = Date.now();
-    targumKeep("targum:opened", JSON.stringify(opened));
+  function recordVisit() {
+    try {
+      var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
+      opened[documentId] = Date.now();
+      targumKeep("targum:opened", JSON.stringify(opened));
 
-    var now = new Date();
-    var today =
-      now.getFullYear() +
-      "-" +
-      String(now.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(now.getDate()).padStart(2, "0");
-    var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
-    // Where the ledger stood when this section was first opened, taken before today is
-    // written into it, so that a section opened on a new reading day counts the day as
-    // one of the things that moved (targum-internal#175; `footOpen` below).
-    footOpen(days);
-    if (!days[today]) {
-      days[today] = 1;
-      targumKeep("targum:days", JSON.stringify(days));
-      // Signed in, this reaches the account a moment later; signed out it is a no-op.
-      if (window.TargumSync) window.TargumSync.touched();
-    }
-  } catch (e) {}
+      var now = new Date();
+      var today =
+        now.getFullYear() +
+        "-" +
+        String(now.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(now.getDate()).padStart(2, "0");
+      var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
+      // Where the ledger stood when this section was first opened, taken before today is
+      // written into it, so that a section opened on a new reading day counts the day as
+      // one of the things that moved (targum-internal#175; `footOpen` below).
+      footOpen(days);
+      if (!days[today]) {
+        days[today] = 1;
+        targumKeep("targum:days", JSON.stringify(days));
+        // Signed in, this reaches the account a moment later; signed out it is a no-op.
+        if (window.TargumSync) window.TargumSync.touched();
+      }
+    } catch (e) {}
+  }
+  // Framed in the front page, the reader is a working reader, but a page that merely
+  // shows it is not a visit: the opening, the day and the foot are written at the first
+  // real press in it, and never for a reader who only looked.
+  if (!PREVIEW) recordVisit();
+  else {
+    var visited = false;
+    var firstPress = function () {
+      if (visited) return;
+      visited = true;
+      recordVisit();
+    };
+    ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (kind) {
+      window.addEventListener(kind, firstPress, { once: true, passive: true });
+    });
+  }
 
   function read(name, fallback) {
     try {
@@ -1614,7 +1683,7 @@ var targumReader = function () {
   var FIRST = "targum:first";
   var firstTime = false;
   try {
-    firstTime = !!first && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
+    firstTime = !!first && !PREVIEW && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
   } catch (e) {}
   if (firstTime) first.hidden = false;
 
@@ -3411,7 +3480,7 @@ var targumReader = function () {
       row.appendChild(q);
       var a = document.createElement("p");
       a.className = "ask-a" + (turn.error ? " bad" : "") + (turn.done ? "" : " working");
-      a.textContent = turn.text;
+      drawAnswer(a, turn.text);
       turn.node = a;
       row.appendChild(a);
     });
@@ -3445,9 +3514,47 @@ var targumReader = function () {
       on.className = "ask-on";
       on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
       on.textContent = "Continue in chat";
+      // In the drawer, where there is one (2026-09-11): the conversation goes on here,
+      // beside the text, rather than on a page of its own.
+      on.addEventListener("click", function (event) {
+        if (!window.TargumTalk || !window.TargumTalk.open) return;
+        event.preventDefault();
+        window.TargumTalk.open(state.chat);
+      });
       row.appendChild(on);
     }
     return row;
+  }
+
+  // The answer in the conversation's shape (2026-09-11: the card is answered in Hebrew
+  // at the reader's level, like every other line): a Hebrew line, then "= " and its
+  // English under it; "> " a recast of the reader's words; "~ " why it changed. Each
+  // line is its own block so the two directions never share one, and the markers are
+  // read, not shown. A line in no shape — an error, a plain English answer for a
+  // scripture-only shelf — is drawn as it came.
+  function drawAnswer(node, text) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+    String(text || "").split("\n").forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      var span = document.createElement("span");
+      if (line.indexOf("= ") === 0 || line.indexOf("~ ") === 0) {
+        span.className = line.indexOf("= ") === 0 ? "ask-en" : "ask-why";
+        span.setAttribute("dir", "ltr");
+        span.textContent = line.slice(2).trim();
+      } else {
+        var recast = line.indexOf("> ") === 0;
+        var body = recast ? line.slice(2).trim() : line;
+        var hebrew = /[\u05d0-\u05ea]/.test(body);
+        span.className = (hebrew ? "ask-he" : "ask-line") + (recast ? " ask-recast" : "");
+        if (hebrew) {
+          span.setAttribute("lang", "he");
+          span.setAttribute("dir", "rtl");
+        }
+        span.textContent = body;
+      }
+      node.appendChild(span);
+    });
   }
 
   function askAbout(index, word, shown, lemma, text) {
@@ -3467,7 +3574,7 @@ var targumReader = function () {
     }
     function draw(said) {
       turn.text = said;
-      if (turn.node) turn.node.textContent = said;
+      if (turn.node) drawAnswer(turn.node, said);
     }
 
     fetch(keyed("/chat/say"), {
@@ -5365,7 +5472,7 @@ var targumReader = function () {
   function nextChapter() {
     var link = pager && pager.querySelector("[data-next]");
     if (!link) return false;
-    location.href = link.getAttribute("href");
+    location.href = framed(link.getAttribute("href"));
     return true;
   }
 
@@ -6604,7 +6711,7 @@ var targumReader = function () {
     Array.prototype.forEach.call(carried, function (link) {
       var href = link.getAttribute("href");
       if (href && href.indexOf("?") === -1) {
-        link.setAttribute("href", keyed(href));
+        link.setAttribute("href", framed(keyed(href)));
       }
     });
   }
@@ -6806,7 +6913,60 @@ var targumReader = function () {
      The word queue is here for the same reason: which words are in it and which one
      comes next are decided entirely in the embedded data, without asking the page
      anything. Reaching the word once it is chosen is the half that needs a browser. */
+  /* Where the reader is, for the conversation (2026-09-11): the text, the section and
+     the sentence in front of them — the one a word was last tapped in, else the pair
+     standing across the middle of the window. Said on every scroll that settles and
+     every page turned, as `targum:where` on the document; `talk.js` carries it into
+     the drawer. */
+  var lastAsked = null;
+  function where() {
+    var pair = lastAsked && lastAsked.closest ? lastAsked.closest("[data-id]") : null;
+    if (!pair) {
+      var middle = window.innerHeight / 2;
+      var best = null;
+      var nearest = Infinity;
+      for (var i = 0; i < pairs.length; i++) {
+        var box = pairs[i].getBoundingClientRect();
+        if (box.bottom < 0 || box.top > window.innerHeight) continue;
+        var away = Math.abs((box.top + box.bottom) / 2 - middle);
+        if (away < nearest) {
+          nearest = away;
+          best = pairs[i];
+        }
+      }
+      pair = best;
+    }
+    var id = pair ? pair.getAttribute("data-id") : "";
+    return {
+      document: String(documentId || ""),
+      section: String(sectionId || ""),
+      segment: id || "",
+      sentence: id ? segmentText(id) : "",
+    };
+  }
+  var whereTimer = null;
+  function sayWhere() {
+    clearTimeout(whereTimer);
+    whereTimer = setTimeout(function () {
+      try {
+        document.dispatchEvent(new CustomEvent("targum:where", { detail: where() }));
+      } catch (e) {
+        /* an old browser without CustomEvent: the drawer asks instead */
+      }
+    }, 250);
+  }
+  window.addEventListener("scroll", sayWhere, { passive: true });
+  document.addEventListener("targum:page", sayWhere);
+  document.addEventListener("click", function (event) {
+    var word = event.target && event.target.closest ? event.target.closest(".w") : null;
+    if (word) {
+      lastAsked = word;
+      sayWhere();
+    }
+  });
+
   window.TargumReader = {
+    where: where,
     placeNear: placeNear,
     stopHover: stopHover,
     hovering: function () {
@@ -8197,3 +8357,106 @@ var targumReader = function () {
 
 if (window.TargumStore) window.TargumStore.ready(targumReader);
 else targumReader();
+
+
+/* --- hear a silent text ---------------------------------------------------------
+ *
+ * The door in This text on a section with no recording (targum-internal#246): the press
+ * asks the server to read the section aloud, waits for the build the way the strip does,
+ * and reopens the page, which now carries the audio and every per-line control. Its own
+ * scope, like the chapter buy: the key helpers and the folder name and nothing else.
+ * Off a disk there is no server to ask, and the door stays hidden.
+ */
+(function () {
+  "use strict";
+
+  var offer = document.getElementById("voice-offer");
+  var go = document.getElementById("voice-go");
+  var said = document.getElementById("voice-said");
+  if (!offer || !go) return;
+  if (location.protocol === "file:") {
+    offer.hidden = true;
+    return;
+  }
+  var passKey = "";
+  try {
+    passKey = new URLSearchParams(location.search).get("k") || "";
+  } catch (e) {
+    passKey = "";
+  }
+  function keyed(path) {
+    if (!passKey) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(passKey);
+  }
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (passKey) head["X-Targum-Key"] = passKey;
+    return head;
+  }
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function tell(text) {
+    if (said) said.textContent = text || "";
+  }
+
+  //: How often the page asks after the build. A test sets it to 0.
+  var POLL = 2000;
+
+  function follow(id) {
+    fetch(keyed("/job/" + encodeURIComponent(id)), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (state) {
+        if (state.error && !state.stage) return failed(state.error);
+        if (state.stage === "failed" || state.stage === "blocked") {
+          return failed(state.error || state.blocked || "That did not go through.");
+        }
+        if (state.stage === "done") {
+          tell("Ready.");
+          location.reload();
+          return;
+        }
+        setTimeout(function () {
+          follow(id);
+        }, window.TargumVoice.POLL);
+      })
+      .catch(function () {
+        failed("targum could not be reached. Try again.");
+      });
+  }
+
+  function failed(message) {
+    tell(message);
+    go.disabled = false;
+  }
+
+  go.onclick = function () {
+    go.disabled = true;
+    var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
+    tell("Reading it aloud. About " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    fetch(keyed("/voice"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ name: name, section: Number(offer.getAttribute("data-section") || 1) }),
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (state) {
+        if (state.error) return failed(state.error);
+        if (state.ready) {
+          location.reload();
+          return;
+        }
+        follow(state.id);
+      })
+      .catch(function () {
+        failed("targum could not be reached. Try again.");
+      });
+  };
+
+  window.TargumVoice = { POLL: POLL };
+})();

@@ -9,10 +9,11 @@
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
-{#- One of Learn's three lists, whole. Learn holds the top of each and caps it, because a
-    landing page with four hundred rows on it is not a landing page; this is where the
-    rest of them are. Same markup and the same scripts, so a row here and a row there
-    cannot drift. -#}
+{#- The lists, whole. `texts` is the shelf, which Learn holds the top of; `words` is
+    Your Words, behind the account since 2026-09-11 — the words, the commonest words you
+    may already know, and the phrases, on one page — and `phrases` the phrases alone.
+    Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
+    row there cannot drift. -#}
 <body class="words learn yours">
 {% set here = 'learn' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
@@ -82,9 +83,20 @@
     <p class="empty" id="words-empty" hidden></p>
     <button type="button" class="more" id="more" hidden></button>
   </section>
+
+  {#- Words you may already know (targum-internal#245): the commonest words of modern
+      Hebrew not on the ledger, a checkbox on each and one at the head, every check a real
+      known word. It is the conversation's first exchange on a first visit (2026-09-11);
+      afterwards it lives here. Drawn by `claim.js`, hidden until it has rows. -#}
+  <section class="panel claim" id="claim-panel" hidden>
+    <h2>Words you may already know</h2>
+    <p class="note">The commonest words of modern Hebrew that are not on your ledger yet.
+      Check the ones you know; the rest are left, and the next fifty come up.</p>
+    <div id="claim-body"></div>
+  </section>
   {%- endif %}
 
-  {%- if which == 'phrases' %}
+  {%- if which in ('words', 'phrases') %}
   <section class="panel">
     <div class="list-controls">
       <h2><span id="phrases-title">Your Phrases</span></h2>
@@ -119,6 +131,9 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
+{%- if which == 'words' %}
+<script>{{ asset('claim.js') }}</script>
+{%- endif %}
 <script>{{ asset('yours.js') }}</script>
 </body>
 </html>

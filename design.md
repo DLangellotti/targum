@@ -185,18 +185,25 @@ No icon font, no emoji, no icon library. Icons are tiny inline SVG strokes at te
 **16px viewBox, no fill, stroke `currentColor` at 1.4, round caps** — line diagrams of what
 they do (the three reading-mode glyphs are literally the three layouts). Typed characters
 elsewhere: ← → per reading direction, × to close and after a number as a multiplier
-(1.25×), A− A+ ? as themselves.
+(1.25×), A− A+ ? as themselves. The box's three actions are glyphs — a microphone, an
+arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the control's label
+(2026-09-10); the `+` beside them stays typed.
 
 ## 8 · Surfaces, states, motion
 
-- Resting surfaces are flat: raised paper, 1px rule border, radii 4–8px — exactly 4
-  controls, 5 rows, 6 cards, 8 panels, 999 pills, never snapped. Shadows exist only on
-  floating overlays (gloss card, menus, tips).
+- In the reader, resting surfaces are flat: raised paper, 1px rule border, radii 4–8px —
+  exactly 4 controls, 5 rows, 6 cards, 8 panels, 999 pills, never snapped. Shadows exist
+  only on floating overlays (gloss card, menus, tips). **On the desk (§13, since
+  2026-09-11) the scale is its own** — 8 controls, 12 rows and fields, 16 cards, 24
+  sheets and floating panels, 999 pills — and depth is three tiers rather than a line:
+  rest, raised, floating. A hairline (ink at 8%) stands only where two same-tone
+  surfaces meet.
 - Hover lifts muted to ink; row hovers are 7–10% accent washes. Selection is ink-soft with
   paper text. Focus is a 2px `#b8935e` ring.
 - **Motion is rare and purposeful:** the mode pill slides 240ms on
-  `cubic-bezier(0.32, 0.72, 0, 1)`; mode switches settle with a 200ms fade. Everything
-  honours `prefers-reduced-motion`.
+  `cubic-bezier(0.32, 0.72, 0, 1)`; mode switches settle with a 200ms fade. On the desk
+  one curve moves everything, `cubic-bezier(0.2, 0.8, 0.2, 1)`, 240ms in and 160ms out,
+  and a press gives to 0.98. Everything honours `prefers-reduced-motion`.
 - **RTL is structural, not cosmetic:** logical CSS properties throughout, so every layout
   mirrors itself. Never `left`/`right`.
 - **A control a thumb presses answers a tap over 44px.** Where a coarse pointer is the
@@ -329,6 +336,132 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### The chrome gets a system of its own: the desk — 2026-09-11
+
+Shown the front page after a night of building on it, its maker said: "there might be a
+fundamental issue with our design language. For the UI, we are trying to use the same kind
+of e-reader inspired language as in the reader. The result is that the UI looks like a wall
+of text, as opposed to an interactive app." He was right, and the cause is §5's first
+sentence: "the wordmark face is the reading face — the brand is the page." That rule was
+written for the reader, where it is right, and the chrome inherited all of it — the serif
+on every heading, hue rationed to 5%, hairlines for surfaces, typed words for icons — so
+Learn, the conversation and the library read as more pages of the book, with nothing on
+them that looks pressable.
+
+Decided the same morning, in order: the reader and the chrome are **two related
+languages** — the page and the desk it lies on; the thing to remember is **the text with
+its English beside every line**, so the chrome is a quiet frame that gets you into one;
+the chrome speaks in a **sans**, the serif kept for a text's own words; things sit on a
+**desk**, cards lifting off it; the app takes **a primary colour of its own**, deep teal,
+the one cool hue in a warm product, because the brown accent whispered as a control; the
+front page opens with **the text to read and the box side by side**, text first on a
+phone. Three risks taken on purpose: the text drawn as **a sheet** lying on the desk with
+its first lines; the header as **the ink bar**, the screen's one inverted block; and **a
+face of the chrome's own**, Source Sans 3, self-hosted, where §5 had chosen system-ui.
+The rules are §13. The preview they were decided on:
+https://claude.ai/code/artifact/088d173b-b539-4003-bbdb-268823c30219.
+
+What it does not overturn: everything about the reader. §1's page, §4's hues and
+their finish, §5's reading faces and bilingual parity, §7's glyphs, §8's reach, and every
+reader entry above stand as they are. The reader fetches nothing, so it keeps
+system-ui for its bar and never loads the chrome's face. `test_brand.py` widens its
+palette, its type scale and its face allowlist by exactly what §13 names, and nothing
+else; where a chrome page still carries a reader rule, the chrome rule wins.
+
+### The desk grows up — 2026-09-11
+
+Shown the desk after a day on it, its maker said: "the whole design feels clunky, like
+it's from 2016 not 2026." He was right, and what dated it was not the palette, the face or
+the voice — those stay — but the grammar it had inherited from §8, written for the
+reader: a hairline around every box, corners at 4–8px, controls at 13px with a word in
+each, a small-capitals label over every section and column, and nothing that moved.
+Decided, in order: the bar is **glass** rather than ink; the phone gets a **bottom bar**
+for the three places; corners go to **16 for cards and 24 for sheets**; and the reader's
+own chrome — its bar, word card and keys, never the page's lines — follows as a fifth
+phase. The plan, with the diagnosis and the page-by-page pass:
+https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186.
+
+What this entry changes in the rules: §8's radii and flat-surface bullets now say they
+are the reader's page's, and §13 carries the desk's own scale, tiers, tint, glass, three
+kinds of button and one curve — and, since the fifth phase, the reader's own chrome
+takes them too, its bar on glass and its cards on the floating tier, while the lines of
+the page keep §8. `test_brand.py` admits 12, 16 and 24 to the radii and lets a
+rule name a corner by its token. What it does not overturn: everything about the reader
+— §8 as written still governs the page.
+
+### The front page is named, and answers in place — 2026-09-11
+
+The entry of 2026-09-06 below put one box under the ledger's sentence and sent a typed
+line to the conversation page. Shown the page a day later, its maker said what a
+stranger would: "this whole design is terribly cluttered, nothing is labeled", "I can't
+really tell that it's a chat", "I should not be sent to a new page after making any
+prompt", "there is no smooth transition into the next part of the page, just lines",
+"remember this is the main front page of the app". So the page is in named parts now.
+Under the count, a section called Talk to targum with one sentence saying what it is;
+the box; the things most readers ask, each beginning with a verb; and the thread, which
+opens in place under them when a line is sent — the conversation page's own script,
+run here — in a hairline, because the cards below keep this page's one raised layer.
+Under it, Your conversations, named, the last three and a door to all. Then a section
+called Read with its own sentence, and the week's issue labelled as this week's. The
+parts step down into each other with space, not rules. The conversation page stays,
+for the whole list and for a link into one conversation.
+
+### A silent text can be given a voice, at the reader's press — 2026-09-10
+
+The entry of 2026-09-03 below says a text that carries media opens as its media. This is
+its other half, from the notes of 2026-09-10 (targum-internal#246): a Hebrew section
+with no recording carries, in This text, one door — "Hear this section" — with what it
+costs in the reader's own hours beside it, and nothing else about audio. The press is the
+spend, claimed at the estimate and settled to the clip; the section is read aloud a line
+at a time so every line has its clock; and the page is written again with the audio in
+it, the way an imported recording's is, so it still fetches nothing. Ink for the door,
+because it asks the reader to act (§9); the cost in minutes, never money (§6). The door
+is drawn only while the voice has a price, and it does not yet: an unpriced voice is not
+for sale, which is the decision of 2026-09-10 and the reason the door is not on any page
+today.
+
+### The things most readers ask are buttons — 2026-09-10
+
+The entry of 2026-09-06 below cut "starter chips under the box" as a gimmick. From the
+notes of 2026-09-10 — "most prompts will be nearly identical, i.e. give me something to
+read; we should suggest the top five to seven things to ask; largely a push-the-button
+facility with the option of a custom prompt" — they return, and this records the
+reversal so it is not argued again.
+
+What is different from what was cut: the chips are drawn from the record and never from
+a list. Each stands only where its condition holds — a text in progress, words saved
+this fortnight, words marked known, publishers with feeds — so a stranger sees two and
+nobody sees more than seven. They stand under the box on Learn and in the empty state of
+the conversation page, and never under an answer: follow-up chips after each reply were
+cut the same day and stay cut. And the first of them, "Something to read", never
+reaches the model: the page asks the server, the server asks the library the way the
+model's own tool would, and what comes back is the card — priced, not started, the
+reader's press still the spend. The commonest ask costs nothing, which is the cache the
+note asked for.
+
+Ink-bordered pills on paper, working controls with no accent (§4); fixed lines, so a
+press is the same ask every time; no counts and no level on any of them.
+
+### The list of conversations is a way back — 2026-09-10
+
+The entry of 2026-09-06 below cut "a History sheet" as a gimmick. From the notes of
+2026-09-10 — "need a way to navigate to chat history in the UI" — it returns, and this
+records the reversal so it is not argued again. What was true on 2026-09-06 was that the
+only door to a past conversation was to already be on the conversation page, and on a
+phone the list stood under the whole thread and the box, past everything. What the box
+made the front door did not give was a way back to what was said through it.
+
+So: a row writes the conversation into the address, and the address opens what it names,
+so a conversation can be linked to and the back button goes to the one before. Each row
+says when it was last opened, in a person's words. On a phone the list is a sheet behind
+an ink pill at the top of the page — the page's one overlay, with the shadow §8 allows
+an overlay — and at a desk it stands in its column as before. And Learn carries the
+last three under the box, a hairline line in the weekly's shape, with the door to all
+of them: not a card, because the cards below have that page's one raised layer.
+
+What it does not overturn: the list is titles and times, never counts or a level; the
+thread stays the conversation page's raised layer; nothing here is a board of doors.
+
 ### A picture is read before it is priced — 2026-09-07
 
 Everything else the `+` brings is priced before a cent is spent. A picture cannot be:
@@ -378,6 +511,44 @@ use two — never as a list, never named as an exercise. The research this rests
 saved word wants eight to twelve more meetings; the chat-first products the survey looked
 at never return one. Only words a newspaper would use come back: a word saved in Judges
 that no newspaper uses stays in Judges.
+
+The English under each line is folded since 2026-09-10 (targum-internal#241). "I would
+just ignore the Hebrew and read the English": with the English open under every line,
+that is what happened. A tap on the pair opens it — the gesture that opens a word's
+gloss — and one Show English at the head of the thread opens all of it, remembered. The
+recast stays open: it is the reader's own words and the correction. A reader with no
+known words sees it all open, because folded Hebrew is a wall to somebody with no words.
+
+The recast says when it corrected (2026-09-10, targum-internal#242). It was always the
+correction — the reader's line said the way a Hebrew speaker says it — and it never said
+so: it rendered the same whether or not anything was changed, and "do not lecture" kept
+the model from saying why. Now a recast that differs from what the reader wrote in
+Hebrew is labelled corrected, the words that changed carry a mark, and the model's one
+"~ " line — what changed and the rule, one sentence, in the reader's language — is
+folded under it and opened by a tap on the pair; open for a reader with no words yet. A
+line that was right, or written in English, gets nothing. The body still does not
+lecture; a text written from the conversation carries the recast and never the why.
+There is no setting for it: the correction-policy setting cut on 2026-09-06 stays cut.
+
+The page is the viewport since 2026-09-10 (targum-internal#247): head, the thread
+filling what is left and scrolling inside itself, the box, the foot — so the box is on
+screen at any length of conversation. Who said a turn is told by where it stands, the
+reader's lines set in from the start and targum's from the end, the same ink on both, with
+the name as the turn's label for a screen reader; an answer appends as it arrives, with a
+caret; the thread follows the newest line only while the reader was at the bottom; and a
+turn fades in over 200ms, or not at all under prefers-reduced-motion. What it keeps: one
+raised layer, the thread; the box a hairline field; no bubbles, no avatars, no second
+column, no iframe — the shell cut on 2026-09-06 stays cut.
+
+The line under each Hebrew line is in the language the reader reads (2026-09-10,
+targum-internal#243). It was English by name in the contract, whatever the account said
+it read into. Now the contract names the reader's language, the record's meanings are
+looked up in it, and the read-back builds into it. And the first visit asks the one
+thing nothing about a stranger says: a browser that speaks a language the conversation
+can gloss in — Russian, today — is asked once, in that language, whether the lines
+should be in it. Never a silent guess; the answer changes only on the press. The
+conversation itself stays Hebrew for everyone, as decided on 2026-09-06 and confirmed
+on 2026-09-10 against easing a new reader in through their own language.
 
 The reason is the chat plan's sentence: where a choice is between a better conversation
 and a better record, take the record. Drawing the thread as the text is the record made
@@ -435,8 +606,12 @@ thirty days, does the alpha reader open something she found by asking, unprompte
 goes to the library instead, the door was not the problem and the box goes back to a page.
 
 One more door on a page that is not this one: the gloss card in the reader gains Ask,
-and the answer lives in the card, two turns at most, in English, about the text — what
-the form is, why it is that form here — with "Continue in chat" as the way on. The reader
+and the answer lives in the card, two turns at most, about the text — what the form is,
+why it is that form here — with "Continue in chat" as the way on. (Amended 2026-09-11:
+the card's answer was in English for everyone; it is now in Hebrew at the reader's
+level like every other line of the conversation, since a note of where the reader is
+decides what the answer is about and never its language. Only a scripture-only shelf
+still opens the conversation in English.) The reader
 stays a reader: full page, nothing beside it, and still fetching nothing — the card talks
 to its own origin the way a gloss does today, on the reader's press. Ask is a working
 action and takes the accent; the field and the button are in the thumb registry.
@@ -857,3 +1032,81 @@ reader is served.**
 sign-in page. David cut that by half and the terser reading wins. Reasons are still given
 where a reader would otherwise be confused about a limit, but not as a default shape for
 every message.
+
+## 13 · The desk — the chrome's own system
+
+The reader is the page. Everything around it — Learn, the conversation, the library, Your
+Progress, the account, the Add page — is the desk the page lies on, and is built to be
+operated rather than read. Added 2026-09-11; the reasons are in §12.
+
+**Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
+things sit on it as cards, `#fffdf9` (dark `#201e1b`), raised by their shadow and not by
+a line: three tiers — rest `0 1px 2px` at 6%, raised with `0 8px 24px -12px` at 18%
+under it, floating with `0 24px 48px -20px` at 28% (dark 40 / 60 / 80%). A hairline, ink
+at 8%, stands only where two same-tone surfaces meet. Two more surfaces: **tint**, the
+primary at 9%, which is the ordinary press; and **glass**, the card at 78% under a 12px
+blur, which is the bar. The one pure-paper surface, `#fbf9f5`, is the reader's page
+— and, on the desk, the sheet: a text drawn as itself — the reader, framed and working,
+at the place it was left (`?preview=1`: it draws no bar, keeps its own links in the
+frame, sends every other link to the page, and counts a visit at the first press rather
+than at being shown), its title, Expand and Open under it — a shadow offset `2px 3px` as
+a page casts, no card chrome. The header is glass (decided 2026-09-11; it was the ink bar, `#171614`, for a
+morning): sticky, no rule under it, the places as tint pills with the current one in the
+primary, the bell and the account as round buttons; the reader keeps its own bar. On a
+phone (under 40rem) the three places are a bar at the foot of the window on glass, a
+glyph over each word; the top bar keeps the mark, the bell and the account; the pill
+that opens the conversation is a round button above the bar, and every panel comes up
+as a sheet from the foot. Fields are wells: no line,
+the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
+view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
+brightest object.
+
+**Colour.** The warm family stays. The primary is teal, `#1f6f6b` on light (5.6:1 on
+paper, 5.8:1 as paper text on it) and `#6fb8b3` on dark (7.4:1): links, Send, the
+active tab, the selected row, a field's focus, and the "on" state. Calls to action stay
+ink-filled with paper text (§9). The brown accent keeps the reader; on the desk it is not
+used. The functional hues — leaf, clay, iris, sun — mean what §4 says and nothing else,
+so a teal thing is always a control and a green thing is always progress. The wash is
+teal at 9% (dark 12%).
+
+**Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
+subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.
+Section titles 1.25rem/700, card and panel titles 1.0625rem/600, body and controls
+0.9375rem, meta 0.875rem, labels 0.6875rem uppercase at 0.08em. The reading serif appears
+on the desk only where a text's own words or title appear — the sheet, a card's Hebrew
+title, a row in Your Words — and in the wordmark. Hebrew keeps its own faces and leading
+and is never scaled (§5). Counts keep tabular figures.
+
+**Layout.** The rem itself scales with the screen on chrome pages — `clamp(16px, 0.35vw +
+12.5px, 22px)`: 16 on a phone, about 17 on a laptop, 21 on a television — so one layout
+serves a hand and a wall; the reader sets its own type. A 62rem column, cards on a
+12-column grid, 8px base, sections 48px apart
+with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
+pointer (§8). Radii are the desk's own scale: 8 controls, 12 rows and fields, 16 cards, 24 sheets and
+floating panels, 999 pills; the sheet's paper stays at 16 so it still reads as a page.
+Buttons are three kinds and no more: **filled** in the primary, one per view — Send,
+Open, a Follow that is on; **tonal**, tint with the primary's text, the ordinary press;
+**ghost**, no fill, for Hide, Close and dismiss. All are pills. The bordered word-button
+is retired.
+The front page is the reader's own highlight (2026-09-11): the sheet across the row at
+a reading height, then the shelf, and nothing else. The lists of words and phrases are a
+page behind the account, and so are the series to follow. The conversation lives on no
+page: one pill in the primary, fixed at the foot of every page, opens it as a drawer —
+from the edge on a laptop, up from the foot on a phone — holding the conversation page
+framed without its bar (`/chat?embed=1`), loaded when first opened and left open across
+pages. What is typed there is answered there; a text it offers opens in the sheet on
+Learn and on the reader's own page anywhere else; both frames are same-origin only, in
+both directions. Notifications — what is building, what is ready, what landed — are a
+bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
+the window but the pill.
+
+**Motion.** One curve, `cubic-bezier(0.2, 0.8, 0.2, 1)`: 240ms for a thing arriving,
+160ms for a thing settling or leaving, a press giving to 0.98; none under
+`prefers-reduced-motion` (§8).
+
+**What stays the reader's.** The page tone, the serif, the hairlines between lines, the
+brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
+nothing — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
+page's lines keep §8 as written.
+

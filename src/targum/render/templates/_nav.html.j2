@@ -17,6 +17,7 @@
     is why the row wraps rather than scrolls under a narrow window.
 
     Set `here` to "learn", "chat", "library", "progress" or "add" before including this. -#}
+{{ chrome_face() }}
 <header class="site-head">
   <div class="site-head-row">
     {#- The lockup, assembled live rather than dropped in as lockup.svg: the name is
@@ -31,15 +32,41 @@
       <span>targum</span>
     </a>
     <nav class="site-nav" aria-label="Pages">
-      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}>Learn</a>
-      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
-      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
+      {#- On a phone the three places are a bar at the foot of the window, a glyph over
+          each word (phase 4, 2026-09-11); at a desk the glyphs are not drawn. §7: sixteen
+          pixels, a stroke at 1.4, round caps. -#}
+      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>Learn</span></a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>Library</span></a>
+      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span>Your Progress</span></a>
     </nav>
+    {#- Notifications, in the corner of every page (2026-09-11): what is building and
+        what is ready, and anything else the page has to say later. The bell carries a
+        count; the panel lists them, newest first, each with its own ×. It replaced the
+        pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
+    {#- The command palette's own door (2026-09-11), beside the bell; ⌘K is the other. -#}
+    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="Find anything" title="Find anything (⌘K)">
+      <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/></svg>
+    </button>
+    <div class="notices" id="notices">
+      <button type="button" id="notices-open" aria-expanded="false" aria-haspopup="dialog" aria-label="Notifications">
+        <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0"/></svg>
+        <span class="notices-count" id="notices-count" hidden></span>
+      </button>
+      <div class="notices-panel" id="notices-panel" role="dialog" aria-label="Notifications" hidden>
+        <p class="notices-empty" id="notices-empty">Nothing is building.</p>
+        <ul class="notices-list" id="notices-list"></ul>
+      </div>
+    </div>
     <div class="account" id="account">
       <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
         Sign in
       </button>
       <div class="account-panel" id="account-panel" role="dialog" aria-label="Your account" hidden>
+        {#- Your Words: the words and phrases you are learning, behind the account since
+            2026-09-11 ("a dedicated page you access by clicking on your picture in the
+            top right"). Above both halves of the panel: it is yours signed in or not. -#}
+        <p class="yours-link"><a class="to-you" href="/words">Your words and phrases</a>
+          <a class="to-you" href="/you#subscriptions">Your subscriptions</a></p>
         <div class="signed-out">
           <p>Your words follow you. No password — targum emails you a link.</p>
           <form id="account-form">
@@ -50,6 +77,9 @@
         </div>
         <div class="signed-in" hidden>
           <p class="whom" id="account-whom"></p>
+          {#- The month's hours, in the unit the pricing page gives them: where a reader
+              who wonders looks, and nowhere they did not (targum-internal#237). -#}
+          <p class="hours" id="account-hours" hidden></p>
           <a class="to-you" href="/you">Your profile</a>
           <button type="button" id="account-out">Sign out</button>
         </div>
@@ -58,17 +88,34 @@
     </div>
     <button type="button" data-theme-toggle aria-label="Switch theme"></button>
   </div>
-  {#- A build you can walk away from. One line, on every page, while anything of yours
-      is building or waiting — and when it is done, the link. The build was never
-      cancelled by leaving the page; it only looked that way. -#}
-  <p class="building" id="building" hidden>
-    <span id="building-text"></span>
-    <a id="building-link" hidden>Open</a>
-    <button type="button" id="building-dismiss" aria-label="Dismiss">×</button>
-  </p>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}
   <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>
   <p class="beta-note" id="beta-note" hidden></p>
   {%- endif %}
 </header>
+{#- What a reader follows, on every page (2026-09-11): the bell says when a followed
+    series' instalment lands, and Learn puts it in the sheet. Before `building.js`, which
+    every page includes after this header and which asks it. -#}
+<script>{{ asset('follow.js') }}</script>
+{#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
+    opens the conversation as a drawer — the conversation page framed without its bar.
+    Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
+<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="Talk to targum"><svg class="talk-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg><span>Talk to targum</span></button>
+<div class="talk-scrim" id="talk-scrim" hidden></div>
+<aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
+  <div class="talk-drawer-head">
+    <span class="talk-drawer-title">Talk to targum</span>
+    <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
+  </div>
+  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+</aside>
+<script>{{ asset('talk.js') }}</script>
+{#- The command palette (2026-09-11): one field that finds a place, a text, a series or
+    a conversation, and one press that goes there. Drawn by `palette.js`. -#}
+<div class="palette-scrim" id="palette-scrim" hidden></div>
+<div class="palette" id="palette" role="dialog" aria-label="Find anything" hidden>
+  <input type="search" id="palette-find" class="palette-find" placeholder="Find a text, a page, a conversation" autocomplete="off" spellcheck="false">
+  <ul class="palette-list" id="palette-list" role="listbox"></ul>
+</div>
+<script>{{ asset('palette.js') }}</script>

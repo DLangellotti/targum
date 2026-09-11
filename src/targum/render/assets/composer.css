@@ -9,13 +9,42 @@
 .composer {
   display: grid;
   grid-template-areas:
-    "say say say"
-    "held held held"
-    "bring mic send";
-  grid-template-columns: auto minmax(0, 1fr) auto;
+    "held held held held"
+    "bring say mic send";
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 0.6rem;
-  align-items: center;
+  align-items: end;
 }
+.composer textarea { grid-area: say; }
+.composer .chat-held { grid-area: held; }
+.composer .chat-bring { grid-area: bring; }
+.composer .chat-mic { grid-area: mic; }
+.composer .chat-send { grid-area: send; }
+
+/* The sprite the glyphs come from: on the page so `<use>` can reach it, and no size at
+   all so it takes no room. Not `hidden` — a `display: none` sprite is one some browsers
+   draw nothing from. */
+.glyphs {
+  position: absolute;
+  inline-size: 0;
+  block-size: 0;
+  overflow: hidden;
+}
+/* A glyph, drawn as §7 says: sixteen pixels, a stroke at text weight, no fill. The
+   colour is the control's own. */
+.glyph {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+/* The arrow points the way the page reads. */
+[dir="rtl"] .chat-send .glyph { transform: scaleX(-1); }
+
 .composer textarea { grid-area: say; }
 .composer .chat-held { grid-area: held; }
 .composer .chat-bring { grid-area: bring; }
@@ -27,15 +56,20 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: var(--paper);
+  border: 1px solid var(--well);
+  border-radius: var(--radius-control);
+  background: var(--ground);
   color: var(--ink);
-  resize: vertical;
-  min-height: 2.75rem;
+  /* One row at rest, growing with what is typed to six lines or so, then scrolling;
+     the grip is gone because the field sizes itself. `field-sizing` where the browser
+     has it; the pages' scripts do the same by hand where it does not. */
+  resize: none;
+  field-sizing: content;
+  min-block-size: 2.4rem;
+  max-block-size: 9.5rem;
   width: 100%;
 }
-.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.composer textarea:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 
 /* A file or a recording, brought and priced in place (2026-09-06): the Add page's job
    in one press, where Upload was a corner of the nav. A typed `+` as itself (§7), in a
@@ -46,9 +80,9 @@
   width: 2.4rem;
   height: 2.4rem;
   padding: 0;
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--well);
   border-radius: 999px;
-  background: transparent;
+  background: var(--card);
   font: inherit;
   font-size: 1.0625rem;
   line-height: 1;
@@ -74,7 +108,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.2rem 0.3rem 0.2rem 0.7rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   font-size: 0.8125rem;
   color: var(--ink);
@@ -112,8 +146,8 @@
 .quote-card {
   margin-block-start: 0.5rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
   display: grid;
   gap: 0.35rem;
   justify-items: start;
@@ -132,6 +166,15 @@
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* Where the text is from: a quiet link under the title, the site's name (2026-09-11). */
+.quote-source {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--teal);
+  text-decoration: none;
+  border-block-end: 1px solid color-mix(in srgb, var(--teal) 40%, transparent);
+}
+.quote-source:hover { border-block-end-color: var(--teal); }
 .quote-meta {
   margin: 0;
   font-family: ui-monospace, monospace;
@@ -139,6 +182,8 @@
   color: var(--ink-soft);
 }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+/* How much of the text the reader already has, said in words (targum-internal#244). */
+.quote-known { margin: 0; font-size: 0.8125rem; color: var(--ink); }
 .quote-card.refused .quote-note { color: var(--clay); }
 /* The first lines of a text that arrived as pages, in the reading face: what the
    reader will get, seen before the press. Four lines at most, set by the server. */
@@ -158,7 +203,7 @@
   font-weight: 600;
   padding: 0.55rem 1rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   cursor: pointer;
@@ -168,7 +213,7 @@
 
 .quote-more {
   font-size: 0.8125rem;
-  color: var(--accent);
+  color: var(--teal);
   text-decoration: none;
   border-block-end: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
@@ -176,41 +221,143 @@
 
 
 /* Speak is a working action, so it takes the working treatment: ink border, not the
-   accent the one send button holds (§4: one accent, rationed). Recording is a state
-   said in words as well as in ink, never in a colour alone (§6). */
+   accent the one send button holds (§4: one accent, rationed) — a ring the size of the
+   `+`, with the microphone in it. Recording is a state said in words (the label reads
+   Stop) as well as in ink, never in a colour alone (§6). */
 .chat-mic {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.6rem 0.9rem;
-  border: 1px solid var(--ink-soft);
-  border-radius: 6px;
-  background: transparent;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--well);
+  border-radius: 999px;
+  background: var(--card);
   color: var(--ink);
   cursor: pointer;
 }
 .chat-mic:hover { background: var(--paper-raised); }
+.chat-mic:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .chat-mic[hidden] { display: none; }
 
+/* Send: the desk's one control colour (§13), and an arrow in it. */
 .chat-send {
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.6rem 1rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
   border: 0;
-  border-radius: 6px;
-  background: var(--accent);
-  color: var(--paper);
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
   cursor: pointer;
 }
 .chat-send:hover { filter: brightness(1.08); }
+.chat-send:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .chat-send:disabled { opacity: 0.5; cursor: default; }
+
+/* The month's hours, above the box, only past three quarters used (targum-internal#237):
+   a quiet line in words, never a colour — it is information, not an error. */
+.chat-hours { margin: 0 0 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.chat-hours[hidden] { display: none; }
 
 .chat-said { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--clay); }
 .chat-said[hidden] { display: none; }
 
+/* The chips: the things most readers ask, as buttons (targum-internal#240). Ink-bordered
+   pills on paper, working controls with no accent (§4), wrapping as a row of words
+   does. Hidden where there are none, and on the conversation page once a thread has a
+   turn in it. */
+.chat-chips {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chat-chips[hidden] { display: none; }
+.chat-ask {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--well);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--teal);
+  cursor: pointer;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  min-inline-size: 0;
+  text-align: start;
+}
+/* A text's title on a chip: one line, cut short, never past the card (2026-09-11). */
+.chat-chips li { max-inline-size: 100%; min-inline-size: 0; }
+.chat-ask .chip-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink);
+}
+.chat-ask:hover { background: var(--teal-wash); }
+.chat-ask:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* "Another", under the card the first chip hands back: the next text, the same way. */
+.chat-another {
+  font: inherit;
+  font-size: 0.8125rem;
+  margin-block-start: 0.5rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  justify-self: start;
+}
+.chat-another:hover { background: var(--paper-raised); }
+.chat-another:disabled { opacity: 0.5; cursor: default; }
+
+/* The first visit's one question, under the box (targum-internal#243): a line and two
+   ink-bordered answers, gone once pressed. */
+.chat-first-lang {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.chat-first-lang[hidden] { display: none; }
+.chat-first-yes,
+.chat-first-no {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-first-yes:hover,
+.chat-first-no:hover { background: var(--paper-raised); }
+
 /* §8: a control a thumb presses answers a tap over 44px. */
 @media (hover: none) and (pointer: coarse) {
+  .chat-first-yes,
+  .chat-first-no,
+  .chat-ask,
+  .chat-another,
   .chat-send,
   .chat-mic,
   .chat-bring,
@@ -220,3 +367,33 @@
     min-width: 44px;
   }
 }
+
+/* --- the desk grown up (§13, 2026-09-11) ----------------------------------------------
+   The field is the well with no line and a ring on focus; the + and the microphone are
+   ghost icons; the chips are tint; the one filled press is Send. */
+.composer textarea {
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  padding: 0.7rem 0.9rem;
+  min-block-size: 2.6rem;
+}
+.composer textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.chat-bring, .chat-mic {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.chat-bring:hover, .chat-mic:hover { background: var(--teal-wash); color: var(--teal); }
+.chat-mic[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
+.chat-send { width: 2.6rem; height: 2.6rem; }
+.chat-ask { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }
+.chat-ask:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.chat-chip { border: 0; background: var(--teal-wash); color: var(--ink); }
+.quote-card { border: 1px solid var(--hairline); border-radius: var(--radius-card); padding: 0.9rem 1rem; background: var(--card); }
+.quote-go { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
+.quote-go:hover { background: var(--teal); filter: brightness(1.08); }
+.chat-another, .chat-first-yes, .chat-first-no { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.4rem 0.9rem; }
+.chat-another:hover, .chat-first-yes:hover, .chat-first-no:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }

@@ -18,17 +18,20 @@ import json
 import os
 import queue
 import threading
+import time
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .. import level as level_module
+from ..translate.prompts import language_name
 from ..usage import Usage
 from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
 from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
+from . import sources as sources_module
 from . import tools as tools_module
 from .record import Recorder, outside_share
 
@@ -147,6 +150,29 @@ def _said(blocks: list[dict[str, Any]]) -> str:
 ClientFactory = Callable[[], Any]
 
 
+#: The one kind of cache breakpoint the API takes.
+CACHED = {"type": "ephemeral"}
+
+
+def marked(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The messages as sent, with a cache breakpoint on the last block of the last one
+    (targum-internal#239): the API caches a prefix, and marking the end of the history
+    is what lets the next turn read all of it back rather than pay for it again. A copy
+    of that one message, never the stored one — the store holds the conversation as the
+    API saw it, and a marker is not part of what was said."""
+    if not messages:
+        return messages
+    last = dict(messages[-1])
+    content = last.get("content")
+    if isinstance(content, str):
+        last["content"] = [{"type": "text", "text": content, "cache_control": CACHED}]
+    elif isinstance(content, list) and content:
+        blocks = [dict(block) for block in content]
+        blocks[-1]["cache_control"] = CACHED
+        last["content"] = blocks
+    return [*messages[:-1], last]
+
+
 def run_turn(
     client: Any,
     ctx: tools_module.Ctx,
@@ -174,14 +200,21 @@ def run_turn(
             model=CHAT_MODEL,
             max_tokens=MAX_TOKENS,
             system=[
-                # The stable half first and cached; the ledger after the breakpoint, so a
-                # reader marking one word does not throw the whole prefix away.
-                {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": ledger or prompts.ledger(ctx.level)},
+                # Three breakpoints (targum-internal#239). The stable half first, so a
+                # reader marking one word does not throw the whole prefix away; the
+                # ledger after it, cached too, now that it holds still for a whole
+                # conversation; and the last message, so the next turn reads this
+                # turn's history from the cache rather than sending it again.
+                {"type": "text", "text": stable, "cache_control": CACHED},
+                {
+                    "type": "text",
+                    "text": ledger or prompts.ledger(ctx.level),
+                    "cache_control": CACHED,
+                },
             ],
             output_config={"effort": EFFORT},
             tools=tools_module.anthropic_tools(web_search=web_search),
-            messages=messages,
+            messages=marked(messages),
         ) as stream:
             for event in stream:
                 if getattr(event, "type", "") == "content_block_delta":
@@ -195,6 +228,8 @@ def run_turn(
                 CHAT_MODEL,
                 int(getattr(got, "input_tokens", 0) or 0),
                 int(getattr(got, "output_tokens", 0) or 0),
+                cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
+                cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
             )
         blocks = _content(reply)
         # A search the API ran on the turn's behalf is billed per search, not per token,
@@ -264,7 +299,10 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
         return text
     where = []
     if about.get("document"):
-        where.append(f"the text {about['document']}")
+        named = about["document"]
+        if about.get("title"):
+            named = f"{about['title']} ({about['document']})"
+        where.append(f"the text {named}")
     if about.get("section"):
         where.append(f"section {about['section']}")
     lines = [
@@ -337,12 +375,12 @@ def brought_note(brought: dict[str, Any]) -> list[str]:
     stage = str(brought.get("stage") or "")
     if stage in ("working", "done"):
         lines.append(
-            "It is being built now and will open from the strip at the top of their page "
-            "when it is ready. They do not need to send it again, and you cannot open it."
+            "It is getting ready now and will open from the strip at the top of their "
+            "page when it is. They do not need to send it again, and you cannot open it."
         )
     elif brought.get("blocked") or brought.get("error"):
         lines.append(
-            "It could not be built: " + str(brought.get("blocked") or brought.get("error"))
+            "It could not be made ready: " + str(brought.get("blocked") or brought.get("error"))
         )
     else:
         lines.append("Its card is in the thread, waiting on their press.")
@@ -452,6 +490,125 @@ class Chats:
             admin=admin,
         )
 
+    #: How far back "new words" reaches for the chip that brings them back, in the
+    #: milliseconds the ledger keeps `at` in: a fortnight.
+    NEW_WORDS_MS = 14 * 24 * 3600 * 1000
+
+    def chips(self, person: Person | None, home: Path) -> list[dict[str, str]]:
+        """The things most readers ask, as buttons (targum-internal#240, from the notes
+        of 2026-09-10: "most prompts will be nearly identical"). Drawn from the record,
+        never a static list: each stands only where its condition holds, and the first
+        never reaches the model at all — `suggest` answers it from `suggest_next` with
+        no turn and no spend. This reverses the cut of starter chips on 2026-09-06;
+        design.md §12 records why."""
+        chips: list[dict[str, str]] = [{"id": "read", "line": "Find me something to read"}]
+        store = self.store
+        if store is not None and person is not None:
+            # The text in progress: the most recently opened, not yet finished (the
+            # carry card's own question, answered off the same clocks).
+            ctx = self.context(person, home, "", False)
+            times = store.read_times(person.id)
+            mine, shared = tools_module._shelf(ctx)
+            opened = sorted(
+                (
+                    (times[str(row.get("document") or "")]["opened"], row)
+                    for row in [*mine, *shared]
+                    if str(row.get("document") or "") in times
+                    and not times[str(row.get("document") or "")].get("finished")
+                ),
+                key=lambda pair: -pair[0],
+            )
+            if opened:
+                row = opened[0][1]
+                chips.append(
+                    {
+                        "id": "continue",
+                        "line": "Continue",
+                        # The title rides on its own, so the page can cut it short where
+                        # a chip would run out of its card (2026-09-11).
+                        "title": str(row["title"]),
+                        "reader": str(row["reader"]),
+                    }
+                )
+            since = int(time.time() * 1000) - self.NEW_WORDS_MS
+            fresh = store.db.execute(
+                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0"
+                " AND status IS NOT NULL AND status < 9 AND status > 0 AND at >= ?",
+                (person.id, since),
+            ).fetchone()
+            if int(fresh["n"]) > 0:
+                chips.append({"id": "words", "line": "Use my new words"})
+            known = store.db.execute(
+                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status = 9",
+                (person.id,),
+            ).fetchone()
+            if int(known["n"]) > 0:
+                chips.append({"id": "know", "line": "Show me what I know"})
+        if any(one.feed for one in sources_module.load()):
+            chips.append({"id": "news", "line": "Read today's news"})
+        chips.append({"id": "stuck", "line": "Explain a word I am stuck on"})
+        return chips
+
+    #: What the page says for the reader when the first chip is pressed, and what
+    #: targum says back — fixed lines, pointed as the contract asks, because no model
+    #: writes this turn. The English carries the reason the text was chosen.
+    SUGGEST_ASKED = "Find me something to read"
+    SUGGEST_SAID = "הִנֵּה מַשֶּׁהוּ לִקְרוֹא."
+    #: Its "= " line, in the languages the account may read (targum-internal#243).
+    SUGGEST_LINES = {"en": "Here is something to read.", "ru": "Вот что-то почитать."}
+
+    def suggest(
+        self,
+        person: Person | None,
+        home: Path,
+        chat_id: str,
+        *,
+        admin: bool,
+        skip: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        """ "Something to read", answered without the model (targum-internal#240).
+
+        The one line most readers will press, and the answer to it is `suggest_next` and
+        a card: the same card the model's own `quote_build` hands the page, priced and
+        not started. No turn is run, no `job` of kind `chat` is written and nothing is
+        spent — the press is the ask, the card's button is still the build's press. The
+        exchange is written into the conversation so the thread reads back whole.
+        `skip` names texts already offered, for "Another". Returns what the page draws,
+        or `{"error", "status"}`.
+        """
+        if self.store is None:
+            raise RuntimeError("a chat needs a store")
+        store = self.store
+        person_id = person.id if person else None
+        ctx = self.context(person, home, chat_id, admin)
+        found = tools_module.suggest_next(ctx, {"limit": 10})
+        left = {str(one) for one in skip}
+        rows = [row for row in found.get("suggestions", []) if row["id"] not in left]
+        if not rows:
+            return {"error": "Nothing left to suggest. Ask for something.", "status": 404}
+        top = rows[0]
+        quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
+        quote = quoted.get("quote")
+        if quote is None:
+            return {"error": quoted.get("error") or "That cannot be made ready now.", "status": 409}
+        if not chat_id:
+            mode = "talk" if self.library.talks(home, person_id) else "find"
+            chat_id = store.chat_open(person_id, mode=mode)
+        because = str(top.get("because") or "").strip()
+        into = hebrew_module.gloss_language(ctx.reads)
+        line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
+        said = f"{self.SUGGEST_SAID}\n= {line} {because}".rstrip()
+        n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
+        store.chat_say(chat_id, "assistant", [{"type": "text", "text": said}], said)
+        return {
+            "chat": chat_id,
+            "turn": n,
+            "said": said,
+            "quote": quote,
+            "offered": [top["id"]],
+            "more": len(rows) > 1,
+        }
+
     def start_workers(self, count: int = CHAT_WORKERS) -> None:
         for _ in range(count):
             worker = threading.Thread(target=self._drain, daemon=True)
@@ -524,10 +681,12 @@ class Chats:
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
-        `about` is where the reader is when the line came from a word's card — the
-        text, the section, the sentence, the word. It rides in the turn the model sees
-        and not in what the page shows back, and it opens the conversation in English:
-        a question about a form is answered about the form, whatever the reader's shelf.
+        `about` is where the reader is — the text, the section, the sentence, and, from
+        a word's card, the word. It rides in the turn the model sees and not in what the
+        page shows back, and it decides what the answer is about — the form, the
+        sentence — and never its language: the conversation is in Hebrew at their level
+        wherever it is held (2026-09-11), and only a scripture-only shelf opens it in
+        English (`Library.talks`).
         `brought` is the text the reader sent with the line, from its own job: it rides
         the same way, and the conversation keeps its language.
         """
@@ -538,8 +697,10 @@ class Chats:
             # One conversation, in Hebrew, for a reader with modern Hebrew to hold it in;
             # a scripture-only reader is answered in English, about the text. The same
             # question the page asks (`talk` on `/chat/list`), answered the same way.
-            # A question from a word's card is about the text, in English, for everyone.
-            mode = "talk" if self.library.talks(home, person_id) and not about else "find"
+            # A note of where the reader is — a word's card, the drawer in a reader —
+            # changes what the answer is about and never its language (2026-09-11: "the
+            # chat with the reader should be in Hebrew at your level ... a general rule").
+            mode = "talk" if self.library.talks(home, person_id) else "find"
             chat_id = self.store.chat_open(person_id, mode=mode)
         n = self.store.chat_say(
             chat_id, "user", framed(text, about, brought), text, stage="working"
@@ -629,14 +790,22 @@ class Chats:
         # not written Hebrew at — the conversation was opened as "find", and it stays in
         # English, about the text (`Library.talks`).
         opened = store.chat_owned(person_id, asked.chat_id) or {}
-        contract = "" if opened.get("mode") == "find" else hebrew_module.CONTRACT
+        # The "= " lines in the language the account reads (targum-internal#243).
+        into = hebrew_module.gloss_language(ctx.reads)
+        contract = (
+            "" if opened.get("mode") == "find" else hebrew_module.contract(language_name(into))
+        )
         known = hebrew_module.known_words(store, person_id, language)
         common = hebrew_module.common_words(language=language)
         # The reader's own words come back into a conversation in Hebrew, and only
         # there: a question about a text is answered about the text. By status, and a
         # different slice of the ledger on every turn.
+        # One slice of the ledger and one draw of exemplars for the whole conversation
+        # (targum-internal#239): the block sits after the breakpoint and before the
+        # history, so a block that changed every turn cost the cache the history.
+        seed = exemplars_module.conversation_seed(asked.chat_id)
         returning = (
-            hebrew_module.bring_back(store, person_id, language, turn=asked.n) if contract else None
+            hebrew_module.bring_back(store, person_id, language, seed=seed) if contract else None
         )
         ledger = hebrew_module.ledger_block(level, known, common, returning)
         if contract and self.exemplars:
@@ -647,7 +816,7 @@ class Chats:
                 self.exemplars,
                 set(known) | set(common),
                 returning.words() if returning else (),
-                seed=exemplars_module.turn_seed(asked.chat_id, asked.n),
+                seed=seed,
             )
             if picked:
                 ledger = ledger + "\n\n" + exemplars_module.block(picked)
@@ -686,6 +855,7 @@ class Chats:
                     feed,
                     language,
                     set(known) | set(common) | set(returning.words() if returning else []),
+                    target=into,
                 )
             feed.put(
                 "done",
@@ -711,7 +881,9 @@ class Chats:
             self.library.remember(job)
             feed.close()
 
-    def _record(self, asked: Asked, feed: Feed, language: str, allowed: set[str]) -> None:
+    def _record(
+        self, asked: Asked, feed: Feed, language: str, allowed: set[str], target: str = "en"
+    ) -> None:
         """Read the answer's Hebrew lines and hand the page their words.
 
         Kept on the reader's turn, as the words of its answer, and put on the feed as
@@ -723,7 +895,7 @@ class Chats:
         try:
             said = hebrew_module.pairs(feed.text())
             lines = [pair.hebrew for pair in said]
-            words = self.recorder.annotate(lines, language)
+            words = self.recorder.annotate(lines, language, target)
             payload = {
                 "lines": [{"he": he, "words": read} for he, read in zip(lines, words, strict=True)],
                 "outside": round(outside_share(words, allowed), 3),

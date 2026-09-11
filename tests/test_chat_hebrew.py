@@ -180,7 +180,7 @@ def test_the_readers_words_come_back_by_status_if_a_newspaper_would_use_them(
     assert not hebrew.bring_back(store, None, "he", now_ms=now), "nobody signed in"
 
 
-def test_the_ledger_is_walked_a_slice_at_a_turn_and_a_short_status_passes_its_share_on(
+def test_the_ledger_is_walked_a_slice_a_conversation_and_a_short_status_passes_its_share_on(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from targum.annotate import frequency
@@ -190,16 +190,49 @@ def test_the_ledger_is_walked_a_slice_at_a_turn_and_a_short_status_passes_its_sh
     person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
     met = [f"מילה{n}" for n in range(8)]
     store.push(person, {"words": [word(lemma, 1, n) for n, lemma in enumerate(met)]})
-    first = hebrew.bring_back(store, person.id, "he", turn=1)
-    second = hebrew.bring_back(store, person.id, "he", turn=2)
+    first = hebrew.bring_back(store, person.id, "he", seed=1)
+    second = hebrew.bring_back(store, person.id, "he", seed=2)
     assert len(first.new) == 8 and first.new != second.new, (
         "with nothing learning or nearly known, the met-once words take the whole list, "
-        "and a turn starts further along"
+        "and the next conversation starts further along (by seed since #239)"
     )
     assert set(first.new) == set(met) == set(second.new)
     store.push(person, {"words": [word(f"לומד{n}", 2, n) for n in range(20)]})
-    back = hebrew.bring_back(store, person.id, "he", turn=1)
+    back = hebrew.bring_back(store, person.id, "he", seed=1)
     assert len(back.new) == 8 and len(back.learning) == 4, (
         "the met-once share is five and takes the four nobody nearly knows; learning keeps its own"
     )
     assert len(hebrew.rotate(list("abc"), 5, 0)) == 3 and hebrew.rotate([], 3, 0) == []
+
+
+def test_a_slice_of_the_ledger_is_drawn_by_conversation_not_by_turn() -> None:
+    """targum-internal#239: the same seed gives the same slice, and the next seed the
+    next slice, so two conversations walk the ledger between them while one holds
+    still — and the block after the cache breakpoint holds still with it."""
+    pool = [f"w{n}" for n in range(10)]
+    assert hebrew.rotate(pool, 3, 7) == hebrew.rotate(pool, 3, 7)
+    assert hebrew.rotate(pool, 3, 7) != hebrew.rotate(pool, 3, 8)
+    assert hebrew.rotate(pool, 3, 0) == ["w0", "w1", "w2"]
+    assert hebrew.rotate(pool, 3, 1) == ["w3", "w4", "w5"]
+
+
+def test_why_a_recast_changed_something_rides_with_the_recast_and_nowhere_else() -> None:
+    """targum-internal#242: one "~ " line, directly under the recast's English, is the
+    recast's; a "~ " anywhere else is the contract broken and is dropped."""
+    said = (
+        "> אֲנִי הָלַכְתִּי אֶתְמוֹל.\n= I went yesterday.\n~ Past tense: הָלַכְתִּי, not הָלַךְ.\n"
+        "יָפֶה.\n= Nice.\n~ stray\nעוֹד.\n= More."
+    )
+    read = hebrew.pairs(said)
+    assert [p.why for p in read] == ["Past tense: הָלַכְתִּי, not הָלַךְ.", "", ""]
+    assert read[0].recast and read[0].english == "I went yesterday."
+    assert hebrew.length(said) == 2, "a why line is not Hebrew the reader is asked to read"
+    plain = hebrew.pairs("> שָׁלוֹם.\n= Hello.\nמָה שְׁלוֹמְךָ?\n= How are you?")
+    assert all(p.why == "" for p in plain)
+
+
+def test_a_reader_with_no_ledger_is_told_once_where_the_common_words_are() -> None:
+    """targum-internal#245: a reader who already reads Hebrew arrives with a ledger of
+    nothing; the way up is Words you may already know, said once, never a level."""
+    block = hebrew.ledger_block(level.EMPTY, [], ["של", "את"])
+    assert "Words you may already know" in block and "never what level they are" in block

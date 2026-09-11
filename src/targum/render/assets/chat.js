@@ -33,6 +33,37 @@
   var field = document.getElementById("say");
   var send = document.getElementById("chat-send");
   if (!list || !turns || !form || !field || !send) return;
+  // Framed in the front page (design.md §13, 2026-09-11): this same page, without its
+  // bar, inside Learn — "I should not be sent to a new page". There the newest
+  // conversation is not opened by itself (the front page is a door, not a thread), a
+  // text opens in the page that holds the frame, and the address is left alone: a
+  // frame's own history is the holding page's history too.
+  var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
+
+  // Where a text opens. On the page itself, the reader. Framed in the front page, the
+  // text is offered to the page holding the frame, which opens it in the reader it
+  // already shows beside the conversation — "opened first in the reader on this page,
+  // then they can expand or go to the dedicated page" (2026-09-11) — so nothing typed
+  // here ever sends anybody away. `path` is the reader's own, `<name>/reader/<file>`.
+  function openReader(path) {
+    if (EMBED && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "targum:open", reader: path }, window.location.origin);
+      return;
+    }
+    window.location.href = bringing.door(path);
+  }
+  // Every door to a reader drawn in the thread — a card's Open, a path the model wrote —
+  // is a link; framed, the link is caught and offered the same way.
+  if (EMBED && document.addEventListener) {
+    document.addEventListener("click", function (event) {
+      var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!link || event.defaultPrevented) return;
+      var found = /\/reader\/([^?#]+)/.exec(link.getAttribute("href") || "");
+      if (!found) return;
+      event.preventDefault();
+      openReader(found[1]);
+    });
+  }
 
   var current = "";
   var chats = [];
@@ -55,14 +86,15 @@
   }
   showMic();
 
+  // The month's hours, above the box, and only past three quarters of them: the cap
+  // should not be the first a reader hears of it, and a count on every visit was the
+  // metric in everybody's face (2026-09-10, targum-internal#237). The whole count is on
+  // Your Progress and in the account panel.
   function drawHours(got) {
     if (!hoursLine || !got) return;
-    if (got.allowed === null || got.allowed === undefined) {
-      hoursLine.hidden = true;
-      return;
-    }
-    hoursLine.textContent = got.used + " of " + got.allowed + " hours this month";
-    hoursLine.hidden = false;
+    var line = window.TargumBring ? window.TargumBring.hoursWarning(got) : "";
+    hoursLine.textContent = line;
+    hoursLine.hidden = !line;
   }
 
   // A failed request is an answer with an error in it, never a rejection left to the
@@ -104,6 +136,67 @@
     } catch (e) {
       return {};
     }
+  }
+
+  // Whether the ledger has anything marked known in it: a reader with nothing yet is
+  // shown the English open, because hidden Hebrew is a wall to somebody with no words.
+  function hasKnown() {
+    var kept = ledger();
+    for (var lemma in kept) {
+      if (kept[lemma] && kept[lemma].status === 9) return true;
+    }
+    return false;
+  }
+
+  /* --- the English, on tap (targum-internal#241) --------------------------------
+   *
+   * "I would just ignore the Hebrew and read the English." With the English open under
+   * every line, it was. It is folded now and a tap on the pair opens it — the gesture
+   * that opens a word's gloss — with one Show English at the head of the thread for
+   * all of it at once, remembered. The recast is always open: it is the correction,
+   * and the reader's own words. A reader with no known words sees it all open.
+   */
+  var ENGLISH_KEY = "targum:chat-english";
+  var englishOpen = false;
+  try {
+    englishOpen = localStorage.getItem(ENGLISH_KEY) === "open";
+  } catch (e) {
+    englishOpen = false;
+  }
+  var englishToggle = document.getElementById("chat-english");
+
+  function englishShown(p) {
+    return !!(p.recast || englishOpen || !hasKnown());
+  }
+
+  function drawEnglishToggle() {
+    if (!englishToggle) return;
+    englishToggle.textContent = englishOpen ? "Hide English" : "Show English";
+    englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
+    englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
+  }
+
+  function foldAll() {
+    Array.prototype.forEach.call(turns.querySelectorAll(".chat-pair"), function (pair) {
+      var en = pair.querySelector(".chat-en");
+      if (!en) return;
+      var recast = String(pair.className).split(" ").indexOf("recast") >= 0;
+      en.hidden = !(recast || englishOpen || !hasKnown());
+    });
+    drawEnglishToggle();
+  }
+
+  if (englishToggle) {
+    englishToggle.onclick = function () {
+      englishOpen = !englishOpen;
+      try {
+        if (window.targumKeep) window.targumKeep(ENGLISH_KEY, englishOpen ? "open" : "folded");
+        else localStorage.setItem(ENGLISH_KEY, englishOpen ? "open" : "folded");
+      } catch (e) {
+        /* nothing to remember it in; the thread still obeys the press */
+      }
+      foldAll();
+    };
   }
 
   // What the reader's ledger says about one dictionary form: "known", "learning", or
@@ -245,6 +338,13 @@
         }
         return;
       }
+      if (line.indexOf("~ ") === 0) {
+        // Why the recast changed what the reader wrote: the recast's, and nothing
+        // else's (targum-internal#242).
+        var last = out[out.length - 1];
+        if (!pending && last && last.recast && !last.why) last.why = line.slice(2).trim();
+        return;
+      }
       if (pending) {
         out.push(pending);
         pending = null;
@@ -261,7 +361,36 @@
     return out;
   }
 
-  function render(target, text, words) {
+  /* --- the correction, said so (targum-internal#242) -----------------------------
+   *
+   * The recast was always the correction and never said so: it rendered the same
+   * whether or not anything was changed. Now a recast that differs from what the reader
+   * wrote in Hebrew is labelled "corrected", the words that changed are marked, and the
+   * model's one "~ " line — what changed and the rule — is folded under it, opened by
+   * a tap on the pair. Open by default for a reader with no known words.
+   */
+  var lastAsked = "";
+
+  // A Hebrew line without its points or punctuation, as words, for saying whether the
+  // recast changed anything and which words.
+  function bare(text) {
+    return String(text || "")
+      .replace(/[\u0591-\u05c7]/g, "")
+      .replace(/[.,:;!?()"'״׳־\u2013\u2014-]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+  function correctedBy(asked, recast) {
+    var was = bare(asked);
+    if (!was.some(function (w) { return /[\u05d0-\u05ea]/.test(w); })) return null;
+    var now = bare(recast);
+    if (was.join(" ") === now.join(" ")) return null;
+    var had = {};
+    was.forEach(function (w) { had[w] = true; });
+    return now.filter(function (w) { return !had[w]; });
+  }
+
+  function render(target, text, words, asked) {
     target.textContent = "";
     var found = pairs(text);
     // A turn written by the contract is drawn as pairs; anything else as a line.
@@ -281,10 +410,65 @@
         var en = document.createElement("span");
         en.className = "chat-en";
         en.textContent = p.en;
+        en.hidden = !englishShown(p);
         pair.appendChild(he);
         pair.appendChild(en);
+        if (p.recast && p.why) {
+          // Corrected when the model says so — its "~ " line — and not when the words
+          // merely differ: a right line is often recast in a more Hebrew order, and
+          // that is idiom, not a correction. The words that changed are what the
+          // recast has that the reader's own Hebrew line did not.
+          var changed = correctedBy(asked === undefined ? lastAsked : asked, p.he) || [];
+          {
+            pair.className += " corrected";
+            var fixed = {};
+            changed.forEach(function (w) { fixed[w] = true; });
+            Array.prototype.forEach.call(he.querySelectorAll(".chat-w"), function (span) {
+              if (fixed[bare(span.textContent).join(" ")]) span.className += " fix";
+            });
+            if (p.why) {
+              var why = document.createElement("span");
+              why.className = "chat-why";
+              why.textContent = p.why;
+              why.hidden = hasKnown();
+              pair.appendChild(why);
+              pair.setAttribute("tabindex", "0");
+              pair.setAttribute("title", "Why it was corrected");
+              pair.onclick = function (event) {
+                var hit = event && event.target;
+                if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
+                why.hidden = !why.hidden;
+              };
+              pair.onkeydown = function (event) {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  why.hidden = !why.hidden;
+                }
+              };
+            }
+          }
+        }
+        if (!p.recast) {
+          // A tap on the pair — not on a word, which has a card of its own — opens
+          // or folds its English. Reachable from a keyboard as a control is.
+          pair.setAttribute("tabindex", "0");
+          pair.setAttribute("title", "The English");
+          pair.onclick = function (event) {
+            var hit = event && event.target;
+            if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
+            if (hit && String(hit.className || "").split(" ").indexOf("chat-look") >= 0) return;
+            en.hidden = !en.hidden;
+          };
+          pair.onkeydown = function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              en.hidden = !en.hidden;
+            }
+          };
+        }
         target.appendChild(pair);
       });
+      drawEnglishToggle();
       return;
     }
     var pieces = String(text || "").split(PATH);
@@ -411,7 +595,7 @@
           if (!opening) return state;
           return bringing.follow(job.id).then(function (done) {
             if (done.stage === "done" && done.reader) {
-              window.location.href = bringing.door(done.reader);
+              openReader(done.reader);
             }
             return done;
           });
@@ -451,6 +635,8 @@
       held = [];
       showHeld();
       field.value = "";
+    grow();
+      grow();
       brought(files, !spec).then(function (job) {
         if (spec) say(spec, job && job.id);
       });
@@ -514,14 +700,32 @@
       });
   }
 
+  // A glyph from the sprite the page carries (`_glyphs.html.j2`), for a control drawn
+  // here rather than in the template. The SVG namespace is the whole difference: an
+  // `svg` made by createElement is an unknown HTML element and draws nothing.
+  var SVG = "http://www.w3.org/2000/svg";
+  function glyph(name) {
+    var svg = document.createElementNS(SVG, "svg");
+    svg.setAttribute("class", "glyph");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var use = document.createElementNS(SVG, "use");
+    use.setAttribute("href", "#glyph-" + name);
+    svg.appendChild(use);
+    return svg;
+  }
+
   // Hear an answer. The clip is made on the first press and kept, and its seconds come
-  // out of the same hours a recording does — the press is the spend.
+  // out of the same hours a recording does — the press is the spend. A loudspeaker
+  // since 2026-09-10, with the word as its label.
   function playButton(li, chat, n) {
     if (li.querySelector(".chat-play")) return;
     var button = document.createElement("button");
     button.type = "button";
     button.className = "chat-play";
-    button.textContent = "Hear";
+    button.setAttribute("aria-label", "Hear");
+    button.setAttribute("title", "Hear");
+    button.appendChild(glyph("hear"));
     button.onclick = function () {
       button.disabled = true;
       var audio = document.createElement("audio");
@@ -542,21 +746,64 @@
     li.appendChild(button);
   }
 
+  /* --- the thread as a viewport (targum-internal#247) --------------------------
+   *
+   * The thread scrolls inside itself now. While an answer arrives the page keeps the
+   * reader at the newest line — but only while they were there: a reader who has
+   * scrolled up to reread is left where they are.
+   */
+  var thread = document.getElementById("chat-thread");
+  var STUCK = 80;
+  function atBottom() {
+    if (!thread || typeof thread.scrollHeight !== "number") return true;
+    return thread.scrollHeight - thread.scrollTop - thread.clientHeight < STUCK;
+  }
+  function keepBottom(was) {
+    if (was && thread && typeof thread.scrollHeight === "number") {
+      thread.scrollTop = thread.scrollHeight;
+    }
+  }
+
   function turn(role, text, state, words) {
+    if (role === "user") lastAsked = text;
+    if (thread) thread.hidden = false;
+    var was = atBottom();
     var li = document.createElement("li");
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
-    var who = document.createElement("span");
-    who.className = "chat-who";
-    who.textContent = role === "user" ? "You" : "targum";
+    // Who said it: where the turn stands says it on the page, and the name rides as
+    // the label a screen reader reads, where the word used to stand over every turn.
+    li.setAttribute("aria-label", role === "user" ? "You" : "targum");
     var line = document.createElement("p");
     line.className = "chat-line";
     render(line, text, words);
-    li.appendChild(who);
     li.appendChild(line);
     turns.appendChild(li);
+    keepBottom(was);
     if (empty) empty.hidden = true;
+    if (chips) chips.show(false);
+    // Now that the line is on the page: the toggle looks for a pair in the thread, and
+    // a line rendered before it was appended found none (the stored-turns path).
+    drawEnglishToggle();
     return li;
   }
+
+  // When a conversation was last opened, in the words a person uses for it.
+  function ago(stamp) {
+    if (!stamp) return "";
+    var minutes = Math.round((Date.now() - stamp) / 60000);
+    if (minutes < 2) return "just now";
+    if (minutes < 60) return minutes + " minutes ago";
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+    var days = Math.round(hours / 24);
+    if (days === 1) return "yesterday";
+    if (days < 30) return days + " days ago";
+    return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+
+  //: A page of the list, and the size the server pages it at.
+  var PAGE = 50;
+  var moreFrom = 0;
 
   function drawList() {
     list.textContent = "";
@@ -564,16 +811,107 @@
       var li = document.createElement("li");
       var button = document.createElement("button");
       button.type = "button";
-      button.textContent = chat.title || "Untitled";
+      var title = document.createElement("span");
+      title.className = "chat-title";
+      title.textContent = chat.title || "Untitled";
+      button.appendChild(title);
+      var when = document.createElement("span");
+      when.className = "chat-when";
+      when.textContent = ago(chat.seen);
+      button.appendChild(when);
       button.setAttribute("data-chat", chat.id);
       if (chat.id === current) button.className = "on";
       button.onclick = function () {
+        showList(false);
         open(chat.id);
       };
       li.appendChild(button);
       list.appendChild(li);
     });
+    // The next page, where there may be one: the list used to be every conversation
+    // ever, in one answer (targum-internal#238).
+    if (moreFrom) {
+      var li = document.createElement("li");
+      var more = document.createElement("button");
+      more.type = "button";
+      more.className = "chat-more";
+      more.textContent = "More";
+      more.onclick = function () {
+        more.disabled = true;
+        ask("/chat/list?limit=" + PAGE + "&offset=" + moreFrom).then(function (answer) {
+          if (answer.error) return tell(answer.error);
+          var got = answer.chats || [];
+          chats = chats.concat(got);
+          moreFrom = got.length === PAGE ? moreFrom + PAGE : 0;
+          drawList();
+        });
+      };
+      li.appendChild(more);
+      list.appendChild(li);
+    }
   }
+
+  // The list as a sheet on a phone (targum-internal#238): the pill opens it, choosing a
+  // row or pressing Escape closes it. At a desk the stylesheet draws the list in its
+  // column and the pill not at all, and this is a class nothing reads.
+  var listPill = document.getElementById("chat-open-list");
+  function showList(showing) {
+    if (!listPill) return;
+    list.classList.toggle("open", !!showing);
+    listPill.setAttribute("aria-expanded", showing ? "true" : "false");
+  }
+  if (listPill) {
+    listPill.onclick = function () {
+      showList(listPill.getAttribute("aria-expanded") !== "true");
+    };
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") showList(false);
+    });
+  }
+
+  // The conversation in the address (targum-internal#238): a row writes it there, so a
+  // conversation can be linked to and the back button goes to the one before; the
+  // address, changed by either, opens what it names.
+  function named() {
+    var wanted = "";
+    try {
+      String(window.location.hash || "")
+        .slice(1)
+        .split("&")
+        .forEach(function (part) {
+          if (part && part.indexOf("job=") !== 0) wanted = decodeURIComponent(part);
+        });
+    } catch (e) {
+      wanted = "";
+    }
+    return wanted;
+  }
+  function remember(id) {
+    writeHash(id ? "#" + encodeURIComponent(id) : "");
+  }
+  // Framed, the address is replaced rather than pushed: a hash written inside a frame
+  // is an entry in the holding page's history, and Back would walk the conversations
+  // opened on the front page before it left it.
+  function writeHash(hash) {
+    if ((window.location.hash || "") === hash) return;
+    if (!EMBED) {
+      window.location.hash = hash;
+      return;
+    }
+    try {
+      window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
+    } catch (e) {
+      window.location.hash = hash;
+    }
+  }
+  window.addEventListener("hashchange", function () {
+    var wanted = named();
+    if (wanted && wanted !== current) {
+      if (chats.some(function (chat) { return chat.id === wanted; })) open(wanted);
+    } else if (!wanted && current) {
+      startNew();
+    }
+  });
 
   /* --- the foot of the record -------------------------------------------------
    *
@@ -620,7 +958,7 @@
       parts.push(vocabulary + (vocabulary === 1 ? " word" : " words") + " · none marked yet");
     } else {
       parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
-      if (vocabulary) parts.push("you knew " + Math.round((known / vocabulary) * 100) + "% of this");
+      if (vocabulary) parts.push("you know " + Math.round((known / vocabulary) * 100) + "%");
     }
     counts.textContent = parts.join(" · ");
     li.appendChild(counts);
@@ -653,12 +991,15 @@
     return ask("/chat/list").then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
+      moreFrom = chats.length === PAGE ? PAGE : 0;
+      drawChips(answer.chips || []);
       usable = answer.usable !== false;
       talk = answer.talk !== false;
       showMic();
       drawHours(answer.hours);
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
+      showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
       // whose first answer is still streaming; otherwise the newest. A text sent there
       // with a line rides beside it as `job=<id>`, and its card follows in that thread.
@@ -679,19 +1020,80 @@
       if (current) return;
       var job = wantedJob;
       // Consumed once: `load` runs again when a first line makes a conversation.
-      if (job) window.location.hash = wanted ? "#" + encodeURIComponent(wanted) : "";
+      if (job) writeHash(wanted ? "#" + encodeURIComponent(wanted) : "");
       if (wanted && chats.some(function (chat) { return chat.id === wanted; })) {
         return open(wanted).then(function () {
           if (job) return showJob(job);
         });
       }
-      if (chats.length) return open(chats[0].id);
-      if (empty) empty.hidden = !!current;
+      if (chats.length && !EMBED) return open(chats[0].id);
+      if (!chats.length) firstExchange();
+      if (empty) empty.hidden = !!current || welcomed;
+    });
+  }
+
+  // New has nothing to do until a conversation is open; framed, where none opens by
+  // itself, it is not drawn until then ("the 'new' button is completely pointless").
+  function showFresh() {
+    if (fresh && EMBED) fresh.hidden = !current;
+  }
+
+  // The first exchange (2026-09-11): a reader who arrives with a ledger of nothing and
+  // no conversation is asked, before anything else, which of the commonest words they
+  // already know — the checklist from Your Words, drawn as targum's first turn, once.
+  // Every check is a real known word, so the first answer is written at their level.
+  // Afterwards the checklist lives on Your Words alone.
+  var welcomed = false;
+  var marked = 0;
+  function firstExchange() {
+    var claim = window.TargumClaim;
+    if (welcomed || current || !claim || !claim.hebrew() || !claim.untouched()) return;
+    welcomed = true;
+    var li = turn(
+      "assistant",
+      "Before anything else: which of these words do you already know? Check them, and I will write at your level.",
+      ""
+    );
+    var host = document.createElement("div");
+    host.className = "chat-claim";
+    li.appendChild(host);
+    if (chips) chips.show(false);
+    claim.mount(host, {
+      panel: host,
+      once: true,
+      onEmpty: function () {
+        // Nothing to ask: the turn goes, and the page is the page it always was.
+        if (li.parentNode) li.parentNode.removeChild(li);
+        if (empty) empty.hidden = false;
+        if (chips) chips.show(true);
+      },
+      onMarked: function (count) {
+        marked = count;
+        // The count on the front page hears it, where this is framed there.
+        if (EMBED && window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "targum:changed" }, window.location.origin);
+        }
+      },
+      onDone: function () {
+        var note = document.createElement("p");
+        note.className = "chat-claim-done";
+        note.textContent = "Thank you. The rest of the list is under Your words and phrases, behind your account.";
+        host.appendChild(note);
+        if (chips) chips.show(true);
+        // The second turn: a text at the level the checks just set, offered without a
+        // model turn, so a new reader reaches a text in two presses without leaving the
+        // page. Only after something was marked — a page passed over says nothing about
+        // the level — and only where anything can be asked.
+        if (marked > 0 && usable) suggest();
+      },
     });
   }
 
   function open(id) {
     current = id;
+    remember(id);
+    showFresh();
+    if (thread) thread.hidden = false;
     drawList();
     turns.textContent = "";
     tell("");
@@ -708,7 +1110,13 @@
           pending = t.stage === "working" ? t.n : null;
           if (t.stage === "failed" && t.error) turn("assistant", t.error, "bad");
         } else if (t.said) {
-          playButton(turn("assistant", t.said, "", lastWords), id, lastAsked);
+          var li = turn("assistant", t.said, "", lastWords);
+          playButton(li, id, lastAsked);
+          // The cards this answer quoted, as the jobs stand now (2026-09-11): a
+          // conversation opened again keeps its cards, not only its words.
+          (t.quotes || []).forEach(function (job) {
+            quoteCard(li, job);
+          });
         }
       });
       if (empty) empty.hidden = true;
@@ -720,14 +1128,114 @@
 
   function startNew() {
     current = "";
+    remember("");
+    showFresh();
+    showList(false);
     drawList();
     turns.textContent = "";
     tell("");
     if (empty) empty.hidden = false;
+    if (chips) chips.show(true);
+    drawEnglishToggle();
     field.focus();
   }
 
+  /* --- the chips ---------------------------------------------------------------
+   *
+   * The things most readers ask, as buttons, in the empty state and nowhere else
+   * (targum-internal#240): a thread with a turn in it has no chips under it. A press
+   * is Send with a fixed line; the first is answered without the model — `/chat/suggest`
+   * hands back the exchange and a card, and "Another" under the card asks for the next.
+   */
+  var chips = window.TargumChips;
+  var offered = [];
+
+  function drawChips(list) {
+    if (!chips) return;
+    chips.draw(list, {
+      suggest: suggest,
+      say: function (line) {
+        say(line);
+      },
+      open: function (reader) {
+        openReader(reader);
+      },
+      stuck: function () {
+        field.placeholder = "The word, and the sentence it was in";
+        field.focus();
+      },
+    });
+    chips.show(!current);
+  }
+
+  function suggest() {
+    if (busy) return;
+    if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
+    busy = true;
+    send.disabled = true;
+    tell("");
+    ask("/chat/suggest", { chat: current, skip: offered }).then(function (got) {
+      busy = false;
+      send.disabled = false;
+      if (got.error) return tell(got.error);
+      var wasNew = !current;
+      current = got.chat;
+      remember(current);
+      if (chips) chips.show(false);
+      turn("user", got.said ? "Find me something to read" : "");
+      var li = turn("assistant", got.said || "", "");
+      if (got.quote) quoteCard(li, got.quote);
+      offered = offered.concat(got.offered || []);
+      if (got.more) {
+        var another = document.createElement("button");
+        another.type = "button";
+        another.className = "chat-another";
+        another.textContent = "Another";
+        another.onclick = function () {
+          another.disabled = true;
+          suggest();
+        };
+        li.appendChild(another);
+      }
+      if (wasNew) load();
+    });
+  }
+
   /* --- asking -------------------------------------------------------------- */
+
+  // Where the reader is, when this is the drawer in a reader (2026-09-11): said by the
+  // page holding the frame, shown above the box, and sent with every line so the answer
+  // is about the sentence in front of them.
+  var reading = null;
+  var readingLine = document.getElementById("chat-reading");
+  var readingText = document.getElementById("chat-reading-text");
+  var readingAsk = document.getElementById("chat-reading-ask");
+  // The sentence in front of them in a reader; on Learn (2026-09-11: "let's talk
+  // about it") the text in the sheet, by its title, with no sentence.
+  function drawReading() {
+    if (!readingLine) return;
+    var sentence = reading && reading.sentence ? String(reading.sentence) : "";
+    var title = reading && reading.title ? String(reading.title) : "";
+    var shown = sentence || title;
+    readingLine.hidden = !shown;
+    if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
+    if (readingAsk) readingAsk.textContent = sentence ? "Explain this sentence" : "Let's talk about it";
+  }
+  if (readingAsk) {
+    readingAsk.onclick = function () {
+      say(reading && reading.sentence ? "What does this sentence mean?" : "Let's talk about this text.");
+    };
+  }
+  if (EMBED) {
+    window.addEventListener("message", function (event) {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      var data = event.data || {};
+      if (data.type === "targum:reading") {
+        reading = data.about && typeof data.about === "object" ? data.about : null;
+        drawReading();
+      }
+    });
+  }
 
   function say(text, brought) {
     if (busy || !text) return;
@@ -739,6 +1247,11 @@
     var line = { chat: current, text: text };
     // The text sent with the line, by its job, so the model knows what it was given.
     if (brought) line.brought = brought;
+    // Where the reader is, when the drawer is in a reader: the model is told the text,
+    // the section and the sentence, and answers about them.
+    if (reading && (reading.sentence || reading.document)) {
+      line.about = { document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title };
+    }
     ask("/chat/say", line).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";
@@ -759,8 +1272,10 @@
     var text = "";
     var words = null;
     function finish(kind, payload) {
+      var was = atBottom();
       li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
       render(line, kind === "error" ? payload.message : payload.text || text, words);
+      keepBottom(was);
       if (kind !== "error") playButton(li, chat, n);
       if (kind !== "error") drawFoot(payload.seconds);
       busy = false;
@@ -771,9 +1286,32 @@
     var path = "/chat/stream/" + encodeURIComponent(chat) + "/" + n;
     if (typeof EventSource === "function") {
       var source = new EventSource(keyed(path));
+      // The lines that are whole are drawn as pairs; the tail the model is still
+      // writing is appended as it comes rather than the whole line drawn again on
+      // every piece (targum-internal#247). A whole line is one with a newline after it.
+      var drawnUpTo = 0;
+      var partial = null;
       source.addEventListener("text", function (event) {
+        var was = atBottom();
         text += event.data;
-        render(line, text);
+        var cut = text.lastIndexOf("\n") + 1;
+        if (cut > drawnUpTo) {
+          render(line, text.slice(0, cut));
+          drawnUpTo = cut;
+          partial = null;
+        }
+        var tail = text.slice(cut);
+        if (tail) {
+          if (!partial) {
+            partial = document.createElement("span");
+            partial.className = "chat-partial";
+            line.appendChild(partial);
+          }
+          partial.textContent = tail;
+        } else if (partial) {
+          partial.textContent = "";
+        }
+        keepBottom(was);
       });
       source.addEventListener("tool", function () {
         // A lookup in progress. Said in the reader's words, not the tool's name.
@@ -785,7 +1323,9 @@
       source.addEventListener("words", function (event) {
         // The lines read as a text is read: drawn again with their words marked.
         words = JSON.parse(event.data || "{}");
+        var was = atBottom();
         render(line, text, words);
+        keepBottom(was);
       });
       source.addEventListener("done", function (event) {
         source.close();
@@ -824,6 +1364,15 @@
     event.preventDefault();
     submit();
   });
+  // The field grows with what is typed, to the height the stylesheet caps it at, and
+  // shrinks back when the line is sent: one row at rest (2026-09-10). Browsers with
+  // `field-sizing` do this themselves; the rest are done by hand here.
+  function grow() {
+    if (!field.scrollHeight) return;
+    field.style.blockSize = "auto";
+    field.style.blockSize = field.scrollHeight + "px";
+  }
+  field.addEventListener("input", grow);
   field.addEventListener("keydown", function (event) {
     // Enter sends, Shift+Enter breaks the line — the convention every chat shares.
     if (event.key === "Enter" && !event.shiftKey) {

@@ -22,9 +22,11 @@ body.learn main[hidden] {
 /* How much of the language you have, said once, in the reading face with tabular
    figures. The ledger treatment §6 asks for: a count of a real thing, not a score. */
 .known-line {
-  margin: 0 0 0.25rem;
-  font-family: var(--reading);
+  margin: 0 0 1.5rem;
+  font-family: var(--chrome);
   font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
@@ -35,7 +37,7 @@ body.learn main[hidden] {
    than a gap where the other would have been. */
 .doors {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1rem;
   align-items: stretch;
 }
@@ -48,16 +50,6 @@ body.learn main[hidden] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
-}
-.step {
-  display: block;
-  padding: 0.6rem 0.9rem;
-  border-radius: 5px;
-  color: var(--ink);
-  text-decoration: none;
-}
-.step + .step {
-  border-inline-start: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
 }
 /* Stacked on a narrow window, where the rule belongs on top rather than at the side. */
 @media (max-width: 40rem) {
@@ -73,20 +65,6 @@ body.learn main[hidden] {
 .step:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
-.step[hidden] {
-  display: none;
-}
-.step-what {
-  display: block;
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-.step-why {
-  display: block;
-  margin-block-start: 0.15rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
 /* One word saying why this row is a title rather than a place. */
 .step-tag {
   margin-inline-end: 0.45rem;
@@ -100,26 +78,11 @@ body.learn main[hidden] {
 .door {
   display: block;
   padding: 1.1rem 1.25rem 1.25rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   color: var(--ink);
   text-decoration: none;
   min-inline-size: 0;
-}
-.door h2 {
-  margin: 0 0 0.6rem;
-  font-size: 1.0625rem;
-}
-.door:hover h2 {
-  color: var(--ink);
-}
-.door .note {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.9375rem;
-}
-.door[hidden] {
-  display: none;
 }
 /* The suggestion is a button, because pressing it builds the text rather than going to a
    page about it. Everything that makes it a card is above; this is only undoing what a
@@ -237,7 +200,7 @@ button.door:disabled {
 .learn .to-progress {
   color: var(--ink);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
 }
 .elsewhere .note a:hover,
 .learn .to-progress:hover { border-block-end-color: var(--ink-soft); }
@@ -268,7 +231,7 @@ body.learn .nothing .lede {
 body.learn .nothing a {
   color: var(--ink);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
 }
 body.learn .nothing a:hover { border-block-end-color: var(--ink-soft); }
 body.learn .nothing .hint {
@@ -327,7 +290,7 @@ body.learn .nothing .hint {
    sits beside the export rather than being flung to the far edge on its own. */
 .see-all {
   padding: 0.2rem 0.65rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -373,30 +336,439 @@ body.learn .nothing .hint {
   gap: 0.6rem;
   margin: 0 0 1rem;
   padding-block-end: 0.6rem;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
   font-size: 0.9375rem;
-}
-.weekly-line[hidden] {
-  display: none;
-}
-.weekly-line a {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--ink);
-  font-family: var(--reading);
-  text-decoration: none;
-}
-.weekly-line a:hover {
-  text-decoration: underline;
-}
-.weekly-line .at,
-.weekly-line .when {
-  color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
-  font-size: 0.8125rem;
 }
 /* Read already: still there, and no longer asking. */
 .weekly-line.done a {
   color: var(--ink-soft);
+}
+
+/* --- the front page, in sections (2026-09-11) ---------------------------------
+   "Nothing is labeled", "no smooth transition into the next part of the page, just
+   lines", "this is the main front page of the app". Each part of the page is named in a
+   heading with one sentence under it, and the parts step down into each other with
+   space rather than rules. */
+.section-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.section-note {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-inline-size: 42rem;
+}
+.section-sub {
+  margin: 0 0 0.35rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+/* The thread on the front page: in place under the box, a hairline rather than raised
+   paper (the cards below have this page's one raised layer), never taller than most of
+   a screen, scrolling inside itself past that. */
+.learn .chat-thread {
+  margin-block-start: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: transparent;
+  max-block-size: 60vh;
+  overflow: auto;
+}
+.learn .chat-thread[hidden] { display: none; }
+/* Your conversations: three rows, each a title and when, and the door to all. Not a
+   column beside the thread, as on the conversation page: a short list under it. */
+.learn .recent-chats {
+  display: block;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.learn .recent-chats[hidden] { display: none; }
+.learn .recent-chats .chat-list { display: block; max-inline-size: 42rem; border-block-start: 1px solid var(--hairline); }
+.learn .recent-chats .chat-list button { padding: 0.5rem 0.25rem; }
+.learn .recent-chats .chat-list .chat-title { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); white-space: normal; }
+.learn .recent-chats .see-all { display: inline-block; margin-block-start: 0.5rem; }
+/* The week's issue, labelled. */
+.weekly-line .label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* --- the desk (§13, 2026-09-11) --------------------------------------------------
+   The front page: the sheet across the row at a reading height, then the shelf as a
+   card. Headings in the chrome's face; the reading faces only inside the sheet and
+   where a text's own title stands. The conversation is the pill at the foot of every
+   page, not a card here. */
+.front {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-block-end: 3rem;
+}
+.label {
+  margin: 0 0 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.carry-on[hidden], .carry-on:has(.page-sheet[hidden]) { display: none; }
+/* The sheet: a text drawn as itself, on the desk. Pure paper, a shadow with the offset
+   a page casts, and no rule: not a card, and the only pure-paper surface on the page.
+   Its window is the reader, framed as a picture (`pointer-events: none`: nothing in
+   it takes a press), and the whole sheet is one link laid over it. */
+.page-sheet {
+  position: relative;
+  display: block;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 0;
+  box-shadow: var(--page-shadow);
+  min-inline-size: 0;
+  overflow: hidden;
+}
+.page-sheet[hidden] { display: none; }
+.page-sheet .card-track { color: var(--ink-soft); }
+.page-sheet .card-cover { display: none; }
+.page-window { block-size: clamp(28rem, 72vh, 56rem); background: var(--paper); }
+.page-window[hidden] { display: none; }
+.page-frame {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+  background: var(--paper);
+}
+/* The head of the sheet: the title in its own face, the facts under it, and Open at the end. */
+.page-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "state actions"
+    "title actions"
+    "facts actions";
+  align-items: center;
+  column-gap: 1rem;
+  row-gap: 0.15rem;
+  margin: 0;
+  padding: 0.8rem 1.25rem 0.9rem;
+  border-block-end: 1px solid var(--hairline);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.page-head:has(+ .page-window[hidden]) { border-block-end: 0; padding-block: 1.25rem; }
+.page-title {
+  grid-area: title;
+  min-inline-size: 0;
+  display: block;
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-title:lang(he) { font-family: var(--reading-hebrew); direction: rtl; text-align: left; }
+.page-facts {
+  grid-area: facts;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  min-inline-size: 0;
+}
+.page-facts .card-track[hidden], .page-facts .card-meta:empty { display: none; }
+.page-english { font-family: var(--reading); font-size: 0.9375rem; color: var(--ink-soft); }
+.page-english[hidden] { display: none; }
+.page-head .carry-known { color: var(--leaf); font-weight: 600; font-family: var(--chrome); font-size: 0.875rem; margin: 0; }
+.page-head .carry-known[hidden] { display: none; }
+.page-actions { grid-area: actions; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+.page-head .open {
+  padding: 0.45rem 0.9rem;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  text-decoration: none;
+}
+.page-head .open:hover { background: var(--teal); }
+/* A card on the desk: what everything that is not the sheet sits in. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
+}
+.section-title { font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+.section-sub { font-family: var(--chrome); }
+/* The doors are cards too, and so are the two steps beside them. */
+.door {
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+/* The two steps are cards in the same grid as the door beside them, not a row under it
+   (2026-09-11: a door alone in a third of a row). */
+.next { display: contents; }
+/* Small screens: the sheet and the cards keep their gutters, nothing runs past the edge. */
+@media (max-width: 26rem) {
+  .page-head { padding-inline: 0.9rem; }
+  .talk.card { padding: 0.9rem 0.9rem 1rem; }
+  .front { gap: 1rem; }
+}
+
+/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
+.card { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+.page-sheet { border-radius: var(--radius-card); }
+.page-head { border-block-end: 1px solid var(--hairline); }
+.page-head .open { border-radius: 999px; background: var(--teal); color: var(--teal-ink); padding: 0.5rem 1rem; }
+.page-head .open:hover { background: var(--teal); filter: brightness(1.08); }
+.step { border: 0; box-shadow: var(--shadow-raised); }
+.known-line { font-weight: 300; letter-spacing: -0.02em; }
+
+/* --- phase 2 (2026-09-11): Learn as the reader's highlight -------------------------
+   The one label on the page is a heading in normal case; the shelf has no column heads
+   and no fold, its covers are rows' corners, and See all is a ghost pill; the sheet's
+   foot is a glass strip under the reader. */
+.carry-on .label {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  margin: 0 0 0.6rem;
+}
+#shelf-panel .shelf-head { display: none; }
+#shelf-panel .list-controls h2 { font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; }
+.see-all { border: 0; border-radius: 999px; background: transparent; color: var(--teal); padding: 0.3rem 0.7rem; }
+.see-all:hover { background: var(--teal-wash); }
+.page-head { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+/* How far through the text: a line along the top edge of the foot, the primary for the
+   part read, the hairline for the rest (2026-09-11). */
+.page-head { position: relative; }
+.page-progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -1px;
+  block-size: 3px;
+  background: var(--hairline);
+  overflow: hidden;
+}
+.page-progress::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--done, 0) * 100%);
+  background: var(--teal);
+  transition: inline-size var(--in) var(--ease);
+}
+.page-progress[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .page-progress::before { transition: none; } }
+
+/* --- the reader fills the desk (2026-09-11) ------------------------------------------
+   "Learn page could be a lot prettier, with less empty space and more filled up by the
+   reader — especially on larger screens. On mobile the reader can take up the whole
+   screen." The main runs wide, the sheet's window is the height of the screen under
+   one head row, and the shelf keeps its reading width under it. On a phone the sheet
+   comes first and full-bleed, the height of the screen between the two bars. */
+body.learn main {
+  max-width: none;
+  padding: 1rem 1.5rem 5rem;
+  gap: 1.25rem;
+}
+/* The bar's row runs as wide as the sheet under it. */
+body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
+.front { gap: 0.75rem; margin-block-end: 2rem; }
+.learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  min-inline-size: 0;
+}
+/* The greeting and today (decided with David, 2026-09-11): the time of day and the
+   name in the chrome's face, light; the date and the week's portion under it, quiet. */
+.hello { min-inline-size: 0; }
+.hello .greeting {
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 1.5rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+/* Today and the count on one line under the greeting. */
+.hello .today-line {
+  margin: 0.15rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+}
+.hello .today:empty, .hello .known-line:empty { display: none; }
+.hello .known-line { margin: 0; font-size: 0.9375rem; line-height: inherit; font-weight: 600; letter-spacing: 0; color: var(--ink); }
+/* The dot stays with the date, so a count that wraps on a phone starts its own line clean. */
+.hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: " ·"; }
+/* The doors as one control (2026-09-11: "put the buttons together at the top, in a
+   sleek design"): a card-coloured track with a soft shadow, each press a pill inside
+   it, the one shown filled in the teal wash. */
+.ways {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  max-inline-size: 100%;
+  align-self: flex-end;
+}
+.ways[hidden] { display: none; }
+/* The subscriptions door: one pill however many there are, a menu under it. */
+.ways-menu-host { position: relative; }
+.way-menu::after {
+  content: "";
+  display: inline-block;
+  inline-size: 0.4em;
+  block-size: 0.4em;
+  margin-inline-start: 0.5em;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: translateY(-0.2em) rotate(45deg);
+}
+.ways-menu {
+  position: absolute;
+  inset-block-start: calc(100% + 0.5rem);
+  inset-inline-end: 0;
+  z-index: 20;
+  min-inline-size: 14rem;
+  max-block-size: 60vh;
+  overflow-y: auto;
+  padding: 0.35rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+.ways-menu[hidden] { display: none; }
+.ways-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: start;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ways-item:hover { background: var(--teal-wash); }
+/* Its own on-state: reader.css paints `button.on` in ink, and it rides on this page. */
+.ways-item.on { background: var(--teal-wash); border-color: transparent; color: var(--teal); font-weight: 600; }
+.ways-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+/* A newest instalment not seen yet. */
+.ways-fresh {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--teal);
+  margin-inline-start: auto;
+}
+.way {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.5rem 0.95rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.way:hover { background: var(--teal-wash); }
+.way.on { background: var(--teal-wash); color: var(--teal); }
+.way:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+@media (hover: none) and (pointer: coarse) {
+  .way, .ways-item { min-block-size: 44px; }
+}
+/* What this text is to the reader, over its title in the sheet's head. */
+.page-state {
+  grid-area: state;
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.page-window {
+  block-size: calc(100dvh - 19rem);
+  min-block-size: 24rem;
+  max-block-size: none;
+}
+#shelf-panel,
+#trash-panel {
+  inline-size: 100%;
+  max-inline-size: 62rem;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+@media (max-width: 40rem) {
+  body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
+  .front { gap: 1rem; margin-block-end: 1rem; }
+  .front .learn-head { padding-inline: 1rem; }
+  .front .ways { align-self: stretch; }
+  .front .way { flex: 1 1 auto; text-align: center; padding-inline: 0.6rem; font-size: 0.8125rem; }
+  .front .ways-menu-host { flex: 1 1 auto; display: flex; }
+  .front .ways-menu { inset-inline: 0; min-inline-size: 0; }
+  .page-sheet { border-radius: 0; box-shadow: none; }
+  .page-window {
+    /* The screen between the ink bar and the bottom bar, less the sheet's foot
+       (measured 2026-09-11: 81px, 66px and 65px on a 390px phone). */
+    block-size: calc(100svh - 23.5rem - env(safe-area-inset-bottom));
+    min-block-size: 22rem;
+  }
+  /* The foot is two lines and Open, clear of the round pill at the corner. */
+  .page-head { padding: 0.55rem 1rem 0.65rem; row-gap: 0.1rem; }
+  .page-head .page-state { font-size: 0.6875rem; }
+  .page-head .page-title { font-size: 1.0625rem; }
+  .page-head .card-track, .page-head .card-meta, .page-head .page-english { display: none; }
+  #shelf-panel, #trash-panel { margin-inline: 1rem; inline-size: auto; }
+  body.learn .nothing { padding-inline: 1rem; }
 }

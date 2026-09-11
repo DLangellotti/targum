@@ -250,14 +250,12 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
 
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
-    """Under 46rem the header is two lines: the name at one corner and the account and
-    the light switch at the other, then the places under them, flush with the name.
-
-    The places used to sit indented under the name with Upload (then a corner, now the
-    `+` on the box) cut off at the edge: the rule that reset their auto margin stood
-    above the rule that set it, at the same specificity, and lost. A cascade bug is
-    invisible in the file and obvious on a phone, which is why this is measured rather
-    than read."""
+    """On a phone the header is one line — the name at one corner and the bell, the
+    account and the light switch at the other — and the three places are a bar at the
+    foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
+    under the name, and before that indented under it with Upload cut off at the edge:
+    a cascade bug is invisible in the file and obvious on a phone, which is why this is
+    measured rather than read."""
     page_file = tmp_path / "learn.html"
     page_file.write_text(learn_page(TOKEN), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -270,8 +268,9 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
           const brand = box('.brand'), nav = box('.site-nav');
           const toggle = box('[data-theme-toggle]'), account = box('.account');
           return {
-            navFlush: Math.abs(nav.left - brand.left) <= 1,
-            navBelow: nav.top >= brand.bottom - 1,
+            navFlush: nav.left <= 1 && nav.right >= document.documentElement.clientWidth - 1,
+            navBelow: Math.abs(nav.bottom - window.innerHeight) <= 1
+              && getComputedStyle(document.querySelector('.site-nav')).position === 'fixed',
             toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
@@ -282,8 +281,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     )
     context.close()
 
-    assert measured["navFlush"], "the places start where the name starts"
-    assert measured["navBelow"], "and sit on the line under it"
+    assert measured["navFlush"], "the places take the whole foot of the window"
+    assert measured["navBelow"], "and stay there"
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
@@ -372,6 +371,339 @@ def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(brows
     assert measured["buttonsRight"] <= measured["threadLeft"] + 1, "and so does every title in it"
 
 
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_box_is_one_row_at_every_width(browser, width: int) -> None:
+    """Since 2026-09-10 (targum-internal#235) the `+`, the field, Speak and Send share
+    the field's row, on a phone as on a desk; the buttons used to sit on a row under it.
+    Measured, because a grid template is a promise the stylesheet cannot prove — one
+    control with a minimum width the column cannot give would wrap the row."""
+    html = chat_page(TOKEN)
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {"chats": [], "usable": True, "talk": True}
+        elif "/account/me" in request.url:
+            body = {
+                "signedIn": True,
+                "email": "r@example.org",
+                "counts": {},
+                "learning": ["he"],
+                "reads": ["en"],
+            }
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    page.route("http://chat.test/**", answer)
+    page.goto(f"http://chat.test/chat?k={TOKEN}")
+    page.wait_for_timeout(300)
+    # A plain http origin has no microphone, so the page hides Speak; shown by hand here
+    # so the row is measured with all four of its controls in it.
+    page.evaluate("() => { document.getElementById('chat-mic').hidden = false; }")
+    boxes = page.evaluate(
+        """() => Object.fromEntries(['chat-bring', 'say', 'chat-mic', 'chat-send'].map((id) => {
+          const node = document.getElementById(id);
+          const r = node.getBoundingClientRect();
+          return [id, { bottom: r.bottom, left: r.left, right: r.right, hidden: node.hidden }];
+        }))"""
+    )
+    words = page.evaluate(
+        """() => ['chat-mic', 'chat-send']
+          .map((id) => document.getElementById(id).textContent.trim())"""
+    )
+    context.close()
+    shown = {name: box for name, box in boxes.items() if not box["hidden"]}
+    assert sorted(shown) == ["chat-bring", "chat-mic", "chat-send", "say"]
+    # The buttons sit on the field's baseline, so it is the bottoms that agree: the field
+    # itself may be two lines tall where its placeholder wraps.
+    bottoms = {name: box["bottom"] for name, box in shown.items()}
+    assert max(bottoms.values()) - min(bottoms.values()) < 4, f"one row at {width}px: {bottoms}"
+    assert shown["chat-bring"]["right"] <= shown["say"]["left"] + 1
+    assert shown["say"]["right"] <= shown["chat-mic"]["left"] + 1
+    assert shown["chat-mic"]["right"] <= shown["chat-send"]["left"] + 1
+    assert words == ["", ""], "glyphs, with the word as the label"
+
+
+def test_on_a_phone_the_list_is_a_sheet_behind_a_pill_at_the_top(browser) -> None:
+    """targum-internal#238. The list stood under the whole thread and the box on a phone,
+    past everything. Now the side comes first as one row, the list is out of the flow,
+    and the pill opens it as a sheet over the page; at a desk the pill is not drawn and
+    the list stands in its column. Measured, because `display` under a media query is
+    a promise the file cannot prove."""
+    html = chat_page(TOKEN)
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {
+                "chats": [{"id": "a", "title": "Something to read", "seen": 1}],
+                "usable": True,
+                "talk": True,
+            }
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": []}
+        elif "/account/me" in request.url:
+            body = {"signedIn": False}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    seen = {}
+    for width in (390, 1280):
+        context = browser.new_context(viewport={"width": width, "height": 800})
+        page = context.new_page()
+        page.route("http://chat.test/**", answer)
+        page.goto(f"http://chat.test/chat?k={TOKEN}")
+        page.wait_for_timeout(300)
+        before = page.evaluate(
+            """() => ({
+              pill: getComputedStyle(document.getElementById('chat-open-list')).display,
+              list: getComputedStyle(document.getElementById('chat-list')).display,
+              sideTop: document.querySelector('.chat-side').getBoundingClientRect().top,
+              threadTop: document.querySelector('.chat-thread').getBoundingClientRect().top,
+            })"""
+        )
+        if width == 390:
+            page.click("#chat-open-list")
+            page.wait_for_timeout(100)
+            opened = page.evaluate(
+                """() => ({
+                  list: getComputedStyle(document.getElementById('chat-list')).display,
+                  position: getComputedStyle(document.getElementById('chat-list')).position,
+                })"""
+            )
+            page.click(".chat-list button")
+            page.wait_for_timeout(200)
+            after = page.evaluate(
+                """() => ({
+                  list: getComputedStyle(document.getElementById('chat-list')).display,
+                  hash: location.hash,
+                })"""
+            )
+            seen["phone"] = (before, opened, after)
+        else:
+            seen["desk"] = before
+        context.close()
+
+    before, opened, after = seen["phone"]
+    assert before["pill"] != "none" and before["list"] == "none", "a pill, no list in the flow"
+    assert before["sideTop"] < before["threadTop"], "the side comes first"
+    assert opened["list"] != "none" and opened["position"] == "fixed", "the sheet"
+    assert after["list"] == "none" and after["hash"] == "#a", (
+        "a row closes it and writes the address"
+    )
+    assert seen["desk"]["pill"] == "none" and seen["desk"]["list"] != "none", (
+        "at a desk, the column"
+    )
+
+
+def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
+    """targum-internal#247: the page is the viewport. Thirty turns, and the box is still
+    on screen at a phone's height, with the thread scrolling inside itself; and a
+    reader who asked for no motion gets none."""
+    html = chat_page(TOKEN)
+    turns = []
+    for n in range(30):
+        turns.append(
+            {"n": 2 * n + 1, "role": "user", "said": f"line {n}", "stage": "done", "error": ""}
+        )
+        turns.append(
+            {
+                "n": 2 * n + 2,
+                "role": "assistant",
+                "said": "שָׁלוֹם.\n= Hello.",
+                "stage": "done",
+                "error": "",
+            }
+        )
+
+    def answer(route, request):
+        if "/chat/list" in request.url:
+            body = {"chats": [{"id": "a", "title": "t", "seen": 1}], "usable": True, "talk": True}
+        elif "/chat/a" in request.url:
+            body = {"chat": {"id": "a", "mode": "talk"}, "seconds": 0, "turns": turns}
+        elif "/account/me" in request.url:
+            body = {"signedIn": False}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    seen = {}
+    for width, height in ((390, 700), (1280, 800)):
+        context = browser.new_context(
+            viewport={"width": width, "height": height}, reduced_motion="reduce"
+        )
+        page = context.new_page()
+        page.route("http://chat.test/**", answer)
+        page.goto(f"http://chat.test/chat?k={TOKEN}")
+        page.wait_for_selector(".chat-turn")
+        page.wait_for_timeout(300)
+        seen[width] = page.evaluate(
+            """() => {
+              const send = document.getElementById('chat-send').getBoundingClientRect();
+              const thread = document.getElementById('chat-thread');
+              return {
+                sendBottom: send.bottom,
+                turns: document.querySelectorAll('.chat-turn').length,
+                scrolls: thread.scrollHeight > thread.clientHeight,
+                labels: [...document.querySelectorAll('.chat-who')].length,
+                motion: getComputedStyle(document.querySelector('.chat-turn')).animationName,
+              };
+            }"""
+        )
+        context.close()
+    for width, height in ((390, 700), (1280, 800)):
+        got = seen[width]
+        assert got["turns"] == 60
+        assert got["sendBottom"] <= height + 1, f"Send in view at {width}px: {got}"
+        assert got["scrolls"], "the thread scrolls inside itself"
+        assert got["labels"] == 0, "no word over a turn"
+        assert got["motion"] == "none", "asked for no motion, given none"
+
+
+@pytest.mark.parametrize("width", [320, 375, 430, 768, 1024, 1440, 2560])
+def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
+    """2026-09-11: "I want this to work on all major modern devices, from a small iPhone
+    to a large 32-inch screen". The page never scrolls sideways, a chip never runs past
+    the card it stands in, the two-column row is one column below 48rem, and Send is
+    on screen at the top of the page."""
+    html = learn_page(TOKEN)
+    chips = [
+        {"id": "read", "line": "Find me something to read"},
+        {
+            "id": "continue",
+            "line": "Continue",
+            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף - טכנולוגיה",
+            "reader": "x/reader/index.html",
+        },
+        {"id": "words", "line": "Use my new words"},
+        {"id": "stuck", "line": "Explain a word I am stuck on"},
+    ]
+    readers = [
+        {
+            "name": "youtube-he",
+            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף",
+            "language": "he",
+            "register": "modern",
+            "document": "h1",
+            "built": 1,
+            "chapters": [1],
+            "readyChapters": 1,
+            "known": 0.31,
+            "reader": "youtube-he/reader/index.html",
+        }
+    ]
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body = {
+                "chats": [{"id": "a", "title": "t", "seen": 1}],
+                "usable": True,
+                "talk": True,
+                "chips": chips,
+            }
+        elif "/reader/" in u:
+            route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<html><body><p>שורה ראשונה ארוכה למדי של טקסט.</p></body></html>",
+            )
+            return
+        elif "/readers" in u:
+            body = {"readers": readers, "shared": [], "trash": []}
+        elif "/account/me" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    # The conversation is the conversation page framed in the drawer the pill opens
+    # (2026-09-11): the chips and the box are measured inside it, against the drawer's
+    # own width, with the drawer open.
+    page.click("#talk-open")
+    talk = page.frame_locator("#talk-frame")
+    talk.locator(".chat-ask").first.wait_for()
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+          const doc = document.documentElement;
+          const drawer = document.getElementById('talk-drawer').getBoundingClientRect();
+          const frame = document.getElementById('talk-frame').getBoundingClientRect();
+          const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
+          const front = document.getElementById('front').getBoundingClientRect();
+          const window_ = document.getElementById('carry-window');
+          const nav = document.querySelector('.site-nav');
+          const navBox = nav.getBoundingClientRect();
+          return {
+            navFixed: getComputedStyle(nav).position === 'fixed',
+            navBottom: navBox.bottom, navLeft: navBox.left, navRight: navBox.right,
+            scrollWidth: doc.scrollWidth, inner: window.innerWidth,
+            frameLeft: frame.left, frameRight: frame.right, frameHeight: frame.height,
+            talkRight: drawer.right, drawerTop: drawer.top, drawerBottom: drawer.bottom,
+            sheetWidth: Math.round(sheet.width), frontWidth: Math.round(front.width),
+            reader: window_.hidden ? ''
+              : document.getElementById('carry-frame').getAttribute('src'),
+            root: parseFloat(getComputedStyle(doc).fontSize),
+          };
+        }"""
+    )
+    inside = [f for f in page.frames if "embed=1" in f.url][0].evaluate(
+        """() => {
+          const doc = document.documentElement;
+          const chips = [...document.querySelectorAll('.chat-ask')]
+            .map((c) => c.getBoundingClientRect().right);
+          const send = document.getElementById('chat-send').getBoundingClientRect();
+          return {
+            width: window.innerWidth, scrollWidth: doc.scrollWidth,
+            chipsPast: chips.filter((r) => r > window.innerWidth + 1).length,
+            sendLeft: send.left, sendRight: send.right, sendBottom: send.bottom,
+            height: window.innerHeight,
+            base: document.querySelector('base') && document.querySelector('base').target,
+          };
+        }"""
+    )
+    context.close()
+    assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
+    assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
+    assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
+    assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
+    # Phase 4: on a phone the three places are a bar at the foot of the window.
+    assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
+    if width <= 640:
+        assert abs(got["navBottom"] - 800) <= 1 and got["navLeft"] == 0, (
+            f"the bar at the foot: {got}"
+        )
+        assert got["navRight"] == width
+    assert 0 <= got["drawerTop"] and got["drawerBottom"] <= 800 + 1, f"the drawer on screen: {got}"
+    assert "preview=1" in got["reader"], "the sheet frames the reader, working"
+    assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
+    assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"
+    assert inside["chipsPast"] == 0, f"a chip runs past the frame at {width}px"
+    assert 0 <= inside["sendLeft"] and inside["sendRight"] <= inside["width"], inside
+    assert inside["sendBottom"] <= inside["height"] + 1, f"Send is below the frame: {inside}"
+    assert inside["base"] == "_top", "every link in the frame opens the page that holds it"
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up
@@ -407,7 +739,8 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
         if path in ("", "learn", "learn.html"):
             route.fulfill(status=200, content_type="text/html", body=learn_page(TOKEN))
         elif path == "chat":
-            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN))
+            embed = "embed=1" in request.url
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=embed))
         elif path == "chat/list":
             route.fulfill(
                 status=200,
@@ -455,16 +788,209 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     open_page = context.new_page()
     open_page.route("http://learn.test/**", answer)
     open_page.goto("http://learn.test/learn")
+    # The box is in the conversation page framed in the drawer (2026-09-11); the text it
+    # opens must open in the page that holds the drawer.
+    open_page.click("#talk-open")
+    talk = open_page.frame_locator("#talk-frame")
+    talk.locator("#chat-send").wait_for()
     open_page.wait_for_timeout(300)
-    open_page.set_input_files("#chat-file", [str(fixture), str(fixture)])
-    chips = open_page.locator(".chat-chip").count()
-    assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
-    open_page.click("#chat-send")
-    open_page.wait_for_url("**/reader/negev-he/**", timeout=5000)
-    landed = open_page.url
+    talk.locator("#chat-file").set_input_files([str(fixture), str(fixture)])
+    chips = talk.locator(".chat-chip").count()
+    assert talk.locator(".quote-card").count() == 0, "held, not yet brought"
+    talk.locator("#chat-send").click()
+    # The text opens in the sheet beside the conversation, not on a page of its own
+    # (2026-09-11): the frame offers it to the page, which draws it.
+    open_page.wait_for_function(
+        "() => (document.getElementById('carry-frame').getAttribute('src') || '')"
+        ".indexOf('negev-he') >= 0",
+        timeout=5000,
+    )
+    landed = open_page.evaluate(
+        """() => ({
+          url: location.href,
+          frame: document.getElementById('carry-frame').getAttribute('src'),
+          sheet: !document.getElementById('carry-sheet').hidden,
+          heading: document.getElementById('carry-heading').textContent,
+          open: document.getElementById('carry').getAttribute('href'),
+        })"""
+    )
     context.close()
 
     assert chips == 2, "one chip a file"
     assert prepared and prepared[0]["uploads"] == ["u1", "u2"], prepared
     assert built == [{"id": "j1"}], "Send was the press"
-    assert "/reader/negev-he/reader/index.html" in landed, "and the text opened"
+    assert "learn.test/learn" in landed["url"], "nobody was sent to another page"
+    assert landed["sheet"] and "/reader/negev-he/reader/index.html" in landed["frame"], (
+        "and the text opened in the sheet"
+    )
+    assert "preview=1" in landed["frame"] and "preview" not in landed["open"]
+    assert landed["heading"] == "From the conversation"
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width: int) -> None:
+    """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens
+    up for you". On the Library: the pill is on screen, nothing is loaded until it is
+    pressed, the drawer then stands on screen with the conversation in it, Escape closes
+    it, and it is open again on the next page since the conversation is not over. A text
+    the conversation offers on a page without a sheet opens the reader itself."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body = {
+                "chats": [],
+                "usable": True,
+                "talk": True,
+                "chips": [{"id": "read", "line": "Find me something"}],
+            }
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False}
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/series" in u:
+            body = {"series": []}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None}
+        elif "/reader/" in u:
+            route.fulfill(
+                status=200, content_type="text/html", body="<html><body>the reader</body></html>"
+            )
+            return
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    measure = """() => {
+      const pill = document.getElementById('talk-open').getBoundingClientRect();
+      const drawer = document.getElementById('talk-drawer');
+      const box = drawer.getBoundingClientRect();
+      return {
+        pill: { left: pill.left, right: pill.right, top: pill.top, bottom: pill.bottom },
+        pillShown: getComputedStyle(document.getElementById('talk-open')).display !== 'none',
+        open: !drawer.hidden,
+        drawer: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+        loaded: !!document.getElementById('talk-frame').getAttribute('src'),
+        remembered: localStorage.getItem('targum:talk'),
+      };
+    }"""
+    before = page.evaluate(measure)
+    page.click("#talk-open")
+    page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
+    # Past the drawer's own settling, which is the one motion it has.
+    page.wait_for_timeout(300)
+    opened = page.evaluate(measure)
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(300)
+    closed = page.evaluate(measure)
+    page.click("#talk-open")
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open", state="attached")
+    page.wait_for_timeout(200)
+    again = page.evaluate(measure)
+    # A text offered where there is no sheet: the reader itself.
+    page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
+    frame = [f for f in page.frames if "embed=1" in f.url][0]
+    frame.evaluate(
+        "() => window.parent.postMessage("
+        "{type: 'targum:open', reader: 'negev-he/reader/index.html'}, location.origin)"
+    )
+    page.wait_for_url("**/reader/negev-he/**", timeout=5000)
+    context.close()
+    assert before["pillShown"] and not before["open"] and not before["loaded"], before
+    assert 0 <= before["pill"]["left"] and before["pill"]["right"] <= width, "the pill on screen"
+    assert 0 <= before["pill"]["top"] and before["pill"]["bottom"] <= 800
+    assert opened["open"] and opened["loaded"] and not opened["pillShown"], opened
+    assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
+    assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
+    assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
+    assert again["open"] and again["remembered"] == "open", "open again on the next page"
+
+
+def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
+    """2026-09-11: ⌘K opens one field; typing narrows it to places, texts on the shelf,
+    the catalogue's rows and conversations; arrows move and Enter goes. A text opens its
+    reader, and Escape closes the palette with nothing chosen."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body = {"chats": [{"id": "c9", "title": "שיחה על ספרים", "seen": 1}], "usable": True}
+        elif "/readers" in u:
+            body = {
+                "readers": [
+                    {
+                        "name": "mendele-he",
+                        "title": "מסעות בנימין",
+                        "language": "he",
+                        "document": "h1",
+                        "built": 1,
+                    }
+                ],
+                "shared": [],
+                "trash": [],
+                "covers": False,
+            }
+        elif "/reader/" in u:
+            route.fulfill(
+                status=200, content_type="text/html", body="<html><body>the reader</body></html>"
+            )
+            return
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/series" in u:
+            body = {"series": []}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#palette-open")
+    assert page.evaluate("() => document.getElementById('palette').hidden")
+    page.keyboard.press("Meta+k")
+    page.wait_for_function("() => !document.getElementById('palette').hidden")
+    page.wait_for_function("() => document.querySelectorAll('.palette-row').length > 0")
+    at_rest = page.evaluate(
+        "() => [...document.querySelectorAll('.palette-title')].map((t) => t.textContent)"
+    )
+    assert at_rest[:3] == ["Learn", "Library", "Your Progress"], "the places, with nothing typed"
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.getElementById('palette').hidden"), "Escape closes it"
+    page.click("#palette-open")
+    page.wait_for_function("() => !document.getElementById('palette').hidden")
+    page.fill("#palette-find", "בנימין")
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('.palette-title')]"
+        ".some((t) => t.textContent.includes('בנימין'))"
+    )
+    found = page.evaluate(
+        "() => [...document.querySelectorAll('.palette-row')].map((r) => r.textContent)"
+    )
+    assert any("Your shelf" in row for row in found), found
+    page.keyboard.press("Enter")
+    page.wait_for_url("**/reader/mendele-he/**", timeout=5000)
+    context.close()

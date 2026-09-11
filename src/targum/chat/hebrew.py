@@ -26,6 +26,7 @@ fell (`record.outside_share`), and until the eval answers, no page says "at your
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -73,8 +74,11 @@ LATELY_MS = 7 * 24 * 3600 * 1000
 #: whole ledger, a few at a time, not only what was saved this week (decided 2026-09-07:
 #: the conversation is where a word is met again when the reader is not reading). A
 #: word met once needs the most meetings and a nearly-known one the fewest, and a few
-#: known words from long ago stay alive. Rotated by turn, so a conversation moves
-#: through the ledger rather than repeating its first page.
+#: known words from long ago stay alive. Rotated by conversation since 2026-09-10
+#: (targum-internal#239): a slice that moved every turn moved the block the model is
+#: given every turn, and everything after it in the prompt — the whole history — fell
+#: out of the cache with it. One conversation now sees one slice; the next conversation
+#: sees the next.
 BRING_BACK = {1: 5, 2: 4, 3: 3}
 KNOWN_BACK = 3
 BRING_BACK_PHRASES = 6
@@ -86,7 +90,42 @@ MODERN_BAND = 4
 RECAST = "> "
 ENGLISH = "= "
 
-CONTRACT = f"""This conversation is in Hebrew, whatever language the reader writes in.
+
+def gloss_language(reads: set[str] | None) -> str:
+    """Which language the "= " lines are in: the one the account reads into, English
+    where it reads English or says nothing (targum-internal#243). The same rule
+    `tools.quote_build` uses for a build's target."""
+    if not reads or "en" in reads:
+        return "en"
+    return sorted(reads)[0]
+
+
+#: One line, at most one a reply, directly under the recast's English, only when the
+#: recast changed something: what changed and the rule, in the reader's language
+#: (2026-09-10, targum-internal#242). The correction used to be silent — the recast
+#: rendered the same whether or not anything was changed — and the notes of that day
+#: asked for "a correction and an explanation". Folded on the page; a text written
+#: from the conversation drops it.
+WHY = "~ "
+
+#: How many Hebrew sentences a reply may run to, and how many lines when the answer is a
+#: list. Numbers rather than "a few" since 2026-09-10 (targum-internal#236): measured on
+#: the stored conversations, "a few" was a median of 36 Hebrew words over five lines,
+#: ten with their English, and the notes of that day called it too much to read.
+MOST_SENTENCES = 3
+MOST_LISTED = 6
+
+
+def contract(gloss: str = "English") -> str:
+    """The Hebrew contract, with the reader's own language on every "= " line.
+
+    Until 2026-09-10 the line under each Hebrew line was English by name, whatever the
+    account said it read (targum-internal#243): `gloss` is the name of the language the
+    reader reads — `gloss_language` picks it from the account — and the rules that are
+    about the model thinking in English rather than Hebrew stay as they are."""
+    no_foreign = "No English" if gloss == "English" else f"No {gloss} and no English"
+    return f"""This conversation is in Hebrew, whatever language the reader writes in. The reader
+reads {gloss}: every "{ENGLISH}" line is in {gloss}.
 Every reply, including one that finds, offers or quotes a text, keeps to this:
 
 - Write in Hebrew, with vowel points (nikkud) on every word — on the full spelling the
@@ -94,17 +133,23 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   used: לִקְרוֹא and not לִקְרֹא, שׁוּלְחָן and not שֻׁלְחָן. The word should look like the
   one on their ledger, with its vowels added.
 - Every Hebrew sentence goes on its own line. Directly under it, on the next line, its
-  English, beginning with "{ENGLISH}". Never a Hebrew line without its English line.
+  {gloss}, beginning with "{ENGLISH}". Never a Hebrew line without its {gloss} line.
 - Begin every reply with the reader's own line, in Hebrew: a line beginning "{RECAST}"
   with their sentence — as they wrote it if their Hebrew was right, corrected if it was
   not, and said in Hebrew if they wrote in English or any other language — then a
-  "{ENGLISH}" line with its English, which for a line they wrote in English is what
+  "{ENGLISH}" line with its {gloss}, which for a line they wrote in {gloss} is what
   they wrote, as they wrote it. The recast is what they meant, said the way a Hebrew
   speaker says it: correct and idiomatic, in Hebrew word order, in one clean sentence
   or two. Never carry their grammar mistakes, their slips or their English word order
   into it — the recast is the correction, and a wrong recast becomes the line of record.
-  Then answer. Do not lecture about a mistake; the corrected line is the whole
-  correction.
+  If the recast changed anything the reader wrote in Hebrew — a wrong form, a missing
+  word, English word order — one line beginning "{WHY}" directly under the recast's
+  "{ENGLISH}" line: one sentence in {gloss} naming what changed and the
+  rule, like "{WHY}Past tense: הָלַכְתִּי, not הָלַךְ." Never on a line that was right,
+  never for a line written in English or another language, never a second sentence,
+  and nowhere else in the reply. Then answer. Do not lecture about a mistake in the
+  body; the corrected line is the correction, and the one "{WHY}" line is the whole
+  explanation.
 - Write your own lines in Hebrew first, as a Hebrew speaker would say them to a
   friend: the idiom, the word order and the register of spoken Israeli Hebrew, and the
   plain words. Do not think of an English sentence and translate it — no calques: not
@@ -112,8 +157,8 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   for "I bring words", not "הַצָּעָה לְטֶקְסְט" for "a suggestion for a text", not
   "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf". If a sentence would only
   make sense to someone who knows the English under it, it is not Hebrew yet. The
-  "{ENGLISH}" line under each of your lines is the English for the Hebrew you wrote,
-  and may read a little differently from how you would have put it in English; that is
+  "{ENGLISH}" line under each of your lines is the {gloss} for the Hebrew you wrote,
+  and may read a little differently from how you would have put it in {gloss}; that is
   right.
 - Punctuate like Hebrew, not like English prose. No em dashes between clauses — a
   comma, a full stop or a new sentence instead; a hyphen only inside a compound
@@ -122,10 +167,10 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   not "וְעַכְשָׁיו אֵלֶיךָ:" — say the thing. Small numbers as words: שְׁנֵי הַיָּמִים,
   not "2 הַיָּמִים". Use the right word, not the nearest one: the narration of a video is
   הֶסְבֵּר, not הַסְבָּרָה.
-- No English inside a Hebrew line, not even in brackets: never "נִשְׁמֶרֶת (is saved)".
-  The English lives on the "{ENGLISH}" line and nowhere else. A word Israelis say in
-  English is written in Hebrew letters (פּוֹדְקָאסְט), and an English verb never gets
-  Hebrew clothes: לִלְחוֹץ עַל מִילָּה, never "לְקַלֵּק". The one exception is a title
+- {no_foreign} inside a Hebrew line, not even in brackets: never
+  "נִשְׁמֶרֶת (is saved)". The {gloss} lives on the "{ENGLISH}" line and nowhere else.
+  A word Israelis say in English is written in Hebrew letters (פּוֹדְקָאסְט), and an
+  English verb never gets Hebrew clothes: לִלְחוֹץ עַל מִילָּה, never "לְקַלֵּק". The one exception is a title
   that is in English, a video's name, which stands as it is.
 - Do not end every reply the same way. Ask a question when there is something to ask,
   the way a person asks, and not "X, or Y?" every time; a reply may also simply end.
@@ -137,12 +182,15 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   "{ENGLISH}" line like every other word — and use a word you brought in again a few
   lines later. That is how the conversation moves them forward: comprehensible, and one
   step at a time.
-- Keep it short: a few Hebrew sentences. (Until 2026-09-08 this line also said "and
-  give the reader something to answer", and every reply ended in homework built from
-  the bring-back words: "write me a sentence about what you will read the day after
-  tomorrow, and if there is a limit of time, that too." The bullet above already says
-  when to ask.) When you offer texts, one Hebrew line per text with its English, and the text's door
-  under it.
+- Keep it short: at most {MOST_SENTENCES} Hebrew sentences in a reply, after the
+  "{RECAST}" line, which does not count. A reply that hands over a text — a door, a
+  card — is one sentence and the door. More only when the reader asks for more, or asks
+  a question whose answer is a list, and then at most {MOST_LISTED} lines. (Until
+  2026-09-08 this line also said "and give the reader something to answer", and every
+  reply ended in homework built from the bring-back words; until 2026-09-10 it said "a
+  few Hebrew sentences", and a few was five lines, ten with their English, which the
+  notes of that day called too much to read.) When you offer texts, one Hebrew line per
+  text with its {gloss}, and the text's door under it.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -151,11 +199,17 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 """
 
 
+#: The contract for a reader of English: the one every test and eval reads.
+CONTRACT = contract()
+
+
 @dataclass(frozen=True)
 class Pair:
     hebrew: str
     english: str
     recast: bool = False
+    #: Why the recast changed what the reader wrote, from the "~ " line, or nothing.
+    why: str = ""
 
 
 def pairs(text: str) -> list[Pair]:
@@ -171,6 +225,12 @@ def pairs(text: str) -> list[Pair]:
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
+            continue
+        if line.startswith(WHY):
+            # Belongs to the recast just closed, and to nothing else: a "~ " anywhere
+            # else in a reply is the contract broken, and is dropped.
+            if pending is None and out and out[-1].recast and not out[-1].why:
+                out[-1] = Pair(out[-1].hebrew, out[-1].english, True, line[len(WHY) :].strip())
             continue
         if line.startswith(ENGLISH):
             if pending is not None:
@@ -191,6 +251,18 @@ def pairs(text: str) -> list[Pair]:
 
 def _has_hebrew(text: str) -> bool:
     return any("א" <= ch <= "ת" for ch in text)
+
+
+def length(text: str) -> int:
+    """How many Hebrew words a reply is, the way a reader meets them: over the model's
+    own lines, the "> " recast left out because it is the reader's sentence said back.
+    A word is a run of Hebrew letters and points; the number is what the cap in the
+    contract is about, and what `scripts/eval_grading.py` and
+    `scripts/measure_reply_length.py` count."""
+    return sum(len(_WORD.findall(pair.hebrew)) for pair in pairs(text) if not pair.recast)
+
+
+_WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*")
 
 
 def common_words(n: int = COMMON, language: str = "he") -> list[str]:
@@ -261,13 +333,15 @@ class Returning:
 NOTHING_RETURNING = Returning([], [], [], [], [])
 
 
-def rotate(pool: list[str], want: int, turn: int) -> list[str]:
-    """`want` of `pool`, starting `want` further along on each turn and wrapping, so
-    every turn's slice is different and a conversation walks the whole list."""
+def rotate(pool: list[str], want: int, seed: int) -> list[str]:
+    """`want` of `pool`, starting `want` further along for each `seed` and wrapping, so
+    two conversations see two slices and the ledger is walked across them. Until
+    2026-09-10 the seed was the turn number, and every turn's slice was different;
+    that cost the cache the whole conversation each turn (targum-internal#239)."""
     if not pool or want <= 0:
         return []
     want = min(want, len(pool))
-    start = (turn * want) % len(pool)
+    start = (seed * want) % len(pool)
     return [pool[(start + i) % len(pool)] for i in range(want)]
 
 
@@ -276,7 +350,7 @@ def bring_back(
     person_id: int | None,
     language: str,
     now_ms: int | None = None,
-    turn: int = 0,
+    seed: int = 0,
 ) -> Returning:
     """The reader's words, for the conversation to carry back — the one thing the
     chat-first products never do, and the thing the research says a saved word needs.
@@ -302,13 +376,13 @@ def bring_back(
     # The learning ones newest first, so a word saved yesterday is met tomorrow; the
     # known ones oldest first, since a word ticked off last month is the one at risk.
     learning = {s: [lemma for _, lemma in sorted(pools[s], reverse=True)] for s in (1, 2, 3)}
-    picked = {s: rotate(learning[s], BRING_BACK[s], turn) for s in (1, 2, 3)}
+    picked = {s: rotate(learning[s], BRING_BACK[s], seed) for s in (1, 2, 3)}
     left = sum(BRING_BACK.values()) - sum(len(got) for got in picked.values())
     for status in (1, 2, 3):
         if left <= 0:
             break
         rest = [lemma for lemma in learning[status] if lemma not in picked[status]]
-        more = rotate(rest, left, turn)
+        more = rotate(rest, left, seed)
         picked[status] = picked[status] + more
         left -= len(more)
     since = (now_ms if now_ms is not None else int(time.time() * 1000)) - LATELY_MS
@@ -316,7 +390,7 @@ def bring_back(
         new=picked[1],
         learning=picked[2],
         nearly=picked[3],
-        known=rotate([lemma for _, lemma in sorted(pools[9])], KNOWN_BACK, turn),
+        known=rotate([lemma for _, lemma in sorted(pools[9])], KNOWN_BACK, seed),
         phrases=store.recent_phrases(person_id, since, limit=BRING_BACK_PHRASES),
     )
 
@@ -340,7 +414,9 @@ def ledger_block(
             "words, keep every sentence short, and in your first reply ask what they have "
             "read in Hebrew so far - never what level they are - and offer them one short "
             "text to start with (suggest_next), because words are marked while reading and "
-            "that is how their ledger begins."
+            "that is how their ledger begins. If they say they already read Hebrew, tell "
+            "them once that Learn has a list called Words you may already know, where "
+            "marking the common words they know lets you write with them."
         )
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))

@@ -209,6 +209,56 @@ def test_a_handler_without_a_chat_answers_not_found(tmp_path: Path) -> None:
         server.server_close()
 
 
+def test_a_conversation_opened_again_carries_the_cards_it_quoted(chatting) -> None:
+    """The cards were drawn from the live stream only (2026-09-11: "don't see the link
+    to the article"). `/chat/<id>` now hands each answer the quotes in the tool results
+    before it, read back from the job where the process still holds it — so a card
+    pressed since says so — and from the stored quote where it does not."""
+    from targum.serve import Job
+
+    port, key, store, chats = chatting
+    chat = store.chat_open(None)
+    store.chat_say(chat, "user", "find me an article", "find me an article")
+    live = Job(
+        id="livejob1",
+        source="https://www.globes.co.il/news/article.aspx?did=1",
+        title="כתבה",
+        stage="done",
+        reader="p1/כתבה-he",
+    )
+    chats.library.jobs[live.id] = live
+    quoted_live = {"id": live.id, "title": "כתבה", "stage": "ready", "source": live.source}
+    gone = {"id": "gonejob1", "title": "אחרת", "stage": "ready", "source": "wikisource:he:x"}
+    store.chat_say(
+        chat,
+        "user",
+        [
+            {
+                "type": "tool_result",
+                "tool_use_id": "t1",
+                "content": json.dumps({"quote": quoted_live}),
+            },
+            {"type": "tool_result", "tool_use_id": "t2", "content": json.dumps({"quote": gone})},
+            {"type": "tool_result", "tool_use_id": "t3", "content": "not json"},
+        ],
+        "",
+    )
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "הנה"}], "הנה")
+    store.chat_say(chat, "user", "thanks", "thanks")
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "בבקשה"}], "בבקשה")
+    status, whole, _ = call(port, "GET", f"/chat/{chat}?k={key}")
+    assert status == 200
+    answers = [t for t in whole["turns"] if t["role"] == "assistant"]
+    quotes = answers[0]["quotes"]
+    assert [q["id"] for q in quotes] == [live.id, gone["id"]]
+    assert quotes[0]["stage"] == "done" and quotes[0]["reader"] == live.reader, (
+        "a job the process still holds is read back as it stands"
+    )
+    assert quotes[0]["source"] == live.source, "the card can link to where the text is from"
+    assert quotes[1] == gone, "a job the process lost is the quote as it was"
+    assert "quotes" not in answers[1], "only the answer that followed the quote carries it"
+
+
 def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:
     store = Store(tmp_path / "w.db")
     token = store.start_sign_in("reader@example.com")
@@ -385,7 +435,8 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
 
 def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -> None:
     """`about` is strings, capped, and only the fields the card sends; a note with no
-    word and no sentence is no note. The conversation it opens is the English kind."""
+    word and no sentence is no note. The conversation it opens is the one conversation,
+    in Hebrew at their level (2026-09-11)."""
     port, key, store, chats = chatting
     status, asked, _ = call(
         port,
@@ -413,8 +464,19 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
     assert "The card shows the meaning: press; oppress" in turn["content"]
     assert "m" * 300 not in turn["content"], "capped too"
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
-    assert whole["chat"]["mode"] == "find"
+    assert whole["chat"]["mode"] == "talk"
 
+    status, named, _ = call(
+        port,
+        "POST",
+        f"/chat/say?k={key}",
+        {"chat": "", "text": "let's talk", "about": {"document": "hapoel-he", "title": "הפועל"}},
+    )
+    assert status == 200
+    assert (
+        "The reader is reading the text הפועל (hapoel-he)."
+        in store.chat_turns(named["chat"])[0]["content"]
+    ), "the text alone is a note (2026-09-11): the front page's 'let's talk about it'"
     status, asked, _ = call(
         port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "about": {"colour": "x"}}
     )
@@ -480,7 +542,7 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     assert "It is called: הודעה מחברת הביטוח (9 sentences)" in turn["content"]
     assert "שורה ראשונה / שורה שנייה" in turn["content"]
     assert (
-        "being built now" in turn["content"] and "do not need to send it again" in turn["content"]
+        "getting ready now" in turn["content"] and "do not need to send it again" in turn["content"]
     )
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "talk", "the conversation keeps its language"
@@ -490,3 +552,45 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     )
     assert status == 200
     assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "not theirs: no note"
+
+
+def test_the_list_says_when_targum_last_answered_and_when_you_last_opened(chatting) -> None:
+    """2026-09-11: the bell says an answer arrived while you were away — a conversation
+    targum finished answering after you last opened it. `seen` moves with every turn,
+    the answer's included, so the list carries `opened` and `answered` apart."""
+    port, key, _store, chats = chatting
+    status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "what first"})
+    assert status == 200
+    chats.answer(chats.queue.get())
+    status, listed, _ = call(port, "GET", f"/chat/list?k={key}")
+    (row,) = listed["chats"]
+    assert row["answered"] > 0 and row["opened"] == 0, "answered, never opened: news"
+    status, whole, _ = call(port, "GET", f"/chat/{row['id']}?k={key}")
+    assert status == 200
+    status, listed, _ = call(port, "GET", f"/chat/list?k={key}")
+    (row,) = listed["chats"]
+    assert row["opened"] >= row["answered"], "opened since: not news any more"
+
+
+def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch: Any) -> None:
+    """`GET /suggest` (2026-09-11): the pick the conversation's "Something to read"
+    makes, for the Suggested door on Learn — no chat, no turn, no card."""
+    from targum import catalogue
+    from targum.chat import tools
+
+    port, key, store, chats = chatting
+    picked = [
+        {"id": "esther", "title": "אסתר", "because": "You know 50% of its words.", "minutes": 25},
+        {"id": "ruth", "title": "רות", "because": "Not measured yet."},
+    ]
+    monkeypatch.setattr(
+        tools, "suggest_next", lambda ctx, args: {"suggestions": picked[: args["limit"]]}
+    )
+    status, got, _ = call(port, "GET", f"/suggest?k={key}")
+    assert status == 200 and got == {"suggestion": picked[0]}
+    assert store.chats(None) == [], "no conversation was opened for it"
+    status, got, _ = call(port, "GET", f"/suggest?skip=esther,%20x&k={key}")
+    assert got == {"suggestion": picked[1]}, "a finished suggestion makes way for the next"
+    monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
+    assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
+    assert catalogue

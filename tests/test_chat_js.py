@@ -23,12 +23,22 @@ def run(
     record: bool = False,
     hash: str = "",
     ledger: dict[str, Any] | None = None,
+    stored: dict[str, str] | None = None,
+    thread: dict[str, int] | None = None,
+    embed: bool = False,
+    language: str = "",
+    who: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
+        "thread": thread,
+        "embed": embed,
+        "language": language,
+        "who": who,
         "key": key,
         "record": record,
         "hash": hash,
         "ledger": ledger,
+        "stored": stored or {},
         "answers": {"/chat/list": {"chats": [], "usable": True}, **(answers or {})},
         "do": do or [],
     }
@@ -163,7 +173,7 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["button"] == "Read this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
-    assert card["note"].startswith("Building.") and card["cls"] == "quote-card started"
+    assert card["note"].startswith("Getting it ready.") and card["cls"] == "quote-card started"
     assert page["stripAsked"] == 1, "the strip is told to look again"
 
 
@@ -218,6 +228,44 @@ def test_a_refused_press_says_why_on_the_card() -> None:
     assert page["stripAsked"] == 0
 
 
+def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> None:
+    """The count stood in the side column on every visit: the metric "right in your face"
+    (notes of 2026-09-10, targum-internal#237). Now it is on Your Progress and in the
+    account panel, and the box says it only past three quarters used, with the day the
+    month turns, so the cap is not the first anybody hears of it."""
+    page = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 6.5, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert page["hours"] == "6.5 of 8 hours used this month. Resets 1 October."
+    assert not page["hoursHidden"]
+    quiet = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 5.9, "allowed": 8, "ends": "1 October"},
+            }
+        }
+    )
+    assert quiet["hours"] == "" and quiet["hoursHidden"]
+    unlimited = run(
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "hours": {"used": 100, "allowed": None, "ends": "1 October"},
+            }
+        }
+    )
+    assert unlimited["hoursHidden"], "no cap, no line"
+
+
 def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
     page = run(
         do=[
@@ -239,7 +287,7 @@ def test_the_list_carries_the_hours_and_hebrew_is_drawn_in_pairs() -> None:
             "/chat/say": {"chat": "abc", "turn": 1},
         },
     )
-    assert page["hours"] == "1.5 of 8 hours this month"
+    assert page["hours"] == "" and page["hoursHidden"], "under three quarters, nothing is said"
     pairs = [{k: p[k] for k in ("he", "en", "recast")} for p in page["pairs"]]
     assert pairs == [
         {"he": "שָׁלוֹם", "en": "hello", "recast": True},
@@ -307,6 +355,52 @@ def test_the_microphone_is_kept_from_a_reader_with_no_modern_hebrew() -> None:
     assert page["mic"]["hidden"] is False
 
 
+def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_source() -> None:
+    """2026-09-11, David: "don't see the link to the article". The cards were drawn
+    from the live stream only, so a reopened conversation — the drawer, reopened on
+    every page of a reader — showed the model's "press the card" over no card. Now
+    `/chat/<id>` hands each answer the cards it quoted and the page draws them; and a
+    card for a page on the web links to it, by the site's name, in its own tab."""
+    quoted = dict(QUOTE, source="https://www.globes.co.il/news/article.aspx?did=1001553741")
+    page = run(
+        do=[],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "an article"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "find me an article", "stage": "done"},
+                    {"n": 2, "role": "user", "said": "", "stage": "done"},
+                    {
+                        "n": 3,
+                        "role": "assistant",
+                        "said": "מָצָאתִי כַּתָּבָה.\n= I found an article.",
+                        "stage": "done",
+                        "quotes": [quoted],
+                    },
+                ],
+            },
+        },
+        hash="#abc",
+    )
+    assert len(page["cards"]) == 1, "the card the answer quoted is drawn again"
+    card = page["cards"][0]
+    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["source"] == {
+        "href": quoted["source"],
+        "text": "globes.co.il",
+        "target": "_blank",
+    }
+    page = run(
+        do=[
+            {"type": "say", "text": "bring this in"},
+            {"type": "stream", "event": "quote", "data": json.dumps(QUOTE, ensure_ascii=False)},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["cards"][0]["source"] is None, "a library text or a file has no page to link"
+
+
 def test_a_conversation_named_in_the_hash_is_the_one_opened() -> None:
     """The front door's box posts a line and lands here with the new conversation's id
     in the hash; the page opens that one, not the newest on the list."""
@@ -344,7 +438,8 @@ def test_a_recording_goes_up_as_itself_and_comes_back_as_the_reader_s_line() -> 
     assert page["posted"] == [{"path": "/chat/hear", "body": "<blob audio/webm>"}]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"]
     assert [t["text"] for t in page["turns"]] == ["שלום לך", ""]
-    assert page["mic"]["pressed"] == "false" and page["mic"]["text"] == "Speak"
+    assert page["mic"]["pressed"] == "false" and page["mic"]["label"] == "Speak"
+    assert page["mic"]["text"] == "", "the word is the label, not the face (2026-09-10)"
 
 
 def test_an_answer_in_hebrew_mode_can_be_heard() -> None:
@@ -462,7 +557,7 @@ def test_the_foot_counts_what_was_not_met_and_never_names_a_level() -> None:
     page = record_page()
     foot = page["foot"]
     assert foot is not None and foot["save"]
-    assert foot["counts"] == "4 min · 1 word you have not met · you knew 50% of this", (
+    assert foot["counts"] == "4 min · 1 word you have not met · you know 50%", (
         "four minutes off the clock; מצפה not met; two of four vocabulary words known"
     )
     assert "level" not in foot["counts"] and "%" in foot["counts"]
@@ -543,7 +638,7 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"]
     assert card["button"] == "", "Send was the press: no button to press again"
-    assert card["note"] == "Building. It will appear above when it is ready."
+    assert card["note"] == "Getting it ready. It will appear above when it is."
     assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
@@ -726,3 +821,646 @@ def test_the_chat_page_starts_the_sync_like_every_other_page() -> None:
     (targum-internal#232).
     """
     assert run()["syncStarted"] is True
+
+
+# -- the way back to a conversation (targum-internal#238) -------------------------
+
+
+def test_a_row_writes_the_conversation_into_the_address_and_the_address_opens_one() -> None:
+    """A row used to change the thread and leave the address alone, so a conversation
+    could not be linked to and the back button did nothing. Now `open` writes the hash
+    and a changed hash opens what it names, or a fresh one when it names nothing."""
+    two = {
+        "chats": [
+            {"id": "abc", "title": "First", "seen": 1},
+            {"id": "def", "title": "Second", "seen": 1},
+        ],
+        "usable": True,
+    }
+    page = run(
+        answers={
+            "/chat/list": two,
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+            "/chat/def": {"chat": {"id": "def"}, "turns": []},
+        },
+    )
+    assert page["hash"] == "#abc", "the newest, written into the address"
+    page = run(
+        do=[{"type": "hash", "hash": "#def"}],
+        answers={
+            "/chat/list": two,
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+            "/chat/def": {"chat": {"id": "def"}, "turns": []},
+        },
+    )
+    assert page["hash"] == "#def"
+    assert page["asked"][-1] == "/chat/def", "the address changed, so the page opened it"
+    fresh = run(
+        do=[{"type": "hash", "hash": ""}],
+        answers={"/chat/list": two, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+    )
+    assert fresh["hash"] == "" and fresh["turns"] == []
+
+
+def test_the_list_says_when_and_pages_at_fifty() -> None:
+    import time as clock
+
+    now = int(clock.time() * 1000)
+    day = 24 * 3600 * 1000
+    first = [{"id": f"c{n}", "title": f"Chat {n}", "seen": now - n * day} for n in range(50)]
+    second = [{"id": f"c{n}", "title": f"Chat {n}", "seen": now - n * day} for n in range(50, 60)]
+    page = run(
+        do=[{"type": "press", "selector": "chat-more"}],
+        answers={
+            "/chat/list": {"chats": first, "usable": True},
+            "/chat/list?limit=50&offset=50": {"chats": second, "usable": True},
+            "/chat/c0": {"chat": {"id": "c0"}, "turns": []},
+        },
+    )
+    assert page["whens"][:3] == ["just now", "yesterday", "2 days ago"]
+    assert len(page["list"]) == 60 and page["list"][-1] == "Chat 59"
+    assert "/chat/list?limit=50&offset=50" in page["asked"]
+    assert "More" not in page["list"], "ten came back, so there is no next page"
+
+
+def test_on_a_phone_the_pill_opens_the_list_and_a_row_closes_it() -> None:
+    page = run(
+        do=[{"type": "pill"}],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "First", "seen": 1}], "usable": True},
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+        },
+    )
+    assert page["listOpen"] and page["pillExpanded"] == "true"
+    closed = run(
+        do=[{"type": "pill"}, {"type": "pill"}],
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "First", "seen": 1}], "usable": True},
+            "/chat/abc": {"chat": {"id": "abc"}, "turns": []},
+        },
+    )
+    assert not closed["listOpen"] and closed["pillExpanded"] == "false"
+
+
+# -- the chips (targum-internal#240) ------------------------------------------------
+
+CHIPS = [
+    {"id": "read", "line": "Something to read"},
+    {"id": "continue", "line": "Continue", "title": "רות", "reader": "ruth-he/reader/index.html"},
+    {"id": "words", "line": "Use my new words"},
+    {"id": "stuck", "line": "A word I am stuck on"},
+]
+
+
+def test_the_chips_stand_in_the_empty_state_and_go_once_there_is_a_turn() -> None:
+    page = run(answers={"/chat/list": {"chats": [], "usable": True, "chips": CHIPS}})
+    assert page["chips"]["ids"] == ["read", "continue", "words", "stuck"]
+    assert page["chips"]["lines"][1] == "Continue רות" and not page["chips"]["hidden"]
+    said = run(
+        do=[{"type": "chip", "id": "words"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert said["posted"][0] == {
+        "path": "/chat/say",
+        "body": {"chat": "", "text": "Use my new words in a short conversation."},
+    }, "a chip is Send with a fixed line"
+    assert said["chips"]["hidden"], "a thread with a turn in it has no chips"
+
+
+def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> None:
+    quote = {"id": "j1", "stage": "ready", "title": "רות", "segments": 40, "estimate": 1}
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "הִנֵּה מַשֶּׁהוּ לִקְרוֹא.\n= Here is something to read.",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": True,
+            },
+        },
+    )
+    assert page["posted"][0] == {"path": "/chat/suggest", "body": {"chat": "", "skip": []}}
+    assert not any(p["path"] == "/chat/say" for p in page["posted"]), "the model was not asked"
+    assert [t["text"] for t in page["turns"]][:1] == ["Find me something to read"]
+    assert page["cards"] and page["cards"][0]["title"] == "רות"
+    assert page["hash"] == "#abc" and page["chips"]["hidden"]
+    another = run(
+        do=[{"type": "chip", "id": "read"}, {"type": "press", "selector": "chat-another"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": True,
+            },
+        },
+    )
+    assert another["posted"][1] == {
+        "path": "/chat/suggest",
+        "body": {"chat": "abc", "skip": ["ruth"]},
+    }
+
+
+def test_a_word_i_am_stuck_on_asks_for_the_word_in_the_field() -> None:
+    page = run(
+        do=[{"type": "chip", "id": "stuck"}],
+        answers={"/chat/list": {"chats": [], "usable": True, "chips": CHIPS}},
+    )
+    assert page["posted"] == []
+    assert page["placeholder"] == "The word, and the sentence it was in"
+
+
+# -- the English, on tap (targum-internal#241) --------------------------------------
+
+REPLY = "> שָׁלוֹם\n= hello\nמַה שְּׁלוֹמְךָ?\n= How are you?\nיֵשׁ לִי סֵפֶר.\n= I have a book."
+KNOWN = {"שלום": {"status": 9}}
+
+
+def said(**extra: Any) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": REPLY}, ensure_ascii=False),
+            },
+            *extra.pop("then", []),
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+        **extra,
+    )
+
+
+def test_the_english_is_folded_under_the_hebrew_and_the_recast_is_open() -> None:
+    """ "I would just ignore the Hebrew and read the English." With the English open
+    under every line, it was (notes of 2026-09-10). Folded now; the recast is the
+    reader's own words and the correction, and stays open."""
+    page = said(ledger=KNOWN)
+    assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
+    assert [p["recast"] for p in page["pairs"]] == [True, False, False]
+    assert not page["english"]["hidden"] and page["english"]["text"] == "Show English"
+
+
+def test_a_reader_with_no_known_words_sees_the_english_open() -> None:
+    page = said()
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
+    assert page["english"]["hidden"], "nothing to fold for them, so no toggle"
+
+
+def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
+    page = said(ledger=KNOWN, then=[{"type": "pair", "n": 1}])
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, True]
+    again = said(ledger=KNOWN, then=[{"type": "pair", "n": 1}, {"type": "pair", "n": 1}])
+    assert [p["enHidden"] for p in again["pairs"]] == [False, True, True]
+
+
+def test_show_english_opens_all_of_it_and_is_remembered() -> None:
+    page = said(ledger=KNOWN, then=[{"type": "english"}])
+    assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
+    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide English"
+    assert page["english"]["kept"] == "open"
+    remembered = said(ledger=KNOWN, stored={"targum:chat-english": "open"})
+    assert [p["enHidden"] for p in remembered["pairs"]] == [False, False, False]
+    assert remembered["english"]["pressed"] == "true"
+
+
+def test_a_reopened_thread_folds_its_english_and_offers_the_toggle() -> None:
+    """The stored-turns path: a conversation opened from the list, not streamed. The
+    toggle looked for a pair before the line was on the page and hid itself."""
+    page = run(
+        ledger=KNOWN,
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "t", "seen": 1}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hello", "stage": "done", "error": ""},
+                    {"n": 2, "role": "assistant", "said": REPLY, "stage": "done", "error": ""},
+                ],
+            },
+        },
+    )
+    assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
+    assert not page["english"]["hidden"]
+
+
+# -- the correction, said so (targum-internal#242) ----------------------------------
+
+FIXED = (
+    "> אֲנִי הָלַכְתִּי אֶתְמוֹל לַחֲנוּת.\n= I went to the shop yesterday.\n"
+    "~ Past tense: הָלַכְתִּי, not הָלַךְ.\nיָפֶה מְאוֹד.\n= Very nice."
+)
+WORDS = {
+    "lines": [
+        {
+            "he": "אֲנִי הָלַכְתִּי אֶתְמוֹל לַחֲנוּת.",
+            "words": [
+                {"start": 0, "end": 5, "lemma": "אני", "pos": "PRON"},
+                {"start": 6, "end": 16, "lemma": "הלך", "pos": "VERB"},
+                {"start": 17, "end": 25, "lemma": "אתמול", "pos": "ADV"},
+                {"start": 26, "end": 34, "lemma": "חנות", "pos": "NOUN"},
+            ],
+        }
+    ]
+}
+
+
+RIGHT = "> אֶתְמוֹל הָלַכְתִּי לַחֲנוּת.\n= Yesterday I went to the shop.\nיָפֶה מְאוֹד.\n= Very nice."
+
+
+def corrected(asked: str, reply: str = FIXED, **extra: Any) -> dict[str, Any]:
+    return run(
+        do=[
+            {"type": "say", "text": asked},
+            {"type": "stream", "event": "words", "data": json.dumps(WORDS, ensure_ascii=False)},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": reply}, ensure_ascii=False),
+            },
+            *extra.pop("then", []),
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+        **extra,
+    )
+
+
+def test_a_recast_that_changed_something_says_so_and_marks_the_words() -> None:
+    page = corrected("אני הלך אתמול לחנות", ledger=KNOWN)
+    recast = page["pairs"][0]
+    assert recast["corrected"], "the label reads corrected"
+    assert recast["fixed"] == ["הָלַכְתִּי"], "the word that changed, and only it"
+    assert recast["why"] == {"text": "Past tense: הָלַכְתִּי, not הָלַךְ.", "hidden": True}
+    assert not page["pairs"][1]["corrected"] and page["pairs"][1]["why"] is None
+
+
+def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
+    """The model judges: a right line is often recast in a more Hebrew order, and without
+    a "~ " line that is idiom, not a correction. A line written in English is recast,
+    never corrected, and carries no marks even when the model explains."""
+    right = corrected("אני הלכתי אתמול לחנות", reply=RIGHT, ledger=KNOWN)
+    assert not right["pairs"][0]["corrected"] and right["pairs"][0]["fixed"] == []
+    assert right["pairs"][0]["why"] is None
+    english = corrected("I went to the shop yesterday", reply=RIGHT, ledger=KNOWN)
+    assert not english["pairs"][0]["corrected"]
+    explained = corrected("I went to the shop yesterday", ledger=KNOWN)
+    assert explained["pairs"][0]["fixed"] == [], "nothing to mark against an English line"
+
+
+def test_why_opens_on_a_tap_and_is_open_for_a_reader_with_no_words() -> None:
+    page = corrected("אני הלך אתמול לחנות", ledger=KNOWN, then=[{"type": "pair", "n": 0}])
+    assert page["pairs"][0]["why"]["hidden"] is False
+    fresh = corrected("אני הלך אתמול לחנות")
+    assert fresh["pairs"][0]["why"]["hidden"] is False, "open by default with nothing on the ledger"
+
+
+def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
+    """targum-internal#244."""
+    quote = {
+        "id": "j1",
+        "stage": "ready",
+        "title": "רות",
+        "segments": 40,
+        "estimate": 1,
+        "known_line": "You know about 7 words in 10 here.",
+    }
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": quote,
+                "offered": ["ruth"],
+                "more": False,
+            },
+        },
+    )
+    assert page["cards"][0]["known"] == "You know about 7 words in 10 here."
+    bare = dict(quote)
+    del bare["known_line"]
+    page = run(
+        do=[{"type": "chip", "id": "read"}],
+        answers={
+            "/chat/list": {"chats": [], "usable": True, "chips": CHIPS},
+            "/chat/suggest": {
+                "chat": "abc",
+                "turn": 1,
+                "said": "x\n= y",
+                "quote": bare,
+                "offered": ["ruth"],
+                "more": False,
+            },
+        },
+    )
+    assert page["cards"][0]["known"] == "", "nothing where it was not measured"
+
+
+# -- the page as a viewport (targum-internal#247) -----------------------------------
+
+
+def test_a_turn_is_told_by_its_place_and_labelled_for_a_screen_reader() -> None:
+    page = said(ledger=KNOWN)
+    assert [t["cls"].split(" ")[1] for t in page["turns"]] == ["me", "them"]
+    assert page["labels"] == ["You", "targum"], "no label over the turn; the name is its aria-label"
+
+
+def test_streaming_appends_the_tail_and_draws_a_line_once_it_is_whole() -> None:
+    page = run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {"type": "stream", "event": "text", "data": "שָׁל"},
+            {"type": "stream", "event": "text", "data": "וֹם"},
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert page["partial"] == "שָׁלוֹם" and page["pairs"] == [], "the tail, and no pair yet"
+    whole = run(
+        do=[
+            {"type": "say", "text": "hello"},
+            {"type": "stream", "event": "text", "data": "> שָׁלוֹם\n= hello\nמַה"},
+        ],
+        answers={
+            "/chat/list": {"chats": [], "usable": True},
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert [p["he"] for p in whole["pairs"]] == ["שָׁלוֹם"], "the whole line is a pair"
+    assert whole["partial"] == "מַה", "and the unfinished one is the tail"
+
+
+def test_the_thread_follows_the_newest_line_only_while_the_reader_was_at_the_bottom() -> None:
+    stuck = {"scrollHeight": 1000, "scrollTop": 700, "clientHeight": 300}
+    page = said(thread=stuck)
+    assert page["scrollTop"] == 1000, "at the bottom before, at the bottom after"
+    away = {"scrollHeight": 1000, "scrollTop": 100, "clientHeight": 300}
+    page = said(thread=away)
+    assert page["scrollTop"] == 100, "scrolled up to reread, and left there"
+
+
+# -- framed in the front page (2026-09-11) --------------------------------------------
+
+TWO = {
+    "chats": [
+        {"id": "abc", "title": "First", "seen": 1},
+        {"id": "def", "title": "Second", "seen": 1},
+    ],
+    "usable": True,
+}
+
+
+def test_framed_in_the_front_page_nothing_opens_by_itself() -> None:
+    """The front page frames this page since 2026-09-11 (design.md §13) — "I should not
+    be sent to a new page". Framed, the newest conversation is not opened by itself
+    (the front page is a door, not a thread), and the list is still every conversation,
+    behind the pill."""
+    page = run(embed=True, answers={"/chat/list": TWO})
+    assert "/chat/list" in page["asked"]
+    assert page["hash"] == "" and page["replaced"] == [], "a front door, not a thread"
+    assert page["list"] == ["First", "Second"] and page["turns"] == []
+    assert page["freshHidden"], "New has nothing to do until a conversation is open"
+    whole = run(answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}})
+    assert whole["hash"] == "#abc", "the page itself opens the newest"
+
+
+def test_a_line_in_the_frame_is_answered_there_and_a_text_is_offered_to_the_page() -> None:
+    """A text the conversation opens is not a page it goes to: framed, it offers the
+    reader's path to the page holding the frame, which opens it in the sheet beside the
+    conversation (2026-09-11)."""
+    page = run(
+        embed=True,
+        do=[{"type": "say", "text": "hello"}],
+        answers={"/chat/list": TWO, "/chat/say": {"chat": "xyz", "turn": 1}},
+    )
+    assert page["posted"][0]["path"] == "/chat/say"
+    assert page["went"] == "" and page["offered"] == [], "answered here, nowhere else"
+    assert [t["text"] for t in page["turns"]] == ["hello", ""]
+    assert not page["freshHidden"], "a conversation is open now: New has a job"
+    row = run(
+        embed=True,
+        do=[{"type": "row", "id": "abc"}],
+        answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+    )
+    assert row["replaced"] == ["#abc"] and row["hash"] == "", (
+        "the address is replaced, never pushed: a frame's history is the page's"
+    )
+    opened = run(
+        embed=True,
+        do=[{"type": "chip", "id": "continue"}],
+        answers={
+            "/chat/list": dict(
+                TWO,
+                chips=[
+                    {
+                        "id": "continue",
+                        "line": "Continue",
+                        "title": "t",
+                        "reader": "x/reader/index.html",
+                    }
+                ],
+            )
+        },
+    )
+    assert opened["went"] == "" and opened["offered"] == [
+        {"type": "targum:open", "reader": "x/reader/index.html"}
+    ], "a text is offered to the page that holds the frame"
+
+
+def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
+    """targum-internal#243, on the page it stands on."""
+    page = run(embed=True, language="ru-RU", answers={"/chat/list": TWO})
+    assert page["first"]["ask"] == "Отвечать по-русски?" and not page["first"]["hidden"]
+    yes = run(
+        embed=True,
+        language="ru-RU",
+        do=[{"type": "first", "yes": True}],
+        answers={"/chat/list": TWO},
+    )
+    assert yes["first"]["hidden"] and yes["first"]["into"] == "ru" and yes["first"]["asked"] == "1"
+    english = run(embed=True, language="en-GB", answers={"/chat/list": TWO})
+    assert english["first"]["hidden"]
+    signed = run(
+        embed=True,
+        language="ru",
+        who={"signedIn": True, "learning": ["he"], "reads": ["en"]},
+        do=[{"type": "first", "yes": True}],
+        answers={"/chat/list": TWO},
+    )
+    assert {"path": "/account/languages", "body": {"learning": ["he"], "reads": ["ru"]}} in signed[
+        "posted"
+    ]
+
+
+def test_the_chips_start_with_a_verb() -> None:
+    """ "The example prompts should also each start with a verb" (2026-09-11)."""
+    from targum.chat import session
+
+    lines = [
+        chip["line"]
+        for chip in [
+            {"line": "Find me something to read"},
+            {"line": "Continue x"},
+            {"line": "Use my new words"},
+            {"line": "Show me what I know"},
+            {"line": "Read today's news"},
+            {"line": "Explain a word I am stuck on"},
+        ]
+    ]
+    assert all(
+        line.split()[0] in ("Find", "Continue", "Use", "Show", "Read", "Explain") for line in lines
+    )
+    assert session.Chats.SUGGEST_ASKED == "Find me something to read"
+    said = run(
+        do=[{"type": "chip", "id": "know"}],
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "chips": [{"id": "know", "line": "Show me what I know"}],
+            },
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert said["posted"][0]["body"]["text"] == "Show me what I know."
+
+
+# -- the first exchange (2026-09-11) ------------------------------------------------
+
+COMMON = {
+    "/words/common?offset=0&limit=50": {
+        "words": [{"form": f, "meaning": "m", "band": "easy"} for f in ["של", "את", "הוא"]],
+        "offset": 0,
+        "next": None,
+    },
+    "/chat/list": {
+        "chats": [],
+        "usable": True,
+        "chips": [{"id": "read", "line": "Find me something"}],
+    },
+}
+
+
+def test_a_first_visit_opens_on_the_words_you_may_already_know() -> None:
+    """ "The checking words you know should be part of the onboarding process": a reader
+    with a ledger of nothing and no conversation is asked first which of the commonest
+    words they know — the checklist as targum's first turn, the chips held back until it
+    is answered. Marking writes real known words, says where the rest of the list lives,
+    and tells the page holding the frame that the count changed."""
+    page = run(embed=True, answers=COMMON)
+    assert page["claim"] and page["claim"]["rows"] == ["של", "את", "הוא"]
+    assert [t["text"] for t in page["turns"]][0].startswith("Before anything else")
+    assert page["chipsHidden"] and page["emptyHidden"], "the checklist first"
+    marked = run(
+        embed=True,
+        answers=dict(COMMON, **{"/chat/suggest": {"chat": "s1", "said": "", "quote": None}}),
+        do=[{"type": "claim", "what": "all"}, {"type": "claim", "what": "yes"}],
+    )
+    assert sorted(marked["ledger"]) == ["את", "הוא", "של"]
+    assert marked["claim"]["tableHidden"] and marked["claim"]["done"].startswith("Thank you")
+    assert {"type": "targum:changed"} in marked["offered"]
+    # The second turn (2026-09-11): a text at the level the checks just set, asked for
+    # without a model turn, so a new reader reaches a text in two presses.
+    assert [p["path"] for p in marked["posted"]][-1] == "/chat/suggest", marked["posted"]
+    passed = run(embed=True, answers=COMMON, do=[{"type": "claim", "what": "no"}])
+    assert passed["ledger"] == {} and passed["claim"]["tableHidden"] and not passed["chipsHidden"]
+    assert "/chat/suggest" not in [p["path"] for p in passed["posted"]], (
+        "a page passed over says nothing about the level"
+    )
+
+
+def test_the_first_exchange_is_not_drawn_twice_nor_for_a_reader_with_words() -> None:
+    known = run(embed=True, answers=COMMON, ledger={"של": {"status": 9}})
+    assert known["claim"] is None and not known["chipsHidden"], "a ledger with words has answered"
+    passed = run(embed=True, answers=COMMON, stored={"targum:claim-passed": json.dumps({"של": 1})})
+    assert passed["claim"] is None, "a page passed over is an answer too"
+    talked = run(embed=True, answers=dict(COMMON, **{"/chat/list": TWO}))
+    assert talked["claim"] is None, "a reader with conversations is not new"
+    nothing = run(
+        embed=True,
+        answers=dict(
+            COMMON, **{"/words/common?offset=0&limit=50": {"words": [], "offset": 0, "next": None}}
+        ),
+    )
+    assert nothing["claim"] is None and nothing["turns"] == [] and not nothing["chipsHidden"], (
+        "nothing to ask: the turn goes and the page is the page it always was"
+    )
+    whole = run(answers=COMMON)
+    assert whole["claim"] and whole["claim"]["rows"] == ["של", "את", "הוא"], (
+        "the conversation page itself asks too"
+    )
+
+
+# -- chatting with the text (2026-09-11) --------------------------------------------------------
+
+READING = {"document": "mendele-he", "section": "2", "segment": "s7", "sentence": "וַיֵּלֶךְ בִּנְיָמִין"}
+
+
+def test_in_a_reader_the_conversation_hears_where_you_are_and_asks_about_it() -> None:
+    """ "When I am reading something I want to literally be able to chat with it." The
+    page holding the drawer says where the reader is; the drawer shows the sentence
+    above the box, sends it with every line so the answer is about the text, and offers
+    one press that asks what it means."""
+    page = run(
+        embed=True,
+        do=[{"type": "reading", "about": READING}, {"type": "say", "text": "מה זה?"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert page["reading"] == "וַיֵּלֶךְ בִּנְיָמִין"
+    assert page["posted"][0]["body"]["about"] == {
+        "document": "mendele-he",
+        "section": "2",
+        "sentence": "וַיֵּלֶךְ בִּנְיָמִין",
+    }
+    explained = run(
+        embed=True,
+        do=[{"type": "reading", "about": READING}, {"type": "explain"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert explained["posted"][0]["body"]["text"] == "What does this sentence mean?"
+    assert explained["posted"][0]["body"]["about"]["sentence"] == "וַיֵּלֶךְ בִּנְיָמִין"
+    alone = run(
+        embed=True,
+        do=[{"type": "say", "text": "hello"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert alone["reading"] == "" and "about" not in alone["posted"][0]["body"], (
+        "nowhere in particular"
+    )
+
+
+def test_a_text_named_with_no_sentence_is_a_way_to_talk_about_it() -> None:
+    """From the sheet on Learn (2026-09-11: "let's talk about it"): the drawer names the
+    text and no sentence. The line shows the title with one press that opens the
+    conversation about the text, and every line rides with the text's name."""
+    about = {"document": "hapoel-he", "title": "הפועל חולון היא אלופת המדינה"}
+    page = run(
+        do=[{"type": "reading", "about": about}, {"type": "explain"}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+        embed=True,
+    )
+    assert page["reading"] == about["title"]
+    assert page["posted"][0]["body"]["text"] == "Let's talk about this text."
+    assert page["posted"][0]["body"]["about"]["document"] == "hapoel-he"
+    assert page["posted"][0]["body"]["about"]["title"] == about["title"]

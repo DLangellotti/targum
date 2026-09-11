@@ -163,6 +163,12 @@
 
   // What a build will take, in the only currency the reader spends: their time. What
   // it costs us is our business and never theirs — they pay by the month.
+  // "globes.co.il" for a link into Globes: the host without its www.
+  function siteOf(url) {
+    var host = String(url).replace(/^https?:\/\//, "").split(/[/?#]/)[0];
+    return host.replace(/^www\./, "");
+  }
+
   function wait(job) {
     if (job.audio && job.parts > 0) {
       // The wait is the first part's: hearing it, then translating it.
@@ -183,6 +189,20 @@
     if (mins <= 1) return start ? start + "about a minute." : "About a minute.";
     if (mins <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
     return start + "about " + mins + " minutes.";
+  }
+
+  //: Past this share of the month's hours the box says so, above the field. Below it
+  //: the count is on Your Progress and in the account panel, and nowhere else
+  //: (2026-09-10, targum-internal#237).
+  var HOURS_WARN = 0.75;
+
+  // The line above the box when the month's hours are nearly gone, or nothing.
+  function hoursWarning(got) {
+    if (!got || got.allowed === null || got.allowed === undefined) return "";
+    if (!(got.used >= got.allowed * HOURS_WARN)) return "";
+    var line = got.used + " of " + got.allowed + " hours used this month.";
+    if (got.ends) line += " Resets " + got.ends + ".";
+    return line;
   }
 
   function hours(seconds) {
@@ -289,6 +309,18 @@
       title.appendChild(en);
     }
     card.appendChild(title);
+    // Where the text is from, as a link, when it is a page on the web (2026-09-11:
+    // "don't see the link to the article"): the site's name, opening in its own tab
+    // — from the drawer as much as from the page, and never inside the frame.
+    if (/^https?:\/\//.test(String(job.source || ""))) {
+      var from = document.createElement("a");
+      from.className = "quote-source";
+      from.href = job.source;
+      from.target = "_blank";
+      from.rel = "noopener";
+      from.textContent = siteOf(job.source);
+      card.appendChild(from);
+    }
     var meta = document.createElement("p");
     meta.className = "quote-meta";
     var facts = [];
@@ -301,6 +333,14 @@
     if (job.stage === "ready") facts.push(wait(job));
     meta.textContent = facts.join(" · ");
     card.appendChild(meta);
+    // How much of it the reader already has, in words, never a percentage or a level
+    // (targum-internal#244). Absent where it was not measured.
+    if (job.known_line) {
+      var known = document.createElement("p");
+      known.className = "quote-known";
+      known.textContent = job.known_line;
+      card.appendChild(known);
+    }
     // A text that arrived as pages shows its first lines as read: for a picture the
     // filename says nothing, and what will be built should be seen before it is.
     if (job.excerpt && job.excerpt.length) {
@@ -338,7 +378,7 @@
             card.classList.add("refused");
             return;
           }
-          note.textContent = "Building. It will appear above when it is ready.";
+          note.textContent = "Getting it ready. It will appear above when it is.";
           card.classList.add("started");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
         });
@@ -350,8 +390,9 @@
       more.textContent = "More options";
       card.appendChild(more);
     } else if (job.stage === "working" || job.stage === "reading") {
-      // Sent from the box, so already pressed: the card is its progress.
-      note.textContent = "Building. It will appear above when it is ready.";
+      // Sent from the box, so already pressed: the card is its progress. "Getting it
+      // ready", never "building" (2026-09-11): a text is getting ready, then ready.
+      note.textContent = "Getting it ready. It will appear above when it is.";
       card.classList.add("started");
       if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
     } else if (job.stage === "done" && job.reader) {
@@ -362,7 +403,7 @@
       card.appendChild(open);
       card.classList.add("started");
     } else {
-      note.textContent = job.blocked || job.error || "This cannot be built now.";
+      note.textContent = job.blocked || job.error || "This cannot be made ready now.";
       card.classList.add("refused");
     }
     card.appendChild(note);
@@ -412,6 +453,8 @@
     bring: bring,
     wait: wait,
     hours: hours,
+    hoursWarning: hoursWarning,
+    HOURS_WARN: HOURS_WARN,
     plain: plain,
     quoteCard: quoteCard,
   };

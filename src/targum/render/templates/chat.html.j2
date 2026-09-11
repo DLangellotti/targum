@@ -7,48 +7,93 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}</style>
 {{ hebrew_face() }}
+{% if embed %}
+{#- Framed in the front page (design.md §13, 2026-09-11): the chrome's face rides with
+    the bar on every other page, and here there is no bar; every link opens in the
+    page that holds the frame, never inside it. -#}
+{{ chrome_face() }}
+<base target="_top">
+{% endif %}
 <script>{{ asset('theme.js') }}</script>
 </head>
-<body class="chat">
+<body class="chat{% if embed %} embed{% endif %}">
 {% set here = 'chat' %}
+{% if not embed %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
+{% endif %}
 <main class="chat-main">
   {#- The conversations you have had, newest first, and one door to a fresh one. A
       hairline list rather than a raised panel: §9, one raised layer per view, and the
       thread is the one. -#}
   <aside class="chat-side">
-    <button type="button" id="chat-new" class="chat-new">New</button>
+    <div class="chat-side-head">
+      <button type="button" id="chat-new" class="chat-new">New</button>
+      {#- On a phone the list is not in the flow — it stood under the whole thread and
+          the box, past everything — but behind this: the page's one overlay, a sheet
+          (2026-09-10, targum-internal#238). Drawn only at phone width; the stylesheet
+          decides. -#}
+      <button type="button" id="chat-open-list" class="chat-open-list"
+              aria-expanded="false" aria-controls="chat-list">Conversations</button>
+    </div>
+    {#- Newest first, each with when it was last opened; "More" at the foot for the next
+        page. A row writes the conversation into the address, so a conversation can be
+        linked to and the back button goes to the one before. -#}
     <ul class="chat-list" id="chat-list"></ul>
-    {#- The one limit a reader is told about, in the unit they were told it, on the page
-        before the cap is met. Conversation comes out of the same hours a recording does. -#}
-    <p class="chat-hours" id="chat-hours" hidden></p>
   </aside>
 
-  <section class="chat-thread" aria-live="polite">
+  {#- The page is the viewport since 2026-09-10 (targum-internal#247): the thread
+      scrolls inside itself and the box stays in view at any length of conversation,
+      where it used to sit under a thread of unbounded height and scroll away with it. -#}
+  <section class="chat-thread" id="chat-thread" aria-live="polite">
+    {#- The English under every Hebrew line is folded, and a tap on the pair opens it
+        (2026-09-10, targum-internal#241): "I would just ignore the Hebrew and read the
+        English." This opens all of it at once, and is remembered. Hidden until there
+        is a pair to open, and for a reader with no known words, who sees it all open. -#}
+    <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>Show English</button>
     {#- What this is, said once to a reader with no conversations yet. The copy is the
         product's register: precise, unpatronising, no selling. -#}
     <p class="chat-empty" id="chat-empty">Ask for something to read, or ask what you know.
       targum answers from the library and your own shelf.</p>
+    {% include '_chips.html.j2' %}
+  {% include '_first_language.html.j2' %}
     <ol class="turns" id="turns"></ol>
   </section>
 
   {#- The box, shared with the front door (`_composer.html.j2`). One conversation,
       always in Hebrew, graded to the reader's own words, with the English under every
       line — whatever language they write in. -#}
-  {% set placeholder = 'Write in Hebrew, or in English' %}
+  {#- The month's hours, above the box and only when they matter: past three quarters
+      used, so the cap is not the first anybody hears of it, and never before — the whole
+      count is on Your Progress, and a line in every reader's face on every visit was the
+      metric "right in your face" (2026-09-10, targum-internal#237). Conversation comes
+      out of the same hours a recording does. -#}
+  <p class="chat-hours" id="chat-hours" hidden></p>
+  {#- Where the reader is, when this is the drawer in a reader (2026-09-11): the sentence
+      in front of them, and one press to ask about it. Every line typed here rides with
+      it, so the answer is about the text. -#}
+  <p class="chat-reading" id="chat-reading" hidden>
+    <span class="chat-reading-label">Reading</span>
+    <bdi class="chat-reading-text" id="chat-reading-text" dir="auto"></bdi>
+    <button type="button" class="chat-reading-ask" id="chat-reading-ask">Explain this sentence</button>
+  </p>
+  {% set placeholder = 'Write in Hebrew or English' %}
   {% include '_composer.html.j2' %}
 </main>
-{% include '_foot.html.j2' %}
+{% if not embed %}{% include '_foot.html.j2' %}{% endif %}
 <script>
 window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 </script>
 <script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+<script>{{ asset('chips.js') }}</script>
+<script>{{ asset('first.js') }}</script>
 <script>{{ asset('speak.js') }}</script>
+<script>{{ asset('claim.js') }}</script>
 <script>{{ asset('chat.js') }}</script>
 </body>
 </html>

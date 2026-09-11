@@ -28,6 +28,8 @@ from targum.render.builder import (
     you_page,
 )
 
+TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "templates"
+
 PAGES = {
     "learn": learn_page("k"),
     "you": you_page("k"),
@@ -39,6 +41,9 @@ PAGES = {
     "add": add_page("k"),
     "chat": chat_page("k"),
 }
+#: The conversation page framed in the front page (2026-09-11): not a place of its own,
+#: so not in the table every-page tests walk — it has no bar to walk.
+EMBED = chat_page("k", embed=True)
 
 
 # -- nothing was lost in the move ---------------------------------------------
@@ -71,7 +76,8 @@ def test_the_library_and_the_progress_page_build_nothing() -> None:
         assert 'id="source"' not in page, f"{name} should not take a source"
     learn = PAGES["learn"]
     assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
-    assert learn.count('type="file"') == 1, "one hidden input behind the +"
+    assert learn.count('type="file"') == 0, "the + is in the framed conversation (2026-09-11)"
+    assert EMBED.count('type="file"') == 1, "one hidden input behind the +"
 
 
 def test_the_library_carries_nothing_personal() -> None:
@@ -90,18 +96,11 @@ def test_learn_carries_what_belongs_to_the_reader() -> None:
     assert 'id="carry"' in learn, "what you came back for"
     assert 'id="library-list"' in learn, "your shelf"
     assert 'id="trash-list"' in learn, "your trash"
-    assert 'id="word-table"' in learn and 'id="phrase-list"' in learn, "what you know"
+    assert 'id="word-table"' not in learn and 'id="phrase-list"' not in learn, (
+        "the lists left for Your Words on 2026-09-11: Learn is the room you learn in"
+    )
+    assert 'id="suggest"' not in learn and "data-door=" not in learn, "and not a lobby"
     assert 'id="catalogue"' not in learn, "the catalogue has its own page"
-
-
-def test_learn_says_what_to_do_next() -> None:
-    """Carry on, or: find something, bring something, see what you have built. The card
-    comes first because most visits are somebody returning to a text."""
-    learn = PAGES["learn"]
-    steps = re.findall(r'data-door="(\w+)"', learn)
-    assert steps == ["library", "progress"], "bringing a text is the `+` on the box"
-    assert 'id="carry"' in learn[: learn.index('data-door="library"')], "the card comes first"
-    assert 'id="suggest"' in learn, "and something to read, picked for this reader"
 
 
 def test_the_numbers_belong_to_the_progress_page() -> None:
@@ -159,28 +158,194 @@ def test_the_nav_marks_where_you_are() -> None:
 def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     """Add used to be first in the nav, then the corner. Since 2026-09-06 it is the `+`
     on the box, on both pages that carry one, and nothing in the nav points at it."""
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
+    assert 'id="talk-frame"' in PAGES["learn"], "every page carries the drawer that frames it"
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
     assert order.index("learn") == 0
 
 
+def test_the_front_page_is_the_reader_s_own_highlight() -> None:
+    """design.md §13 (2026-09-11): the text to read, drawn as a working page on the desk
+    across the row, then the shelf, and nothing else — "Learn page can literally just be
+    a highlight of the reader". The chrome's face is carried in every page that wears the
+    bar; the reader never loads it."""
+    learn = PAGES["learn"]
+    assert (
+        learn.index('class="front"')
+        < learn.index('id="carry-sheet"')
+        < learn.index('id="shelf-panel"')
+    )
+    assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
+    assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
+    assert 'id="talk-title"' not in learn and 'class="talk card"' not in learn
+    for name, page in list(PAGES.items()) + [("embed", EMBED)]:
+        assert page.count('font-family:"Source Sans 3"') == 2, (
+            f"{name}: the chrome face, upright and italic"
+        )
+    from targum.render.builder import ASSETS
+
+    reader = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
+
+
+def test_the_command_palette_is_on_every_page() -> None:
+    """2026-09-11: ⌘K, or the search in the bar, finds a place, a text, a series or a
+    conversation and goes there. Its markup and script ride in the bar's partial."""
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'id="palette"' in page and 'id="palette-find"' in page, name
+        assert 'id="palette-open"' in page and "TargumPalette" in page, name
+
+
+def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() -> None:
+    """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens up
+    for you — doesn't actually have to live on any page". The pill and the drawer ride in
+    the bar's partial, the drawer frames the conversation page without its bar and loads
+    nothing until opened, and the conversation page itself carries the drawer's script
+    but hides the pill, since it is the conversation."""
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'id="talk-open"' in page and 'id="talk-drawer"' in page, name
+        assert 'id="talk-frame"' in page and "TargumTalk" in page, name
+        assert 'data-src="/chat?embed=1&amp;k=k"' in page and ' src="/chat?embed=1' not in page, (
+            f"{name}: loaded when opened, not before"
+        )
+        assert 'id="composer"' not in page or name == "chat", f"{name}: the box is in the frame"
+    assert 'class="chat embed"' in EMBED and '<base target="_top">' in EMBED
+    assert 'class="site-head"' not in EMBED and "data-nav=" not in EMBED, "no bar, no foot"
+    assert 'id="composer"' in EMBED and 'id="chat-thread"' in EMBED and "TargumChat" in EMBED
+    assert 'class="chat"' in PAGES["chat"] and "<base " not in PAGES["chat"]
+    assert 'id="chat-reading"' in EMBED, "and it can be told where the reader is"
+
+
 def test_the_box_is_the_front_door() -> None:
     """Learn carries the box under the ledger's own sentence, and the conversation page
     carries the same one from the same file: one field, the `+`, Speak, Send."""
     learn = PAGES["learn"]
-    assert 'id="composer"' in learn and 'id="say"' in learn
-    assert (
-        learn.index('id="known-line"') < learn.index('id="composer"') < learn.index('id="carry"')
-    ), "under the count, above the cards"
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    assert learn.index('id="known-line"') < learn.index('id="carry-sheet"'), "under the count (§13)"
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
             assert page.count(control) == 1, f"{name}: {control} once"
+
+
+def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
+    """Since 2026-09-10 (targum-internal#235) Speak, Send and Hear are drawn, not written:
+    a microphone, an arrow, a loudspeaker from one sprite, each to §7 — sixteen pixels,
+    no fill, a stroke at 1.4 with round caps — and the word kept as the label, so a
+    screen reader says what the button used to say. The `+` stays typed, as §7 keeps
+    typed characters as themselves."""
+    sprite = (TEMPLATES / "_glyphs.html.j2").read_text(encoding="utf-8")
+    symbols = re.findall(r'<symbol id="glyph-(\w+)" viewBox="([^"]+)">', sprite)
+    assert sorted(name for name, _ in symbols) == ["hear", "mic", "send", "stop"]
+    assert all(box == "0 0 16 16" for _, box in symbols), "§7: a 16px viewBox"
+    assert 'fill="' not in sprite and "stroke=" not in sprite, "the stroke is the stylesheet's"
+    glyph = (ASSETS / "composer.css").read_text(encoding="utf-8")
+    rule = glyph[glyph.index(".glyph {") : glyph.index("}", glyph.index(".glyph {"))]
+    for line in (
+        "fill: none",
+        "stroke: currentColor",
+        "stroke-width: 1.4",
+        "stroke-linecap: round",
+    ):
+        assert line in rule, f"§7: {line}"
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
+        assert page.count('<svg class="glyphs"') == 1, f"{name}: the sprite, once"
+        for control, word, glyph_name in (
+            ("chat-mic", "Speak", "mic"),
+            ("chat-send", "Send", "send"),
+        ):
+            button = re.search(rf'<button[^>]*id="{control}"[^>]*>(.*?)</button>', page, re.S)
+            assert button, control
+            tag = page[page.rfind("<button", 0, button.start(1)) : button.start(1)]
+            assert f'aria-label="{word}"' in tag and f'title="{word}"' in tag, control
+            assert f'href="#glyph-{glyph_name}"' in button.group(1), control
+            assert not re.sub(r"<[^>]+>", "", button.group(1)).strip(), f"{control}: no words"
+        plus = re.search(r'<button[^>]*id="chat-bring"[^>]*>(.*?)</button>', page, re.S)
+        assert plus and plus.group(1).strip() == "+", "the + is typed (§7)"
+    chat = (ASSETS / "chat.js").read_text(encoding="utf-8")
+    assert 'button.setAttribute("aria-label", "Hear")' in chat and 'glyph("hear")' in chat
+    speak = (ASSETS / "speak.js").read_text(encoding="utf-8")
+    assert "textContent" not in speak, "Speak and Stop are labels now, not faces"
+
+
+def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> None:
+    """Until 2026-09-10 the month's hours stood in the conversation page's side column on
+    every visit. Now the count is under the ledger on Your Progress and in the account
+    panel on every page, and the box says it only when the hours are nearly gone
+    (targum-internal#237)."""
+    for name, page in PAGES.items():
+        assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
+    assert PAGES["progress"].count('id="hours-line"') == 1
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
+        assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
+        assert page.index('id="chat-hours"') < page.index('id="composer"'), name
+    chat = PAGES["chat"]
+    aside = chat[chat.index('class="chat-side"') : chat.index("</aside>")]
+    assert "chat-hours" not in aside, "not in the side column any more"
+
+
+def test_the_chips_stand_on_both_pages_that_carry_the_box() -> None:
+    """targum-internal#240: under the box on Learn, in the empty state on the
+    conversation page, drawn by one script both pages carry."""
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
+        assert page.count('id="chat-chips"') == 1, name
+        assert "TargumChips" in page, f"{name}: chips.js rides"
+        assert (
+            page.index('id="chat-empty"') < page.index('id="chat-chips"') < page.index('id="turns"')
+        )
+
+
+def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_may_ask() -> None:
+    """targum-internal#243."""
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
+        assert page.count('id="chat-first-lang"') == 1, name
+        assert "TargumFirst" in page, f"{name}: first.js rides"
+        assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name
+
+
+def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases() -> None:
+    """2026-09-11: "words/phrases should be moved into a dedicated page you access by
+    clicking on your picture in the top right", and the checklist "after onboarding
+    accessible only on the words/phrases page". The account panel on every page links to
+    Your Words; the page holds the words, the may-already-know checklist and the
+    phrases, in that order; Learn holds none of them."""
+    words = PAGES["words"]
+    assert (
+        'id="word-table"' in words and 'id="claim-panel"' in words and 'id="phrase-list"' in words
+    )
+    assert (
+        words.index('id="word-table"')
+        < words.index('id="claim-panel"')
+        < words.index('id="phrase-list"')
+    )
+    assert "Words you may already know" in words and "TargumClaim" in words
+    assert 'id="claim-body"' in words, "the script builds the table into the panel's body"
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'class="to-you" href="/words"' in page, f"{name}: Your Words is in the account panel"
+    assert 'id="claim-panel"' not in PAGES["learn"] and "TargumClaim" not in PAGES["learn"]
+
+
+def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> None:
+    """2026-09-11: "subscriptions should be under the profile dropdown (perhaps on /you)
+    — let's keep the main pages as simple as possible". The row is a panel on the
+    profile, the account panel links to it, the Library carries nothing of it, and the
+    script that asks is in the bar on every page so the bell hears a landed instalment."""
+    you = PAGES["you"]
+    assert 'id="subscriptions"' in you and 'id="series"' in you and "Your subscriptions" in you
+    assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["learn"]
+    for name, page in PAGES.items():
+        if 'class="site-head"' in page:
+            assert 'class="to-you" href="/you#subscriptions"' in page, name
+            assert "TargumFollow" in page, f"{name}: the bell hears a landed instalment"
+            assert page.index("TargumFollow") < page.index('getElementById("notices-open")'), name
 
 
 # -- what each page says it is --------------------------------------------------
@@ -214,15 +379,15 @@ def test_learn_is_honest_when_there_is_nothing() -> None:
     assert 'href="/add"' in empty, "with your own text as the quieter option"
 
 
-def test_an_empty_shelf_still_gets_the_suggestion() -> None:
-    """The suggestion — the one thing on Learn that says where to start — lives inside
+def test_an_empty_shelf_still_draws_the_page() -> None:
+    """The sheet — the one thing on Learn that says where to start — lives inside
     `#page`, and an empty shelf used to hide `#page` wholesale. So the reader with nothing
     was the one reader who never saw it, and the first alpha reader's first words were
     "no idea where to start"."""
     from targum.render.builder import ASSETS
 
     learn = PAGES["learn"]
-    assert learn.index('id="page"') < learn.index('id="suggest"') < learn.index('id="nothing"')
+    assert learn.index('id="page"') < learn.index('id="carry-sheet"') < learn.index('id="nothing"')
     script = (ASSETS / "learn.js").read_text(encoding="utf-8")
     assert 'getElementById("page").hidden = nothing' not in script
     assert 'getElementById("page").hidden = false' in script
@@ -588,19 +753,13 @@ def test_the_corner_is_a_circle_rather_than_an_address() -> None:
 def test_learn_caps_every_list_and_says_where_the_rest_is() -> None:
     """A page somebody lands on with four hundred rows on it is not a landing page."""
     learn = PAGES["learn"]
-    for link, where in (
-        ("shelf-more", "/texts"),
-        ("words-more", "/words"),
-        ("phrases-more", "/phrases"),
-    ):
-        assert f'id="{link}"' in learn, link
-        assert f'href="{where}"' in learn, where
+    assert 'id="shelf-more"' in learn and 'href="/texts"' in learn
 
 
-def test_every_list_on_learn_can_be_folded_away() -> None:
+def test_nothing_on_learn_folds() -> None:
+    """Phase 2 (2026-09-11): a shelf of five rows is not worth a control to put away."""
     learn = PAGES["learn"]
-    assert learn.count('class="fold"') == 3, "the shelf, the words and the phrases"
-    assert learn.count('class="fold-body"') == 3, "and each one folds a body"
+    assert learn.count('class="fold"') == 0 and 'id="library-list"' in learn
 
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
@@ -617,7 +776,7 @@ def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     ("which", "has", "lacks"),
     [
         ("texts", 'id="library-list"', 'id="word-table"'),
-        ("words", 'id="word-table"', 'id="phrase-list"'),
+        ("words", 'id="word-table"', 'id="library-list"'),
         ("phrases", 'id="phrase-list"', 'id="word-table"'),
     ],
 )
@@ -771,14 +930,17 @@ def test_reader_links_are_percent_encoded() -> None:
 
 
 def test_every_page_with_the_header_can_follow_a_build() -> None:
-    """The strip lives in the shared header, and the script that draws it has to be on
-    every page that carries it — or a build followed on Learn vanishes on Library."""
+    """The bell lives in the shared header (2026-09-11: notifications in the top corner,
+    where a pill at the foot of the window used to be), and the script that draws it
+    has to be on every page that carries it — or a build followed on Learn vanishes on
+    Library."""
     strip = baked("building.js")
-    body = strip[strip.index('getElementById("building")') :][:60]
+    body = strip[strip.index('getElementById("notices-open")') :][:60]
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
-        assert 'id="building"' in page, f"{name} has no strip"
+        assert 'id="notices"' in page and 'id="notices-panel"' in page, f"{name} has no bell"
+        assert 'id="building"' not in page, f"{name} still carries the pill"
         assert body in page, f"{name} does not inline building.js"
 
 

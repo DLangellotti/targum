@@ -6,39 +6,55 @@
    ink; targum's are the same ink under a quiet label, because this is not a messaging
    app and the two sides are not bubbles of two colours. */
 
+/* The page is the viewport (targum-internal#247, from the notes of 2026-09-10: "sleeker,
+   like the AI tools"): head, then the conversation filling what is left, then the foot.
+   The thread scrolls inside itself and the box stays in view at any length of
+   conversation, where it used to sit under a thread of unbounded height and scroll
+   away with it. Still one raised layer — the thread — and the box a hairline field. */
 body.chat {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  min-height: 100svh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100svh;
 }
 body.chat > .site-head { justify-self: stretch; }
 body.chat > .chat-main {
   justify-self: start;
   margin-inline-start: max(0px, calc((100% - 62rem) / 2));
+  min-height: 0;
 }
 
 .chat-main {
   width: min(62rem, 100%);
-  padding: 1.5rem 1.25rem 2rem;
+  padding: 1rem 1.25rem 1rem;
   font-family: system-ui, sans-serif;
   display: grid;
   grid-template-columns: 14rem minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
   grid-template-areas:
     "side thread"
+    "side hours"
     "side compose"
     "side said";
-  gap: 1rem 2rem;
-  align-items: start;
+  gap: 0.75rem 2rem;
+  align-items: stretch;
 }
+.chat-main > .chat-hours { grid-area: hours; }
+.chat-main > .composer { grid-area: compose; align-self: end; }
+.chat-main > .chat-said { grid-area: said; }
+/* On a phone the side comes first and is one row — New, and the pill that opens the
+   list as a sheet (targum-internal#238). It used to come last, under the whole thread
+   and the box, which on a phone is past everything. */
 @media (max-width: 48rem) {
   .chat-main {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto auto;
     grid-template-areas:
+      "side"
       "thread"
+      "hours"
       "compose"
-      "said"
-      "side";
+      "said";
   }
 }
 
@@ -49,13 +65,29 @@ body.chat > .chat-main {
    the thread, where its titles were cut off behind the raised paper. The column is
    14rem; what does not fit in it is cut short with an ellipsis, on the button. */
 .chat-side { grid-area: side; display: grid; gap: 0.75rem; align-content: start; min-width: 0; }
+.chat-side-head { display: flex; gap: 0.5rem; align-items: center; }
+/* The pill that opens the list on a phone: an ink-bordered working control, drawn only
+   where the list is a sheet. At a desk the list stands in its column and this is not. */
+.chat-open-list {
+  display: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-open-list:hover { background: var(--paper-raised); }
+.chat-open-list[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
 .chat-new {
   justify-self: start;
   font: inherit;
   font-size: 0.8125rem;
   padding: 0.35rem 0.8rem;
   border: 1px solid var(--ink-soft);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -67,9 +99,9 @@ body.chat > .chat-main {
   padding: 0;
   min-width: 0;
   overflow: hidden;
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--hairline);
 }
-.chat-list li { border-block-end: 1px solid var(--rule); }
+.chat-list li { border-block-end: 1px solid var(--hairline); }
 .chat-list button {
   display: block;
   width: 100%;
@@ -88,6 +120,34 @@ body.chat > .chat-main {
 }
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
 .chat-list button.on { color: var(--ink); font-weight: 600; }
+/* The title, and under it when it was last opened (targum-internal#238). */
+.chat-list .chat-title { display: block; overflow: hidden; text-overflow: ellipsis; }
+.chat-list .chat-when { display: block; font-size: 0.8125rem; color: var(--ink-soft); font-weight: 400; }
+.chat-list .chat-more { color: var(--ink); text-align: center; }
+.chat-list .chat-more:disabled { opacity: 0.5; cursor: default; }
+
+/* On a phone the list is a sheet: the page's one overlay, with the shadow §8 allows an
+   overlay, opened by the pill and closed by a row or Escape (targum-internal#238). */
+@media (max-width: 48rem) {
+  .chat-open-list { display: inline-block; }
+  .chat-list { display: none; }
+  .chat-list.open { display: block; }
+}
+/* The sheet itself, drawn wherever the list is opened as one: at phone width, and
+   framed in the front page at every width. */
+.chat-list.open {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    max-block-size: 70vh;
+    overflow: auto;
+    padding: 0.5rem 1rem 1rem;
+    background: var(--paper);
+    border-block-start: 1px solid var(--hairline);
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 0.12);
+    z-index: 5;
+}
 
 /* --- the thread -----------------------------------------------------------
    Every class here is prefixed: this page carries `reader.css` for its tokens, and the
@@ -96,11 +156,13 @@ body.chat > .chat-main {
 
 .chat-thread {
   grid-area: thread;
-  min-height: 14rem;
+  min-height: 0;
   padding: 1rem 1.25rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   background: var(--paper-raised);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .chat-empty {
   margin: 0;
@@ -110,11 +172,37 @@ body.chat > .chat-main {
 }
 .turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
 .chat-turn { display: grid; gap: 0.2rem; }
-.chat-turn .chat-who {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-soft);
+/* Who said it is told by where it stands, not by a label over it (targum-internal#247):
+   the reader's lines are set in from the start edge, targum's from the end, the same
+   ink on both — this is not a messaging app and the two sides are not bubbles of two
+   colours. The name rides as the turn's label for a screen reader. */
+.chat-turn.me { margin-inline-start: 18%; }
+.chat-turn.them { margin-inline-end: 12%; }
+@media (max-width: 48rem) {
+  .chat-turn.me { margin-inline-start: 10%; }
+  .chat-turn.them { margin-inline-end: 6%; }
+}
+/* A new turn settles in with a short fade, the one motion this page has (§8), and none
+   where the reader has asked for none. */
+@keyframes chat-settle {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.chat-turn { animation: chat-settle 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-turn { animation: none; }
+}
+/* What is still arriving: the tail of a line the model has not finished, and a caret
+   at its end while it writes. Drawn as a bar in ink, not a blinking one. */
+.chat-turn .chat-partial { font-family: var(--reading); }
+.chat-turn.working .chat-line::after {
+  content: "";
+  display: inline-block;
+  inline-size: 2px;
+  block-size: 1em;
+  margin-inline-start: 0.15em;
+  vertical-align: -0.15em;
+  background: var(--ink-soft);
 }
 .chat-turn .chat-line {
   margin: 0;
@@ -134,18 +222,21 @@ body.chat > .chat-main {
   color: var(--ink-soft);
 }
 .chat-turn.bad .chat-line { color: var(--clay); }
-.chat-turn.working .chat-line:empty::after { content: "…"; color: var(--ink-soft); }
+.chat-turn.working .chat-line:empty::before { content: "…"; color: var(--ink-soft); }
 
 /* --- hearing an answer ----------------------------------------------------- */
 
 /* Hear is a working action like Speak, so it takes the same treatment: ink border, not
-   the accent the send button holds (§4: one accent, rationed). */
+   the accent the send button holds (§4: one accent, rationed) — a small ring with the
+   loudspeaker in it, since 2026-09-10, and the word as its label. */
 .chat-play {
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.6rem;
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
   border: 1px solid var(--ink-soft);
-  border-radius: 6px;
+  border-radius: 999px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -153,12 +244,6 @@ body.chat > .chat-main {
 }
 .chat-play:hover { background: var(--paper-raised); }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
-.chat-hours {
-  margin: 0.25rem 0 0;
-  font-family: ui-monospace, monospace;
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-}
 
 /* --- Hebrew, with the English under every line ------------------------------
    The record's own shape: a Hebrew line in the reading face at its own leading, its
@@ -176,6 +261,31 @@ body.chat > .chat-main {
   line-height: 1.6;
   color: var(--ink-soft);
 }
+/* Folded (targum-internal#241): the English is there and hidden, opened by a tap on the
+   pair. `hidden` and not a height of nought, so a screen reader is not read a line the
+   page is not showing. */
+.chat-turn .chat-pair .chat-en[hidden] { display: none; }
+.chat-turn .chat-pair[tabindex] { cursor: pointer; }
+.chat-turn .chat-pair[tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+
+/* Show English, at the head of the thread: a working control, ink-bordered, pressed
+   to open every pair at once. */
+.chat-english {
+  display: block;
+  margin-inline-start: auto;
+  margin-block-end: 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-english:hover { background: var(--paper-raised); }
+.chat-english[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.chat-english[hidden] { display: none; }
 /* The record's words (2026-09-06). A word on the ledger is bare; one still being
    learned carries the reader's own dotted line; one not met is marked in the discovery
    hue (§4: iris for what is new) and counted at the foot. A name is not vocabulary and
@@ -197,7 +307,7 @@ body.chat > .chat-main {
   font-size: 0.8125rem;
   padding: 0.15rem 0.5rem;
   border: 1px solid var(--ink-soft);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -211,7 +321,7 @@ body.chat > .chat-main {
   gap: 0.5rem;
   justify-items: start;
   padding-block-start: 0.75rem;
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--hairline);
 }
 .chat-counts {
   margin: 0;
@@ -226,7 +336,7 @@ body.chat > .chat-main {
   font-weight: 600;
   padding: 0.55rem 1rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   cursor: pointer;
@@ -243,6 +353,19 @@ body.chat > .chat-main {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+/* A recast that changed something says so in the label, and the words that changed
+   carry a mark — the state in words as well as ink (§4). Why, from the model's one
+   "~ " line, is folded under it and opened by a tap (targum-internal#242). */
+.chat-turn .chat-pair.recast.corrected .chat-en::before { content: "corrected"; }
+.chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
+.chat-turn .chat-pair .chat-why {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  padding-inline-start: 0.6rem;
+  border-inline-start: 2px solid var(--rule);
+}
+.chat-turn .chat-pair .chat-why[hidden] { display: none; }
 /* --- what was sent --------------------------------------------------------- */
 
 /* The pictures a reader sent, in their own turn: small, side by side, a hairline
@@ -251,8 +374,8 @@ body.chat > .chat-main {
 .chat-sent img {
   max-height: 11rem;
   max-width: 100%;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
 }
 
 /* --- a door ---------------------------------------------------------------- */
@@ -268,7 +391,7 @@ body.chat > .chat-main {
   font-weight: 600;
   line-height: 1.2;
   padding: 0.55rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   text-decoration: none;
@@ -283,6 +406,9 @@ body.chat > .chat-main {
 /* §8: a control a thumb presses answers a tap over 44px. The box's own controls are
    given theirs in composer.css. */
 @media (hover: none) and (pointer: coarse) {
+  .chat-english,
+  .chat-open-list,
+  .chat-more,
   .chat-new,
   .chat-list button,
   .chat-door,
@@ -292,3 +418,152 @@ body.chat > .chat-main {
     min-height: 44px;
   }
 }
+
+/* --- framed in the front page (design.md §13, 2026-09-11) ----------------------
+   The same page inside Learn's conversation card: no bar and no foot, the card's own
+   ground behind it, the thread on the card rather than raised on it, and the phone's
+   layout at every width — a frame is never wider than the card it stands in. */
+body.embed { background: var(--card); grid-template-rows: minmax(0, 1fr); }
+body.embed > .chat-main {
+  margin: 0;
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    "side"
+    "thread"
+    "hours"
+    "compose"
+    "said";
+  gap: 0.6rem;
+}
+body.embed .chat-open-list { display: inline-block; }
+body.embed .chat-list { display: none; }
+body.embed .chat-list.open { display: block; }
+body.embed .chat-thread {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.25rem 0.15rem;
+}
+body.embed .chat-turn.me { margin-inline-start: 10%; }
+/* The card around the frame says what this is; said again inside it, it was a wall of
+   text (2026-09-11). The chips say what to ask. */
+body.embed .chat-empty { display: none; }
+body.embed .chat-side-head { justify-content: flex-end; }
+body.embed .chat-turn.them { margin-inline-end: 6%; }
+
+/* --- the first exchange (2026-09-11) -------------------------------------------
+   The may-already-know checklist as targum's first turn: the same rows Your Words
+   draws, in the thread, without the "how common" column a narrow frame has no room
+   for. Ink for the press that marks, a bordered one to pass, as on the page. */
+.chat-claim { margin-block-start: 0.6rem; }
+.chat-claim table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+.chat-claim th {
+  text-align: start;
+  padding: 0 0.6rem 0.4rem 0;
+  border-block-end: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chat-claim td {
+  padding: 0.4rem 0.6rem 0.4rem 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+  vertical-align: baseline;
+}
+.chat-claim td:nth-child(2) { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.chat-claim td:nth-child(4), .chat-claim th:nth-child(4) { display: none; }
+.chat-claim .claim-tick { inline-size: 1.5rem; padding-inline-end: 0; }
+.chat-claim .claim-check { margin: 0; inline-size: 1.05rem; block-size: 1.05rem; accent-color: var(--teal); cursor: pointer; }
+.chat-claim label { cursor: pointer; }
+.chat-claim .claim-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-block-start: 0.75rem; }
+.chat-claim .claim-yes {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.chat-claim .claim-yes:disabled { opacity: 0.5; cursor: default; }
+.chat-claim .claim-no {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--ink-soft);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.chat-claim .claim-said { font-size: 0.8125rem; color: var(--ink-soft); }
+.chat-claim [hidden] { display: none; }
+.chat-claim-done { margin: 0.5rem 0 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink-soft); }
+
+/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
+.chat-thread { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+.chat-new, .chat-open-list { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); padding: 0.4rem 0.9rem; }
+.chat-new:hover, .chat-open-list:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.chat-open-list[aria-expanded="true"] { background: var(--teal); color: var(--teal-ink); }
+.chat-list { border-block-start: 0; }
+.chat-list li { border-block-end: 1px solid var(--hairline); }
+.chat-list button { border-radius: var(--radius-row); }
+.chat-list button:hover { background: var(--teal-wash); }
+@media (max-width: 48rem) {
+  .chat-list.open { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; border-block-start: 0; box-shadow: var(--shadow-floating); }
+}
+body.embed .chat-thread { box-shadow: none; }
+.chat-play { border: 0; background: var(--teal-wash); color: var(--teal); }
+.chat-play:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.chat-claim .claim-yes { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
+.chat-claim .claim-no { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
+.chat-english { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
+/* Phase 2 (2026-09-11): your turns in tint, targum's on the card, both with a card's
+   corners; the box in the drawer sits on a strip at its foot. */
+.chat-turn.me .chat-line {
+  background: var(--teal-wash);
+  border-radius: var(--radius-card);
+  padding: 0.55rem 0.9rem;
+}
+body.embed > .chat-main > .composer {
+  padding: 0.6rem 0 0.25rem;
+  border-block-start: 1px solid var(--hairline);
+}
+@media (max-width: 40rem) {
+  .chat-list.open { z-index: 26; padding-block-end: calc(4.5rem + env(safe-area-inset-bottom)); }
+}
+/* Where the reader is (2026-09-11): one quiet line above the box in the reader's drawer,
+   the sentence in the reading face, and one press to ask about it. */
+.chat-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.chat-reading[hidden] { display: none; }
+.chat-reading-label { font-weight: 600; }
+.chat-reading-text { flex: 1 1 12rem; min-inline-size: 0; font-family: var(--reading); font-size: 0.9375rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-reading-text:lang(he) { font-family: var(--reading-hebrew); }
+.chat-reading-ask {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  cursor: pointer;
+}
+.chat-reading-ask:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+@media (hover: none) and (pointer: coarse) { .chat-reading-ask { min-height: 44px; } }

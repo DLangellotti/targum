@@ -229,7 +229,7 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     assert "ruth" not in ids, "already on the reader's own shelf"
     assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
     assert all(row["because"] for row in got["suggestions"])
-    assert got["suggestions"][0]["because"].startswith("50%")
+    assert got["suggestions"][0]["because"] == "You know 50% of its words."
 
 
 def test_check_job_answers_only_for_the_owner(world) -> None:
@@ -353,7 +353,7 @@ def test_a_quote_that_cannot_be_built_says_why(world, monkeypatch) -> None:
     ctx = context(library, store, person, home)
     ctx.reads = {"en"}
     got = tools.quote_build(ctx, {"source": "https://example.com/novel"})
-    assert got["quote"]["blocked"].startswith("Too long") and "cannot be built" in got["note"]
+    assert got["quote"]["blocked"].startswith("Too long") and "cannot be made ready" in got["note"]
 
 
 def test_hours_are_hours(world) -> None:
@@ -459,6 +459,10 @@ def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
     # The extractor keeps the page's title as a paragraph too, so a few over two hundred.
     assert 200 <= got["words"] <= 210 and got["minutes"] == 2 and got["hebrew_share"] == 1.0
     assert got["advice"] == []
+    # How much of it this reader has, before it is quoted (targum-internal#244): שלום is
+    # on their ledger, and the page is two hundred of it.
+    assert got["known_share"] is not None and got["known_share"] >= 0.97
+    assert got["known_line"] == "You know nearly every word here."
 
 
 def test_what_describe_refuses_is_the_door_not_the_licence(world, monkeypatch) -> None:
@@ -717,4 +721,63 @@ def test_every_door_the_chat_builds_through_asks_for_words() -> None:
     assert tools.BUILD_OPTIONS == {"words": True}
     assert "gloss" not in tools.BUILD_OPTIONS, (
         "half a build's cost, mostly unread; a word is bought from the card instead"
+    )
+
+
+def test_search_library_applies_the_reader_s_own_ceiling_when_the_model_names_none(
+    world,
+) -> None:
+    """targum-internal#244: no tool consumed the ledger; now the library search does,
+    with the model's own number winning where it gives one."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    mine = tools.search_library(ctx, {"limit": 20})
+    assert mine["ceiling_applied"] == 40, "two known words: the first rung's ceiling"
+    assert all((row["looked_up_percent"] or 0) <= 40 for row in mine["texts"])
+    theirs = tools.search_library(ctx, {"limit": 20, "max_looked_up_percent": 90})
+    assert "ceiling_applied" not in theirs
+
+
+def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.suggest_next(ctx, {"limit": 3})
+    top = got["suggestions"][0]
+    assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
+
+
+def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkeypatch) -> None:
+    """2026-09-11: "a text that fits your level and interests". Two texts the reader
+    knows equally well: the one in a register they brought in themselves ranks first."""
+    from targum import catalogue
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+
+    def entry(id: str, register: catalogue.Register) -> catalogue.Entry:
+        return catalogue.Entry(
+            id=id,
+            title=id,
+            author="",
+            language="he",
+            source=f"test:{id}",
+            blurb="",
+            words=100,
+            register=register,
+            difficulty=30,
+        )
+
+    entries = [entry("m", catalogue.Register.modern), entry("b", catalogue.Register.biblical)]
+    monkeypatch.setattr(catalogue, "everything", lambda: entries)
+    monkeypatch.setattr(
+        tools,
+        "_shelf",
+        lambda ctx: ([{"name": "x", "source": "test:x", "register": "biblical"}], []),
+    )
+    got = tools.suggest_next(ctx, {"limit": 2})
+    assert [row["id"] for row in got["suggestions"]] == ["b", "m"]
+    monkeypatch.setattr(tools, "_shelf", lambda ctx: ([], []))
+    got = tools.suggest_next(ctx, {"limit": 2})
+    assert [row["id"] for row in got["suggestions"]] == ["m", "b"], (
+        "nothing read yet: catalogue order"
     )

@@ -120,3 +120,45 @@ def test_the_description_quotes_counts_and_refuses_to_place() -> None:
     assert "'bet'" in told, "the rung is given, for grading"
     assert "not a placement" in told and "Never tell the reader" in told
     assert "!" not in told
+
+
+# -- the cheap known-share estimate (targum-internal#244) ----------------------------
+
+
+def test_known_share_counts_a_known_word_with_or_without_its_prefix() -> None:
+    forms = {"ילד", "הלך", "בית", "ספר"}
+    text = " ".join(["הילד הלך לבית ספר והספר טוב מאוד"] * 4)  # 28 tokens, over the floor
+    share = level.known_share(text, forms)
+    assert share is not None
+    # הילד, הלך, לבית, ספר, והספר count; טוב and מאוד do not: five of seven.
+    assert abs(share - 5 / 7) < 1e-9
+    assert level.known_share("שָׁלוֹם " * 25, {"שלום"}) == 1.0, "points are stripped first"
+    assert level.known_share("שלום עולם", {"שלום"}) is None, "too short to say"
+    assert level.known_share("hello " * 40, {"שלום"}) is None, "no Hebrew, nothing measured"
+
+
+def test_the_share_is_said_in_words_never_a_percentage() -> None:
+    assert level.words_in_ten(0.72) == "You know about 7 words in 10 here."
+    assert level.words_in_ten(0.12) == "You know about 1 word in 10 here."
+    assert level.words_in_ten(0.97) == "You know nearly every word here."
+    assert level.words_in_ten(0.02) == "You know almost none of the words here yet."
+    assert level.words_in_ten(None) == ""
+    assert "%" not in level.words_in_ten(0.5)
+
+
+def test_the_reader_s_own_ceiling_follows_the_ladder() -> None:
+    assert level.ceiling_for(level.EMPTY) == 40
+    high = level.Level("he", 4000, 0, 4000.0, None, None, 0, 0, 0, 0, 0)
+    assert level.ceiling_for(high) is None
+    middle = level.Level("he", 1000, 0, 1000.0, None, None, 0, 0, 0, 0, 0)
+    assert level.ceiling_for(middle) == 25
+
+
+def test_known_share_is_fast_enough_to_ask_at_quote_time() -> None:
+    import time
+
+    forms = {f"מילה{n}" for n in range(3000)}
+    text = " ".join(f"ומילה{n % 5000}" for n in range(500))
+    start = time.perf_counter()
+    level.known_share(text, forms)
+    assert time.perf_counter() - start < 0.05

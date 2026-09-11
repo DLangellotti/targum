@@ -45,3 +45,31 @@ def test_the_voice_is_counted_and_not_priced() -> None:
     spent = Usage()
     spent.add_seconds(speech.NAME, 90.0)
     assert spent.cost() == 0.0 and spent.state()["seconds"] == 90.0
+
+
+def test_many_lines_become_one_clip_with_exact_spans(monkeypatch: Any, tmp_path: Path) -> None:
+    """targum-internal#246: one request a line, the seconds of each read off its own WAV,
+    so a section's spans need no aligner; an empty line takes no time."""
+    lengths = {"א": 1, "ב": 2, "": 0}
+    monkeypatch.setattr(
+        speech,
+        "say",
+        lambda text, voice=speech.VOICE: speech.wav(
+            b"\x00" * (speech.BYTES_PER_SECOND * lengths[text])
+        ),
+    )
+    monkeypatch.setattr(speech.shutil, "which", lambda name: None)
+    clip, spans = speech.render_lines(["א", "", "ב"], tmp_path / "audio" / "voice-001")
+    assert spans == [(0.0, 1.0), (1.0, 1.0), (1.0, 3.0)]
+    assert clip.seconds == 3.0 and clip.path.name == "voice-001.wav" and clip.path.is_file()
+    assert speech.duration(clip.path.read_bytes()) == 3.0
+
+
+def test_the_voice_is_for_sale_only_once_it_has_a_price(monkeypatch: Any) -> None:
+    """Decided 2026-09-10 (targum-internal#246): nothing on a page offers the voice
+    until its rate is beside `transcribe.PRICES`."""
+    from targum import transcribe
+
+    assert speech.priced() is False
+    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    assert speech.priced() is True

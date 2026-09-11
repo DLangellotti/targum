@@ -34,8 +34,10 @@ from urllib.parse import quote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
+from .. import level as level_module
 from ..level import Level
 from ..usage import Usage
+from . import hebrew as hebrew_module
 from . import sources as sources_module
 
 if TYPE_CHECKING:
@@ -233,6 +235,10 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     register = str(args.get("register") or "")
     kind = str(args.get("kind") or "")
     ceiling = args.get("max_looked_up_percent")
+    if ceiling is None:
+        # The reader's own ceiling when the model names none (targum-internal#244):
+        # by the rung the ledger reaches, from `level.LOOKED_UP_CEILING`.
+        ceiling = level_module.ceiling_for(ctx.level)
     minutes = args.get("max_minutes")
     limit = max(1, min(int(args.get("limit") or 10), 20))
     mine, shared = _shelf(ctx)
@@ -256,7 +262,10 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if not found and query and ctx.store is not None:
         # What the shelf could not answer is what the operator most wants to know.
         ctx.store.want(query, "")
-    return {"count": len(found), "texts": found[:limit]}
+    out: dict[str, Any] = {"count": len(found), "texts": found[:limit]}
+    if ceiling is not None and args.get("max_looked_up_percent") is None:
+        out["ceiling_applied"] = int(ceiling)
+    return out
 
 
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -270,8 +279,9 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row["how_to_open"] = (
         "Give the reader the link in `reader`."
         if built
-        else "Not built for this reader yet. Call quote_build with this id: the page shows "
-        "a card with a button, and the reader presses it. You cannot start one."
+        else "Not ready for this reader yet. Call quote_build with this id: the page shows "
+        "a card with a button, and the reader presses it to get the text ready. You "
+        "cannot start one."
     )
     return row
 
@@ -373,6 +383,11 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     mine, shared = _shelf(ctx)
     own = _by_source(mine)
     built = _by_source([*mine, *shared])
+    # The reader's interests, as far as the shelf says them: the registers of the
+    # texts they brought in themselves. A text in one of those is ranked a little ahead
+    # of an equal text in another (2026-09-11: "a text that fits your level and
+    # interests, without needing to chat").
+    liked = {str(row.get("register") or "") for row in mine if row.get("register")}
     candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
     for entry in catalogue_module.everything():
         key = catalogue_module._key(entry.source)
@@ -386,15 +401,17 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         row = _entry_row(entry, built.get(key))
         known = row.get("known_share")
+        tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
-            row["because"] = f"{round(float(known) * 100)}% of its words are ones you know."
-            rank = (0.0, -float(known))
+            row["because"] = f"You know {round(float(known) * 100)}% of its words."
+            row["known_line"] = level_module.words_in_ten(float(known))
+            rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
             row["because"] = (
-                f"{entry.difficulty}% of its words are ones a learner looks up; "
+                f"A learner looks up {entry.difficulty}% of its words; "
                 f"{entry.register.value} Hebrew, about {entry.minutes} minutes."
             )
-            rank = (1.0, float(entry.difficulty))
+            rank = (1.0, float(entry.difficulty) - 10.0 * tilt)
         else:
             row["because"] = "Not measured yet."
             rank = (2.0, 0.0)
@@ -483,11 +500,12 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {
         "quote": state,
         "note": (
-            "The page shows the reader a card from this with a button that starts the "
-            "build; you cannot press it. Say what the text is and how long it will take "
-            "in their time — sentences, chapters, minutes, hours of audio — never in money."
+            "The page shows the reader a card from this with a button; pressing it gets "
+            "the text ready, and you cannot press it. Say what the text is and how long "
+            "it will take in their time — sentences, chapters, minutes, hours of audio — "
+            "never in money, and never as a build: to the reader it is getting ready."
             if state["stage"] == "ready"
-            else "This cannot be built now; the card says why. Tell the reader plainly."
+            else "This cannot be made ready now; the card says why. Tell the reader plainly."
         ),
     }
 
@@ -518,7 +536,9 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = Job(
         id=secrets.token_hex(8),
         source=str(path),
-        options={**BUILD_OPTIONS, "to": "en", "from": "he"},
+        # Into the language the reader reads (targum-internal#243): the "= " lines
+        # were written in it, and the pipeline carries them whole.
+        options={**BUILD_OPTIONS, "to": hebrew_module.gloss_language(ctx.reads), "from": "he"},
         owner=ctx.person_id,
         admin=ctx.admin,
         home=ctx.home,
@@ -599,6 +619,15 @@ WEB_SEARCH_USES = 6
 #: `test_the_search_carries_no_country_the_api_refuses` fails if it goes back into a tool
 #: block (targum-internal#126).
 SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asia/Jerusalem"}
+
+
+def _known_share(ctx: Ctx | None, text: str) -> float | None:
+    """`level.known_share` against this reader's known forms and the commonest words;
+    None where there is nobody to measure for."""
+    if ctx is None or ctx.store is None or ctx.person is None:
+        return None
+    forms = ctx.store.known_forms(ctx.person.id, "he") | set(hebrew_module.common_words())
+    return level_module.known_share(text, forms)
 
 
 def _hebrew_share(text: str) -> float:
@@ -798,12 +827,17 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         advice.append(f"Only {round(share * 100)}% of the letters on the page are Hebrew.")
     if words < 80:
         advice.append("Very little text was found on the page.")
+    # How much of it this reader already has, cheaply, before it is quoted
+    # (targum-internal#244): the number for the model, the words for the reader.
+    known = _known_share(ctx, body) if share >= 0.5 else None
     return {
         "kind": "article",
         "title": title,
         "words": words,
         "minutes": max(1, round(words / 130)),
         "hebrew_share": round(share, 2),
+        "known_share": None if known is None else round(known, 2),
+        "known_line": level_module.words_in_ten(known),
         "advice": advice,
         "quote_with": url,
         **_licence_row(""),

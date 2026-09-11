@@ -71,12 +71,26 @@ if (payload.record) {
     }
   };
 }
+// What the page listens to on the window — `hashchange`, since #238 — so a step can fire it.
+const windowListeners = {};
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
+  TARGUM_INTO: payload.into || ["en", "ru"],
+  TARGUM_LANGUAGES: { en: "English", ru: "Russian", he: "Hebrew" },
+  addEventListener: (type, handler) => {
+    (windowListeners[type] = windowListeners[type] || []).push(handler);
+  },
   TargumBuilding: { ask: () => strip.asked++ },
   // The reader's own ledger, as the reader writes it, when the payload gives one.
-  stored: payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
+  stored: Object.assign(
+    payload.ledger ? { "targum:vocab:he": JSON.stringify(payload.ledger) } : {},
+    payload.stored || {},
+  ),
 });
+/* A glyph is made through createElementNS, which the stub document has no need of
+   otherwise: the Hear button draws its loudspeaker this way (2026-09-10). */
+const { element } = require("./dom.js");
+global.document.createElementNS = (namespace, tag) => element(tag);
 
 // An <audio> element that records what it was asked to play rather than playing it.
 const madeElement = global.document.createElement;
@@ -106,8 +120,16 @@ global.fetch = (url, options) => {
             : "<chunk>",
     });
   }
-  return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
+  // An answer keyed by the whole path with its query, the key left out, comes first —
+  // "/chat/list?limit=50&offset=50" is a different page from "/chat/list" (#238).
+  const full = String(url).replace(/[?&]k=[^&]*/, "");
+  return Promise.resolve({ json: () => Promise.resolve(answers[full] || answers[at] || {}) });
 };
+
+// The thread as a viewport (#247): the stub has no layout, so the payload says how tall
+// the thread is and where it is scrolled to, and the page's own arithmetic is what is
+// read back.
+if (payload.thread) Object.assign(document.getElementById("chat-thread"), payload.thread);
 
 // Arrived from the front door with a conversation in the hash, when the payload says so.
 if (payload.hash) global.location.hash = global.window.location.hash = payload.hash;
@@ -143,10 +165,43 @@ global.window.TargumSync = {
   onChange: () => {},
 };
 
+// Framed in the front page (2026-09-11): `embed` in the payload puts the page's class
+// on the body and gives the window a `top` that is not itself, so the script takes its
+// framed branch — no conversation opened by itself, a text opened in the holding page,
+// the address replaced rather than pushed.
+const replaced = [];
+// What the frame offers the page holding it (2026-09-11): a text to open in the sheet.
+const offered = [];
+if (payload.embed) {
+  document.body.className = "chat embed";
+  global.window.parent = { postMessage: (data) => offered.push(data) };
+  global.window.history = {
+    replaceState: (_state, _title, url) => {
+      replaced.push(url);
+    },
+  };
+}
+// The first visit's question (#243): the browser's language and who is signed in.
+if (payload.language) {
+  Object.defineProperty(globalThis, "navigator", {
+    value: Object.assign({}, globalThis.navigator || {}, { language: payload.language }),
+    configurable: true,
+    writable: true,
+  });
+}
+if (payload.who) {
+  global.window.TargumSync.who = payload.who;
+  global.window.TargumSync.reads = () => payload.who.reads || null;
+}
 require(path.join(assets, "bring.js"));
+require(path.join(assets, "chips.js"));
+require(path.join(assets, "lang.js"));
+require(path.join(assets, "first.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
+// The checklist the first exchange draws (2026-09-11).
+require(path.join(assets, "claim.js"));
 require(path.join(assets, "chat.js"));
 
 const turns = byId["turns"];
@@ -168,8 +223,12 @@ function cards() {
         english: title && title.children[1] ? title.children[1].textContent : "",
         meta: by("quote-meta") ? by("quote-meta").textContent : "",
         note: by("quote-note") ? by("quote-note").textContent : "",
+        known: by("quote-known") ? by("quote-known").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
+        source: by("quote-source")
+          ? { href: by("quote-source").href, text: by("quote-source").textContent, target: by("quote-source").target }
+          : null,
               excerpt: by("quote-excerpt")
           ? by("quote-excerpt")
               .children.filter((c) => String(c.tagName).toUpperCase() === "BDI")
@@ -193,6 +252,17 @@ function pairsDrawn() {
       out.push({
         he: he.textContent,
         en: node.children[1].textContent,
+        // Folded or open (#241).
+        enHidden: node.children[1].hidden,
+        // Corrected, and why (#242).
+        corrected: String(node.className).split(" ").includes("corrected"),
+        fixed: he.children
+          .filter((c) => String(c.className).split(" ").includes("fix"))
+          .map((c) => c.textContent),
+        why: (() => {
+          const w = node.children.find((c) => String(c.className).split(" ")[0] === "chat-why");
+          return w ? { text: w.textContent, hidden: w.hidden } : null;
+        })(),
         recast: String(node.className).split(" ").includes("recast"),
         // The words the line was drawn with, each with its state on the ledger.
         words: he.children
@@ -286,6 +356,73 @@ function drawn() {
       await new Promise((resolve) => setImmediate(resolve));
       byId["chat-mic"].onclick();
     }
+    if (step.type === "hash") {
+      // The address changed by the back button or a typed link: the page opens what
+      // it names (#238).
+      global.location.hash = global.window.location.hash = step.hash || "";
+      (windowListeners.hashchange || []).forEach((h) => h({}));
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "chip") {
+      // A press on the chip with that id (#240).
+      const chip = (byId["chat-chips"].children || [])
+        .map((li) => li.children[0])
+        .find((b) => b.attrs["data-chip"] === step.id);
+      chip.onclick();
+      for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "pair") {
+      // A tap on the n-th pair, off its Hebrew line (#241).
+      const found = [];
+      const walk = (node) => {
+        if (String(node.className).split(" ")[0] === "chat-pair") found.push(node);
+        (node.children || []).forEach(walk);
+      };
+      walk(turns);
+      const pair = found[step.n || 0];
+      if (pair.onclick) pair.onclick({ target: pair.children[0] });
+    }
+    if (step.type === "english") {
+      byId["chat-english"].onclick();
+    }
+    if (step.type === "first") {
+      byId[step.yes === false ? "chat-first-no" : "chat-first-yes"].onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "pill") {
+      byId["chat-open-list"].onclick();
+    }
+    if (step.type === "claim") {
+      // The first exchange's checklist (2026-09-11): check all, mark, or pass.
+      const host = turns.querySelector(".chat-claim");
+      const part = (name) => host.querySelector("." + name);
+      if (step.what === "all") {
+        part("claim-all").checked = true;
+        part("claim-all").onchange();
+      }
+      if (step.what === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
+      if (step.what === "no") part("claim-no").onclick();
+      for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "reading") {
+      // Where the reader is, said by the page holding the frame (2026-09-11).
+      (windowListeners.message || []).forEach((handler) =>
+        handler({ origin: global.window.location.origin, source: global.window.parent, data: { type: "targum:reading", about: step.about } }),
+      );
+      for (let i = 0; i < 4; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "explain") {
+      byId["chat-reading-ask"].onclick();
+      for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "row") {
+      // A press on the list's row for that conversation.
+      const row = (byId["chat-list"].children || [])
+        .map((li) => li.children[0])
+        .find((b) => b.attrs["data-chat"] === step.id);
+      row.onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -294,7 +431,9 @@ function drawn() {
         (node.children || []).forEach(walk);
       };
       walk(turns);
+      walk(byId["chat-list"]);
       found[found.length - 1].onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     // Let the promises settle between steps.
     await new Promise((resolve) => setImmediate(resolve));
@@ -307,20 +446,80 @@ function drawn() {
       turns: drawn(),
       cards: cards(),
       went: global.location.href,
+      offered,
+      replaced,
+      freshHidden: !!byId["chat-new"].hidden,
+      reading: byId["chat-reading"].hidden ? "" : byId["chat-reading-text"].textContent,
+      chipsHidden: !!byId["chat-chips"].hidden,
+      emptyHidden: !!byId["chat-empty"].hidden,
+      claim: (() => {
+        const host = turns.querySelector(".chat-claim");
+        if (!host) return null;
+        const rows = host.querySelector(".claim-rows");
+        const done = host.querySelector(".chat-claim-done");
+        return {
+          rows: (rows ? rows.children : []).map((tr) => tr.children[1].textContent),
+          done: done ? done.textContent : "",
+          tableHidden: !!host.querySelector(".table-wrap").hidden,
+        };
+      })(),
+      ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
+      placeholder: byId["say"].placeholder,
       pairs: pairsDrawn(),
       foot: foot(),
       doors: doors(),
       hours: byId["chat-hours"] ? byId["chat-hours"].textContent : "",
+      hoursHidden: byId["chat-hours"] ? byId["chat-hours"].hidden : true,
       stripAsked: strip.asked,
       mic: {
         hidden: byId["chat-mic"].hidden,
         pressed: byId["chat-mic"].attrs["aria-pressed"],
+        // The word is the label since 2026-09-10; the face is a glyph.
+        label: byId["chat-mic"].attrs["aria-label"],
         text: byId["chat-mic"].textContent,
       },
       plays,
-      list: (byId["chat-list"].children || []).map((li) => li.children[0].textContent),
+      // Each row's title; its "when" beside it; the address the page wrote (#238).
+      list: (byId["chat-list"].children || []).map((li) =>
+        li.children[0].children.length ? li.children[0].children[0].textContent : li.children[0].textContent,
+      ),
+      whens: (byId["chat-list"].children || []).map((li) =>
+        li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
+      ),
+      hash: global.location.hash,
+      threadHidden: byId["chat-thread"] ? byId["chat-thread"].hidden : null,
+      first: {
+        hidden: byId["chat-first-lang"].hidden,
+        ask: byId["chat-first-ask"].textContent,
+        yes: byId["chat-first-yes"].textContent,
+        no: byId["chat-first-no"].textContent,
+        into: global.localStorage.getItem("targum:into"),
+        asked: global.localStorage.getItem("targum:asked-read"),
+      },
+      scrollTop: byId["chat-thread"] ? byId["chat-thread"].scrollTop : null,
+      labels: (turns.children || []).map((li) => li.attrs["aria-label"]),
+      partial: (() => {
+        const last = (turns.children || [])[turns.children.length - 1];
+        const line = last && lineOf(last);
+        const tail = line && line.children.find((c) => String(c.className) === "chat-partial");
+        return tail ? tail.textContent : null;
+      })(),
+      english: {
+        hidden: byId["chat-english"].hidden,
+        pressed: byId["chat-english"].attrs["aria-pressed"],
+        text: byId["chat-english"].textContent,
+        kept: global.localStorage.getItem("targum:chat-english"),
+      },
+      chips: {
+        hidden: byId["chat-chips"].hidden,
+        ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),
+        lines: (byId["chat-chips"].children || []).map((li) => li.children[0].textContent),
+      },
+      asked: opened.map((u) => u.replace(/[?&]k=[^&]*/, "")),
+      listOpen: byId["chat-list"].classList.contains("open"),
+      pillExpanded: byId["chat-open-list"].attrs["aria-expanded"],
       said: { text: byId["chat-said"].textContent, hidden: byId["chat-said"].hidden },
       sendDisabled: byId["chat-send"].disabled,
       syncStarted,

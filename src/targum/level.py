@@ -15,6 +15,7 @@ A `Level` carries the rung so the chat can grade the Hebrew it writes; what the 
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -214,3 +215,80 @@ def describe(level: Level) -> str:
         "as a placement — it is a guide from self-reported words, not a placement and not a "
         "test. Quote the real counts instead."
     )
+
+
+# -- how much of a text a reader already has (targum-internal#244) -------------------
+
+#: The one-letter clitics Hebrew writes onto the front of a word — and, that, in, to,
+#: from, which, as, the — tried off a page's token before it is looked up, so a known
+#: word still counts when it arrives with a prefix. One or two of them, never more.
+PREFIXES = "והבלמשכ"
+
+#: Under this many Hebrew tokens a share is a guess, and `known_share` says "not
+#: measured" rather than a number.
+MEASURABLE = 20
+
+_WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*")
+_POINTS = re.compile(r"[\u0591-\u05c7]")
+
+
+def _bare(word: str) -> str:
+    return _POINTS.sub("", word).strip("\"'\u05f3\u05f4")
+
+
+def _forms_of(token: str) -> list[str]:
+    """The token, and the token with one and then two prefix letters taken off, where
+    what is left is still a word of two letters or more."""
+    out = [token]
+    if len(token) > 2 and token[0] in PREFIXES:
+        out.append(token[1:])
+        if len(token) > 3 and token[1] in PREFIXES:
+            out.append(token[2:])
+    return out
+
+
+def known_share(text: str, forms: set[str]) -> float | None:
+    """The share of a text's Hebrew tokens the reader already has, cheaply.
+
+    A token counts as known when it, or it less a prefix or two, is among `forms` — the
+    reader's known words as surface forms and dictionary forms, plus the commonest
+    words of the language (`hebrew.common_words`), all bare of their points. No
+    lemmatizer: that costs about a minute a text on the box (memory 2026-09-03), and
+    this is asked at quote time on a page nobody has built yet. It undercounts an
+    inflected known word whose form the ledger never saw; the exact figure is the
+    coverage a built text is measured with (`coverage.against`). None below
+    `MEASURABLE` tokens: "not measured" and "0% known" are different claims.
+    """
+    tokens = [_bare(t) for t in _WORD.findall(text)]
+    tokens = [t for t in tokens if t]
+    if len(tokens) < MEASURABLE:
+        return None
+    known = sum(1 for token in tokens if any(form in forms for form in _forms_of(token)))
+    return known / len(tokens)
+
+
+def words_in_ten(share: float | None) -> str:
+    """The share said the way the page says it: a count, never a percentage or a level.
+    "you know about 7 words in 10 here." Empty where it was not measured."""
+    if share is None:
+        return ""
+    tenths = max(0, min(10, round(share * 10)))
+    if tenths >= 10:
+        return "You know nearly every word here."
+    if tenths <= 0:
+        return "You know almost none of the words here yet."
+    return f"You know about {tenths} {'word' if tenths == 1 else 'words'} in 10 here."
+
+
+#: What share of a library text's words a learner at a rung is reckoned to look up
+#: before it stops being a first read: the ceiling `search_library` applies when the
+#: model names none, by the rung the ledger reaches. A starting table, round on purpose.
+LOOKED_UP_CEILING: tuple[tuple[int, int], ...] = ((250, 40), (900, 30), (1800, 25), (3000, 20))
+
+
+def ceiling_for(level: Level) -> int | None:
+    """The default `max_looked_up_percent` for this reader, or None past the table."""
+    for words, ceiling in LOOKED_UP_CEILING:
+        if level.weighted < words:
+            return ceiling
+    return None

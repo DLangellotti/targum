@@ -27,6 +27,11 @@
   <section class="ledger" id="ledger" aria-label="What you have built">
     <div class="counts" id="counts"></div>
   </section>
+  {#- The month's hours, under the ledger and not in it: a real count, but of an
+      allowance rather than of anything the reader did, so it is a note beside the
+      figures and never a lit one. Filled by `account.js` from who is signed in;
+      absent for a visit with no account and where there is no cap (targum-internal#237). -#}
+  <p class="note hours-line" id="hours-line" hidden></p>
 
   {#- The day strip is seven rows tall and the milestones are two, so the milestones
       share their column with the ladder rather than leaving a hole beside it. -#}

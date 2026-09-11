@@ -1057,6 +1057,19 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     context.close()
 
 
+#: A card's answer in the conversation's shape: the Hebrew, then "= " and its English.
+HEBREW_ANSWER = "הַצּוּרָה הִיא רַבִּים.\n= Plural."
+
+#: How the last answer in the card is drawn: each line's class, lang and direction.
+SHAPED = """
+() => {
+  const answers = document.querySelectorAll('.gloss-card .ask-a');
+  const last = answers[answers.length - 1];
+  const attrs = (s) => [s.className, s.getAttribute('lang'), s.getAttribute('dir')];
+  return [...last.children].map(attrs);
+}
+"""
+
 #: What the card says once the reader has asked about the word.
 ASKED = """
 () => {
@@ -1094,7 +1107,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
             body = {"chat": "c1", "turn": len(said)}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         elif "/chat/stream/" in request.url:
-            reply = f"Answer {len(said)}."
+            reply = f"Answer {len(said)}." if len(said) == 1 else HEBREW_ANSWER
             body = (
                 f"event: text\ndata: {reply}\n\n"
                 f"event: done\ndata: {json.dumps({'text': reply})}\n\n"
@@ -1132,7 +1145,12 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     page.press(".gloss-card .ask-field", "Enter")
     page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
     second = page.evaluate(ASKED)
-    assert second["answers"] == ["Answer 1.", "Answer 2."]
+    assert second["answers"] == ["Answer 1.", "הַצּוּרָה הִיא רַבִּים.Plural."], (
+        "the Hebrew line and its English, and the '= ' marker read rather than shown"
+    )
+    assert page.evaluate(SHAPED) == [["ask-he", "he", "rtl"], ["ask-en", None, "ltr"]], (
+        "the answer is drawn in the conversation's shape (2026-09-11)"
+    )
     assert said[1]["chat"] == "c1", "the same conversation, continued"
     assert not second["field"], "two turns, then the conversation page"
     assert second["on"] == "/chat?k=test#c1"
@@ -1140,7 +1158,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     # Tapping the word again redraws the card with the exchange still in it.
     page.evaluate(TAP_AGAIN, word)
     page.wait_for_timeout(200)
-    assert page.evaluate(ASKED)["answers"] == ["Answer 1.", "Answer 2."]
+    assert page.evaluate(ASKED)["answers"] == ["Answer 1.", "הַצּוּרָה הִיא רַבִּים.Plural."]
     context.close()
 
 
@@ -5266,3 +5284,121 @@ def test_a_sheet_caught_on_its_way_up_follows_the_finger(browser, built: Path) -
             assert abs(step - 20) <= 2, f"a jump of {step:.0f}px where the finger moved 20: {drawn}"
     finally:
         context.close()
+
+
+def test_hear_this_section_posts_the_press_and_reopens_the_page(
+    browser, tmp_path: Path, monkeypatch
+) -> None:
+    """targum-internal#246: the door in This text on a silent section. The press posts
+    `/voice` with the folder and the section, and a page whose audio is already there
+    is simply reopened. Over http, because off a disk there is no server and the door
+    is hidden."""
+    import json
+
+    from targum import speech, transcribe
+
+    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    built = chapter(tmp_path / "out")
+    html = built.read_text(encoding="utf-8")
+    assert 'id="voice-offer"' in html
+    posted: list[dict] = []
+    loads: list[str] = []
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+
+    def answer(route, request):
+        if "/voice" in request.url:
+            posted.append(request.post_data_json)
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"ready": True})
+            )
+        else:
+            loads.append(request.url)
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector("#voice-go")
+    page.evaluate("() => document.getElementById('voice-go').click()")
+    page.wait_for_timeout(600)
+    context.close()
+    assert posted == [{"name": "a-build", "section": 1}], (
+        "the folder and the section, and nothing else"
+    )
+    assert len(loads) >= 2, "reopened once the audio was there"
+
+
+def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
+    browser, built: Path
+) -> None:
+    """The front page frames the reader, working (design.md §13, 2026-09-11), but a page
+    that merely shows it is not a visit: opened with `?preview=1` the reader writes no
+    opening and no reading day and draws no bar — the page under it names the text —
+    until the first real press in it, and then it writes both. Opened as itself, it
+    writes both at once."""
+    context = browser.new_context(viewport={"width": 640, "height": 500})
+    page = context.new_page()
+    page.goto(address(built) + "?preview=1")
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    state = """() => ({
+          flagged: document.documentElement.classList.contains('preview'),
+          bar: getComputedStyle(document.querySelector('.bar')).display,
+          opened: localStorage.getItem('targum:opened'),
+          days: localStorage.getItem('targum:days'),
+        })"""
+    preview = page.evaluate(state)
+    page.mouse.click(320, 300)
+    pressed = page.evaluate(state)
+    assert preview["opened"] is None and preview["days"] is None, "shown is not visited"
+    assert pressed["opened"] and pressed["days"], "a press in it is"
+    page.goto(address(built))
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    visit = page.evaluate(
+        """() => ({
+          flagged: document.documentElement.classList.contains('preview'),
+          bar: getComputedStyle(document.querySelector('.bar')).display,
+          opened: localStorage.getItem('targum:opened'),
+          days: localStorage.getItem('targum:days'),
+        })"""
+    )
+    context.close()
+    assert preview["flagged"] and preview["bar"] == "none", preview
+    assert preview["opened"] is None and preview["days"] is None, "a picture is not a visit"
+    assert not visit["flagged"] and visit["bar"] != "none", visit
+    assert visit["opened"] and visit["days"], "opened as itself, the reader keeps the day"
+
+
+def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: Path) -> None:
+    """ "When I am reading something I want to literally be able to chat with it"
+    (2026-09-11). A served reader carries the pill; off a disk it would carry nothing to
+    talk to. The reader says where it is — the text, the section, the sentence across
+    the middle of the window, or the one a word was last tapped in — and says it again
+    on the document whenever that moves."""
+    context = browser.new_context(viewport={"width": 900, "height": 600})
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    page.wait_for_timeout(200)
+    state = page.evaluate(
+        """() => {
+          const pill = document.getElementById('talk-open');
+          const w = window.TargumReader.where();
+          return {
+            pill: !pill.hidden && getComputedStyle(pill).display !== 'none',
+            drawer: document.getElementById('talk-drawer').hidden,
+            frameSrc: document.getElementById('talk-frame').getAttribute('src'),
+            document: w.document, section: w.section,
+            segment: w.segment, sentence: w.sentence,
+          };
+        }"""
+    )
+    assert state["pill"] and state["drawer"] and state["frameSrc"] is None, state
+    assert state["document"] and state["section"] and state["segment"] and state["sentence"]
+    heard = page.evaluate(
+        """() => new Promise((resolve) => {
+          document.addEventListener('targum:where', (e) => resolve(e.detail), { once: true });
+          document.querySelectorAll('.w')[3].click();
+        })"""
+    )
+    assert heard["sentence"] and heard["segment"], "a tapped word says where"
+    context.close()

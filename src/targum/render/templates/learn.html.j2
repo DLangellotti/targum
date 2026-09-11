@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('composer.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
@@ -20,107 +20,80 @@
 
 <main id="page" hidden>
   {#- How much of the language you have. First thing on the page, and a real count of a
-      real thing rather than a score — §6: no invented currency. -#}
-  <p class="known-line" id="known-line"></p>
-
-  {#- The box, under the ledger's own sentence: the front door since 2026-09-06
-      (design.md §12). A request, a link, a file by the `+`, a word you are stuck on. A
-      line typed here opens a conversation and goes to it; nothing is answered on this
-      page. It is not a raised layer — the cards below have this page's one — and it is
-      the same box the conversation page carries, from the same file. -#}
-  {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
-  {% include '_composer.html.j2' %}
-
-  {#- What you were in the middle of, and beside it what to do when you are not. The
-      card carries the accent because it is the one primary action here; the list beside
-      it is quiet. -#}
-  {#- Each box is one link rather than a box with a link in it: the whole card is the
-      target, which is what anybody moving a mouse at it expects. That is also why the
-      cover and the title inside this one are no longer anchors — an anchor inside an
-      anchor is not a thing a browser can make sense of. -#}
-  {#- The week's issue, as a line rather than a card.
-
-      A third box the size of the two below would make this page a menu — the note on
-      the doors says as much — and the weekly is not a third choice, it is a thing that
-      is new on a Monday. So: a masthead, which is the shape a weekly has anyway. Type
-      and a hairline, no raised layer, no accent: it is read on the way to what somebody
-      came for, and it says nothing again once they have read it.
-
-      Above the doors because a returning reader looks straight at Continue Reading and
-      never comes back up. Filled in by learn.js, at the level their own vocabulary puts
-      them on, and left hidden where no issue is out. -#}
-  <p class="weekly-line" id="weekly-line" hidden>
-    <a id="weekly-link" href="/">
-      <bdi id="weekly-title" lang="he" dir="rtl"></bdi>
-      <span class="at" id="weekly-at"></span>
-    </a>
-    <span class="when" id="weekly-when"></span>
-  </p>
-
-  <div class="doors">
-    <a class="door carry" id="carry" href="/" hidden>
-      {#- Which Hebrew this door is, above what state it is in. Two tracks with little
-          crossover between their readers: the label is what lets each reader find
-          theirs at a glance. Hidden for a language with one track. -#}
-      <span class="card-track" id="carry-track" hidden></span>
-      <h2 id="carry-heading">Continue</h2>
-      <div class="card-body">
-        {#- The same cover the shelf and the library show, at the one size on this page
-            worth giving it. Aria-hidden: the title beside it says the same thing. -#}
-        <span class="card-cover" id="carry-cover" aria-hidden="true"></span>
-        <div class="card-what">
-          <bdi class="card-title" id="carry-title"></bdi>
-          <p class="card-english" id="carry-english" lang="en" dir="ltr" hidden></p>
-          <p class="card-meta" id="carry-meta"></p>
-          <p class="carry-known" id="carry-known" hidden></p>
+      real thing rather than a score — §6: no invented currency. The lists of the words
+      and phrases themselves left this page on 2026-09-11 for Your Words, behind the
+      account: Learn is the room you learn in — the text, the conversation, the shelf —
+      and not a lobby. -#}
+  <div class="front" id="front">
+    {#- One row at the head of the desk (2026-09-11: "less empty space and more filled
+        up by the reader"): the heading of the sheet at the start, the count at the end.
+        On a phone the row comes after the sheet, which takes the screen. -#}
+    {#- Decided with David on 2026-09-11 ("I definitely don't know what I'm looking
+        at"): the page opens with a greeting and today — the time of day, the reader's
+        name, the date and the week's portion — with the count of words at the end of
+        the row; under it a row of doors, one press each, that swap the sheet: what you
+        were reading, what is next, the week's portion, a cycle you follow. The reader
+        stays first: one text is open the moment the page is. -#}
+    {#- "Put the buttons together at the top, in a sleek design" (2026-09-11): the
+        greeting at the start with today and the count on one line under it, and the
+        row of doors as one control at the end — Continue reading, Suggested, your
+        subscriptions. The conversation is the pill at the foot of the page. -#}
+    <div class="learn-head">
+      <div class="hello">
+        <p class="greeting" id="greeting"></p>
+        <p class="today-line"><span class="today" id="today"></span><span class="known-line" id="known-line"></span></p>
+      </div>
+      <div class="ways" id="doors" hidden></div>
+    </div>
+    {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
+        reader, framed and working, at the place it was left, on the desk, across the
+        row; under it the title, what it is, and one press to the reader's own page. Learn
+        is the reader's own highlight: the conversation is the pill at the foot of every
+        page (2026-09-11). The frame is
+        told it is on the front page (`preview=1`): it draws no bar, keeps its own links
+        inside itself, sends every other link to this page, and counts a visit at the
+        first real press rather than at being shown. The one pure-paper surface on the
+        page, and the brightest thing on it: the memory the front page protects is the
+        text with its English beside every line, so the front page shows one. -#}
+    <section class="carry-on" aria-labelledby="carry-heading">
+      <div class="page-sheet" id="carry-sheet" hidden>
+        <span class="card-cover" id="carry-cover" aria-hidden="true" hidden></span>
+        {#- The head of the sheet, above the text (2026-09-11: "I definitely don't know
+            what I'm looking at" with the title at the foot of a window the height of
+            the screen): the title in its own face, what it is, how far along, and
+            Open — so the first thing on the page says what the text is. -#}
+        <div class="page-head">
+          {#- How far through the text the reader is, as a line along the head's lower
+              edge (2026-09-11); drawn only once something is finished. -#}
+          <span class="page-progress" id="carry-progress" role="img" aria-label="" hidden></span>
+          {#- What this text is to the reader — Continue reading, Up next, Start here,
+              From the conversation — over the title. -#}
+          <p class="page-state" id="carry-heading">Continue reading</p>
+          <bdi class="page-title" id="carry-title"></bdi>
+          <p class="page-facts">
+            <span class="page-english" id="carry-english" lang="en" dir="ltr" hidden></span>
+            <span class="card-track" id="carry-track" hidden></span>
+            <span class="card-meta" id="carry-meta"></span>
+            <span class="carry-known" id="carry-known" hidden></span>
+          </p>
+          <p class="page-actions">
+            {#- Open goes to the reader's own page. -#}
+            <a class="open" id="carry" href="/">Open</a>
+          </p>
+        </div>
+        <div class="page-window" id="carry-window" hidden>
+          <iframe class="page-frame" id="carry-frame" title=""></iframe>
         </div>
       </div>
-    </a>
+    </section>
 
-    {#- Beside it, what to do next. A list rather than two more boxes: two boxes the
-        size of the one on the left are two thirds empty, and the things in them are not
-        the same weight as carrying on with a book. -#}
-    {#- The same card as Continue Reading, because it is the same kind of offer: a book,
-        its picture, and a reason to open it. A line of text in a list was not something
-        anybody was going to take up. -#}
-    {#- A button rather than a link, because it does something rather than going
-        somewhere: pressing it builds the text and lands you in it, which is what
-        Continue Reading beside it does for a text already built. -#}
-    <button type="button" class="door suggest" id="suggest" hidden>
-      <span class="card-track" id="suggest-track" hidden></span>
-      <h2 id="suggest-heading">Suggested</h2>
-      <div class="card-body">
-        <span class="card-cover" id="suggest-cover" aria-hidden="true"></span>
-        <div class="card-what">
-          <bdi class="card-title" id="suggest-title"></bdi>
-          <p class="card-english" id="suggest-english" lang="en" dir="ltr" hidden></p>
-          <p class="card-meta" id="suggest-why"></p>
-          <p class="suggest-blurb" id="suggest-blurb"></p>
-        </div>
-      </div>
-    </button>
   </div>
 
-  {#- Under both cards rather than beside one of them: these are the same weight as
-      each other and a lighter weight than either card, and a column of them next to a
-      card left the page with one long side and one short one. Two since 2026-09-06:
-      bringing a text is the `+` on the box above, not a place. -#}
-  <nav class="next" aria-label="What next">
-    <a class="step" href="/library" data-door="library">
-      <span class="step-what">Library</span>
-      <span class="step-why">Scenes, the Bible, novels, news.</span>
-    </a>
-    <a class="step" href="/progress" data-door="progress">
-      <span class="step-what">Your Progress</span>
-      <span class="step-why" id="step-progress">Words known, days reading.</span>
-    </a>
-  </nav>
-
-  {#- Three lists, each one foldable and each one capped. This is a landing page: what
-      belongs here is the top of a list and the way to the rest of it. -#}
   <section class="panel" id="shelf-panel">
     <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span>Your targums</span></button></h2>
+      {#- No fold since phase 2 (2026-09-11): a shelf of five rows is not worth a control
+          to put away. -#}
+      <h2><span>Your targums</span></h2>
       <a class="see-all" id="shelf-more" href="/texts" hidden></a>
     </div>
     <div class="fold-body" id="shelf-body">
@@ -139,64 +112,6 @@
       </div>
       <ul class="books shelf-rows" id="library-list"></ul>
       <p class="empty" id="shelf-empty" hidden></p>
-    </div>
-  </section>
-
-  {#- Everything you are learning, on the page you land on. Both lists were on Your
-      Progress, which put half of learning next to the charts. -#}
-  <section class="panel">
-    <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span id="words-title">Your Words</span></button></h2>
-      {#- Which language the meanings are in. Drawn only for somebody who has meanings in
-          more than one, the same way the language switcher is: a control with one answer
-          in it is only a question nobody asked. -#}
-      <div class="langs quiet" id="meaning-langs" role="tablist"
-           aria-label="Definition language" hidden></div>
-      <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
-      <select id="status-filter" aria-label="Filter by how well you know them">
-        <option value="learning">Still learning</option>
-        <option value="all">All</option>
-        <option value="1">1 · just met</option>
-        <option value="2">2 · getting there</option>
-        <option value="3">3 · nearly there</option>
-        <option value="9">Known</option>
-        <option value="0">Ignored</option>
-      </select>
-      {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>Export</button>
-      <a class="see-all" id="words-more" href="/words" hidden></a>
-    </div>
-    <div class="fold-body" id="words-body">
-    <div class="table-wrap">
-      <table class="rows" id="word-table">
-        <thead>
-          <tr>
-            <th scope="col">Word</th>
-            <th scope="col">Dictionary form</th>
-            <th scope="col">Meaning</th>
-            <th scope="col">How common</th>
-            <th scope="col">How well</th>
-            <th scope="col">Kept</th>
-          </tr>
-        </thead>
-        <tbody id="word-rows"></tbody>
-      </table>
-    </div>
-    <p class="empty" id="words-empty" hidden></p>
-    <button type="button" class="more" id="more" hidden></button>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span id="phrases-title">Your Phrases</span></button></h2>
-      <button type="button" id="export-phrases" hidden>Export</button>
-      <a class="see-all" id="phrases-more" href="/phrases" hidden></a>
-    </div>
-    <div class="fold-body" id="phrases-body">
-      <p class="note">Phrases stay with the text they came from.</p>
-      <div id="phrase-list"></div>
-      <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
     </div>
   </section>
 
@@ -220,22 +135,17 @@
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
-window.TARGUM_WEEKLY = {{ weekly|tojson }};
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
-<script>{{ asset('vocab.js') }}</script>
-<script>{{ asset('lists.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
-<script>{{ asset('bring.js') }}</script>
-<script>{{ asset('speak.js') }}</script>
-<script>{{ asset('box.js') }}</script>
 </body>
 </html>

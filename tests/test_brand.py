@@ -73,6 +73,16 @@ PALETTE = {
     "#c2517a": "rose",
     # Deep paper (§9): structural only, never a text background.
     "#ece7de": "desk",
+    # The desk's own values (§13, 2026-09-11): the one cool hue that marks a control, in
+    # both themes and as the text on it; the well's rule; the bar on dark; the muted on
+    # the bar. The ground, the card and the bar on light are values already here.
+    "#1f6f6b": "teal, light",
+    "#6fb8b3": "teal, dark",
+    "#0f1a19": "text on teal, dark",
+    "#cfc7b9": "well, light",
+    "#3a3631": "well, dark",
+    "#0c0b0a": "bar, dark",
+    "#8a827a": "bar muted, dark",
     # The other two deep paper tones are already above: #e7e1d6 doubles as the chart
     # grid and #e6e1d8 as ink on the dark surface. Same values, different jobs.
     # The max-contrast pair (§9).
@@ -87,8 +97,15 @@ INK_ONLY = {"#e2a33c": 2.09, "#7ba646": 2.70}
 # §1 and §10. The identity is flat forever; the gloss recipe is for UI only.
 IDENTITY = ("brand-mark", "brand", "lockup", "wordmark")
 
-# §8. Radii are exact, and never snapped.
-RADII = {"4px", "5px", "6px", "8px", "999px", "50%", "0"}
+# §8. Radii are exact, and never snapped: the reader's 4/5/6/8, and since 2026-09-11 the
+# desk's own 8/12/16/24 (§13), which a rule names by its token.
+RADII = {"4px", "5px", "6px", "8px", "12px", "16px", "24px", "999px", "50%", "0"}
+RADIUS_TOKENS = {
+    "--radius-control": "8px",
+    "--radius-row": "12px",
+    "--radius-card": "16px",
+    "--radius-sheet": "24px",
+}
 
 # §5. The type scale. `em` sizes are relative to a component already on the scale.
 # §5, plus the landing display step §12 records (2026-08-31): a public landing page's one
@@ -99,6 +116,9 @@ SIZES = {
     "1.75rem",
     "1.5rem",
     "1.5em",
+    # §13: section titles and meta on the desk.
+    "1.25rem",
+    "0.875rem",
     "1.0625rem",
     "0.9375rem",
     "0.8125rem",
@@ -128,12 +148,24 @@ def test_only_brand_colours(sheet: Path) -> None:
 
 @pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)
 def test_radii_are_on_the_scale(sheet: Path) -> None:
-    """4 controls, 5 rows, 6 cards, 8 panels, 999 pills."""
+    """The reader's 4 controls, 5 rows, 6 cards, 8 panels; the desk's 8, 12, 16, 24; 999
+    pills. A rule may name a corner by its token, and the token is on the scale."""
     for value in re.findall(r"border-radius:\s*([^;]+);", sheet.read_text(encoding="utf-8")):
         for corner in value.split():
+            if corner.startswith("var(--radius-"):
+                assert corner[4:-1] in RADIUS_TOKENS, f"{sheet.name}: {corner} is no token"
+                continue
             assert corner in RADII, (
                 f"{sheet.name}: border-radius {value.strip()!r} is off the scale"
             )
+
+
+def test_the_radius_tokens_are_the_scale() -> None:
+    """§13: the desk names its corners once, in the stylesheet every page loads."""
+    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    for token, size in RADIUS_TOKENS.items():
+        found = set(re.findall(rf"{token}:\s*([^;]+);", text))
+        assert found == {size}, f"{token} should be {size} everywhere, found {found}"
 
 
 @pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)
@@ -144,6 +176,10 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
         if size.endswith("em") and not size.endswith("rem"):
             continue
         if size.startswith("var(") or size.endswith("%"):
+            continue
+        # §13: the desk's rem scales with the screen, from 16px on a phone to 22px on a
+        # television, on the root and nowhere else. The one clamp the scale allows.
+        if size.startswith("clamp(") and sheet.name == "chrome.css":
             continue
         assert size in SIZES, f"{sheet.name}: font-size {size!r} is off the scale"
 
@@ -178,6 +214,36 @@ THUMBED = (
     ".chat-send",
     ".chat-new",
     ".chat-list button",
+    # And the pill that opens the list as a sheet on a phone, and More at its foot
+    # (2026-09-10, targum-internal#238).
+    ".chat-open-list",
+    ".chat-more",
+    # And the chips — the things most readers ask — and Another under the card the
+    # first hands back (2026-09-10, targum-internal#240).
+    ".chat-ask",
+    ".chat-another",
+    # And Show English at the head of the thread (2026-09-10, targum-internal#241).
+    ".chat-english",
+    # And the first visit's two answers (2026-09-10, targum-internal#243).
+    ".chat-first-yes",
+    ".chat-first-no",
+    # And the two presses under Words you may already know (2026-09-10, #245).
+    ".claim-yes",
+    ".claim-no",
+    # And the bar's own presses (2026-09-11): the three places, at the foot of a phone,
+    # the pill that opens the conversation, the bell and the account.
+    ".site-nav a",
+    ".talk-cta",
+    ".notices > button",
+    ".account > button",
+    ".palette-open",
+    ".palette-row",
+    # And the row of doors above the sheet on Learn, and the subscriptions menu's rows
+    # (2026-09-11).
+    ".way",
+    ".ways-item",
+    # And the door that makes a silent section's audio (2026-09-10, #246).
+    ".voice-go",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
     # And the door a path becomes: the reader opens a text, never the model.

@@ -22,6 +22,26 @@ def test_the_voice_rules_are_in_the_prompt() -> None:
     assert "Second person" in said
 
 
+def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:
+    """ "A few Hebrew sentences" was a median of 42 words over five lines, ten with their
+    English, and the notes of 2026-09-10 called it too much to read (targum-internal#236).
+    The cap is a number in both prompts now, and the recast does not count."""
+    from targum.chat import hebrew
+
+    assert hebrew.MOST_SENTENCES == 3
+    assert f"at most {hebrew.MOST_SENTENCES} Hebrew sentences" in hebrew.CONTRACT
+    assert "is one sentence and the door" in hebrew.CONTRACT
+    assert f"at most {hebrew.MOST_LISTED} lines" in hebrew.CONTRACT
+    said = " ".join(prompts.SYSTEM.split())
+    assert "At most three sentences in a reply" in said
+    assert "one sentence before a card or a door" in said
+    reply = (
+        "> שלום, מה לקרוא?\n= Hello\nיש לי משהו קצר בשבילך.\n= I have\nזה סיפור על ילד.\n= story"
+    )
+    assert hebrew.length(reply) == 9, "the recast is the reader's line and is not counted"
+    assert hebrew.length("= only English") == 0
+
+
 def test_the_prompt_keeps_its_own_rules() -> None:
     """A prompt that broke §6 while teaching it would be the one place nobody checked."""
     assert "!" not in prompts.SYSTEM
@@ -51,13 +71,18 @@ def test_no_tool_in_this_slice_spends() -> None:
     assert not [tool.name for tool in REGISTRY if tool.spends or tool.needs_consent]
 
 
-def test_a_question_from_a_word_s_card_is_answered_in_english_about_the_text() -> None:
+def test_a_question_from_inside_the_text_is_answered_in_the_conversation_s_hebrew() -> None:
     """A word tapped is a question half-asked (2026-09-06): the card's Ask sends the
-    text, the sentence and the word along, and the model is told what to do with them —
-    and told that on scripture it writes no Hebrew of its own."""
+    text, the sentence and the word along, and the model is told what to do with them.
+    It was answered in English; since 2026-09-11 ("word note should also be written in
+    Hebrew at your level. This should be a general rule") a note only narrows what the
+    answer is about — the form, the sentence — and the line is answered as the
+    conversation is, in Hebrew at their level. On scripture it still writes no Hebrew
+    of its own."""
     said = prompts.SYSTEM
     assert "the word they tapped" in said
-    assert "answered in English, about the text" in said
+    assert "in Hebrew at their level with the English under every line" in said
+    assert "answered in English" not in said
     assert "on scripture write no Hebrew of" in said
 
 
@@ -100,3 +125,42 @@ def test_the_prompt_knows_what_the_product_takes_and_that_it_reads_pictures() ->
     assert "never say the reader sent words when they sent a picture" in SYSTEM
     assert "What targum does not take" in SYSTEM and "Spotify" in SYSTEM
     assert "explain it from the lines you were given" in SYSTEM
+
+
+def test_the_correction_says_why_once_and_never_lectures() -> None:
+    """targum-internal#242: the recast was the correction and never said so. One "~ "
+    line may now say what changed and the rule; the body still does not lecture."""
+    from targum.chat import hebrew
+
+    assert hebrew.WHY == "~ "
+    said = " ".join(hebrew.CONTRACT.split())
+    assert 'one line beginning "~ " directly under the recast\'s "= " line' in said
+    assert "Never on a line that was right" in said
+    assert "never a second sentence" in said
+    assert "Do not lecture about a mistake in the body" in said
+
+
+def test_the_gloss_line_is_in_the_language_the_reader_reads() -> None:
+    """targum-internal#243: the line under each Hebrew line was English by name whatever
+    the account said it read. The contract names the reader's language now, and the
+    rules about the model thinking in English rather than Hebrew stay."""
+    from targum.chat import hebrew
+
+    assert hebrew.CONTRACT == hebrew.contract("English")
+    russian = " ".join(hebrew.contract("Russian").split())
+    assert 'The reader reads Russian: every "= " line is in Russian.' in russian
+    assert "Directly under it, on the next line, its Russian" in russian
+    assert "one sentence in Russian naming what changed" in russian
+    assert "No Russian and no English inside a Hebrew line" in russian
+    assert "Do not think of an English sentence and translate it" in russian, "still about Hebrew"
+    assert hebrew.gloss_language({"ru"}) == "ru"
+    assert hebrew.gloss_language({"ru", "en"}) == "en" and hebrew.gloss_language(set()) == "en"
+
+
+def test_the_level_target_is_a_number_the_tools_carry() -> None:
+    """targum-internal#244: level-awareness was one prompt sentence and the model's
+    discretion. The tools carry known_share now and the prompt names the target."""
+    said = " ".join(prompts.SYSTEM.split())
+    assert "known_share of 0.8 or more" in said and "0.65 or more" in said
+    assert "applies the reader's own ceiling" in said
+    assert "never as a percentage or a level" in said

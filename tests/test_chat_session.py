@@ -141,7 +141,12 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
     sent = client.requests[0]
     assert sent["messages"][-1]["role"] == "user"
     assert sent["system"][0]["cache_control"] == {"type": "ephemeral"}, "the stable half is cached"
-    assert "cache_control" not in sent["system"][1], "the ledger sits after the breakpoint"
+    assert sent["system"][1]["cache_control"] == {"type": "ephemeral"}, (
+        "the ledger after its own breakpoint, since it holds still for a conversation (#239)"
+    )
+    assert sent["messages"][-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}, (
+        "and the last message, so the next turn reads the history back from the cache"
+    )
     # The whole registry: this turn was answered on a box with no web_search.
     assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
 
@@ -479,8 +484,9 @@ def test_a_question_from_a_card_carries_where_the_reader_is_and_is_answered_in_e
     tmp_path: Path,
 ) -> None:
     """The reader's note — text, section, sentence, word — rides in the turn the model
-    sees and not in what the page shows back; and the conversation it opens is in
-    English, about the text, whatever the shelf would otherwise have offered."""
+    sees and not in what the page shows back; and the conversation it opens is the
+    conversation, in Hebrew at their level (2026-09-11: "word note should also be
+    written in Hebrew at your level. This should be a general rule")."""
     from targum.chat import hebrew
 
     library, store = world(tmp_path)
@@ -500,14 +506,14 @@ def test_a_question_from_a_card_carries_where_the_reader_is_and_is_answered_in_e
         "lemma": "לחץ",
     }
     asked = chats.say(person, home, "", "why לחצו and not לחץ?", admin=False, about=about)
-    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "find"
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"
     turns = store.chat_turns(asked.chat_id)
     assert turns[0]["said"] == "why לחצו and not לחץ?", "the page shows what was asked"
     assert "The reader is reading the text שופטים, section 1." in turns[0]["content"]
     assert "They tapped the word וַיִּלְחֲצוּ (dictionary form לחץ)." in turns[0]["content"]
     assert about["sentence"] in turns[0]["content"]
     chats.answer(asked)
-    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[0]["system"][0]["text"]
+    assert hebrew.CONTRACT.splitlines()[0] in client.requests[0]["system"][0]["text"]
     assert "the word they tapped" in client.requests[0]["system"][0]["text"]
 
 
@@ -650,8 +656,9 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     tmp_path: Path,
 ) -> None:
     """targum-internal#218: with a pool on the box, a Hebrew turn carries a few Tatoeba
-    sentences inside the reader's words after the breakpoint; a conversation opened in
-    English about a text carries none; a box with no pool carries none."""
+    sentences inside the reader's words after the breakpoint; a word's card asks the
+    same conversation and carries them too (2026-09-11); a conversation opened in
+    English by a scripture-only shelf carries none; a box with no pool carries none."""
     from targum.chat import exemplars
 
     pool = exemplars.load(Path(__file__).parent / "fixtures" / "exemplars.jsonl")
@@ -675,7 +682,9 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     chats.answer(asked)
     block = client.requests[0]["system"][1]["text"]
     assert "Sentences a Hebrew speaker wrote" in block and "בוקר טוב. = Good morning." in block
-    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+    assert client.requests[0]["system"][1]["cache_control"] == {"type": "ephemeral"}, (
+        "after the stable half's breakpoint, under its own"
+    )
     assert "הסערה" not in block, "a sentence outside the reader's words is not picked"
 
     found = chats.say(
@@ -687,12 +696,24 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
         about={"document": "genesis", "section": "1", "surface": "בָּרָא", "lemma": "ברא"},
     )
     chats.answer(found)
-    assert "Sentences a Hebrew speaker wrote" not in client.requests[1]["system"][1]["text"]
+    assert "Sentences a Hebrew speaker wrote" in client.requests[1]["system"][1]["text"]
 
     bare = session_module.Chats(library, store, client_factory=lambda: client, exemplars=[])
     again = bare.say(person, home, "", "Good morning", admin=False)
     bare.answer(again)
     assert "Sentences a Hebrew speaker wrote" not in client.requests[2]["system"][1]["text"]
+
+    folder = home / "judges-he" / "reader"
+    folder.mkdir(parents=True)
+    (folder / "index.html").write_text("<html></html>", encoding="utf-8")
+    (home / "judges-he" / "document.json").write_text(
+        json.dumps({"title": "judges-he", "language": "he", "source": "sefaria:Judges"}),
+        encoding="utf-8",
+    )
+    assert not library.talks(home, person.id), "scripture and nothing else"
+    scripture = chats.say(person, home, "", "where was I", admin=False)
+    chats.answer(scripture)
+    assert "Sentences a Hebrew speaker wrote" not in client.requests[3]["system"][1]["text"]
 
 
 def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
@@ -706,14 +727,14 @@ def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     assert framed.startswith("The reader has just sent a text through the box")
     assert "It is called: מכתב (1 pages, 4 sentences)" in framed
     assert "Its first lines, as read: א / ב" in framed
-    assert "being built now" in framed
+    assert "getting ready now" in framed, "never 'built' to the reader (2026-09-11)"
     assert framed.endswith("Their line:\nhelp me learn it")
     waiting = session_module.framed("?", None, {"title": "t", "stage": "ready"})
     assert "waiting on their press" in waiting
     refused = session_module.framed(
         "?", None, {"title": "t", "stage": "blocked", "blocked": "Too long."}
     )
-    assert "could not be built: Too long." in refused
+    assert "could not be made ready: Too long." in refused
 
     # And what was sent is named as what it was: a screenshot is a picture, read.
     shot = session_module.framed(
@@ -812,7 +833,7 @@ def test_the_model_is_told_which_doors_are_shut(tmp_path: Path) -> None:
     ledger = client.requests[0]["system"][1]["text"]
     assert "hebrew-academy.org.il" in ledger and "nli.org.il" in ledger
     assert "he.wikipedia.org" not in ledger, "a host that answers is not on the list"
-    assert "cache_control" not in client.requests[0]["system"][1], "after the breakpoint"
+    assert client.requests[0]["system"][1]["cache_control"] == {"type": "ephemeral"}
 
 
 def test_no_shut_doors_means_no_block_at_all(tmp_path: Path) -> None:
@@ -890,3 +911,226 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
     assert len(lost) == 2, "the worker came back for the next turn rather than dying with the last"
     after = next(r for r in store.chat_turns(second.chat_id) if r["n"] == second.n)
     assert after["stage"] == "failed"
+
+
+def test_the_ledger_block_holds_still_for_a_conversation_and_moves_for_the_next(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#239. The bring-back slice and the exemplars were drawn afresh every
+    turn, which redrew the block after the breakpoint every turn — and the history comes
+    after that block, so the whole conversation fell out of the cache each time. One
+    conversation now sees one draw; a second conversation sees another."""
+    from targum.chat import exemplars
+
+    pool = exemplars.load(Path(__file__).parent / "fixtures" / "exemplars.jsonl")
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": now, "seen": now}
+                for w in ("בוקר", "טוב", "מה", "את", "עושה")
+            ]
+        },
+    )
+    reply_text = "> בּוֹקֶר טוֹב.\n= Good morning.\nמָה שְׁלוֹמְךָ?\n= How are you?"
+    client = Script([reply([{"type": "text", "text": reply_text}])] * 4)
+    chats = session_module.Chats(library, store, client_factory=lambda: client, exemplars=pool)
+    home = library.home(person)
+    first = chats.say(person, home, "", "Good morning", admin=False)
+    chats.answer(first)
+    chats.answer(chats.say(person, home, first.chat_id, "Good morning again", admin=False))
+    one, two = (request["system"][1]["text"] for request in client.requests[:2])
+    assert one == two, "the same block on both turns of one conversation"
+    assert exemplars.conversation_seed("a") != exemplars.conversation_seed("b")
+    assert exemplars.conversation_seed("a") == exemplars.conversation_seed("a")
+
+
+def test_a_marked_message_is_a_copy_and_the_store_s_is_untouched() -> None:
+    history = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": [{"type": "text", "text": "hi"}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t", "content": "x"}]},
+    ]
+    sent = session_module.marked(history)
+    assert sent[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+    assert "cache_control" not in history[-1]["content"][-1], "the stored history is as it was"
+    assert sent[:-1] == history[:-1]
+    plain = session_module.marked([{"role": "user", "content": "hello"}])
+    assert plain[0]["content"] == [
+        {"type": "text", "text": "hello", "cache_control": {"type": "ephemeral"}}
+    ]
+    assert session_module.marked([]) == []
+
+
+def test_what_the_cache_did_reaches_the_receipt(tmp_path: Path) -> None:
+    """Cache reads and writes were read past, so the receipt could not say whether
+    caching saved anything (targum-internal#239). Now they are counted and priced."""
+    library, store = world(tmp_path)
+    answer = reply([{"type": "text", "text": "Try Ruth first."}])
+    answer.usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        cache_read_input_tokens=4000,
+        cache_creation_input_tokens=300,
+    )
+    client = Script([answer])
+    usage = session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "what should I read"}],
+        session_module.Feed(),
+        lambda role, content, said: None,
+    )
+    assert usage.cache_read_tokens == 4000 and usage.cache_write_tokens == 300
+    assert usage.state()["cache_read"] == 4000 and usage.state()["cache_write"] == 300
+
+
+# -- the chips, and the ask that never reaches the model (targum-internal#240) ------
+
+
+def test_the_chips_stand_only_where_their_condition_holds(tmp_path: Path) -> None:
+    """Drawn from the record, never a static list: a stranger gets the two that are
+    always true; a reader with words saved this fortnight and words marked known gets
+    the two that bring them back."""
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    stranger = chats.chips(None, library.home(None))
+    assert [chip["id"] for chip in stranger] in (["read", "stuck"], ["read", "news", "stuck"])
+    assert all(chip["line"].split()[0] in ("Find", "Read", "Explain") for chip in stranger), (
+        "each starts with a verb (2026-09-11)"
+    )
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שלום",
+                    "status": 9,
+                    "band": "easy",
+                    "at": 1,
+                    "seen": 1,
+                },
+                {
+                    "language": "he",
+                    "lemma": "ספר",
+                    "status": 1,
+                    "band": "easy",
+                    "at": now,
+                    "seen": now,
+                },
+            ]
+        },
+    )
+    mine = [chip["id"] for chip in chats.chips(person, library.home(person))]
+    assert mine[0] == "read" and mine[-1] == "stuck"
+    assert "words" in mine and "know" in mine
+    assert "continue" not in mine, "nothing opened, nothing to continue"
+    assert len(mine) <= 7
+
+
+def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeypatch: Any) -> None:
+    """The one line most readers press: `suggest_next` and a card, no turn, no job of
+    kind chat, nothing spent; the exchange written into the conversation; "Another"
+    skips what was offered."""
+    from targum.chat import tools
+
+    library, store = world(tmp_path)
+    client = Script([])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    monkeypatch.setattr(
+        tools,
+        "suggest_next",
+        lambda ctx, args: {
+            "suggestions": [
+                {"id": "ruth", "title": "רות", "because": "You know 50% of its words."},
+                {"id": "esther", "title": "אסתר", "because": "Not measured yet."},
+            ]
+        },
+    )
+    quoted: list[str] = []
+
+    def quote_build(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        quoted.append(args["catalogue_id"])
+        return {
+            "quote": {
+                "id": "j-" + args["catalogue_id"],
+                "stage": "ready",
+                "title": args["catalogue_id"],
+            }
+        }
+
+    monkeypatch.setattr(tools, "quote_build", quote_build)
+    got = chats.suggest(person, home, "", admin=False)
+    assert got["quote"]["id"] == "j-ruth" and got["more"] is True and got["offered"] == ["ruth"]
+    assert got["said"].startswith(chats.SUGGEST_SAID) and "50% of its words" in got["said"]
+    assert client.requests == [], "the model was never asked"
+    assert not [job for job in library.jobs.values() if job.kind == "chat"], "no chat job, no spend"
+    turns = store.chat_turns(got["chat"])
+    assert [(t["role"], t["said"]) for t in turns] == [
+        ("user", "Find me something to read"),
+        ("assistant", got["said"]),
+    ]
+    again = chats.suggest(person, home, got["chat"], admin=False, skip=got["offered"])
+    assert again["quote"]["id"] == "j-esther" and again["more"] is False
+    assert quoted == ["ruth", "esther"]
+    nothing = chats.suggest(person, home, got["chat"], admin=False, skip=["ruth", "esther"])
+    assert nothing["status"] == 404
+
+
+def test_a_reader_of_russian_gets_russian_under_every_line(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """targum-internal#243: the contract and the record follow the language the account
+    reads into; the read-back builds into it too."""
+    from targum.chat import record
+
+    seen: list[str] = []
+    monkeypatch.setattr(
+        record.Recorder,
+        "annotate",
+        lambda self, lines, language="he", target="en": (seen.append(target), [[] for _ in lines])[
+            1
+        ],
+    )
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    store.choose(person, "reading", ["ru"])
+    reply_text = "> שָׁלוֹם.\n= Привет.\nמָה שְׁלוֹמְךָ?\n= Как дела?"
+    client = Script([reply([{"type": "text", "text": reply_text}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    home = library.home(person)
+    chats.answer(chats.say(person, home, "", "привет", admin=False))
+    system = client.requests[0]["system"][0]["text"]
+    assert 'every "= " line is in Russian' in " ".join(system.split())
+    assert seen == ["ru"], "the record's meanings are looked up in Russian"
+
+
+def test_a_line_from_inside_the_text_stays_in_hebrew_at_their_level(tmp_path: Path) -> None:
+    """2026-09-11: "the chat with the reader should be in Hebrew at your level". A note
+    that names the sentence and no word — the drawer in a reader — keeps the
+    conversation as it is: talk mode, the Hebrew contract, and the sentence in the turn
+    the model sees."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    assert library.talks(home, person.id)
+    client = Script([reply([{"type": "text", "text": "בִּנְיָמִין יָצָא לַדֶּרֶךְ.\n= Benjamin set out."}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    about = {"document": "mendele", "section": "2", "sentence": "וַיֵּלֶךְ בִּנְיָמִין"}
+    asked = chats.say(person, home, "", "מה זה אומר?", admin=False, about=about)
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"
+    turns = store.chat_turns(asked.chat_id)
+    assert "The reader is reading the text mendele, section 2." in turns[0]["content"]
+    assert about["sentence"] in turns[0]["content"]
+    chats.answer(asked)
+    assert hebrew.CONTRACT.splitlines()[0] in client.requests[0]["system"][0]["text"]

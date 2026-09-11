@@ -413,7 +413,262 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   each answer's place, with what would have to be recorded first, rather than printing a
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
+### Added
+- You can talk to targum about the text you are reading (2026-09-11: "when I am reading
+  something I want to literally be able to chat with it"). A served reader carries the
+  same pill and drawer every chrome page has; the reader says where you are — the text,
+  the section, the sentence across the middle of the window or the one you last tapped a
+  word in — and says it again as you move, so the drawer shows the sentence above the
+  box, sends it with every line, and offers one press that asks what it means. A word's
+  card still answers two turns in place, and "Continue in chat" now goes on in the
+  drawer beside the text. The conversation there is in Hebrew at your level, as it is
+  everywhere, and so is a word's card now: a note of where you are decides what the
+  answer is about, never its language, and the card draws the answer in the
+  conversation's shape, the Hebrew with its English under it. Off a disk the reader
+  carries nothing to talk to, and the page still fetches nothing by itself.
+- Learn is the reader, the size of the screen (2026-09-11: "less empty space and more
+  filled up by the reader — especially on larger screens; on mobile the reader can take
+  up the whole screen"). The sheet runs the width of the window under one head row —
+  Continue at the start, your count of words at the end — and its window is the height
+  of the screen under it; the shelf keeps its reading width below. On a phone the sheet
+  comes first, edge to edge, the height of the screen between the two bars, with the
+  count and the shelf under it. On the front page the reader's kept list stays out of
+  the sheet. The sheet's title, what it is, how far you are and Open stand at its head,
+  above the text, so the first thing on the page says what you are looking at. Decided
+  with David the same day: the page opens with a greeting and today — the time of day
+  and your name, the date and the week's portion where the box carries it — with your
+  count of words on the same line; beside them one control of doors, one press each:
+  Continue reading, Suggested — a text that fits your level and interests, picked as
+  the conversation's "Something to read" is but with no conversation (`GET /suggest`,
+  leaning towards the registers you already read; a suggestion you have finished makes
+  way for the next) — and Subscriptions, one door however many you follow, with a menu
+  under it that marks a newest instalment you have not seen and names the one in the
+  sheet. The
+  conversation stays the pill at the foot of the page, and whatever it offers opens in
+  the sheet. The date carries the Hebrew date in parentheses. For a new reader the
+  count's place says what to do here. The weekly is named Weekly News Digest wherever a
+  series is named.
+- The reader's kept list scrolls as its own thing (2026-09-11): a thin bar at the
+  panel's outer edge rather than a wide one drawn between the rows, and reaching the
+  end no longer scrolls the text behind it.
+- A conversation opened again keeps its cards (2026-09-11). The card a text was quoted
+  on was drawn from the live stream only, so the drawer in a reader — reopened on every
+  page — showed targum saying "press the card" over no card. Each answer now comes back
+  with the cards it quoted, as the texts stand now, and a card for a page on the web
+  links to it by the site's name. And nothing is "built" to you any more: a text is
+  getting ready, and then it is ready, in the card, in the bell, and in what targum says.
+- A command palette on every page (2026-09-11): ⌘K, or the search in the bar, finds a
+  place, a text on your shelf or in the catalogue, or a conversation, and Enter goes
+  there — a conversation opens in the drawer.
+- The sheet on Learn says how long is left, "about 12 min left", from the sections the
+  reader records as finished and the text's own length, and draws it as a line along
+  its foot (2026-09-11).
+
 ### Changed
+- For a new reader, the conversation's first exchange goes on (2026-09-11): once words
+  are marked, targum's next turn is a text at that level, asked for without a model
+  turn, so a text is two presses away without leaving the page. The count line on Learn
+  waits for ten known words before it counts; until then it says what to do.
+- The bell keeps what you put away, says when the month's hours are three quarters gone,
+  and says when targum answered a conversation while you were away — the list now
+  carries when you last opened each and when targum last answered (2026-09-11). Follow
+  on a subscription is a switch; the Library's filters fold behind one word, its search
+  staying out; the last small-capital labels on the desk are in normal case.
+- The desk grows up, phase 1 of five (2026-09-11: "the whole design feels clunky, like
+  it's from 2016 not 2026"). Corners on the desk's own scale — 8 controls, 12 rows and
+  fields, 16 cards, 24 sheets — named by token; depth in three shadow tiers instead of a
+  line around every box, a hairline only where two same-tone surfaces meet; the bar is
+  glass, sticky where it is one row, with the places as tint pills; buttons are three
+  kinds — filled, tonal, ghost — and all pills; fields are wells with no line and a ring
+  on focus; one motion curve, 240ms in and 160ms out, and a press that gives. design.md
+  §8 says its radii are the reader's and §13 carries the desk's; `test_brand.py` admits
+  the new corners. Every chrome page changes a little at once and nothing changes shape.
+  The plan: https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186.
+- Phase 2: Learn and the drawer. The shelf loses its column heads and its fold, its
+  covers take a row's corners, See all is a ghost pill, and the one label on the page is
+  a heading in normal case; in the drawer your turns are tint and targum's are on the
+  card, the box sits on its own strip at the foot, and the drawer settles out the way it
+  came in (2026-09-11).
+- Phase 3: rows, not tables. Your Words and the may-already-know checklist are rows —
+  the word large in its face, what is known of it on a second line, the column heads
+  gone — with the checklist's two presses on a glass strip that stays at the foot while
+  the list scrolls; the Library's sort head is a row of pills and every text a row with
+  a row's corners (2026-09-11).
+- Phase 4: the phone. The three places are a bar at the foot of the window, a glyph
+  over each word, on glass; the top bar keeps the mark, the bell and your picture; Talk
+  to targum is a round button above the bar; the account's and the bell's panels come up
+  as sheets from the foot (2026-09-11).
+- Phase 5: the reader's own chrome — its bar on glass with pill controls, the word card,
+  the keys and the picker on the card's corners and the floating tier, its phone sheets
+  on the sheet's corners; the page's lines, faces and brown untouched (2026-09-11).
+- Talk to targum is a pill at the foot of every page, and Learn is the reader's own
+  highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
+  opens up for you — doesn't actually have to live on any page. Learn page can literally
+  just be a highlight of the reader"). The pill opens the conversation as a drawer — from
+  the edge on a laptop, a sheet from the foot on a phone — holding the conversation page
+  framed; nothing is loaded until it is opened, Escape and the scrim close it, and it is
+  open again on the next page since the conversation is not over. A text it offers opens
+  in the sheet on Learn and on the reader's own page anywhere else. Learn keeps the
+  count, the sheet across the row at a reading height, and the shelf; Hide and Expand
+  went with the card they worked on.
+- Learn is the room you learn in, not a lobby (2026-09-11: "it's no longer a home page
+  but an actual page for learning"). The Read row, the word and phrase panels and the
+  may-already-know checklist left it; the sheet, the conversation and the shelf stay.
+  One sheet for both Hebrews: the track opened most recently takes it. Your Words is a
+  page behind the account — the words, the checklist, the phrases — linked from the
+  account panel on every page. The checklist is the conversation's first exchange for
+  a reader with a ledger of nothing and no conversation, and lives on Your Words after.
+  The Library carries Your subscriptions above the list: the weekly, the weekly portion
+  and each learning cycle, each with where it is this week, Follow and Open;
+  `GET /series` answers where each is. A followed series' newest instalment takes the
+  sheet on Learn the first time it is seen and is said in the bell on every page.
+  Following is kept on the account (`/account/follows`) as well as in the browser, so
+  the row is the same wherever you sign in — and the server mails followers when an
+  instalment lands, once, with a one-press door out (`/series/stop`); the weekly keeps
+  its own mailout. The row is a panel on the profile, behind the account, and the
+  account panel links to it: the main pages stay as simple as they can.
+- The reader on the front page works, and the conversation can be put away. The sheet
+  is the reader itself, framed: a press in it marks a word, turns a page, opens a
+  chapter; its own links stay in the frame and every other link opens the page; a visit
+  is counted at the first press, not at being shown. Hide on the conversation's card,
+  or Expand on the sheet, puts the conversation away — the sheet takes the row and grows
+  to a reading height — and a pill fixed at the foot of the window brings it back; the
+  choice is remembered in the browser. A text the conversation offers opens in the
+  sheet first, beside the conversation, and Open goes to its own page. In the frame,
+  New is drawn only once a conversation is open, and the empty-state line is not drawn
+  at all (2026-09-11: "the 'new' button is completely pointless, and you turned this
+  back into a wall of text").
+- Notifications are a bell in the bar. What is building and what is ready used to be one
+  pill fixed at the foot of the window showing one build at a time; now the bell in the
+  top corner carries a count, and the panel under it lists every build, newest first,
+  each with Open when it is ready and its own ×. Putting a live build away still asks to
+  be told by email where the server can (2026-09-11).
+- Two lines said the active way (2026-09-11): the box's placeholder is "Write in Hebrew
+  or English", and a text's fit is "You know 62% of its words" on the sheet and in the
+  chat's suggestions.
+- Words you may already know gathers pages until at least ten words remain: a page of
+  fifty set against a ledger that held most of it came down to one or two words at a
+  time (2026-09-11).
+- Words you may already know works with checkboxes: one on every row, one at the head
+  that checks the page, and "Mark checked as known" writes the checked words as known
+  and passes over the rest, since they were looked at and left; "None of these" passes
+  the page. It used to be all or nothing — "I know all of these" or "Not these"
+  (2026-09-11).
+- The chrome has a system of its own, the desk (design.md §13), and the front page is
+  the first page on it: every chrome page stands on the desk in the chrome's own face,
+  Source Sans 3, carried in the page like the Hebrew faces; the header is the ink bar;
+  cards lift off the ground; teal marks every control; and the text to carry on with is
+  drawn as a sheet lying on the desk — the reader itself, framed as a picture of itself
+  at the place it was left, with its title and one press under it — beside the
+  conversation, which is the conversation page itself framed without its bar
+  (`/chat?embed=1`): what is typed there is answered there, and a text it opens opens
+  in the page that holds the frame. A framed reader is told it is a picture
+  (`?preview=1`) and counts nothing as read; both frames may be framed by this origin
+  and by nothing else. The reader never loads the face. `test_brand.py` widens its palette and type
+  scale by exactly what §13 names. The desk holds from a small phone to a television:
+  the rem scales from 16px to 22px with the screen, a chip cuts a long title short
+  rather than running out of its card, Read is one row of cards, the weekly is a row
+  that reads, and the building pill takes the foot of a narrow window; checked in the
+  browser at 320, 375, 430, 768, 1024, 1440 and 2560 wide (2026-09-11).
+- The front page is in named parts, and a line typed there is answered in place. Under
+  the count, Talk to targum with one sentence saying what it is, the box, the things
+  most readers ask as verbs, and the thread opening under them — the conversation page's
+  own script, run on Learn — then Your conversations, then Read with its own sentence.
+  The parts step down with space rather than rules; `box.js` is gone (2026-09-11, from
+  looking at the page: "nothing is labeled", "I can't really tell that it's a chat", "I
+  should not be sent to a new page").
+- The conversation page is the viewport: the thread scrolls inside itself and the box
+  stays in view however long the conversation, where it sat under a thread of unbounded
+  height and scrolled away with it. Who said a turn is told by where it stands — the
+  reader's lines set in from the start, targum's from the end, the same ink — and the
+  name rides as the turn's label for a screen reader, where a word stood over every turn.
+  An answer arrives by appending its tail rather than redrawing the line on every piece,
+  with a caret while it writes; the thread follows the newest line only while the reader
+  was at the bottom; a new turn fades in over 200ms and not at all for a reader who asked
+  for no motion (targum-internal#247, from the notes of 2026-09-10).
+- Hear a silent text. On a Hebrew section with no recording, This text carries one
+  door, "Hear this section", with what it costs in the reader's own hours beside it.
+  The press claims the estimate in the hours a recording comes out of, the section is
+  read aloud one line at a time so the spans are exact without an aligner, the lines
+  land as one part in the audio manifest beside the reader, and the page is rendered
+  again with the audio in it and every per-line control; settled to the clip's own
+  seconds. Drawn only while the voice has a price beside `transcribe.PRICES`, which it
+  does not yet: an unpriced voice is not for sale (targum-internal#246, from the notes
+  of 2026-09-10).
+- Words you may already know, on Learn under Your Words: the commonest words of modern
+  Hebrew that are not on the ledger, fifty at a time, with the meaning the glossary
+  already holds, and "I know all of these" — every mark an ordinary known word, so the
+  count rises because it did, and never a level a reader could claim. "Not these" passes
+  a page over. `/words/common` serves the list and buys nothing; a reader with no ledger
+  who says they read Hebrew is told once where it is (targum-internal#245, from the
+  notes of 2026-09-10).
+- How much of a text a reader already has is estimated before it is quoted: the
+  ledger's known forms and the commonest words against the text's tokens, a prefix or
+  two allowed, no lemmatizer. The card says it in words — "You know about 7 words in
+  10 here" — `describe_source` and every quote carry the number, the library search
+  applies the reader's own ceiling when the model names none, and the prompt names the
+  target: 0.8 for a first read, 0.65 for something harder (targum-internal#244, from
+  the notes of 2026-09-10).
+- The line under each Hebrew line in a conversation is in the language the account
+  reads into, where it was English by name: the contract names it, the record's
+  meanings are looked up in it, and the read-back builds into it. A first visit from a
+  browser in Russian is asked once, in Russian, whether the lines should be in it;
+  never guessed silently (targum-internal#243, from the notes of 2026-09-10).
+- The recast says when it corrected. A recast that differs from what the reader wrote
+  in Hebrew is labelled corrected, the words that changed carry a mark, and one folded
+  line under it — the model's `~ ` line, what changed and the rule, one sentence — opens
+  on a tap; open for a reader with no words yet. A line that was right, or written in
+  English, gets nothing, the body still does not lecture, and a text written from the
+  conversation carries no `~ ` line (targum-internal#242, from the notes of
+  2026-09-10).
+- The English under each Hebrew line in a conversation is folded, and a tap on the pair
+  opens it — the gesture that opens a word's gloss — with one Show English at the head
+  of the thread for all of it, remembered. The recast stays open, and a reader with no
+  known words sees it all open. "I would just ignore the Hebrew and read the English"
+  (targum-internal#241, from the notes of 2026-09-10).
+- The things most readers ask are buttons under the box on Learn and in the empty state
+  of the conversation page: "Something to read", "Continue *title*", "Use my new
+  words", "What do I know", "News today", "A word I am stuck on" — each drawn from the
+  record and standing only where its condition holds, never under an answer. A press is
+  Send with a fixed line; the first is answered by the server from the library with no
+  model turn and no spend, as the same card the model's own quote hands the page, with
+  "Another" under it (targum-internal#240, from the notes of 2026-09-10; design.md §12
+  records that this reverses a cut of 2026-09-06).
+- A way back to a conversation. A row writes the conversation into the address, and the
+  address opens what it names, so a conversation can be linked to and the back button
+  goes to the one before; each row says when it was last opened. On a phone the list is
+  a sheet behind a pill at the top of the page, where it used to sit under the whole
+  thread. Learn carries the last three under the box with the door to all of them. The
+  list is a page of fifty with More at its foot, where it used to be every conversation
+  ever in one answer (targum-internal#238, from the notes of 2026-09-10; design.md §12
+  records that this reverses a cut of 2026-09-06).
+- The chat's prompt is cached whole. The block after the breakpoint — the reader's
+  words, the bring-back slice, the exemplars — was drawn afresh every turn, and since
+  the history comes after it, the whole conversation fell out of the cache every turn;
+  one conversation now sees one draw, seeded by its id, and the next conversation the
+  next. The ledger block and the last message carry breakpoints of their own, so a turn
+  reads the history back rather than paying for it again, and what the cache read and
+  wrote is counted and priced on the receipt, where until now it was read past
+  (targum-internal#239, from the notes of 2026-09-10).
+- The month's hours are off the conversation page, where they stood in the side column
+  on every visit. The count is under the ledger on Your Progress, with the day the
+  month turns, and in the account panel on every page; the box says it only once three
+  quarters are used, so the cap is not the first anybody hears of it. `/account/me`
+  carries the hours, reckoned in the one place `/chat/list` already reckoned them
+  (targum-internal#237, from the notes of 2026-09-10).
+- A reply is at most three Hebrew sentences, the recast left out; one sentence and the
+  door when a text is handed over; six lines at most when the answer is a list. "A few
+  Hebrew sentences" was a median of 36 words over five lines, ten with their English, on
+  the conversations stored so far, and the notes of 2026-09-10 called it too much to
+  read. `scripts/measure_reply_length.py` counts what real readers got, and
+  `scripts/eval_grading.py` now records `hebrew_words_median`, with a floor of 25 in
+  `evals/floors.json` (targum-internal#236).
+- The box is one row: the `+`, the field, Speak and Send side by side, on a phone as on
+  a desk, where the three buttons used to sit on a row under the field. Speak, Send and
+  Hear are drawn rather than written — a microphone, an arrow, a loudspeaker, from one
+  sprite to §7 — with the word kept as each control's label, so nothing a screen reader
+  says has changed; the `+` stays typed. The field grows with what is typed and shrinks
+  back when the line is sent (targum-internal#235, from the notes of 2026-09-10).
 - The chat's web search looks at the whole web, six searches a turn instead of three.
   Until now it was held to the known Hebrew sites, with a card a reader pressed to widen
   one turn: a list the model could not see made a gap in it look like an answer, and the

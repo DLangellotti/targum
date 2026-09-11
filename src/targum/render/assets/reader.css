@@ -67,6 +67,38 @@
   /* The max-contrast pair (§9), for a screen that should feel switched on. 18.6:1. */
   --page-max: #fffdf9;
   --ink-max: #121110;
+  /* The desk (§13, 2026-09-11): the chrome's own system. The ground every chrome page
+     stands on, the cards that sit on it, the one cool hue that marks a control, the ink
+     bar, and the chrome's face. The reader uses none of these. */
+  --ground: #ece7de;
+  --card: #fffdf9;
+  --well: #cfc7b9;
+  --teal: #1f6f6b;
+  --teal-ink: #fffdf9;
+  --teal-wash: rgb(31 111 107 / 0.09);
+  --bar: #171614;
+  --bar-ink: #e6e1d8;
+  --bar-muted: #9a9288;
+  --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
+  --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
+  --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
+     of their own, depth in three tiers rather than a line around every box, a hairline
+     only where two same-tone surfaces meet, tint for the ordinary press, glass for the
+     bar, and one curve for everything that moves. */
+  --radius-control: 8px;
+  --radius-row: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 24px;
+  --hairline: rgb(28 26 23 / 0.08);
+  --shadow-rest: 0 1px 2px rgb(28 26 23 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(28 26 23 / 0.05), 0 8px 24px -12px rgb(28 26 23 / 0.18);
+  --shadow-floating: 0 2px 6px rgb(28 26 23 / 0.06), 0 24px 48px -20px rgb(28 26 23 / 0.28);
+  --glass: color-mix(in srgb, var(--card) 78%, transparent);
+  --field: color-mix(in srgb, var(--ground) 65%, var(--card));
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --in: 240ms;
+  --out: 160ms;
 
   /* Gloss (§9) is light on glass, never metal: one sheen per element, never on the
      mark or the lockup, never on a resting text surface. */
@@ -104,6 +136,21 @@
     --divider: #322e29;
     --page-max: #121110;
     --ink-max: #fffdf9;
+    --ground: #121110;
+    --card: #201e1b;
+    --hairline: rgb(255 253 249 / 0.10);
+    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
+    --well: #3a3631;
+    --teal: #6fb8b3;
+    --teal-ink: #0f1a19;
+    --teal-wash: rgb(111 184 179 / 0.12);
+    --bar: #0c0b0a;
+    --bar-ink: #e6e1d8;
+    --bar-muted: #8a827a;
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
     --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
   }
 }
@@ -127,6 +174,21 @@
     --divider: #322e29;
     --page-max: #121110;
     --ink-max: #fffdf9;
+    --ground: #121110;
+    --card: #201e1b;
+    --hairline: rgb(255 253 249 / 0.10);
+    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
+    --well: #3a3631;
+    --teal: #6fb8b3;
+    --teal-ink: #0f1a19;
+    --teal-wash: rgb(111 184 179 / 0.12);
+    --bar: #0c0b0a;
+    --bar-ink: #e6e1d8;
+    --bar-muted: #8a827a;
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
     --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
 }
 
@@ -176,6 +238,13 @@ body {
 
 /* --- chrome ------------------------------------------------------------- */
 
+/* Framed in the front page as a picture of itself (design.md §13, 2026-09-11): the
+   page under it names the text and carries the mark, so the bar is not drawn twice. */
+html.preview .bar { display: none; }
+/* On the front page the kept list stays out of the sheet: the text is the point, and
+   the list is the reader's own page's (2026-09-11). */
+html.preview #list { display: none; }
+html.preview body.has-list.list-open { padding-inline-end: 0; }
 .bar {
   position: sticky;
   inset-block-start: 0;
@@ -1013,7 +1082,14 @@ body.marking .w.here,
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.gloss-card .ask-a > span { display: block; }
 .gloss-card .ask-a [lang|="he"] { line-height: 1.95; }
+/* The conversation's shape in the card (2026-09-11): the Hebrew in the text's own
+   face, right to left; its English under it, quieter; a recast set off a little. */
+.gloss-card .ask-he { font-size: 1.0625rem; text-align: right; }
+.gloss-card .ask-en,
+.gloss-card .ask-why { color: var(--ink-soft); font-size: 0.875rem; margin-block-end: 0.3rem; }
+.gloss-card .ask-recast { padding-inline-end: 0.5rem; border-inline-end: 2px solid var(--rule); }
 .gloss-card .ask-a.bad { color: var(--clay); }
 .gloss-card .ask-a.working:empty::after { content: "…"; color: var(--ink-soft); }
 .gloss-card .ask-form { display: flex; gap: 0.4rem; align-items: center; }
@@ -1289,6 +1365,21 @@ table.rows tr:hover .copy,
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The scroll is the list's own (2026-09-11, "fix the scroll in word lists"): a thin
+     bar at the panel's outer edge rather than a full-width one drawn between the rows
+     — the panel inherits the page's direction, which put the bar on the inner side —
+     and reaching the end does not go on to scroll the text behind the panel. */
+  direction: ltr;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 45%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.list-body::-webkit-scrollbar { width: 6px; }
+.list-body::-webkit-scrollbar-track { background: transparent; }
+.list-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-soft) 45%, transparent);
+  border-radius: 999px;
 }
 
 .list-items {
@@ -3303,4 +3394,135 @@ html:fullscreen { background: var(--paper); }
     z-index: 40;
     animation: none;
   }
+}
+
+/* Hear a silent text (targum-internal#246): the one door in This text that asks the
+   reader to act, so it takes ink (§9); what it costs, in their own hours, beside it. */
+.bar-more .voice-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.bar-more .voice-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+.bar-more .voice-go:hover { background: var(--ink-soft); }
+.bar-more .voice-go:disabled { opacity: 0.5; cursor: default; }
+.bar-more .voice-cost, .bar-more .voice-said { font-size: 0.8125rem; color: var(--ink-soft); }
+.bar-more .voice-offer[hidden] { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .voice-go { min-height: 44px; }
+}
+
+/* =====================================================================================
+   Phase 5 (2026-09-11): the reader's chrome on the desk's scale — its bar, its cards,
+   its keys and its sheets — and nothing of the page's own lines: the pairs, the
+   hairlines between them, the faces and the brown stay as §8 has them. Written after
+   every rule above, the phone's included, so that it wins. */
+/* Glass on a wide window only: under 60rem the bar is paper with no blur and no line,
+   as the phone rules above say and for the reason they give — a filter on it would make
+   it the box the sheets are placed against. */
+@media (min-width: 60.01rem) {
+  .bar {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-block-end: 1px solid var(--hairline);
+  }
+}
+.bar button, .bar select, .bar .group .home { border-radius: 999px; }
+.modes { border-radius: 999px; border-color: var(--hairline); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.modes button, .modes .slide { border-radius: 999px; }
+.gloss-card, .keys-card, .pick-card, .player {
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-floating);
+}
+.gloss-card .look-up, .keys-close { border-radius: 999px; }
+.pager a { padding: 0.35rem 0.8rem; border-radius: 999px; }
+.pager a:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+@media (max-width: 60rem) {
+  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
+    border-block-start: 0;
+    border-start-start-radius: var(--radius-sheet);
+    border-start-end-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-floating);
+  }
+}
+
+/* --- Talk to targum, in the reader (2026-09-11) ----------------------------------------
+   The same drawer the desk has, on the reader's own tokens and in its own face; the
+   press that opens it is a control in the bar like the others, since the corner at the
+   foot of the window is the player's. The button is on while the drawer is up. */
+.bar .talk-cta[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
+.talk-drawer {
+  position: fixed;
+  inset-block: 4.5rem 1rem;
+  inset-inline-end: 1rem;
+  z-index: 31;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  inline-size: min(26rem, calc(100vw - 2rem));
+  background: var(--card);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  direction: ltr;
+  animation: talk-in var(--in) var(--ease);
+}
+.talk-drawer[hidden] { display: none; }
+.talk-drawer.leaving { animation: talk-out var(--out) var(--ease) forwards; }
+.talk-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.8rem 0.7rem 1.2rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.talk-drawer-title { font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+.talk-close {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.talk-close:hover { color: var(--teal); background: var(--teal-wash); }
+.talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
+.talk-scrim { display: none; }
+@keyframes talk-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes talk-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(0.5rem); }
+}
+@media (max-width: 60rem) {
+  .talk-drawer {
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: auto;
+    block-size: min(88vh, 100vh - 3rem);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  .talk-scrim[hidden] { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .talk-drawer, .talk-drawer.leaving { animation: none; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .talk-close { min-height: 44px; min-width: 44px; }
 }

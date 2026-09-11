@@ -17,6 +17,7 @@ import email.utils
 import errno
 import gzip
 import json
+import logging
 import os
 import queue
 import re
@@ -36,6 +37,7 @@ from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
+from . import level as level_module
 from .accounts import Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
@@ -175,6 +177,9 @@ TRASHED = "trashed"
 #: sentence is the long one; the rest name things.
 ABOUT_FIELDS = {
     "document": 200,
+    # The text's title, so "let's talk about it" from the front page names what the
+    # reader sees rather than a folder (2026-09-11).
+    "title": 200,
     "section": 20,
     "sentence": 1000,
     "surface": 80,
@@ -286,7 +291,17 @@ CHAT_BUDGET = 1.00
 LEGAL_ROUTES = tuple(f"/{name}" for name in LEGAL)
 
 OPEN_TO_STRANGERS = frozenset(
-    {"/about", "/account/signin", "/account/enter", "/account/sign-in", "/account/me", "/health"}
+    {
+        "/about",
+        "/account/signin",
+        "/account/enter",
+        "/account/sign-in",
+        "/account/me",
+        "/health",
+        # The door out of a series, followed from an email with no account at hand
+        # (2026-09-11): its token is the whole of what it needs.
+        "/series/stop",
+    }
 ) | frozenset(LEGAL_ROUTES)
 
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
@@ -349,7 +364,17 @@ def parasha_url(entry_id: str) -> str | None:
 #: The three the weekly's own door answers, all of them plain forms so they work with
 #: no JavaScript at all — which matters because two of them are followed out of an email
 #: client, where JavaScript is not a thing that exists.
+log = logging.getLogger(__name__)
+
 WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"})
+
+#: A series id as `series.py` names them: a slug, nothing else.
+SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
+
+#: How often the server looks for an instalment that landed since anyone was told
+#: (2026-09-11): the portion turns weekly and a cycle daily, so an hour is prompt enough
+#: and cheap — a look is one read of what is built and one query per series.
+ANNOUNCE_EVERY = 3600
 
 #: A file inside a published edition's built reader.
 #:
@@ -642,6 +667,10 @@ class Job:
     #: Whether the pictures were a messaging conversation, read as its messages.
     conversation: bool = False
     reading: float = 0.0
+    #: How much of the text the reader already has, estimated at quote time from the
+    #: ledger (`level.known_share`, targum-internal#244); None where nobody is signed
+    #: in or the text is too short to say.
+    known_share: float | None = None
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -682,6 +711,12 @@ class Job:
             "doubtful": self.doubtful,
             "conversation": self.conversation,
             "excerpt": list(self.excerpt),
+            "known_share": None if self.known_share is None else round(self.known_share, 2),
+            "known_line": level_module.words_in_ten(self.known_share),
+            # Where the text is from, so the card can link to it (2026-09-11: "don't
+            # see the link to the article"). A link for a page on the web; a fetcher
+            # id or a filename otherwise, which the page shows no link for.
+            "source": self.source,
         }
 
 
@@ -1171,7 +1206,10 @@ class Library:
         """Swap what a build reserved for what it spent — and, for a turn of
         conversation, the seconds it was reserved at for the seconds it ran to."""
         if self.store is not None:
-            self.store.settle(job.id, job.spent, length=job.seconds if job.kind == "chat" else None)
+            # A turn of conversation and a voice made for a text both come out of the
+            # hours, so both settle their seconds (targum-internal#246).
+            metered = job.kind in ("chat", "voice")
+            self.store.settle(job.id, job.spent, length=job.seconds if metered else None)
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
@@ -1717,6 +1755,7 @@ class Library:
             job.title = plan.document.title or job.source
             job.language = plan.document.language
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
+            job.known_share = self._known_share(job, plan.document)
             job.chapters = plan.chapters
             job.estimate = plan.estimated_cost
             if plan.audio is not None:
@@ -1755,6 +1794,21 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    def _known_share(self, job: Job, document: Any) -> float | None:
+        """How much of a text the reader already has, at quote time (targum-internal#244):
+        the ledger's known forms and the commonest words against the text's tokens. The
+        card says it in words; the model is given the number. Nothing for a signed-out
+        build, a text that is not Hebrew, or one too short to measure."""
+        if self.store is None or job.owner is None:
+            return None
+        if str(getattr(document, "language", "") or "").split("-")[0] not in ("he",):
+            return None
+        from .chat import hebrew as hebrew_module
+
+        forms = self.store.known_forms(job.owner, "he") | set(hebrew_module.common_words())
+        text = "\n".join(str(getattr(block, "text", "") or "") for block in document.blocks)
+        return level_module.known_share(text, forms)
 
     def _read_pages(self, job: Job) -> str:
         """Read a source that arrived as pages, or say why it may not be read.
@@ -2017,7 +2071,7 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
-    def claim_turn(self, job: Job) -> str:
+    def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
 
         The same transaction a build takes, narrowed: the per-account ceiling is the
@@ -2039,9 +2093,11 @@ class Library:
             self._since(),
             owner=job.owner,
             per_account=None if admin else self.chat_budget,
-            kind="chat",
+            kind=kind,
             # Conversation comes out of the eight hours (decided 2026-09-05): the same
-            # sum a recording's seconds land in, so there is one ledger and not two.
+            # sum a recording's seconds land in, so there is one ledger and not two. A
+            # voice made for a text (kind `voice`, targum-internal#246) comes out of it
+            # the same way.
             month_from=self._month_from(),
             length=job.seconds,
             per_month_length=None if admin else self.upload_seconds,
@@ -2116,6 +2172,8 @@ class Library:
             return self.run_part(job)
         if job.options.get("chapters"):
             return self.run_chapter(job)
+        if job.options.get("voice"):
+            return self.run_voice(job)
         try:
             job.stage = "working"
             self.remember(job)
@@ -2383,6 +2441,110 @@ class Library:
         self.remember(job)
         self.tell(job)
 
+    def run_voice(self, job: Job) -> None:
+        """Make the audio for one section of a silent text, and rewrite the reader
+        around it (targum-internal#246).
+
+        One request a line, so the spans are exact without an aligner; the lines land
+        as one part in the audio manifest beside the reader, the same file an import
+        keeps, and the page is rendered again from what is on disk — which is how the
+        clip ends up inline in it, and how every per-line control appears. The seconds
+        charged are the clip's, read off the WAV; the estimate the press was claimed at
+        is settled to them.
+        """
+        from . import speech
+        from .audio import manifest as manifest_module
+        from .models import Annotation, Document, SegmentedDocument, Vocalization, glossaries_in
+        from .models import read_artifact as read
+        from .render import render as render_reader
+        from .render import split_sections
+
+        folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+        if folder is None:
+            return self._blame(job, "That one is no longer on disk.")
+        document = read(Document, folder / "document.json")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if document is None or segmented is None:
+            return self._blame(job, "That one is no longer on disk.")
+        number = int(job.options.get("section") or 0)
+        sections = split_sections(segmented)
+        section = next((one for one in sections if one.number == number), None)
+        if section is None:
+            return self._blame(job, "No such section.")
+        wanted = set(section.segment_ids)
+        segments = [segment for segment in segmented.segments if segment.id in wanted]
+        lines = [segment.text for segment in segments]
+        job.stage = "working"
+        job.total = len(lines)
+        job.message = "Reading it aloud…"
+        self.remember(job)
+        try:
+            clip, spans = speech.render_lines(lines, folder / "audio" / f"voice-{number:03d}")
+        except TargumError as error:
+            return self._blame(job, error.message)
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "voice", error, job=job.id)
+            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+        kept = manifest_module.load(folder) or manifest_module.AudioManifest(
+            source=str(folder),
+            sha256=str(document.content_hash or ""),
+            duration=0.0,
+            language="he",
+        )
+        kept.parts = [part for part in kept.parts if part.number != number]
+        kept.parts.append(
+            manifest_module.ManifestPart(
+                number=number,
+                title=section.title,
+                start=0.0,
+                end=clip.seconds,
+                audio=str(clip.path.relative_to(folder)),
+                transcribed=True,
+                provider=speech.NAME,
+                spans={
+                    segment.id: [start, end]
+                    for segment, (start, end) in zip(segments, spans, strict=True)
+                    if end > start
+                },
+            )
+        )
+        kept.parts.sort(key=lambda part: part.number)
+        kept.duration = sum(part.end - part.start for part in kept.parts)
+        manifest_module.write(folder, kept)
+        try:
+            builder = self._builder(job)
+            builder._resolved_out = folder
+            pages = render_reader(
+                document,
+                segmented,
+                builder.already_here([]),
+                folder / "reader",
+                annotation=read(Annotation, folder / "annotation.json"),
+                glossaries=glossaries_in(folder),
+                vocalization=read(Vocalization, folder / "vocalization.json"),
+                clean=False,
+                covers=self.out / "thumbs",
+                reads=sorted(self._reads_of(job.owner) or ()) or None,
+                folder=folder,
+            )
+        except TargumError as error:
+            return self._blame(job, error.message)
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "voice:render", error, job=job.id)
+            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+        job.seconds = clip.seconds
+        spent = Usage()
+        spent.add_seconds(speech.NAME, clip.seconds)
+        job.spent = spent.cost()
+        job.reader = f"{folder.name}/reader/{pages[0].name}"
+        job.message = ""
+        job.stage = "done"
+        self.settle(job)
+        self.remember(job)
+        self.tell(job)
+
     def run_part(self, job: Job) -> None:
         """Hear one more part of an imported recording, and rebuild around it.
 
@@ -2542,6 +2704,7 @@ class Handler(BaseHTTPRequestHandler):
     #: The conversation page, and the workers that answer it. Empty and None on a
     #: handler built by hand, which is how the tests build one that has no chat.
     chatting: str = ""
+    embedded: str = ""
     chats: Any = None
     #: The three list pages, by route name: everything Learn shows the top of. Empty by
     #: default so a handler built with only the pages it needs — which is what the tests
@@ -3264,6 +3427,59 @@ class Handler(BaseHTTPRequestHandler):
 
         return self._send(404, b"not found", "text/plain")
 
+    def _follows(self, payload: dict[str, Any] | None) -> None:
+        """Which series this account follows (2026-09-11), read or changed.
+
+        Reads the session's own address and never the payload's, as the weekly's door
+        does. The weekly stays on its own rails (`subscriber`); every other series is a
+        `follow` row. Signed out there is nothing to follow with, and the browser keeps
+        its own list.
+        """
+        person = self._person()
+        store = self.store
+        if person is None or store is None:
+            return self._json({"signedIn": False, "follows": []}, 401)
+        if payload is not None:
+            series = str(payload.get("series") or "").strip()
+            if not series or not SERIES_ID.match(series):
+                return self._json({"error": "Which series?"}, 400)
+            wanted = bool(payload.get("on", True))
+            if series == "weekly":
+                store.follow(person.email, wanted)
+            else:
+                store.follow_series(person.email, series, wanted)
+        follows = store.series_followed(person.email)
+        if store.following(person.email):
+            follows = ["weekly", *follows]
+        return self._json({"signedIn": True, "follows": follows})
+
+    def _series_stop(self, form: dict[str, str] | None) -> None:
+        """The one-click door out of a series, from an email: a page with a button, and
+        the button is what spends the token — a mail client that fetches every link must
+        not be able to answer for the person it was sent to."""
+        store = self.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        if form is None:
+            token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            page = weekly_note(
+                "Stop telling you when a new one comes out?",
+                address=self.address,
+                done=False,
+                pending={"action": "/series/stop", "token": token, "button": "Yes, stop"},
+                heading="your subscriptions",
+                home="/library",
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        store.stop_following(form.get("t", ""))
+        page = weekly_note(
+            "You will not be told about it again.",
+            address=self.address,
+            heading="your subscriptions",
+            home="/library",
+        )
+        return self._send(200, page.encode("utf-8"), HTML)
+
     def _weekly_follow(self, payload: dict[str, Any]) -> None:
         """The signed-in door. Reads the session's address and never the payload's."""
         person = self._person()
@@ -3668,6 +3884,9 @@ class Handler(BaseHTTPRequestHandler):
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
             return self._send(200, about_page().encode("utf-8"), HTML)
+        if route == "/series/stop":
+            # Followed out of an email, with no account and no key.
+            return self._series_stop(None)
         if route == "/account/signin":
             return self._send(200, signin_page().encode("utf-8"), HTML)
         if route == "/account/enter":
@@ -3690,12 +3909,18 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
-            return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
+            # The front page frames a reader and the conversation (design.md §13,
+            # 2026-09-11), so it may frame its own origin, and nothing else.
+            return self._send(200, self.page.encode("utf-8"), HTML, frames="in")
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/chat":
             if not self.chatting:
                 return self._send(404, b"not found", "text/plain")
+            # `?embed=1` is the same conversation without the bar and the foot, drawn
+            # inside the front page (2026-09-11): it may be framed by this origin only.
+            if parse_qs(urlparse(self.path).query).get("embed", [""])[0] == "1":
+                return self._send(200, self.embedded.encode("utf-8"), HTML, frames="out")
             return self._send(200, self.chatting.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/chat/"):
             return self._chat_get(route[len("/chat/") :])
@@ -3739,6 +3964,22 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/suggest":
+            return self._suggest()
+        if route == "/account/follows":
+            return self._follows(None)
+        if route == "/series":
+            # What comes out on its own clock, and where each is this week (2026-09-11):
+            # the page draws the row to follow, and Learn puts a new instalment of a
+            # followed one in the sheet.
+            from . import series as series_module
+
+            schedule = parse_qs(urlparse(self.path).query).get("schedule", ["diaspora"])[0]
+            return self._json(
+                {"series": series_module.current(schedule, public=shelves_are_public())}
+            )
+        if route == "/words/common":
+            return self._common_words(parse_qs(urlparse(self.path).query))
         if route == "/account/export":
             # Everything the account holds, for somebody who wants to take it away. A
             # download rather than a page: the point of this is that it needs nobody's
@@ -3793,6 +4034,8 @@ class Handler(BaseHTTPRequestHandler):
         # account check and before the start-up key, exactly as the door above is.
         if route in WEEKLY_POSTS and shelves_are_public():
             return self._weekly_post(route, self._form())
+        if route == "/series/stop":
+            return self._series_stop(self._form())
         if self._needs_account(route):
             return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
         if route != "/account/sign-in" and not self._authorised():
@@ -3819,6 +4062,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/chat/say":
             return self._chat_say(payload)
+        if route == "/chat/suggest":
+            return self._chat_suggest(payload)
+        if route == "/voice":
+            return self._voice(payload)
         if route == "/chat/save":
             return self._chat_save(payload)
         if route == "/weekly/follow":
@@ -3826,6 +4073,8 @@ class Handler(BaseHTTPRequestHandler):
             # supply there is no way to sign somebody else's inbox up and nothing to
             # validate, which is a shorter argument than any amount of checking.
             return self._weekly_follow(payload)
+        if route == "/account/follows":
+            return self._follows(payload)
         if route == "/prepare":
             return self._prepare(payload)
         if route == "/build":
@@ -3872,23 +4121,27 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
-            # The hours beside the list, so the clock is on the page before the cap is
-            # met: the one limit a reader is told about, in the unit they were told.
-            allowed = self.library.upload_seconds
-            used = store.hours_used(person_id, self.library._month_from())
+            # The hours beside the list: the one limit a reader is told about, in the
+            # unit they were told. The page says them only when they matter (2026-09-10,
+            # targum-internal#237); the whole count lives on Your Progress.
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                limit = min(200, max(1, int(query.get("limit", ["50"])[0])))
+                offset = max(0, int(query.get("offset", ["0"])[0]))
+            except ValueError:
+                limit, offset = 50, 0
             return self._json(
                 {
-                    "chats": store.chats(person_id),
+                    # A page of them, newest first (targum-internal#238): the list used to
+                    # be every conversation ever, and the page draws "More" at its foot.
+                    "chats": store.chats(person_id, limit=limit, offset=offset),
                     "usable": self.chats.usable,
                     # Whether Speak is offered and the Hebrew contract rides: a reader
                     # with modern Hebrew to speak. Scripture-only readers are answered
                     # in English, about the text (`Library.talks`).
                     "talk": self.library.talks(self._home(), person_id),
-                    "hours": {
-                        "used": round(used / 3600, 2),
-                        "allowed": None if allowed is None else round(allowed / 3600, 2),
-                        "ends": self.library._month_ends(),
-                    },
+                    "hours": self._hours(person_id),
+                    "chips": self.chats.chips(person, self._home()),
                 }
             )
         pieces = rest.split("/")
@@ -3905,8 +4158,21 @@ class Handler(BaseHTTPRequestHandler):
             chat = store.chat_owned(person_id, pieces[0])
             if chat is None:
                 return self._json({"error": "not found"}, 404)
-            turns = [
-                {
+            # Opened by its person: an answer made after this is one they have not seen.
+            store.chat_opened(chat["id"])
+            turns: list[dict[str, Any]] = []
+            # The cards a turn quoted come back with it (2026-09-11): they were drawn
+            # from the live stream only, so a conversation opened again — the drawer
+            # in a reader is reopened on every page it rides — had the model saying
+            # "press the card" over a thread with no card in it. A quote lives in
+            # the tool result the model was handed; it is drawn under the answer that
+            # followed, in the state the job is in now.
+            waiting: list[dict[str, Any]] = []
+            for turn in store.chat_turns(chat["id"]):
+                waiting.extend(self._quoted(turn))
+                if not (turn["said"] or turn["role"] == "user"):
+                    continue
+                entry: dict[str, Any] = {
                     "n": turn["n"],
                     "role": turn["role"],
                     "said": turn["said"],
@@ -3917,9 +4183,10 @@ class Handler(BaseHTTPRequestHandler):
                     # read (`chat/record.py`); None where none were.
                     "words": turn.get("words"),
                 }
-                for turn in store.chat_turns(chat["id"])
-                if turn["said"] or turn["role"] == "user"
-            ]
+                if turn["role"] == "assistant" and turn["said"] and waiting:
+                    entry["quotes"] = waiting
+                    waiting = []
+                turns.append(entry)
             return self._json(
                 {
                     "chat": chat,
@@ -3929,6 +4196,33 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         return self._json({"error": "not found"}, 404)
+
+    def _quoted(self, turn: dict[str, Any]) -> list[dict[str, Any]]:
+        """The cards quoted in a tool-result turn, as the jobs stand now.
+
+        A quote is the `quote` of a `quote_build` or `quote_conversation` result
+        (`Chats.answer`). The job it names is read back live where the process still
+        has it — built since, or refused — and the stored quote stands in where it
+        does not, which is a restart: the card then says what it said, and its press
+        finds out.
+        """
+        content = turn.get("content")
+        if turn.get("role") != "user" or not isinstance(content, list):
+            return []
+        found: list[dict[str, Any]] = []
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            try:
+                result = json.loads(str(block.get("content") or ""))
+            except json.JSONDecodeError:
+                continue
+            quote = result.get("quote") if isinstance(result, dict) else None
+            if not isinstance(quote, dict) or not quote.get("id"):
+                continue
+            job = self._own_job(str(quote["id"]))
+            found.append(job.state() if job is not None else quote)
+        return found
 
     def _chat_turn_state(self, chat_id: str, n: int) -> dict[str, Any]:
         """What became of the answer to turn `n`, from the live feed or the store.
@@ -4199,7 +4493,9 @@ class Handler(BaseHTTPRequestHandler):
                 for key, limit in ABOUT_FIELDS.items()
                 if raw.get(key)
             }
-            if not about.get("surface") and not about.get("sentence"):
+            # A word, a sentence, or the text alone (2026-09-11: "let's talk about it"
+            # from the sheet on Learn names the text and nothing narrower).
+            if not (about.get("surface") or about.get("sentence") or about.get("document")):
                 about = None
         # The text sent with the line, if one was: read from its own job, never from
         # the payload, so what the model is told about it is what the server knows.
@@ -4233,6 +4529,110 @@ class Handler(BaseHTTPRequestHandler):
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
+    def _voice(self, payload: dict[str, Any]) -> None:
+        """Hear a silent text: the press in the reader that makes one section's audio
+        (targum-internal#246). The press is the spend — claimed at the estimate, in the
+        hours a recording comes out of, settled to the clip's own seconds — and only
+        where the voice has a price: an unpriced voice is not for sale.
+        """
+        from . import speech
+        from .audio import manifest as manifest_module
+        from .chat import hebrew as hebrew_module
+        from .models import SegmentedDocument
+        from .models import read_artifact as read
+        from .render import split_sections
+        from .transcribe import PRICES as MINUTES
+
+        home = self._home()
+        folder = self.library.within(home, str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        if not speech.priced():
+            return self._json({"error": "The voice has no price yet, so it is not for sale."}, 402)
+        usable, why = speech.available()
+        if not usable:
+            return self._json({"error": f"No voice on this box: {why}."}, 402)
+        try:
+            number = int(payload.get("section") or 0)
+        except (TypeError, ValueError):
+            return self._json({"error": "not found"}, 404)
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if segmented is None:
+            return self._json({"error": "not found"}, 404)
+        section = next((one for one in split_sections(segmented) if one.number == number), None)
+        if section is None:
+            return self._json({"error": "not found"}, 404)
+        kept = manifest_module.load(folder)
+        if kept is not None:
+            part = kept.part_for(section.segment_ids)
+            if part is not None and part.audio:
+                return self._json({"ready": True})
+        wanted = set(section.segment_ids)
+        words = hebrew_module.words_in(
+            *(segment.text for segment in segmented.segments if segment.id in wanted)
+        )
+        seconds = hebrew_module.seconds_for(words)
+        person = self._person()
+        job = Job(
+            id=secrets.token_hex(8),
+            source=str(folder),
+            options={"voice": True, "folder": folder.name, "section": number},
+            owner=person.id if person else None,
+            home=home,
+            admin=bool(person and self.store.is_admin(person.email)),
+            kind="voice",
+            seconds=seconds,
+            estimate=seconds / 60 * MINUTES[speech.NAME],
+            title=section.title,
+        )
+        refused = self.library.claim_turn(job, kind="voice")
+        if refused:
+            job.stage = "blocked"
+            job.blocked = refused
+            return self._json({"error": refused}, 402)
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        self.library.enqueue(job)
+        self._json(job.state())
+
+    def _suggest(self) -> None:
+        """One text that fits this reader's level and interests, for the Suggested door
+        on Learn (2026-09-11): the same pick the conversation's "Something to read"
+        makes, with no conversation, no turn and no card — the sheet draws it and Open
+        goes to its library row, or to the text where it is built already."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"suggestion": None})
+        from .chat import tools as chat_tools
+
+        person = self._person()
+        admin = bool(person and self.store.is_admin(person.email))
+        ctx = self.chats.context(person, self._home(), "", admin)
+        # What the page says the reader has finished, by catalogue id: that is kept in
+        # the browser, and a finished suggestion makes way for the next (2026-09-11).
+        skip = parse_qs(urlparse(self.path).query).get("skip", [""])[0]
+        done = {one.strip() for one in skip.split(",") if one.strip()}
+        rows = chat_tools.suggest_next(ctx, {"limit": 10}).get("suggestions") or []
+        left = [row for row in rows if str(row.get("id")) not in done]
+        return self._json({"suggestion": left[0] if left else None})
+
+    def _chat_suggest(self, payload: dict[str, Any]) -> None:
+        """The commonest ask, answered without the model (targum-internal#240): the
+        press is the ask, the card's button is still the build's press, and no turn is
+        run. `Chats.suggest` does the work; this is the door."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"error": "not found"}, 404)
+        person = self._person()
+        person_id = person.id if person else None
+        chat_id = str(payload.get("chat") or "")
+        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+            return self._json({"error": "not found"}, 404)
+        skip = [str(one) for one in payload.get("skip") or [] if isinstance(one, str)]
+        admin = bool(person and self.store.is_admin(person.email))
+        answer = self.chats.suggest(person, self._home(), chat_id, admin=admin, skip=skip)
+        if "error" in answer:
+            return self._json({"error": answer["error"]}, int(answer.get("status") or 409))
+        return self._json(answer)
+
     def _chat_save(self, payload: dict[str, Any]) -> None:
         """Save as targum, pressed at the foot of the record: the conversation written
         down and priced, the same card the model's `quote_conversation` hands the page.
@@ -4257,6 +4657,72 @@ class Handler(BaseHTTPRequestHandler):
 
     # -- accounts -----------------------------------------------------------
 
+    #: How many of the commonest words the page may ask for at once, and how far down the
+    #: list it may go: past a few thousand the "commonest" claim stops meaning much.
+    COMMON_PAGE = 50
+    COMMON_REACH = 3000
+
+    def _common_words(self, query: dict[str, list[str]]) -> None:
+        """The commonest words of modern Hebrew, in order, with the meaning the glossary
+        already holds and the band each sits in (targum-internal#245). For "Words you
+        may already know" on Learn: a reader who reads Hebrew already marks the ones
+        they know, fifty at a time, and the count rises because the count did. The
+        page leaves out what is on the ledger; nothing here is bought — a word the
+        glossary does not hold is shown bare."""
+        from .annotate.base import BAND_NAMES
+        from .annotate.frequency import FrequencyBands
+        from .annotate.gloss import cached_gloss, gloss_provider_name
+        from .chat import hebrew as hebrew_module
+
+        try:
+            offset = max(0, int(query.get("offset", ["0"])[0]))
+            limit = max(
+                1, min(self.COMMON_PAGE, int(query.get("limit", [str(self.COMMON_PAGE)])[0]))
+            )
+        except ValueError:
+            offset, limit = 0, self.COMMON_PAGE
+        offset = min(offset, self.COMMON_REACH)
+        forms = hebrew_module.common_words(n=min(self.COMMON_REACH, offset + limit))
+        page = forms[offset : offset + limit]
+        target = hebrew_module.gloss_language(self._reads(self._person()))
+        bands = FrequencyBands()
+        provider = gloss_provider_name()
+        rows = []
+        for form in page:
+            held = cached_gloss(form, "he", target, provider)
+            rows.append(
+                {
+                    "form": form,
+                    "band": BAND_NAMES.get(bands.band(form, "he"), ""),
+                    "meaning": held.gloss if held else "",
+                }
+            )
+        self._json(
+            {
+                "words": rows,
+                "offset": offset,
+                "next": offset + len(page)
+                if len(page) == limit and offset + limit < self.COMMON_REACH
+                else None,
+                "into": target,
+            }
+        )
+
+    def _hours(self, person_id: int | None) -> dict[str, Any]:
+        """The month's hours, used and allowed, and when the month turns. Reckoned in one
+        place for the two answers that carry it: the conversation list, and who is
+        signed in — which every page asks, so Your Progress and the account panel can
+        say the count without a request of their own (targum-internal#237)."""
+        allowed = self.library.upload_seconds
+        # `self.store` rather than the chat's: the same store, and this answer is owed
+        # whether or not a conversation is configured at all.
+        used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
+        return {
+            "used": round(used / 3600, 2),
+            "allowed": None if allowed is None else round(allowed / 3600, 2),
+            "ends": self.library._month_ends(),
+        }
+
     def _me(self) -> None:
         person = self._person()
         if person is None:
@@ -4266,12 +4732,19 @@ class Handler(BaseHTTPRequestHandler):
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
+            # The month's hours, for the account panel and Your Progress: the real count,
+            # off the chat page where it stood in every reader's face (2026-09-10).
+            "hours": self._hours(person.id),
             # Which languages this account is learning, and which it is offered a
             # translation into. The pages that offer either narrow to these; `_prepare`
             # refuses anything else whatever a picker was showing, because a picker is
             # not a boundary.
             "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
+            # Which series this account follows (2026-09-11), so a browser that has just
+            # signed in draws the same row as the one they followed from.
+            "follows": (["weekly"] if self.store.following(person.email) else [])
+            + self.store.series_followed(person.email),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
@@ -5255,7 +5728,9 @@ class Handler(BaseHTTPRequestHandler):
                 if moving:
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-                return self._send(200, target.read_bytes(), kind)
+                # Framed by the front page as a picture of itself (design.md §13,
+                # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
+                return self._send(200, target.read_bytes(), kind, frames="out")
         # A door the model wrote by hand. It is told to copy a path exactly as the tool
         # returned it, and it copied בסטארטאפ as בסטארטאף — twice in one conversation
         # (2026-09-08) — because a final letter is how Hebrew is spelled and a folder
@@ -5387,6 +5862,7 @@ def start(
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
+            "embedded": chat_page(token, embed=True),
             "chats": chats,
             "progress": progress_page(token),
             "catalogue": library_page(token),
@@ -5414,6 +5890,23 @@ def start(
         announce(address)
     if open_browser:
         threading.Timer(0.4, lambda: webbrowser.open(address)).start()
+    # Followers are told by email when a series' instalment lands (2026-09-11): hosted,
+    # with a mailer and an address to put in the link, and never on a laptop, where the
+    # console mailer would print a letter to nobody every hour.
+    if mailer is not None and public_address and require_account:
+        from . import series as series_module
+
+        def keep_telling() -> None:
+            while True:
+                time.sleep(ANNOUNCE_EVERY)
+                try:
+                    report = series_module.announce(keeping, mailer, public_address)
+                    if report.sent or report.failed or report.stopped:
+                        log.info("series: %s", report)
+                except Exception as error:  # noqa: BLE001 - never takes the server down
+                    log.warning("series: announcing failed: %s", error)
+
+        threading.Thread(target=keep_telling, name="series-announce", daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
