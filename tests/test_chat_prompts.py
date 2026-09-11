@@ -71,13 +71,18 @@ def test_no_tool_in_this_slice_spends() -> None:
     assert not [tool.name for tool in REGISTRY if tool.spends or tool.needs_consent]
 
 
-def test_a_question_from_a_word_s_card_is_answered_in_english_about_the_text() -> None:
+def test_a_question_from_inside_the_text_is_answered_in_the_conversation_s_hebrew() -> None:
     """A word tapped is a question half-asked (2026-09-06): the card's Ask sends the
-    text, the sentence and the word along, and the model is told what to do with them —
-    and told that on scripture it writes no Hebrew of its own."""
+    text, the sentence and the word along, and the model is told what to do with them.
+    It was answered in English; since 2026-09-11 ("word note should also be written in
+    Hebrew at your level. This should be a general rule") a note only narrows what the
+    answer is about — the form, the sentence — and the line is answered as the
+    conversation is, in Hebrew at their level. On scripture it still writes no Hebrew
+    of its own."""
     said = prompts.SYSTEM
     assert "the word they tapped" in said
-    assert "answered in English, about the text" in said
+    assert "in Hebrew at their level with the English under every line" in said
+    assert "answered in English" not in said
     assert "on scripture write no Hebrew of" in said
 
 
