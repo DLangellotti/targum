@@ -542,6 +542,19 @@ RUTH = reader(
 )
 
 
+def test_a_text_of_another_register_opened_last_takes_the_sheet() -> None:
+    """Mendele is revival Hebrew, neither modern nor Biblical, and the sheet used to skip
+    it for a track's door. Opened more recently than either track, it is what the reader
+    came back for (2026-09-11)."""
+    mendele = reader("mendele-he", "מסעות בנימין", register="revival", opened=9)
+    drawn = draw(
+        [mendele], {"targum:opened": json.dumps({"mendele-he": 9})}, shared=SCENES + [RUTH]
+    )
+    assert drawn["carry"]["title"] == "מסעות בנימין" and drawn["carry"]["heading"] == "Continue"
+    assert drawn["carry"]["frame"].endswith("mendele-he/reader/index.html?k=k&preview=1")
+    assert [row["title"] for row in drawn["shelf"]] == [], "not repeated below"
+
+
 def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
     """The sheet at Start here on Scene 1, which says which scene of how many, how long,
     and that it can be heard. Nothing says "ready", and Open opens a built text."""

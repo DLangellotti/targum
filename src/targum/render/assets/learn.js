@@ -566,6 +566,13 @@
           var modern = trackDoor(code, "modern", readers, shared);
           var biblical = trackDoor(code, "biblical", readers, shared);
           var door = biblical.reader && biblical.opened > modern.opened ? biblical : modern;
+          // A text of another register — revival, rabbinic, a novel — belongs to neither
+          // track; opened more recently than either track's door, it is what the reader
+          // came back for, and the sheet is theirs (2026-09-11).
+          var latest = mine[0];
+          if (latest && latest.opened > Math.max(modern.opened || 0, biblical.opened || 0)) {
+            door = { state: "carry", reader: latest, opened: latest.opened, register: latest.register };
+          }
           door.primary = true;
           if (door.reader) {
             drawCarry(door.reader, door);
