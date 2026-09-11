@@ -884,7 +884,9 @@
           door.primary = true;
           door.id = "main";
           doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }];
-          fallbackPick = stepUp(code, readers.concat(shared), "modern");
+          // Modern first; past the whole modern catalogue, whatever is left in any
+          // register, so a reader who has built every modern text is still offered one.
+          fallbackPick = stepUp(code, readers.concat(shared), "modern") || stepUp(code, readers.concat(shared), "");
           if (door.reader) {
             drawCarry(door.reader, door);
             inDoors.push(door.reader);
@@ -987,7 +989,12 @@
   // the server has no pick to give: the door is never simply missing.
   var fallbackPick = null;
   function suggested() {
-    var skip = finished();
+    var skip = [];
+    try {
+      skip = finished();
+    } catch (e) {
+      skip = [];
+    }
     function place(door) {
       doors = doors.filter(function (one) {
         return one.id !== "suggested";

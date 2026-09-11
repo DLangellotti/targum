@@ -380,6 +380,11 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     register = str(args.get("register") or "")
     minutes = args.get("max_minutes")
     limit = max(1, min(int(args.get("limit") or 5), 10))
+    # Catalogue ids to leave out — what the page says the reader has finished, which
+    # only the browser knows (2026-09-11: the top ten were all finished scenes, and
+    # skipping after the cut left nothing). Applied before the cut, so the next one
+    # that fits is always in reach.
+    skip = {str(one) for one in (args.get("skip") or []) if str(one)}
     mine, shared = _shelf(ctx)
     own = _by_source(mine)
     built = _by_source([*mine, *shared])
@@ -393,7 +398,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         key = catalogue_module._key(entry.source)
         if entry.language.split("-")[0] != language.split("-")[0]:
             continue
-        if key in own:
+        if key in own or entry.id in skip:
             continue
         if register and entry.register.value != register:
             continue

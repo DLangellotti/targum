@@ -4610,10 +4610,9 @@ class Handler(BaseHTTPRequestHandler):
         # What the page says the reader has finished, by catalogue id: that is kept in
         # the browser, and a finished suggestion makes way for the next (2026-09-11).
         skip = parse_qs(urlparse(self.path).query).get("skip", [""])[0]
-        done = {one.strip() for one in skip.split(",") if one.strip()}
-        rows = chat_tools.suggest_next(ctx, {"limit": 10}).get("suggestions") or []
-        left = [row for row in rows if str(row.get("id")) not in done]
-        return self._json({"suggestion": left[0] if left else None})
+        done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
+        rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
+        return self._json({"suggestion": rows[0] if rows else None})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the

@@ -583,14 +583,23 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
         {"id": "esther", "title": "אסתר", "because": "You know 50% of its words.", "minutes": 25},
         {"id": "ruth", "title": "רות", "because": "Not measured yet."},
     ]
-    monkeypatch.setattr(
-        tools, "suggest_next", lambda ctx, args: {"suggestions": picked[: args["limit"]]}
-    )
+    asked: list[dict[str, Any]] = []
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        asked.append(args)
+        left = [row for row in picked if row["id"] not in set(args.get("skip") or [])]
+        return {"suggestions": left[: args["limit"]]}
+
+    monkeypatch.setattr(tools, "suggest_next", suggest_next)
     status, got, _ = call(port, "GET", f"/suggest?k={key}")
     assert status == 200 and got == {"suggestion": picked[0]}
     assert store.chats(None) == [], "no conversation was opened for it"
     status, got, _ = call(port, "GET", f"/suggest?skip=esther,%20x&k={key}")
     assert got == {"suggestion": picked[1]}, "a finished suggestion makes way for the next"
+    assert asked[-1]["skip"] == ["esther", "x"], (
+        "the finished ids reach the pick itself, before its cut — live, the top ten "
+        "were all finished scenes and skipping after the cut left nothing (2026-09-11)"
+    )
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
     assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
     assert catalogue
