@@ -792,8 +792,12 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Continue reading", False),
         ("The weekly portion", True),
     ], "the door says which subscription is in the sheet"
-    unseen = draw([mine], dict(stored, **{"targum:series-seen": "{}"}), series=[portion, digest])
-    assert unseen["menu"]["items"][0]["fresh"], "a newest instalment not seen yet is marked"
+    both = dict(stored, **{"targum:follows": json.dumps({"parasha": 1, "weekly": 1})})
+    unseen = draw([mine], dict(both, **{"targum:series-seen": "{}"}), series=[portion, digest])
+    assert [(i["label"], i["fresh"]) for i in unseen["menu"]["items"]] == [
+        ("The weekly portion", False),
+        ("Weekly News Digest", True),
+    ], "the newest lands in the sheet and is seen; the other keeps its dot"
     alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
     assert alone["doors"] == [], "one door is no choice"
     nothing = draw([], {})

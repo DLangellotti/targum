@@ -698,7 +698,8 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   cursor: pointer;
 }
 .ways-item:hover { background: var(--teal-wash); }
-.ways-item.on { color: var(--teal); font-weight: 600; }
+/* Its own on-state: reader.css paints `button.on` in ink, and it rides on this page. */
+.ways-item.on { background: var(--teal-wash); border-color: transparent; color: var(--teal); font-weight: 600; }
 .ways-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 /* A newest instalment not seen yet. */
 .ways-fresh {

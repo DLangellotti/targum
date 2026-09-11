@@ -1040,6 +1040,11 @@
         }
       );
       follow.markSeen(newest.id, inst.id);
+      // Seen now, in the sheet: the menu's dot on it goes.
+      doors.forEach(function (one) {
+        if (one.id === "series:" + newest.id) one.fresh = false;
+      });
+      drawDoors();
     });
   }
 
