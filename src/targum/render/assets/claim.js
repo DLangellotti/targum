@@ -33,6 +33,10 @@
   var LEDGER = "targum:vocab:he";
   var PASSED = "targum:claim-passed";
   var PAGE = 50;
+  //: The fewest words a page shows while the list has them. A page of fifty set against
+  //: a ledger that already holds most of it came down to one or two words at a time
+  //: (2026-09-11); now the pages are gathered until there are at least this many.
+  var FLOOR = 10;
 
   function read(name, fallback) {
     try {
@@ -119,10 +123,11 @@
     };
   }
 
-  // The next page the ledger does not already hold and the reader has not passed over.
+  // The next words the ledger does not already hold and the reader has not passed over.
   // Asked for in pages of fifty and filtered here, because the ledger is the browser's;
-  // pages that filter down to nothing are skipped until one has rows in it.
-  function load(from) {
+  // pages are gathered until at least FLOOR words remain, or the list ends.
+  function load(from, gathered) {
+    gathered = gathered || [];
     var ledger = read(LEDGER, "{}");
     var passed = read(PASSED, "{}");
     return fetch(keyed("/words/common?offset=" + from + "&limit=" + PAGE), {
@@ -132,19 +137,20 @@
         return response.json();
       })
       .then(function (answer) {
-        if (answer.error) return draw([]);
+        if (answer.error) return draw(gathered);
         var fresh = (answer.words || []).filter(function (word) {
           return !ledger[word.form] && !passed[word.form];
         });
+        gathered = gathered.concat(fresh);
         offset = from;
         next = answer.next;
-        if (!fresh.length && answer.next !== null && answer.next !== undefined) {
-          return load(answer.next);
+        if (gathered.length < FLOOR && next !== null && next !== undefined) {
+          return load(next, gathered);
         }
-        draw(fresh);
+        draw(gathered);
       })
       .catch(function () {
-        draw([]);
+        draw(gathered);
       });
   }
 
@@ -208,5 +214,5 @@
   if (hebrew === "he") load(0);
   else panel.hidden = true;
 
-  window.TargumClaim = { load: load, PAGE: PAGE };
+  window.TargumClaim = { load: load, PAGE: PAGE, FLOOR: FLOOR };
 })();

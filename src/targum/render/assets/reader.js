@@ -91,6 +91,50 @@ var targumReader = function () {
   var PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
   if (PREVIEW) document.documentElement.classList.add("preview");
 
+  // Framed, a link to another page of this text stays in the frame and keeps the key
+  // and the flag it arrived with; a link anywhere else — Learn, the library, the chat,
+  // the web — opens in the page that holds the frame, never inside it.
+  function framed(href) {
+    if (!PREVIEW) return href;
+    var url;
+    try {
+      url = new URL(href, location.href);
+    } catch (e) {
+      return href;
+    }
+    if (url.origin !== location.origin || url.pathname.indexOf("/reader/") !== 0) return href;
+    if (passKey && !url.searchParams.get("k")) url.searchParams.set("k", passKey);
+    url.searchParams.set("preview", "1");
+    return url.href;
+  }
+  if (PREVIEW) {
+    document.addEventListener("click", function (event) {
+      var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!link || event.defaultPrevented || link.target) return;
+      var href = link.getAttribute("href") || "";
+      if (href.charAt(0) === "#") return;
+      var url;
+      try {
+        url = new URL(href, location.href);
+      } catch (e) {
+        return;
+      }
+      event.preventDefault();
+      var to = url.href;
+      var where = window;
+      if (url.origin === location.origin && url.pathname.indexOf("/reader/") === 0) {
+        to = framed(to);
+      } else {
+        try {
+          where = window.top || window;
+        } catch (e) {
+          where = window;
+        }
+      }
+      where.location.assign(to);
+    });
+  }
+
   // Whether the server will answer a question that costs something — a word looked
   // up, a glossary waited for. The start-up key says yes on a machine somebody runs
   // themselves. Hosted there is no key: the session cookie is what lets the request
@@ -434,7 +478,7 @@ var targumReader = function () {
   // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
   // question about their evening. Built from the parts rather than sliced off an ISO
   // string, which is UTC and lands on the wrong day either side of midnight.
-  if (!PREVIEW) {
+  function recordVisit() {
     try {
       var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
       opened[documentId] = Date.now();
@@ -459,6 +503,21 @@ var targumReader = function () {
         if (window.TargumSync) window.TargumSync.touched();
       }
     } catch (e) {}
+  }
+  // Framed in the front page, the reader is a working reader, but a page that merely
+  // shows it is not a visit: the opening, the day and the foot are written at the first
+  // real press in it, and never for a reader who only looked.
+  if (!PREVIEW) recordVisit();
+  else {
+    var visited = false;
+    var firstPress = function () {
+      if (visited) return;
+      visited = true;
+      recordVisit();
+    };
+    ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (kind) {
+      window.addEventListener(kind, firstPress, { once: true, passive: true });
+    });
   }
 
   function read(name, fallback) {
@@ -5372,7 +5431,7 @@ var targumReader = function () {
   function nextChapter() {
     var link = pager && pager.querySelector("[data-next]");
     if (!link) return false;
-    location.href = link.getAttribute("href");
+    location.href = framed(link.getAttribute("href"));
     return true;
   }
 
@@ -6611,7 +6670,7 @@ var targumReader = function () {
     Array.prototype.forEach.call(carried, function (link) {
       var href = link.getAttribute("href");
       if (href && href.indexOf("?") === -1) {
-        link.setAttribute("href", keyed(href));
+        link.setAttribute("href", framed(keyed(href)));
       }
     });
   }

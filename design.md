@@ -1012,10 +1012,11 @@ operated rather than read. Added 2026-09-11; the reasons are in §12.
 **Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
 things sit on it as cards, `#fffdf9` (dark `#201e1b`), with a 1px rule and a shadow of
 `0 1px 2px` at 6% (dark 40%). The one pure-paper surface, `#fbf9f5`, is the reader's page
-— and, on the desk, the sheet: a text drawn as itself — the reader, framed as a picture
-of itself at the place it was left (`?preview=1`: it counts nothing as read and draws no
-bar), its title and one press under it — a shadow offset `2px 3px` as a page casts, no
-card chrome. The header is the ink bar, `#171614` with `#e6e1d8` text, the screen's one
+— and, on the desk, the sheet: a text drawn as itself — the reader, framed and working,
+at the place it was left (`?preview=1`: it draws no bar, keeps its own links in the
+frame, sends every other link to the page, and counts a visit at the first press rather
+than at being shown), its title, Expand and Open under it — a shadow offset `2px 3px` as
+a page casts, no card chrome. The header is the ink bar, `#171614` with `#e6e1d8` text, the screen's one
 inverted block; the reader keeps its own bar and never inverts. Fields are wells: a rule
 at `#cfc7b9`, the desk tone inside, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
@@ -1045,8 +1046,13 @@ with no rule between them, cards padded 20px, controls 40px tall and 44px under 
 pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
 The front page opens on the sheet and the conversation side by side, the sheet first on
 a phone. The conversation is the conversation page itself, framed without its bar
-(`/chat?embed=1`), so what is typed there is answered there and a text it opens opens
-in the page that holds the frame; both frames are same-origin only, in both directions.
+(`/chat?embed=1`), so what is typed there is answered there, and a text it offers opens
+in the sheet beside it; both frames are same-origin only, in both directions. The
+conversation can be put away (Hide on the card, Expand on the sheet): the sheet takes
+the row and grows to a reading height, and one pill in the primary, fixed at the foot of
+the window, brings the conversation back. Notifications — what is building, what is
+ready — are a bell in the ink bar with a count and a panel under it; nothing is fixed at
+the foot of the window but that pill.
 
 **Motion.** 120ms on hover and press, 200ms for a card arriving, none under
 `prefers-reduced-motion` (§8).

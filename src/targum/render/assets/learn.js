@@ -164,7 +164,7 @@
     // "0% of its words" on the first card a new reader sees is true and unkind; the
     // line starts once there is something to say.
     if (!reader.known) return "";
-    return Math.round(reader.known * 100) + "% of its words are ones you know";
+    return "You know " + Math.round(reader.known * 100) + "% of its words";
   }
 
   // The title in English under the Hebrew one, where the catalogue has one. An upload
@@ -250,10 +250,12 @@
     var panel = document.getElementById("carry");
     if (!reader) {
       sheet.hidden = true;
+      settleTalk();
       return;
     }
     door = door || { state: "carry" };
     sheet.hidden = false;
+    settleTalk();
     var heading = document.getElementById("carry-heading");
     if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue";
     trackLabel("carry-track", door.register);
@@ -266,7 +268,7 @@
       var parts = door.href.split("#");
       panel.href = keyed(parts[0]) + (parts[1] ? "#" + parts[1] : "");
     } else {
-      panel.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+      panel.href = keyed("/reader/" + readerPath(reader, door));
     }
     panel.setAttribute("data-entry", reader.entry || reader.id || "");
 
@@ -294,10 +296,18 @@
     drawFrame(reader, door);
   }
 
-  // The sheet's window (§13): the reader itself, framed at the place it was left, as a
-  // picture of itself — `preview=1` tells it so, and it counts nothing as read. Only
-  // where the door is the reader: a step up past the sequence is a library row, and a
-  // library row is not a text to look at.
+  // The reader's own path under `/reader/`: the text's opening page, or the page the
+  // conversation offered (`<name>/reader/<file>`), each segment encoded on its own.
+  function readerPath(reader, door) {
+    var path = door.path || reader.name + "/reader/index.html";
+    return path.split("/").map(encodeURIComponent).join("/");
+  }
+
+  // The sheet's window (§13): the reader itself, framed and working, at the place it
+  // was left — `preview=1` tells it it is on the front page, so it draws no bar, keeps
+  // its own links in the frame and counts a visit at the first press. Only where the
+  // door is the reader: a step up past the sequence is a library row, and a library
+  // row is not a text to look at.
   function drawFrame(reader, door) {
     var window_ = document.getElementById("carry-window");
     var frame = document.getElementById("carry-frame");
@@ -308,12 +318,110 @@
     }
     window_.hidden = false;
     frame.title = reader.title || "";
-    var src = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+    var src = keyed("/reader/" + readerPath(reader, door));
     src += (src.indexOf("?") < 0 ? "?" : "&") + "preview=1";
     // Set only when it changes: a frame reloads on every write to its address.
     if (frame.getAttribute("src") === src) return;
     frame.setAttribute("src", src);
   }
+
+  /* --- the conversation, put away and brought back ------------------------------
+   * "Let's make it so the chat can collapse and then be accessible through a sticky
+   * CTA ... the user should be able to expand the reader on the learn page, by
+   * minimizing the chat" (2026-09-11). One state, remembered in this browser: the
+   * conversation shown beside the sheet, or put away — the sheet takes the row and
+   * grows, and a pill at the foot of the window brings the conversation back. With no
+   * sheet to give the row to, the conversation is always shown.
+   */
+  var TALK = "targum:front-talk";
+  var talkAway = false;
+  try {
+    talkAway = localStorage.getItem(TALK) === "away";
+  } catch (e) {
+    talkAway = false;
+  }
+
+  function settleTalk() {
+    var front = document.getElementById("front");
+    var sheet = document.getElementById("carry-sheet");
+    var cta = document.getElementById("talk-cta");
+    var expand = document.getElementById("carry-expand");
+    if (!front) return;
+    var away = talkAway && !!sheet && !sheet.hidden;
+    front.classList.toggle("expanded", away);
+    if (cta) cta.hidden = !away;
+    if (expand) {
+      expand.textContent = away ? "Shrink" : "Expand";
+      expand.setAttribute("aria-pressed", away ? "true" : "false");
+    }
+  }
+
+  function putTalk(away) {
+    talkAway = away;
+    try {
+      if (away) localStorage.setItem(TALK, "away");
+      else localStorage.removeItem(TALK);
+    } catch (e) {
+      /* nothing to keep it in; the page still stands */
+    }
+    settleTalk();
+  }
+
+  function onPress(id, act) {
+    var control = document.getElementById(id);
+    if (control) control.addEventListener("click", act);
+  }
+  onPress("talk-hide", function () {
+    putTalk(true);
+  });
+  onPress("talk-cta", function () {
+    putTalk(false);
+  });
+  onPress("carry-expand", function () {
+    putTalk(!talkAway);
+  });
+  settleTalk();
+
+  /* --- a text offered in the conversation ----------------------------------------
+   * The framed conversation cannot open a page of its own; it offers the text to this
+   * page, which opens it in the sheet — "opened first in the reader on this page, then
+   * they can expand or go to the dedicated page" (2026-09-11). Same origin only, and
+   * only from the conversation's own frame.
+   */
+  var everything = [];
+  function offeredText(path) {
+    var name = "";
+    try {
+      name = decodeURIComponent(String(path).split("/")[0]);
+    } catch (e) {
+      name = String(path).split("/")[0];
+    }
+    if (!name) return;
+    var found = null;
+    everything.forEach(function (reader) {
+      if (!found && reader.name === name) found = reader;
+    });
+    var reader = found || { name: name, title: name, language: "he" };
+    drawCarry(reader, {
+      state: "carry",
+      heading: "From the conversation",
+      primary: true,
+      path: path,
+      meta: found ? undefined : "",
+    });
+    var sheet = document.getElementById("carry-sheet");
+    if (sheet && typeof sheet.scrollIntoView === "function") {
+      var still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      sheet.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
+    }
+  }
+  window.addEventListener("message", function (event) {
+    var talk = document.getElementById("talk-frame");
+    if (event.origin !== window.location.origin) return;
+    if (talk && talk.contentWindow && event.source !== talk.contentWindow) return;
+    var data = event.data || {};
+    if (data.type === "targum:open" && data.reader) offeredText(String(data.reader));
+  });
 
   /* --- what to read next ------------------------------------------------------
    *
@@ -690,7 +798,8 @@
       var readers = (data && data.readers) || [];
       var shared = (data && data.shared) || [];
       var trash = (data && data.trash) || [];
-      readers.concat(shared).forEach(function (reader) {
+      everything = readers.concat(shared);
+      everything.forEach(function (reader) {
         reader.opened = opened[reader.document] || 0;
       });
       // What you had open last, then what was built most recently.

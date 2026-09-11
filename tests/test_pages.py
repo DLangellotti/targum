@@ -185,7 +185,8 @@ def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
         < learn.index('id="carry-sheet"')
         < learn.index('id="talk-title"')
     )
-    assert 'id="carry-frame"' in learn and 'class="page-open" id="carry"' in learn
+    assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
+    assert 'id="carry-expand"' in learn and 'id="talk-hide"' in learn and 'id="talk-cta"' in learn
     for name, page in list(PAGES.items()) + [("embed", EMBED)]:
         assert page.count('font-family:"Source Sans 3"') == 2, (
             f"{name}: the chrome face, upright and italic"
@@ -911,14 +912,17 @@ def test_reader_links_are_percent_encoded() -> None:
 
 
 def test_every_page_with_the_header_can_follow_a_build() -> None:
-    """The strip lives in the shared header, and the script that draws it has to be on
-    every page that carries it — or a build followed on Learn vanishes on Library."""
+    """The bell lives in the shared header (2026-09-11: notifications in the top corner,
+    where a pill at the foot of the window used to be), and the script that draws it
+    has to be on every page that carries it — or a build followed on Learn vanishes on
+    Library."""
     strip = baked("building.js")
-    body = strip[strip.index('getElementById("building")') :][:60]
+    body = strip[strip.index('getElementById("notices-open")') :][:60]
     for name, page in PAGES.items():
         if 'class="site-head"' not in page:
             continue
-        assert 'id="building"' in page, f"{name} has no strip"
+        assert 'id="notices"' in page and 'id="notices-panel"' in page, f"{name} has no bell"
+        assert 'id="building"' not in page, f"{name} still carries the pill"
         assert body in page, f"{name} does not inline building.js"
 
 

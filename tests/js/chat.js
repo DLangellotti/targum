@@ -169,11 +169,12 @@ global.window.TargumSync = {
 // on the body and gives the window a `top` that is not itself, so the script takes its
 // framed branch — no conversation opened by itself, a text opened in the holding page,
 // the address replaced rather than pushed.
-const top = { location: { href: "" } };
 const replaced = [];
+// What the frame offers the page holding it (2026-09-11): a text to open in the sheet.
+const offered = [];
 if (payload.embed) {
   document.body.className = "chat embed";
-  global.window.top = top;
+  global.window.parent = { postMessage: (data) => offered.push(data) };
   global.window.history = {
     replaceState: (_state, _title, url) => {
       replaced.push(url);
@@ -417,8 +418,9 @@ function drawn() {
       turns: drawn(),
       cards: cards(),
       went: global.location.href,
-      wentTop: top.location.href,
+      offered,
       replaced,
+      freshHidden: !!byId["chat-new"].hidden,
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
       placeholder: byId["say"].placeholder,

@@ -1194,19 +1194,24 @@ def test_framed_in_the_front_page_nothing_opens_by_itself() -> None:
     assert "/chat/list" in page["asked"]
     assert page["hash"] == "" and page["replaced"] == [], "a front door, not a thread"
     assert page["list"] == ["First", "Second"] and page["turns"] == []
+    assert page["freshHidden"], "New has nothing to do until a conversation is open"
     whole = run(answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}})
     assert whole["hash"] == "#abc", "the page itself opens the newest"
 
 
-def test_a_line_in_the_frame_is_answered_there_and_a_text_opens_the_holding_page() -> None:
+def test_a_line_in_the_frame_is_answered_there_and_a_text_is_offered_to_the_page() -> None:
+    """A text the conversation opens is not a page it goes to: framed, it offers the
+    reader's path to the page holding the frame, which opens it in the sheet beside the
+    conversation (2026-09-11)."""
     page = run(
         embed=True,
         do=[{"type": "say", "text": "hello"}],
         answers={"/chat/list": TWO, "/chat/say": {"chat": "xyz", "turn": 1}},
     )
     assert page["posted"][0]["path"] == "/chat/say"
-    assert page["went"] == "" and page["wentTop"] == "", "answered here, nowhere else"
+    assert page["went"] == "" and page["offered"] == [], "answered here, nowhere else"
     assert [t["text"] for t in page["turns"]] == ["hello", ""]
+    assert not page["freshHidden"], "a conversation is open now: New has a job"
     row = run(
         embed=True,
         do=[{"type": "row", "id": "abc"}],
@@ -1232,9 +1237,9 @@ def test_a_line_in_the_frame_is_answered_there_and_a_text_opens_the_holding_page
             )
         },
     )
-    assert opened["went"] == "" and opened["wentTop"].endswith("/reader/x/reader/index.html?k=k"), (
-        "a text opens in the page that holds the frame"
-    )
+    assert opened["went"] == "" and opened["offered"] == [
+        {"type": "targum:open", "reader": "x/reader/index.html"}
+    ], "a text is offered to the page that holds the frame"
 
 
 def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:

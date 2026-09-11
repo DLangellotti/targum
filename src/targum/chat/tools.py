@@ -396,12 +396,12 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         row = _entry_row(entry, built.get(key))
         known = row.get("known_share")
         if known is not None:
-            row["because"] = f"{round(float(known) * 100)}% of its words are ones you know."
+            row["because"] = f"You know {round(float(known) * 100)}% of its words."
             row["known_line"] = level_module.words_in_ten(float(known))
             rank = (0.0, -float(known))
         elif entry.difficulty:
             row["because"] = (
-                f"{entry.difficulty}% of its words are ones a learner looks up; "
+                f"A learner looks up {entry.difficulty}% of its words; "
                 f"{entry.register.value} Hebrew, about {entry.minutes} minutes."
             )
             rank = (1.0, float(entry.difficulty))

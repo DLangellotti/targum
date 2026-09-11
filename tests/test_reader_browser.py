@@ -5310,23 +5310,29 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     assert len(loads) >= 2, "reopened once the audio was there"
 
 
-def test_a_preview_of_the_reader_counts_nothing_as_read(browser, built: Path) -> None:
-    """The front page frames the reader as a picture of itself (design.md §13,
-    2026-09-11), and a picture is not a visit: opened with `?preview=1` the reader
-    writes no opening and no reading day, and draws no bar — the page under it names
-    the text. Opened as itself, it writes both."""
+def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
+    browser, built: Path
+) -> None:
+    """The front page frames the reader, working (design.md §13, 2026-09-11), but a page
+    that merely shows it is not a visit: opened with `?preview=1` the reader writes no
+    opening and no reading day and draws no bar — the page under it names the text —
+    until the first real press in it, and then it writes both. Opened as itself, it
+    writes both at once."""
     context = browser.new_context(viewport={"width": 640, "height": 500})
     page = context.new_page()
     page.goto(address(built) + "?preview=1")
     page.wait_for_function("() => !!document.querySelector('.w')")
-    preview = page.evaluate(
-        """() => ({
+    state = """() => ({
           flagged: document.documentElement.classList.contains('preview'),
           bar: getComputedStyle(document.querySelector('.bar')).display,
           opened: localStorage.getItem('targum:opened'),
           days: localStorage.getItem('targum:days'),
         })"""
-    )
+    preview = page.evaluate(state)
+    page.mouse.click(320, 300)
+    pressed = page.evaluate(state)
+    assert preview["opened"] is None and preview["days"] is None, "shown is not visited"
+    assert pressed["opened"] and pressed["days"], "a press in it is"
     page.goto(address(built))
     page.wait_for_function("() => !!document.querySelector('.w')")
     visit = page.evaluate(

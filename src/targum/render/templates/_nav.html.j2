@@ -36,6 +36,20 @@
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
     </nav>
+    {#- Notifications, in the corner of every page (2026-09-11): what is building and
+        what is ready, and anything else the page has to say later. The bell carries a
+        count; the panel lists them, newest first, each with its own ×. It replaced the
+        pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
+    <div class="notices" id="notices">
+      <button type="button" id="notices-open" aria-expanded="false" aria-haspopup="dialog" aria-label="Notifications">
+        <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0"/></svg>
+        <span class="notices-count" id="notices-count" hidden></span>
+      </button>
+      <div class="notices-panel" id="notices-panel" role="dialog" aria-label="Notifications" hidden>
+        <p class="notices-empty" id="notices-empty">Nothing is building.</p>
+        <ul class="notices-list" id="notices-list"></ul>
+      </div>
+    </div>
     <div class="account" id="account">
       <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
         Sign in
@@ -62,14 +76,6 @@
     </div>
     <button type="button" data-theme-toggle aria-label="Switch theme"></button>
   </div>
-  {#- A build you can walk away from. One line, on every page, while anything of yours
-      is building or waiting — and when it is done, the link. The build was never
-      cancelled by leaving the page; it only looked that way. -#}
-  <p class="building" id="building" hidden>
-    <span id="building-text"></span>
-    <a id="building-link" hidden>Open</a>
-    <button type="button" id="building-dismiss" aria-label="Dismiss">×</button>
-  </p>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}
   <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>

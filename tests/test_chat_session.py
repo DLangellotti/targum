@@ -1036,7 +1036,7 @@ def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeyp
         "suggest_next",
         lambda ctx, args: {
             "suggestions": [
-                {"id": "ruth", "title": "רות", "because": "50% of its words are ones you know."},
+                {"id": "ruth", "title": "רות", "because": "You know 50% of its words."},
                 {"id": "esther", "title": "אסתר", "because": "Not measured yet."},
             ]
         },

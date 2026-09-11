@@ -23,22 +23,22 @@
       real thing rather than a score — §6: no invented currency. -#}
   <p class="known-line" id="known-line"></p>
 
-  <div class="front">
+  <div class="front" id="front">
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
-        reader, framed, at the place it was left, on the desk; under it the title, what
-        it is, and one press. The frame is a picture of the reader rather than the
-        reader (`preview=1`, and it counts nothing as read): a press anywhere on the
-        sheet opens the text in this page. The one pure-paper surface on the page, and
-        the brightest thing on it: the memory the front page protects is the text with
-        its English beside every line, so the front page shows one. -#}
+        reader, framed and working, at the place it was left, on the desk; under it the
+        title, what it is, Expand and one press to the reader's own page. The frame is
+        told it is on the front page (`preview=1`): it draws no bar, keeps its own links
+        inside itself, sends every other link to this page, and counts a visit at the
+        first real press rather than at being shown. The one pure-paper surface on the
+        page, and the brightest thing on it: the memory the front page protects is the
+        text with its English beside every line, so the front page shows one. -#}
     <section class="carry-on" aria-labelledby="carry-heading">
       <p class="label" id="carry-heading">Continue reading</p>
       <div class="page-sheet" id="carry-sheet" hidden>
         <span class="card-cover" id="carry-cover" aria-hidden="true" hidden></span>
         <div class="page-window" id="carry-window" hidden>
-          <iframe class="page-frame" id="carry-frame" title="" tabindex="-1" aria-hidden="true"></iframe>
+          <iframe class="page-frame" id="carry-frame" title=""></iframe>
         </div>
-        <a class="page-open" id="carry" href="/" aria-labelledby="carry-title"></a>
         <div class="page-foot">
           <bdi class="page-title" id="carry-title"></bdi>
           <p class="page-facts">
@@ -47,7 +47,14 @@
             <span class="card-meta" id="carry-meta"></span>
             <span class="carry-known" id="carry-known" hidden></span>
           </p>
-          <span class="open">Open</span>
+          <p class="page-actions">
+            {#- Expand puts the conversation away and gives the reader the row (2026-09-11:
+                "the user should be able to expand the reader on the learn page, by
+                minimizing the chat"); the conversation comes back by the pill at the
+                foot of the window. Open goes to the reader's own page. -#}
+            <button type="button" class="expand" id="carry-expand" aria-pressed="false">Expand</button>
+            <a class="open" id="carry" href="/">Open</a>
+          </p>
         </div>
       </div>
     </section>
@@ -55,16 +62,22 @@
     {#- The conversation, on the front page and named as one (2026-09-11): "I can't
         really tell that it's a chat", "I should not be sent to a new page". It is the
         conversation page itself, framed without its bar, so what is typed here is
-        answered here and a text it opens opens in this page. -#}
+        answered here, and a text it offers opens in the sheet beside it. Hide puts it
+        away; the pill at the foot of the window brings it back. -#}
     <section class="talk card" aria-labelledby="talk-title">
-      <h2 class="section-title" id="talk-title">Talk to targum</h2>
-      <p class="section-note">Ask for something to read, ask about a word, or paste a link.
-        targum answers in Hebrew at your level, with the English under every line.</p>
+      <div class="talk-head">
+        <h2 class="section-title" id="talk-title">Talk to targum</h2>
+        <button type="button" class="talk-hide" id="talk-hide" aria-label="Hide the conversation">Hide</button>
+      </div>
+      <p class="section-note">In Hebrew at your level, with the English under every line.</p>
       <div class="talk-window">
         <iframe class="talk-frame" id="talk-frame" title="Talk to targum" src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
       </div>
     </section>
   </div>
+  {#- The way back to a put-away conversation: one pill, fixed at the foot of the
+      window, in the primary. Drawn only while the conversation is hidden. -#}
+  <button type="button" class="talk-cta" id="talk-cta" hidden>Talk to targum</button>
 
   <section class="read" aria-labelledby="read-title">
     <h2 class="section-title" id="read-title">Read</h2>

@@ -414,6 +414,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The reader on the front page works, and the conversation can be put away. The sheet
+  is the reader itself, framed: a press in it marks a word, turns a page, opens a
+  chapter; its own links stay in the frame and every other link opens the page; a visit
+  is counted at the first press, not at being shown. Hide on the conversation's card,
+  or Expand on the sheet, puts the conversation away — the sheet takes the row and grows
+  to a reading height — and a pill fixed at the foot of the window brings it back; the
+  choice is remembered in the browser. A text the conversation offers opens in the
+  sheet first, beside the conversation, and Open goes to its own page. In the frame,
+  New is drawn only once a conversation is open, and the empty-state line is not drawn
+  at all (2026-09-11: "the 'new' button is completely pointless, and you turned this
+  back into a wall of text").
+- Notifications are a bell in the bar. What is building and what is ready used to be one
+  pill fixed at the foot of the window showing one build at a time; now the bell in the
+  top corner carries a count, and the panel under it lists every build, newest first,
+  each with Open when it is ready and its own ×. Putting a live build away still asks to
+  be told by email where the server can (2026-09-11).
+- Two lines said the active way (2026-09-11): the box's placeholder is "Write in Hebrew
+  or English", and a text's fit is "You know 62% of its words" on the sheet and in the
+  chat's suggestions.
+- Words you may already know gathers pages until at least ten words remain: a page of
+  fifty set against a ledger that held most of it came down to one or two words at a
+  time (2026-09-11).
 - Words you may already know works with checkboxes: one on every row, one at the head
   that checks the page, and "Mark checked as known" writes the checked words as known
   and passes over the rest, since they were looked at and left; "None of these" passes

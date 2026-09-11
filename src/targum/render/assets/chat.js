@@ -40,15 +40,29 @@
   // frame's own history is the holding page's history too.
   var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
 
-  // Where a text opens: the page itself, or, framed, the page holding the frame.
-  function go(url) {
-    var top = window;
-    try {
-      if (EMBED && window.top && window.top !== window) top = window.top;
-    } catch (e) {
-      top = window;
+  // Where a text opens. On the page itself, the reader. Framed in the front page, the
+  // text is offered to the page holding the frame, which opens it in the reader it
+  // already shows beside the conversation — "opened first in the reader on this page,
+  // then they can expand or go to the dedicated page" (2026-09-11) — so nothing typed
+  // here ever sends anybody away. `path` is the reader's own, `<name>/reader/<file>`.
+  function openReader(path) {
+    if (EMBED && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "targum:open", reader: path }, window.location.origin);
+      return;
     }
-    top.location.href = url;
+    window.location.href = bringing.door(path);
+  }
+  // Every door to a reader drawn in the thread — a card's Open, a path the model wrote —
+  // is a link; framed, the link is caught and offered the same way.
+  if (EMBED && document.addEventListener) {
+    document.addEventListener("click", function (event) {
+      var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!link || event.defaultPrevented) return;
+      var found = /\/reader\/([^?#]+)/.exec(link.getAttribute("href") || "");
+      if (!found) return;
+      event.preventDefault();
+      openReader(found[1]);
+    });
   }
 
   var current = "";
@@ -581,7 +595,7 @@
           if (!opening) return state;
           return bringing.follow(job.id).then(function (done) {
             if (done.stage === "done" && done.reader) {
-              go(bringing.door(done.reader));
+              openReader(done.reader);
             }
             return done;
           });
@@ -985,6 +999,7 @@
       drawHours(answer.hours);
       if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
       drawList();
+      showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
       // whose first answer is still streaming; otherwise the newest. A text sent there
       // with a line rides beside it as `job=<id>`, and its card follows in that thread.
@@ -1016,9 +1031,16 @@
     });
   }
 
+  // New has nothing to do until a conversation is open; framed, where none opens by
+  // itself, it is not drawn until then ("the 'new' button is completely pointless").
+  function showFresh() {
+    if (fresh && EMBED) fresh.hidden = !current;
+  }
+
   function open(id) {
     current = id;
     remember(id);
+    showFresh();
     if (thread) thread.hidden = false;
     drawList();
     turns.textContent = "";
@@ -1049,6 +1071,7 @@
   function startNew() {
     current = "";
     remember("");
+    showFresh();
     showList(false);
     drawList();
     turns.textContent = "";
@@ -1077,7 +1100,7 @@
         say(line);
       },
       open: function (reader) {
-        go(bringing.door(reader));
+        openReader(reader);
       },
       stuck: function () {
         field.placeholder = "The word, and the sentence it was in";

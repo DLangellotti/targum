@@ -229,7 +229,7 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     assert "ruth" not in ids, "already on the reader's own shelf"
     assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
     assert all(row["because"] for row in got["suggestions"])
-    assert got["suggestions"][0]["because"].startswith("50%")
+    assert got["suggestions"][0]["because"] == "You know 50% of its words."
 
 
 def test_check_job_answers_only_for_the_owner(world) -> None:

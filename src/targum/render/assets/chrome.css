@@ -122,7 +122,7 @@ body {
 @media (max-width: 46rem) {
   .site-head-row { flex-wrap: wrap; row-gap: 0; }
   .site-head-row::before { content: ""; order: 1; flex: 1 0 100%; height: 0; }
-  .site-head-row .account { margin-inline-start: auto; }
+  .site-head-row .notices { margin-inline-start: auto; }
   .site-head-row .site-nav { order: 2; margin-inline-start: 0; margin-block-start: 0.6rem; }
 }
 
@@ -288,53 +288,81 @@ body {
 .site-foot a { color: var(--ink-soft); text-decoration: none; }
 .site-foot a:hover { color: var(--ink); }
 
-/* The building pill: fixed at the foot of the window, at the end of the line, out of
-   the way of the page and on every page. One raised layer, a hairline, ink-soft for the
-   state, ink for the one thing to press, and the × the guidelines ask for. Putting it
-   away is asking to be told by email instead, and it says so once. */
-.building {
-  position: fixed;
-  inset-block-end: 1rem;
-  inset-inline-end: 1rem;
-  z-index: 30;
-  display: flex;
+/* Notifications (2026-09-11): a bell in the bar with a count, and a panel under it —
+   what is building, what is ready, and the × the guidelines ask for on each. It
+   replaced a pill fixed at the foot of the window. The same panel as the account's. */
+.notices { position: relative; }
+.notices > button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  padding: 0;
+  border: 1px solid rgb(255 253 249 / 0.25);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bar-ink);
+  cursor: pointer;
+}
+.notices > button:hover, .notices > button.on { background: rgb(255 253 249 / 0.1); }
+.notices .bell { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.notices-count {
+  position: absolute;
+  inset-block-start: -0.35rem;
+  inset-inline-end: -0.35rem;
+  min-inline-size: 1.05rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.05rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.notices-count[hidden] { display: none; }
+.notices-panel {
+  color: var(--ink);
+  font-family: var(--chrome);
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 0.4rem);
+  z-index: 20;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: 0.6rem 0.4rem;
+  border: 1px solid var(--overlay-rule, var(--rule));
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
+  text-align: start;
+}
+.notices-panel[hidden] { display: none; }
+.notices-empty { margin: 0.3rem 0.6rem; font-size: 0.8125rem; color: var(--ink-soft); }
+.notices-empty[hidden] { display: none; }
+.notices-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.notices-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.6rem;
-  max-width: min(22rem, calc(100vw - 2rem));
-  margin: 0;
-  padding-block: 0.45rem;
-  padding-inline: 0.9rem 0.6rem;
-  border: 1px solid var(--overlay-rule, var(--rule));
-  border-radius: 999px;
-  background: var(--paper-raised, var(--paper));
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+  padding: 0.5rem 0.6rem;
   font-size: 0.8125rem;
   color: var(--ink-soft);
+  line-height: 1.4;
 }
-.building[hidden] { display: none; }
-.building span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.building a { color: var(--ink); white-space: nowrap; }
-.building a[hidden] { display: none; }
-.building button {
-  flex: none;
+.notices-list li + li { border-block-start: 1px solid var(--rule); }
+.notices-list li.live { color: var(--ink); }
+.notices-list a { color: var(--teal); font-weight: 600; white-space: nowrap; text-decoration: none; }
+.notices-list a:hover { text-decoration: underline; }
+.notices-list button {
   border: 0;
   background: none;
   color: var(--ink-soft);
   font: inherit;
   line-height: 1;
   cursor: pointer;
+  padding: 0.1rem 0.2rem;
 }
-.building button:hover { color: var(--ink); }
-.building button[hidden] { display: none; }
-.building.promised { padding-inline-end: 0.9rem; }
-.building.promised span { white-space: normal; }
-
-/* On a narrow screen the building pill takes the foot of the window rather than a corner
-   it cannot fit in, clear of the phone's own bar (2026-09-11). */
-@media (max-width: 48rem) {
-  .building {
-    inset-inline: 0.75rem;
-    inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
-    max-inline-size: none;
-  }
-}
+.notices-list button:hover { color: var(--ink); }

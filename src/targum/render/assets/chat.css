@@ -448,4 +448,8 @@ body.embed .chat-thread {
   padding: 0.25rem 0.15rem;
 }
 body.embed .chat-turn.me { margin-inline-start: 10%; }
+/* The card around the frame says what this is; said again inside it, it was a wall of
+   text (2026-09-11). The chips say what to ask. */
+body.embed .chat-empty { display: none; }
+body.embed .chat-side-head { justify-content: flex-end; }
 body.embed .chat-turn.them { margin-inline-end: 6%; }

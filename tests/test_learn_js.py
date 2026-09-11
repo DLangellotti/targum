@@ -104,11 +104,65 @@ def test_the_text_you_are_carrying_on_with_shows_its_cover() -> None:
     assert drawn["carry"]["title"] == "תהילים"
     assert drawn["carry"]["cover"] is not None, "the panel carries one"
     assert drawn["carry"]["frame"].endswith("reader/index.html?k=k&preview=1"), (
-        "the sheet's window is the reader, told it is a picture"
+        "the sheet's window is the reader, told it is on the front page"
     )
     assert drawn["carry"]["href"].endswith("reader/index.html?k=k"), (
-        "and the whole box opens the book — the cover and the title are not their own links"
+        "and Open goes to the reader's own page"
     )
+    assert not drawn["talk"]["away"] and drawn["talk"]["ctaHidden"], "the conversation beside it"
+    assert drawn["carry"]["expand"] == "Expand"
+
+
+def test_the_conversation_can_be_put_away_and_the_pill_brings_it_back() -> None:
+    """2026-09-11: "the chat can collapse and then be accessible through a sticky CTA",
+    "expand the reader on the learn page, by minimizing the chat". Hide on the card, or
+    Expand on the sheet, puts the conversation away: the sheet takes the row, the pill
+    appears, and the choice is remembered in this browser. The pill brings it back."""
+    away = draw([reader("psalms-he", "תהילים", entry="psalms")], do=[{"press": "talk-hide"}])
+    assert away["talk"]["away"] and not away["talk"]["ctaHidden"]
+    assert away["talk"]["remembered"] == "away" and away["carry"]["expand"] == "Shrink"
+    back = draw(
+        [reader("psalms-he", "תהילים", entry="psalms")],
+        do=[{"press": "carry-expand"}, {"press": "talk-cta"}],
+    )
+    assert not back["talk"]["away"] and back["talk"]["ctaHidden"]
+    assert back["talk"]["remembered"] == "" and back["carry"]["expand"] == "Expand"
+    kept = draw(
+        [reader("psalms-he", "תהילים", entry="psalms")], stored={"targum:front-talk": "away"}
+    )
+    assert kept["talk"]["away"], "remembered across visits"
+    nothing = draw([], stored={"targum:front-talk": "away"})
+    assert not nothing["talk"]["away"] and nothing["talk"]["ctaHidden"], (
+        "with no sheet to give the row to, the conversation stays"
+    )
+
+
+def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
+    """2026-09-11: "if the user is offered a text in the chat, it should be opened first
+    in the reader on this page, then they can expand or go to the dedicated page". The
+    framed conversation posts the reader's path; the page draws it in the sheet with
+    what the shelf knows of it, and Open goes to its own page. A message from another
+    origin, or from anything but the conversation's frame, is ignored."""
+    shelf = [
+        reader("psalms-he", "תהילים", entry="psalms", opened=2),
+        reader("genesis-he", "בראשית", entry="genesis", opened=1),
+    ]
+    drawn = draw(shelf, do=[{"offer": "genesis-he/reader/sec-0003.html"}])
+    assert (
+        drawn["carry"]["title"] == "בראשית" and drawn["carry"]["heading"] == "From the conversation"
+    )
+    assert drawn["carry"]["frame"].endswith("genesis-he/reader/sec-0003.html?k=k&preview=1")
+    assert drawn["carry"]["href"].endswith("genesis-he/reader/sec-0003.html?k=k")
+    assert not drawn["talk"]["away"], "beside the conversation, not in its place"
+    unknown = draw(shelf, do=[{"offer": "negev-he/reader/index.html"}])
+    assert unknown["carry"]["title"] == "negev-he", "a text the shelf has not heard of yet"
+    assert unknown["carry"]["frame"].endswith("negev-he/reader/index.html?k=k&preview=1")
+    ignored = draw(
+        shelf, do=[{"offer": "genesis-he/reader/index.html", "origin": "https://elsewhere"}]
+    )
+    assert ignored["carry"]["title"] == "תהילים"
+    stranger = draw(shelf, do=[{"offer": "genesis-he/reader/index.html", "stranger": True}])
+    assert stranger["carry"]["title"] == "תהילים"
 
 
 def test_a_shelf_row_is_a_row_of_columns() -> None:
@@ -369,12 +423,12 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     page = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
     ).read_text(encoding="utf-8")
-    top = page[page.index('<div class="front">') : page.index('id="shelf-panel"')]
-    assert top.count('<a class="page-open" id="carry"') == 1, (
-        "carrying on is a link over the whole sheet: it goes to a reader (§13)"
+    top = page[page.index('<div class="front" id="front">') : page.index('id="shelf-panel"')]
+    assert top.count('<a class="open" id="carry"') == 1, (
+        "the sheet's Open goes to the reader's own page (§13)"
     )
-    assert 'id="carry-frame"' in top and "pointer-events" not in top, (
-        "the reader itself, framed; the stylesheet makes it a picture"
+    assert 'id="carry-frame"' in top and 'id="carry-expand"' in top, (
+        "the reader itself, framed and working, with Expand beside Open"
     )
     assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
     assert top.count('<a class="step"') == 2, (
@@ -661,12 +715,12 @@ def test_the_shared_text_stays_out_of_the_way_of_your_own() -> None:
 
 
 def test_nothing_known_is_not_said_on_the_first_card() -> None:
-    """ "0% of its words are ones you know" is true and unkind on the first card a new
-    reader sees. The line starts once there is something to say."""
+    """ "You know 0% of its words" is true and unkind on the first card a new reader
+    sees. The line starts once there is something to say."""
     drawn = draw([], shared=[reader("ruth", "רות", "ruth", known=0.0)])
     assert drawn["carry"]["known"] == ""
     later = draw([reader("a", "א", known=0.4)])
-    assert later["carry"]["known"] == "40% of its words are ones you know"
+    assert later["carry"]["known"] == "You know 40% of its words"
 
 
 def test_each_hebrew_has_its_own_door_whichever_was_built_last() -> None:
