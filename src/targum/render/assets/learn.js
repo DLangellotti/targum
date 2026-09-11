@@ -189,7 +189,7 @@
    * and the catalogue's nearest harder text is offered instead.
    */
   var TRACKS = { modern: "Modern Hebrew", biblical: "Biblical Hebrew" };
-  var STATES = { start: "Start here", carry: "Continue", next: "Up next", up: "A step up" };
+  var STATES = { start: "Start here", carry: "Continue reading", next: "Up next", up: "A step up" };
 
   var scenes = window.TargumScenes || null;
 

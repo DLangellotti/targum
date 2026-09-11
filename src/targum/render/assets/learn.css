@@ -461,8 +461,8 @@ body.learn .nothing .hint {
   border: 0;
   background: var(--paper);
 }
-/* The foot: the title in its own face, the facts under it, and Open at the end. */
-.page-foot {
+/* The head of the sheet: the title in its own face, the facts under it, and Open at the end. */
+.page-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -473,12 +473,12 @@ body.learn .nothing .hint {
   row-gap: 0.15rem;
   margin: 0;
   padding: 0.8rem 1.25rem 0.9rem;
-  border-block-start: 1px solid var(--hairline);
+  border-block-end: 1px solid var(--hairline);
   font-family: var(--chrome);
   font-size: 0.875rem;
   color: var(--ink-soft);
 }
-.page-window[hidden] + .page-foot { border-block-start: 0; padding-block: 1.25rem; }
+.page-head:has(+ .page-window[hidden]) { border-block-end: 0; padding-block: 1.25rem; }
 .page-title {
   grid-area: title;
   min-inline-size: 0;
@@ -506,10 +506,10 @@ body.learn .nothing .hint {
 .page-facts .card-track[hidden], .page-facts .card-meta:empty { display: none; }
 .page-english { font-family: var(--reading); font-size: 0.9375rem; color: var(--ink-soft); }
 .page-english[hidden] { display: none; }
-.page-foot .carry-known { color: var(--leaf); font-weight: 600; font-family: var(--chrome); font-size: 0.875rem; margin: 0; }
-.page-foot .carry-known[hidden] { display: none; }
+.page-head .carry-known { color: var(--leaf); font-weight: 600; font-family: var(--chrome); font-size: 0.875rem; margin: 0; }
+.page-head .carry-known[hidden] { display: none; }
 .page-actions { grid-area: actions; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
-.page-foot .open {
+.page-head .open {
   padding: 0.45rem 0.9rem;
   border-radius: var(--radius-control);
   background: var(--ink);
@@ -517,7 +517,7 @@ body.learn .nothing .hint {
   font-weight: 600;
   text-decoration: none;
 }
-.page-foot .open:hover { background: var(--teal); }
+.page-head .open:hover { background: var(--teal); }
 /* A card on the desk: what everything that is not the sheet sits in. */
 .card {
   background: var(--card);
@@ -537,7 +537,7 @@ body.learn .nothing .hint {
 .next { display: contents; }
 /* Small screens: the sheet and the cards keep their gutters, nothing runs past the edge. */
 @media (max-width: 26rem) {
-  .page-foot { padding-inline: 0.9rem; }
+  .page-head { padding-inline: 0.9rem; }
   .talk.card { padding: 0.9rem 0.9rem 1rem; }
   .front { gap: 1rem; }
 }
@@ -545,9 +545,9 @@ body.learn .nothing .hint {
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .card { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
 .page-sheet { border-radius: var(--radius-card); }
-.page-foot { border-block-start: 1px solid var(--hairline); }
-.page-foot .open { border-radius: 999px; background: var(--teal); color: var(--teal-ink); padding: 0.5rem 1rem; }
-.page-foot .open:hover { background: var(--teal); filter: brightness(1.08); }
+.page-head { border-block-end: 1px solid var(--hairline); }
+.page-head .open { border-radius: 999px; background: var(--teal); color: var(--teal-ink); padding: 0.5rem 1rem; }
+.page-head .open:hover { background: var(--teal); filter: brightness(1.08); }
 .step { border: 0; box-shadow: var(--shadow-raised); }
 .known-line { font-weight: 300; letter-spacing: -0.02em; }
 
@@ -567,14 +567,14 @@ body.learn .nothing .hint {
 #shelf-panel .list-controls h2 { font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; }
 .see-all { border: 0; border-radius: 999px; background: transparent; color: var(--teal); padding: 0.3rem 0.7rem; }
 .see-all:hover { background: var(--teal-wash); }
-.page-foot { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.page-head { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 /* How far through the text: a line along the top edge of the foot, the primary for the
    part read, the hairline for the rest (2026-09-11). */
-.page-foot { position: relative; }
+.page-head { position: relative; }
 .page-progress {
   position: absolute;
   inset-inline: 0;
-  inset-block-start: -1px;
+  inset-block-end: -1px;
   block-size: 3px;
   background: var(--hairline);
   overflow: hidden;
@@ -638,11 +638,6 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   margin-inline: auto;
   box-sizing: border-box;
 }
-/* The pill at the foot of every page stands over the sheet's corner: Open keeps
-   clear of it. */
-@media (min-width: 40.01rem) {
-  .page-foot { padding-inline-end: 12rem; }
-}
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
   .front { gap: 1rem; margin-block-end: 1rem; }
@@ -655,9 +650,9 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
     min-block-size: 20rem;
   }
   /* The foot is two lines and Open, clear of the round pill at the corner. */
-  .page-foot { padding: 0.55rem 4.25rem 0.65rem 1rem; row-gap: 0.1rem; }
-  .page-foot .page-title { font-size: 1.0625rem; }
-  .page-foot .card-track, .page-foot .card-meta { display: none; }
+  .page-head { padding: 0.55rem 1rem 0.65rem; row-gap: 0.1rem; }
+  .page-head .page-title { font-size: 1.0625rem; }
+  .page-head .card-track, .page-head .card-meta { display: none; }
   #shelf-panel, #trash-panel { margin-inline: 1rem; inline-size: auto; }
   body.learn .nothing { padding-inline: 1rem; }
 }

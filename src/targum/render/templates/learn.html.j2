@@ -45,11 +45,12 @@
     <section class="carry-on" aria-labelledby="carry-heading">
       <div class="page-sheet" id="carry-sheet" hidden>
         <span class="card-cover" id="carry-cover" aria-hidden="true" hidden></span>
-        <div class="page-window" id="carry-window" hidden>
-          <iframe class="page-frame" id="carry-frame" title=""></iframe>
-        </div>
-        <div class="page-foot">
-          {#- How far through the text the reader is, as a line along the foot's top
+        {#- The head of the sheet, above the text (2026-09-11: "I definitely don't know
+            what I'm looking at" with the title at the foot of a window the height of
+            the screen): the title in its own face, what it is, how far along, and
+            Open — so the first thing on the page says what the text is. -#}
+        <div class="page-head">
+          {#- How far through the text the reader is, as a line along the head's lower
               edge (2026-09-11); drawn only once something is finished. -#}
           <span class="page-progress" id="carry-progress" role="img" aria-label="" hidden></span>
           <bdi class="page-title" id="carry-title"></bdi>
@@ -63,6 +64,9 @@
             {#- Open goes to the reader's own page. -#}
             <a class="open" id="carry" href="/">Open</a>
           </p>
+        </div>
+        <div class="page-window" id="carry-window" hidden>
+          <iframe class="page-frame" id="carry-frame" title=""></iframe>
         </div>
       </div>
     </section>

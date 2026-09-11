@@ -364,7 +364,7 @@ def test_an_unfinished_text_of_your_own_is_the_door_whatever_the_catalogue_offer
     """The step up waits until the text last opened is finished: a door that swapped a
     half-read text for a harder one would be taking the reader's place away."""
     drawn = draw([reader("a", "א", difficulty=24, opened=1)], catalogue=CATALOGUE)
-    assert drawn["carry"]["heading"] == "Continue" and drawn["carry"]["title"] == "א"
+    assert drawn["carry"]["heading"] == "Continue reading" and drawn["carry"]["title"] == "א"
 
 
 def test_a_reader_with_nothing_is_handed_the_shared_text() -> None:
@@ -379,7 +379,7 @@ def test_a_reader_with_nothing_is_handed_the_shared_text() -> None:
 
 def test_the_shared_text_stays_out_of_the_way_of_your_own() -> None:
     drawn = draw([reader("a", "א")], shared=[reader("ruth", "רות")])
-    assert drawn["carry"]["heading"] == "Continue"
+    assert drawn["carry"]["heading"] == "Continue reading"
     assert drawn["carry"]["title"] == "א"
 
 
@@ -404,7 +404,7 @@ def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
     assert fresh["known"] == "Mark a word while reading and it starts here."
     biblical = draw([], {"targum:opened": json.dumps({"ruth": 7})}, shared=[holon, ruth])
     assert biblical["carry"]["track"] == "Biblical Hebrew" and biblical["carry"]["title"] == "רות"
-    assert biblical["carry"]["heading"] == "Continue"
+    assert biblical["carry"]["heading"] == "Continue reading"
     both = draw(
         [],
         {"targum:opened": json.dumps({"ruth": 7, "holon": 9})},
@@ -521,7 +521,10 @@ def test_a_text_of_another_register_opened_last_takes_the_sheet() -> None:
     drawn = draw(
         [mendele], {"targum:opened": json.dumps({"mendele-he": 9})}, shared=SCENES + [RUTH]
     )
-    assert drawn["carry"]["title"] == "מסעות בנימין" and drawn["carry"]["heading"] == "Continue"
+    assert (
+        drawn["carry"]["title"] == "מסעות בנימין"
+        and drawn["carry"]["heading"] == "Continue reading"
+    )
     assert drawn["carry"]["frame"].endswith("mendele-he/reader/index.html?k=k&preview=1")
     assert [row["title"] for row in drawn["shelf"]] == [], "not repeated below"
 
@@ -549,7 +552,7 @@ def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
     opened = {"targum:opened": json.dumps({"scene-01-nice-to-meet-you-he": 5})}
     first = dict(SCENES[0], fresh=12)
     drawn = draw([], opened, shared=[first, *SCENES[1:], RUTH])
-    assert drawn["carry"]["heading"] == "Continue"
+    assert drawn["carry"]["heading"] == "Continue reading"
     assert drawn["carry"]["meta"] == "Scene 1 of 3 · 12 words left · audio"
     assert drawn["known"] == "Mark a word while reading and it starts here."
 
@@ -589,7 +592,7 @@ def test_past_the_last_scene_the_modern_door_steps_up() -> None:
 def test_an_upload_takes_the_door_of_its_own_hebrew() -> None:
     mine = reader("mine-he", "שלי")
     drawn = draw([mine], {"targum:opened": json.dumps({"mine-he": 3})}, shared=SCENES + [RUTH])
-    assert drawn["carry"]["heading"] == "Continue" and drawn["carry"]["title"] == "שלי"
+    assert drawn["carry"]["heading"] == "Continue reading" and drawn["carry"]["title"] == "שלי"
     assert [row["title"] for row in drawn["shelf"]] == [], "the sheet's text is not repeated below"
 
 

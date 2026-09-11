@@ -433,7 +433,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   of the screen under it; the shelf keeps its reading width below. On a phone the sheet
   comes first, edge to edge, the height of the screen between the two bars, with the
   count and the shelf under it. On the front page the reader's kept list stays out of
-  the sheet.
+  the sheet. The sheet's title, what it is, how far you are and Open stand at its head,
+  above the text, so the first thing on the page says what you are looking at.
 - A conversation opened again keeps its cards (2026-09-11). The card a text was quoted
   on was drawn from the live stream only, so the drawer in a reader — reopened on every
   page — showed targum saying "press the card" over no card. Each answer now comes back
