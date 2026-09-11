@@ -44,9 +44,23 @@ require(path.join(assets, "claim.js"));
 
 (async () => {
   for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
+  const boxOf = (form) =>
+    (byId["claim-rows"].children || [])
+      .map((tr) => tr.children[0].children[0])
+      .find((box) => box.attrs["data-form"] === form);
   for (const step of payload.do || []) {
-    if (step.type === "yes") byId["claim-yes"].onclick();
+    // The button is a real one: disabled, a press does nothing, as in a browser.
+    if (step.type === "yes" && !byId["claim-yes"].disabled) byId["claim-yes"].onclick();
     if (step.type === "no") byId["claim-no"].onclick();
+    if (step.type === "check") {
+      const box = boxOf(step.form);
+      box.checked = step.on !== false;
+      box.onchange();
+    }
+    if (step.type === "all") {
+      byId["claim-all"].checked = step.on !== false;
+      byId["claim-all"].onchange();
+    }
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   }
   console.log(
@@ -54,10 +68,14 @@ require(path.join(assets, "claim.js"));
       asked,
       hidden: byId["claim-panel"].hidden,
       rows: (byId["claim-rows"].children || []).map((tr) => ({
-        form: tr.children[0].textContent,
-        meaning: tr.children[1].textContent,
-        band: tr.children[2].textContent,
+        form: tr.children[1].textContent,
+        meaning: tr.children[2].textContent,
+        band: tr.children[3].textContent,
+        checked: !!tr.children[0].children[0].checked,
+        labelled: tr.children[1].children[0].attrs["for"] === tr.children[0].children[0].id,
       })),
+      yesDisabled: !!byId["claim-yes"].disabled,
+      all: { checked: !!byId["claim-all"].checked, some: !!byId["claim-all"].indeterminate },
       said: byId["claim-said"].textContent,
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       passed: JSON.parse(global.localStorage.getItem("targum:claim-passed") || "{}"),

@@ -414,6 +414,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Words you may already know works with checkboxes: one on every row, one at the head
+  that checks the page, and "Mark checked as known" writes the checked words as known
+  and passes over the rest, since they were looked at and left; "None of these" passes
+  the page. It used to be all or nothing — "I know all of these" or "Not these"
+  (2026-09-11).
 - The chrome has a system of its own, the desk (design.md §13), and the front page is
   the first page on it: every chrome page stands on the desk in the chrome's own face,
   Source Sans 3, carried in the page like the Hebrew faces; the header is the ink bar;

@@ -42,23 +42,60 @@ def test_the_commonest_words_not_on_the_ledger_are_drawn_with_their_meanings() -
     got = run(pages=PAGES, ledger={"את": {"status": 9}})
     assert got["asked"] == ["/words/common?offset=0&limit=50"]
     assert [r["form"] for r in got["rows"]] == ["של", "הוא", "על"], "את is on the ledger"
-    assert got["rows"][0] == {"form": "של", "meaning": "m-של", "band": "easy"}
+    assert got["rows"][0]["meaning"] == "m-של" and got["rows"][0]["band"] == "easy"
     assert not got["hidden"]
+    assert all(not r["checked"] and r["labelled"] for r in got["rows"]), (
+        "a checkbox on each, unchecked, with the word as its label"
+    )
+    assert got["yesDisabled"] and got["all"] == {"checked": False, "some": False}, (
+        "nothing to mark until something is checked"
+    )
 
 
-def test_i_know_all_of_these_marks_the_page_known_for_real_and_moves_on() -> None:
-    got = run(pages=PAGES, do=[{"type": "yes"}])
+def test_the_checked_words_are_marked_known_for_real_and_the_rest_are_left() -> None:
+    """2026-09-11: "this should work with checkboxes, you can mark words you checked as
+    known". The checked ones become ordinary known words; the unchecked were looked at
+    and left, so they are passed over rather than shown again; the next page comes up."""
+    got = run(
+        pages=PAGES,
+        do=[{"type": "check", "form": "של"}, {"type": "check", "form": "הוא"}, {"type": "yes"}],
+    )
     marked = got["ledger"]
-    assert sorted(marked) == ["את", "הוא", "על", "של"]
+    assert sorted(marked) == ["הוא", "של"]
     assert all(row["status"] == 9 and row["learned"] == 0 for row in marked.values())
     assert marked["של"]["surface"] == "של" and marked["של"]["meaning"] == "m-של"
     assert marked["של"]["at"] < marked["הוא"]["at"], "kept in the order they were shown"
+    assert sorted(got["passed"]) == ["את", "על"], "looked at and left"
     assert got["touched"] == {"sync": 1, "lists": 1}, "the count above and the sync hear it"
-    assert got["said"] == "4 marked known."
+    assert got["said"] == "2 marked known."
     assert [r["form"] for r in got["rows"]] == ["זה", "לא"], "the next page"
+    assert got["yesDisabled"], "a fresh page, nothing checked yet"
+    nothing = run(pages=PAGES, do=[{"type": "yes"}])
+    assert nothing["ledger"] == {} and [r["form"] for r in nothing["rows"]] == [
+        "של",
+        "את",
+        "הוא",
+        "על",
+    ], "with nothing checked the press is not offered"
 
 
-def test_not_these_leaves_them_unmet_and_does_not_show_them_again() -> None:
+def test_check_all_checks_the_page_and_the_head_follows_the_rows() -> None:
+    """ "Also option to check all": one box at the head checks every row; unchecking a row
+    leaves the head half-checked, and unchecking the head clears the page."""
+    got = run(pages=PAGES, do=[{"type": "all"}])
+    assert all(r["checked"] for r in got["rows"]) and not got["yesDisabled"]
+    assert got["all"] == {"checked": True, "some": False}
+    part = run(pages=PAGES, do=[{"type": "all"}, {"type": "check", "form": "על", "on": False}])
+    assert [r["form"] for r in part["rows"] if r["checked"]] == ["של", "את", "הוא"]
+    assert part["all"] == {"checked": False, "some": True}
+    cleared = run(pages=PAGES, do=[{"type": "all"}, {"type": "all", "on": False}])
+    assert not any(r["checked"] for r in cleared["rows"]) and cleared["yesDisabled"]
+    whole = run(pages=PAGES, do=[{"type": "all"}, {"type": "yes"}])
+    assert sorted(whole["ledger"]) == ["את", "הוא", "על", "של"] and whole["passed"] == {}
+    assert whole["said"] == "4 marked known."
+
+
+def test_none_of_these_leaves_them_unmet_and_does_not_show_them_again() -> None:
     got = run(pages=PAGES, do=[{"type": "no"}])
     assert got["ledger"] == {} and sorted(got["passed"]) == ["את", "הוא", "על", "של"]
     assert [r["form"] for r in got["rows"]] == ["זה", "לא"]
@@ -69,7 +106,7 @@ def test_not_these_leaves_them_unmet_and_does_not_show_them_again() -> None:
 
 
 def test_the_end_of_the_list_and_another_language_show_nothing() -> None:
-    got = run(pages=PAGES, do=[{"type": "yes"}, {"type": "yes"}])
+    got = run(pages=PAGES, do=[{"type": "all"}, {"type": "yes"}, {"type": "all"}, {"type": "yes"}])
     assert got["hidden"] and got["said"] == "That is the whole list."
     assert sorted(got["ledger"]) == ["את", "הוא", "זה", "לא", "על", "של"]
     russian = run(pages=PAGES, language="ru")

@@ -15,6 +15,7 @@
   var rows = document.getElementById("claim-rows");
   var yes = document.getElementById("claim-yes");
   var no = document.getElementById("claim-no");
+  var all = document.getElementById("claim-all");
   var said = document.getElementById("claim-said");
   if (!panel || !rows || !yes || !no) return;
 
@@ -49,20 +50,52 @@
   }
 
   var shown = [];
+  var boxes = [];
   var offset = 0;
   var next = 0;
+
+  // What is checked, and the controls that follow it: the press is only offered once
+  // something is checked, and the head's box says whether all, some or none are.
+  function checked() {
+    return shown.filter(function (word, n) {
+      return boxes[n] && boxes[n].checked;
+    });
+  }
+  function settle() {
+    var count = checked().length;
+    yes.disabled = count === 0;
+    if (all) {
+      all.checked = shown.length > 0 && count === shown.length;
+      all.indeterminate = count > 0 && count < shown.length;
+    }
+  }
 
   function draw(words) {
     rows.textContent = "";
     shown = words;
-    words.forEach(function (word) {
+    boxes = [];
+    words.forEach(function (word, n) {
       var tr = document.createElement("tr");
+      var tick = document.createElement("td");
+      tick.className = "claim-tick";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "claim-check";
+      box.id = "claim-" + n;
+      box.setAttribute("data-form", word.form);
+      box.onchange = settle;
+      tick.appendChild(box);
+      tr.appendChild(tick);
+      boxes.push(box);
       var form = document.createElement("td");
+      var label = document.createElement("label");
+      label.setAttribute("for", box.id);
       var he = document.createElement("bdi");
       he.setAttribute("lang", "he");
       he.setAttribute("dir", "rtl");
       he.textContent = word.form;
-      form.appendChild(he);
+      label.appendChild(he);
+      form.appendChild(label);
       tr.appendChild(form);
       var meaning = document.createElement("td");
       meaning.textContent = word.meaning || "";
@@ -73,8 +106,17 @@
       rows.appendChild(tr);
     });
     panel.hidden = words.length === 0;
-    yes.disabled = false;
     no.disabled = false;
+    settle();
+  }
+
+  if (all) {
+    all.onchange = function () {
+      boxes.forEach(function (box) {
+        box.checked = all.checked;
+      });
+      settle();
+    };
   }
 
   // The next page the ledger does not already hold and the reader has not passed over.
@@ -115,13 +157,17 @@
     load(next);
   }
 
+  // The checked words are known; the rest of the page was looked at and left, so it is
+  // passed over with them rather than shown again.
   yes.onclick = function () {
-    if (!shown.length) return;
+    var known = checked();
+    if (!known.length) return;
     yes.disabled = true;
     no.disabled = true;
     var ledger = read(LEDGER, "{}");
+    var passed = read(PASSED, "{}");
     var now = Date.now();
-    shown.forEach(function (word, n) {
+    known.forEach(function (word, n) {
       if (ledger[word.form]) return;
       ledger[word.form] = {
         status: 9,
@@ -134,8 +180,12 @@
         seen: now + n,
       };
     });
+    shown.forEach(function (word) {
+      if (!ledger[word.form]) passed[word.form] = 1;
+    });
     write(LEDGER, ledger);
-    if (said) said.textContent = shown.length + " marked known.";
+    write(PASSED, passed);
+    if (said) said.textContent = known.length + " marked known.";
     if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
     if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
     onward();

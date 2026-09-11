@@ -385,9 +385,14 @@ table.rows tr.editor-row td {
   .panel { padding: 0.9rem 1rem 1rem; }
 }
 
-/* Words you may already know (targum-internal#245): the same rows as Your Words, and
-   two working controls at the foot — ink for the press that marks a page known, since
-   it asks the reader to act, and a bordered one to pass. */
+/* Words you may already know (targum-internal#245): the same rows as Your Words with a
+   checkbox on each and one at the head (2026-09-11), and two working controls at the
+   foot — ink for the press that marks the checked words known, since it asks the reader
+   to act, and a bordered one to pass. The checkbox is the browser's own, in the
+   primary, and the word beside it is its label, so the whole word is the target. */
+.claim-tick { inline-size: 1.5rem; padding-inline-end: 0; }
+.claim-check { margin: 0; inline-size: 1.05rem; block-size: 1.05rem; accent-color: var(--teal); cursor: pointer; }
+.claim-table label { cursor: pointer; }
 .claim-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-block-start: 0.75rem; }
 .claim-yes {
   font: inherit;

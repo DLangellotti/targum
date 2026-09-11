@@ -312,6 +312,9 @@ def test_words_you_may_already_know_stand_on_learn() -> None:
     raise the count for real, a page of the commonest words at a time."""
     learn = PAGES["learn"]
     assert learn.count('id="claim-panel"') == 1 and 'id="claim-yes"' in learn
+    assert 'id="claim-all"' in learn and 'aria-label="Check all"' in learn, (
+        "a checkbox at the head checks the page (2026-09-11)"
+    )
     assert "Words you may already know" in learn and "TargumClaim" in learn
     assert (
         learn.index('id="word-table"')
