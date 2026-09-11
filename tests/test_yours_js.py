@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_learn_js import vocabulary, word
+from test_learn_js import reader, vocabulary, word
 
 HARNESS = Path(__file__).resolve().parent / "js" / "yours.js"
 
@@ -177,3 +177,70 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
 def test_a_browser_with_nothing_kept_is_told_so() -> None:
     drawn = draw({})
     assert drawn["nothing"] and not drawn["shown"]
+
+
+# -- Your targums: the shelf rows (moved here from Learn on 2026-09-11) ---------------
+
+
+def test_a_shelf_row_is_a_row_of_columns() -> None:
+    """It was a stack of two-line entries with the controls floating off to the right —
+    three alignments in one row, which reads as none. One cell each now, under a heading
+    that says what it is."""
+    drawn = draw(
+        which="texts",
+        readers=[
+            reader(
+                "genesis-he",
+                "בראשית",
+                entry="genesis",
+                chapters=[{"number": n} for n in range(50)],
+                readyChapters=50,
+            )
+        ],
+    )
+    (row,) = drawn["shelf"]
+    assert drawn["head"] is False, "the columns are labelled"
+    assert row["title"] == "בראשית"
+    assert row["cover"] is not None
+    assert row["chapters"] == "50 chapters", (
+        "all of it bought, said as a count rather than a fraction"
+    )
+    assert "ago" in row["opened"] or row["opened"] == "not opened yet"
+    assert row["controls"] == ["Chapters", "Delete"]
+
+
+def test_a_text_with_one_part_says_so_rather_than_counting_to_one() -> None:
+    drawn = draw(which="texts", readers=[reader("article-he", "כתבה")])
+    (row,) = drawn["shelf"]
+    assert row["chapters"] == "—", "nothing to count, and nothing pretending there is"
+    assert row["controls"] == ["Delete"], "and no chapters to open"
+
+
+def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
+    """ "2 of 4" is a fraction with nothing to say what it is a fraction of."""
+    drawn = draw(
+        which="texts",
+        readers=[
+            reader(
+                "genesis-he",
+                "בראשית",
+                entry="genesis",
+                chapters=[{"number": n} for n in range(4)],
+                readyChapters=2,
+            )
+        ],
+    )
+    (row,) = drawn["shelf"]
+    assert row["chapters"] == "2 of 4 translated"
+
+
+def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
+    """Covers are drawn on the project's budget, for the library's own texts. Most of a
+    reader's shelf is their own, has no cover and never will, and a shelf of empty frames
+    would be worse than a shelf of letters — so the tile rests on the text's own first
+    letter instead."""
+    drawn = draw(which="texts", readers=[reader("ynet-he", "כתבה על משהו")])
+    (row,) = drawn["shelf"]
+    assert row["title"] == "כתבה על משהו"
+    assert row["cover"] is not None, "the row keeps its shape"
+    assert row["cover"]["letter"] == "כ", "and rests on the text's own letter"

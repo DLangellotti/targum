@@ -14,6 +14,7 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -21,6 +22,31 @@ if TYPE_CHECKING:
     from .mail import Mailer
 
 log = logging.getLogger(__name__)
+
+
+def _identity(folder: Path) -> dict[str, Any]:
+    """Which document an instalment's reader is, and how many sections it has.
+
+    The reader marks a section finished under the document's content hash, in this
+    browser (`targum:docs`), and Learn's subscriptions menu says when a followed
+    instalment has been read through (2026-09-11) — which it can only do if the series
+    names the document the same way the reader does. Read off `document.json` beside
+    the reader, the identity every shelf row already carries; nothing where the folder
+    has none, and the menu says nothing rather than something wrong.
+    """
+    import json
+
+    document = folder / "document.json"
+    if not document.is_file():
+        return {}
+    try:
+        content_hash = json.loads(document.read_text(encoding="utf-8")).get("content_hash", "")
+    except (json.JSONDecodeError, OSError, AttributeError):
+        return {}
+    if not content_hash:
+        return {}
+    sections = len(list((folder / "reader").glob("sec-*.html"))) or 1
+    return {"document": content_hash, "sections": sections}
 
 
 def _weekly() -> dict[str, Any]:
@@ -49,6 +75,7 @@ def _weekly() -> dict[str, Any]:
                 "name": LEVELS[edition.level].name,
                 "folder": folder(issue.id, edition.level),
                 "reader": f"/reader/{folder(issue.id, edition.level)}/reader/index.html",
+                **_identity(weekly.root() / folder(issue.id, edition.level)),
             }
             for edition in issue.editions
         ],
@@ -59,6 +86,7 @@ def _weekly() -> dict[str, Any]:
 def _parasha(schedule: str) -> dict[str, Any]:
     from .parasha import build as corpus
     from .parasha.calendar import Schedule, pointing_at
+    from .parasha.calendar import root as corpus_root
 
     out: dict[str, Any] = {
         "id": "parasha",
@@ -81,6 +109,7 @@ def _parasha(schedule: str) -> dict[str, Any]:
         "hebrew": portion.hebrew,
         "when": pointing_at().isoformat(),
         "reader": f"/parasha/read/{portion.folder}/reader/sec-0001.html",
+        **_identity(corpus_root() / "read" / portion.folder),
     }
     return out
 
@@ -109,6 +138,7 @@ def _daily() -> list[dict[str, Any]]:
                 "when": day.slug,
                 "reader": f"/{cycle.slug}/read/{day.slug}/reader/"
                 f"{corpus.opens_at(cycle.slug, day.day)}",
+                **_identity(corpus.folder_for(cycle.slug, day.day)),
             }
         out.append(one)
     return out

@@ -94,8 +94,10 @@ def test_learn_carries_what_belongs_to_the_reader() -> None:
     learn = PAGES["learn"]
     assert 'id="known-line"' in learn, "how much of the language you have"
     assert 'id="carry"' in learn, "what you came back for"
-    assert 'id="library-list"' in learn, "your shelf"
-    assert 'id="trash-list"' in learn, "your trash"
+    assert 'id="doors"' in learn, "the row: what is next, what you read lately, what you follow"
+    assert 'id="library-list"' not in learn and 'id="trash-list"' not in learn, (
+        "the shelf and the trash are Your targums since 2026-09-11"
+    )
     assert 'id="word-table"' not in learn and 'id="phrase-list"' not in learn, (
         "the lists left for Your Words on 2026-09-11: Learn is the room you learn in"
     )
@@ -174,10 +176,9 @@ def test_the_front_page_is_the_reader_s_own_highlight() -> None:
     a highlight of the reader". The chrome's face is carried in every page that wears the
     bar; the reader never loads it."""
     learn = PAGES["learn"]
-    assert (
-        learn.index('class="front"')
-        < learn.index('id="carry-sheet"')
-        < learn.index('id="shelf-panel"')
+    assert learn.index('class="front"') < learn.index('id="carry-sheet"')
+    assert 'id="shelf-panel"' not in learn and 'id="trash-panel"' not in learn, (
+        "nothing under the sheet since 2026-09-11: the shelf is the Recently read menu"
     )
     assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
     assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
@@ -751,15 +752,17 @@ def test_the_corner_is_a_circle_rather_than_an_address() -> None:
 
 
 def test_learn_caps_every_list_and_says_where_the_rest_is() -> None:
-    """A page somebody lands on with four hundred rows on it is not a landing page."""
+    """A page somebody lands on with four hundred rows on it is not a landing page. The
+    shelf itself left on 2026-09-11: the last few read are a menu in the row of doors,
+    drawn by the script, and the whole list is Your targums."""
     learn = PAGES["learn"]
-    assert 'id="shelf-more"' in learn and 'href="/texts"' in learn
+    assert 'id="doors"' in learn and 'id="library-list"' not in learn
 
 
 def test_nothing_on_learn_folds() -> None:
     """Phase 2 (2026-09-11): a shelf of five rows is not worth a control to put away."""
     learn = PAGES["learn"]
-    assert learn.count('class="fold"') == 0 and 'id="library-list"' in learn
+    assert learn.count('class="fold"') == 0
 
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
@@ -767,9 +770,9 @@ def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     one is. Not "a text you have built", either: the glosses are cached per lemma across
     every text and every reader, and a public text is built once for everybody, so most
     reading is opening something already made rather than making it."""
-    for page in (PAGES["learn"], PAGES["texts"]):
-        assert "A targum is an interactive bilingual text" in page
-        assert "A targum is a text you have built" not in page
+    page = PAGES["texts"]
+    assert "A targum is an interactive bilingual text" in page
+    assert "A targum is a text you have built" not in page
 
 
 @pytest.mark.parametrize(

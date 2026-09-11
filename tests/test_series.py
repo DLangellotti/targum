@@ -51,6 +51,39 @@ def test_the_weekly_s_instalment_carries_one_reader_a_level(
     assert level["reader"] == f"/reader/{level['folder']}/reader/index.html"
 
 
+def test_an_instalment_names_the_document_its_reader_is(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """Learn's subscriptions menu marks an instalment read through (2026-09-11), which it
+    can only do if the series names the document the way the reader does: the content
+    hash off `document.json` beside the reader, and how many sections it has. A folder
+    with no document says nothing rather than something wrong."""
+    import json
+
+    from targum import series
+    from targum.weekly.models import Edition, Issue, Level, folder
+
+    issue = Issue(
+        id="2026-09-07",
+        dated="2026-09-07",
+        title="מבט השבוע",
+        editions=[
+            Edition(level=Level.aleph, entry_id="e", folder="f", ok=True),
+            Edition(level=Level.bet, entry_id="g", folder="h", ok=True),
+        ],
+    )
+    built = tmp_path / folder("2026-09-07", Level.aleph)
+    (built / "reader").mkdir(parents=True)
+    (built / "document.json").write_text(json.dumps({"content_hash": "abc123"}), encoding="utf-8")
+    for n in (1, 2, 3):
+        (built / "reader" / f"sec-000{n}.html").write_text("<p>", encoding="utf-8")
+    monkeypatch.setattr("targum.weekly.index.readable", lambda: [issue])
+    monkeypatch.setattr("targum.weekly.index.root", lambda: tmp_path)
+    aleph, bet = series.current(public=False)[0]["instalment"]["levels"]
+    assert aleph["document"] == "abc123" and aleph["sections"] == 3
+    assert "document" not in bet and "sections" not in bet, "nothing built: nothing said"
+
+
 def test_a_series_that_cannot_be_read_is_left_out_rather_than_failing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

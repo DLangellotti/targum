@@ -89,38 +89,9 @@
 
   </div>
 
-  <section class="panel" id="shelf-panel">
-    <div class="list-controls">
-      {#- No fold since phase 2 (2026-09-11): a shelf of five rows is not worth a control
-          to put away. -#}
-      <h2><span>Your targums</span></h2>
-      <a class="see-all" id="shelf-more" href="/texts" hidden></a>
-    </div>
-    <div class="fold-body" id="shelf-body">
-      {#- What the word means, said once, where somebody first meets it. Not "a text you
-          have built": most reading is somebody opening a text that was already built, by
-          them or by anybody else, with its words already looked up. -#}
-      <p class="note what-is">A targum is an interactive bilingual text, optimised for
-        language learning.</p>
-      <p class="note" id="shelf-note"></p>
-      <div class="shelf-head" id="shelf-head" role="row" hidden>
-        <span></span>
-        <span>Text</span>
-        <span>Chapters</span>
-        <span>Last opened</span>
-        <span></span>
-      </div>
-      <ul class="books shelf-rows" id="library-list"></ul>
-      <p class="empty" id="shelf-empty" hidden></p>
-    </div>
-  </section>
-
-  {#- Only there when there is something in it. -#}
-  <section class="panel trash" id="trash-panel" hidden>
-    <h2>Trash</h2>
-    <p class="note">Kept for seven days.</p>
-    <ul class="books" id="trash-list"></ul>
-  </section>
+  {#- The shelf that stood here left on 2026-09-11 ("removed from underneath"): the
+      texts read lately are the Recently read menu in the row over the sheet, and the
+      whole list, with its chapters and its trash, is Your targums (`/texts`). -#}
 </main>
 
 {#- The first thing a new reader sees, so it is the onboarding now. It points at the

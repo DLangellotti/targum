@@ -701,14 +701,48 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 /* Its own on-state: reader.css paints `button.on` in ink, and it rides on this page. */
 .ways-item.on { background: var(--teal-wash); border-color: transparent; color: var(--teal); font-weight: 600; }
 .ways-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.ways-item .ways-name { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* When it was opened, quiet, after the title. */
+.ways-when { flex: 0 0 auto; color: var(--ink-soft); font-size: 0.8125rem; font-weight: 400; }
 /* A newest instalment not seen yet. */
 .ways-fresh {
+  flex: 0 0 auto;
   inline-size: 0.5rem;
   block-size: 0.5rem;
   border-radius: 50%;
   background: var(--teal);
   margin-inline-start: auto;
 }
+/* A text read through (2026-09-11): a check in leaf — green is progress (§4). */
+.ways-done {
+  flex: 0 0 auto;
+  display: inline-flex;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-start: auto;
+  color: var(--leaf);
+}
+.ways-done svg { inline-size: 100%; block-size: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ways-done + .ways-fresh { margin-inline-start: 0.4rem; }
+/* The way to the whole list, at the foot of the menu: a row like the others, in the
+   primary, over a hairline where two same-tone surfaces meet (§13). */
+.ways-link {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  box-sizing: border-box;
+  margin-block-start: 0.35rem;
+  padding: 0.55rem 0.75rem;
+  border-block-start: 1px solid var(--hairline);
+  border-radius: 0 0 var(--radius-control) var(--radius-control);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--teal);
+  text-decoration: none;
+}
+.ways-link:hover { background: var(--teal-wash); }
+.ways-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .way {
   font: inherit;
   font-family: var(--chrome);
@@ -726,7 +760,7 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 .way.on { background: var(--teal-wash); color: var(--teal); }
 .way:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 @media (hover: none) and (pointer: coarse) {
-  .way, .ways-item { min-block-size: 44px; }
+  .way, .ways-item, .ways-link { min-block-size: 44px; }
 }
 /* What this text is to the reader, over its title in the sheet's head. */
 .page-state {
@@ -742,20 +776,19 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   min-block-size: 24rem;
   max-block-size: none;
 }
-#shelf-panel,
-#trash-panel {
-  inline-size: 100%;
-  max-inline-size: 62rem;
-  margin-inline: auto;
-  box-sizing: border-box;
-}
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
   .front { gap: 1rem; margin-block-end: 1rem; }
   .front .learn-head { padding-inline: 1rem; }
-  .front .ways { align-self: stretch; }
+  /* The track takes the width, and its pills wrap to a second row when four of them
+     will not fit one (2026-09-11: Recently read joined the row, and at 320px three
+     labels ran 5px past the screen). Wrapped, the track is a rounded box, not a pill. */
+  .front .ways { align-self: stretch; flex-wrap: wrap; border-radius: var(--radius-sheet); }
   .front .way { flex: 1 1 auto; text-align: center; padding-inline: 0.6rem; font-size: 0.8125rem; }
-  .front .ways-menu-host { flex: 1 1 auto; display: flex; }
+  /* The menu hangs from the whole track, not from its own pill: a pill's width is a
+     word, and a Hebrew title in a menu that wide is one letter and an ellipsis. */
+  .front .ways { position: relative; }
+  .front .ways-menu-host { flex: 1 1 auto; display: flex; position: static; }
   .front .ways-menu { inset-inline: 0; min-inline-size: 0; }
   .page-sheet { border-radius: 0; box-shadow: none; }
   .page-window {
@@ -769,6 +802,5 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   .page-head .page-state { font-size: 0.6875rem; }
   .page-head .page-title { font-size: 1.0625rem; }
   .page-head .card-track, .page-head .card-meta, .page-head .page-english { display: none; }
-  #shelf-panel, #trash-panel { margin-inline: 1rem; inline-size: auto; }
   body.learn .nothing { padding-inline: 1rem; }
 }

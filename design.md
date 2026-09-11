@@ -1089,7 +1089,10 @@ Open, a Follow that is on; **tonal**, tint with the primary's text, the ordinary
 **ghost**, no fill, for Hide, Close and dismiss. All are pills. The bordered word-button
 is retired.
 The front page is the reader's own highlight (2026-09-11): the sheet across the row at
-a reading height, then the shelf, and nothing else. The lists of words and phrases are a
+a reading height, and nothing else. The shelf that stood under it left the same day: the
+texts read lately are a menu in the row of doors, Recently read — the last few, and the
+way to the whole list at its foot — and a text read through carries a check in leaf in
+that menu and in the subscriptions menu beside it, since green is progress (§4). The lists of words and phrases are a
 page behind the account, and so are the series to follow. The conversation lives on no
 page: one pill in the primary, fixed at the foot of every page, opens it as a drawer —
 from the edge on a laptop, up from the foot on a phone — holding the conversation page

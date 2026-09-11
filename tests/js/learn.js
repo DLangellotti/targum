@@ -2,10 +2,9 @@
  *
  *   node tests/js/learn.js payload.json
  *
- * The page a reader lands on: how many words they know, the three doors, the shelf, and
- * the two lists of what they are learning. What comes back is what each of those decided
- * — the count, the carry title and its cover, the shelf rows, and the word and phrase
- * rows the lists drew.
+ * The page a reader lands on: how many words they know, the row of doors and the two
+ * menus in it, and the sheet. What comes back is what each of those decided — the count,
+ * the doors and their menus' rows, the carry title and its cover.
  *
  * The two charts and the vocabulary editor are stubbed: they draw into an SVG and are not
  * what this is for. `collect()` is real, because the lists and the count are both drawn
@@ -170,6 +169,34 @@ function act(step) {
   if (step.changed) global.window.TargumLearn.changed();
 }
 
+/** One menu in the row, by its door's id: whether it is open, its rows — each with its
+ *  label, when it was opened, whether it is on, fresh (a dot) or done (a check) — and
+ *  the link at its foot, if it has one. */
+function menuOf(id) {
+  const press = withDoors(at("doors")).find((p) => p.attrs["data-door"] === id);
+  const host = press ? press.parentNode : null;
+  const box = host ? (host.children || []).find((c) => String(c.className).includes("ways-menu")) : null;
+  if (!box) return { open: false, items: [], link: null };
+  const wearing = (node, name) => String(node.className).includes(name);
+  const items = (box.children || []).filter((c) => wearing(c, "ways-item"));
+  const link = (box.children || []).find((c) => wearing(c, "ways-link"));
+  const part = (row, name) => ((row.children || []).find((c) => wearing(c, name)) || {}).textContent || "";
+  return {
+    open: !box.hidden,
+    label: press.textContent,
+    on: press.classList.contains("on"),
+    items: items.map((p) => ({
+      id: p.attrs["data-door"],
+      label: part(p, "ways-name") || p.textContent,
+      when: part(p, "ways-when"),
+      on: p.classList.contains("on"),
+      fresh: (p.children || []).some((c) => wearing(c, "ways-fresh")),
+      done: (p.children || []).some((c) => wearing(c, "ways-done")),
+    })),
+    link: link ? { label: link.textContent, href: link.href || "" } : null,
+  };
+}
+
 /** Every element carrying a door id under `node`, in document order. */
 function withDoors(node) {
   const out = [];
@@ -198,21 +225,10 @@ setTimeout(() => {
             .filter((p) => !String(p.className).includes("ways-item"))
             .map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
-      menu: (() => {
-        const list = withDoors(at("doors")).filter((p) => String(p.className).includes("ways-item"));
-        const box = list.length ? list[0].parentNode : null;
-        return {
-          open: box ? !box.hidden : false,
-          items: list.map((p) => ({
-            id: p.attrs["data-door"],
-            label: p.textContent,
-            fresh: (p.children || []).some((c) => String(c.className).includes("ways-fresh")),
-          })),
-        };
-      })(),
+      menu: menuOf("subscriptions"),
+      // Recently read (2026-09-11): the same shape, with the way to the whole list.
+      recent: menuOf("recent"),
       hands: Object.keys(global.window.TargumLearn || {}),
-      seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
-      shelfNote: at("shelf-note").textContent,
       carry: {
         english: at("carry-english").hidden ? "" : at("carry-english").textContent,
         known: at("carry-known").hidden ? "" : at("carry-known").textContent,
@@ -236,24 +252,6 @@ setTimeout(() => {
       talks,
       wheres,
       seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
-      head: at("shelf-head").hidden,
-      shelf: at("library-list").children.map((row) => {
-        const link = row.children[0];
-        const controls = row.children[1];
-        const cells = (link.children || []).map((child) => child.textContent);
-        // The title cell holds the Hebrew title and, under it, its English if any.
-        const what = link.children[1] || { children: [] };
-        const part = (name) => (what.children.find((c) => c.className === name) || {}).textContent || "";
-        return {
-          cover: tile(link),
-          // thumb, title, chapters, last opened — one cell each, in column order.
-          title: part("book-title") || cells[1] || "",
-          english: part("book-english"),
-          chapters: cells[2] || "",
-          opened: cells[3] || "",
-          controls: controls ? controls.children.map((c) => c.textContent) : [],
-        };
-      }),
     })
   );
 }, 30);

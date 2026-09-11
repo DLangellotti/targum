@@ -134,71 +134,79 @@ def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
     assert drawn["hands"] == ["open", "changed"], "what the drawer may ask of the page"
 
 
-def test_a_shelf_row_is_a_row_of_columns() -> None:
-    """It was a stack of two-line entries with the controls floating off to the right —
-    three alignments in one row, which reads as none. One cell each now, under a heading
-    that says what it is."""
+def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> None:
+    """David, 2026-09-11: "'my targums' removed from underneath, and added to a menu next
+    to the subscriptions ... titled something like 'Recently read', and it only shows the
+    last few and a link to full history". The reader's own texts opened lately, newest
+    first, five at most, each a row that puts the text in the sheet; All your targums at
+    the foot goes to the whole list. A text never opened is on that list and not here."""
+    shelf = [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+    shelf.append(reader("fresh", "חדש", built=200, opened=0))
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(8)})}
+    drawn = draw(shelf, stamps)
+    assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
+        ("Continue reading", True),
+        ("Recently read", False),
+    ]
+    recent = drawn["recent"]
+    assert [i["label"] for i in recent["items"]] == [f"ספר {n}" for n in range(5)], (
+        "the last few, newest first"
+    )
+    assert all("ago" in i["when"] or i["when"] == "just now" for i in recent["items"])
+    assert recent["link"] == {"label": "All your targums", "href": "/texts?k=k"}
+    assert not recent["open"] and not any(i["done"] for i in recent["items"])
+
+    pressed = draw(shelf, stamps, do=[{"door": "recent"}, {"door": "recent:r2"}])
+    assert pressed["carry"]["title"] == "ספר 2"
+    assert pressed["carry"]["heading"] == "Continue reading"
+    assert pressed["carry"]["frame"].endswith("r2/reader/index.html?k=k&preview=1")
+    assert [(d["label"], d["on"]) for d in pressed["doors"]] == [
+        ("Continue reading", False),
+        ("Recently read", True),
+    ], "the door says which way the sheet was reached"
+    assert [i["on"] for i in pressed["recent"]["items"]] == [False, False, True, False, False]
+    assert not pressed["recent"]["open"], "a press closes the menu"
+
+    none = draw([reader("fresh", "חדש", built=200)])
+    assert none["doors"] == [] and none["recent"]["items"] == [], (
+        "nothing opened yet: nothing recently read, and one door is no row"
+    )
+
+
+def test_a_text_read_through_carries_a_check_in_the_menu() -> None:
+    """2026-09-11: "once user has finished reading it, there should be some kind of mark
+    for that in the drop down menu, maybe a green checkmark". Every section finished, as
+    this browser records it, and the row says Finished; a half-read book says nothing."""
+    whole = reader("whole", "שלם", document="whole", sections=3, opened=3)
+    half = reader("half", "חצי", document="half", sections=2, opened=2)
+    one = reader("one", "אחד", document="one", opened=1)
+    docs = {
+        "whole": {"sections": {"1": 1, "2": 1, "3": 1}},
+        "half": {"sections": {"1": 1}},
+        "one": {"done": 1},
+    }
     drawn = draw(
-        [
-            reader("psalms-he", "תהילים", entry="psalms", opened=2),
-            reader(
-                "genesis-he",
-                "בראשית",
-                entry="genesis",
-                opened=1,
-                chapters=[{"number": n} for n in range(50)],
-                readyChapters=50,
-            ),
-        ]
+        [whole, half, one],
+        {
+            "targum:opened": json.dumps({"whole": 3, "half": 2, "one": 1}),
+            "targum:docs": json.dumps(docs),
+        },
     )
-
-    # The first goes into the carry panel; the shelf holds the rest.
-    (row,) = drawn["shelf"]
-    assert drawn["head"] is False, "the columns are labelled"
-    assert row["title"] == "בראשית"
-    assert row["cover"] is not None
-    assert row["chapters"] == "50 chapters", (
-        "all of it bought, said as a count rather than a fraction"
-    )
-    assert "ago" in row["opened"] or row["opened"] == "not opened yet"
-    assert row["controls"] == ["Chapters", "Delete"]
+    assert [(i["label"], i["done"]) for i in drawn["recent"]["items"]] == [
+        ("שלם", True),
+        ("חצי", False),
+        ("אחד", True),
+    ]
 
 
-def test_a_text_with_one_part_says_so_rather_than_counting_to_one() -> None:
-    drawn = draw(
-        [
-            reader("psalms-he", "תהילים", entry="psalms", opened=2),
-            reader("article-he", "כתבה", opened=1),
-        ]
-    )
-
-    (row,) = drawn["shelf"]
-    assert row["chapters"] == "—", "nothing to count, and nothing pretending there is"
-    assert row["controls"] == ["Delete"], "and no chapters to open"
-
-
-def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
-    """Covers are drawn on the project's budget, for the library's own texts. Most of a
-    reader's shelf is their own, has no cover and never will, and a shelf of empty frames
-    would be worse than a shelf of letters — so the tile rests on the text's own first
-    letter instead."""
-    drawn = draw(
-        [
-            reader("psalms-he", "תהילים", entry="psalms", opened=2),
-            reader("ynet-he", "כתבה על משהו", opened=1),
-        ]
-    )
-
-    (row,) = drawn["shelf"]
-    assert row["title"] == "כתבה על משהו"
-    assert row["cover"] is not None, "the row keeps its shape"
-    assert row["cover"]["letter"] == "כ", "and rests on the text's own letter"
-
-
-def test_an_empty_shelf_says_nothing_about_covers() -> None:
-    drawn = draw([])
-    assert drawn["carry"]["hidden"] is True
-    assert drawn["shelf"] == []
+def test_nothing_under_the_sheet() -> None:
+    """The shelf and the trash left Learn on 2026-09-11 for the Recently read menu and
+    Your targums."""
+    page = (
+        Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
+    ).read_text(encoding="utf-8")
+    assert 'id="library-list"' not in page and 'id="trash-panel"' not in page
+    assert 'id="shelf-more"' not in page and "<h2><span>Your targums</span></h2>" not in page
 
 
 # -- what you are learning -------------------------------------------------------
@@ -248,7 +256,8 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     page = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
     ).read_text(encoding="utf-8")
-    top = page[page.index('<div class="front" id="front">') : page.index('id="shelf-panel"')]
+    foot = "{% include '_foot.html.j2' %}"
+    top = page[page.index('<div class="front" id="front">') : page.index(foot)]
     assert top.count('<a class="open" id="carry"') == 1, (
         "the sheet's Open goes to the reader's own page (§13)"
     )
@@ -267,21 +276,6 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
 
 
 # -- how much of a list this page holds ------------------------------------------
-
-
-def test_the_shelf_shows_the_first_few_and_says_where_the_rest_are() -> None:
-    """Twelve texts is a page of twelve rows, and this is a page somebody lands on. The
-    top of the list belongs here; the list belongs on its own page."""
-    shelf = [reader(f"r{n}", f"ספר {n}", built=100 - n) for n in range(9)]
-    drawn = draw(shelf)
-    # One of the nine is the carry panel above, so eight are left for the shelf.
-    assert len(drawn["shelf"]) == 5, "five rows, whatever the shelf holds"
-    assert drawn["seeAll"]["shelf"] == "See all 8 →"
-
-
-def test_a_short_shelf_is_not_offered_a_page_of_its_own() -> None:
-    drawn = draw([reader("a", "א"), reader("b", "ב")])
-    assert drawn["seeAll"]["shelf"] == "", "one row left, and nowhere else to go"
 
 
 # -- folding a list away ---------------------------------------------------------
@@ -441,25 +435,6 @@ def test_a_text_with_no_uncommon_word_in_it_is_still_offered() -> None:
     assert drawn["carry"]["title"] == "סצנה"
 
 
-def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
-    """ "2 of 4" is a fraction with nothing to say what it is a fraction of."""
-    drawn = draw(
-        [
-            reader("psalms-he", "תהילים", entry="psalms", opened=2),
-            reader(
-                "genesis-he",
-                "בראשית",
-                entry="genesis",
-                opened=1,
-                chapters=[{"number": n} for n in range(4)],
-                readyChapters=2,
-            ),
-        ]
-    )
-    (row,) = drawn["shelf"]
-    assert row["chapters"] == "2 of 4 translated"
-
-
 def test_a_card_carries_the_title_in_english_under_the_hebrew() -> None:
     """Both doors, from the same field the library shows; an upload has none and the
     line stays away."""
@@ -536,7 +511,9 @@ def test_a_text_of_another_register_opened_last_takes_the_sheet() -> None:
         and drawn["carry"]["heading"] == "Continue reading"
     )
     assert drawn["carry"]["frame"].endswith("mendele-he/reader/index.html?k=k&preview=1")
-    assert [row["title"] for row in drawn["shelf"]] == [], "not repeated below"
+    assert [i["label"] for i in drawn["recent"]["items"]] == ["מסעות בנימין"], (
+        "and it is what was read lately"
+    )
 
 
 def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
@@ -609,7 +586,6 @@ def test_an_upload_takes_the_door_of_its_own_hebrew() -> None:
     mine = reader("mine-he", "שלי")
     drawn = draw([mine], {"targum:opened": json.dumps({"mine-he": 3})}, shared=SCENES + [RUTH])
     assert drawn["carry"]["heading"] == "Continue reading" and drawn["carry"]["title"] == "שלי"
-    assert [row["title"] for row in drawn["shelf"]] == [], "the sheet's text is not repeated below"
 
 
 def test_nothing_on_learn_says_ready() -> None:
@@ -778,12 +754,13 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     drawn = draw([mine], stored, series=[portion, digest])
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
+        ("Recently read", False),
         ("Subscriptions", False),
     ]
-    assert drawn["menu"] == {
-        "open": False,
-        "items": [{"id": "series:parasha", "label": "The weekly portion", "fresh": False}],
-    }, "one door however many subscriptions, with a menu under it"
+    assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
+    assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [
+        ("series:parasha", "The weekly portion", False)
+    ], "one door however many subscriptions, with a menu under it"
     assert drawn["carry"]["title"] == "ספר שלי"
     opened = draw([mine], stored, series=[portion, digest], do=[{"door": "subscriptions"}])
     assert opened["menu"]["open"], "the door opens its menu"
@@ -795,6 +772,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     )
     assert [(d["label"], d["on"]) for d in week["doors"]] == [
         ("Continue reading", False),
+        ("Recently read", False),
         ("The weekly portion", True),
     ], "the door says which subscription is in the sheet"
     both = dict(stored, **{"targum:follows": json.dumps({"parasha": 1, "weekly": 1})})
@@ -804,9 +782,71 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Weekly News Digest", True),
     ], "the newest lands in the sheet and is seen; the other keeps its dot"
     alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
-    assert alone["doors"] == [], "one door is no choice"
+    assert [d["label"] for d in alone["doors"]] == ["Continue reading", "Recently read"], (
+        "nothing followed: no subscriptions door"
+    )
     nothing = draw([], {})
     assert nothing["doors"] == [], "no text in the sheet, no row"
+
+
+def test_a_subscription_read_through_carries_a_check_in_its_menu() -> None:
+    """2026-09-11: "for anything in subscriptions, once user has finished reading it,
+    there should be some kind of mark". The series names the document its reader is and
+    how many sections it has; every one finished in this browser is a check on the row.
+    The weekly is three readers, one a level, and any of them read through counts."""
+    mine = reader("mine", "ספר שלי", document="d3", opened=5)
+    portion = {
+        "id": "parasha",
+        "name": "The weekly portion",
+        "page": "/parasha",
+        "instalment": {
+            "id": "haazinu",
+            "title": "Ha'azinu",
+            "hebrew": "האזינו",
+            "when": "2026-09-12",
+            "reader": "/parasha/read/haazinu/reader/sec-0001.html",
+            "document": "p-haazinu",
+            "sections": 2,
+        },
+    }
+    digest = {
+        "id": "weekly",
+        "name": "Weekly News Digest",
+        "page": "/weekly",
+        "instalment": {
+            "id": "2026-w37",
+            "title": "Issue 37",
+            "when": "2026-09-07",
+            "levels": [
+                {"level": "aleph", "reader": "/reader/a/reader/index.html", "document": "w-a"},
+                {"level": "bet", "reader": "/reader/b/reader/index.html", "document": "w-b"},
+            ],
+        },
+    }
+    stored = {
+        "targum:opened": json.dumps({"d3": 5}),
+        "targum:follows": json.dumps({"parasha": 1, "weekly": 1}),
+        "targum:series-seen": json.dumps({"parasha": "haazinu", "weekly": "2026-w37"}),
+    }
+
+    def marks(docs: dict[str, Any]) -> list[tuple[str, bool]]:
+        kept = dict(stored, **{"targum:docs": json.dumps(docs)})
+        drawn = draw([mine], kept, series=[portion, digest])
+        return [(i["label"], i["done"]) for i in drawn["menu"]["items"]]
+
+    assert marks({}) == [("The weekly portion", False), ("Weekly News Digest", False)]
+    assert marks({"p-haazinu": {"sections": {"1": 1}}}) == [
+        ("The weekly portion", False),
+        ("Weekly News Digest", False),
+    ], "one section of two is not read through"
+    assert marks({"p-haazinu": {"sections": {"1": 1, "2": 1}}, "w-b": {"done": 1}}) == [
+        ("The weekly portion", True),
+        ("Weekly News Digest", True),
+    ], "every section; and any level of the weekly"
+
+
+# The row over the sheet with one text of the reader's own and a suggestion (2026-09-11).
+ROW = ["Continue reading", "Suggested", "Recently read"]
 
 
 def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
@@ -828,7 +868,7 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
         "reader": "",
     }
     drawn = draw([mine], stored, suggest=pick)
-    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    assert [d["label"] for d in drawn["doors"]] == ROW
     pressed = draw([mine], stored, suggest=pick, do=[{"door": "suggested"}])
     assert (
         pressed["carry"]["title"] == "אסתר" and pressed["carry"]["heading"] == "Suggested for you"
@@ -847,7 +887,9 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
         "built on the shared shelf: framed in the sheet"
     )
     none = draw([mine], stored)
-    assert none["doors"] == [], "nothing suggested and nothing followed: one door, no row"
+    assert [d["label"] for d in none["doors"]] == ["Continue reading", "Recently read"], (
+        "nothing suggested and nothing followed: no Suggested door"
+    )
 
 
 def test_a_finished_suggestion_makes_way_for_the_next() -> None:
@@ -866,7 +908,7 @@ def test_a_finished_suggestion_makes_way_for_the_next() -> None:
     )
     asked = [a["path"] for a in drawn["asked"] if a["path"].startswith("/suggest")]
     assert asked == ["/suggest?skip=esther&k=k"], "finished, by catalogue id, and nothing else"
-    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    assert [d["label"] for d in drawn["doors"]] == ROW
     nothing_done = draw(
         [mine],
         {"targum:opened": json.dumps({"d3": 5})},
@@ -885,7 +927,7 @@ def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
     stored = {"targum:opened": json.dumps({"d3": 5})}
     catalogue = [entry("easy", "קל", 10), entry("harder", "קשה", 30), entry("hardest", "הכי", 50)]
     drawn = draw([mine], stored, catalogue=catalogue)
-    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    assert [d["label"] for d in drawn["doors"]] == ROW
     pressed = draw([mine], stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
     assert pressed["carry"]["meta"].startswith("A step up from what you have read")
@@ -906,5 +948,5 @@ def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
         entry("ruth", "רות", 12, register="biblical"),
     ]
     drawn = draw(built_all, stored, catalogue=catalogue, do=[{"door": "suggested"}])
-    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    assert [d["label"] for d in drawn["doors"]] == ROW
     assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"

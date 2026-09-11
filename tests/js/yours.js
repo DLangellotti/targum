@@ -58,7 +58,12 @@ global.fetch = (url) => {
   const clean = String(url).replace(/[?&]k=[^&]*/, "");
   asked.push(clean);
   const offset = Number((/offset=(\d+)/.exec(clean) || [0, 0])[1]);
-  const answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
+  let answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
+  // Your targums (2026-09-11): the shelf rows moved here from Learn, and so did the
+  // answer the shelf is drawn from.
+  if (clean.indexOf("/readers") === 0) {
+    answer = { readers: payload.readers || [], shared: [], trash: [], covers: true };
+  }
   return Promise.resolve({ json: () => Promise.resolve(answer) });
 };
 
@@ -84,6 +89,33 @@ function words() {
         well: cells[4],
       };
     });
+}
+
+/** A tile, if one was drawn there: its class, and the letter it rests on. */
+function tile(node) {
+  const found = (node.children || []).find((child) => String(child.className).includes("thumb"));
+  if (!found) return null;
+  const glyph = found.children[0];
+  return { className: found.className, letter: glyph ? glyph.textContent : "" };
+}
+
+/** The shelf rows: thumb, title, chapters, last opened — one cell each — and the controls. */
+function shelf() {
+  return at("library-list").children.map((row) => {
+    const link = row.children[0];
+    const controls = row.children[1];
+    const cells = (link.children || []).map((child) => child.textContent);
+    const what = link.children[1] || { children: [] };
+    const part = (name) => (what.children.find((c) => c.className === name) || {}).textContent || "";
+    return {
+      cover: tile(link),
+      title: part("book-title") || cells[1] || "",
+      english: part("book-english"),
+      chapters: cells[2] || "",
+      opened: cells[3] || "",
+      controls: controls ? controls.children.map((c) => c.textContent) : [],
+    };
+  });
 }
 
 /** Phrases, grouped the way the page grouped them: {text: [phrase, ...]}. */
@@ -133,6 +165,8 @@ function phrases() {
         said: part("claim-said").textContent,
       },
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
+      head: at("shelf-head").hidden,
+      shelf: shelf(),
     }),
   );
 })();

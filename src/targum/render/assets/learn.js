@@ -1,7 +1,7 @@
 /* Learn — the page you land on, and everything you are learning.
  *
- * How many words you know, then three doors — carry on, find something, bring your own —
- * then your shelf, then the words and phrases themselves. The count is one line rather
+ * How many words you know, then the row of doors — carry on, what is suggested, what you
+ * read lately, what you follow — over the sheet. The count is one line rather
  * than a panel of numbers: engagement is welcome and arcade is not (design.md §1), and
  * the charts that make an account of it live on Your Progress. That rule used to be
  * written "the reader is a reader rather than a player"; the sentence was withdrawn on
@@ -62,15 +62,16 @@
   }
 
   Array.prototype.forEach.call(
-    document.querySelectorAll(".site-nav a, .doors a[data-door], .see-all"),
+    document.querySelectorAll(".site-nav a, .doors a[data-door]"),
     function (link) {
       link.href = keyed(link.getAttribute("href"));
     }
   );
 
-  /* How much of each list this page holds. Learn is where you land, not where you study:
-     what belongs here is the top of each list and the way to the rest of it. */
-  var SHELF = 5;
+  /* How many texts the Recently read menu holds (2026-09-11: the shelf under the sheet
+     became a menu in the row, "the last few and a link to full history"). Learn is
+     where you land, not where you study: the top of the list and the way to the rest. */
+  var RECENT = 5;
 
   /* --- folding a panel away --------------------------------------------------
    *
@@ -445,15 +446,21 @@
     if (today) today.textContent = todayLine(series);
   }
 
-  // The row (David, 2026-09-11): Continue reading, Suggested, and your subscriptions.
-  // The conversation is the pill at the foot of the page — a "let's talk about it"
-  // here was one door too many — and whatever it offers opens in the sheet
-  // (`offeredText`). One door is no choice, and no row is drawn for it. The
+  // The row (David, 2026-09-11): Continue reading, Suggested, Recently read, and your
+  // subscriptions. The conversation is the pill at the foot of the page — a "let's
+  // talk about it" here was one door too many — and whatever it offers opens in the
+  // sheet (`offeredText`). One door is no choice, and no row is drawn for it. The
   // subscriptions are one door with a menu under it, however many there are ("I don't
   // feel this design can handle a user having many many subscriptions"): the door
-  // says Subscriptions, or the name of the one in the sheet.
+  // says Subscriptions, or the name of the one in the sheet. Recently read is the
+  // same shape (2026-09-11: the shelf that stood under the sheet, as a menu — the
+  // last few, and All your targums at its foot); a text read through is marked in
+  // either menu.
   var doors = [];
   var showing = null;
+  function kind(one) {
+    return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
+  }
   function drawDoors() {
     var row = document.getElementById("doors");
     if (!row) return;
@@ -462,16 +469,24 @@
       return one.reader;
     });
     var pills = shown.filter(function (one) {
-      return one.id.indexOf("series:") !== 0;
+      return kind(one) === "pill";
+    });
+    var recent = shown.filter(function (one) {
+      return kind(one) === "recent";
     });
     var series = shown.filter(function (one) {
-      return one.id.indexOf("series:") === 0;
+      return kind(one) === "series";
     });
-    row.hidden = !showing || pills.length + (series.length ? 1 : 0) < 2;
+    row.hidden = !showing || pills.length + (recent.length ? 1 : 0) + (series.length ? 1 : 0) < 2;
     pills.forEach(function (one) {
       row.appendChild(pill(one));
     });
-    if (series.length) row.appendChild(menu(series));
+    if (recent.length) {
+      row.appendChild(
+        menu({ id: "recent", label: "Recently read", items: recent, foot: { label: "All your targums", href: "/texts" } })
+      );
+    }
+    if (series.length) row.appendChild(menu({ id: "subscriptions", label: "Subscriptions", items: series }));
     markDoor(current);
   }
 
@@ -485,23 +500,34 @@
     return press;
   }
 
-  // The subscriptions door and its menu: one row per followed series, a dot on one
-  // whose newest instalment this browser has not seen yet.
-  function menu(series) {
+  // A door with a menu under it: one row per text, a dot on a followed series whose
+  // newest instalment this browser has not seen yet, a leaf check on a text read
+  // through (§4: green is progress), and at the foot, where the menu has one, the way
+  // to the whole list.
+  function menu(spec) {
     var host = el("div", "ways-menu-host");
-    var press = el("button", "way way-menu", "Subscriptions");
+    var press = el("button", "way way-menu", spec.label);
     press.type = "button";
-    press.setAttribute("data-door", "subscriptions");
+    press.setAttribute("data-door", spec.id);
     press.setAttribute("aria-haspopup", "menu");
     press.setAttribute("aria-expanded", "false");
     var list = el("div", "ways-menu");
     list.setAttribute("role", "menu");
     list.hidden = true;
-    series.forEach(function (one) {
-      var item = el("button", "ways-item", one.label);
+    spec.items.forEach(function (one) {
+      var item = el("button", "ways-item");
       item.type = "button";
       item.setAttribute("role", "menuitem");
       item.setAttribute("data-door", one.id);
+      if (one.lang) {
+        var name = el("bdi", "ways-name", one.label);
+        name.setAttribute("lang", one.lang);
+        item.appendChild(name);
+      } else {
+        item.appendChild(el("span", "ways-name", one.label));
+      }
+      if (one.when) item.appendChild(el("span", "ways-when", one.when));
+      if (one.done) item.appendChild(check());
       if (one.fresh) item.appendChild(el("span", "ways-fresh", ""));
       item.addEventListener("click", function () {
         fold();
@@ -509,6 +535,12 @@
       });
       list.appendChild(item);
     });
+    if (spec.foot) {
+      var more = el("a", "ways-link", spec.foot.label);
+      more.setAttribute("role", "menuitem");
+      more.href = keyed(spec.foot.href);
+      list.appendChild(more);
+    }
     function fold() {
       list.hidden = true;
       press.setAttribute("aria-expanded", "false");
@@ -535,6 +567,63 @@
     return host;
   }
 
+  // The mark on a text read through: a check in leaf, which on the desk means progress
+  // and nothing else (§4, §13). Drawn rather than typed, so it is a glyph and not a
+  // character a font may swap for a picture (§7).
+  function check() {
+    var mark = el("span", "ways-done");
+    mark.setAttribute("role", "img");
+    mark.setAttribute("aria-label", "Finished");
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M3 8.5l3.2 3.2L13 5");
+    svg.appendChild(path);
+    mark.appendChild(svg);
+    return mark;
+  }
+
+  // Read through, as this browser records it: every section of the document finished,
+  // or the scene marked finished the way the sequence counts it.
+  function isDone(reader) {
+    if (!reader || !reader.document) return false;
+    if (progress(reader) >= 1) return true;
+    return !!(scenes && reader.entry && scenes.finished(reader, stored("targum:docs")));
+  }
+
+  // A followed series' current instalment, read through: the document its reader is
+  // (the weekly is three, one a level, and any of them read counts), every section.
+  function instalmentDone(inst) {
+    if (!inst) return false;
+    var parts = inst.levels && inst.levels.length ? inst.levels : [inst];
+    return parts.some(function (part) {
+      return !!part.document && progress({ document: part.document, sections: part.sections || 1 }) >= 1;
+    });
+  }
+
+  // Recently read (2026-09-11): the reader's own texts opened lately, newest first, as
+  // rows of a menu that put each in the sheet; the way to the whole list at its foot.
+  function recentDoors(readers) {
+    return readers
+      .filter(function (reader) {
+        return reader.opened > 0;
+      })
+      .slice(0, RECENT)
+      .map(function (reader) {
+        return {
+          id: "recent:" + reader.name,
+          label: reader.title,
+          lang: reader.language || "",
+          when: ago(reader.opened),
+          done: isDone(reader),
+          reader: reader,
+          door: { id: "recent:" + reader.name, state: "carry", primary: true, register: reader.register },
+        };
+      });
+  }
+
   var current = "";
   function markDoor(id) {
     current = id;
@@ -544,7 +633,10 @@
     presses = presses.concat(Array.prototype.slice.call(row.querySelectorAll(".ways-item")));
     presses.forEach(function (press) {
       var mine = press.getAttribute("data-door");
-      var on = mine === id || (mine === "subscriptions" && id.indexOf("series:") === 0);
+      var on =
+        mine === id ||
+        (mine === "subscriptions" && id.indexOf("series:") === 0) ||
+        (mine === "recent" && id.indexOf("recent:") === 0);
       press.classList.toggle("on", on);
       press.setAttribute("aria-pressed", on ? "true" : "false");
       // The subscriptions door says which one is in the sheet.
@@ -609,6 +701,7 @@
         id: "series:" + one.id,
         label: one.name,
         fresh: !!unseen[one.id],
+        done: instalmentDone(inst),
         reader: { name: "", title: inst.hebrew || inst.title, english: inst.hebrew ? inst.title : "", language: "he" },
         door: {
           id: "series:" + one.id,
@@ -826,7 +919,6 @@
     .then(function (data) {
       var readers = (data && data.readers) || [];
       var shared = (data && data.shared) || [];
-      var trash = (data && data.trash) || [];
       everything = readers.concat(shared);
       everything.forEach(function (reader) {
         reader.opened = opened[reader.document] || 0;
@@ -867,7 +959,6 @@
         var handed = shared.filter(function (reader) {
           return base(reader.language) === code;
         });
-        var inDoors = [];
         if (code === lang.HOME) {
           // Hebrew: two tracks, one sheet. The track opened most recently takes it; on
           // a first sign-in modern does, and the Biblical track is on the Library.
@@ -883,13 +974,14 @@
           }
           door.primary = true;
           door.id = "main";
-          doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }];
+          doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }].concat(
+            recentDoors(mine)
+          );
           // Modern first; past the whole modern catalogue, whatever is left in any
           // register, so a reader who has built every modern text is still offered one.
           fallbackPick = stepUp(code, readers.concat(shared), "modern") || stepUp(code, readers.concat(shared), "");
           if (door.reader) {
             drawCarry(door.reader, door);
-            inDoors.push(door.reader);
           } else {
             // Past the scenes: the catalogue's next step, as a link to its library row;
             // and past the catalogue, the Biblical track's own start.
@@ -897,7 +989,6 @@
             if (!up && biblical.reader) {
               biblical.primary = true;
               drawCarry(biblical.reader, biblical);
-              inDoors.push(biblical.reader);
             } else if (up) {
               drawCarry(
                 {
@@ -924,21 +1015,10 @@
           // One track: carry on with your own, or start on what was handed to you.
           var start = !mine.length && handed.length ? handed[0] : null;
           var carrying = mine[0] || start;
-          doors = [];
+          doors = recentDoors(mine);
           drawCarry(carrying, { state: start ? "start" : "carry", primary: !!carrying });
-          if (carrying) inDoors.push(carrying);
         }
         drawDoors();
-        // The rest of the shelf. Repeating the one above it would be a list whose first
-        // row is the thing already filling the top of the page.
-        shelf.draw(
-          code,
-          readers.filter(function (reader) {
-            return inDoors.indexOf(reader) < 0;
-          }),
-          { limit: SHELF, note: "Last read first." }
-        );
-        shelf.trash(code, trash);
         // Meanings in the language this reader last read this one into, for the count.
         var store = charts.collect(charts.meaningLanguage(code))[code];
         drawKnown(code, store);
