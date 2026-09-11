@@ -606,8 +606,12 @@ thirty days, does the alpha reader open something she found by asking, unprompte
 goes to the library instead, the door was not the problem and the box goes back to a page.
 
 One more door on a page that is not this one: the gloss card in the reader gains Ask,
-and the answer lives in the card, two turns at most, in English, about the text — what
-the form is, why it is that form here — with "Continue in chat" as the way on. The reader
+and the answer lives in the card, two turns at most, about the text — what the form is,
+why it is that form here — with "Continue in chat" as the way on. (Amended 2026-09-11:
+the card's answer was in English for everyone; it is now in Hebrew at the reader's
+level like every other line of the conversation, since a note of where the reader is
+decides what the answer is about and never its language. Only a scripture-only shelf
+still opens the conversation in English.) The reader
 stays a reader: full page, nothing beside it, and still fetching nothing — the card talks
 to its own origin the way a gloss does today, on the reader's press. Ask is a working
 action and takes the accent; the field and the button are in the thumb registry.

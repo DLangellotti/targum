@@ -484,8 +484,9 @@ def test_a_question_from_a_card_carries_where_the_reader_is_and_is_answered_in_e
     tmp_path: Path,
 ) -> None:
     """The reader's note — text, section, sentence, word — rides in the turn the model
-    sees and not in what the page shows back; and the conversation it opens is in
-    English, about the text, whatever the shelf would otherwise have offered."""
+    sees and not in what the page shows back; and the conversation it opens is the
+    conversation, in Hebrew at their level (2026-09-11: "word note should also be
+    written in Hebrew at your level. This should be a general rule")."""
     from targum.chat import hebrew
 
     library, store = world(tmp_path)
@@ -505,14 +506,14 @@ def test_a_question_from_a_card_carries_where_the_reader_is_and_is_answered_in_e
         "lemma": "לחץ",
     }
     asked = chats.say(person, home, "", "why לחצו and not לחץ?", admin=False, about=about)
-    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "find"
+    assert store.chat_owned(person.id, asked.chat_id)["mode"] == "talk"
     turns = store.chat_turns(asked.chat_id)
     assert turns[0]["said"] == "why לחצו and not לחץ?", "the page shows what was asked"
     assert "The reader is reading the text שופטים, section 1." in turns[0]["content"]
     assert "They tapped the word וַיִּלְחֲצוּ (dictionary form לחץ)." in turns[0]["content"]
     assert about["sentence"] in turns[0]["content"]
     chats.answer(asked)
-    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[0]["system"][0]["text"]
+    assert hebrew.CONTRACT.splitlines()[0] in client.requests[0]["system"][0]["text"]
     assert "the word they tapped" in client.requests[0]["system"][0]["text"]
 
 
@@ -655,8 +656,9 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     tmp_path: Path,
 ) -> None:
     """targum-internal#218: with a pool on the box, a Hebrew turn carries a few Tatoeba
-    sentences inside the reader's words after the breakpoint; a conversation opened in
-    English about a text carries none; a box with no pool carries none."""
+    sentences inside the reader's words after the breakpoint; a word's card asks the
+    same conversation and carries them too (2026-09-11); a conversation opened in
+    English by a scripture-only shelf carries none; a box with no pool carries none."""
     from targum.chat import exemplars
 
     pool = exemplars.load(Path(__file__).parent / "fixtures" / "exemplars.jsonl")
@@ -694,12 +696,24 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
         about={"document": "genesis", "section": "1", "surface": "בָּרָא", "lemma": "ברא"},
     )
     chats.answer(found)
-    assert "Sentences a Hebrew speaker wrote" not in client.requests[1]["system"][1]["text"]
+    assert "Sentences a Hebrew speaker wrote" in client.requests[1]["system"][1]["text"]
 
     bare = session_module.Chats(library, store, client_factory=lambda: client, exemplars=[])
     again = bare.say(person, home, "", "Good morning", admin=False)
     bare.answer(again)
     assert "Sentences a Hebrew speaker wrote" not in client.requests[2]["system"][1]["text"]
+
+    folder = home / "judges-he" / "reader"
+    folder.mkdir(parents=True)
+    (folder / "index.html").write_text("<html></html>", encoding="utf-8")
+    (home / "judges-he" / "document.json").write_text(
+        json.dumps({"title": "judges-he", "language": "he", "source": "sefaria:Judges"}),
+        encoding="utf-8",
+    )
+    assert not library.talks(home, person.id), "scripture and nothing else"
+    scripture = chats.say(person, home, "", "where was I", admin=False)
+    chats.answer(scripture)
+    assert "Sentences a Hebrew speaker wrote" not in client.requests[3]["system"][1]["text"]
 
 
 def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
@@ -1103,7 +1117,7 @@ def test_a_line_from_inside_the_text_stays_in_hebrew_at_their_level(tmp_path: Pa
     """2026-09-11: "the chat with the reader should be in Hebrew at your level". A note
     that names the sentence and no word — the drawer in a reader — keeps the
     conversation as it is: talk mode, the Hebrew contract, and the sentence in the turn
-    the model sees. Naming a word still opens it in English about the form."""
+    the model sees."""
     from targum.chat import hebrew
 
     library, store = world(tmp_path)

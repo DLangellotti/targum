@@ -680,10 +680,10 @@ class Chats:
 
         `about` is where the reader is — the text, the section, the sentence, and, from
         a word's card, the word. It rides in the turn the model sees and not in what the
-        page shows back. Naming a word opens the conversation in English: a question
-        about a form is answered about the form, whatever the reader's shelf. Naming only
-        the sentence (the drawer in a reader, 2026-09-11) keeps the conversation as it
-        is, in Hebrew at their level, about the text.
+        page shows back, and it decides what the answer is about — the form, the
+        sentence — and never its language: the conversation is in Hebrew at their level
+        wherever it is held (2026-09-11), and only a scripture-only shelf opens it in
+        English (`Library.talks`).
         `brought` is the text the reader sent with the line, from its own job: it rides
         the same way, and the conversation keeps its language.
         """
@@ -694,11 +694,10 @@ class Chats:
             # One conversation, in Hebrew, for a reader with modern Hebrew to hold it in;
             # a scripture-only reader is answered in English, about the text. The same
             # question the page asks (`talk` on `/chat/list`), answered the same way.
-            # A question from a word's card is about the text, in English, for everyone.
-            # A line from the drawer in a reader (2026-09-11) names the sentence and no
-            # word: that is the conversation, in Hebrew at their level, about the text.
-            tapped = bool(about and about.get("surface"))
-            mode = "talk" if self.library.talks(home, person_id) and not tapped else "find"
+            # A note of where the reader is — a word's card, the drawer in a reader —
+            # changes what the answer is about and never its language (2026-09-11: "the
+            # chat with the reader should be in Hebrew at your level ... a general rule").
+            mode = "talk" if self.library.talks(home, person_id) else "find"
             chat_id = self.store.chat_open(person_id, mode=mode)
         n = self.store.chat_say(
             chat_id, "user", framed(text, about, brought), text, stage="working"

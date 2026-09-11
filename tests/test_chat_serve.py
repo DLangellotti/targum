@@ -385,7 +385,8 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
 
 def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -> None:
     """`about` is strings, capped, and only the fields the card sends; a note with no
-    word and no sentence is no note. The conversation it opens is the English kind."""
+    word and no sentence is no note. The conversation it opens is the one conversation,
+    in Hebrew at their level (2026-09-11)."""
     port, key, store, chats = chatting
     status, asked, _ = call(
         port,
@@ -413,7 +414,7 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
     assert "The card shows the meaning: press; oppress" in turn["content"]
     assert "m" * 300 not in turn["content"], "capped too"
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
-    assert whole["chat"]["mode"] == "find"
+    assert whole["chat"]["mode"] == "talk"
 
     status, asked, _ = call(
         port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "about": {"colour": "x"}}
