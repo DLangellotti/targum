@@ -781,3 +781,18 @@ def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkey
     assert [row["id"] for row in got["suggestions"]] == ["m", "b"], (
         "nothing read yet: catalogue order"
     )
+
+
+def test_suggest_next_leaves_out_what_the_page_says_is_finished(world) -> None:
+    """`skip` (2026-09-11): catalogue ids the browser records as finished are left out
+    before the cut, so the next text that fits is always in reach — live, the top ten
+    were all finished scenes, and skipping after the cut left nothing."""
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    everything = [row["id"] for row in tools.suggest_next(ctx, {"limit": 10})["suggestions"]]
+    assert everything[0] == "esther"
+    got = tools.suggest_next(ctx, {"limit": 10, "skip": ["esther"]})
+    ids = [row["id"] for row in got["suggestions"]]
+    rest = [one for one in everything if one != "esther"]
+    assert "esther" not in ids and ids[: len(rest)] == rest
+    assert len(ids) == 10, "left out before the cut, so the cut still fills"
