@@ -56,22 +56,27 @@
   function gather() {
     if (rows) return Promise.resolve(rows);
     var found = PLACES.slice();
-    (window.TARGUM_CATALOGUE || []).forEach(function (entry) {
-      found.push({
-        kind: "catalogue",
-        title: entry.title || entry.id,
-        english: entry.english || "",
-        href: "/library#" + encodeURIComponent(entry.id),
-      });
-    });
     return Promise.all([ask("/readers"), ask("/chat/list")]).then(function (got) {
       var readers = ((got[0] && got[0].readers) || []).concat((got[0] && got[0].shared) || []);
+      var built = {};
       readers.forEach(function (reader) {
+        if (reader.entry) built[reader.entry] = true;
         found.push({
           kind: "text",
           title: reader.title || reader.name,
           english: reader.english || "",
           href: "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html",
+        });
+      });
+      // A catalogue row that is already on the shelf is the shelf's: one row, and it
+      // opens the reader rather than the library.
+      (window.TARGUM_CATALOGUE || []).forEach(function (entry) {
+        if (built[entry.id]) return;
+        found.push({
+          kind: "catalogue",
+          title: entry.title || entry.id,
+          english: entry.english || "",
+          href: "/library#" + encodeURIComponent(entry.id),
         });
       });
       ((got[1] && got[1].chats) || []).forEach(function (chat) {

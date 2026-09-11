@@ -680,7 +680,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
   color: var(--ink);
 }
 .palette-find:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.palette-list { list-style: none; margin: 0.4rem 0 0; padding: 0; max-block-size: 50vh; overflow: auto; }
+.palette-list { list-style: none; margin: 0.6rem 0 0; padding: 0; max-block-size: 50vh; overflow: auto; }
 .palette-list[hidden] { display: none; }
 .palette-row {
   display: flex;
