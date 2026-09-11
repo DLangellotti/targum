@@ -24,7 +24,7 @@ import pytest
 
 from targum.accounts import Store
 from targum.mail import ConsoleMailer
-from targum.serve import Handler, Library
+from targum.serve import POLICY, Handler, Library
 
 
 class Postbox(io.StringIO):
@@ -58,10 +58,13 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
         {
             "library": Library(out),
             "token": token,
-            "page": "<html>start</html>",
-            "chatting": '<html><body class="chat"><div class="site-head"></div></body></html>',
+            # Every chrome page carries the talk drawer's frame, and so does a reader;
+            # the framed conversation carries none (2026-09-11).
+            "page": '<html>start<iframe id="talk-frame"></iframe></html>',
+            "chatting": '<html><body class="chat"><div class="site-head"></div>'
+            '<iframe id="talk-frame"></iframe></body></html>',
             "embedded": '<html><body class="chat embed"></body></html>',
-            "progress": "<html>your progress</html>",
+            "progress": '<html>your progress<iframe id="talk-frame"></iframe></html>',
             "shelf": "<html>library</html>",
             "lists": {
                 "texts": "<html>your targums</html>",
@@ -2737,3 +2740,41 @@ def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
     assert 'class="chat embed"' in body and "site-head" not in body
     policy, body = fetch(f"/chat?k={token}")
     assert "frame-ancestors 'none'" in policy and "site-head" in body and "embed" not in body
+
+
+def test_every_page_holding_the_talk_drawer_may_frame_the_conversation(
+    served: tuple[int, str, Path],
+) -> None:
+    """The bug this guards (2026-09-11): the pill opened a broken frame on every page but
+    Learn. The drawer rides the shared header onto every chrome page and into the
+    reader, but `frame-src 'self'` was granted by a hand-kept list of four routes, and
+    `default-src 'none'` refused the frame everywhere else. Now the grant is read off the
+    page: a body holding an `<iframe>` may frame its own origin — a reader served off
+    the shelf as much as a chrome page — and a body holding none, the framed
+    conversation itself, still may not."""
+    from http.client import HTTPConnection
+
+    port, token, out = served
+    reader = out / "local" / "some-text" / "reader"
+    reader.mkdir(parents=True)
+    (reader / "index.html").write_text(
+        '<!doctype html><p>שלום</p><iframe class="talk-frame" id="talk-frame"></iframe>',
+        encoding="utf-8",
+    )
+
+    def policy(path: str) -> str:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", path)
+        response = connection.getresponse()
+        response.read()
+        header = response.getheader("Content-Security-Policy") or ""
+        assert response.status == 200, path
+        connection.close()
+        return header
+
+    for path in ("/progress", "/chat", "/reader/some-text/reader/index.html"):
+        assert "frame-src 'self'" in policy(f"{path}?k={token}"), path
+    framed = policy(f"/reader/some-text/reader/index.html?k={token}")
+    assert "frame-ancestors 'self'" in framed, "the reader is still framed by the front page"
+    assert "frame-src" not in policy(f"/chat?embed=1&k={token}")
+    assert "frame-src 'self'" not in POLICY, "the grant is per page, never the default"

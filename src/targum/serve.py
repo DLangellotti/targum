@@ -2837,11 +2837,16 @@ class Handler(BaseHTTPRequestHandler):
     def _policy(body: bytes, frames: str = "") -> str:
         """The content policy for one page, naming its own inline blocks by hash.
 
-        `frames` is `"in"` for a page that embeds a reader, `"out"` for the reader being
-        embedded. Both are same-origin only: the landing page may frame targum and
-        nothing else, and the reader may be framed by targum and nobody else. The
-        clickjacking guard that `frame-ancestors 'none'` gives every other page is kept
-        exactly — `'self'` is not `'*'`.
+        A page that holds an `<iframe>` may frame its own origin — read off the page as
+        written, like the hashes, because the talk drawer rides the shared header onto
+        every chrome page and the reader as well, and a hand-kept list of which routes
+        frame was four pages long while the drawer was on eleven (2026-09-11: the pill
+        opened a broken frame everywhere but Learn). `frames` is `"out"` for a page that
+        is itself framed — the conversation without its bar, a reader in the front
+        page. Both are same-origin only: targum may frame targum and nothing else, and
+        may be framed by targum and nobody else. The clickjacking guard that
+        `frame-ancestors 'none'` gives every other page is kept exactly — `'self'` is
+        not `'*'`.
         """
         import base64
         import hashlib
@@ -2854,7 +2859,7 @@ class Handler(BaseHTTPRequestHandler):
         policy = POLICY
         if frames == "out":
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
-        elif frames == "in":
+        if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
         return f"{policy}; script-src {allowed}; style-src {allowed}"
 
@@ -3154,7 +3159,7 @@ class Handler(BaseHTTPRequestHandler):
             # collection; a visitor has the list at the foot of this page.
             signed_in=self._person() is not None,
         )
-        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _serve_daily(self, slug: str, rest: str) -> None:
         """One learning cycle, at three addresses.
@@ -3233,7 +3238,7 @@ class Handler(BaseHTTPRequestHandler):
             is_today=when == today(),
             address=self.address,
         )
-        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _serve_daily_reader(self, slug: str, when: str, name: str | None) -> None:
         """One file out of a built day, and nothing else.
@@ -3372,7 +3377,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
 
         page = weekly_page(issue, Level(wanted), address=self.address, archive=published)
-        return self._send(200, page.encode("utf-8"), HTML, frames="in")
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _weekly_said(self, message: str, done: bool = True) -> None:
         """One sentence, on the weekly page's own furniture.
@@ -3909,9 +3914,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
-            # The front page frames a reader and the conversation (design.md §13,
-            # 2026-09-11), so it may frame its own origin, and nothing else.
-            return self._send(200, self.page.encode("utf-8"), HTML, frames="in")
+            return self._send(200, self.page.encode("utf-8"), HTML)
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/chat":
