@@ -1328,15 +1328,20 @@ def test_a_first_visit_opens_on_the_words_you_may_already_know() -> None:
     assert page["chipsHidden"] and page["emptyHidden"], "the checklist first"
     marked = run(
         embed=True,
-        answers=COMMON,
+        answers=dict(COMMON, **{"/chat/suggest": {"chat": "s1", "said": "", "quote": None}}),
         do=[{"type": "claim", "what": "all"}, {"type": "claim", "what": "yes"}],
     )
     assert sorted(marked["ledger"]) == ["את", "הוא", "של"]
     assert marked["claim"]["tableHidden"] and marked["claim"]["done"].startswith("Thank you")
-    assert not marked["chipsHidden"], "and then the things to ask"
     assert {"type": "targum:changed"} in marked["offered"]
+    # The second turn (2026-09-11): a text at the level the checks just set, asked for
+    # without a model turn, so a new reader reaches a text in two presses.
+    assert [p["path"] for p in marked["posted"]][-1] == "/chat/suggest", marked["posted"]
     passed = run(embed=True, answers=COMMON, do=[{"type": "claim", "what": "no"}])
     assert passed["ledger"] == {} and passed["claim"]["tableHidden"] and not passed["chipsHidden"]
+    assert "/chat/suggest" not in [p["path"] for p in passed["posted"]], (
+        "a page passed over says nothing about the level"
+    )
 
 
 def test_the_first_exchange_is_not_drawn_twice_nor_for_a_reader_with_words() -> None:

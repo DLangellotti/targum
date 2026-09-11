@@ -568,3 +568,25 @@ body.learn .nothing .hint {
 .see-all { border: 0; border-radius: 999px; background: transparent; color: var(--teal); padding: 0.3rem 0.7rem; }
 .see-all:hover { background: var(--teal-wash); }
 .page-foot { background: var(--glass); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+/* How far through the text: a line along the top edge of the foot, the primary for the
+   part read, the hairline for the rest (2026-09-11). */
+.page-foot { position: relative; }
+.page-progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: -1px;
+  block-size: 3px;
+  background: var(--hairline);
+  overflow: hidden;
+}
+.page-progress::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: calc(var(--done, 0) * 100%);
+  background: var(--teal);
+  transition: inline-size var(--in) var(--ease);
+}
+.page-progress[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .page-progress::before { transition: none; } }

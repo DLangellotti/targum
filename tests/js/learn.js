@@ -177,6 +177,8 @@ setTimeout(() => {
         cover: tile(carry),
         // Open, in the foot, goes to the reader's own page.
         href: at("carry").href || "",
+        // How far through: the line's share, or nothing while it is hidden.
+        progress: at("carry-progress").hidden ? "" : String(at("carry-progress").style["--done"] || ""),
       },
       // A subscription that landed (2026-09-11): what the bell was told, what was seen.
       notices,

@@ -917,3 +917,80 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
     assert again["open"] and again["remembered"] == "open", "open again on the next page"
+
+
+def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
+    """2026-09-11: ⌘K opens one field; typing narrows it to places, texts on the shelf,
+    the catalogue's rows and conversations; arrows move and Enter goes. A text opens its
+    reader, and Escape closes the palette with nothing chosen."""
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body = {"chats": [{"id": "c9", "title": "שיחה על ספרים", "seen": 1}], "usable": True}
+        elif "/readers" in u:
+            body = {
+                "readers": [
+                    {
+                        "name": "mendele-he",
+                        "title": "מסעות בנימין",
+                        "language": "he",
+                        "document": "h1",
+                        "built": 1,
+                    }
+                ],
+                "shared": [],
+                "trash": [],
+                "covers": False,
+            }
+        elif "/reader/" in u:
+            route.fulfill(
+                status=200, content_type="text/html", body="<html><body>the reader</body></html>"
+            )
+            return
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/series" in u:
+            body = {"series": []}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        elif "/library" in u:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#palette-open")
+    assert page.evaluate("() => document.getElementById('palette').hidden")
+    page.keyboard.press("Meta+k")
+    page.wait_for_function("() => !document.getElementById('palette').hidden")
+    page.wait_for_function("() => document.querySelectorAll('.palette-row').length > 0")
+    at_rest = page.evaluate(
+        "() => [...document.querySelectorAll('.palette-title')].map((t) => t.textContent)"
+    )
+    assert at_rest[:3] == ["Learn", "Library", "Your Progress"], "the places, with nothing typed"
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => document.getElementById('palette').hidden"), "Escape closes it"
+    page.click("#palette-open")
+    page.wait_for_function("() => !document.getElementById('palette').hidden")
+    page.fill("#palette-find", "בנימין")
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('.palette-title')]"
+        ".some((t) => t.textContent.includes('בנימין'))"
+    )
+    found = page.evaluate(
+        "() => [...document.querySelectorAll('.palette-row')].map((r) => r.textContent)"
+    )
+    assert any("Your shelf" in row for row in found), found
+    page.keyboard.press("Enter")
+    page.wait_for_url("**/reader/mendele-he/**", timeout=5000)
+    context.close()

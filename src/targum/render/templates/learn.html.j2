@@ -45,6 +45,9 @@
           <iframe class="page-frame" id="carry-frame" title=""></iframe>
         </div>
         <div class="page-foot">
+          {#- How far through the text the reader is, as a line along the foot's top
+              edge (2026-09-11); drawn only once something is finished. -#}
+          <span class="page-progress" id="carry-progress" role="img" aria-label="" hidden></span>
           <bdi class="page-title" id="carry-title"></bdi>
           <p class="page-facts">
             <span class="page-english" id="carry-english" lang="en" dir="ltr" hidden></span>

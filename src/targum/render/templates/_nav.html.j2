@@ -43,6 +43,10 @@
         what is ready, and anything else the page has to say later. The bell carries a
         count; the panel lists them, newest first, each with its own ×. It replaced the
         pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
+    {#- The command palette's own door (2026-09-11), beside the bell; ⌘K is the other. -#}
+    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="Find anything" title="Find anything (⌘K)">
+      <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/></svg>
+    </button>
     <div class="notices" id="notices">
       <button type="button" id="notices-open" aria-expanded="false" aria-haspopup="dialog" aria-label="Notifications">
         <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0"/></svg>
@@ -107,3 +111,11 @@
   <iframe class="talk-frame" id="talk-frame" title="Talk to targum" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
 </aside>
 <script>{{ asset('talk.js') }}</script>
+{#- The command palette (2026-09-11): one field that finds a place, a text, a series or
+    a conversation, and one press that goes there. Drawn by `palette.js`. -#}
+<div class="palette-scrim" id="palette-scrim" hidden></div>
+<div class="palette" id="palette" role="dialog" aria-label="Find anything" hidden>
+  <input type="search" id="palette-find" class="palette-find" placeholder="Find a text, a page, a conversation" autocomplete="off" spellcheck="false">
+  <ul class="palette-list" id="palette-list" role="listbox"></ul>
+</div>
+<script>{{ asset('palette.js') }}</script>

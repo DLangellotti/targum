@@ -206,20 +206,20 @@ def test_an_empty_shelf_says_nothing_about_covers() -> None:
 def test_the_page_opens_by_saying_how_many_words_you_know() -> None:
     """The first line on the page, and a count of a real thing. Known only: a word
     somebody is halfway through is not one they know."""
-    drawn = draw(
-        [reader("a", "אהבת ציון")],
-        vocabulary(
-            word("ספר", "book", status=9),
-            word("בית", "house", status=9),
-            word("דרך", "road", status=2),
-        ),
-    )
-    assert drawn["known"] == "You know 2 Hebrew words."
+    known = [word(f"מילה{n}", "w", status=9) for n in range(12)]
+    drawn = draw([reader("a", "אהבת ציון")], vocabulary(*known, word("דרך", "road", status=2)))
+    assert drawn["known"] == "You know 12 Hebrew words."
 
 
-def test_one_word_known_is_not_said_in_the_plural() -> None:
+def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
+    """2026-09-11: "You know 1 Hebrew word" is true and deflating on the first line a new
+    reader sees. Until ten, the line says what to do, which is what makes the count."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=9)))
-    assert drawn["known"] == "You know 1 Hebrew word."
+    assert drawn["known"] == "Mark a word while reading and it starts here."
+    nine = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(9))))
+    assert nine["known"] == "Mark a word while reading and it starts here."
+    ten = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(10))))
+    assert ten["known"] == "You know 10 Hebrew words."
 
 
 def test_knowing_nothing_yet_asks_rather_than_scoring_zero() -> None:
@@ -564,7 +564,7 @@ def test_a_finished_scene_hands_over_to_the_next() -> None:
     assert drawn["carry"]["heading"] == "Up next"
     assert drawn["carry"]["title"] == "בבית קפה"
     assert drawn["carry"]["meta"] == "Scene 2 of 3 · 19 words · audio"
-    assert drawn["known"] == "You know 3 Hebrew words."
+    assert drawn["known"] == "Mark a word while reading and it starts here."
 
 
 def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
@@ -655,3 +655,32 @@ def test_a_followed_series_newest_instalment_takes_the_sheet_once_and_rings_the_
     assert again["carry"]["title"] == "שלי" and again["notices"] == [], "seen once"
     unfollowed = draw([mine], series=[PORTION])
     assert unfollowed["carry"]["title"] == "שלי" and unfollowed["notices"] == []
+
+
+def test_the_sheet_says_how_long_is_left_from_what_the_reader_finished() -> None:
+    """2026-09-11: a thin line along the sheet's foot and "about 12 min left", from the
+    sections the reader records as finished and the text's own length. A text not yet
+    started says its length; one finished says so."""
+    book = reader(
+        "book-he", "ספר", minutes=40, chapters=[{"number": n} for n in range(4)], readyChapters=4
+    )
+    fresh = draw([book], {"targum:opened": json.dumps({"book-he": 3})})
+    assert "about 40 min" in fresh["carry"]["meta"] and "left" not in fresh["carry"]["meta"]
+    assert fresh["carry"]["progress"] == ""
+    half = draw(
+        [book],
+        {
+            "targum:opened": json.dumps({"book-he": 3}),
+            "targum:docs": json.dumps({"book-he": {"sections": {"1": 5, "2": 6}}}),
+        },
+    )
+    assert "about 20 min left" in half["carry"]["meta"]
+    assert half["carry"]["progress"] == "0.5"
+    done = draw(
+        [book],
+        {
+            "targum:opened": json.dumps({"book-he": 3}),
+            "targum:docs": json.dumps({"book-he": {"sections": {"1": 1, "2": 1, "3": 1, "4": 1}}}),
+        },
+    )
+    assert "finished" in done["carry"]["meta"] and done["carry"]["progress"] == "1"

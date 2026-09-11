@@ -1044,6 +1044,7 @@
   // Every check is a real known word, so the first answer is written at their level.
   // Afterwards the checklist lives on Your Words alone.
   var welcomed = false;
+  var marked = 0;
   function firstExchange() {
     var claim = window.TargumClaim;
     if (welcomed || current || !claim || !claim.hebrew() || !claim.untouched()) return;
@@ -1066,7 +1067,8 @@
         if (empty) empty.hidden = false;
         if (chips) chips.show(true);
       },
-      onMarked: function () {
+      onMarked: function (count) {
+        marked = count;
         // The count on the front page hears it, where this is framed there.
         if (EMBED && window.parent && window.parent !== window) {
           window.parent.postMessage({ type: "targum:changed" }, window.location.origin);
@@ -1078,6 +1080,11 @@
         note.textContent = "Thank you. The rest of the list is under Your words and phrases, behind your account.";
         host.appendChild(note);
         if (chips) chips.show(true);
+        // The second turn: a text at the level the checks just set, offered without a
+        // model turn, so a new reader reaches a text in two presses without leaving the
+        // page. Only after something was marked — a page passed over says nothing about
+        // the level — and only where anything can be asked.
+        if (marked > 0 && usable) suggest();
       },
     });
   }

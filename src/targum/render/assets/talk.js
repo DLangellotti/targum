@@ -109,5 +109,20 @@
   }
   if (wasOpen) show(true);
 
-  window.TargumTalk = { show: show };
+  // A conversation by id, from the palette: open the drawer and name it in the frame's
+  // address, which the conversation's own script answers.
+  function open(id) {
+    show(true);
+    var name = function () {
+      try {
+        frame.contentWindow.location.hash = "#" + encodeURIComponent(id);
+      } catch (e) {
+        /* not this origin yet; the drawer still opens */
+      }
+    };
+    if (frame.contentWindow && frame.contentWindow.location && frame.contentWindow.location.href !== "about:blank") name();
+    else frame.addEventListener("load", name, { once: true });
+  }
+
+  window.TargumTalk = { show: show, open: open };
 })();

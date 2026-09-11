@@ -413,7 +413,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   each answer's place, with what would have to be recorded first, rather than printing a
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
+### Added
+- A command palette on every page (2026-09-11): ⌘K, or the search in the bar, finds a
+  place, a text on your shelf or in the catalogue, or a conversation, and Enter goes
+  there — a conversation opens in the drawer.
+- The sheet on Learn says how long is left, "about 12 min left", from the sections the
+  reader records as finished and the text's own length, and draws it as a line along
+  its foot (2026-09-11).
+
 ### Changed
+- For a new reader, the conversation's first exchange goes on (2026-09-11): once words
+  are marked, targum's next turn is a text at that level, asked for without a model
+  turn, so a text is two presses away without leaving the page. The count line on Learn
+  waits for ten known words before it counts; until then it says what to do.
+- The bell keeps what you put away and says when the month's hours are three quarters
+  gone (2026-09-11).
 - The desk grows up, phase 1 of five (2026-09-11: "the whole design feels clunky, like
   it's from 2016 not 2026"). Corners on the desk's own scale — 8 controls, 12 rows and
   fields, 16 cards, 24 sheets — named by token; depth in three shadow tiers instead of a

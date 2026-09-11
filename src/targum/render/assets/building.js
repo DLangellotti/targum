@@ -110,6 +110,9 @@
     x.onclick = function () {
       if (entry.job) dismissJob(entry.job);
       else {
+        // Put away for good, in this browser: a landed instalment or the month's hours
+        // said once is said; it does not come back on the next page.
+        putAway(entry.id);
         delete notes[entry.id];
         draw();
       }
@@ -130,7 +133,7 @@
       out.push({ id: "job:" + job.id, job: job, text: line(job), href: href, live: live(job) });
     });
     Object.keys(notes).forEach(function (id) {
-      out.push(notes[id]);
+      if (!gone[id]) out.push(notes[id]);
     });
     return out;
   }
@@ -224,6 +227,23 @@
   });
 
   ask();
+
+  // The month's hours, once they are nearly gone (2026-09-11): the same threshold the
+  // box uses, three quarters, said in the inbox with the door to the count.
+  fetch(keyed("/account/me"), { credentials: "same-origin" })
+    .then(function (r) {
+      return r.ok ? r.json() : null;
+    })
+    .then(function (me) {
+      var hours = me && me.signedIn && me.hours;
+      if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
+      var month = hours.ends ? " until " + hours.ends : " this month";
+      note("hours:" + (hours.ends || "now"), hours.used + " of " + hours.allowed + " hours used" + month, {
+        href: keyed("/progress"),
+        label: "See",
+      });
+    })
+    .catch(function () {});
 
   // A followed series' instalment that landed (2026-09-11): said here on every page,
   // with a door to its page; Learn puts it in the sheet as well.

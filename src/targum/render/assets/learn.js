@@ -228,9 +228,40 @@
     if (reader.video) out.push("video");
     else if (reader.spoken) out.push("audio");
     if (door.state === "carry" && !number) {
+      // How long is left, from what the reader records of the sections finished and
+      // the text's own length (2026-09-11): "about 12 min left" says where you are
+      // without a word more.
+      var left = minutesLeft(reader);
+      if (left) out.push(left);
       out.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
     }
     return out.join(" · ");
+  }
+
+  // The share of a text's sections the reader has finished, 0 to 1, off `targum:docs`
+  // as the reader writes it: a map of the sections done, or the one old timestamp that
+  // stood for the whole document.
+  function progress(reader) {
+    if (!reader || !reader.document) return 0;
+    var record = stored("targum:docs")[reader.document];
+    if (!record) return 0;
+    var total = (reader.chapters && reader.chapters.length) || reader.sections || 1;
+    if (record.sections && typeof record.sections === "object") {
+      var done = 0;
+      Object.keys(record.sections).forEach(function (part) {
+        if (record.sections[part]) done += 1;
+      });
+      return Math.min(1, done / total);
+    }
+    return record.done ? 1 : 0;
+  }
+
+  function minutesLeft(reader) {
+    if (!reader || !reader.minutes) return "";
+    var share = progress(reader);
+    if (share >= 1) return "finished";
+    var left = Math.max(1, Math.round(reader.minutes * (1 - share)));
+    return "about " + left + " min" + (share > 0 ? " left" : "");
   }
 
   // The label above a door's heading, naming the track; none for a language with one.
@@ -293,6 +324,14 @@
     var said = share(reader);
     known.hidden = !said;
     known.textContent = said;
+    // The line along the foot: how far through the text the reader is.
+    var line = document.getElementById("carry-progress");
+    if (line) {
+      var share_ = door.state === "carry" && !door.src ? progress(reader) : 0;
+      line.hidden = !share_;
+      line.style.setProperty("--done", String(share_));
+      line.setAttribute("aria-label", Math.round(share_ * 100) + "% read");
+    }
     drawFrame(reader, door);
   }
 
@@ -498,6 +537,9 @@
 
   /* --- what you know --------------------------------------------------------- */
 
+  //: How many known words the count line waits for before it counts (2026-09-11).
+  var KNOWN_FLOOR = 10;
+
   function drawKnown(code, store) {
     var line = document.getElementById("known-line");
     var known = charts.known(store && store.words);
@@ -505,8 +547,10 @@
     // a score of zero, which is the arcade the brand rules keep out.
     // Named, because a reader with Hebrew and Russian has two counts and this line is
     // only ever about the one the switcher is on.
-    line.textContent = known
-      ? "You know " + known + " " + named(code) + (known === 1 ? " word." : " words.")
+    // A count under ten is true and deflating on the first line a new reader sees
+    // (2026-09-11): until then the line says what to do, which is what makes the count.
+    line.textContent = known >= KNOWN_FLOOR
+      ? "You know " + known + " " + named(code) + " words."
       : "Mark a word while reading and it starts here.";
   }
 
