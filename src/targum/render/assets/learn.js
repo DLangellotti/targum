@@ -246,13 +246,14 @@
   }
 
   function drawCarry(reader, door) {
+    var sheet = document.getElementById("carry-sheet");
     var panel = document.getElementById("carry");
     if (!reader) {
-      panel.hidden = true;
+      sheet.hidden = true;
       return;
     }
     door = door || { state: "carry" };
-    panel.hidden = false;
+    sheet.hidden = false;
     var heading = document.getElementById("carry-heading");
     if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue";
     trackLabel("carry-track", door.register);
@@ -290,37 +291,28 @@
     var said = share(reader);
     known.hidden = !said;
     known.textContent = said;
-    drawLines(reader);
+    drawFrame(reader, door);
   }
 
-  // The sheet's first lines (§13): the text's own words with their English, off the
-  // server's artifacts and never a model. A text with none yet shows its title alone.
-  function drawLines(reader) {
-    var host = document.getElementById("carry-lines");
-    if (!host || !reader || !reader.name) return;
-    host.textContent = "";
-    if (typeof fetch !== "function") return;
-    fetch(keyed("/excerpt/" + encodeURIComponent(reader.name)))
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (answer) {
-        host.textContent = "";
-        (answer.lines || []).forEach(function (line) {
-          var he = document.createElement("span");
-          he.className = "he";
-          he.setAttribute("lang", answer.language || "he");
-          he.textContent = line.he;
-          var en = document.createElement("span");
-          en.className = "en";
-          en.textContent = line.en;
-          host.appendChild(he);
-          host.appendChild(en);
-        });
-      })
-      .catch(function () {
-        host.textContent = "";
-      });
+  // The sheet's window (§13): the reader itself, framed at the place it was left, as a
+  // picture of itself — `preview=1` tells it so, and it counts nothing as read. Only
+  // where the door is the reader: a step up past the sequence is a library row, and a
+  // library row is not a text to look at.
+  function drawFrame(reader, door) {
+    var window_ = document.getElementById("carry-window");
+    var frame = document.getElementById("carry-frame");
+    if (!window_ || !frame) return;
+    if (door.href || !reader.name) {
+      window_.hidden = true;
+      return;
+    }
+    window_.hidden = false;
+    frame.title = reader.title || "";
+    var src = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+    src += (src.indexOf("?") < 0 ? "?" : "&") + "preview=1";
+    // Set only when it changes: a frame reloads on every write to its address.
+    if (frame.getAttribute("src") === src) return;
+    frame.setAttribute("src", src);
   }
 
   /* --- what to read next ------------------------------------------------------

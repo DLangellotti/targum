@@ -33,12 +33,23 @@
   var field = document.getElementById("say");
   var send = document.getElementById("chat-send");
   if (!list || !turns || !form || !field || !send) return;
-  // The front page (2026-09-11): the same conversation, on Learn, under the box it was
-  // typed into — "I should not be sent to a new page". There the thread is hidden
-  // until a conversation is open, the newest one is not opened by itself (the page is
-  // a front door, not a thread), and the list is the last three with a door to all.
-  var FRONT = String(document.body.className || "").split(" ").indexOf("learn") >= 0;
-  var recent = FRONT ? document.getElementById("recent-chats") : null;
+  // Framed in the front page (design.md §13, 2026-09-11): this same page, without its
+  // bar, inside Learn — "I should not be sent to a new page". There the newest
+  // conversation is not opened by itself (the front page is a door, not a thread), a
+  // text opens in the page that holds the frame, and the address is left alone: a
+  // frame's own history is the holding page's history too.
+  var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
+
+  // Where a text opens: the page itself, or, framed, the page holding the frame.
+  function go(url) {
+    var top = window;
+    try {
+      if (EMBED && window.top && window.top !== window) top = window.top;
+    } catch (e) {
+      top = window;
+    }
+    top.location.href = url;
+  }
 
   var current = "";
   var chats = [];
@@ -570,7 +581,7 @@
           if (!opening) return state;
           return bringing.follow(job.id).then(function (done) {
             if (done.stage === "done" && done.reader) {
-              window.location.href = bringing.door(done.reader);
+              go(bringing.door(done.reader));
             }
             return done;
           });
@@ -776,8 +787,8 @@
     return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
   }
 
-  //: A page of the list, and the size the server pages it at; three on the front page.
-  var PAGE = FRONT ? 3 : 50;
+  //: A page of the list, and the size the server pages it at.
+  var PAGE = 50;
   var moreFrom = 0;
 
   function drawList() {
@@ -803,10 +814,9 @@
       li.appendChild(button);
       list.appendChild(li);
     });
-    if (recent) recent.hidden = chats.length === 0;
     // The next page, where there may be one: the list used to be every conversation
-    // ever, in one answer (targum-internal#238). The front page has a door to all instead.
-    if (moreFrom && !FRONT) {
+    // ever, in one answer (targum-internal#238).
+    if (moreFrom) {
       var li = document.createElement("li");
       var more = document.createElement("button");
       more.type = "button";
@@ -863,8 +873,22 @@
     return wanted;
   }
   function remember(id) {
-    var hash = id ? "#" + encodeURIComponent(id) : "";
-    if ((window.location.hash || "") !== hash) window.location.hash = hash;
+    writeHash(id ? "#" + encodeURIComponent(id) : "");
+  }
+  // Framed, the address is replaced rather than pushed: a hash written inside a frame
+  // is an entry in the holding page's history, and Back would walk the conversations
+  // opened on the front page before it left it.
+  function writeHash(hash) {
+    if ((window.location.hash || "") === hash) return;
+    if (!EMBED) {
+      window.location.hash = hash;
+      return;
+    }
+    try {
+      window.history.replaceState(null, "", hash || window.location.pathname + window.location.search);
+    } catch (e) {
+      window.location.hash = hash;
+    }
   }
   window.addEventListener("hashchange", function () {
     var wanted = named();
@@ -950,10 +974,10 @@
   /* --- loading ------------------------------------------------------------- */
 
   function load() {
-    return ask(FRONT ? "/chat/list?limit=" + PAGE : "/chat/list").then(function (answer) {
+    return ask("/chat/list").then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
-      moreFrom = chats.length === PAGE && !FRONT ? PAGE : 0;
+      moreFrom = chats.length === PAGE ? PAGE : 0;
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       talk = answer.talk !== false;
@@ -981,13 +1005,13 @@
       if (current) return;
       var job = wantedJob;
       // Consumed once: `load` runs again when a first line makes a conversation.
-      if (job) window.location.hash = wanted ? "#" + encodeURIComponent(wanted) : "";
+      if (job) writeHash(wanted ? "#" + encodeURIComponent(wanted) : "");
       if (wanted && chats.some(function (chat) { return chat.id === wanted; })) {
         return open(wanted).then(function () {
           if (job) return showJob(job);
         });
       }
-      if (chats.length && !FRONT) return open(chats[0].id);
+      if (chats.length && !EMBED) return open(chats[0].id);
       if (empty) empty.hidden = !!current;
     });
   }
@@ -1025,7 +1049,6 @@
   function startNew() {
     current = "";
     remember("");
-    if (thread && FRONT) thread.hidden = true;
     showList(false);
     drawList();
     turns.textContent = "";
@@ -1054,7 +1077,7 @@
         say(line);
       },
       open: function (reader) {
-        window.location.href = bringing.door(reader);
+        go(bringing.door(reader));
       },
       stuck: function () {
         field.placeholder = "The word, and the sentence it was in";

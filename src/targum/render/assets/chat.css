@@ -131,8 +131,11 @@ body.chat > .chat-main {
 @media (max-width: 48rem) {
   .chat-open-list { display: inline-block; }
   .chat-list { display: none; }
-  .chat-list.open {
-    display: block;
+  .chat-list.open { display: block; }
+}
+/* The sheet itself, drawn wherever the list is opened as one: at phone width, and
+   framed in the front page at every width. */
+.chat-list.open {
     position: fixed;
     inset-inline: 0;
     inset-block-end: 0;
@@ -144,7 +147,6 @@ body.chat > .chat-main {
     border-radius: 8px 8px 0 0;
     box-shadow: 0 -8px 24px rgb(0 0 0 / 0.12);
     z-index: 5;
-  }
 }
 
 /* --- the thread -----------------------------------------------------------
@@ -416,3 +418,34 @@ body.chat > .chat-main {
     min-height: 44px;
   }
 }
+
+/* --- framed in the front page (design.md §13, 2026-09-11) ----------------------
+   The same page inside Learn's conversation card: no bar and no foot, the card's own
+   ground behind it, the thread on the card rather than raised on it, and the phone's
+   layout at every width — a frame is never wider than the card it stands in. */
+body.embed { background: var(--card); grid-template-rows: minmax(0, 1fr); }
+body.embed > .chat-main {
+  margin: 0;
+  width: 100%;
+  padding: 0.5rem 0.75rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    "side"
+    "thread"
+    "hours"
+    "compose"
+    "said";
+  gap: 0.6rem;
+}
+body.embed .chat-open-list { display: inline-block; }
+body.embed .chat-list { display: none; }
+body.embed .chat-list.open { display: block; }
+body.embed .chat-thread {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.25rem 0.15rem;
+}
+body.embed .chat-turn.me { margin-inline-start: 10%; }
+body.embed .chat-turn.them { margin-inline-end: 6%; }

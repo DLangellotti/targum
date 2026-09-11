@@ -222,7 +222,9 @@ setTimeout(() => {
         english: at("carry-english").hidden ? "" : at("carry-english").textContent,
         known: at("carry-known").hidden ? "" : at("carry-known").textContent,
         title: at("carry-title").textContent,
-        hidden: at("carry").hidden,
+        hidden: at("carry-sheet").hidden,
+        // The window: the reader itself, framed as a picture (§13, 2026-09-11).
+        frame: at("carry-window").hidden ? "" : at("carry-frame").getAttribute("src") || "",
         heading: at("carry-heading").textContent,
         track: at("carry-track").hidden ? "" : at("carry-track").textContent,
         meta: at("carry-meta").textContent,

@@ -5308,3 +5308,37 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
         "the folder and the section, and nothing else"
     )
     assert len(loads) >= 2, "reopened once the audio was there"
+
+
+def test_a_preview_of_the_reader_counts_nothing_as_read(browser, built: Path) -> None:
+    """The front page frames the reader as a picture of itself (design.md §13,
+    2026-09-11), and a picture is not a visit: opened with `?preview=1` the reader
+    writes no opening and no reading day, and draws no bar — the page under it names
+    the text. Opened as itself, it writes both."""
+    context = browser.new_context(viewport={"width": 640, "height": 500})
+    page = context.new_page()
+    page.goto(address(built) + "?preview=1")
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    preview = page.evaluate(
+        """() => ({
+          flagged: document.documentElement.classList.contains('preview'),
+          bar: getComputedStyle(document.querySelector('.bar')).display,
+          opened: localStorage.getItem('targum:opened'),
+          days: localStorage.getItem('targum:days'),
+        })"""
+    )
+    page.goto(address(built))
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    visit = page.evaluate(
+        """() => ({
+          flagged: document.documentElement.classList.contains('preview'),
+          bar: getComputedStyle(document.querySelector('.bar')).display,
+          opened: localStorage.getItem('targum:opened'),
+          days: localStorage.getItem('targum:days'),
+        })"""
+    )
+    context.close()
+    assert preview["flagged"] and preview["bar"] == "none", preview
+    assert preview["opened"] is None and preview["days"] is None, "a picture is not a visit"
+    assert not visit["flagged"] and visit["bar"] != "none", visit
+    assert visit["opened"] and visit["days"], "opened as itself, the reader keeps the day"

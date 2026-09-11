@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
@@ -23,59 +23,47 @@
       real thing rather than a score — §6: no invented currency. -#}
   <p class="known-line" id="known-line"></p>
 
-  {#- The conversation, on the front page and named as one (2026-09-11). It used to be
-      a bare field under the count, and a line typed there went to another page: "I can't
-      really tell that it's a chat", "I should not be sent to a new page". Now the section
-      says what it is in a heading and a sentence, the box is under them, the things most
-      readers ask are under the box as verbs, and the thread opens in place under those
-      — the same script as the conversation page, on this page. It is not a raised
-      layer — the cards below have this page's one — so the thread is a hairline. -#}
-  {#- The front page since 2026-09-11 (design.md §13): the text to read and the
-      conversation side by side, the text first on a phone; the parts under them as
-      cards on the desk. -#}
   <div class="front">
-    {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — pure
-        paper on the desk, the reading faces, its title and its first lines with the
-        English under them, and one press. The one pure-paper surface on the page, and
+    {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
+        reader, framed, at the place it was left, on the desk; under it the title, what
+        it is, and one press. The frame is a picture of the reader rather than the
+        reader (`preview=1`, and it counts nothing as read): a press anywhere on the
+        sheet opens the text in this page. The one pure-paper surface on the page, and
         the brightest thing on it: the memory the front page protects is the text with
         its English beside every line, so the front page shows one. -#}
     <section class="carry-on" aria-labelledby="carry-heading">
       <p class="label" id="carry-heading">Continue reading</p>
-      <a class="page-sheet" id="carry" href="/" hidden>
-        <span class="card-track" id="carry-track" hidden></span>
+      <div class="page-sheet" id="carry-sheet" hidden>
         <span class="card-cover" id="carry-cover" aria-hidden="true" hidden></span>
-        <bdi class="page-title" id="carry-title"></bdi>
-        <p class="page-english" id="carry-english" lang="en" dir="ltr" hidden></p>
-        <div class="page-lines" id="carry-lines"></div>
-        <p class="page-foot"><span class="card-meta" id="carry-meta"></span><span class="carry-known" id="carry-known" hidden></span><span class="open">Open</span></p>
-      </a>
+        <div class="page-window" id="carry-window" hidden>
+          <iframe class="page-frame" id="carry-frame" title="" tabindex="-1" aria-hidden="true"></iframe>
+        </div>
+        <a class="page-open" id="carry" href="/" aria-labelledby="carry-title"></a>
+        <div class="page-foot">
+          <bdi class="page-title" id="carry-title"></bdi>
+          <p class="page-facts">
+            <span class="page-english" id="carry-english" lang="en" dir="ltr" hidden></span>
+            <span class="card-track" id="carry-track" hidden></span>
+            <span class="card-meta" id="carry-meta"></span>
+            <span class="carry-known" id="carry-known" hidden></span>
+          </p>
+          <span class="open">Open</span>
+        </div>
+      </div>
     </section>
 
+    {#- The conversation, on the front page and named as one (2026-09-11): "I can't
+        really tell that it's a chat", "I should not be sent to a new page". It is the
+        conversation page itself, framed without its bar, so what is typed here is
+        answered here and a text it opens opens in this page. -#}
     <section class="talk card" aria-labelledby="talk-title">
-    <h2 class="section-title" id="talk-title">Talk to targum</h2>
-    <p class="section-note">Ask for something to read, ask about a word, or paste a link.
-      targum answers in Hebrew at your level, with the English under every line.</p>
-    {#- The month's hours, said here only past three quarters used (targum-internal#237). -#}
-    <p class="chat-hours" id="chat-hours" hidden></p>
-    {% set placeholder = 'Ask targum' %}
-    {% include '_composer.html.j2' %}
-    {% include '_chips.html.j2' %}
-    {% include '_first_language.html.j2' %}
-    {#- The thread, in place: hidden until a conversation is open, then the turns as the
-        conversation page draws them, in a hairline rather than raised paper. -#}
-    <section class="chat-thread" id="chat-thread" aria-live="polite" hidden>
-      <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>Show English</button>
-      <ol class="turns" id="turns"></ol>
+      <h2 class="section-title" id="talk-title">Talk to targum</h2>
+      <p class="section-note">Ask for something to read, ask about a word, or paste a link.
+        targum answers in Hebrew at your level, with the English under every line.</p>
+      <div class="talk-window">
+        <iframe class="talk-frame" id="talk-frame" title="Talk to targum" src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+      </div>
     </section>
-    {#- The way back to a conversation (targum-internal#238), named: the last three, each
-        by title and when, and the door to all of them. Hidden for a reader who has had
-        none. -#}
-    <div class="recent-chats" id="recent-chats" hidden>
-      <h3 class="section-sub">Your conversations</h3>
-      <ul class="chat-list" id="chat-list"></ul>
-      <a class="see-all" id="chat-all" href="/chat">All conversations →</a>
-    </div>
-  </section>
   </div>
 
   <section class="read" aria-labelledby="read-title">
@@ -264,10 +252,5 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 <script>{{ asset('claim.js') }}</script>
-<script>{{ asset('bring.js') }}</script>
-<script>{{ asset('chips.js') }}</script>
-<script>{{ asset('first.js') }}</script>
-<script>{{ asset('speak.js') }}</script>
-<script>{{ asset('chat.js') }}</script>
 </body>
 </html>

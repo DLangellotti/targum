@@ -59,6 +59,8 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "library": Library(out),
             "token": token,
             "page": "<html>start</html>",
+            "chatting": '<html><body class="chat"><div class="site-head"></div></body></html>',
+            "embedded": '<html><body class="chat embed"></body></html>',
             "progress": "<html>your progress</html>",
             "shelf": "<html>library</html>",
             "lists": {
@@ -2655,15 +2657,30 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
     assert job.spent == pytest.approx(4.0 / 60 * 0.02)
 
 
-def test_the_sheet_reads_a_text_s_first_lines_off_the_disk(served: tuple[int, str, Path]) -> None:
-    """design.md §13: the front page shows the text with its English, two lines of it, in
-    the language the reader reads; headings are skipped; a text with no translation yet
-    shows nothing."""
-    port, key, out = served
-    _book(out / "local" / "book-he", chapters=2, translated=1)
-    status, answer = get(port, f"/excerpt/book-he?k={key}")
-    assert status == 200
-    assert [line["he"] for line in answer["lines"]] == ["line 0", "line 1"], "two lines, no heading"
-    assert all(line["en"] == "translated" for line in answer["lines"])
-    status, missing = get(port, f"/excerpt/nowhere?k={key}")
-    assert status == 404
+def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
+    served: tuple[int, str, Path],
+) -> None:
+    """design.md §13 (2026-09-11): the front page frames a reader and the conversation.
+    Its policy lets it frame its own origin and nothing else; the framed conversation,
+    `/chat?embed=1`, may be framed by this origin only and carries no bar; the page at
+    `/chat` keeps the guard every other page has."""
+    from http.client import HTTPConnection
+
+    port, token, _ = served
+
+    def fetch(path: str) -> tuple[str, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        connection.request("GET", path)
+        response = connection.getresponse()
+        body = response.read().decode("utf-8")
+        policy = response.getheader("Content-Security-Policy") or ""
+        connection.close()
+        return policy, body
+
+    policy, _ = fetch(f"/?k={token}")
+    assert "frame-src 'self'" in policy and "frame-ancestors 'none'" in policy
+    policy, body = fetch(f"/chat?embed=1&k={token}")
+    assert "frame-ancestors 'self'" in policy and "frame-src" not in policy
+    assert 'class="chat embed"' in body and "site-head" not in body
+    policy, body = fetch(f"/chat?k={token}")
+    assert "frame-ancestors 'none'" in policy and "site-head" in body and "embed" not in body

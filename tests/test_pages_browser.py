@@ -610,19 +610,22 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
                 "talk": True,
                 "chips": chips,
             }
-        elif "/excerpt/" in u:
-            body = {
-                "language": "he",
-                "lines": [
-                    {"he": "שורה ראשונה ארוכה למדי של טקסט.", "en": "A fairly long first line."}
-                ],
-            }
+        elif "/reader/" in u:
+            route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<html><body><p>שורה ראשונה ארוכה למדי של טקסט.</p></body></html>",
+            )
+            return
         elif "/readers" in u:
             body = {"readers": readers, "shared": [], "trash": []}
         elif "/account/me" in u:
             body = {"signedIn": False}
         elif "/words/common" in u:
             body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        elif "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
             return
@@ -635,31 +638,56 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
-    page.wait_for_selector(".chat-ask")
+    # The conversation is the conversation page, framed (2026-09-11): the chips and the
+    # box are measured inside it, against the frame's own width.
+    talk = page.frame_locator("#talk-frame")
+    talk.locator(".chat-ask").first.wait_for()
     page.wait_for_timeout(400)
     got = page.evaluate(
         """() => {
           const doc = document.documentElement;
           const talk = document.querySelector('.talk').getBoundingClientRect();
-          const chips = [...document.querySelectorAll('.chat-ask')]
-            .map((c) => c.getBoundingClientRect().right);
-          const sheet = document.getElementById('carry').getBoundingClientRect();
-          const send = document.getElementById('chat-send').getBoundingClientRect();
+          const frame = document.getElementById('talk-frame').getBoundingClientRect();
+          const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
+          const window_ = document.getElementById('carry-window');
           return {
             scrollWidth: doc.scrollWidth, inner: window.innerWidth,
-            chipsPast: chips.filter((r) => r > talk.right + 1).length,
+            frameLeft: frame.left, frameRight: frame.right, frameHeight: frame.height,
+            talkRight: talk.right,
             columns: sheet.top < talk.top ? 'stacked' : 'row',
-            sendLeft: send.left, sendRight: send.right,
+            reader: window_.hidden ? ''
+              : document.getElementById('carry-frame').getAttribute('src'),
             root: parseFloat(getComputedStyle(doc).fontSize),
+          };
+        }"""
+    )
+    inside = [f for f in page.frames if "embed=1" in f.url][0].evaluate(
+        """() => {
+          const doc = document.documentElement;
+          const chips = [...document.querySelectorAll('.chat-ask')]
+            .map((c) => c.getBoundingClientRect().right);
+          const send = document.getElementById('chat-send').getBoundingClientRect();
+          return {
+            width: window.innerWidth, scrollWidth: doc.scrollWidth,
+            chipsPast: chips.filter((r) => r > window.innerWidth + 1).length,
+            sendLeft: send.left, sendRight: send.right, sendBottom: send.bottom,
+            height: window.innerHeight,
+            base: document.querySelector('base') && document.querySelector('base').target,
           };
         }"""
     )
     context.close()
     assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
-    assert got["chipsPast"] == 0, f"a chip runs past its card at {width}px"
+    assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
+    assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
     assert got["columns"] == ("stacked" if width <= 768 else "row"), f"{width}px: {got}"
-    assert 0 <= got["sendLeft"] and got["sendRight"] <= width, f"Send off screen at {width}px"
+    assert "preview=1" in got["reader"], "the sheet frames the reader, as a picture"
     assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
+    assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"
+    assert inside["chipsPast"] == 0, f"a chip runs past the frame at {width}px"
+    assert 0 <= inside["sendLeft"] and inside["sendRight"] <= inside["width"], inside
+    assert inside["sendBottom"] <= inside["height"] + 1, f"Send is below the frame: {inside}"
+    assert inside["base"] == "_top", "every link in the frame opens the page that holds it"
 
 
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
@@ -697,7 +725,8 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
         if path in ("", "learn", "learn.html"):
             route.fulfill(status=200, content_type="text/html", body=learn_page(TOKEN))
         elif path == "chat":
-            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN))
+            embed = "embed=1" in request.url
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=embed))
         elif path == "chat/list":
             route.fulfill(
                 status=200,
@@ -745,11 +774,15 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     open_page = context.new_page()
     open_page.route("http://learn.test/**", answer)
     open_page.goto("http://learn.test/learn")
+    # The box is in the framed conversation page (2026-09-11); the text it opens must
+    # open in the page that holds the frame.
+    talk = open_page.frame_locator("#talk-frame")
+    talk.locator("#chat-send").wait_for()
     open_page.wait_for_timeout(300)
-    open_page.set_input_files("#chat-file", [str(fixture), str(fixture)])
-    chips = open_page.locator(".chat-chip").count()
-    assert open_page.locator(".quote-card").count() == 0, "held, not yet brought"
-    open_page.click("#chat-send")
+    talk.locator("#chat-file").set_input_files([str(fixture), str(fixture)])
+    chips = talk.locator(".chat-chip").count()
+    assert talk.locator(".quote-card").count() == 0, "held, not yet brought"
+    talk.locator("#chat-send").click()
     open_page.wait_for_url("**/reader/negev-he/**", timeout=5000)
     landed = open_page.url
     context.close()

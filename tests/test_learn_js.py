@@ -103,6 +103,9 @@ def test_the_text_you_are_carrying_on_with_shows_its_cover() -> None:
     assert drawn["carry"]["hidden"] is False
     assert drawn["carry"]["title"] == "תהילים"
     assert drawn["carry"]["cover"] is not None, "the panel carries one"
+    assert drawn["carry"]["frame"].endswith("reader/index.html?k=k&preview=1"), (
+        "the sheet's window is the reader, told it is a picture"
+    )
     assert drawn["carry"]["href"].endswith("reader/index.html?k=k"), (
         "and the whole box opens the book — the cover and the title are not their own links"
     )
@@ -367,8 +370,11 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
     ).read_text(encoding="utf-8")
     top = page[page.index('<div class="front">') : page.index('id="shelf-panel"')]
-    assert top.count('<a class="page-sheet" id="carry"') == 1, (
-        "carrying on is a link: it goes to a reader — the sheet, since §13"
+    assert top.count('<a class="page-open" id="carry"') == 1, (
+        "carrying on is a link over the whole sheet: it goes to a reader (§13)"
+    )
+    assert 'id="carry-frame"' in top and "pointer-events" not in top, (
+        "the reader itself, framed; the stylesheet makes it a picture"
     )
     assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
     assert top.count('<a class="step"') == 2, (

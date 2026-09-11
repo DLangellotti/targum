@@ -85,6 +85,11 @@ var targumReader = function () {
   // straight off the disk has neither, and everything that needs them is skipped.
   var served = /^https?:$/.test(location.protocol);
   var passKey = new URLSearchParams(location.search).get("k");
+  // Framed in the front page as a picture of itself (design.md §13, 2026-09-11): the
+  // address says so, and a picture is not a visit — no day is counted, no opening is
+  // written, and the first-time hint is not shown to somebody who is not here.
+  var PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
+  if (PREVIEW) document.documentElement.classList.add("preview");
 
   // Whether the server will answer a question that costs something — a word looked
   // up, a glossary waited for. The start-up key says yes on a machine somebody runs
@@ -429,30 +434,32 @@ var targumReader = function () {
   // The reader's own local midnight rather than UTC, because "did I read yesterday" is a
   // question about their evening. Built from the parts rather than sliced off an ISO
   // string, which is UTC and lands on the wrong day either side of midnight.
-  try {
-    var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
-    opened[documentId] = Date.now();
-    targumKeep("targum:opened", JSON.stringify(opened));
+  if (!PREVIEW) {
+    try {
+      var opened = JSON.parse(localStorage.getItem("targum:opened") || "{}");
+      opened[documentId] = Date.now();
+      targumKeep("targum:opened", JSON.stringify(opened));
 
-    var now = new Date();
-    var today =
-      now.getFullYear() +
-      "-" +
-      String(now.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(now.getDate()).padStart(2, "0");
-    var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
-    // Where the ledger stood when this section was first opened, taken before today is
-    // written into it, so that a section opened on a new reading day counts the day as
-    // one of the things that moved (targum-internal#175; `footOpen` below).
-    footOpen(days);
-    if (!days[today]) {
-      days[today] = 1;
-      targumKeep("targum:days", JSON.stringify(days));
-      // Signed in, this reaches the account a moment later; signed out it is a no-op.
-      if (window.TargumSync) window.TargumSync.touched();
-    }
-  } catch (e) {}
+      var now = new Date();
+      var today =
+        now.getFullYear() +
+        "-" +
+        String(now.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(now.getDate()).padStart(2, "0");
+      var days = JSON.parse(localStorage.getItem("targum:days") || "{}");
+      // Where the ledger stood when this section was first opened, taken before today is
+      // written into it, so that a section opened on a new reading day counts the day as
+      // one of the things that moved (targum-internal#175; `footOpen` below).
+      footOpen(days);
+      if (!days[today]) {
+        days[today] = 1;
+        targumKeep("targum:days", JSON.stringify(days));
+        // Signed in, this reaches the account a moment later; signed out it is a no-op.
+        if (window.TargumSync) window.TargumSync.touched();
+      }
+    } catch (e) {}
+  }
 
   function read(name, fallback) {
     try {
@@ -1614,7 +1621,7 @@ var targumReader = function () {
   var FIRST = "targum:first";
   var firstTime = false;
   try {
-    firstTime = !!first && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
+    firstTime = !!first && !PREVIEW && !localStorage.getItem(FIRST) && !Object.keys(vocab).length;
   } catch (e) {}
   if (firstTime) first.hidden = false;
 

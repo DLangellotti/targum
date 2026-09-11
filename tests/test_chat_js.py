@@ -25,13 +25,13 @@ def run(
     ledger: dict[str, Any] | None = None,
     stored: dict[str, str] | None = None,
     thread: dict[str, int] | None = None,
-    front: bool = False,
+    embed: bool = False,
     language: str = "",
     who: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "thread": thread,
-        "front": front,
+        "embed": embed,
         "language": language,
         "who": who,
         "key": key,
@@ -1174,7 +1174,7 @@ def test_the_thread_follows_the_newest_line_only_while_the_reader_was_at_the_bot
     assert page["scrollTop"] == 100, "scrolled up to reread, and left there"
 
 
-# -- the front page (2026-09-11) --------------------------------------------------
+# -- framed in the front page (2026-09-11) --------------------------------------------
 
 TWO = {
     "chats": [
@@ -1185,53 +1185,73 @@ TWO = {
 }
 
 
-def test_the_front_page_opens_nothing_by_itself_and_shows_the_last_conversations() -> None:
-    """Learn runs the conversation page's script since 2026-09-11 — "I should not be sent
-    to a new page" — in its front-page branch: the thread stays hidden until a
-    conversation is open, the newest is not opened by itself, and the list is the last
-    three with a door to all."""
-    page = run(front=True, answers={"/chat/list": TWO})
-    assert "/chat/list?limit=3" in page["asked"]
-    assert page["threadHidden"] and page["hash"] == "", "a front door, not a thread"
-    assert page["list"] == ["First", "Second"] and not page["recentHidden"]
-    none = run(front=True, answers={"/chat/list": {"chats": [], "usable": True}})
-    assert none["recentHidden"], "nobody has had one: nothing is named"
+def test_framed_in_the_front_page_nothing_opens_by_itself() -> None:
+    """The front page frames this page since 2026-09-11 (design.md §13) — "I should not
+    be sent to a new page". Framed, the newest conversation is not opened by itself
+    (the front page is a door, not a thread), and the list is still every conversation,
+    behind the pill."""
+    page = run(embed=True, answers={"/chat/list": TWO})
+    assert "/chat/list" in page["asked"]
+    assert page["hash"] == "" and page["replaced"] == [], "a front door, not a thread"
+    assert page["list"] == ["First", "Second"] and page["turns"] == []
+    whole = run(answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}})
+    assert whole["hash"] == "#abc", "the page itself opens the newest"
 
 
-def test_a_line_on_the_front_page_opens_the_thread_in_place() -> None:
+def test_a_line_in_the_frame_is_answered_there_and_a_text_opens_the_holding_page() -> None:
     page = run(
-        front=True,
+        embed=True,
         do=[{"type": "say", "text": "hello"}],
         answers={"/chat/list": TWO, "/chat/say": {"chat": "xyz", "turn": 1}},
     )
     assert page["posted"][0]["path"] == "/chat/say"
-    assert not page["threadHidden"] and page["went"] == "", "answered here, nowhere else"
+    assert page["went"] == "" and page["wentTop"] == "", "answered here, nowhere else"
     assert [t["text"] for t in page["turns"]] == ["hello", ""]
-    named = run(
-        front=True,
-        hash="#abc",
+    row = run(
+        embed=True,
+        do=[{"type": "row", "id": "abc"}],
         answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
     )
-    assert not named["threadHidden"] and named["asked"][-1] == "/chat/abc", (
-        "a conversation named in the address opens"
+    assert row["replaced"] == ["#abc"] and row["hash"] == "", (
+        "the address is replaced, never pushed: a frame's history is the page's"
+    )
+    opened = run(
+        embed=True,
+        do=[{"type": "chip", "id": "continue"}],
+        answers={
+            "/chat/list": dict(
+                TWO,
+                chips=[
+                    {
+                        "id": "continue",
+                        "line": "Continue",
+                        "title": "t",
+                        "reader": "x/reader/index.html",
+                    }
+                ],
+            )
+        },
+    )
+    assert opened["went"] == "" and opened["wentTop"].endswith("/reader/x/reader/index.html?k=k"), (
+        "a text opens in the page that holds the frame"
     )
 
 
 def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
     """targum-internal#243, on the page it stands on."""
-    page = run(front=True, language="ru-RU", answers={"/chat/list": TWO})
+    page = run(embed=True, language="ru-RU", answers={"/chat/list": TWO})
     assert page["first"]["ask"] == "Отвечать по-русски?" and not page["first"]["hidden"]
     yes = run(
-        front=True,
+        embed=True,
         language="ru-RU",
         do=[{"type": "first", "yes": True}],
         answers={"/chat/list": TWO},
     )
     assert yes["first"]["hidden"] and yes["first"]["into"] == "ru" and yes["first"]["asked"] == "1"
-    english = run(front=True, language="en-GB", answers={"/chat/list": TWO})
+    english = run(embed=True, language="en-GB", answers={"/chat/list": TWO})
     assert english["first"]["hidden"]
     signed = run(
-        front=True,
+        embed=True,
         language="ru",
         who={"signedIn": True, "learning": ["he"], "reads": ["en"]},
         do=[{"type": "first", "yes": True}],

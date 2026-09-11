@@ -418,9 +418,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the first page on it: every chrome page stands on the desk in the chrome's own face,
   Source Sans 3, carried in the page like the Hebrew faces; the header is the ink bar;
   cards lift off the ground; teal marks every control; and the text to carry on with is
-  drawn as a sheet lying on the desk — pure paper, the reading faces, its first two
-  lines with their English off `/excerpt/<name>` — beside the conversation. The reader
-  is untouched and never loads the face. `test_brand.py` widens its palette and type
+  drawn as a sheet lying on the desk — the reader itself, framed as a picture of itself
+  at the place it was left, with its title and one press under it — beside the
+  conversation, which is the conversation page itself framed without its bar
+  (`/chat?embed=1`): what is typed there is answered there, and a text it opens opens
+  in the page that holds the frame. A framed reader is told it is a picture
+  (`?preview=1`) and counts nothing as read; both frames may be framed by this origin
+  and by nothing else. The reader never loads the face. `test_brand.py` widens its palette and type
   scale by exactly what §13 names. The desk holds from a small phone to a television:
   the rem scales from 16px to 22px with the screen, a chip cuts a long title short
   rather than running out of its card, Read is one row of cards, the weekly is a row

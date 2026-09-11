@@ -165,14 +165,20 @@ global.window.TargumSync = {
   onChange: () => {},
 };
 
-// The front page (2026-09-11) runs this script too: `front` in the payload puts the
-// page's class on the body and makes the elements only Learn has, so the script takes
-// its front-page branch — no conversation opened by itself, the thread hidden until one
-// is, the last three conversations and a door to all.
-if (payload.front) {
-  document.body.className = "words learn";
-  document.getElementById("recent-chats").hidden = true;
-  document.getElementById("chat-thread").hidden = true;
+// Framed in the front page (2026-09-11): `embed` in the payload puts the page's class
+// on the body and gives the window a `top` that is not itself, so the script takes its
+// framed branch — no conversation opened by itself, a text opened in the holding page,
+// the address replaced rather than pushed.
+const top = { location: { href: "" } };
+const replaced = [];
+if (payload.embed) {
+  document.body.className = "chat embed";
+  global.window.top = top;
+  global.window.history = {
+    replaceState: (_state, _title, url) => {
+      replaced.push(url);
+    },
+  };
 }
 // The first visit's question (#243): the browser's language and who is signed in.
 if (payload.language) {
@@ -380,6 +386,14 @@ function drawn() {
     if (step.type === "pill") {
       byId["chat-open-list"].onclick();
     }
+    if (step.type === "row") {
+      // A press on the list's row for that conversation.
+      const row = (byId["chat-list"].children || [])
+        .map((li) => li.children[0])
+        .find((b) => b.attrs["data-chat"] === step.id);
+      row.onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "press") {
       // The newest control with that class, anywhere in the thread.
       const found = [];
@@ -403,6 +417,8 @@ function drawn() {
       turns: drawn(),
       cards: cards(),
       went: global.location.href,
+      wentTop: top.location.href,
+      replaced,
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
       placeholder: byId["say"].placeholder,
@@ -429,7 +445,6 @@ function drawn() {
       ),
       hash: global.location.hash,
       threadHidden: byId["chat-thread"] ? byId["chat-thread"].hidden : null,
-      recentHidden: byId["recent-chats"] ? byId["recent-chats"].hidden : null,
       first: {
         hidden: byId["chat-first-lang"].hidden,
         ask: byId["chat-first-ask"].textContent,

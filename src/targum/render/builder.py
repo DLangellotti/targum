@@ -972,7 +972,7 @@ def add_page(token: str, no_key: str = "") -> str:
     )
 
 
-def chat_page(token: str) -> str:
+def chat_page(token: str, embed: bool = False) -> str:
     """The conversation page: one conversation, in Hebrew, and the box under it.
 
     Reached from the box on Learn, which is the front door (2026-09-06): a line typed
@@ -981,6 +981,10 @@ def chat_page(token: str) -> str:
     `/chat/list` and the answers stream in, so one rendered page serves everybody. The
     page is chrome, not a reader — it talks to its own origin and nothing else, and
     `design.md` §12 records what that means for the fetch-nothing rule.
+
+    `embed` is the same page without the bar and the foot, for the frame on the front
+    page (design.md §13, 2026-09-11): the front page holds the conversation itself
+    rather than a copy of its box. Every link inside opens in the page that holds it.
     """
     from ..translate.prompts import INTO, OFFERED, language_name
 
@@ -991,6 +995,7 @@ def chat_page(token: str) -> str:
             token=token,
             into=[code for code, _ in INTO],
             languages=[(code, language_name(code)) for code in OFFERED],
+            embed=embed,
         )
     )
 

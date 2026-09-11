@@ -213,6 +213,9 @@ body {
 
 /* --- chrome ------------------------------------------------------------- */
 
+/* Framed in the front page as a picture of itself (design.md §13, 2026-09-11): the
+   page under it names the text and carries the mark, so the bar is not drawn twice. */
+html.preview .bar { display: none; }
 .bar {
   position: sticky;
   inset-block-start: 0;

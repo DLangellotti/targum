@@ -41,6 +41,9 @@ PAGES = {
     "add": add_page("k"),
     "chat": chat_page("k"),
 }
+#: The conversation page framed in the front page (2026-09-11): not a place of its own,
+#: so not in the table every-page tests walk — it has no bar to walk.
+EMBED = chat_page("k", embed=True)
 
 
 # -- nothing was lost in the move ---------------------------------------------
@@ -73,7 +76,8 @@ def test_the_library_and_the_progress_page_build_nothing() -> None:
         assert 'id="source"' not in page, f"{name} should not take a source"
     learn = PAGES["learn"]
     assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
-    assert learn.count('type="file"') == 1, "one hidden input behind the +"
+    assert learn.count('type="file"') == 0, "the + is in the framed conversation (2026-09-11)"
+    assert EMBED.count('type="file"') == 1, "one hidden input behind the +"
 
 
 def test_the_library_carries_nothing_personal() -> None:
@@ -161,10 +165,10 @@ def test_the_nav_marks_where_you_are() -> None:
 def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     """Add used to be first in the nav, then the corner. Since 2026-09-06 it is the `+`
     on the box, on both pages that carry one, and nothing in the nav points at it."""
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
+    assert 'id="talk-frame"' in PAGES["learn"], "Learn frames the page that carries it"
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
@@ -176,9 +180,13 @@ def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
     first lines, and the conversation beside it; the chrome's face carried in every page
     that wears the bar; the reader never loads it."""
     learn = PAGES["learn"]
-    assert learn.index('class="front"') < learn.index('id="carry"') < learn.index('id="talk-title"')
-    assert 'class="page-sheet" id="carry"' in learn and 'id="carry-lines"' in learn
-    for name, page in PAGES.items():
+    assert (
+        learn.index('class="front"')
+        < learn.index('id="carry-sheet"')
+        < learn.index('id="talk-title"')
+    )
+    assert 'id="carry-frame"' in learn and 'class="page-open" id="carry"' in learn
+    for name, page in list(PAGES.items()) + [("embed", EMBED)]:
         assert page.count('font-family:"Source Sans 3"') == 2, (
             f"{name}: the chrome face, upright and italic"
         )
@@ -188,39 +196,38 @@ def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
     assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
 
 
-def test_the_front_page_names_its_parts_and_answers_in_place() -> None:
+def test_the_front_page_names_its_parts_and_frames_the_conversation() -> None:
     """2026-09-11: "nothing is labeled", "I can't really tell that it's a chat", "I should
-    not be sent to a new page". The conversation is a named section with a sentence
-    under its heading, the thread stands in it, and the page runs the conversation
-    page's own script; what follows is a named section too."""
+    not be sent to a new page", then "an actual embed of the chat". The conversation is
+    a named section with a sentence under its heading, and in it the conversation page
+    itself, framed without its bar; what follows is a named section too. The framed
+    page opens every link in the page that holds it."""
     learn = PAGES["learn"]
-    assert "Talk to targum" in learn and 'id="chat-thread"' in learn and 'id="turns"' in learn
-    assert "TargumChat" in learn and "TargumBox" not in learn
+    assert "Talk to targum" in learn and 'id="talk-frame"' in learn
+    assert 'src="/chat?embed=1&amp;k=k"' in learn
+    assert 'id="composer"' not in learn and "TargumChat" not in learn, "the box is in the frame"
     assert 'class="section-title" id="read-title">Read<' in learn
     assert (
         learn.index('id="talk-title"')
-        < learn.index('id="composer"')
-        < learn.index('id="chat-thread"')
-    )
-    assert (
-        learn.index('id="chat-thread"')
-        < learn.index('id="recent-chats"')
+        < learn.index('id="talk-frame"')
         < learn.index('id="read-title"')
     )
-    assert "Your conversations" in learn and 'id="chat-all"' in learn
-    assert ".chat-pair" in learn, "the thread's own stylesheet rides"
+    assert 'class="chat embed"' in EMBED and '<base target="_top">' in EMBED
+    assert 'class="site-head"' not in EMBED and "data-nav=" not in EMBED, "no bar, no foot"
+    assert 'id="composer"' in EMBED and 'id="chat-thread"' in EMBED and "TargumChat" in EMBED
+    assert 'class="chat"' in PAGES["chat"] and "<base " not in PAGES["chat"]
 
 
 def test_the_box_is_the_front_door() -> None:
     """Learn carries the box under the ledger's own sentence, and the conversation page
     carries the same one from the same file: one field, the `+`, Speak, Send."""
     learn = PAGES["learn"]
-    assert 'id="composer"' in learn and 'id="say"' in learn
     assert (
-        learn.index('id="known-line"') < learn.index('id="carry"') < learn.index('id="composer"')
+        learn.index('id="known-line"')
+        < learn.index('id="carry-sheet"')
+        < learn.index('id="talk-frame"')
     ), "under the count, beside the sheet (§13)"
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
             assert page.count(control) == 1, f"{name}: {control} once"
 
@@ -245,8 +252,7 @@ def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
         "stroke-linecap: round",
     ):
         assert line in rule, f"§7: {line}"
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('<svg class="glyphs"') == 1, f"{name}: the sprite, once"
         for control, word, glyph_name in (
             ("chat-mic", "Speak", "mic"),
@@ -274,8 +280,7 @@ def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> 
     for name, page in PAGES.items():
         assert page.count('id="account-hours"') == 1, f"{name}: the panel, once"
     assert PAGES["progress"].count('id="hours-line"') == 1
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-hours"') == 1, f"{name}: one line, above the box"
         assert page.index('id="chat-hours"') < page.index('id="composer"'), name
     chat = PAGES["chat"]
@@ -286,24 +291,17 @@ def test_the_hours_are_where_a_reader_looks_for_them_and_not_in_their_face() -> 
 def test_the_chips_stand_on_both_pages_that_carry_the_box() -> None:
     """targum-internal#240: under the box on Learn, in the empty state on the
     conversation page, drawn by one script both pages carry."""
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-chips"') == 1, name
         assert "TargumChips" in page, f"{name}: chips.js rides"
-    chat = PAGES["chat"]
-    assert chat.index('id="chat-empty"') < chat.index('id="chat-chips"') < chat.index('id="turns"')
-    learn = PAGES["learn"]
-    assert (
-        learn.index('id="composer"')
-        < learn.index('id="chat-chips"')
-        < learn.index('id="recent-chats"')
-    )
+        assert (
+            page.index('id="chat-empty"') < page.index('id="chat-chips"') < page.index('id="turns"')
+        )
 
 
 def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_may_ask() -> None:
     """targum-internal#243."""
-    for name in ("learn", "chat"):
-        page = PAGES[name]
+    for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert page.count('id="chat-first-lang"') == 1, name
         assert "TargumFirst" in page, f"{name}: first.js rides"
         assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name

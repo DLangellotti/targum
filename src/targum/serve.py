@@ -2676,6 +2676,7 @@ class Handler(BaseHTTPRequestHandler):
     #: The conversation page, and the workers that answer it. Empty and None on a
     #: handler built by hand, which is how the tests build one that has no chat.
     chatting: str = ""
+    embedded: str = ""
     chats: Any = None
     #: The three list pages, by route name: everything Learn shows the top of. Empty by
     #: default so a handler built with only the pages it needs — which is what the tests
@@ -3821,17 +3822,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
-        if route.startswith("/excerpt/"):
-            return self._excerpt(unquote(route[len("/excerpt/") :]))
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
-            return self._send(200, self.page.encode("utf-8"), "text/html; charset=utf-8")
+            # The front page frames a reader and the conversation (design.md §13,
+            # 2026-09-11), so it may frame its own origin, and nothing else.
+            return self._send(200, self.page.encode("utf-8"), HTML, frames="in")
         if route == "/add":
             return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/chat":
             if not self.chatting:
                 return self._send(404, b"not found", "text/plain")
+            # `?embed=1` is the same conversation without the bar and the foot, drawn
+            # inside the front page (2026-09-11): it may be framed by this origin only.
+            if parse_qs(urlparse(self.path).query).get("embed", [""])[0] == "1":
+                return self._send(200, self.embedded.encode("utf-8"), HTML, frames="out")
             return self._send(200, self.chatting.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/chat/"):
             return self._chat_get(route[len("/chat/") :])
@@ -4537,45 +4542,6 @@ class Handler(BaseHTTPRequestHandler):
                 "into": target,
             }
         )
-
-    #: How many lines the sheet on the front page shows of a text.
-    EXCERPT_LINES = 2
-
-    def _excerpt(self, name: str) -> None:
-        """A text's first lines with their English, for the sheet on the front page
-        (design.md §13): the page shows the thing it is about rather than describing it.
-        Off the artifacts on disk — the segments and the translation the reader is
-        drawn in — never a model. Nothing for a text with no translation yet."""
-        from .models import SegmentedDocument, Translation, read_artifact
-
-        home = self._home()
-        folder = self.library.within(home, name)
-        if folder is None:
-            return self._json({"error": "not found"}, 404)
-        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-        if segmented is None:
-            return self._json({"lines": []})
-        reads = self._reads(self._person())
-        best: Translation | None = None
-        for path in sorted((folder / "translations").glob("*.json")):
-            translation = read_artifact(Translation, path)
-            if translation is None:
-                continue
-            if best is None or (
-                translation.target_language in reads and best.target_language not in reads
-            ):
-                best = translation
-        lines: list[dict[str, str]] = []
-        for segment in segmented.segments:
-            if segment.kind.value in ("heading", "byline") or not segment.text.strip():
-                continue
-            english = best.segments.get(segment.id, "") if best else ""
-            if not english:
-                continue
-            lines.append({"he": segment.text, "en": english, "id": segment.id})
-            if len(lines) >= self.EXCERPT_LINES:
-                break
-        self._json({"lines": lines, "language": segmented.language})
 
     def _hours(self, person_id: int | None) -> dict[str, Any]:
         """The month's hours, used and allowed, and when the month turns. Reckoned in one
@@ -5593,7 +5559,9 @@ class Handler(BaseHTTPRequestHandler):
                 if moving:
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-                return self._send(200, target.read_bytes(), kind)
+                # Framed by the front page as a picture of itself (design.md §13,
+                # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
+                return self._send(200, target.read_bytes(), kind, frames="out")
         # A door the model wrote by hand. It is told to copy a path exactly as the tool
         # returned it, and it copied בסטארטאפ as בסטארטאף — twice in one conversation
         # (2026-09-08) — because a final letter is how Hebrew is spelled and a folder
@@ -5725,6 +5693,7 @@ def start(
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
+            "embedded": chat_page(token, embed=True),
             "chats": chats,
             "progress": progress_page(token),
             "catalogue": library_page(token),

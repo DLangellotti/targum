@@ -7,12 +7,21 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}</style>
 {{ hebrew_face() }}
+{% if embed %}
+{#- Framed in the front page (design.md §13, 2026-09-11): the chrome's face rides with
+    the bar on every other page, and here there is no bar; every link opens in the
+    page that holds the frame, never inside it. -#}
+{{ chrome_face() }}
+<base target="_top">
+{% endif %}
 <script>{{ asset('theme.js') }}</script>
 </head>
-<body class="chat">
+<body class="chat{% if embed %} embed{% endif %}">
 {% set here = 'chat' %}
+{% if not embed %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
+{% endif %}
 <main class="chat-main">
   {#- The conversations you have had, newest first, and one door to a fresh one. A
       hairline list rather than a raised panel: §9, one raised layer per view, and the
@@ -63,7 +72,7 @@
   {% set placeholder = 'Write in Hebrew, or in English' %}
   {% include '_composer.html.j2' %}
 </main>
-{% include '_foot.html.j2' %}
+{% if not embed %}{% include '_foot.html.j2' %}{% endif %}
 <script>
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_INTO = {{ into|tojson }};
