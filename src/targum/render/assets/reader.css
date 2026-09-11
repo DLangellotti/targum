@@ -240,11 +240,11 @@ body {
 
 /* Framed in the front page as a picture of itself (design.md §13, 2026-09-11): the
    page under it names the text and carries the mark, so the bar is not drawn twice. */
-html.preview .bar { display: none; }
-/* On the front page the kept list stays out of the sheet: the text is the point, and
-   the list is the reader's own page's (2026-09-11). */
-html.preview #list { display: none; }
-html.preview body.has-list.list-open { padding-inline-end: 0; }
+/* The bar and the kept list stay (2026-09-11, David: a subscription in the sheet was
+   "missing most of the reader features including translations and toggles"): the
+   sheet is the reader, the size of the screen, and the bar is where its toggles are.
+   What `preview` still changes is behaviour — links kept in the frame, the visit
+   counted at the first press — not what is drawn. */
 .bar {
   position: sticky;
   inset-block-start: 0;

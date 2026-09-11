@@ -448,6 +448,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the sheet. The date carries the Hebrew date in parentheses. For a new reader the
   count's place says what to do here. The weekly is named Weekly News Digest wherever a
   series is named.
+- The sheet on Learn draws the reader whole (2026-09-11, live: a subscription there was
+  "missing most of the reader features including translations and toggles"): the bar
+  and the kept list are drawn in the sheet as on the reader's own page; what the front
+  page still changes is that links stay in the frame and a visit counts at the first
+  press. Open on a subscription goes to the reader, never to the series' own page. And
+  Suggested is never simply missing: with no pick from the server, the catalogue's own
+  next step is the suggestion.
 - The reader's kept list scrolls as its own thing (2026-09-11): a thin bar at the
   panel's outer edge rather than a wide one drawn between the rows, and reaching the
   end no longer scrolls the text behind it.
