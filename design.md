@@ -1044,6 +1044,9 @@ serves a hand and a wall; the reader sets its own type. A 62rem column, cards on
 12-column grid, 8px base, sections 48px apart
 with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
 pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
+The front page is the room a reader learns in, not a lobby (2026-09-11): the sheet, the
+conversation and the shelf, and nothing else. The lists of words and phrases are a page
+behind the account; the Library carries the series to follow.
 The front page opens on the sheet and the conversation side by side, the sheet first on
 a phone. The conversation is the conversation page itself, framed without its bar
 (`/chat?embed=1`), so what is typed there is answered there, and a text it offers opens

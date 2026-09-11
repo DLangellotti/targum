@@ -27,6 +27,18 @@
       here instead — under the heading and above every control — because it is the
       first thing that reader has to read, and thirteen chips they do not yet
       understand should not come before it. -#}
+  {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
+      weekly portion, a learning cycle — each with where it is this week, one press to
+      follow and one to open. Following puts the newest instalment in the sheet on Learn
+      when it lands, and in the bell. Drawn by `follow.js`; hidden until the server has
+      named a series. -#}
+  <section class="subscriptions" id="subscriptions" aria-labelledby="subs-title" hidden>
+    <h2 class="subs-title" id="subs-title">Your subscriptions</h2>
+    <p class="note">Series that come out on their own clock. Follow one and its newest
+      instalment opens on Learn when it lands.</p>
+    <ul class="series" id="series"></ul>
+  </section>
+
   <p class="note lead" id="picked-lead" hidden></p>
   <div class="tabs" id="where" role="tablist" aria-label="Which texts"></div>
 
@@ -85,6 +97,7 @@ window.TARGUM_COLLECTIONS = {{ collections|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
+<script>{{ asset('follow.js') }}</script>
 <script>{{ asset('library.js') }}</script>
 </body>
 </html>

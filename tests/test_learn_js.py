@@ -650,3 +650,53 @@ def test_a_door_onto_a_video_says_video_and_not_audio() -> None:
     lecture = scene(1, "a-lecture", "הרצאה", english="A lecture", video=True)
     drawn = draw([], shared=[lecture, scene(2, "in-a-cafe", "בבית קפה", english="In a café")])
     assert drawn["carry"]["meta"] == "Scene 1 of 2 · 22 words · video"
+
+
+# -- a subscription that landed (2026-09-11) ---------------------------------------------
+
+PORTION = {
+    "id": "parasha",
+    "name": "The weekly portion",
+    "hebrew": "פרשת השבוע",
+    "what": "This Shabbat's reading.",
+    "page": "/parasha",
+    "instalment": {
+        "id": "ki-tavo",
+        "title": "Ki Tavo",
+        "hebrew": "כי תבוא",
+        "when": "2026-09-12",
+        "reader": "/parasha/read/ki-tavo/reader/sec-0001.html",
+    },
+}
+
+
+def test_a_followed_series_newest_instalment_takes_the_sheet_once_and_rings_the_bell() -> None:
+    """Following one on the Library "puts its newest instalment into the sheet on Learn as
+    Continue when it lands, and into the bell". The first visit after it lands: the sheet
+    is the instalment, framed from its own page, Open goes to the series' page, and the
+    bell is told. Seen once, the next visit is the reader's own text again."""
+    mine = reader("mine-he", "שלי")
+    drawn = draw([mine], {"targum:follows": json.dumps({"parasha": 1})}, series=[PORTION])
+    assert drawn["carry"]["heading"] == "New: The weekly portion"
+    assert drawn["carry"]["title"] == "כי תבוא" and drawn["carry"]["english"] == "Ki Tavo"
+    assert drawn["carry"]["frame"] == "/parasha/read/ki-tavo/reader/sec-0001.html?k=k&preview=1"
+    assert drawn["carry"]["href"] == "/parasha?k=k"
+    assert drawn["seen"] == {"parasha": "ki-tavo"}
+    assert drawn["notices"] == [
+        {
+            "id": "series:parasha:ki-tavo",
+            "text": "The weekly portion: כי תבוא",
+            "href": "/parasha?k=k",
+        }
+    ]
+    again = draw(
+        [mine],
+        {
+            "targum:follows": json.dumps({"parasha": 1}),
+            "targum:series-seen": json.dumps({"parasha": "ki-tavo"}),
+        },
+        series=[PORTION],
+    )
+    assert again["carry"]["title"] == "שלי" and again["notices"] == [], "seen once"
+    unfollowed = draw([mine], series=[PORTION])
+    assert unfollowed["carry"]["title"] == "שלי" and unfollowed["notices"] == []

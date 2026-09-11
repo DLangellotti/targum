@@ -617,3 +617,67 @@
 
 /* How much of a text is already yours, under its title. Leaf: §4 gives "known" to it. */
 .row-fit { display: block; font-size: 0.6875rem; color: var(--leaf); }
+
+/* --- your subscriptions (2026-09-11) ----------------------------------------------
+   A card on the desk above the list: one row a series, its name in the chrome's face
+   and its Hebrew in the reading face, what it is, where it is this week, and two
+   working controls — Follow, which is a state and says so, and Open. */
+.subscriptions {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.25rem 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+}
+.subscriptions[hidden] { display: none; }
+.subs-title { margin: 0 0 0.25rem; font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+.subscriptions .note { margin: 0 0 0.5rem; max-inline-size: 42rem; }
+.series { list-style: none; margin: 0; padding: 0; }
+.series-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.85rem 0;
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--chrome);
+}
+.series-what { flex: 1 1 18rem; min-inline-size: 0; }
+.series-name { font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+/* A physical margin: the span is right-to-left, so its inline start is its right. */
+.series-hebrew { margin-left: 0.6rem; font-family: var(--reading-hebrew); font-size: 1.0625rem; color: var(--ink-soft); }
+.series-blurb { margin: 0.1rem 0 0.25rem; font-size: 0.9375rem; color: var(--ink-soft); }
+.series-now { margin: 0; font-size: 0.9375rem; color: var(--ink); }
+.series-title { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.series-when { margin-inline-start: 0.6rem; font-size: 0.875rem; color: var(--ink-soft); }
+.series-acts { display: flex; align-items: center; gap: 0.5rem; }
+.series-follow {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--teal);
+  cursor: pointer;
+}
+.series-follow[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
+.series-follow:hover { background: var(--teal-wash); }
+.series-follow[aria-pressed="true"]:hover { background: var(--teal); filter: brightness(1.08); }
+.series-open {
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  text-decoration: none;
+}
+.series-open:hover { background: var(--teal); }
+@media (hover: none) and (pointer: coarse) {
+  .series-follow, .series-open { min-height: 44px; display: inline-flex; align-items: center; }
+}

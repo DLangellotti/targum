@@ -264,6 +264,8 @@
       // The key rides in the query, and a query belongs before the fragment.
       var parts = door.href.split("#");
       panel.href = keyed(parts[0]) + (parts[1] ? "#" + parts[1] : "");
+    } else if (door.src) {
+      panel.href = keyed(door.src);
     } else {
       panel.href = keyed("/reader/" + readerPath(reader, door));
     }
@@ -271,13 +273,16 @@
 
     var cover = document.getElementById("carry-cover");
     cover.textContent = "";
-    cover.appendChild(
-      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.id || reader.name)), {
-        title: reader.title,
-        language: reader.language,
-        drawn: reader.drawn,
-      })
-    );
+    var pictured = reader.entry || reader.id || reader.name;
+    if (pictured) {
+      cover.appendChild(
+        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(pictured)), {
+          title: reader.title,
+          language: reader.language,
+          drawn: reader.drawn,
+        })
+      );
+    }
 
     var title = document.getElementById("carry-title");
     title.textContent = reader.title;
@@ -309,13 +314,15 @@
     var window_ = document.getElementById("carry-window");
     var frame = document.getElementById("carry-frame");
     if (!window_ || !frame) return;
-    if (door.href || !reader.name) {
+    if (!door.src && (door.href || !reader.name)) {
       window_.hidden = true;
       return;
     }
     window_.hidden = false;
     frame.title = reader.title || "";
-    var src = keyed("/reader/" + readerPath(reader, door));
+    // A series' instalment names its reader's page itself (`door.src`): the weekly
+    // portion's and a cycle's live under their own `/read/`, not under `/reader/`.
+    var src = keyed(door.src || "/reader/" + readerPath(reader, door));
     src += (src.indexOf("?") < 0 ? "?" : "&") + "preview=1";
     // Set only when it changes: a frame reloads on every write to its address.
     if (frame.getAttribute("src") === src) return;
@@ -682,12 +689,57 @@
       }
 
       show(chosen);
+      landed();
     })
     .catch(function () {
       // Signed out, or the server went away. The page says nothing rather than half of
       // something, and the nav is still there to leave by.
       document.getElementById("nothing").hidden = false;
     });
+
+  /* --- a subscription that landed (2026-09-11) ------------------------------------
+   * A followed series' newest instalment, the first time this browser sees it, takes
+   * the sheet as what to read next and is said in the bell; seen once, the sheet goes
+   * back to what the reader was reading. The Library is where following is done.
+   */
+  function landed() {
+    var follow = window.TargumFollow;
+    if (!follow) return;
+    follow.list().then(function (series) {
+      var fresh = follow.fresh(series);
+      if (!fresh.length) return;
+      fresh.forEach(function (one) {
+        var line = one.name + ": " + (one.instalment.hebrew || one.instalment.title);
+        if (window.TargumNotices && window.TargumNotices.note) {
+          window.TargumNotices.note("series:" + one.id + ":" + one.instalment.id, line, {
+            href: keyed(one.page || follow.readerOf(one)),
+            label: "Open",
+          });
+        }
+      });
+      var newest = fresh[0];
+      var src = follow.readerOf(newest);
+      if (!src) return;
+      var inst = newest.instalment;
+      drawCarry(
+        {
+          name: "",
+          title: inst.hebrew || inst.title,
+          english: inst.hebrew ? inst.title : "",
+          language: "he",
+        },
+        {
+          state: "carry",
+          heading: "New: " + newest.name,
+          primary: true,
+          src: src,
+          href: newest.page || src,
+          meta: follow.whenSaid(inst.when),
+        }
+      );
+      follow.markSeen(newest.id, inst.id);
+    });
+  }
 
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {

@@ -3880,6 +3880,16 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/series":
+            # What comes out on its own clock, and where each is this week (2026-09-11):
+            # the page draws the row to follow, and Learn puts a new instalment of a
+            # followed one in the sheet.
+            from . import series as series_module
+
+            schedule = parse_qs(urlparse(self.path).query).get("schedule", ["diaspora"])[0]
+            return self._json(
+                {"series": series_module.current(schedule, public=shelves_are_public())}
+            )
         if route == "/words/common":
             return self._common_words(parse_qs(urlparse(self.path).query))
         if route == "/account/export":

@@ -48,6 +48,8 @@ install({
   addEventListener: (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
   },
+  // The bell (2026-09-11): what the page told it.
+  TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
   stored: payload.stored || {},
   TargumLang: {
@@ -69,6 +71,7 @@ install({
    about that is which text was sent — a card that offered one book and built its
    neighbour would be unnoticeable and expensive. */
 const asked = [];
+const notices = [];
 
 global.fetch = (path, options) => {
   asked.push({
@@ -78,6 +81,8 @@ global.fetch = (path, options) => {
   let answer = { id: "j1" }; // enough for `/prepare` to hand `/build` an id
   if (String(path).indexOf("/readers") === 0) {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
+  } else if (String(path).indexOf("/series") === 0) {
+    answer = { series: payload.series || [] };
   } else if (String(path).indexOf("/job/") === 0) {
     /* Finished on the first ask. A job that never reaches "done" leaves the page polling
        it every 700ms, and node does not exit while a timer is pending — the first run of
@@ -112,6 +117,7 @@ global.window.TargumCharts.tiles = () => {};
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
 require(path.join(assets, "scenes.js"));
+require(path.join(assets, "follow.js"));
 require(path.join(assets, "learn.js"));
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -209,6 +215,9 @@ setTimeout(() => {
         href: at("carry").href || "",
         expand: at("carry-expand").textContent,
       },
+      // A subscription that landed (2026-09-11): what the bell was told, what was seen.
+      notices,
+      seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
       // The conversation beside the sheet, or put away (2026-09-11).
       talk: {
         away: at("front").classList.contains("expanded"),

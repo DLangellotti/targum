@@ -414,6 +414,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Learn is the room you learn in, not a lobby (2026-09-11: "it's no longer a home page
+  but an actual page for learning"). The Read row, the word and phrase panels and the
+  may-already-know checklist left it; the sheet, the conversation and the shelf stay.
+  One sheet for both Hebrews: the track opened most recently takes it. Your Words is a
+  page behind the account — the words, the checklist, the phrases — linked from the
+  account panel on every page. The checklist is the conversation's first exchange for
+  a reader with a ledger of nothing and no conversation, and lives on Your Words after.
+  The Library carries Your subscriptions above the list: the weekly, the weekly portion
+  and each learning cycle, each with where it is this week, Follow and Open;
+  `GET /series` answers where each is. A followed series' newest instalment takes the
+  sheet on Learn the first time it is seen and is said in the bell.
 - The reader on the front page works, and the conversation can be put away. The sheet
   is the reader itself, framed: a press in it marks a word, turns a page, opens a
   chapter; its own links stay in the frame and every other link opens the page; a visit

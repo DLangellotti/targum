@@ -94,6 +94,9 @@ var targumReader = function () {
   // Framed, a link to another page of this text stays in the frame and keeps the key
   // and the flag it arrived with; a link anywhere else — Learn, the library, the chat,
   // the web — opens in the page that holds the frame, never inside it.
+  // Where a text's own pages live: under `/reader/`, or under a series' `/read/` — the
+  // weekly portion's, a learning cycle's.
+  var OWN_PAGE = /^\/(reader\/|[a-z0-9-]+\/read\/)/;
   function framed(href) {
     if (!PREVIEW) return href;
     var url;
@@ -102,7 +105,7 @@ var targumReader = function () {
     } catch (e) {
       return href;
     }
-    if (url.origin !== location.origin || url.pathname.indexOf("/reader/") !== 0) return href;
+    if (url.origin !== location.origin || !OWN_PAGE.test(url.pathname)) return href;
     if (passKey && !url.searchParams.get("k")) url.searchParams.set("k", passKey);
     url.searchParams.set("preview", "1");
     return url.href;
@@ -122,7 +125,7 @@ var targumReader = function () {
       event.preventDefault();
       var to = url.href;
       var where = window;
-      if (url.origin === location.origin && url.pathname.indexOf("/reader/") === 0) {
+      if (url.origin === location.origin && OWN_PAGE.test(url.pathname)) {
         to = framed(to);
       } else {
         try {

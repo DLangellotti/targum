@@ -2657,6 +2657,19 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
     assert job.spent == pytest.approx(4.0 / 60 * 0.02)
 
 
+def test_the_series_are_answered_with_where_each_is_this_week(
+    served: tuple[int, str, Path],
+) -> None:
+    """2026-09-11: the Library's subscriptions row and Learn's sheet ask the same thing."""
+    port, key, _ = served
+    status, answer = get(port, f"/series?k={key}")
+    assert status == 200
+    ids = [one["id"] for one in answer["series"]]
+    assert "weekly" in ids, "the weekly is on every shelf"
+    for one in answer["series"]:
+        assert set(one) >= {"id", "name", "what", "page", "instalment"}
+
+
 def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
     served: tuple[int, str, Path],
 ) -> None:
