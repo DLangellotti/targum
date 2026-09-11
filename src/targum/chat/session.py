@@ -299,7 +299,10 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
         return text
     where = []
     if about.get("document"):
-        where.append(f"the text {about['document']}")
+        named = about["document"]
+        if about.get("title"):
+            named = f"{about['title']} ({about['document']})"
+        where.append(f"the text {named}")
     if about.get("section"):
         where.append(f"section {about['section']}")
     lines = [

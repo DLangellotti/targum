@@ -466,6 +466,17 @@ def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -
     status, whole, _ = call(port, "GET", f"/chat/{asked['chat']}?k={key}")
     assert whole["chat"]["mode"] == "talk"
 
+    status, named, _ = call(
+        port,
+        "POST",
+        f"/chat/say?k={key}",
+        {"chat": "", "text": "let's talk", "about": {"document": "hapoel-he", "title": "הפועל"}},
+    )
+    assert status == 200
+    assert (
+        "The reader is reading the text הפועל (hapoel-he)."
+        in store.chat_turns(named["chat"])[0]["content"]
+    ), "the text alone is a note (2026-09-11): the front page's 'let's talk about it'"
     status, asked, _ = call(
         port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi", "about": {"colour": "x"}}
     )

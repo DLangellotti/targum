@@ -77,7 +77,7 @@ PORTION = {
 }
 WEEKLY = {
     "id": "weekly",
-    "name": "The weekly",
+    "name": "Weekly News Digest",
     "what": "",
     "page": "/weekly",
     "instalment": {"id": "w", "title": "t"},

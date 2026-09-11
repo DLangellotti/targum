@@ -278,11 +278,13 @@
     var panel = document.getElementById("carry");
     if (!reader) {
       sheet.hidden = true;
+      showing = null;
       markDoor("");
       return;
     }
     door = door || { state: "carry" };
     sheet.hidden = false;
+    showing = reader;
     var heading = document.getElementById("carry-heading");
     if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue reading";
     markDoor(door.id || "");
@@ -373,16 +375,28 @@
    * of the row, and under it one press for each text the page could show in the sheet
    * — what you were reading, what is next, the week's portion, a cycle you follow.
    */
+  // The time of day and nothing else: no "Shabbat shalom" on a Saturday (David,
+  // 2026-09-11: somebody on the internet on Shabbat does not get one).
   function greeting(name) {
-    var now = new Date();
-    var hour = now.getHours();
-    var said = now.getDay() === 6 ? "Shabbat shalom" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    var hour = new Date().getHours();
+    var said = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
     return said + (name ? ", " + name : "") + ".";
+  }
+
+  // The Hebrew date, in Hebrew letters, where the browser can reckon it.
+  function hebrewDate(now) {
+    try {
+      return new Intl.DateTimeFormat("he-u-ca-hebrew-nu-hebr", { day: "numeric", month: "long", year: "numeric" }).format(now);
+    } catch (e) {
+      return "";
+    }
   }
 
   function todayLine(series) {
     var now = new Date();
-    var parts = [now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })];
+    var day = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+    var hebrew = hebrewDate(now);
+    var parts = [hebrew ? day + " (" + hebrew + ")" : day];
     (series || []).forEach(function (one) {
       var inst = one.instalment;
       if (one.id === "parasha" && inst) parts.push("This week: " + (inst.hebrew || inst.title));
@@ -397,7 +411,11 @@
     if (today) today.textContent = todayLine(series);
   }
 
+  // The row (David, 2026-09-11): your subscriptions, Continue reading, and "Let's talk
+  // about it", which opens the conversation about the text in the sheet; whatever the
+  // conversation offers opens in the sheet (`offeredText`).
   var doors = [];
+  var showing = null;
   function drawDoors() {
     var row = document.getElementById("doors");
     if (!row) return;
@@ -405,7 +423,7 @@
     var shown = doors.filter(function (one) {
       return one.reader;
     });
-    row.hidden = shown.length < 2;
+    row.hidden = !showing;
     shown.forEach(function (one) {
       var press = el("button", "way", one.label);
       press.type = "button";
@@ -415,7 +433,30 @@
       });
       row.appendChild(press);
     });
+    var talk = el("button", "way talk", "Let's talk about it");
+    talk.type = "button";
+    talk.setAttribute("data-door", "talk");
+    talk.addEventListener("click", talkAboutIt);
+    row.appendChild(talk);
     markDoor(current);
+  }
+
+  // Open the drawer about the text in the sheet: the drawer relays where the reader
+  // is to the conversation (`talk.js`), which shows the text above its box and sends
+  // it with every line.
+  function talkAboutIt() {
+    if (showing) {
+      try {
+        document.dispatchEvent(
+          new CustomEvent("targum:where", {
+            detail: { document: showing.document || showing.name || "", title: showing.title || "" },
+          })
+        );
+      } catch (e) {
+        /* an old browser without CustomEvent: the drawer still opens */
+      }
+    }
+    if (window.TargumTalk && window.TargumTalk.show) window.TargumTalk.show(true);
   }
 
   var current = "";
@@ -430,21 +471,19 @@
     });
   }
 
-  // A series' current instalment as a door: the weekly and the portion for everybody,
-  // a daily cycle only where it is followed.
+  // Your subscriptions as doors: each followed series with a current instalment.
   function seriesDoors(series) {
     var follow = window.TargumFollow;
     if (!follow) return [];
     var out = [];
     series.forEach(function (one) {
       var inst = one.instalment;
-      if (!inst) return;
-      if (one.id !== "weekly" && one.id !== "parasha" && !follow.following(one.id)) return;
+      if (!inst || !follow.following(one.id)) return;
       var src = follow.readerOf(one);
       if (!src) return;
       out.push({
         id: "series:" + one.id,
-        label: one.id === "parasha" ? "This week's portion" : one.id === "weekly" ? "The weekly" : one.name,
+        label: one.name,
         reader: { name: "", title: inst.hebrew || inst.title, english: inst.hebrew ? inst.title : "", language: "he" },
         door: {
           id: "series:" + one.id,
@@ -718,16 +757,6 @@
           door.primary = true;
           door.id = "main";
           doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }];
-          // Up next: the sequence's next scene, beside a text being carried on with.
-          var following = modern.next;
-          if (following && following !== door.reader) {
-            doors.push({
-              id: "next",
-              label: "Up next",
-              reader: following,
-              door: { id: "next", state: modern.opened ? "next" : "start", register: "modern", primary: true },
-            });
-          }
           if (door.reader) {
             drawCarry(door.reader, door);
             inDoors.push(door.reader);

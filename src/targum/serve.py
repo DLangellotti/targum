@@ -177,6 +177,9 @@ TRASHED = "trashed"
 #: sentence is the long one; the rest name things.
 ABOUT_FIELDS = {
     "document": 200,
+    # The text's title, so "let's talk about it" from the front page names what the
+    # reader sees rather than a folder (2026-09-11).
+    "title": 200,
     "section": 20,
     "sentence": 1000,
     "surface": 80,
@@ -4488,7 +4491,9 @@ class Handler(BaseHTTPRequestHandler):
                 for key, limit in ABOUT_FIELDS.items()
                 if raw.get(key)
             }
-            if not about.get("surface") and not about.get("sentence"):
+            # A word, a sentence, or the text alone (2026-09-11: "let's talk about it"
+            # from the sheet on Learn names the text and nothing narrower).
+            if not (about.get("surface") or about.get("sentence") or about.get("document")):
                 about = None
         # The text sent with the line, if one was: read from its own job, never from
         # the payload, so what the model is told about it is what the server knows.

@@ -1210,15 +1210,20 @@
   var readingLine = document.getElementById("chat-reading");
   var readingText = document.getElementById("chat-reading-text");
   var readingAsk = document.getElementById("chat-reading-ask");
+  // The sentence in front of them in a reader; on Learn (2026-09-11: "let's talk
+  // about it") the text in the sheet, by its title, with no sentence.
   function drawReading() {
     if (!readingLine) return;
     var sentence = reading && reading.sentence ? String(reading.sentence) : "";
-    readingLine.hidden = !sentence;
-    if (readingText) readingText.textContent = sentence.length > 90 ? sentence.slice(0, 88) + "…" : sentence;
+    var title = reading && reading.title ? String(reading.title) : "";
+    var shown = sentence || title;
+    readingLine.hidden = !shown;
+    if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
+    if (readingAsk) readingAsk.textContent = sentence ? "Explain this sentence" : "Let's talk about it";
   }
   if (readingAsk) {
     readingAsk.onclick = function () {
-      say("What does this sentence mean?");
+      say(reading && reading.sentence ? "What does this sentence mean?" : "Let's talk about this text.");
     };
   }
   if (EMBED) {
@@ -1244,8 +1249,8 @@
     if (brought) line.brought = brought;
     // Where the reader is, when the drawer is in a reader: the model is told the text,
     // the section and the sentence, and answers about them.
-    if (reading && reading.sentence) {
-      line.about = { document: reading.document, section: reading.section, sentence: reading.sentence };
+    if (reading && (reading.sentence || reading.document)) {
+      line.about = { document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title };
     }
     ask("/chat/say", line).then(function (got) {
       if (got.error) {

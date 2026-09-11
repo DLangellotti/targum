@@ -29,7 +29,7 @@ def run(**payload: Any) -> dict[str, Any]:
 
 WEEKLY = {
     "id": "weekly",
-    "name": "The weekly",
+    "name": "Weekly News Digest",
     "hebrew": "מבט השבוע",
     "what": "Hebrew news, written three ways, every week.",
     "page": "/weekly",

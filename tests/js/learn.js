@@ -31,6 +31,8 @@ install({
   // The bell (2026-09-11): what the page told it.
   TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
+  // The drawer (2026-09-11): what the page asked it to do.
+  TargumTalk: { show: (on) => talks.push(on), open: (id) => talks.push("open:" + id) },
   stored: payload.stored || {},
   TargumLang: {
     HOME: "he",
@@ -51,6 +53,13 @@ install({
    neighbour would be unnoticeable and expensive. */
 const asked = [];
 const notices = [];
+const talks = [];
+const wheres = [];
+global.CustomEvent = function (type, init) {
+  this.type = type;
+  this.detail = init && init.detail;
+};
+global.document.dispatchEvent = (event) => wheres.push(event.detail);
 
 global.fetch = (path, options) => {
   asked.push({
@@ -195,6 +204,8 @@ setTimeout(() => {
       },
       // A subscription that landed (2026-09-11): what the bell was told, what was seen.
       notices,
+      talks,
+      wheres,
       seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
       head: at("shelf-head").hidden,
       shelf: at("library-list").children.map((row) => {

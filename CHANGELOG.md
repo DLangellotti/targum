@@ -437,9 +437,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   above the text, so the first thing on the page says what you are looking at. Decided
   with David the same day: the page opens with a greeting and today — the time of day
   and your name, the date and the week's portion where the box carries it — with your
-  count of words at the end of the row; under it a row of doors, one press each, that
-  swap the sheet: what you were reading, what is next, the week's portion, a cycle you
-  follow. For a new reader the count's place says what to do here.
+  count of words at the end of the row; under it a row of doors, one press each: your
+  subscriptions, Continue reading, and "Let's talk about it", which opens the
+  conversation about the text in the sheet — whatever it offers opens there. The date
+  carries the Hebrew date in parentheses. For a new reader the count's place says what
+  to do here. The weekly is named Weekly News Digest wherever a series is named.
 - A conversation opened again keeps its cards (2026-09-11). The card a text was quoted
   on was drawn from the live stream only, so the drawer in a reader — reopened on every
   page — showed targum saying "press the card" over no card. Each answer now comes back

@@ -1448,3 +1448,19 @@ def test_in_a_reader_the_conversation_hears_where_you_are_and_asks_about_it() ->
     assert alone["reading"] == "" and "about" not in alone["posted"][0]["body"], (
         "nowhere in particular"
     )
+
+
+def test_a_text_named_with_no_sentence_is_a_way_to_talk_about_it() -> None:
+    """From the sheet on Learn (2026-09-11: "let's talk about it"): the drawer names the
+    text and no sentence. The line shows the title with one press that opens the
+    conversation about the text, and every line rides with the text's name."""
+    about = {"document": "hapoel-he", "title": "הפועל חולון היא אלופת המדינה"}
+    page = run(
+        do=[{"type": "reading", "about": about}, {"type": "explain"}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+        embed=True,
+    )
+    assert page["reading"] == about["title"]
+    assert page["posted"][0]["body"]["text"] == "Let's talk about this text."
+    assert page["posted"][0]["body"]["about"]["document"] == "hapoel-he"
+    assert page["posted"][0]["body"]["about"]["title"] == about["title"]

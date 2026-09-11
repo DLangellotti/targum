@@ -649,6 +649,10 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 .way:hover { background: var(--teal-wash); border-color: transparent; }
 .way.on { background: var(--teal-wash); border-color: transparent; color: var(--teal); }
 .way:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Let's talk about it: at the end of the row, drawn in ink so it reads as the way to
+   the conversation rather than one more text. */
+.way.talk { margin-inline-start: auto; border-color: var(--ink); }
+.way.talk:hover { background: var(--ink); color: var(--paper); }
 @media (hover: none) and (pointer: coarse) {
   .way { min-block-size: 44px; }
 }

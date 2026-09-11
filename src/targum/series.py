@@ -29,7 +29,7 @@ def _weekly() -> dict[str, Any]:
 
     out: dict[str, Any] = {
         "id": "weekly",
-        "name": "The weekly",
+        "name": "Weekly News Digest",
         "hebrew": "מבט השבוע",
         "what": "Hebrew news, written three ways, every week.",
         "page": "/weekly",

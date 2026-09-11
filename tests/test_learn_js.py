@@ -12,6 +12,7 @@ Same harness as `test_library_js.py`: a stub document in `tests/js/`, not a brow
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -724,20 +725,20 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
         "Good morning",
         "Good afternoon",
         "Good evening",
-        "Shabbat shalom",
-    )
+    ), "no Shabbat shalom: somebody on the internet on Shabbat does not get one"
     assert drawn["today"].endswith(" · This week: האזינו") and len(drawn["today"]) > 20
+    assert re.search(r"\(.*[\u05d0-\u05ea].*\)", drawn["today"]), "the Hebrew date, in parentheses"
     unnamed = draw([reader("a", "א")], me={"signedIn": True, "name": ""})
     assert "," not in unnamed["greeting"] and unnamed["greeting"].endswith(".")
     assert "This week" not in unnamed["today"], "no portion on a box without one"
 
 
-def test_a_row_of_doors_swaps_the_sheet() -> None:
-    """One press for each text the sheet could show (decided with David, 2026-09-11):
-    what you were reading, the sequence's next scene, the week's portion. The one
-    shown is marked; a press draws that text in the sheet and marks it instead."""
-    first = scene(1, "one", "סצנה א", document="d1")
-    second = scene(2, "two", "סצנה ב", document="d2")
+def test_the_row_is_your_subscriptions_continue_reading_and_a_way_to_talk() -> None:
+    """David, 2026-09-11: "buttons should bring you to your subscriptions, to continue
+    reading, or to a button 'let's talk about it' which prompts talk to targum". A
+    followed series with a current instalment is a door; a press draws it in the sheet;
+    the last press opens the drawer about the text in the sheet. A series not followed
+    is not in the row."""
     mine = reader("mine", "ספר שלי", document="d3", opened=5)
     portion = {
         "id": "parasha",
@@ -751,32 +752,35 @@ def test_a_row_of_doors_swaps_the_sheet() -> None:
             "reader": "/parasha/read/haazinu/reader/sec-0001.html",
         },
     }
-    drawn = draw(
-        [mine], {"targum:opened": json.dumps({"d3": 5})}, shared=[first, second], series=[portion]
-    )
+    digest = {
+        "id": "weekly",
+        "name": "Weekly News Digest",
+        "page": "/weekly",
+        "instalment": {
+            "id": "2026-w37",
+            "title": "Issue 37",
+            "when": "2026-09-07",
+            "reader": "/reader/w37/reader/index.html",
+        },
+    }
+    stored = {
+        "targum:opened": json.dumps({"d3": 5}),
+        "targum:follows": json.dumps({"parasha": 1}),
+        "targum:series-seen": json.dumps({"parasha": "haazinu"}),
+    }
+    drawn = draw([mine], stored, series=[portion, digest])
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
-        ("Up next", False),
-        ("This week's portion", False),
+        ("The weekly portion", False),
+        ("Let's talk about it", False),
     ]
-    assert drawn["carry"]["title"] == "ספר שלי"
-    pressed = draw(
-        [mine],
-        {"targum:opened": json.dumps({"d3": 5})},
-        shared=[first, second],
-        series=[portion],
-        do=[{"door": "next"}],
-    )
-    assert pressed["carry"]["title"] == "סצנה א" and pressed["carry"]["heading"] == "Up next"
-    assert [d["on"] for d in pressed["doors"]] == [False, True, False]
-    week = draw(
-        [mine],
-        {"targum:opened": json.dumps({"d3": 5})},
-        shared=[first, second],
-        series=[portion],
-        do=[{"door": "series:parasha"}],
-    )
+    assert drawn["carry"]["title"] == "ספר שלי" and drawn["talks"] == []
+    week = draw([mine], stored, series=[portion, digest], do=[{"door": "series:parasha"}])
     assert week["carry"]["title"] == "האזינו" and week["carry"]["heading"] == "The weekly portion"
     assert week["carry"]["frame"].startswith("/parasha/read/haazinu/reader/sec-0001.html")
-    alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})})
-    assert alone["doors"] == [], "one text is no choice, and no row is drawn for it"
+    assert [d["on"] for d in week["doors"]] == [False, True, False]
+    talk = draw([mine], stored, series=[portion, digest], do=[{"door": "talk"}])
+    assert talk["talks"] == [True], "the drawer opens"
+    assert talk["wheres"] == [{"document": "d3", "title": "ספר שלי"}], "about the text in the sheet"
+    nothing = draw([], {})
+    assert nothing["doors"] == [], "no text in the sheet, no row"
