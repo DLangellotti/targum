@@ -250,14 +250,12 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
 
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
-    """Under 46rem the header is two lines: the name at one corner and the account and
-    the light switch at the other, then the places under them, flush with the name.
-
-    The places used to sit indented under the name with Upload (then a corner, now the
-    `+` on the box) cut off at the edge: the rule that reset their auto margin stood
-    above the rule that set it, at the same specificity, and lost. A cascade bug is
-    invisible in the file and obvious on a phone, which is why this is measured rather
-    than read."""
+    """On a phone the header is one line — the name at one corner and the bell, the
+    account and the light switch at the other — and the three places are a bar at the
+    foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
+    under the name, and before that indented under it with Upload cut off at the edge:
+    a cascade bug is invisible in the file and obvious on a phone, which is why this is
+    measured rather than read."""
     page_file = tmp_path / "learn.html"
     page_file.write_text(learn_page(TOKEN), encoding="utf-8")
     context = browser.new_context(viewport={"width": width, "height": 844})
@@ -270,8 +268,9 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
           const brand = box('.brand'), nav = box('.site-nav');
           const toggle = box('[data-theme-toggle]'), account = box('.account');
           return {
-            navFlush: Math.abs(nav.left - brand.left) <= 1,
-            navBelow: nav.top >= brand.bottom - 1,
+            navFlush: nav.left <= 1 && nav.right >= document.documentElement.clientWidth - 1,
+            navBelow: Math.abs(nav.bottom - window.innerHeight) <= 1
+              && getComputedStyle(document.querySelector('.site-nav')).position === 'fixed',
             toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
@@ -282,8 +281,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     )
     context.close()
 
-    assert measured["navFlush"], "the places start where the name starts"
-    assert measured["navBelow"], "and sit on the line under it"
+    assert measured["navFlush"], "the places take the whole foot of the window"
+    assert measured["navBelow"], "and stay there"
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
@@ -653,7 +652,11 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
           const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
           const front = document.getElementById('front').getBoundingClientRect();
           const window_ = document.getElementById('carry-window');
+          const nav = document.querySelector('.site-nav');
+          const navBox = nav.getBoundingClientRect();
           return {
+            navFixed: getComputedStyle(nav).position === 'fixed',
+            navBottom: navBox.bottom, navLeft: navBox.left, navRight: navBox.right,
             scrollWidth: doc.scrollWidth, inner: window.innerWidth,
             frameLeft: frame.left, frameRight: frame.right, frameHeight: frame.height,
             talkRight: drawer.right, drawerTop: drawer.top, drawerBottom: drawer.bottom,
@@ -684,6 +687,13 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
     assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
+    # Phase 4: on a phone the three places are a bar at the foot of the window.
+    assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
+    if width <= 640:
+        assert abs(got["navBottom"] - 800) <= 1 and got["navLeft"] == 0, (
+            f"the bar at the foot: {got}"
+        )
+        assert got["navRight"] == width
     assert 0 <= got["drawerTop"] and got["drawerBottom"] <= 800 + 1, f"the drawer on screen: {got}"
     assert "preview=1" in got["reader"], "the sheet frames the reader, working"
     assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"

@@ -1046,7 +1046,11 @@ frame, sends every other link to the page, and counts a visit at the first press
 than at being shown), its title, Expand and Open under it — a shadow offset `2px 3px` as
 a page casts, no card chrome. The header is glass (decided 2026-09-11; it was the ink bar, `#171614`, for a
 morning): sticky, no rule under it, the places as tint pills with the current one in the
-primary, the bell and the account as round buttons; the reader keeps its own bar. Fields are wells: no line,
+primary, the bell and the account as round buttons; the reader keeps its own bar. On a
+phone (under 40rem) the three places are a bar at the foot of the window on glass, a
+glyph over each word; the top bar keeps the mark, the bell and the account; the pill
+that opens the conversation is a round button above the bar, and every panel comes up
+as a sheet from the foot. Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.

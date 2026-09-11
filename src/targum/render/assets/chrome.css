@@ -486,10 +486,21 @@ button:active:not(:disabled) { transform: scale(0.98); }
 
 /* --- the bar: glass, not ink ---------------------------------------------------------- */
 .site-head {
+  position: relative;
+  background: transparent;
+  color: var(--ink);
+}
+/* The glass is a layer behind the bar rather than a filter on it: a filter on the bar
+   would make it the box that anything fixed inside it — the phone's bar at the foot,
+   the account's sheet — is placed against, and they belong to the window. */
+.site-head::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: var(--glass);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  color: var(--ink);
 }
 /* Sticky where the bar is one row; a page with a title under the row lets it scroll,
    since a title that follows you down the page is a bar too tall. */
@@ -544,3 +555,82 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .site-foot { border-block-start: 0; }
 .segmented { border: 1px solid var(--hairline); background: var(--field); }
 .segment[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); }
+
+/* --- phase 4 (2026-09-11): the phone ------------------------------------------------
+   The three places are a bar at the foot of the window, a glyph over each word, on
+   glass; the top bar keeps the mark, the bell and the account. The pill is a round
+   button above the bar; the account's and the bell's panels come up as sheets. Phones
+   only — under 40rem; a tablet keeps the row. */
+.nav-glyph { display: none; }
+.talk-glyph { display: none; inline-size: 1.25rem; block-size: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.nav-glyph { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 40rem) {
+  body { padding-block-end: calc(4rem + env(safe-area-inset-bottom)); }
+  .site-head-row::before { content: none; }
+  .site-head-row { flex-wrap: nowrap; }
+  .site-head-row .notices { margin-inline-start: auto; }
+  .site-head-row .site-nav {
+    order: 0;
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 24;
+    margin: 0;
+    padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-block-start: 1px solid var(--hairline);
+  }
+  .site-nav a {
+    display: grid;
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.4rem 0.3rem;
+    min-block-size: 3.25rem;
+    border-radius: var(--radius-row);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .site-nav a .nav-glyph { display: block; inline-size: 1.4rem; block-size: 1.4rem; }
+  .site-nav a.on { background: var(--teal-wash); color: var(--teal); }
+  .talk-cta {
+    inset-inline: auto 1rem;
+    inset-block-end: calc(4.5rem + env(safe-area-inset-bottom));
+    inline-size: 3.25rem;
+    block-size: 3.25rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  .talk-cta .talk-glyph { display: block; }
+  .talk-cta span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
+  .talk-drawer { z-index: 31; }
+  .account-panel, .notices-panel {
+    position: fixed;
+    inset-inline: 0;
+    inset-block: auto 0;
+    width: auto;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding-block-end: calc(1rem + env(safe-area-inset-bottom));
+    z-index: 32;
+  }
+  /* The conversation page itself: its box sits above the bar, and its list sheet's rows
+     clear it. */
+  body.chat { padding-block-end: 0; height: calc(100svh - 4rem - env(safe-area-inset-bottom)); }
+}
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .site-nav a,
+  .talk-cta,
+  .notices > button,
+  .account > button {
+    min-height: 44px;
+  }
+}

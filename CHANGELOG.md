@@ -434,6 +434,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   gone — with the checklist's two presses on a glass strip that stays at the foot while
   the list scrolls; the Library's sort head is a row of pills and every text a row with
   a row's corners (2026-09-11).
+- Phase 4: the phone. The three places are a bar at the foot of the window, a glyph
+  over each word, on glass; the top bar keeps the mark, the bell and your picture; Talk
+  to targum is a round button above the bar; the account's and the bell's panels come up
+  as sheets from the foot (2026-09-11).
 - Talk to targum is a pill at the foot of every page, and Learn is the reader's own
   highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
   opens up for you — doesn't actually have to live on any page. Learn page can literally

@@ -518,6 +518,6 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
   table.rows.claim-table td:nth-child(4), table.rows.claim-table th:nth-child(4) { display: none; }
 }
 /* On a phone the strip keeps clear of the pill at the foot of the window. */
-@media (max-width: 48rem) {
-  .claim-actions { inset-block-end: 4.25rem; }
+@media (max-width: 40rem) {
+  .claim-actions { inset-block-end: calc(4.25rem + env(safe-area-inset-bottom)); padding-inline-end: 4.5rem; }
 }

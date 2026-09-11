@@ -230,6 +230,12 @@ THUMBED = (
     # And the two presses under Words you may already know (2026-09-10, #245).
     ".claim-yes",
     ".claim-no",
+    # And the bar's own presses (2026-09-11): the three places, at the foot of a phone,
+    # the pill that opens the conversation, the bell and the account.
+    ".site-nav a",
+    ".talk-cta",
+    ".notices > button",
+    ".account > button",
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
     # And the button on a quote that starts a build — the one press that spends.

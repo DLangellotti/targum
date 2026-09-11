@@ -32,9 +32,12 @@
       <span>targum</span>
     </a>
     <nav class="site-nav" aria-label="Pages">
-      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}>Learn</a>
-      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}>Library</a>
-      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}>Your Progress</a>
+      {#- On a phone the three places are a bar at the foot of the window, a glyph over
+          each word (phase 4, 2026-09-11); at a desk the glyphs are not drawn. §7: sixteen
+          pixels, a stroke at 1.4, round caps. -#}
+      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>Learn</span></a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>Library</span></a>
+      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span>Your Progress</span></a>
     </nav>
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
         what is ready, and anything else the page has to say later. The bell carries a
@@ -94,7 +97,7 @@
 {#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
     opens the conversation as a drawer — the conversation page framed without its bar.
     Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
-<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer">Talk to targum</button>
+<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="Talk to targum"><svg class="talk-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg><span>Talk to targum</span></button>
 <div class="talk-scrim" id="talk-scrim" hidden></div>
 <aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
   <div class="talk-drawer-head">

@@ -536,3 +536,6 @@ body.embed > .chat-main > .composer {
   padding: 0.6rem 0 0.25rem;
   border-block-start: 1px solid var(--hairline);
 }
+@media (max-width: 40rem) {
+  .chat-list.open { z-index: 26; padding-block-end: calc(4.5rem + env(safe-area-inset-bottom)); }
+}
