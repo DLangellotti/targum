@@ -590,3 +590,74 @@ body.learn .nothing .hint {
 }
 .page-progress[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .page-progress::before { transition: none; } }
+
+/* --- the reader fills the desk (2026-09-11) ------------------------------------------
+   "Learn page could be a lot prettier, with less empty space and more filled up by the
+   reader — especially on larger screens. On mobile the reader can take up the whole
+   screen." The main runs wide, the sheet's window is the height of the screen under
+   one head row, and the shelf keeps its reading width under it. On a phone the sheet
+   comes first and full-bleed, the height of the screen between the two bars. */
+body.learn main {
+  max-width: none;
+  padding: 1rem 1.5rem 5rem;
+  gap: 1.25rem;
+}
+/* The bar's row runs as wide as the sheet under it. */
+body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
+.front { gap: 0.75rem; margin-block-end: 2rem; }
+.learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 1.5rem;
+  min-inline-size: 0;
+}
+.learn-head .label,
+.carry-on .label {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+.learn-head .known-line { margin: 0; font-size: 1.0625rem; font-weight: 500; letter-spacing: 0; }
+.learn-head .known-line:empty { display: none; }
+/* No text to carry on with: the heading goes with the sheet, the count stays. */
+.front:has(#carry-sheet[hidden]) .learn-head .label { display: none; }
+.page-window {
+  block-size: calc(100dvh - 12.5rem);
+  min-block-size: 24rem;
+  max-block-size: none;
+}
+#shelf-panel,
+#trash-panel {
+  inline-size: 100%;
+  max-inline-size: 62rem;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+/* The pill at the foot of every page stands over the sheet's corner: Open keeps
+   clear of it. */
+@media (min-width: 40.01rem) {
+  .page-foot { padding-inline-end: 12rem; }
+}
+@media (max-width: 40rem) {
+  body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
+  .front { gap: 1rem; margin-block-end: 1rem; }
+  .front .learn-head { order: 2; padding-inline: 1rem; }
+  .page-sheet { border-radius: 0; box-shadow: none; }
+  .page-window {
+    /* The screen between the ink bar and the bottom bar, less the sheet's foot
+       (measured 2026-09-11: 81px, 66px and 65px on a 390px phone). */
+    block-size: calc(100svh - 13.5rem - env(safe-area-inset-bottom));
+    min-block-size: 20rem;
+  }
+  /* The foot is two lines and Open, clear of the round pill at the corner. */
+  .page-foot { padding: 0.55rem 4.25rem 0.65rem 1rem; row-gap: 0.1rem; }
+  .page-foot .page-title { font-size: 1.0625rem; }
+  .page-foot .card-track, .page-foot .card-meta { display: none; }
+  #shelf-panel, #trash-panel { margin-inline: 1rem; inline-size: auto; }
+  body.learn .nothing { padding-inline: 1rem; }
+}

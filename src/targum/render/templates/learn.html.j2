@@ -24,9 +24,14 @@
       and phrases themselves left this page on 2026-09-11 for Your Words, behind the
       account: Learn is the room you learn in — the text, the conversation, the shelf —
       and not a lobby. -#}
-  <p class="known-line" id="known-line"></p>
-
   <div class="front" id="front">
+    {#- One row at the head of the desk (2026-09-11: "less empty space and more filled
+        up by the reader"): the heading of the sheet at the start, the count at the end.
+        On a phone the row comes after the sheet, which takes the screen. -#}
+    <div class="learn-head">
+      <p class="label" id="carry-heading">Continue reading</p>
+      <p class="known-line" id="known-line"></p>
+    </div>
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
         reader, framed and working, at the place it was left, on the desk, across the
         row; under it the title, what it is, and one press to the reader's own page. Learn
@@ -38,7 +43,6 @@
         page, and the brightest thing on it: the memory the front page protects is the
         text with its English beside every line, so the front page shows one. -#}
     <section class="carry-on" aria-labelledby="carry-heading">
-      <p class="label" id="carry-heading">Continue reading</p>
       <div class="page-sheet" id="carry-sheet" hidden>
         <span class="card-cover" id="carry-cover" aria-hidden="true" hidden></span>
         <div class="page-window" id="carry-window" hidden>
