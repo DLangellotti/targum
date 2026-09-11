@@ -520,7 +520,10 @@ class Chats:
                 chips.append(
                     {
                         "id": "continue",
-                        "line": f"Continue {row['title']}",
+                        "line": "Continue",
+                        # The title rides on its own, so the page can cut it short where
+                        # a chip would run out of its card (2026-09-11).
+                        "title": str(row["title"]),
                         "reader": str(row["reader"]),
                     }
                 )

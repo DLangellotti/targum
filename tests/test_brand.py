@@ -158,6 +158,10 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
             continue
         if size.startswith("var(") or size.endswith("%"):
             continue
+        # §13: the desk's rem scales with the screen, from 16px on a phone to 22px on a
+        # television, on the root and nowhere else. The one clamp the scale allows.
+        if size.startswith("clamp(") and sheet.name == "chrome.css":
+            continue
         assert size in SIZES, f"{sheet.name}: font-size {size!r} is off the scale"
 
 

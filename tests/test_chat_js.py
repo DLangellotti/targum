@@ -860,7 +860,7 @@ def test_on_a_phone_the_pill_opens_the_list_and_a_row_closes_it() -> None:
 
 CHIPS = [
     {"id": "read", "line": "Something to read"},
-    {"id": "continue", "line": "Continue רות", "reader": "ruth-he/reader/index.html"},
+    {"id": "continue", "line": "Continue", "title": "רות", "reader": "ruth-he/reader/index.html"},
     {"id": "words", "line": "Use my new words"},
     {"id": "stuck", "line": "A word I am stuck on"},
 ]

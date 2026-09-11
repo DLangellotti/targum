@@ -37,7 +37,7 @@ body.learn main[hidden] {
    than a gap where the other would have been. */
 .doors {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: 1rem;
   align-items: stretch;
 }
@@ -601,8 +601,29 @@ body.learn .nothing .hint {
 }
 .door h2 { font-family: var(--chrome); }
 .doors { align-items: stretch; }
-.next { grid-column: 1 / -1; }
-.step { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--card-shadow); }
+/* The two steps are cards in the same grid as the door beside them, not a row under it
+   (2026-09-11: a door alone in a third of a row). */
+.next { display: contents; }
+.step { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--card-shadow); padding: 1rem 1.1rem; }
+.step + .step { border-inline-start: 1px solid var(--rule); border-block-start: 1px solid var(--rule); }
+.weekly-line.card { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; font-family: var(--chrome); }
+.weekly-line.card a { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.weekly-line.card .at {
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--ground);
+  color: var(--ink);
+}
+.weekly-line.card .when { font-family: var(--chrome); font-size: 0.875rem; margin-inline-start: auto; }
+/* Small screens: the sheet and the cards keep their gutters, nothing runs past the edge. */
+@media (max-width: 26rem) {
+  .page-sheet { padding: 1.1rem 1rem 1rem; }
+  .talk.card { padding: 0.9rem 0.9rem 1rem; }
+  .front { gap: 1rem; }
+}
 .step-what { font-family: var(--chrome); }
 /* The thread on the front page sits in the conversation's card. */
 .learn .chat-thread { background: var(--ground); }

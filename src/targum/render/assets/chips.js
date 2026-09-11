@@ -31,6 +31,17 @@
       button.className = "chat-ask";
       button.setAttribute("data-chip", chip.id);
       button.textContent = chip.line;
+      if (chip.title) {
+        // "Continue", then the title, which the stylesheet cuts short: a chip never
+        // runs out of the card it stands in, whatever the text was called.
+        button.textContent = "";
+        button.appendChild(document.createTextNode(chip.line + " "));
+        var title = document.createElement("span");
+        title.className = "chip-title";
+        title.setAttribute("dir", "auto");
+        title.textContent = chip.title;
+        button.appendChild(title);
+      }
       button.onclick = function () {
         if (chip.id === "read") return on.suggest();
         if (chip.id === "continue" && chip.reader) return on.open(chip.reader);

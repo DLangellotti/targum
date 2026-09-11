@@ -1036,7 +1036,10 @@ on the desk only where a text's own words or title appear — the sheet, a card'
 title, a row in Your Words — and in the wordmark. Hebrew keeps its own faces and leading
 and is never scaled (§5). Counts keep tabular figures.
 
-**Layout.** A 62rem column, cards on a 12-column grid, 8px base, sections 48px apart
+**Layout.** The rem itself scales with the screen on chrome pages — `clamp(16px, 0.35vw +
+12.5px, 22px)`: 16 on a phone, about 17 on a laptop, 21 on a television — so one layout
+serves a hand and a wall; the reader sets its own type. A 62rem column, cards on a
+12-column grid, 8px base, sections 48px apart
 with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
 pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
 The front page opens on the sheet and the conversation side by side, the sheet first on

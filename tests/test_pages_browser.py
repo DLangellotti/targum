@@ -568,6 +568,100 @@ def test_the_box_stays_in_view_however_long_the_thread(browser) -> None:
         assert got["motion"] == "none", "asked for no motion, given none"
 
 
+@pytest.mark.parametrize("width", [320, 375, 430, 768, 1024, 1440, 2560])
+def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
+    """2026-09-11: "I want this to work on all major modern devices, from a small iPhone
+    to a large 32-inch screen". The page never scrolls sideways, a chip never runs past
+    the card it stands in, the two-column row is one column below 48rem, and Send is
+    on screen at the top of the page."""
+    html = learn_page(TOKEN)
+    chips = [
+        {"id": "read", "line": "Find me something to read"},
+        {
+            "id": "continue",
+            "line": "Continue",
+            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף - טכנולוגיה",
+            "reader": "x/reader/index.html",
+        },
+        {"id": "words", "line": "Use my new words"},
+        {"id": "stuck", "line": "Explain a word I am stuck on"},
+    ]
+    readers = [
+        {
+            "name": "youtube-he",
+            "title": "יוטיוב מקשיחה תנאים: ליוצרים חדשים יהיה קשה יותר להרוויח כסף",
+            "language": "he",
+            "register": "modern",
+            "document": "h1",
+            "built": 1,
+            "chapters": [1],
+            "readyChapters": 1,
+            "known": 0.31,
+            "reader": "youtube-he/reader/index.html",
+        }
+    ]
+
+    def answer(route, request):
+        u = request.url
+        if "/chat/list" in u:
+            body = {
+                "chats": [{"id": "a", "title": "t", "seen": 1}],
+                "usable": True,
+                "talk": True,
+                "chips": chips,
+            }
+        elif "/excerpt/" in u:
+            body = {
+                "language": "he",
+                "lines": [
+                    {"he": "שורה ראשונה ארוכה למדי של טקסט.", "en": "A fairly long first line."}
+                ],
+            }
+        elif "/readers" in u:
+            body = {"readers": readers, "shared": [], "trash": []}
+        elif "/account/me" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False)
+        )
+
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    page = context.new_page()
+    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.wait_for_selector(".chat-ask")
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+          const doc = document.documentElement;
+          const talk = document.querySelector('.talk').getBoundingClientRect();
+          const chips = [...document.querySelectorAll('.chat-ask')]
+            .map((c) => c.getBoundingClientRect().right);
+          const sheet = document.getElementById('carry').getBoundingClientRect();
+          const send = document.getElementById('chat-send').getBoundingClientRect();
+          return {
+            scrollWidth: doc.scrollWidth, inner: window.innerWidth,
+            chipsPast: chips.filter((r) => r > talk.right + 1).length,
+            columns: sheet.top < talk.top ? 'stacked' : 'row',
+            sendLeft: send.left, sendRight: send.right,
+            root: parseFloat(getComputedStyle(doc).fontSize),
+          };
+        }"""
+    )
+    context.close()
+    assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
+    assert got["chipsPast"] == 0, f"a chip runs past its card at {width}px"
+    assert got["columns"] == ("stacked" if width <= 768 else "row"), f"{width}px: {got}"
+    assert 0 <= got["sendLeft"] and got["sendRight"] <= width, f"Send off screen at {width}px"
+    assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up

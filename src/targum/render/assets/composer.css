@@ -281,9 +281,23 @@
   color: var(--teal);
   cursor: pointer;
   max-width: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  min-inline-size: 0;
+  text-align: start;
+}
+/* A text's title on a chip: one line, cut short, never past the card (2026-09-11). */
+.chat-chips li { max-inline-size: 100%; min-inline-size: 0; }
+.chat-ask .chip-title {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink);
 }
 .chat-ask:hover { background: var(--teal-wash); }
 .chat-ask:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

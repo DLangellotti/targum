@@ -12,9 +12,14 @@
 
 /* The desk (§13, 2026-09-11): every chrome page stands on the ground, in the chrome's
    face; the reader, which never loads this file, keeps its page. */
+/* The desk scales gently with the screen (2026-09-11: a phone in one hand and a
+   32-inch screen across a room): a rem is 16px on a phone, 17 on a laptop, about 21 on
+   a television, never more than 22. Chrome pages only; a reader sets its own type. */
+html { font-size: clamp(16px, 0.35vw + 12.5px, 22px); }
 body {
   background: var(--ground);
   font-family: var(--chrome);
+  margin: 0;
 }
 /* The ink bar: the screen's one inverted block, the name and the places on it. */
 .site-head {
@@ -323,3 +328,13 @@ body {
 .building button[hidden] { display: none; }
 .building.promised { padding-inline-end: 0.9rem; }
 .building.promised span { white-space: normal; }
+
+/* On a narrow screen the building pill takes the foot of the window rather than a corner
+   it cannot fit in, clear of the phone's own bar (2026-09-11). */
+@media (max-width: 48rem) {
+  .building {
+    inset-inline: 0.75rem;
+    inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
+    max-inline-size: none;
+  }
+}

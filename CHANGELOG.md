@@ -421,7 +421,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as a sheet lying on the desk — pure paper, the reading faces, its first two
   lines with their English off `/excerpt/<name>` — beside the conversation. The reader
   is untouched and never loads the face. `test_brand.py` widens its palette and type
-  scale by exactly what §13 names (2026-09-11).
+  scale by exactly what §13 names. The desk holds from a small phone to a television:
+  the rem scales from 16px to 22px with the screen, a chip cuts a long title short
+  rather than running out of its card, Read is one row of cards, the weekly is a row
+  that reads, and the building pill takes the foot of a narrow window; checked in the
+  browser at 320, 375, 430, 768, 1024, 1440 and 2560 wide (2026-09-11).
 - The front page is in named parts, and a line typed there is answered in place. Under
   the count, Talk to targum with one sentence saying what it is, the box, the things
   most readers ask as verbs, and the thread opening under them — the conversation page's
