@@ -247,12 +247,10 @@
     var panel = document.getElementById("carry");
     if (!reader) {
       sheet.hidden = true;
-      settleTalk();
       return;
     }
     door = door || { state: "carry" };
     sheet.hidden = false;
-    settleTalk();
     var heading = document.getElementById("carry-heading");
     if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue";
     trackLabel("carry-track", door.register);
@@ -329,68 +327,10 @@
     frame.setAttribute("src", src);
   }
 
-  /* --- the conversation, put away and brought back ------------------------------
-   * "Let's make it so the chat can collapse and then be accessible through a sticky
-   * CTA ... the user should be able to expand the reader on the learn page, by
-   * minimizing the chat" (2026-09-11). One state, remembered in this browser: the
-   * conversation shown beside the sheet, or put away — the sheet takes the row and
-   * grows, and a pill at the foot of the window brings the conversation back. With no
-   * sheet to give the row to, the conversation is always shown.
-   */
-  var TALK = "targum:front-talk";
-  var talkAway = false;
-  try {
-    talkAway = localStorage.getItem(TALK) === "away";
-  } catch (e) {
-    talkAway = false;
-  }
-
-  function settleTalk() {
-    var front = document.getElementById("front");
-    var sheet = document.getElementById("carry-sheet");
-    var cta = document.getElementById("talk-cta");
-    var expand = document.getElementById("carry-expand");
-    if (!front) return;
-    var away = talkAway && !!sheet && !sheet.hidden;
-    front.classList.toggle("expanded", away);
-    if (cta) cta.hidden = !away;
-    if (expand) {
-      expand.textContent = away ? "Shrink" : "Expand";
-      expand.setAttribute("aria-pressed", away ? "true" : "false");
-    }
-  }
-
-  function putTalk(away) {
-    talkAway = away;
-    try {
-      if (away) localStorage.setItem(TALK, "away");
-      else localStorage.removeItem(TALK);
-    } catch (e) {
-      /* nothing to keep it in; the page still stands */
-    }
-    settleTalk();
-  }
-
-  function onPress(id, act) {
-    var control = document.getElementById(id);
-    if (control) control.addEventListener("click", act);
-  }
-  onPress("talk-hide", function () {
-    putTalk(true);
-  });
-  onPress("talk-cta", function () {
-    putTalk(false);
-  });
-  onPress("carry-expand", function () {
-    putTalk(!talkAway);
-  });
-  settleTalk();
-
   /* --- a text offered in the conversation ----------------------------------------
-   * The framed conversation cannot open a page of its own; it offers the text to this
-   * page, which opens it in the sheet — "opened first in the reader on this page, then
-   * they can expand or go to the dedicated page" (2026-09-11). Same origin only, and
-   * only from the conversation's own frame.
+   * The conversation in the drawer cannot open a page of its own; it offers the text to
+   * this page, which opens it in the sheet — "opened first in the reader on this page,
+   * then they can ... go to the dedicated page" (2026-09-11).
    */
   var everything = [];
   function offeredText(path) {
@@ -419,16 +359,10 @@
       sheet.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" });
     }
   }
-  window.addEventListener("message", function (event) {
-    var talk = document.getElementById("talk-frame");
-    if (event.origin !== window.location.origin) return;
-    if (talk && talk.contentWindow && event.source !== talk.contentWindow) return;
-    var data = event.data || {};
-    if (data.type === "targum:open" && data.reader) offeredText(String(data.reader));
-    // A page of words marked known in the conversation's first exchange: the count
-    // above the sheet is drawn again from the ledger it just changed.
-    if (data.type === "targum:changed") reload();
-  });
+  // The drawer (`talk.js`) hands over what the conversation offers: a text to open in
+  // the sheet, or a page of words marked known, after which the count above the sheet
+  // is drawn again from the ledger it just changed.
+  window.TargumLearn = { open: offeredText, changed: reload };
 
   /* --- what to read next ------------------------------------------------------
    *

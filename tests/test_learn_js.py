@@ -109,40 +109,14 @@ def test_the_text_you_are_carrying_on_with_shows_its_cover() -> None:
     assert drawn["carry"]["href"].endswith("reader/index.html?k=k"), (
         "and Open goes to the reader's own page"
     )
-    assert not drawn["talk"]["away"] and drawn["talk"]["ctaHidden"], "the conversation beside it"
-    assert drawn["carry"]["expand"] == "Expand"
-
-
-def test_the_conversation_can_be_put_away_and_the_pill_brings_it_back() -> None:
-    """2026-09-11: "the chat can collapse and then be accessible through a sticky CTA",
-    "expand the reader on the learn page, by minimizing the chat". Hide on the card, or
-    Expand on the sheet, puts the conversation away: the sheet takes the row, the pill
-    appears, and the choice is remembered in this browser. The pill brings it back."""
-    away = draw([reader("psalms-he", "תהילים", entry="psalms")], do=[{"press": "talk-hide"}])
-    assert away["talk"]["away"] and not away["talk"]["ctaHidden"]
-    assert away["talk"]["remembered"] == "away" and away["carry"]["expand"] == "Shrink"
-    back = draw(
-        [reader("psalms-he", "תהילים", entry="psalms")],
-        do=[{"press": "carry-expand"}, {"press": "talk-cta"}],
-    )
-    assert not back["talk"]["away"] and back["talk"]["ctaHidden"]
-    assert back["talk"]["remembered"] == "" and back["carry"]["expand"] == "Expand"
-    kept = draw(
-        [reader("psalms-he", "תהילים", entry="psalms")], stored={"targum:front-talk": "away"}
-    )
-    assert kept["talk"]["away"], "remembered across visits"
-    nothing = draw([], stored={"targum:front-talk": "away"})
-    assert not nothing["talk"]["away"] and nothing["talk"]["ctaHidden"], (
-        "with no sheet to give the row to, the conversation stays"
-    )
 
 
 def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
     """2026-09-11: "if the user is offered a text in the chat, it should be opened first
-    in the reader on this page, then they can expand or go to the dedicated page". The
-    framed conversation posts the reader's path; the page draws it in the sheet with
-    what the shelf knows of it, and Open goes to its own page. A message from another
-    origin, or from anything but the conversation's frame, is ignored."""
+    in the reader on this page, then they can ... go to the dedicated page". The drawer
+    hands the reader's path to the page; the page draws it in the sheet with what the
+    shelf knows of it, and Open goes to its own page. A page of words marked known in the
+    drawer has the page drawn again."""
     shelf = [
         reader("psalms-he", "תהילים", entry="psalms", opened=2),
         reader("genesis-he", "בראשית", entry="genesis", opened=1),
@@ -153,16 +127,10 @@ def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
     )
     assert drawn["carry"]["frame"].endswith("genesis-he/reader/sec-0003.html?k=k&preview=1")
     assert drawn["carry"]["href"].endswith("genesis-he/reader/sec-0003.html?k=k")
-    assert not drawn["talk"]["away"], "beside the conversation, not in its place"
     unknown = draw(shelf, do=[{"offer": "negev-he/reader/index.html"}])
     assert unknown["carry"]["title"] == "negev-he", "a text the shelf has not heard of yet"
     assert unknown["carry"]["frame"].endswith("negev-he/reader/index.html?k=k&preview=1")
-    ignored = draw(
-        shelf, do=[{"offer": "genesis-he/reader/index.html", "origin": "https://elsewhere"}]
-    )
-    assert ignored["carry"]["title"] == "תהילים"
-    stranger = draw(shelf, do=[{"offer": "genesis-he/reader/index.html", "stranger": True}])
-    assert stranger["carry"]["title"] == "תהילים"
+    assert drawn["hands"] == ["open", "changed"], "what the drawer may ask of the page"
 
 
 def test_a_shelf_row_is_a_row_of_columns() -> None:
@@ -276,8 +244,11 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     assert top.count('<a class="open" id="carry"') == 1, (
         "the sheet's Open goes to the reader's own page (§13)"
     )
-    assert 'id="carry-frame"' in top and 'id="carry-expand"' in top, (
-        "the reader itself, framed and working, with Expand beside Open"
+    assert 'id="carry-frame"' in top and 'id="carry-expand"' not in top, (
+        "the reader itself, framed and working; Expand went with the card it expanded over"
+    )
+    assert 'id="talk-frame"' not in top and "Talk to targum" not in top, (
+        "the conversation is the pill at the foot of every page, not a card here"
     )
     assert 'id="suggest"' not in page and 'class="door' not in page, (
         "the suggestion card and the steps left Learn on 2026-09-11: the Library has them"

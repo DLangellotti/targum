@@ -91,3 +91,16 @@
     series' instalment lands, and Learn puts it in the sheet. Before `building.js`, which
     every page includes after this header and which asks it. -#}
 <script>{{ asset('follow.js') }}</script>
+{#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
+    opens the conversation as a drawer — the conversation page framed without its bar.
+    Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
+<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer">Talk to targum</button>
+<div class="talk-scrim" id="talk-scrim" hidden></div>
+<aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
+  <div class="talk-drawer-head">
+    <span class="talk-drawer-title">Talk to targum</span>
+    <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
+  </div>
+  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+</aside>
+<script>{{ asset('talk.js') }}</script>

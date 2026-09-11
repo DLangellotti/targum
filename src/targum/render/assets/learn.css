@@ -371,7 +371,6 @@ body.learn .nothing .hint {
   text-transform: uppercase;
   color: var(--ink);
 }
-.talk { margin-block: 2rem 3rem; }
 /* The thread on the front page: in place under the box, a hairline rather than raised
    paper (the cards below have this page's one raised layer), never taller than most of
    a screen, scrolling inside itself past that. */
@@ -407,51 +406,24 @@ body.learn .nothing .hint {
   color: var(--ink);
 }
 
+.label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
 /* --- the desk (§13, 2026-09-11) --------------------------------------------------
-   The front page: the sheet and the conversation side by side, the sheet first on a
-   phone; then Read; then the panels as cards. Headings in the chrome's face; the
-   reading faces only inside the sheet and where a text's own title stands. */
+   The front page: the sheet across the row at a reading height, then the shelf as a
+   card. Headings in the chrome's face; the reading faces only inside the sheet and
+   where a text's own title stands. The conversation is the pill at the foot of every
+   page, not a card here. */
 .front {
   display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
-  align-items: stretch;
   margin-block-end: 3rem;
-}
-@media (max-width: 48rem) { .front { grid-template-columns: minmax(0, 1fr); } }
-/* Nothing to carry on with: the conversation takes the row. */
-.front:has(.page-sheet[hidden]) { grid-template-columns: minmax(0, 1fr); }
-.front:has(.page-sheet[hidden]) .talk { max-inline-size: 42rem; }
-/* The conversation put away (2026-09-11): the sheet takes the row and grows to a
-   reading height, and the pill at the foot of the window brings the conversation back. */
-.front.expanded { grid-template-columns: minmax(0, 1fr); }
-.front.expanded .talk { display: none; }
-.front.expanded .page-window { block-size: clamp(30rem, 78vh, 60rem); }
-.talk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
-.talk-cta {
-  position: fixed;
-  inset-block-end: 1rem;
-  inset-inline-end: 1rem;
-  z-index: 30;
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  padding: 0.7rem 1.2rem;
-  border: 0;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--teal-ink);
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
-  cursor: pointer;
-}
-.talk-cta:hover { filter: brightness(1.08); }
-.talk-cta[hidden] { display: none; }
-@media (max-width: 48rem) {
-  .talk-cta {
-    inset-inline: 0.75rem;
-    inset-block-end: max(0.75rem, env(safe-area-inset-bottom));
-  }
 }
 .label {
   margin: 0 0 0.5rem;
@@ -480,7 +452,7 @@ body.learn .nothing .hint {
 .page-sheet[hidden] { display: none; }
 .page-sheet .card-track { color: var(--ink-soft); }
 .page-sheet .card-cover { display: none; }
-.page-window { block-size: clamp(22rem, 52vh, 34rem); background: var(--paper); }
+.page-window { block-size: clamp(28rem, 72vh, 56rem); background: var(--paper); }
 .page-window[hidden] { display: none; }
 .page-frame {
   display: block;
@@ -546,24 +518,6 @@ body.learn .nothing .hint {
   text-decoration: none;
 }
 .page-foot .open:hover { background: var(--teal); }
-/* Expand on the sheet and Hide on the card are one control in two places, and drawn
-   alike (2026-09-11): quiet, bordered, in the chrome's face. */
-.page-foot .expand,
-.talk-hide {
-  font: inherit;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ink-soft);
-  cursor: pointer;
-}
-.page-foot .expand:hover,
-.talk-hide:hover { color: var(--ink); background: var(--ground); }
-
 /* A card on the desk: what everything that is not the sheet sits in. */
 .card {
   background: var(--card);
@@ -571,19 +525,6 @@ body.learn .nothing .hint {
   border-radius: 8px;
   box-shadow: var(--card-shadow);
 }
-.talk.card {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  padding: 1.1rem 1.25rem 1.25rem;
-  margin: 0;
-}
-/* The conversation's window: the conversation page framed, the card's own ground
-   inside it, as tall as the sheet beside it and never less than a conversation. */
-.talk-window { min-block-size: 26rem; border-radius: 6px; overflow: hidden; }
-.talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
-@media (max-width: 48rem) { .talk-window { block-size: 32rem; } }
-.talk .section-title { font-size: 1.0625rem; margin-block-end: 0.25rem; }
-.talk .section-note { margin-block-end: 0.9rem; }
 .section-title { font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
 .section-sub { font-family: var(--chrome); }
 /* The doors are cards too, and so are the two steps beside them. */

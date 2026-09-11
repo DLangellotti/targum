@@ -414,6 +414,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- Talk to targum is a pill at the foot of every page, and Learn is the reader's own
+  highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
+  opens up for you — doesn't actually have to live on any page. Learn page can literally
+  just be a highlight of the reader"). The pill opens the conversation as a drawer — from
+  the edge on a laptop, a sheet from the foot on a phone — holding the conversation page
+  framed; nothing is loaded until it is opened, Escape and the scrim close it, and it is
+  open again on the next page since the conversation is not over. A text it offers opens
+  in the sheet on Learn and on the reader's own page anywhere else. Learn keeps the
+  count, the sheet across the row at a reading height, and the shelf; Hide and Expand
+  went with the card they worked on.
 - Learn is the room you learn in, not a lobby (2026-09-11: "it's no longer a home page
   but an actual page for learning"). The Read row, the word and phrase panels and the
   may-already-know checklist left it; the sheet, the conversation and the shelf stay.

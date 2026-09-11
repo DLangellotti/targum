@@ -1044,18 +1044,17 @@ serves a hand and a wall; the reader sets its own type. A 62rem column, cards on
 12-column grid, 8px base, sections 48px apart
 with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
 pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
-The front page is the room a reader learns in, not a lobby (2026-09-11): the sheet, the
-conversation and the shelf, and nothing else. The lists of words and phrases are a page
-behind the account; the Library carries the series to follow.
-The front page opens on the sheet and the conversation side by side, the sheet first on
-a phone. The conversation is the conversation page itself, framed without its bar
-(`/chat?embed=1`), so what is typed there is answered there, and a text it offers opens
-in the sheet beside it; both frames are same-origin only, in both directions. The
-conversation can be put away (Hide on the card, Expand on the sheet): the sheet takes
-the row and grows to a reading height, and one pill in the primary, fixed at the foot of
-the window, brings the conversation back. Notifications — what is building, what is
-ready — are a bell in the ink bar with a count and a panel under it; nothing is fixed at
-the foot of the window but that pill.
+The front page is the reader's own highlight (2026-09-11): the sheet across the row at
+a reading height, then the shelf, and nothing else. The lists of words and phrases are a
+page behind the account, and so are the series to follow. The conversation lives on no
+page: one pill in the primary, fixed at the foot of every page, opens it as a drawer —
+from the edge on a laptop, up from the foot on a phone — holding the conversation page
+framed without its bar (`/chat?embed=1`), loaded when first opened and left open across
+pages. What is typed there is answered there; a text it offers opens in the sheet on
+Learn and on the reader's own page anywhere else; both frames are same-origin only, in
+both directions. Notifications — what is building, what is ready, what landed — are a
+bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
+the window but the pill.
 
 **Motion.** 120ms on hover and press, 200ms for a card arriving, none under
 `prefers-reduced-motion` (§8).

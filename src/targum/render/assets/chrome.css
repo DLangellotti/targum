@@ -368,3 +368,92 @@ body {
   padding: 0.1rem 0.2rem;
 }
 .notices-list button:hover { color: var(--ink); }
+
+/* --- Talk to targum, from anywhere (2026-09-11) ------------------------------------
+   One pill in the primary, fixed at the foot of every page, and the drawer it opens:
+   a floating panel from the edge on a laptop, a sheet up from the foot on a phone,
+   holding the conversation framed. The page at /chat is the conversation itself and
+   carries no pill. */
+.talk-cta {
+  position: fixed;
+  inset-block-end: 1rem;
+  inset-inline-end: 1rem;
+  z-index: 30;
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 0.7rem 1.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.16);
+  cursor: pointer;
+}
+.talk-cta:hover { filter: brightness(1.08); }
+.talk-cta[aria-expanded="true"] { display: none; }
+body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { display: none; }
+.talk-drawer {
+  position: fixed;
+  inset-block: 4.5rem 1rem;
+  inset-inline-end: 1rem;
+  z-index: 31;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  inline-size: min(26rem, calc(100vw - 2rem));
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
+  overflow: hidden;
+  animation: talk-in 200ms ease-out;
+}
+.talk-drawer[hidden] { display: none; }
+.talk-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.6rem 0.6rem 1rem;
+  border-block-end: 1px solid var(--rule);
+  font-family: var(--chrome);
+}
+.talk-drawer-title { font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+.talk-close {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.talk-close:hover { color: var(--ink); background: var(--ground); }
+.talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
+.talk-scrim { display: none; }
+.talk-scrim[hidden] { display: none; }
+@keyframes talk-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: none; }
+}
+/* On a phone the drawer is a sheet up from the foot of the window, over a scrim. */
+@media (max-width: 48rem) {
+  .talk-drawer {
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: auto;
+    block-size: min(88vh, 100vh - 3rem);
+    border-radius: 8px 8px 0 0;
+    border-block-end: 0;
+  }
+  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  .talk-scrim[hidden] { display: none; }
+  .talk-cta { inset-inline: 0.75rem; inset-block-end: max(0.75rem, env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .talk-drawer { animation: none; }
+}

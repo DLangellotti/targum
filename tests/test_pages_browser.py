@@ -638,23 +638,26 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
-    # The conversation is the conversation page, framed (2026-09-11): the chips and the
-    # box are measured inside it, against the frame's own width.
+    # The conversation is the conversation page framed in the drawer the pill opens
+    # (2026-09-11): the chips and the box are measured inside it, against the drawer's
+    # own width, with the drawer open.
+    page.click("#talk-open")
     talk = page.frame_locator("#talk-frame")
     talk.locator(".chat-ask").first.wait_for()
     page.wait_for_timeout(400)
     got = page.evaluate(
         """() => {
           const doc = document.documentElement;
-          const talk = document.querySelector('.talk').getBoundingClientRect();
+          const drawer = document.getElementById('talk-drawer').getBoundingClientRect();
           const frame = document.getElementById('talk-frame').getBoundingClientRect();
           const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
+          const front = document.getElementById('front').getBoundingClientRect();
           const window_ = document.getElementById('carry-window');
           return {
             scrollWidth: doc.scrollWidth, inner: window.innerWidth,
             frameLeft: frame.left, frameRight: frame.right, frameHeight: frame.height,
-            talkRight: talk.right,
-            columns: sheet.top < talk.top ? 'stacked' : 'row',
+            talkRight: drawer.right, drawerTop: drawer.top, drawerBottom: drawer.bottom,
+            sheetWidth: Math.round(sheet.width), frontWidth: Math.round(front.width),
             reader: window_.hidden ? ''
               : document.getElementById('carry-frame').getAttribute('src'),
             root: parseFloat(getComputedStyle(doc).fontSize),
@@ -680,8 +683,9 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
-    assert got["columns"] == ("stacked" if width <= 768 else "row"), f"{width}px: {got}"
-    assert "preview=1" in got["reader"], "the sheet frames the reader, as a picture"
+    assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
+    assert 0 <= got["drawerTop"] and got["drawerBottom"] <= 800 + 1, f"the drawer on screen: {got}"
+    assert "preview=1" in got["reader"], "the sheet frames the reader, working"
     assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
     assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"
     assert inside["chipsPast"] == 0, f"a chip runs past the frame at {width}px"
@@ -774,8 +778,9 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     open_page = context.new_page()
     open_page.route("http://learn.test/**", answer)
     open_page.goto("http://learn.test/learn")
-    # The box is in the framed conversation page (2026-09-11); the text it opens must
-    # open in the page that holds the frame.
+    # The box is in the conversation page framed in the drawer (2026-09-11); the text it
+    # opens must open in the page that holds the drawer.
+    open_page.click("#talk-open")
     talk = open_page.frame_locator("#talk-frame")
     talk.locator("#chat-send").wait_for()
     open_page.wait_for_timeout(300)
@@ -813,88 +818,91 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
 
 
 @pytest.mark.parametrize("width", [390, 1440])
-def test_the_conversation_can_be_put_away_and_the_pill_brings_it_back(browser, width: int) -> None:
-    """2026-09-11: "the chat can collapse and then be accessible through a sticky CTA",
-    "expand the reader on the learn page, by minimizing the chat". Hide on the card puts
-    the conversation away: the sheet takes the row and grows, and a pill fixed at the
-    foot of the window, on screen at every width, brings the conversation back."""
-    html = learn_page(TOKEN)
-    readers = [
-        {
-            "name": "youtube-he",
-            "title": "כותרת",
-            "language": "he",
-            "register": "modern",
-            "document": "h1",
-            "built": 1,
-            "chapters": [1],
-            "readyChapters": 1,
-            "known": 0.31,
-            "reader": "youtube-he/reader/index.html",
-        }
-    ]
+def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width: int) -> None:
+    """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens
+    up for you". On the Library: the pill is on screen, nothing is loaded until it is
+    pressed, the drawer then stands on screen with the conversation in it, Escape closes
+    it, and it is open again on the next page since the conversation is not over. A text
+    the conversation offers on a page without a sheet opens the reader itself."""
+    html = library_page(TOKEN)
 
     def answer(route, request):
         u = request.url
         if "/chat/list" in u:
-            body = {"chats": [], "usable": True, "talk": True, "chips": []}
+            body = {
+                "chats": [],
+                "usable": True,
+                "talk": True,
+                "chips": [{"id": "read", "line": "Find me something"}],
+            }
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False}
+        elif "/account/me" in u or "/account/follows" in u:
+            body = {"signedIn": False}
+        elif "/series" in u:
+            body = {"series": []}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None}
         elif "/reader/" in u:
             route.fulfill(
-                status=200, content_type="text/html", body="<html><body>text</body></html>"
+                status=200, content_type="text/html", body="<html><body>the reader</body></html>"
             )
             return
-        elif "/readers" in u:
-            body = {"readers": readers, "shared": [], "trash": []}
-        elif "/account/me" in u:
-            body = {"signedIn": False}
-        elif "/words/common" in u:
-            body = {"words": [], "offset": 0, "next": None, "into": "en"}
         elif "embed=1" in u:
             route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
             return
-        else:
+        elif "/library" in u:
             route.fulfill(status=200, content_type="text/html", body=html)
             return
+        else:
+            body = {}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context = browser.new_context(viewport={"width": width, "height": 800})
     page = context.new_page()
-    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
     page.route("http://learn.test/**", answer)
-    page.goto(f"http://learn.test/learn?k={TOKEN}")
-    page.wait_for_function("() => !document.getElementById('carry-sheet').hidden")
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
     measure = """() => {
-      const talk = document.querySelector('.talk');
-      const sheet = document.getElementById('carry-sheet').getBoundingClientRect();
-      const front = document.getElementById('front').getBoundingClientRect();
-      const cta = document.getElementById('talk-cta');
-      const box = cta.getBoundingClientRect();
+      const pill = document.getElementById('talk-open').getBoundingClientRect();
+      const drawer = document.getElementById('talk-drawer');
+      const box = drawer.getBoundingClientRect();
       return {
-        talkShown: getComputedStyle(talk).display !== 'none',
-        sheetWidth: Math.round(sheet.width), frontWidth: Math.round(front.width),
-        window: Math.round(document.getElementById('carry-window').getBoundingClientRect().height),
-        cta: cta.hidden ? null
-          : { top: box.top, bottom: box.bottom, left: box.left, right: box.right },
-        fixed: getComputedStyle(cta).position,
-        expand: document.getElementById('carry-expand').textContent,
-        remembered: localStorage.getItem('targum:front-talk'),
+        pill: { left: pill.left, right: pill.right, top: pill.top, bottom: pill.bottom },
+        pillShown: getComputedStyle(document.getElementById('talk-open')).display !== 'none',
+        open: !drawer.hidden,
+        drawer: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+        loaded: !!document.getElementById('talk-frame').getAttribute('src'),
+        remembered: localStorage.getItem('targum:talk'),
       };
     }"""
     before = page.evaluate(measure)
-    page.click("#talk-hide")
-    away = page.evaluate(measure)
-    page.click("#talk-cta")
-    back = page.evaluate(measure)
+    page.click("#talk-open")
+    page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
+    # Past the drawer's own settling, which is the one motion it has.
+    page.wait_for_timeout(300)
+    opened = page.evaluate(measure)
+    page.keyboard.press("Escape")
+    closed = page.evaluate(measure)
+    page.click("#talk-open")
+    page.goto(f"http://learn.test/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open", state="attached")
+    page.wait_for_timeout(200)
+    again = page.evaluate(measure)
+    # A text offered where there is no sheet: the reader itself.
+    page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
+    frame = [f for f in page.frames if "embed=1" in f.url][0]
+    frame.evaluate(
+        "() => window.parent.postMessage("
+        "{type: 'targum:open', reader: 'negev-he/reader/index.html'}, location.origin)"
+    )
+    page.wait_for_url("**/reader/negev-he/**", timeout=5000)
     context.close()
-    assert before["talkShown"] and before["cta"] is None and before["expand"] == "Expand"
-    assert not away["talkShown"] and away["expand"] == "Shrink" and away["remembered"] == "away"
-    assert away["sheetWidth"] == away["frontWidth"], f"the sheet takes the row: {away}"
-    assert away["window"] > before["window"], "and grows to a reading height"
-    assert away["fixed"] == "fixed" and away["cta"] is not None, away
-    assert 0 <= away["cta"]["left"] and away["cta"]["right"] <= width, (
-        f"the pill is on screen: {away}"
-    )
-    assert 0 <= away["cta"]["top"] and away["cta"]["bottom"] <= 800, (
-        f"the pill is on screen: {away}"
-    )
-    assert back["talkShown"] and back["cta"] is None and back["remembered"] is None
+    assert before["pillShown"] and not before["open"] and not before["loaded"], before
+    assert 0 <= before["pill"]["left"] and before["pill"]["right"] <= width, "the pill on screen"
+    assert 0 <= before["pill"]["top"] and before["pill"]["bottom"] <= 800
+    assert opened["open"] and opened["loaded"] and not opened["pillShown"], opened
+    assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
+    assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
+    assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
+    assert again["open"] and again["remembered"] == "open", "open again on the next page"

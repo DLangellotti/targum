@@ -161,25 +161,27 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
-    assert 'id="talk-frame"' in PAGES["learn"], "Learn frames the page that carries it"
+    assert 'id="talk-frame"' in PAGES["learn"], "every page carries the drawer that frames it"
     bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
     assert order.index("learn") == 0
 
 
-def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
-    """design.md §13 (2026-09-11): the text to read, drawn as a page on the desk with its
-    first lines, and the conversation beside it; the chrome's face carried in every page
-    that wears the bar; the reader never loads it."""
+def test_the_front_page_is_the_reader_s_own_highlight() -> None:
+    """design.md §13 (2026-09-11): the text to read, drawn as a working page on the desk
+    across the row, then the shelf, and nothing else — "Learn page can literally just be
+    a highlight of the reader". The chrome's face is carried in every page that wears the
+    bar; the reader never loads it."""
     learn = PAGES["learn"]
     assert (
         learn.index('class="front"')
         < learn.index('id="carry-sheet"')
-        < learn.index('id="talk-title"')
+        < learn.index('id="shelf-panel"')
     )
     assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
-    assert 'id="carry-expand"' in learn and 'id="talk-hide"' in learn and 'id="talk-cta"' in learn
+    assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
+    assert 'id="talk-title"' not in learn and 'class="talk card"' not in learn
     for name, page in list(PAGES.items()) + [("embed", EMBED)]:
         assert page.count('font-family:"Source Sans 3"') == 2, (
             f"{name}: the chrome face, upright and italic"
@@ -190,21 +192,21 @@ def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
     assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
 
 
-def test_the_front_page_names_its_parts_and_frames_the_conversation() -> None:
-    """2026-09-11: "nothing is labeled", "I can't really tell that it's a chat", "I should
-    not be sent to a new page", then "an actual embed of the chat". The conversation is
-    a named section with a sentence under its heading, and in it the conversation page
-    itself, framed without its bar; what follows is a named section too. The framed
-    page opens every link in the page that holds it."""
-    learn = PAGES["learn"]
-    assert "Talk to targum" in learn and 'id="talk-frame"' in learn
-    assert 'src="/chat?embed=1&amp;k=k"' in learn
-    assert 'id="composer"' not in learn and "TargumChat" not in learn, "the box is in the frame"
-    assert (
-        learn.index('id="talk-title"')
-        < learn.index('id="talk-frame"')
-        < learn.index('id="shelf-panel"')
-    )
+def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() -> None:
+    """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens up
+    for you — doesn't actually have to live on any page". The pill and the drawer ride in
+    the bar's partial, the drawer frames the conversation page without its bar and loads
+    nothing until opened, and the conversation page itself carries the drawer's script
+    but hides the pill, since it is the conversation."""
+    for name, page in PAGES.items():
+        if 'class="site-head"' not in page:
+            continue
+        assert 'id="talk-open"' in page and 'id="talk-drawer"' in page, name
+        assert 'id="talk-frame"' in page and "TargumTalk" in page, name
+        assert 'data-src="/chat?embed=1&amp;k=k"' in page and ' src="/chat?embed=1' not in page, (
+            f"{name}: loaded when opened, not before"
+        )
+        assert 'id="composer"' not in page or name == "chat", f"{name}: the box is in the frame"
     assert 'class="chat embed"' in EMBED and '<base target="_top">' in EMBED
     assert 'class="site-head"' not in EMBED and "data-nav=" not in EMBED, "no bar, no foot"
     assert 'id="composer"' in EMBED and 'id="chat-thread"' in EMBED and "TargumChat" in EMBED
@@ -215,11 +217,7 @@ def test_the_box_is_the_front_door() -> None:
     """Learn carries the box under the ledger's own sentence, and the conversation page
     carries the same one from the same file: one field, the `+`, Speak, Send."""
     learn = PAGES["learn"]
-    assert (
-        learn.index('id="known-line"')
-        < learn.index('id="carry-sheet"')
-        < learn.index('id="talk-frame"')
-    ), "under the count, beside the sheet (§13)"
+    assert learn.index('id="known-line"') < learn.index('id="carry-sheet"'), "under the count (§13)"
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):
             assert page.count(control) == 1, f"{name}: {control} once"

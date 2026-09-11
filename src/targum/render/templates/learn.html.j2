@@ -28,8 +28,10 @@
 
   <div class="front" id="front">
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
-        reader, framed and working, at the place it was left, on the desk; under it the
-        title, what it is, Expand and one press to the reader's own page. The frame is
+        reader, framed and working, at the place it was left, on the desk, across the
+        row; under it the title, what it is, and one press to the reader's own page. Learn
+        is the reader's own highlight: the conversation is the pill at the foot of every
+        page (2026-09-11). The frame is
         told it is on the front page (`preview=1`): it draws no bar, keeps its own links
         inside itself, sends every other link to this page, and counts a visit at the
         first real press rather than at being shown. The one pure-paper surface on the
@@ -51,36 +53,14 @@
             <span class="carry-known" id="carry-known" hidden></span>
           </p>
           <p class="page-actions">
-            {#- Expand puts the conversation away and gives the reader the row (2026-09-11:
-                "the user should be able to expand the reader on the learn page, by
-                minimizing the chat"); the conversation comes back by the pill at the
-                foot of the window. Open goes to the reader's own page. -#}
-            <button type="button" class="expand" id="carry-expand" aria-pressed="false">Expand</button>
+            {#- Open goes to the reader's own page. -#}
             <a class="open" id="carry" href="/">Open</a>
           </p>
         </div>
       </div>
     </section>
 
-    {#- The conversation, on the front page and named as one (2026-09-11): "I can't
-        really tell that it's a chat", "I should not be sent to a new page". It is the
-        conversation page itself, framed without its bar, so what is typed here is
-        answered here, and a text it offers opens in the sheet beside it. Hide puts it
-        away; the pill at the foot of the window brings it back. -#}
-    <section class="talk card" aria-labelledby="talk-title">
-      <div class="talk-head">
-        <h2 class="section-title" id="talk-title">Talk to targum</h2>
-        <button type="button" class="talk-hide" id="talk-hide" aria-label="Hide the conversation">Hide</button>
-      </div>
-      <p class="section-note">In Hebrew at your level, with the English under every line.</p>
-      <div class="talk-window">
-        <iframe class="talk-frame" id="talk-frame" title="Talk to targum" src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
-      </div>
-    </section>
   </div>
-  {#- The way back to a put-away conversation: one pill, fixed at the foot of the
-      window, in the primary. Drawn only while the conversation is hidden. -#}
-  <button type="button" class="talk-cta" id="talk-cta" hidden>Talk to targum</button>
 
   <section class="panel" id="shelf-panel">
     <div class="list-controls">

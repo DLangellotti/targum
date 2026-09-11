@@ -39,8 +39,6 @@ function foldPair(name) {
 
 const folds = ["shelf"].map(foldPair);
 
-// What the page listens to on the window — `message`, from the framed conversation
-// (2026-09-11) — so a step can send one.
 const windowListeners = {};
 install({
   TARGUM_KEY: "k",
@@ -168,19 +166,9 @@ function phrases() {
 function act(step) {
   if (step.fold) byId["fold-" + step.fold].fire("click", {});
   if (step.press) byId[step.press].fire("click", {});
-  // A text offered by the framed conversation, as the browser would deliver it: from
-  // the frame's own window, on this origin.
-  if (step.offer) {
-    const talk = document.getElementById("talk-frame");
-    talk.contentWindow = talk.contentWindow || {};
-    (windowListeners.message || []).forEach((handler) =>
-      handler({
-        origin: step.origin === undefined ? global.window.location.origin : step.origin,
-        source: step.stranger ? {} : talk.contentWindow,
-        data: { type: "targum:open", reader: step.offer },
-      }),
-    );
-  }
+  // A text offered by the conversation in the drawer, handed over by `talk.js`.
+  if (step.offer) global.window.TargumLearn.open(step.offer);
+  if (step.changed) global.window.TargumLearn.changed();
 }
 
 setTimeout(() => {
@@ -191,6 +179,7 @@ setTimeout(() => {
       asked: asked,
       went: global.location.href,
       known: at("known-line").textContent,
+      hands: Object.keys(global.window.TargumLearn || {}),
       seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
       folds: {
         shelf: {
@@ -215,17 +204,10 @@ setTimeout(() => {
         cover: tile(carry),
         // Open, in the foot, goes to the reader's own page.
         href: at("carry").href || "",
-        expand: at("carry-expand").textContent,
       },
       // A subscription that landed (2026-09-11): what the bell was told, what was seen.
       notices,
       seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
-      // The conversation beside the sheet, or put away (2026-09-11).
-      talk: {
-        away: at("front").classList.contains("expanded"),
-        ctaHidden: at("talk-cta").hidden,
-        remembered: global.localStorage.getItem("targum:front-talk") || "",
-      },
       head: at("shelf-head").hidden,
       shelf: at("library-list").children.map((row) => {
         const link = row.children[0];
