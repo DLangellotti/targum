@@ -62,6 +62,8 @@ global.fetch = (path, options) => {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/series") === 0) {
     answer = { series: payload.series || [] };
+  } else if (String(path).indexOf("/account/me") === 0) {
+    answer = payload.me || { signedIn: false };
   } else if (String(path).indexOf("/account/follows") === 0) {
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
   } else if (String(path).indexOf("/job/") === 0) {
@@ -146,6 +148,11 @@ function phrases() {
 /** Do something to the page, the way a person would. */
 function act(step) {
   if (step.press) byId[step.press].fire("click", {});
+  // A door in the row above the sheet (2026-09-11), by its id.
+  if (step.door) {
+    const found = at("doors").children.find((p) => p.attrs["data-door"] === step.door);
+    if (found) found.fire("click", {});
+  }
   // A text offered by the conversation in the drawer, handed over by `talk.js`.
   if (step.offer) global.window.TargumLearn.open(step.offer);
   if (step.changed) global.window.TargumLearn.changed();
@@ -159,6 +166,12 @@ setTimeout(() => {
       asked: asked,
       went: global.location.href,
       known: at("known-line").textContent,
+      // The greeting and today, and the row of doors (2026-09-11).
+      greeting: at("greeting").textContent,
+      today: at("today").textContent,
+      doors: at("doors").hidden
+        ? []
+        : at("doors").children.map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
       hands: Object.keys(global.window.TargumLearn || {}),
       seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
       shelfNote: at("shelf-note").textContent,

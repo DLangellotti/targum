@@ -278,12 +278,14 @@
     var panel = document.getElementById("carry");
     if (!reader) {
       sheet.hidden = true;
+      markDoor("");
       return;
     }
     door = door || { state: "carry" };
     sheet.hidden = false;
     var heading = document.getElementById("carry-heading");
-    if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue";
+    if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue reading";
+    markDoor(door.id || "");
     trackLabel("carry-track", door.register);
     panel.classList.toggle("primary", !!door.primary);
     // The box is the link, so this is the only href on it. A step up past the sequence
@@ -366,6 +368,98 @@
     frame.setAttribute("src", src);
   }
 
+  /* --- the greeting, today, and the row of doors (2026-09-11) ---------------------
+   * Decided with David: the page opens with a greeting and today, the count at the end
+   * of the row, and under it one press for each text the page could show in the sheet
+   * — what you were reading, what is next, the week's portion, a cycle you follow.
+   */
+  function greeting(name) {
+    var now = new Date();
+    var hour = now.getHours();
+    var said = now.getDay() === 6 ? "Shabbat shalom" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    return said + (name ? ", " + name : "") + ".";
+  }
+
+  function todayLine(series) {
+    var now = new Date();
+    var parts = [now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })];
+    (series || []).forEach(function (one) {
+      var inst = one.instalment;
+      if (one.id === "parasha" && inst) parts.push("This week: " + (inst.hebrew || inst.title));
+    });
+    return parts.join(" · ");
+  }
+
+  function drawHello(name, series) {
+    var hello = document.getElementById("greeting");
+    var today = document.getElementById("today");
+    if (hello) hello.textContent = greeting(name);
+    if (today) today.textContent = todayLine(series);
+  }
+
+  var doors = [];
+  function drawDoors() {
+    var row = document.getElementById("doors");
+    if (!row) return;
+    row.textContent = "";
+    var shown = doors.filter(function (one) {
+      return one.reader;
+    });
+    row.hidden = shown.length < 2;
+    shown.forEach(function (one) {
+      var press = el("button", "way", one.label);
+      press.type = "button";
+      press.setAttribute("data-door", one.id);
+      press.addEventListener("click", function () {
+        drawCarry(one.reader, one.door);
+      });
+      row.appendChild(press);
+    });
+    markDoor(current);
+  }
+
+  var current = "";
+  function markDoor(id) {
+    current = id;
+    var row = document.getElementById("doors");
+    if (!row) return;
+    Array.prototype.forEach.call(row.children, function (press) {
+      var on = press.getAttribute("data-door") === id;
+      press.classList.toggle("on", on);
+      press.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  // A series' current instalment as a door: the weekly and the portion for everybody,
+  // a daily cycle only where it is followed.
+  function seriesDoors(series) {
+    var follow = window.TargumFollow;
+    if (!follow) return [];
+    var out = [];
+    series.forEach(function (one) {
+      var inst = one.instalment;
+      if (!inst) return;
+      if (one.id !== "weekly" && one.id !== "parasha" && !follow.following(one.id)) return;
+      var src = follow.readerOf(one);
+      if (!src) return;
+      out.push({
+        id: "series:" + one.id,
+        label: one.id === "parasha" ? "This week's portion" : one.id === "weekly" ? "The weekly" : one.name,
+        reader: { name: "", title: inst.hebrew || inst.title, english: inst.hebrew ? inst.title : "", language: "he" },
+        door: {
+          id: "series:" + one.id,
+          state: "carry",
+          heading: one.name,
+          primary: true,
+          src: src,
+          href: one.page || src,
+          meta: follow.whenSaid(inst.when),
+        },
+      });
+    });
+    return out;
+  }
+
   /* --- a text offered in the conversation ----------------------------------------
    * The conversation in the drawer cannot open a page of its own; it offers the text to
    * this page, which opens it in the sheet — "opened first in the reader on this page,
@@ -386,6 +480,7 @@
     });
     var reader = found || { name: name, title: name, language: "he" };
     drawCarry(reader, {
+      id: "offered",
       state: "carry",
       heading: "From the conversation",
       primary: true,
@@ -521,6 +616,9 @@
       total: numbered.length,
       opened: last ? last.opened : 0,
       reader: null,
+      // The sequence's next unfinished text, whatever the door shows: the row of doors
+      // offers it as Up next beside a text being carried on with (2026-09-11).
+      next: next,
       state: "up",
     };
     if (last && !done(last)) {
@@ -551,7 +649,7 @@
     // (2026-09-11): until then the line says what to do, which is what makes the count.
     line.textContent = known >= KNOWN_FLOOR
       ? "You know " + known + " " + named(code) + " words."
-      : "Mark a word while reading and it starts here.";
+      : "Read, tap the words you do not know, and talk to targum about any line.";
   }
 
   /* --- putting it together --------------------------------------------------- */
@@ -618,6 +716,18 @@
             door = { state: "carry", reader: latest, opened: latest.opened, register: latest.register };
           }
           door.primary = true;
+          door.id = "main";
+          doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }];
+          // Up next: the sequence's next scene, beside a text being carried on with.
+          var following = modern.next;
+          if (following && following !== door.reader) {
+            doors.push({
+              id: "next",
+              label: "Up next",
+              reader: following,
+              door: { id: "next", state: modern.opened ? "next" : "start", register: "modern", primary: true },
+            });
+          }
           if (door.reader) {
             drawCarry(door.reader, door);
             inDoors.push(door.reader);
@@ -655,9 +765,11 @@
           // One track: carry on with your own, or start on what was handed to you.
           var start = !mine.length && handed.length ? handed[0] : null;
           var carrying = mine[0] || start;
+          doors = [];
           drawCarry(carrying, { state: start ? "start" : "carry", primary: !!carrying });
           if (carrying) inDoors.push(carrying);
         }
+        drawDoors();
         // The rest of the shelf. Repeating the one above it would be a list whose first
         // row is the thing already filling the top of the page.
         shelf.draw(
@@ -674,6 +786,7 @@
       }
 
       show(chosen);
+      hello();
       landed();
     })
     .catch(function () {
@@ -687,10 +800,26 @@
    * the sheet as what to read next and is said in the bell; seen once, the sheet goes
    * back to what the reader was reading. The Library is where following is done.
    */
+  // Who is reading, and what today is: the account's name where it has one, the
+  // date, and the week's portion where this box carries it.
+  function hello() {
+    var name = window.TargumSync && window.TargumSync.who ? window.TargumSync.who.name : "";
+    drawHello(name || "", []);
+    ask("/account/me")
+      .then(function (me) {
+        if (me && me.signedIn && me.name) drawHello(me.name, []);
+      })
+      .catch(function () {});
+  }
+
   function landed() {
     var follow = window.TargumFollow;
     if (!follow) return;
     follow.list().then(function (series) {
+      var today = document.getElementById("today");
+      if (today) today.textContent = todayLine(series);
+      doors = doors.concat(seriesDoors(series));
+      drawDoors();
       var fresh = follow.fresh(series);
       if (!fresh.length) return;
       fresh.forEach(function (one) {
@@ -714,6 +843,7 @@
           language: "he",
         },
         {
+          id: "series:" + newest.id,
           state: "carry",
           heading: "New: " + newest.name,
           primary: true,

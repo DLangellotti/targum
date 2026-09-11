@@ -213,11 +213,16 @@ def test_the_page_opens_by_saying_how_many_words_you_know() -> None:
 
 def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
     """2026-09-11: "You know 1 Hebrew word" is true and deflating on the first line a new
-    reader sees. Until ten, the line says what to do, which is what makes the count."""
+    reader sees. Until ten, the line says what to do here — decided with David on
+    2026-09-11: one quiet sentence for a new reader — which is what makes the count."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=9)))
-    assert drawn["known"] == "Mark a word while reading and it starts here."
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
     nine = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(9))))
-    assert nine["known"] == "Mark a word while reading and it starts here."
+    assert (
+        nine["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
     ten = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(10))))
     assert ten["known"] == "You know 10 Hebrew words."
 
@@ -225,7 +230,9 @@ def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
 def test_knowing_nothing_yet_asks_rather_than_scoring_zero() -> None:
     """ "You know 0 words" is a score of zero, which is the arcade the brand keeps out."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=1)))
-    assert drawn["known"] == "Mark a word while reading and it starts here."
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
 
 
 def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
@@ -401,7 +408,9 @@ def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
     fresh = draw([], shared=[ruth, holon])
     assert fresh["carry"]["track"] == "Modern Hebrew" and fresh["carry"]["title"] == "הפועל חולון"
     assert fresh["carry"]["heading"] == "Start here"
-    assert fresh["known"] == "Mark a word while reading and it starts here."
+    assert (
+        fresh["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
     biblical = draw([], {"targum:opened": json.dumps({"ruth": 7})}, shared=[holon, ruth])
     assert biblical["carry"]["track"] == "Biblical Hebrew" and biblical["carry"]["title"] == "רות"
     assert biblical["carry"]["heading"] == "Continue reading"
@@ -533,7 +542,9 @@ def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
     """The sheet at Start here on Scene 1, which says which scene of how many, how long,
     and that it can be heard. Nothing says "ready", and Open opens a built text."""
     drawn = draw([], shared=SCENES + [RUTH])
-    assert drawn["known"] == "Mark a word while reading and it starts here."
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
     assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["heading"] == "Start here"
     assert (
         drawn["carry"]["title"] == "נעים מאוד" and drawn["carry"]["english"] == "Nice to meet you"
@@ -554,7 +565,9 @@ def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
     drawn = draw([], opened, shared=[first, *SCENES[1:], RUTH])
     assert drawn["carry"]["heading"] == "Continue reading"
     assert drawn["carry"]["meta"] == "Scene 1 of 3 · 12 words left · audio"
-    assert drawn["known"] == "Mark a word while reading and it starts here."
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
 
 
 def test_a_finished_scene_hands_over_to_the_next() -> None:
@@ -567,7 +580,9 @@ def test_a_finished_scene_hands_over_to_the_next() -> None:
     assert drawn["carry"]["heading"] == "Up next"
     assert drawn["carry"]["title"] == "בבית קפה"
     assert drawn["carry"]["meta"] == "Scene 2 of 3 · 19 words · audio"
-    assert drawn["known"] == "Mark a word while reading and it starts here."
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    )
 
 
 def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
@@ -576,9 +591,9 @@ def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
     done = {"targum:docs": json.dumps({"scene-01-nice-to-meet-you-he": {"done": 9}})}
     drawn = draw([], done, shared=SCENES + [RUTH])
     assert drawn["carry"]["heading"] == "Up next" and drawn["carry"]["title"] == "בבית קפה"
-    assert drawn["known"] == "Mark a word while reading and it starts here.", (
-        "every word ignored and Done pressed is not a score of zero"
-    )
+    assert (
+        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+    ), "every word ignored and Done pressed is not a score of zero"
 
 
 def test_past_the_last_scene_the_modern_door_steps_up() -> None:
@@ -687,3 +702,81 @@ def test_the_sheet_says_how_long_is_left_from_what_the_reader_finished() -> None
         },
     )
     assert "finished" in done["carry"]["meta"] and done["carry"]["progress"] == "1"
+
+
+def test_the_page_greets_you_and_says_what_today_is() -> None:
+    """Decided with David on 2026-09-11 ("I definitely don't know what I'm looking at"):
+    the first line is a greeting with the account's name, under it the date and the
+    week's portion where the box carries it, and the count at the end of the row."""
+    portion = {
+        "id": "parasha",
+        "name": "The weekly portion",
+        "page": "/parasha",
+        "instalment": {
+            "id": "haazinu",
+            "title": "Ha'azinu",
+            "hebrew": "האזינו",
+            "when": "2026-09-12",
+        },
+    }
+    drawn = draw([reader("a", "א")], me={"signedIn": True, "name": "David"}, series=[portion])
+    assert drawn["greeting"].endswith(", David.") and drawn["greeting"].split(",")[0] in (
+        "Good morning",
+        "Good afternoon",
+        "Good evening",
+        "Shabbat shalom",
+    )
+    assert drawn["today"].endswith(" · This week: האזינו") and len(drawn["today"]) > 20
+    unnamed = draw([reader("a", "א")], me={"signedIn": True, "name": ""})
+    assert "," not in unnamed["greeting"] and unnamed["greeting"].endswith(".")
+    assert "This week" not in unnamed["today"], "no portion on a box without one"
+
+
+def test_a_row_of_doors_swaps_the_sheet() -> None:
+    """One press for each text the sheet could show (decided with David, 2026-09-11):
+    what you were reading, the sequence's next scene, the week's portion. The one
+    shown is marked; a press draws that text in the sheet and marks it instead."""
+    first = scene(1, "one", "סצנה א", document="d1")
+    second = scene(2, "two", "סצנה ב", document="d2")
+    mine = reader("mine", "ספר שלי", document="d3", opened=5)
+    portion = {
+        "id": "parasha",
+        "name": "The weekly portion",
+        "page": "/parasha",
+        "instalment": {
+            "id": "haazinu",
+            "title": "Ha'azinu",
+            "hebrew": "האזינו",
+            "when": "2026-09-12",
+            "reader": "/parasha/read/haazinu/reader/sec-0001.html",
+        },
+    }
+    drawn = draw(
+        [mine], {"targum:opened": json.dumps({"d3": 5})}, shared=[first, second], series=[portion]
+    )
+    assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
+        ("Continue reading", True),
+        ("Up next", False),
+        ("This week's portion", False),
+    ]
+    assert drawn["carry"]["title"] == "ספר שלי"
+    pressed = draw(
+        [mine],
+        {"targum:opened": json.dumps({"d3": 5})},
+        shared=[first, second],
+        series=[portion],
+        do=[{"door": "next"}],
+    )
+    assert pressed["carry"]["title"] == "סצנה א" and pressed["carry"]["heading"] == "Up next"
+    assert [d["on"] for d in pressed["doors"]] == [False, True, False]
+    week = draw(
+        [mine],
+        {"targum:opened": json.dumps({"d3": 5})},
+        shared=[first, second],
+        series=[portion],
+        do=[{"door": "series:parasha"}],
+    )
+    assert week["carry"]["title"] == "האזינו" and week["carry"]["heading"] == "The weekly portion"
+    assert week["carry"]["frame"].startswith("/parasha/read/haazinu/reader/sec-0001.html")
+    alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})})
+    assert alone["doors"] == [], "one text is no choice, and no row is drawn for it"

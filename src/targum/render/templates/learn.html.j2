@@ -28,10 +28,20 @@
     {#- One row at the head of the desk (2026-09-11: "less empty space and more filled
         up by the reader"): the heading of the sheet at the start, the count at the end.
         On a phone the row comes after the sheet, which takes the screen. -#}
+    {#- Decided with David on 2026-09-11 ("I definitely don't know what I'm looking
+        at"): the page opens with a greeting and today — the time of day, the reader's
+        name, the date and the week's portion — with the count of words at the end of
+        the row; under it a row of doors, one press each, that swap the sheet: what you
+        were reading, what is next, the week's portion, a cycle you follow. The reader
+        stays first: one text is open the moment the page is. -#}
     <div class="learn-head">
-      <p class="label" id="carry-heading">Continue reading</p>
+      <div class="hello">
+        <p class="greeting" id="greeting"></p>
+        <p class="today" id="today"></p>
+      </div>
       <p class="known-line" id="known-line"></p>
     </div>
+    <div class="ways" id="doors" hidden></div>
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
         reader, framed and working, at the place it was left, on the desk, across the
         row; under it the title, what it is, and one press to the reader's own page. Learn
@@ -53,6 +63,9 @@
           {#- How far through the text the reader is, as a line along the head's lower
               edge (2026-09-11); drawn only once something is finished. -#}
           <span class="page-progress" id="carry-progress" role="img" aria-label="" hidden></span>
+          {#- What this text is to the reader — Continue reading, Up next, Start here,
+              From the conversation — over the title. -#}
+          <p class="page-state" id="carry-heading">Continue reading</p>
           <bdi class="page-title" id="carry-title"></bdi>
           <p class="page-facts">
             <span class="page-english" id="carry-english" lang="en" dir="ltr" hidden></span>

@@ -238,6 +238,8 @@ THUMBED = (
     ".account > button",
     ".palette-open",
     ".palette-row",
+    # And the row of doors above the sheet on Learn (2026-09-11).
+    ".way",
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
     # And the button on a quote that starts a build — the one press that spends.
