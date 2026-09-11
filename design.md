@@ -382,8 +382,10 @@ phase. The plan, with the diagnosis and the page-by-page pass:
 https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186.
 
 What this entry changes in the rules: §8's radii and flat-surface bullets now say they
-are the reader's, and §13 carries the desk's own scale, tiers, tint, glass, three kinds
-of button and one curve. `test_brand.py` admits 12, 16 and 24 to the radii and lets a
+are the reader's page's, and §13 carries the desk's own scale, tiers, tint, glass, three
+kinds of button and one curve — and, since the fifth phase, the reader's own chrome
+takes them too, its bar on glass and its cards on the floating tier, while the lines of
+the page keep §8. `test_brand.py` admits 12, 16 and 24 to the radii and lets a
 rule name a corner by its token. What it does not overturn: everything about the reader
 — §8 as written still governs the page.
 
@@ -1098,6 +1100,9 @@ the window but the pill.
 160ms for a thing settling or leaving, a press giving to 0.98; none under
 `prefers-reduced-motion` (§8).
 
-**What stays the reader's.** The page tone, the serif, the hairlines, the brown, the
-glyphs in §7, the per-line controls, and the rule that a reader fetches nothing.
+**What stays the reader's.** The page tone, the serif, the hairlines between lines, the
+brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
+nothing. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
+page's lines keep §8 as written.
 

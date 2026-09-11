@@ -3391,3 +3391,39 @@ html:fullscreen { background: var(--paper); }
 @media (hover: none) and (pointer: coarse) {
   .voice-go { min-height: 44px; }
 }
+
+/* =====================================================================================
+   Phase 5 (2026-09-11): the reader's chrome on the desk's scale — its bar, its cards,
+   its keys and its sheets — and nothing of the page's own lines: the pairs, the
+   hairlines between them, the faces and the brown stay as §8 has them. Written after
+   every rule above, the phone's included, so that it wins. */
+/* Glass on a wide window only: under 60rem the bar is paper with no blur and no line,
+   as the phone rules above say and for the reason they give — a filter on it would make
+   it the box the sheets are placed against. */
+@media (min-width: 60.01rem) {
+  .bar {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-block-end: 1px solid var(--hairline);
+  }
+}
+.bar button, .bar select, .bar .group .home { border-radius: 999px; }
+.modes { border-radius: 999px; border-color: var(--hairline); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.modes button, .modes .slide { border-radius: 999px; }
+.gloss-card, .keys-card, .pick-card, .player {
+  border: 0;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-floating);
+}
+.gloss-card .look-up, .keys-close { border-radius: 999px; }
+.pager a { padding: 0.35rem 0.8rem; border-radius: 999px; }
+.pager a:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+@media (max-width: 60rem) {
+  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
+    border-block-start: 0;
+    border-start-start-radius: var(--radius-sheet);
+    border-start-end-radius: var(--radius-sheet);
+    box-shadow: var(--shadow-floating);
+  }
+}

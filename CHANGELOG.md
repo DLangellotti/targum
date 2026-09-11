@@ -438,6 +438,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   over each word, on glass; the top bar keeps the mark, the bell and your picture; Talk
   to targum is a round button above the bar; the account's and the bell's panels come up
   as sheets from the foot (2026-09-11).
+- Phase 5: the reader's own chrome — its bar on glass with pill controls, the word card,
+  the keys and the picker on the card's corners and the floating tier, its phone sheets
+  on the sheet's corners; the page's lines, faces and brown untouched (2026-09-11).
 - Talk to targum is a pill at the foot of every page, and Learn is the reader's own
   highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
   opens up for you — doesn't actually have to live on any page. Learn page can literally
