@@ -616,7 +616,9 @@
           heading: one.name,
           primary: true,
           src: src,
-          href: one.page || src,
+          // Open goes to the reader, never to the series' own page (David, 2026-09-11:
+          // "it should open the reader, not their marketing landing pages").
+          href: src,
           meta: follow.whenSaid(inst.when),
         },
       });
@@ -882,6 +884,7 @@
           door.primary = true;
           door.id = "main";
           doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }];
+          fallbackPick = stepUp(code, readers.concat(shared), "modern");
           if (door.reader) {
             drawCarry(door.reader, door);
             inDoors.push(door.reader);
@@ -980,18 +983,38 @@
     return ids;
   }
 
+  // The catalogue's own next step, worked out here from what this browser knows, when
+  // the server has no pick to give: the door is never simply missing.
+  var fallbackPick = null;
   function suggested() {
     var skip = finished();
+    function place(door) {
+      doors = doors.filter(function (one) {
+        return one.id !== "suggested";
+      });
+      if (door) doors.splice(doors.length && doors[0].id === "main" ? 1 : 0, 0, door);
+      drawDoors();
+    }
+    function fallback() {
+      var up = fallbackPick;
+      if (!up || skip.indexOf(up.pick.id) >= 0) return null;
+      return suggestedDoor({
+        id: up.pick.id,
+        title: up.pick.title,
+        english: up.pick.english,
+        language: up.pick.language,
+        minutes: up.pick.minutes,
+        register: up.pick.register,
+        because: up.why,
+      });
+    }
     ask("/suggest" + (skip.length ? "?skip=" + encodeURIComponent(skip.join(",")) : ""))
       .then(function (got) {
-        var door = suggestedDoor(got && got.suggestion);
-        doors = doors.filter(function (one) {
-          return one.id !== "suggested";
-        });
-        if (door) doors.splice(doors.length && doors[0].id === "main" ? 1 : 0, 0, door);
-        drawDoors();
+        place(suggestedDoor(got && got.suggestion) || fallback());
       })
-      .catch(function () {});
+      .catch(function () {
+        place(fallback());
+      });
   }
   // The framed reader writes what it finishes into this browser's storage; the door
   // is asked again so a finished suggestion makes way for the next one.
@@ -1035,7 +1058,7 @@
           heading: "New: " + newest.name,
           primary: true,
           src: src,
-          href: newest.page || src,
+          href: src,
           meta: follow.whenSaid(inst.when),
         }
       );

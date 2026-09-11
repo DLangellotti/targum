@@ -5333,9 +5333,9 @@ def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
 ) -> None:
     """The front page frames the reader, working (design.md §13, 2026-09-11), but a page
     that merely shows it is not a visit: opened with `?preview=1` the reader writes no
-    opening and no reading day and draws no bar — the page under it names the text —
-    until the first real press in it, and then it writes both. Opened as itself, it
-    writes both at once."""
+    opening and no reading day until the first real press in it, and then it writes
+    both. Opened as itself, it writes both at once. The bar is drawn either way (David,
+    2026-09-11: the sheet is the reader, and the bar is where its toggles are)."""
     context = browser.new_context(viewport={"width": 640, "height": 500})
     page = context.new_page()
     page.goto(address(built) + "?preview=1")
@@ -5362,7 +5362,7 @@ def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
         })"""
     )
     context.close()
-    assert preview["flagged"] and preview["bar"] == "none", preview
+    assert preview["flagged"] and preview["bar"] != "none", preview
     assert preview["opened"] is None and preview["days"] is None, "a picture is not a visit"
     assert not visit["flagged"] and visit["bar"] != "none", visit
     assert visit["opened"] and visit["days"], "opened as itself, the reader keeps the day"

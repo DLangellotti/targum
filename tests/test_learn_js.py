@@ -654,7 +654,9 @@ def test_a_followed_series_newest_instalment_takes_the_sheet_once_and_rings_the_
     assert drawn["carry"]["heading"] == "New: The weekly portion"
     assert drawn["carry"]["title"] == "כי תבוא" and drawn["carry"]["english"] == "Ki Tavo"
     assert drawn["carry"]["frame"] == "/parasha/read/ki-tavo/reader/sec-0001.html?k=k&preview=1"
-    assert drawn["carry"]["href"] == "/parasha?k=k"
+    assert drawn["carry"]["href"] == "/parasha/read/ki-tavo/reader/sec-0001.html?k=k", (
+        "Open opens the reader"
+    )
     assert drawn["seen"] == {"parasha": "ki-tavo"}
     assert drawn["notices"] == [
         {
@@ -788,6 +790,9 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     week = draw([mine], stored, series=[portion, digest], do=[{"door": "series:parasha"}])
     assert week["carry"]["title"] == "האזינו" and week["carry"]["heading"] == "The weekly portion"
     assert week["carry"]["frame"].startswith("/parasha/read/haazinu/reader/sec-0001.html")
+    assert week["carry"]["href"] == "/parasha/read/haazinu/reader/sec-0001.html?k=k", (
+        "Open goes to the reader, not the series' own page (David, 2026-09-11)"
+    )
     assert [(d["label"], d["on"]) for d in week["doors"]] == [
         ("Continue reading", False),
         ("The weekly portion", True),
@@ -870,3 +875,18 @@ def test_a_finished_suggestion_makes_way_for_the_next() -> None:
     )
     asked = [a["path"] for a in nothing_done["asked"] if a["path"].startswith("/suggest")]
     assert asked == ["/suggest?k=k"]
+
+
+def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
+    """The door is never simply missing (2026-09-11, live: "Suggested on learn page is
+    missing"): with no pick from the server, the catalogue's own next step — worked out
+    here from what this browser knows — is the suggestion, and Open goes to its row."""
+    mine = reader("mine", "ספר שלי", document="d3", opened=5, difficulty=20)
+    stored = {"targum:opened": json.dumps({"d3": 5})}
+    catalogue = [entry("easy", "קל", 10), entry("harder", "קשה", 30), entry("hardest", "הכי", 50)]
+    drawn = draw([mine], stored, catalogue=catalogue)
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    pressed = draw([mine], stored, catalogue=catalogue, do=[{"door": "suggested"}])
+    assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
+    assert pressed["carry"]["meta"].startswith("A step up from what you have read")
+    assert pressed["carry"]["href"] == "/library?k=k#harder"
