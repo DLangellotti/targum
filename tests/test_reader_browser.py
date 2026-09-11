@@ -1057,6 +1057,19 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     context.close()
 
 
+#: A card's answer in the conversation's shape: the Hebrew, then "= " and its English.
+HEBREW_ANSWER = "הַצּוּרָה הִיא רַבִּים.\n= Plural."
+
+#: How the last answer in the card is drawn: each line's class, lang and direction.
+SHAPED = """
+() => {
+  const answers = document.querySelectorAll('.gloss-card .ask-a');
+  const last = answers[answers.length - 1];
+  const attrs = (s) => [s.className, s.getAttribute('lang'), s.getAttribute('dir')];
+  return [...last.children].map(attrs);
+}
+"""
+
 #: What the card says once the reader has asked about the word.
 ASKED = """
 () => {
@@ -1094,7 +1107,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
             body = {"chat": "c1", "turn": len(said)}
             route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
         elif "/chat/stream/" in request.url:
-            reply = f"Answer {len(said)}."
+            reply = f"Answer {len(said)}." if len(said) == 1 else HEBREW_ANSWER
             body = (
                 f"event: text\ndata: {reply}\n\n"
                 f"event: done\ndata: {json.dumps({'text': reply})}\n\n"
@@ -1132,7 +1145,12 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     page.press(".gloss-card .ask-field", "Enter")
     page.wait_for_function("() => document.querySelector('.gloss-card .ask-a.working') === null")
     second = page.evaluate(ASKED)
-    assert second["answers"] == ["Answer 1.", "Answer 2."]
+    assert second["answers"] == ["Answer 1.", "הַצּוּרָה הִיא רַבִּים.Plural."], (
+        "the Hebrew line and its English, and the '= ' marker read rather than shown"
+    )
+    assert page.evaluate(SHAPED) == [["ask-he", "he", "rtl"], ["ask-en", None, "ltr"]], (
+        "the answer is drawn in the conversation's shape (2026-09-11)"
+    )
     assert said[1]["chat"] == "c1", "the same conversation, continued"
     assert not second["field"], "two turns, then the conversation page"
     assert second["on"] == "/chat?k=test#c1"
@@ -1140,7 +1158,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     # Tapping the word again redraws the card with the exchange still in it.
     page.evaluate(TAP_AGAIN, word)
     page.wait_for_timeout(200)
-    assert page.evaluate(ASKED)["answers"] == ["Answer 1.", "Answer 2."]
+    assert page.evaluate(ASKED)["answers"] == ["Answer 1.", "הַצּוּרָה הִיא רַבִּים.Plural."]
     context.close()
 
 

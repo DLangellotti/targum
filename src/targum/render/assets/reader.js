@@ -3480,7 +3480,7 @@ var targumReader = function () {
       row.appendChild(q);
       var a = document.createElement("p");
       a.className = "ask-a" + (turn.error ? " bad" : "") + (turn.done ? "" : " working");
-      a.textContent = turn.text;
+      drawAnswer(a, turn.text);
       turn.node = a;
       row.appendChild(a);
     });
@@ -3526,6 +3526,37 @@ var targumReader = function () {
     return row;
   }
 
+  // The answer in the conversation's shape (2026-09-11: the card is answered in Hebrew
+  // at the reader's level, like every other line): a Hebrew line, then "= " and its
+  // English under it; "> " a recast of the reader's words; "~ " why it changed. Each
+  // line is its own block so the two directions never share one, and the markers are
+  // read, not shown. A line in no shape — an error, a plain English answer for a
+  // scripture-only shelf — is drawn as it came.
+  function drawAnswer(node, text) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+    String(text || "").split("\n").forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) return;
+      var span = document.createElement("span");
+      if (line.indexOf("= ") === 0 || line.indexOf("~ ") === 0) {
+        span.className = line.indexOf("= ") === 0 ? "ask-en" : "ask-why";
+        span.setAttribute("dir", "ltr");
+        span.textContent = line.slice(2).trim();
+      } else {
+        var recast = line.indexOf("> ") === 0;
+        var body = recast ? line.slice(2).trim() : line;
+        var hebrew = /[\u05d0-\u05ea]/.test(body);
+        span.className = (hebrew ? "ask-he" : "ask-line") + (recast ? " ask-recast" : "");
+        if (hebrew) {
+          span.setAttribute("lang", "he");
+          span.setAttribute("dir", "rtl");
+        }
+        span.textContent = body;
+      }
+      node.appendChild(span);
+    });
+  }
+
   function askAbout(index, word, shown, lemma, text) {
     var state = askState(index);
     if (state.busy) return;
@@ -3543,7 +3574,7 @@ var targumReader = function () {
     }
     function draw(said) {
       turn.text = said;
-      if (turn.node) turn.node.textContent = said;
+      if (turn.node) drawAnswer(turn.node, said);
     }
 
     fetch(keyed("/chat/say"), {

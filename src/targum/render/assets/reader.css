@@ -1078,7 +1078,14 @@ body.marking .w.here,
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.gloss-card .ask-a > span { display: block; }
 .gloss-card .ask-a [lang|="he"] { line-height: 1.95; }
+/* The conversation's shape in the card (2026-09-11): the Hebrew in the text's own
+   face, right to left; its English under it, quieter; a recast set off a little. */
+.gloss-card .ask-he { font-size: 1.0625rem; text-align: right; }
+.gloss-card .ask-en,
+.gloss-card .ask-why { color: var(--ink-soft); font-size: 0.875rem; margin-block-end: 0.3rem; }
+.gloss-card .ask-recast { padding-inline-end: 0.5rem; border-inline-end: 2px solid var(--rule); }
 .gloss-card .ask-a.bad { color: var(--clay); }
 .gloss-card .ask-a.working:empty::after { content: "…"; color: var(--ink-soft); }
 .gloss-card .ask-form { display: flex; gap: 0.4rem; align-items: center; }

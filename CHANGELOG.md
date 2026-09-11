@@ -423,8 +423,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   card still answers two turns in place, and "Continue in chat" now goes on in the
   drawer beside the text. The conversation there is in Hebrew at your level, as it is
   everywhere, and so is a word's card now: a note of where you are decides what the
-  answer is about, never its language. Off a disk the reader carries nothing to talk
-  to, and the page still fetches nothing by itself.
+  answer is about, never its language, and the card draws the answer in the
+  conversation's shape, the Hebrew with its English under it. Off a disk the reader
+  carries nothing to talk to, and the page still fetches nothing by itself.
 - A command palette on every page (2026-09-11): ⌘K, or the search in the bar, finds a
   place, a text on your shelf or in the catalogue, or a conversation, and Enter goes
   there — a conversation opens in the drawer.
