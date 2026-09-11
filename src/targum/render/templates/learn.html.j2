@@ -34,14 +34,17 @@
         the row; under it a row of doors, one press each, that swap the sheet: what you
         were reading, what is next, the week's portion, a cycle you follow. The reader
         stays first: one text is open the moment the page is. -#}
+    {#- "Put the buttons together at the top, in a sleek design" (2026-09-11): the
+        greeting at the start with today and the count on one line under it, and the
+        row of doors as one control at the end — Continue reading, Suggested, your
+        subscriptions. The conversation is the pill at the foot of the page. -#}
     <div class="learn-head">
       <div class="hello">
         <p class="greeting" id="greeting"></p>
-        <p class="today" id="today"></p>
+        <p class="today-line"><span class="today" id="today"></span><span class="known-line" id="known-line"></span></p>
       </div>
-      <p class="known-line" id="known-line"></p>
+      <div class="ways" id="doors" hidden></div>
     </div>
-    <div class="ways" id="doors" hidden></div>
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
         reader, framed and working, at the place it was left, on the desk, across the
         row; under it the title, what it is, and one press to the reader's own page. Learn

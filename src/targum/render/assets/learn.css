@@ -609,9 +609,9 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 .learn-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 0.25rem 1.5rem;
+  gap: 0.75rem 1.5rem;
   min-inline-size: 0;
 }
 /* The greeting and today (decided with David, 2026-09-11): the time of day and the
@@ -626,33 +626,52 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   line-height: 1.25;
   color: var(--ink);
 }
-.hello .today { margin: 0.15rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
-.hello .today:empty { display: none; }
-.learn-head .known-line { margin: 0; font-size: 1.0625rem; font-weight: 500; letter-spacing: 0; }
-.learn-head .known-line:empty { display: none; }
-/* The row of doors: one press for each text the sheet could show. Ghost pills, the
-   one shown filled in the teal wash. */
-.ways { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.25rem 0 0.5rem; }
+/* Today and the count on one line under the greeting. */
+.hello .today-line {
+  margin: 0.15rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+}
+.hello .today:empty, .hello .known-line:empty { display: none; }
+.hello .known-line { font-weight: 600; letter-spacing: 0; color: var(--ink); }
+.hello .today:not(:empty) + .known-line:not(:empty)::before { content: "·"; margin-inline-end: 0.5rem; font-weight: 400; color: var(--ink-soft); }
+/* The doors as one control (2026-09-11: "put the buttons together at the top, in a
+   sleek design"): a card-coloured track with a soft shadow, each press a pill inside
+   it, the one shown filled in the teal wash. */
+.ways {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  align-self: flex-end;
+}
+.ways::-webkit-scrollbar { display: none; }
 .ways[hidden] { display: none; }
 .way {
   font: inherit;
   font-family: var(--chrome);
   font-size: 0.875rem;
   font-weight: 600;
-  padding: 0.45rem 0.9rem;
-  border: 1px solid var(--hairline);
+  padding: 0.5rem 0.95rem;
+  border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--ink);
+  white-space: nowrap;
   cursor: pointer;
 }
-.way:hover { background: var(--teal-wash); border-color: transparent; }
-.way.on { background: var(--teal-wash); border-color: transparent; color: var(--teal); }
-.way:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* Let's talk about it: at the end of the row, drawn in ink so it reads as the way to
-   the conversation rather than one more text. */
-.way.talk { margin-inline-start: auto; border-color: var(--ink); }
-.way.talk:hover { background: var(--ink); color: var(--paper); }
+.way:hover { background: var(--teal-wash); }
+.way.on { background: var(--teal-wash); color: var(--teal); }
+.way:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 @media (hover: none) and (pointer: coarse) {
   .way { min-block-size: 44px; }
 }
@@ -666,7 +685,7 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   color: var(--ink-soft);
 }
 .page-window {
-  block-size: calc(100dvh - 21rem);
+  block-size: calc(100dvh - 19rem);
   min-block-size: 24rem;
   max-block-size: none;
 }
@@ -680,13 +699,13 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
   .front { gap: 1rem; margin-block-end: 1rem; }
-  .front .learn-head, .front .ways { padding-inline: 1rem; }
-  .front .ways { margin: 0; }
+  .front .learn-head { padding-inline: 1rem; }
+  .front .ways { align-self: stretch; }
   .page-sheet { border-radius: 0; box-shadow: none; }
   .page-window {
     /* The screen between the ink bar and the bottom bar, less the sheet's foot
        (measured 2026-09-11: 81px, 66px and 65px on a 390px phone). */
-    block-size: calc(100svh - 24.5rem - env(safe-area-inset-bottom));
+    block-size: calc(100svh - 23.5rem - env(safe-area-inset-bottom));
     min-block-size: 22rem;
   }
   /* The foot is two lines and Open, clear of the round pill at the corner. */

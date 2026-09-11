@@ -738,12 +738,12 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
     assert "This week" not in unnamed["today"], "no portion on a box without one"
 
 
-def test_the_row_is_your_subscriptions_continue_reading_and_a_way_to_talk() -> None:
+def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     """David, 2026-09-11: "buttons should bring you to your subscriptions, to continue
-    reading, or to a button 'let's talk about it' which prompts talk to targum". A
-    followed series with a current instalment is a door; a press draws it in the sheet;
-    the last press opens the drawer about the text in the sheet. A series not followed
-    is not in the row."""
+    reading" — and then "remove the 'let's talk about it' button, too much since we
+    already have a talk to targum button on the page". A followed series with a current
+    instalment is a door; a press draws it in the sheet. A series not followed is not
+    in the row, and one door alone is no row."""
     mine = reader("mine", "ספר שלי", document="d3", opened=5)
     portion = {
         "id": "parasha",
@@ -777,15 +777,54 @@ def test_the_row_is_your_subscriptions_continue_reading_and_a_way_to_talk() -> N
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("The weekly portion", False),
-        ("Let's talk about it", False),
     ]
-    assert drawn["carry"]["title"] == "ספר שלי" and drawn["talks"] == []
+    assert drawn["carry"]["title"] == "ספר שלי"
     week = draw([mine], stored, series=[portion, digest], do=[{"door": "series:parasha"}])
     assert week["carry"]["title"] == "האזינו" and week["carry"]["heading"] == "The weekly portion"
     assert week["carry"]["frame"].startswith("/parasha/read/haazinu/reader/sec-0001.html")
-    assert [d["on"] for d in week["doors"]] == [False, True, False]
-    talk = draw([mine], stored, series=[portion, digest], do=[{"door": "talk"}])
-    assert talk["talks"] == [True], "the drawer opens"
-    assert talk["wheres"] == [{"document": "d3", "title": "ספר שלי"}], "about the text in the sheet"
+    assert [d["on"] for d in week["doors"]] == [False, True]
+    alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
+    assert alone["doors"] == [], "one door is no choice"
     nothing = draw([], {})
     assert nothing["doors"] == [], "no text in the sheet, no row"
+
+
+def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
+    """David, 2026-09-11: "add also 'suggested' which brings you to a text that fits
+    your level and interests, without needing to chat". The server's one pick is a
+    door after Continue reading; a press draws it in the sheet with why, and Open goes
+    to its library row — or the text is framed where it is built already."""
+    mine = reader("mine", "ספר שלי", document="d3", opened=5)
+    stored = {"targum:opened": json.dumps({"d3": 5})}
+    pick = {
+        "id": "esther",
+        "title": "אסתר",
+        "english": "Esther",
+        "language": "he",
+        "minutes": 25,
+        "register": "biblical",
+        "because": "You know 50% of its words.",
+        "known_share": 0.5,
+        "reader": "",
+    }
+    drawn = draw([mine], stored, suggest=pick)
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    pressed = draw([mine], stored, suggest=pick, do=[{"door": "suggested"}])
+    assert (
+        pressed["carry"]["title"] == "אסתר" and pressed["carry"]["heading"] == "Suggested for you"
+    )
+    assert pressed["carry"]["meta"] == "You know 50% of its words. · 25 min"
+    assert pressed["carry"]["frame"] == "", "not built for this reader: nothing to frame"
+    assert pressed["carry"]["href"] == "/library?k=k#esther", "Open goes to its library row"
+    assert pressed["carry"]["known"] == "You know 50%"
+    built_ = draw(
+        [mine],
+        stored,
+        suggest=dict(pick, reader="/reader/esther-he/reader/index.html"),
+        do=[{"door": "suggested"}],
+    )
+    assert built_["carry"]["frame"].startswith("/reader/esther-he/reader/index.html?k=k"), (
+        "built on the shared shelf: framed in the sheet"
+    )
+    none = draw([mine], stored)
+    assert none["doors"] == [], "nothing suggested and nothing followed: one door, no row"

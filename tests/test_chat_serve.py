@@ -570,3 +570,25 @@ def test_the_list_says_when_targum_last_answered_and_when_you_last_opened(chatti
     status, listed, _ = call(port, "GET", f"/chat/list?k={key}")
     (row,) = listed["chats"]
     assert row["opened"] >= row["answered"], "opened since: not news any more"
+
+
+def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch: Any) -> None:
+    """`GET /suggest` (2026-09-11): the pick the conversation's "Something to read"
+    makes, for the Suggested door on Learn — no chat, no turn, no card."""
+    from targum import catalogue
+    from targum.chat import tools
+
+    port, key, store, chats = chatting
+    picked = [
+        {"id": "esther", "title": "אסתר", "because": "You know 50% of its words.", "minutes": 25},
+        {"id": "ruth", "title": "רות", "because": "Not measured yet."},
+    ]
+    monkeypatch.setattr(
+        tools, "suggest_next", lambda ctx, args: {"suggestions": picked[: args["limit"]]}
+    )
+    status, got, _ = call(port, "GET", f"/suggest?k={key}")
+    assert status == 200 and got == {"suggestion": picked[0]}
+    assert store.chats(None) == [], "no conversation was opened for it"
+    monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
+    assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
+    assert catalogue

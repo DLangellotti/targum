@@ -1365,6 +1365,21 @@ table.rows tr:hover .copy,
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The scroll is the list's own (2026-09-11, "fix the scroll in word lists"): a thin
+     bar at the panel's outer edge rather than a full-width one drawn between the rows
+     — the panel inherits the page's direction, which put the bar on the inner side —
+     and reaching the end does not go on to scroll the text behind the panel. */
+  direction: ltr;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink-soft) 45%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.list-body::-webkit-scrollbar { width: 6px; }
+.list-body::-webkit-scrollbar-track { background: transparent; }
+.list-body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink-soft) 45%, transparent);
+  border-radius: 999px;
 }
 
 .list-items {

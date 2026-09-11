@@ -73,6 +73,8 @@ global.fetch = (path, options) => {
     answer = { series: payload.series || [] };
   } else if (String(path).indexOf("/account/me") === 0) {
     answer = payload.me || { signedIn: false };
+  } else if (String(path).indexOf("/suggest") === 0) {
+    answer = { suggestion: payload.suggest || null };
   } else if (String(path).indexOf("/account/follows") === 0) {
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
   } else if (String(path).indexOf("/job/") === 0) {

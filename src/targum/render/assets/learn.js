@@ -445,9 +445,10 @@
     if (today) today.textContent = todayLine(series);
   }
 
-  // The row (David, 2026-09-11): your subscriptions, Continue reading, and "Let's talk
-  // about it", which opens the conversation about the text in the sheet; whatever the
-  // conversation offers opens in the sheet (`offeredText`).
+  // The row (David, 2026-09-11): Continue reading, Suggested, and your subscriptions.
+  // The conversation is the pill at the foot of the page — a "let's talk about it"
+  // here was one door too many — and whatever it offers opens in the sheet
+  // (`offeredText`). One door is no choice, and no row is drawn for it.
   var doors = [];
   var showing = null;
   function drawDoors() {
@@ -457,7 +458,7 @@
     var shown = doors.filter(function (one) {
       return one.reader;
     });
-    row.hidden = !showing;
+    row.hidden = !showing || shown.length < 2;
     shown.forEach(function (one) {
       var press = el("button", "way", one.label);
       press.type = "button";
@@ -467,30 +468,7 @@
       });
       row.appendChild(press);
     });
-    var talk = el("button", "way talk", "Let's talk about it");
-    talk.type = "button";
-    talk.setAttribute("data-door", "talk");
-    talk.addEventListener("click", talkAboutIt);
-    row.appendChild(talk);
     markDoor(current);
-  }
-
-  // Open the drawer about the text in the sheet: the drawer relays where the reader
-  // is to the conversation (`talk.js`), which shows the text above its box and sends
-  // it with every line.
-  function talkAboutIt() {
-    if (showing) {
-      try {
-        document.dispatchEvent(
-          new CustomEvent("targum:where", {
-            detail: { document: showing.document || showing.name || "", title: showing.title || "" },
-          })
-        );
-      } catch (e) {
-        /* an old browser without CustomEvent: the drawer still opens */
-      }
-    }
-    if (window.TargumTalk && window.TargumTalk.show) window.TargumTalk.show(true);
   }
 
   var current = "";
@@ -503,6 +481,39 @@
       press.classList.toggle("on", on);
       press.setAttribute("aria-pressed", on ? "true" : "false");
     });
+  }
+
+  // Suggested (2026-09-11): one text that fits the reader's level and interests, from
+  // `/suggest`, with no conversation. Framed where it is built already; otherwise the
+  // sheet's head says what it is and why, and Open goes to its library row.
+  function suggestedDoor(row) {
+    if (!row || !row.id) return null;
+    var reader = {
+      id: row.id,
+      entry: row.id,
+      title: row.title,
+      english: row.english,
+      language: row.language || "he",
+      minutes: row.minutes,
+      register: row.register,
+      known: typeof row.known_share === "number" ? row.known_share : undefined,
+    };
+    var why = row.because || "";
+    var door = {
+      id: "suggested",
+      state: "up",
+      heading: "Suggested for you",
+      register: row.register === "biblical" ? "biblical" : row.register === "modern" ? "modern" : "",
+      primary: true,
+      meta: row.minutes ? why + " · " + row.minutes + " min" : why,
+    };
+    if (row.reader) {
+      door.src = row.reader;
+      door.href = row.reader;
+    } else {
+      door.href = "/library#" + encodeURIComponent(row.id);
+    }
+    return { id: "suggested", label: "Suggested", reader: reader, door: door };
   }
 
   // Your subscriptions as doors: each followed series with a current instalment.
@@ -850,6 +861,7 @@
 
       show(chosen);
       hello();
+      suggested();
       landed();
     })
     .catch(function () {
@@ -871,6 +883,18 @@
     ask("/account/me")
       .then(function (me) {
         if (me && me.signedIn && me.name) drawHello(me.name, []);
+      })
+      .catch(function () {});
+  }
+
+  function suggested() {
+    ask("/suggest")
+      .then(function (got) {
+        var door = suggestedDoor(got && got.suggestion);
+        if (!door) return;
+        // After Continue reading, before the subscriptions and the way to talk.
+        doors.splice(doors.length && doors[0].id === "main" ? 1 : 0, 0, door);
+        drawDoors();
       })
       .catch(function () {});
   }

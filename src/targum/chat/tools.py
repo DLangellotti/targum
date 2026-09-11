@@ -383,6 +383,11 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     mine, shared = _shelf(ctx)
     own = _by_source(mine)
     built = _by_source([*mine, *shared])
+    # The reader's interests, as far as the shelf says them: the registers of the
+    # texts they brought in themselves. A text in one of those is ranked a little ahead
+    # of an equal text in another (2026-09-11: "a text that fits your level and
+    # interests, without needing to chat").
+    liked = {str(row.get("register") or "") for row in mine if row.get("register")}
     candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
     for entry in catalogue_module.everything():
         key = catalogue_module._key(entry.source)
@@ -396,16 +401,17 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             continue
         row = _entry_row(entry, built.get(key))
         known = row.get("known_share")
+        tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
             row["because"] = f"You know {round(float(known) * 100)}% of its words."
             row["known_line"] = level_module.words_in_ten(float(known))
-            rank = (0.0, -float(known))
+            rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
             row["because"] = (
                 f"A learner looks up {entry.difficulty}% of its words; "
                 f"{entry.register.value} Hebrew, about {entry.minutes} minutes."
             )
-            rank = (1.0, float(entry.difficulty))
+            rank = (1.0, float(entry.difficulty) - 10.0 * tilt)
         else:
             row["because"] = "Not measured yet."
             rank = (2.0, 0.0)

@@ -744,3 +744,40 @@ def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
     got = tools.suggest_next(ctx, {"limit": 3})
     top = got["suggestions"][0]
     assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
+
+
+def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkeypatch) -> None:
+    """2026-09-11: "a text that fits your level and interests". Two texts the reader
+    knows equally well: the one in a register they brought in themselves ranks first."""
+    from targum import catalogue
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+
+    def entry(id: str, register: catalogue.Register) -> catalogue.Entry:
+        return catalogue.Entry(
+            id=id,
+            title=id,
+            author="",
+            language="he",
+            source=f"test:{id}",
+            blurb="",
+            words=100,
+            register=register,
+            difficulty=30,
+        )
+
+    entries = [entry("m", catalogue.Register.modern), entry("b", catalogue.Register.biblical)]
+    monkeypatch.setattr(catalogue, "everything", lambda: entries)
+    monkeypatch.setattr(
+        tools,
+        "_shelf",
+        lambda ctx: ([{"name": "x", "source": "test:x", "register": "biblical"}], []),
+    )
+    got = tools.suggest_next(ctx, {"limit": 2})
+    assert [row["id"] for row in got["suggestions"]] == ["b", "m"]
+    monkeypatch.setattr(tools, "_shelf", lambda ctx: ([], []))
+    got = tools.suggest_next(ctx, {"limit": 2})
+    assert [row["id"] for row in got["suggestions"]] == ["m", "b"], (
+        "nothing read yet: catalogue order"
+    )

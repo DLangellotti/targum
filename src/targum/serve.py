@@ -3964,6 +3964,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/suggest":
+            return self._suggest()
         if route == "/account/follows":
             return self._follows(None)
         if route == "/series":
@@ -4592,6 +4594,21 @@ class Handler(BaseHTTPRequestHandler):
         self.library.remember(job)
         self.library.enqueue(job)
         self._json(job.state())
+
+    def _suggest(self) -> None:
+        """One text that fits this reader's level and interests, for the Suggested door
+        on Learn (2026-09-11): the same pick the conversation's "Something to read"
+        makes, with no conversation, no turn and no card — the sheet draws it and Open
+        goes to its library row, or to the text where it is built already."""
+        if self.chats is None or self.chats.store is None:
+            return self._json({"suggestion": None})
+        from .chat import tools as chat_tools
+
+        person = self._person()
+        admin = bool(person and self.store.is_admin(person.email))
+        ctx = self.chats.context(person, self._home(), "", admin)
+        rows = chat_tools.suggest_next(ctx, {"limit": 1}).get("suggestions") or []
+        return self._json({"suggestion": rows[0] if rows else None})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the
