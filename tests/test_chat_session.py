@@ -983,8 +983,11 @@ def test_the_chips_stand_only_where_their_condition_holds(tmp_path: Path) -> Non
     the two that bring them back."""
     library, store = world(tmp_path)
     chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
-    stranger = [chip["id"] for chip in chats.chips(None, library.home(None))]
-    assert stranger == ["read", "stuck"] or stranger == ["read", "news", "stuck"]
+    stranger = chats.chips(None, library.home(None))
+    assert [chip["id"] for chip in stranger] in (["read", "stuck"], ["read", "news", "stuck"])
+    assert all(chip["line"].split()[0] in ("Find", "Read", "Explain") for chip in stranger), (
+        "each starts with a verb (2026-09-11)"
+    )
     person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
     now = int(time.time() * 1000)
     store.push(
@@ -1058,7 +1061,7 @@ def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeyp
     assert not [job for job in library.jobs.values() if job.kind == "chat"], "no chat job, no spend"
     turns = store.chat_turns(got["chat"])
     assert [(t["role"], t["said"]) for t in turns] == [
-        ("user", "Something to read"),
+        ("user", "Find me something to read"),
         ("assistant", got["said"]),
     ]
     again = chats.suggest(person, home, got["chat"], admin=False, skip=got["offered"])

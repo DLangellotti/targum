@@ -331,6 +331,23 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### The front page is named, and answers in place — 2026-09-11
+
+The entry of 2026-09-06 below put one box under the ledger's sentence and sent a typed
+line to the conversation page. Shown the page a day later, its maker said what a
+stranger would: "this whole design is terribly cluttered, nothing is labeled", "I can't
+really tell that it's a chat", "I should not be sent to a new page after making any
+prompt", "there is no smooth transition into the next part of the page, just lines",
+"remember this is the main front page of the app". So the page is in named parts now.
+Under the count, a section called Talk to targum with one sentence saying what it is;
+the box; the things most readers ask, each beginning with a verb; and the thread, which
+opens in place under them when a line is sent — the conversation page's own script,
+run here — in a hairline, because the cards below keep this page's one raised layer.
+Under it, Your conversations, named, the last three and a door to all. Then a section
+called Read with its own sentence, and the week's issue labelled as this week's. The
+parts step down into each other with space, not rules. The conversation page stays,
+for the whole list and for a link into one conversation.
+
 ### A silent text can be given a voice, at the reader's press — 2026-09-10
 
 The entry of 2026-09-03 below says a text that carries media opens as its media. This is

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('composer.css') }}{{ asset('learn.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('composer.css') }}{{ asset('chat.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
@@ -23,28 +23,42 @@
       real thing rather than a score — §6: no invented currency. -#}
   <p class="known-line" id="known-line"></p>
 
-  {#- The box, under the ledger's own sentence: the front door since 2026-09-06
-      (design.md §12). A request, a link, a file by the `+`, a word you are stuck on. A
-      line typed here opens a conversation and goes to it; nothing is answered on this
-      page. It is not a raised layer — the cards below have this page's one — and it is
-      the same box the conversation page carries, from the same file. -#}
-  {#- The month's hours, said here only past three quarters used (targum-internal#237). -#}
-  <p class="chat-hours" id="chat-hours" hidden></p>
-  {% set placeholder = 'Something to read, a link, or a word you are stuck on' %}
-  {% include '_composer.html.j2' %}
-  {% include '_chips.html.j2' %}
-  {% include '_first_language.html.j2' %}
+  {#- The conversation, on the front page and named as one (2026-09-11). It used to be
+      a bare field under the count, and a line typed there went to another page: "I can't
+      really tell that it's a chat", "I should not be sent to a new page". Now the section
+      says what it is in a heading and a sentence, the box is under them, the things most
+      readers ask are under the box as verbs, and the thread opens in place under those
+      — the same script as the conversation page, on this page. It is not a raised
+      layer — the cards below have this page's one — so the thread is a hairline. -#}
+  <section class="talk" aria-labelledby="talk-title">
+    <h2 class="section-title" id="talk-title">Talk to targum</h2>
+    <p class="section-note">Ask for something to read, ask about a word, or paste a link.
+      targum answers in Hebrew at your level, with the English under every line.</p>
+    {#- The month's hours, said here only past three quarters used (targum-internal#237). -#}
+    <p class="chat-hours" id="chat-hours" hidden></p>
+    {% set placeholder = 'Ask targum' %}
+    {% include '_composer.html.j2' %}
+    {% include '_chips.html.j2' %}
+    {% include '_first_language.html.j2' %}
+    {#- The thread, in place: hidden until a conversation is open, then the turns as the
+        conversation page draws them, in a hairline rather than raised paper. -#}
+    <section class="chat-thread" id="chat-thread" aria-live="polite" hidden>
+      <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>Show English</button>
+      <ol class="turns" id="turns"></ol>
+    </section>
+    {#- The way back to a conversation (targum-internal#238), named: the last three, each
+        by title and when, and the door to all of them. Hidden for a reader who has had
+        none. -#}
+    <div class="recent-chats" id="recent-chats" hidden>
+      <h3 class="section-sub">Your conversations</h3>
+      <ul class="chat-list" id="chat-list"></ul>
+      <a class="see-all" id="chat-all" href="/chat">All conversations →</a>
+    </div>
+  </section>
 
-  {#- The way back to a conversation, from the page a reader lands on (2026-09-10,
-      targum-internal#238): the last three, by title and when, and the door to all of
-      them. A hairline line under the box, the shape the weekly takes above the doors —
-      not a card, because the cards below have this page's one raised layer. Hidden for
-      a reader who has had none. Filled by `box.js`, from the same answer that says
-      whether Speak is offered. -#}
-  <div class="recent-chats" id="recent-chats" hidden>
-    <ul id="recent-chats-list"></ul>
-    <a id="recent-chats-all" href="/chat">All conversations</a>
-  </div>
+  <section class="read" aria-labelledby="read-title">
+    <h2 class="section-title" id="read-title">Read</h2>
+    <p class="section-note">Carry on where you left off, or start something new.</p>
 
   {#- What you were in the middle of, and beside it what to do when you are not. The
       card carries the accent because it is the one primary action here; the list beside
@@ -65,6 +79,7 @@
       never comes back up. Filled in by learn.js, at the level their own vocabulary puts
       them on, and left hidden where no issue is out. -#}
   <p class="weekly-line" id="weekly-line" hidden>
+    <span class="label">This week</span>
     <a id="weekly-link" href="/">
       <bdi id="weekly-title" lang="he" dir="rtl"></bdi>
       <span class="at" id="weekly-at"></span>
@@ -133,6 +148,8 @@
 
   {#- Three lists, each one foldable and each one capped. This is a landing page: what
       belongs here is the top of a list and the way to the rest of it. -#}
+  </section>
+
   <section class="panel" id="shelf-panel">
     <div class="list-controls">
       <h2>{% include '_fold.html.j2' %}<span>Your targums</span></button></h2>
@@ -284,6 +301,6 @@ window.TARGUM_WEEKLY = {{ weekly|tojson }};
 <script>{{ asset('chips.js') }}</script>
 <script>{{ asset('first.js') }}</script>
 <script>{{ asset('speak.js') }}</script>
-<script>{{ asset('box.js') }}</script>
+<script>{{ asset('chat.js') }}</script>
 </body>
 </html>

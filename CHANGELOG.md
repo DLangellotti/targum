@@ -414,6 +414,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The front page is in named parts, and a line typed there is answered in place. Under
+  the count, Talk to targum with one sentence saying what it is, the box, the things
+  most readers ask as verbs, and the thread opening under them — the conversation page's
+  own script, run on Learn — then Your conversations, then Read with its own sentence.
+  The parts step down with space rather than rules; `box.js` is gone (2026-09-11, from
+  looking at the page: "nothing is labeled", "I can't really tell that it's a chat", "I
+  should not be sent to a new page").
 - The conversation page is the viewport: the thread scrolls inside itself and the box
   stays in view however long the conversation, where it sat under a thread of unbounded
   height and scrolled away with it. Who said a turn is told by where it stands — the

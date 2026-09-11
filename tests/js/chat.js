@@ -75,6 +75,8 @@ if (payload.record) {
 const windowListeners = {};
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
+  TARGUM_INTO: payload.into || ["en", "ru"],
+  TARGUM_LANGUAGES: { en: "English", ru: "Russian", he: "Hebrew" },
   addEventListener: (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
   },
@@ -163,8 +165,31 @@ global.window.TargumSync = {
   onChange: () => {},
 };
 
+// The front page (2026-09-11) runs this script too: `front` in the payload puts the
+// page's class on the body and makes the elements only Learn has, so the script takes
+// its front-page branch — no conversation opened by itself, the thread hidden until one
+// is, the last three conversations and a door to all.
+if (payload.front) {
+  document.body.className = "words learn";
+  document.getElementById("recent-chats").hidden = true;
+  document.getElementById("chat-thread").hidden = true;
+}
+// The first visit's question (#243): the browser's language and who is signed in.
+if (payload.language) {
+  Object.defineProperty(globalThis, "navigator", {
+    value: Object.assign({}, globalThis.navigator || {}, { language: payload.language }),
+    configurable: true,
+    writable: true,
+  });
+}
+if (payload.who) {
+  global.window.TargumSync.who = payload.who;
+  global.window.TargumSync.reads = () => payload.who.reads || null;
+}
 require(path.join(assets, "bring.js"));
 require(path.join(assets, "chips.js"));
+require(path.join(assets, "lang.js"));
+require(path.join(assets, "first.js"));
 // A build is followed with no wait between looks, so a test sees its end at once.
 global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
@@ -348,6 +373,10 @@ function drawn() {
     if (step.type === "english") {
       byId["chat-english"].onclick();
     }
+    if (step.type === "first") {
+      byId[step.yes === false ? "chat-first-no" : "chat-first-yes"].onclick();
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "pill") {
       byId["chat-open-list"].onclick();
     }
@@ -399,6 +428,16 @@ function drawn() {
         li.children[0].children.length > 1 ? li.children[0].children[1].textContent : "",
       ),
       hash: global.location.hash,
+      threadHidden: byId["chat-thread"] ? byId["chat-thread"].hidden : null,
+      recentHidden: byId["recent-chats"] ? byId["recent-chats"].hidden : null,
+      first: {
+        hidden: byId["chat-first-lang"].hidden,
+        ask: byId["chat-first-ask"].textContent,
+        yes: byId["chat-first-yes"].textContent,
+        no: byId["chat-first-no"].textContent,
+        into: global.localStorage.getItem("targum:into"),
+        asked: global.localStorage.getItem("targum:asked-read"),
+      },
       scrollTop: byId["chat-thread"] ? byId["chat-thread"].scrollTop : null,
       labels: (turns.children || []).map((li) => li.attrs["aria-label"]),
       partial: (() => {

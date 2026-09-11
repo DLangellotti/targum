@@ -25,9 +25,15 @@ def run(
     ledger: dict[str, Any] | None = None,
     stored: dict[str, str] | None = None,
     thread: dict[str, int] | None = None,
+    front: bool = False,
+    language: str = "",
+    who: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "thread": thread,
+        "front": front,
+        "language": language,
+        "who": who,
         "key": key,
         "record": record,
         "hash": hash,
@@ -896,7 +902,7 @@ def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> No
     )
     assert page["posted"][0] == {"path": "/chat/suggest", "body": {"chat": "", "skip": []}}
     assert not any(p["path"] == "/chat/say" for p in page["posted"]), "the model was not asked"
-    assert [t["text"] for t in page["turns"]][:1] == ["Something to read"]
+    assert [t["text"] for t in page["turns"]][:1] == ["Find me something to read"]
     assert page["cards"] and page["cards"][0]["title"] == "רות"
     assert page["hash"] == "#abc" and page["chips"]["hidden"]
     another = run(
@@ -1166,3 +1172,104 @@ def test_the_thread_follows_the_newest_line_only_while_the_reader_was_at_the_bot
     away = {"scrollHeight": 1000, "scrollTop": 100, "clientHeight": 300}
     page = said(thread=away)
     assert page["scrollTop"] == 100, "scrolled up to reread, and left there"
+
+
+# -- the front page (2026-09-11) --------------------------------------------------
+
+TWO = {
+    "chats": [
+        {"id": "abc", "title": "First", "seen": 1},
+        {"id": "def", "title": "Second", "seen": 1},
+    ],
+    "usable": True,
+}
+
+
+def test_the_front_page_opens_nothing_by_itself_and_shows_the_last_conversations() -> None:
+    """Learn runs the conversation page's script since 2026-09-11 — "I should not be sent
+    to a new page" — in its front-page branch: the thread stays hidden until a
+    conversation is open, the newest is not opened by itself, and the list is the last
+    three with a door to all."""
+    page = run(front=True, answers={"/chat/list": TWO})
+    assert "/chat/list?limit=3" in page["asked"]
+    assert page["threadHidden"] and page["hash"] == "", "a front door, not a thread"
+    assert page["list"] == ["First", "Second"] and not page["recentHidden"]
+    none = run(front=True, answers={"/chat/list": {"chats": [], "usable": True}})
+    assert none["recentHidden"], "nobody has had one: nothing is named"
+
+
+def test_a_line_on_the_front_page_opens_the_thread_in_place() -> None:
+    page = run(
+        front=True,
+        do=[{"type": "say", "text": "hello"}],
+        answers={"/chat/list": TWO, "/chat/say": {"chat": "xyz", "turn": 1}},
+    )
+    assert page["posted"][0]["path"] == "/chat/say"
+    assert not page["threadHidden"] and page["went"] == "", "answered here, nowhere else"
+    assert [t["text"] for t in page["turns"]] == ["hello", ""]
+    named = run(
+        front=True,
+        hash="#abc",
+        answers={"/chat/list": TWO, "/chat/abc": {"chat": {"id": "abc"}, "turns": []}},
+    )
+    assert not named["threadHidden"] and named["asked"][-1] == "/chat/abc", (
+        "a conversation named in the address opens"
+    )
+
+
+def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
+    """targum-internal#243, on the page it stands on."""
+    page = run(front=True, language="ru-RU", answers={"/chat/list": TWO})
+    assert page["first"]["ask"] == "Отвечать по-русски?" and not page["first"]["hidden"]
+    yes = run(
+        front=True,
+        language="ru-RU",
+        do=[{"type": "first", "yes": True}],
+        answers={"/chat/list": TWO},
+    )
+    assert yes["first"]["hidden"] and yes["first"]["into"] == "ru" and yes["first"]["asked"] == "1"
+    english = run(front=True, language="en-GB", answers={"/chat/list": TWO})
+    assert english["first"]["hidden"]
+    signed = run(
+        front=True,
+        language="ru",
+        who={"signedIn": True, "learning": ["he"], "reads": ["en"]},
+        do=[{"type": "first", "yes": True}],
+        answers={"/chat/list": TWO},
+    )
+    assert {"path": "/account/languages", "body": {"learning": ["he"], "reads": ["ru"]}} in signed[
+        "posted"
+    ]
+
+
+def test_the_chips_start_with_a_verb() -> None:
+    """ "The example prompts should also each start with a verb" (2026-09-11)."""
+    from targum.chat import session
+
+    lines = [
+        chip["line"]
+        for chip in [
+            {"line": "Find me something to read"},
+            {"line": "Continue x"},
+            {"line": "Use my new words"},
+            {"line": "Show me what I know"},
+            {"line": "Read today's news"},
+            {"line": "Explain a word I am stuck on"},
+        ]
+    ]
+    assert all(
+        line.split()[0] in ("Find", "Continue", "Use", "Show", "Read", "Explain") for line in lines
+    )
+    assert session.Chats.SUGGEST_ASKED == "Find me something to read"
+    said = run(
+        do=[{"type": "chip", "id": "know"}],
+        answers={
+            "/chat/list": {
+                "chats": [],
+                "usable": True,
+                "chips": [{"id": "know", "line": "Show me what I know"}],
+            },
+            "/chat/say": {"chat": "abc", "turn": 1},
+        },
+    )
+    assert said["posted"][0]["body"]["text"] == "Show me what I know."

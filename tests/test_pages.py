@@ -171,6 +171,29 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     assert order.index("learn") == 0
 
 
+def test_the_front_page_names_its_parts_and_answers_in_place() -> None:
+    """2026-09-11: "nothing is labeled", "I can't really tell that it's a chat", "I should
+    not be sent to a new page". The conversation is a named section with a sentence
+    under its heading, the thread stands in it, and the page runs the conversation
+    page's own script; what follows is a named section too."""
+    learn = PAGES["learn"]
+    assert "Talk to targum" in learn and 'id="chat-thread"' in learn and 'id="turns"' in learn
+    assert "TargumChat" in learn and "TargumBox" not in learn
+    assert 'class="section-title" id="read-title">Read<' in learn
+    assert (
+        learn.index('id="talk-title"')
+        < learn.index('id="composer"')
+        < learn.index('id="chat-thread"')
+    )
+    assert (
+        learn.index('id="chat-thread"')
+        < learn.index('id="recent-chats"')
+        < learn.index('id="read-title"')
+    )
+    assert "Your conversations" in learn and 'id="chat-all"' in learn
+    assert ".chat-pair" in learn, "the thread's own stylesheet rides"
+
+
 def test_the_box_is_the_front_door() -> None:
     """Learn carries the box under the ledger's own sentence, and the conversation page
     carries the same one from the same file: one field, the `+`, Speak, Send."""

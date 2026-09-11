@@ -33,6 +33,12 @@
   var field = document.getElementById("say");
   var send = document.getElementById("chat-send");
   if (!list || !turns || !form || !field || !send) return;
+  // The front page (2026-09-11): the same conversation, on Learn, under the box it was
+  // typed into — "I should not be sent to a new page". There the thread is hidden
+  // until a conversation is open, the newest one is not opened by itself (the page is
+  // a front door, not a thread), and the list is the last three with a door to all.
+  var FRONT = String(document.body.className || "").split(" ").indexOf("learn") >= 0;
+  var recent = FRONT ? document.getElementById("recent-chats") : null;
 
   var current = "";
   var chats = [];
@@ -735,6 +741,7 @@
 
   function turn(role, text, state, words) {
     if (role === "user") lastAsked = text;
+    if (thread) thread.hidden = false;
     var was = atBottom();
     var li = document.createElement("li");
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
@@ -769,8 +776,8 @@
     return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
   }
 
-  //: A page of the list, and the size the server pages it at.
-  var PAGE = 50;
+  //: A page of the list, and the size the server pages it at; three on the front page.
+  var PAGE = FRONT ? 3 : 50;
   var moreFrom = 0;
 
   function drawList() {
@@ -796,9 +803,10 @@
       li.appendChild(button);
       list.appendChild(li);
     });
+    if (recent) recent.hidden = chats.length === 0;
     // The next page, where there may be one: the list used to be every conversation
-    // ever, in one answer (targum-internal#238).
-    if (moreFrom) {
+    // ever, in one answer (targum-internal#238). The front page has a door to all instead.
+    if (moreFrom && !FRONT) {
       var li = document.createElement("li");
       var more = document.createElement("button");
       more.type = "button";
@@ -942,10 +950,10 @@
   /* --- loading ------------------------------------------------------------- */
 
   function load() {
-    return ask("/chat/list").then(function (answer) {
+    return ask(FRONT ? "/chat/list?limit=" + PAGE : "/chat/list").then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
-      moreFrom = chats.length === PAGE ? PAGE : 0;
+      moreFrom = chats.length === PAGE && !FRONT ? PAGE : 0;
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       talk = answer.talk !== false;
@@ -979,7 +987,7 @@
           if (job) return showJob(job);
         });
       }
-      if (chats.length) return open(chats[0].id);
+      if (chats.length && !FRONT) return open(chats[0].id);
       if (empty) empty.hidden = !!current;
     });
   }
@@ -987,6 +995,7 @@
   function open(id) {
     current = id;
     remember(id);
+    if (thread) thread.hidden = false;
     drawList();
     turns.textContent = "";
     tell("");
@@ -1016,6 +1025,7 @@
   function startNew() {
     current = "";
     remember("");
+    if (thread && FRONT) thread.hidden = true;
     showList(false);
     drawList();
     turns.textContent = "";
@@ -1068,7 +1078,7 @@
       current = got.chat;
       remember(current);
       if (chips) chips.show(false);
-      turn("user", got.said ? "Something to read" : "");
+      turn("user", got.said ? "Find me something to read" : "");
       var li = turn("assistant", got.said || "", "");
       if (got.quote) quoteCard(li, got.quote);
       offered = offered.concat(got.offered || []);

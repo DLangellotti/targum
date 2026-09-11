@@ -498,7 +498,7 @@ class Chats:
         never reaches the model at all — `suggest` answers it from `suggest_next` with
         no turn and no spend. This reverses the cut of starter chips on 2026-09-06;
         design.md §12 records why."""
-        chips: list[dict[str, str]] = [{"id": "read", "line": "Something to read"}]
+        chips: list[dict[str, str]] = [{"id": "read", "line": "Find me something to read"}]
         store = self.store
         if store is not None and person is not None:
             # The text in progress: the most recently opened, not yet finished (the
@@ -537,16 +537,16 @@ class Chats:
                 (person.id,),
             ).fetchone()
             if int(known["n"]) > 0:
-                chips.append({"id": "know", "line": "What do I know"})
+                chips.append({"id": "know", "line": "Show me what I know"})
         if any(one.feed for one in sources_module.load()):
-            chips.append({"id": "news", "line": "News today"})
-        chips.append({"id": "stuck", "line": "A word I am stuck on"})
+            chips.append({"id": "news", "line": "Read today's news"})
+        chips.append({"id": "stuck", "line": "Explain a word I am stuck on"})
         return chips
 
     #: What the page says for the reader when the first chip is pressed, and what
     #: targum says back — fixed lines, pointed as the contract asks, because no model
     #: writes this turn. The English carries the reason the text was chosen.
-    SUGGEST_ASKED = "Something to read"
+    SUGGEST_ASKED = "Find me something to read"
     SUGGEST_SAID = "הִנֵּה מַשֶּׁהוּ לִקְרוֹא."
     #: Its "= " line, in the languages the account may read (targum-internal#243).
     SUGGEST_LINES = {"en": "Here is something to read.", "ru": "Вот что-то почитать."}

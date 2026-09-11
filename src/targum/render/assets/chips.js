@@ -14,8 +14,8 @@
   //: The lines a press says, by chip. Fixed, so a press is the same line every time.
   var LINES = {
     words: "Use my new words in a short conversation.",
-    know: "What do I know?",
-    news: "What is in the news today?",
+    know: "Show me what I know.",
+    news: "Read me today's news.",
   };
 
   // Draw `chips` — `[{id, line, reader?}]` — and wire each press through `on`:

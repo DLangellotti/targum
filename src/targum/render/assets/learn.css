@@ -405,41 +405,72 @@ body.learn .nothing .hint {
    in the weekly's shape — not a card, the cards below have the page's one raised layer.
    The last three by title and when, and the door to all of them. */
 .recent-chats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.4rem 1rem;
+  display: block;
   margin: 0.75rem 0 1.25rem;
-  padding-block-end: 0.6rem;
-  border-block-end: 1px solid var(--rule);
   font-size: 0.9375rem;
 }
 .recent-chats[hidden] { display: none; }
-.recent-chats ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.25rem;
-  min-width: 0;
-}
-.recent-chats li { display: inline-flex; align-items: baseline; gap: 0.4rem; max-width: 100%; }
-.recent-chats li a {
-  color: var(--ink);
+
+/* --- the front page, in sections (2026-09-11) ---------------------------------
+   "Nothing is labeled", "no smooth transition into the next part of the page, just
+   lines", "this is the main front page of the app". Each part of the page is named in a
+   heading with one sentence under it, and the parts step down into each other with
+   space rather than rules. */
+.section-title {
+  margin: 0 0 0.25rem;
   font-family: var(--reading);
-  text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 18rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ink);
 }
-.recent-chats li a:hover { text-decoration: underline; }
-.recent-chats .when,
-.recent-chats > a {
+.section-note {
+  margin: 0 0 1rem;
   color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-inline-size: 42rem;
 }
-.recent-chats > a { margin-inline-start: auto; text-decoration: none; }
-.recent-chats > a:hover { text-decoration: underline; }
+.section-sub {
+  margin: 0 0 0.35rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.talk { margin-block: 2rem 3rem; }
+.read { margin-block: 0 3rem; }
+/* The thread on the front page: in place under the box, a hairline rather than raised
+   paper (the cards below have this page's one raised layer), never taller than most of
+   a screen, scrolling inside itself past that. */
+.learn .chat-thread {
+  margin-block-start: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: transparent;
+  max-block-size: 60vh;
+  overflow: auto;
+}
+.learn .chat-thread[hidden] { display: none; }
+/* Your conversations: three rows, each a title and when, and the door to all. Not a
+   column beside the thread, as on the conversation page: a short list under it. */
+.learn .recent-chats {
+  display: block;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.learn .recent-chats[hidden] { display: none; }
+.learn .recent-chats .chat-list { display: block; max-inline-size: 42rem; border-block-start: 1px solid var(--rule); }
+.learn .recent-chats .chat-list button { padding: 0.5rem 0.25rem; }
+.learn .recent-chats .chat-list .chat-title { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); white-space: normal; }
+.learn .recent-chats .see-all { display: inline-block; margin-block-start: 0.5rem; }
+/* The week's issue, labelled. */
+.weekly-line .label {
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
