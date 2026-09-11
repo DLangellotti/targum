@@ -331,6 +331,38 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### The chrome gets a system of its own: the desk — 2026-09-11
+
+Shown the front page after a night of building on it, its maker said: "there might be a
+fundamental issue with our design language. For the UI, we are trying to use the same kind
+of e-reader inspired language as in the reader. The result is that the UI looks like a wall
+of text, as opposed to an interactive app." He was right, and the cause is §5's first
+sentence: "the wordmark face is the reading face — the brand is the page." That rule was
+written for the reader, where it is right, and the chrome inherited all of it — the serif
+on every heading, hue rationed to 5%, hairlines for surfaces, typed words for icons — so
+Learn, the conversation and the library read as more pages of the book, with nothing on
+them that looks pressable.
+
+Decided the same morning, in order: the reader and the chrome are **two related
+languages** — the page and the desk it lies on; the thing to remember is **the text with
+its English beside every line**, so the chrome is a quiet frame that gets you into one;
+the chrome speaks in a **sans**, the serif kept for a text's own words; things sit on a
+**desk**, cards lifting off it; the app takes **a primary colour of its own**, deep teal,
+the one cool hue in a warm product, because the brown accent whispered as a control; the
+front page opens with **the text to read and the box side by side**, text first on a
+phone. Three risks taken on purpose: the text drawn as **a sheet** lying on the desk with
+its first lines; the header as **the ink bar**, the screen's one inverted block; and **a
+face of the chrome's own**, Source Sans 3, self-hosted, where §5 had chosen system-ui.
+The rules are §13. The preview they were decided on:
+https://claude.ai/code/artifact/088d173b-b539-4003-bbdb-268823c30219.
+
+What it does not overturn: everything about the reader. §1's page, §4's hues and
+their finish, §5's reading faces and bilingual parity, §7's glyphs, §8's reach, and every
+reader entry above stand as they are. The reader fetches nothing, so it keeps
+system-ui for its bar and never loads the chrome's face. `test_brand.py` widens its
+palette, its type scale and its face allowlist by exactly what §13 names, and nothing
+else; where a chrome page still carries a reader rule, the chrome rule wins.
+
 ### The front page is named, and answers in place — 2026-09-11
 
 The entry of 2026-09-06 below put one box under the ledger's sentence and sent a typed
@@ -970,3 +1002,49 @@ reader is served.**
 sign-in page. David cut that by half and the terser reading wins. Reasons are still given
 where a reader would otherwise be confused about a limit, but not as a default shape for
 every message.
+
+## 13 · The desk — the chrome's own system
+
+The reader is the page. Everything around it — Learn, the conversation, the library, Your
+Progress, the account, the Add page — is the desk the page lies on, and is built to be
+operated rather than read. Added 2026-09-11; the reasons are in §12.
+
+**Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
+things sit on it as cards, `#fffdf9` (dark `#201e1b`), with a 1px rule and a shadow of
+`0 1px 2px` at 6% (dark 40%). The one pure-paper surface, `#fbf9f5`, is the reader's page
+— and, on the desk, the sheet: a text drawn as itself, pure paper, the reading faces, its
+first lines with the English under them, a shadow offset `2px 3px` as a page casts, no
+card chrome. The header is the ink bar, `#171614` with `#e6e1d8` text, the screen's one
+inverted block; the reader keeps its own bar and never inverts. Fields are wells: a rule
+at `#cfc7b9`, the desk tone inside, the primary's ring on focus. "One raised layer per
+view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
+brightest object.
+
+**Colour.** The warm family stays. The primary is teal, `#1f6f6b` on light (5.6:1 on
+paper, 5.8:1 as paper text on it) and `#6fb8b3` on dark (7.4:1): links, Send, the
+active tab, the selected row, a field's focus, and the "on" state. Calls to action stay
+ink-filled with paper text (§9). The brown accent keeps the reader; on the desk it is not
+used. The functional hues — leaf, clay, iris, sun — mean what §4 says and nothing else,
+so a teal thing is always a control and a green thing is always progress. The wash is
+teal at 9% (dark 12%).
+
+**Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
+subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.
+Section titles 1.25rem/700, card and panel titles 1.0625rem/600, body and controls
+0.9375rem, meta 0.875rem, labels 0.6875rem uppercase at 0.08em. The reading serif appears
+on the desk only where a text's own words or title appear — the sheet, a card's Hebrew
+title, a row in Your Words — and in the wordmark. Hebrew keeps its own faces and leading
+and is never scaled (§5). Counts keep tabular figures.
+
+**Layout.** A 62rem column, cards on a 12-column grid, 8px base, sections 48px apart
+with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
+pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
+The front page opens on the sheet and the conversation side by side, the sheet first on
+a phone.
+
+**Motion.** 120ms on hover and press, 200ms for a card arriving, none under
+`prefers-reduced-motion` (§8).
+
+**What stays the reader's.** The page tone, the serif, the hairlines, the brown, the
+glyphs in §7, the per-line controls, and the rule that a reader fetches nothing.
+
