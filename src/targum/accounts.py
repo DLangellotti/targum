@@ -195,6 +195,10 @@ MIGRATIONS: tuple[str, ...] = (
     # existed was knocked from the box itself, so `direct` is the right thing for a row
     # that predates the column as well as the default for a new one.
     "ALTER TABLE reached ADD COLUMN egress TEXT NOT NULL DEFAULT 'direct'",
+    # When the person last opened a conversation (2026-09-11): `seen` moves with every
+    # turn, the answer's included, so it cannot say whether an answer arrived while they
+    # were away. This can.
+    "ALTER TABLE chat ADD COLUMN opened INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -1765,13 +1769,23 @@ class Store:
         """Somebody's conversations, most recent first, a page at a time."""
         rows = self.db.execute(
             "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
-            "       chat.saved, chat.mode,"
+            "       chat.saved, chat.mode, chat.opened,"
             "       (SELECT COUNT(*) FROM chat_turn"
-            "         WHERE chat_turn.chat = chat.id AND said != '') AS turns"
+            "         WHERE chat_turn.chat = chat.id AND said != '') AS turns,"
+            # When targum last finished answering, so the bell can say an answer arrived
+            # while the person was away (2026-09-11): later than `opened`, it did.
+            "       (SELECT COALESCE(MAX(made), 0) FROM chat_turn"
+            "         WHERE chat_turn.chat = chat.id AND role = 'assistant'"
+            "         AND stage = 'done') AS answered"
             " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC LIMIT ? OFFSET ?",
             (person_id, limit, offset),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def chat_opened(self, chat_id: str) -> None:
+        """The person opened this conversation now."""
+        with self.write() as db:
+            db.execute("UPDATE chat SET opened = ? WHERE id = ?", (now(), chat_id))
 
     def chat_owned(self, person_id: int | None, chat_id: str) -> dict[str, Any] | None:
         """One conversation, but only if it is the asker's."""

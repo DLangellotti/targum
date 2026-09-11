@@ -706,3 +706,17 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .palette { inset-block-start: 1rem; }
 }
 @media (prefers-reduced-motion: reduce) { .palette { animation: none; } }
+.switch-label { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+.notices-act {
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.notices-act:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }

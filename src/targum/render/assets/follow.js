@@ -193,12 +193,20 @@
       li.appendChild(what);
 
       var acts = el("div", "series-acts");
+      // A switch, not a button that changed its mind (2026-09-11): the track says the
+      // state, the word beside it says what it is a switch for.
       var toggle = el("button", "series-follow");
       toggle.type = "button";
+      toggle.setAttribute("role", "switch");
+      var track = el("span", "switch-track");
+      track.appendChild(el("i"));
+      var word = el("span", "switch-word", "");
+      toggle.appendChild(track);
+      toggle.appendChild(word);
       function settle() {
         var on = following(one.id);
-        toggle.textContent = on ? "Following" : "Follow";
-        toggle.setAttribute("aria-pressed", on ? "true" : "false");
+        word.textContent = on ? "Following" : "Follow";
+        toggle.setAttribute("aria-checked", on ? "true" : "false");
         li.classList.toggle("followed", on);
       }
       toggle.onclick = function () {
@@ -231,14 +239,22 @@
     draw: draw,
   };
 
-  // The Library carries the row; anywhere else this only answers questions.
-  var host = document.getElementById("series");
-  var section = document.getElementById("subscriptions");
-  if (host && section) {
+  // The profile carries the row; anywhere else this only answers questions. This
+  // script rides in the bar, ahead of the page's own markup, so the row is looked for
+  // once the document is complete.
+  function mount() {
+    var host = document.getElementById("series");
+    var section = document.getElementById("subscriptions");
+    if (!host || !section) return;
     list().then(function (series) {
       if (!series.length) return;
       draw(host, series);
       section.hidden = false;
     });
+  }
+  if (document.readyState === "loading" && document.addEventListener) {
+    document.addEventListener("DOMContentLoaded", mount);
+  } else {
+    mount();
   }
 })();

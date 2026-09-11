@@ -490,3 +490,21 @@ def test_a_line_sent_with_a_text_tells_the_model_what_was_sent(chatting) -> None
     )
     assert status == 200
     assert store.chat_turns(asked["chat"])[0]["content"] == "hi", "not theirs: no note"
+
+
+def test_the_list_says_when_targum_last_answered_and_when_you_last_opened(chatting) -> None:
+    """2026-09-11: the bell says an answer arrived while you were away — a conversation
+    targum finished answering after you last opened it. `seen` moves with every turn,
+    the answer's included, so the list carries `opened` and `answered` apart."""
+    port, key, _store, chats = chatting
+    status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "what first"})
+    assert status == 200
+    chats.answer(chats.queue.get())
+    status, listed, _ = call(port, "GET", f"/chat/list?k={key}")
+    (row,) = listed["chats"]
+    assert row["answered"] > 0 and row["opened"] == 0, "answered, never opened: news"
+    status, whole, _ = call(port, "GET", f"/chat/{row['id']}?k={key}")
+    assert status == 200
+    status, listed, _ = call(port, "GET", f"/chat/list?k={key}")
+    (row,) = listed["chats"]
+    assert row["opened"] >= row["answered"], "opened since: not news any more"

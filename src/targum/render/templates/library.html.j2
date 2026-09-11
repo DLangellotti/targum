@@ -45,6 +45,11 @@
           learning is the first question this page asks. A switch with its own label rather
           than a third row of pills: as pills it sat beside the kind filter with a second
           chip also saying "All", and the two read as one row of ten. -#}
+      {#- The filters, folded behind one word (2026-09-11): the search is the page; the
+          rest opens when asked. A `details`, so it needs no script and keeps its state
+          on the page. -#}
+      <details class="filters" id="filters">
+        <summary aria-label="Filters"></summary>
       <div class="switch-set">
         <span class="switch-label">Hebrew</span>
         <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
@@ -58,6 +63,7 @@
           "Difficulty" over it was two names for the same number. -#}
       <label class="pick"><span>New words</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>Clear</button>
+      </details>
     </div>
 
     <div class="rows-head" id="rows-head" role="row"></div>

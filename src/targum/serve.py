@@ -4149,6 +4149,8 @@ class Handler(BaseHTTPRequestHandler):
             chat = store.chat_owned(person_id, pieces[0])
             if chat is None:
                 return self._json({"error": "not found"}, 404)
+            # Opened by its person: an answer made after this is one they have not seen.
+            store.chat_opened(chat["id"])
             turns = [
                 {
                     "n": turn["n"],

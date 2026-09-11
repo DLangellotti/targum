@@ -709,3 +709,71 @@
 .rows > li + li { border-block-start-color: transparent; }
 .tabs { border-block-end: 0; gap: 0.4rem; }
 .tab { border-radius: 999px; padding: 0.35rem 0.9rem; }
+
+/* --- the switch on a subscription (2026-09-11) ---------------------------------------- */
+.series-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.3rem 0.7rem 0.3rem 0.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.series-follow:hover { background: var(--teal-wash); }
+.series-follow[aria-checked="true"] { background: transparent; color: var(--teal); }
+.switch-track {
+  position: relative;
+  display: inline-block;
+  inline-size: 2.2rem;
+  block-size: 1.3rem;
+  border-radius: 999px;
+  background: var(--well);
+  transition: background-color var(--out) var(--ease);
+}
+.switch-track i {
+  position: absolute;
+  inset-block-start: 0.15rem;
+  inset-inline-start: 0.15rem;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  transition: transform var(--in) var(--ease);
+}
+.series-follow[aria-checked="true"] .switch-track { background: var(--teal); }
+.series-follow[aria-checked="true"] .switch-track i { transform: translateX(0.9rem); }
+[dir="rtl"] .series-follow[aria-checked="true"] .switch-track i { transform: translateX(-0.9rem); }
+.switch-word { font-size: 0.9375rem; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-track i { transition: none; } }
+
+/* --- labels in normal case (2026-09-11): a page of small capitals is a spreadsheet --- */
+.pick > span, .switch-label, .col.label, .shelf-head, .langs button.on .beta {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8125rem;
+}
+.pick select { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+
+/* --- the filters, folded (2026-09-11): the search stays; the rest is behind one word --- */
+.filters { display: contents; }
+.filters > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  align-self: center;
+}
+.filters > summary::-webkit-details-marker { display: none; }
+.filters > summary::before { content: "Filters"; }
+.filters[open] > summary::before { content: "Fewer filters"; }
+.filters > summary:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.filters:not([open]) > :not(summary) { display: none; }
+/* One register in front of the reader is no choice: the switch and its label go. */
+.switch-set:has(.segmented:empty) { display: none; }

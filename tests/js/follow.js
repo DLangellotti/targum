@@ -58,8 +58,9 @@ require(path.join(assets, "follow.js"));
           id: li.attrs["data-series"],
           name: by("series-name").textContent,
           now: by("series-now").textContent,
-          follow: by("series-follow").textContent,
-          pressed: by("series-follow").attrs["aria-pressed"],
+          follow: by("switch-word").textContent,
+          pressed: by("series-follow").attrs["aria-checked"],
+          switch: by("series-follow").attrs["role"] === "switch",
           open: by("series-open") ? by("series-open").href : "",
         };
       }),

@@ -521,3 +521,5 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 @media (max-width: 40rem) {
   .claim-actions { inset-block-end: calc(4.25rem + env(safe-area-inset-bottom)); padding-inline-end: 4.5rem; }
 }
+/* Labels in normal case (2026-09-11). */
+table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }

@@ -426,8 +426,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are marked, targum's next turn is a text at that level, asked for without a model
   turn, so a text is two presses away without leaving the page. The count line on Learn
   waits for ten known words before it counts; until then it says what to do.
-- The bell keeps what you put away and says when the month's hours are three quarters
-  gone (2026-09-11).
+- The bell keeps what you put away, says when the month's hours are three quarters gone,
+  and says when targum answered a conversation while you were away — the list now
+  carries when you last opened each and when targum last answered (2026-09-11). Follow
+  on a subscription is a switch; the Library's filters fold behind one word, its search
+  staying out; the last small-capital labels on the desk are in normal case.
 - The desk grows up, phase 1 of five (2026-09-11: "the whole design feels clunky, like
   it's from 2016 not 2026"). Corners on the desk's own scale — 8 controls, 12 rows and
   fields, 16 cards, 24 sheets — named by token; depth in three shadow tiers instead of a

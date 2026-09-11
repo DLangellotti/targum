@@ -102,6 +102,19 @@
         if (entry.job) putAway(entry.job.id);
       };
       li.appendChild(link);
+    } else if (entry.action) {
+      // A press that acts on this page rather than going to another: the drawer.
+      var act = document.createElement("button");
+      act.type = "button";
+      act.className = "notices-act";
+      act.textContent = entry.label || "Open";
+      act.onclick = function () {
+        putAway(entry.id);
+        delete notes[entry.id];
+        draw();
+        entry.action();
+      };
+      li.appendChild(act);
     }
     var x = document.createElement("button");
     x.type = "button";
@@ -204,9 +217,37 @@
 
   function note(id, text, extra) {
     extra = extra || {};
-    notes[id] = { id: id, text: text, href: extra.href || "", label: extra.label || "", live: !!extra.live };
+    notes[id] = {
+      id: id,
+      text: text,
+      href: extra.href || "",
+      action: extra.action || null,
+      label: extra.label || "",
+      live: !!extra.live,
+    };
     draw();
   }
+
+  // An answer that arrived while you were away (2026-09-11): a conversation targum
+  // finished answering after the person last opened it. Opening it from here is the
+  // drawer, by name; the note is put away as the press is made.
+  fetch(keyed("/chat/list?limit=20"), { credentials: "same-origin" })
+    .then(function (r) {
+      return r.ok ? r.json() : null;
+    })
+    .then(function (got) {
+      ((got && got.chats) || []).forEach(function (chat) {
+        if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
+        note("chat:" + chat.id + ":" + chat.answered, "targum answered: " + (chat.title || "a conversation"), {
+          label: "Read",
+          action: function () {
+            if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
+            else window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
+          },
+        });
+      });
+    })
+    .catch(function () {});
 
   // The panel opens and closes like the account's: the bell, a press outside, Escape.
   function show(on) {
