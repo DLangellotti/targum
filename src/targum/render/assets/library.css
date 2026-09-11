@@ -689,3 +689,23 @@
 .thumb { border-radius: var(--radius-row); }
 .books.shelf-rows li { border-radius: var(--radius-row); }
 .books.shelf-rows li:hover { background: var(--teal-wash); }
+
+/* --- phase 3 (2026-09-11): the list as rows ------------------------------------------
+   The sort head is a row of quiet pills rather than column headings; each text a row
+   with a row's corners, lit in tint under the pointer. */
+.rows-head { border: 0; padding: 0.2rem 0.5rem 0.6rem; }
+.rows-head button {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.rows-head button:hover { background: var(--teal-wash); color: var(--teal); }
+.rows-head button[aria-sort] { background: var(--teal-wash); color: var(--teal); }
+.rows > li { border-radius: var(--radius-row); }
+.rows > li:hover { background: var(--teal-wash); }
+.rows > li + li { border-block-start-color: transparent; }
+.tabs { border-block-end: 0; gap: 0.4rem; }
+.tab { border-radius: 999px; padding: 0.35rem 0.9rem; }

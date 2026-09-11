@@ -443,3 +443,81 @@ table.rows tr.editor-row td {
 .claim-no { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); }
 .claim-no:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .list-controls button, .more { border-radius: 999px; }
+
+/* --- phase 3 (2026-09-11): rows, not tables -------------------------------------------
+   The word list is a list of words: each a row with a row's corners, the word large in
+   its face on the first line with how well you know it and when it was kept at the end,
+   its dictionary form, meaning and how common it is on the second, in the muted tone.
+   The column heads go; a row says what it is. The editor keeps the whole row. */
+.table-wrap { overflow: visible; }
+table.rows { display: block; }
+table.rows thead { display: none; }
+table.rows tbody { display: grid; gap: 0.15rem; }
+table.rows tbody tr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "term term status when"
+    "lemma meaning meaning band";
+  align-items: baseline;
+  column-gap: 0.9rem;
+  row-gap: 0.1rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-row);
+}
+table.rows tbody tr:hover { background: var(--teal-wash); }
+table.rows tbody tr.open { background: var(--teal-wash); }
+table.rows td { border: 0; padding: 0; }
+table.rows td:nth-child(1) { grid-area: term; }
+table.rows td:nth-child(2) { grid-area: lemma; color: var(--ink-soft); font-size: 0.875rem; }
+table.rows td.meaning { grid-area: meaning; font-size: 0.9375rem; }
+table.rows td.band { grid-area: band; font-size: 0.875rem; }
+table.rows td:nth-child(5) { grid-area: status; font-size: 0.875rem; color: var(--ink-soft); }
+table.rows td.when { grid-area: when; font-size: 0.875rem; }
+table.rows .term { font-size: 1.0625rem; }
+table.rows tr.editor-row { display: block; padding: 0.5rem 0.8rem 0.9rem; }
+table.rows tr.editor-row td { padding: 0; border: 0; }
+
+/* The checklist: the same rows, the check leading, the head kept for its check-all and
+   set quiet; the two presses on a glass strip that stays at the foot while the list
+   scrolls under it. */
+table.rows.claim-table thead { display: block; }
+table.rows.claim-table thead tr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  column-gap: 0.9rem;
+  padding: 0.3rem 0.8rem 0.5rem;
+}
+table.rows.claim-table thead th { border: 0; padding: 0; }
+table.rows.claim-table tbody tr {
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-areas: none;
+}
+table.rows.claim-table tbody td { grid-area: auto; }
+table.rows.claim-table tbody td:nth-child(2) { color: var(--ink); font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+table.rows.claim-table tbody td:nth-child(3) { font-size: 0.9375rem; }
+table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(--ink-soft); }
+.claim-actions {
+  position: sticky;
+  inset-block-end: 0.75rem;
+  z-index: 2;
+  padding: 0.6rem 0.8rem;
+  border-radius: 999px;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-raised);
+}
+@media (max-width: 40rem) {
+  table.rows tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "term when" "lemma status" "meaning band";
+  }
+  table.rows.claim-table tbody tr,
+  table.rows.claim-table thead tr { grid-template-columns: auto auto minmax(0, 1fr); }
+  table.rows.claim-table td:nth-child(4), table.rows.claim-table th:nth-child(4) { display: none; }
+}
+/* On a phone the strip keeps clear of the pill at the foot of the window. */
+@media (max-width: 48rem) {
+  .claim-actions { inset-block-end: 4.25rem; }
+}

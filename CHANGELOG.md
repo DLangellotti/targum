@@ -429,6 +429,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a heading in normal case; in the drawer your turns are tint and targum's are on the
   card, the box sits on its own strip at the foot, and the drawer settles out the way it
   came in (2026-09-11).
+- Phase 3: rows, not tables. Your Words and the may-already-know checklist are rows —
+  the word large in its face, what is known of it on a second line, the column heads
+  gone — with the checklist's two presses on a glass strip that stays at the foot while
+  the list scrolls; the Library's sort head is a row of pills and every text a row with
+  a row's corners (2026-09-11).
 - Talk to targum is a pill at the foot of every page, and Learn is the reader's own
   highlight (2026-09-11: "'talk to targum' can be in the sticky CTA on every page that
   opens up for you — doesn't actually have to live on any page. Learn page can literally
