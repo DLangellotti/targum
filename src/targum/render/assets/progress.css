@@ -15,7 +15,7 @@
 
 .progress .ledger {
   padding: 1.5rem 1.25rem;
-  border-radius: 8px;
+  border-radius: var(--radius-card);
   background: var(--ink-max);
   color: var(--page-max);
 }
@@ -137,7 +137,7 @@
    has not reached yet could not be read at all. */
 .progress .mark {
   padding: 0.25rem 0.7rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
@@ -174,7 +174,7 @@
 }
 .progress .strip li {
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   background: var(--rule);
 }
 /* Five shades, the same ramp the about page's calendar uses and the same one the
@@ -229,3 +229,6 @@
 .progress .ledger .reached .letter,
 .progress .panel .reached .letter { margin-inline-end: 0.4rem; }
 
+
+/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
+.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }

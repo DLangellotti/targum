@@ -57,7 +57,7 @@
   line-height: 1.5;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--well);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ground);
   color: var(--ink);
   /* One row at rest, growing with what is typed to six lines or so, then scrolling;
@@ -108,7 +108,7 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.2rem 0.3rem 0.2rem 0.7rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   font-size: 0.8125rem;
   color: var(--ink);
@@ -146,8 +146,8 @@
 .quote-card {
   margin-block-start: 0.5rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
   display: grid;
   gap: 0.35rem;
   justify-items: start;
@@ -194,7 +194,7 @@
   font-weight: 600;
   padding: 0.55rem 1rem;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   cursor: pointer;
@@ -358,3 +358,33 @@
     min-width: 44px;
   }
 }
+
+/* --- the desk grown up (§13, 2026-09-11) ----------------------------------------------
+   The field is the well with no line and a ring on focus; the + and the microphone are
+   ghost icons; the chips are tint; the one filled press is Send. */
+.composer textarea {
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  padding: 0.7rem 0.9rem;
+  min-block-size: 2.6rem;
+}
+.composer textarea:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.chat-bring, .chat-mic {
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.chat-bring:hover, .chat-mic:hover { background: var(--teal-wash); color: var(--teal); }
+.chat-mic[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
+.chat-send { width: 2.6rem; height: 2.6rem; }
+.chat-ask { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }
+.chat-ask:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.chat-chip { border: 0; background: var(--teal-wash); color: var(--ink); }
+.quote-card { border: 1px solid var(--hairline); border-radius: var(--radius-card); padding: 0.9rem 1rem; background: var(--card); }
+.quote-go { border-radius: 999px; background: var(--teal); color: var(--teal-ink); }
+.quote-go:hover { background: var(--teal); filter: brightness(1.08); }
+.chat-another, .chat-first-yes, .chat-first-no { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.4rem 0.9rem; }
+.chat-another:hover, .chat-first-yes:hover, .chat-first-no:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }

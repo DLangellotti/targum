@@ -98,7 +98,7 @@ body {
 }
 .site-nav a {
   padding: 0.35rem 0.7rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--bar-muted);
   font-size: 0.9375rem;
   font-weight: 600;
@@ -134,7 +134,7 @@ body {
 .account { position: relative; }
 .account > button {
   padding: 0.3rem 0.7rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   color: var(--bar-ink);
   border: 1px solid rgb(255 253 249 / 0.25);
   background: transparent;
@@ -183,8 +183,8 @@ body {
   z-index: 20;
   width: min(22rem, calc(100vw - 2rem));
   padding: 0.9rem 1rem 1rem;
-  border: 1px solid var(--overlay-rule, var(--rule));
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   background: var(--paper);
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
   text-align: start;
@@ -197,8 +197,8 @@ body {
   flex: 1 1 9rem;
   min-width: 0;
   padding: 0.35rem 0.55rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
   background: var(--paper-raised);
   color: inherit;
   font: inherit;
@@ -207,7 +207,7 @@ body {
 .account-panel form button,
 .account-panel .signed-in button {
   padding: 0.35rem 0.7rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   font-size: 0.8125rem;
 }
 .account-panel form button { background: var(--accent); border-color: var(--accent); color: var(--paper); }
@@ -217,10 +217,10 @@ body {
 .account-panel .to-you {
   color: var(--ink-soft);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
 }
 .account-panel .to-you:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
-.account-panel .yours-link { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.8rem; padding-block-end: 0.7rem; border-block-end: 1px solid var(--rule); }
+.account-panel .yours-link { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin: 0 0 0.8rem; padding-block-end: 0.7rem; border-block-end: 1px solid var(--hairline); }
 .account-panel .yours-link .to-you { color: var(--ink); font-weight: 600; }
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
    reserves for the primary action. Ink for what happened, clay for what did not. */
@@ -252,7 +252,7 @@ body {
   flex-wrap: wrap;
   row-gap: 2px;
   padding: 2px;
-  border: 1px solid var(--overlay-rule, var(--rule));
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   /* §9: one raised layer per view. This always sits inside a raised card or
      panel, so the fill repeated the surface underneath it and the hairline is
@@ -280,7 +280,7 @@ body {
   max-width: 46rem;
   margin: 3rem auto 0;
   padding: 1.2rem 1rem 2rem;
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--hairline);
   display: flex;
   flex-wrap: wrap;
   gap: 1.2rem;
@@ -302,7 +302,7 @@ body {
   block-size: 1.9rem;
   padding: 0;
   border: 1px solid rgb(255 253 249 / 0.25);
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: transparent;
   color: var(--bar-ink);
   cursor: pointer;
@@ -334,8 +334,8 @@ body {
   z-index: 20;
   width: min(22rem, calc(100vw - 2rem));
   padding: 0.6rem 0.4rem;
-  border: 1px solid var(--overlay-rule, var(--rule));
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   background: var(--paper);
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
   text-align: start;
@@ -354,7 +354,7 @@ body {
   color: var(--ink-soft);
   line-height: 1.4;
 }
-.notices-list li + li { border-block-start: 1px solid var(--rule); }
+.notices-list li + li { border-block-start: 1px solid var(--hairline); }
 .notices-list li.live { color: var(--ink); }
 .notices-list a { color: var(--teal); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .notices-list a:hover { text-decoration: underline; }
@@ -403,8 +403,8 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
   grid-template-rows: auto minmax(0, 1fr);
   inline-size: min(26rem, calc(100vw - 2rem));
   background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.16);
   overflow: hidden;
   animation: talk-in 200ms ease-out;
@@ -416,7 +416,7 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.7rem 0.6rem 0.6rem 1rem;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
   font-family: var(--chrome);
 }
 .talk-drawer-title { font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
@@ -447,7 +447,7 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
     inset-block: auto 0;
     inline-size: auto;
     block-size: min(88vh, 100vh - 3rem);
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
     border-block-end: 0;
   }
   .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
@@ -457,3 +457,85 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
 @media (prefers-reduced-motion: reduce) {
   .talk-drawer { animation: none; }
 }
+
+/* =====================================================================================
+   The desk grown up (§13, 2026-09-11). Written after the rules above so that it wins:
+   the bar is glass, depth is tiers, the ordinary press is tint, and one curve moves
+   everything. Phase 1 of the plan at
+   https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186. */
+
+/* --- motion: one curve, two lengths, and a press that gives ----------------------- */
+button, .site-nav a, .page-foot .open, .series-open, .chat-ask, .see-all, .step {
+  transition:
+    background-color var(--out) var(--ease),
+    color var(--out) var(--ease),
+    border-color var(--out) var(--ease),
+    box-shadow var(--out) var(--ease),
+    transform var(--out) var(--ease);
+}
+button:active:not(:disabled) { transform: scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  button, .site-nav a, .page-foot .open, .series-open, .chat-ask, .see-all, .step { transition: none; }
+  button:active:not(:disabled) { transform: none; }
+}
+
+/* --- the bar: glass, not ink ---------------------------------------------------------- */
+.site-head {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--ink);
+}
+/* Sticky where the bar is one row; a page with a title under the row lets it scroll,
+   since a title that follows you down the page is a bar too tall. */
+.site-head:not(:has(h1)) { position: sticky; inset-block-start: 0; z-index: 25; }
+.site-head .brand, .site-head .brand span { color: var(--ink); }
+.site-head [data-theme-toggle] { color: var(--ink-soft); border-color: var(--hairline); border-radius: 999px; }
+.site-head [data-theme-toggle]:hover { color: var(--ink); background: var(--teal-wash); }
+.site-nav a { color: var(--ink-soft); border-radius: 999px; padding: 0.4rem 0.85rem; }
+.site-nav a:hover { color: var(--ink); background: var(--teal-wash); }
+.site-nav a.on { color: var(--teal); background: var(--teal-wash); box-shadow: none; }
+.account > button {
+  color: var(--teal);
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  padding: 0.4rem 0.9rem;
+}
+.account > button:hover { color: var(--teal); background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.account > button.on { color: var(--teal-ink); background: var(--teal); }
+.account > button.avatar { border-radius: 50%; background: var(--teal); color: var(--teal-ink); }
+.account > button.avatar.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal); }
+.notices > button { border: 0; border-radius: 999px; color: var(--ink-soft); background: transparent; }
+.notices > button:hover, .notices > button.on { color: var(--ink); background: var(--teal-wash); }
+
+/* --- floating panels: the sheet's corners, the floating tier, no line ----------------- */
+.account-panel, .notices-panel, .talk-drawer {
+  border: 0;
+  border-radius: var(--radius-sheet);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+.account-panel { padding: 1.1rem 1.2rem 1.2rem; }
+.account-panel input {
+  border: 1px solid transparent;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  padding: 0.5rem 0.7rem;
+}
+.account-panel input:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
+.account-panel form button { background: var(--teal); border: 0; border-radius: 999px; color: var(--teal-ink); padding: 0.5rem 0.9rem; }
+.account-panel .signed-in button { border: 0; border-radius: 999px; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }
+.account-panel .signed-in button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.account-panel .yours-link { border-block-end: 1px solid var(--hairline); }
+.account-panel .to-you { border-block-end: 0; }
+.notices-list li + li { border-block-start: 1px solid var(--hairline); }
+.talk-drawer { animation: talk-in var(--in) var(--ease); }
+.talk-drawer-head { border-block-end: 1px solid var(--hairline); padding: 0.8rem 0.8rem 0.7rem 1.2rem; }
+.talk-close:hover { background: var(--teal-wash); color: var(--teal); }
+@media (max-width: 48rem) {
+  .talk-drawer { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
+}
+.site-foot { border-block-start: 0; }
+.segmented { border: 1px solid var(--hairline); background: var(--field); }
+.segment[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); }

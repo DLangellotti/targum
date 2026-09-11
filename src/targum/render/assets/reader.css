@@ -82,6 +82,23 @@
   --card-shadow: 0 1px 2px rgb(28 26 23 / 0.06);
   --page-shadow: 2px 3px 0 rgb(28 26 23 / 0.08), 0 12px 28px rgb(28 26 23 / 0.10);
   --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* The desk grown up (§13, 2026-09-11, "it's from 2016 not 2026"): corners on a scale
+     of their own, depth in three tiers rather than a line around every box, a hairline
+     only where two same-tone surfaces meet, tint for the ordinary press, glass for the
+     bar, and one curve for everything that moves. */
+  --radius-control: 8px;
+  --radius-row: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 24px;
+  --hairline: rgb(28 26 23 / 0.08);
+  --shadow-rest: 0 1px 2px rgb(28 26 23 / 0.06);
+  --shadow-raised: 0 1px 2px rgb(28 26 23 / 0.05), 0 8px 24px -12px rgb(28 26 23 / 0.18);
+  --shadow-floating: 0 2px 6px rgb(28 26 23 / 0.06), 0 24px 48px -20px rgb(28 26 23 / 0.28);
+  --glass: color-mix(in srgb, var(--card) 78%, transparent);
+  --field: color-mix(in srgb, var(--ground) 65%, var(--card));
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --in: 240ms;
+  --out: 160ms;
 
   /* Gloss (§9) is light on glass, never metal: one sheen per element, never on the
      mark or the lockup, never on a resting text surface. */
@@ -121,6 +138,10 @@
     --ink-max: #fffdf9;
     --ground: #121110;
     --card: #201e1b;
+    --hairline: rgb(255 253 249 / 0.10);
+    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
     --well: #3a3631;
     --teal: #6fb8b3;
     --teal-ink: #0f1a19;
@@ -155,6 +176,10 @@
     --ink-max: #fffdf9;
     --ground: #121110;
     --card: #201e1b;
+    --hairline: rgb(255 253 249 / 0.10);
+    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
     --well: #3a3631;
     --teal: #6fb8b3;
     --teal-ink: #0f1a19;

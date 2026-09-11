@@ -78,8 +78,8 @@ body.learn main[hidden] {
 .door {
   display: block;
   padding: 1.1rem 1.25rem 1.25rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   color: var(--ink);
   text-decoration: none;
   min-inline-size: 0;
@@ -200,7 +200,7 @@ button.door:disabled {
 .learn .to-progress {
   color: var(--ink);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
 }
 .elsewhere .note a:hover,
 .learn .to-progress:hover { border-block-end-color: var(--ink-soft); }
@@ -231,7 +231,7 @@ body.learn .nothing .lede {
 body.learn .nothing a {
   color: var(--ink);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
 }
 body.learn .nothing a:hover { border-block-end-color: var(--ink-soft); }
 body.learn .nothing .hint {
@@ -290,7 +290,7 @@ body.learn .nothing .hint {
    sits beside the export rather than being flung to the far edge on its own. */
 .see-all {
   padding: 0.2rem 0.65rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   color: var(--ink-soft);
   font-size: 0.8125rem;
@@ -336,7 +336,7 @@ body.learn .nothing .hint {
   gap: 0.6rem;
   margin: 0 0 1rem;
   padding-block-end: 0.6rem;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--hairline);
   font-size: 0.9375rem;
 }
 /* Read already: still there, and no longer asking. */
@@ -377,8 +377,8 @@ body.learn .nothing .hint {
 .learn .chat-thread {
   margin-block-start: 1rem;
   padding: 1rem 1.25rem;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
   background: transparent;
   max-block-size: 60vh;
   overflow: auto;
@@ -393,7 +393,7 @@ body.learn .nothing .hint {
   border: 0;
 }
 .learn .recent-chats[hidden] { display: none; }
-.learn .recent-chats .chat-list { display: block; max-inline-size: 42rem; border-block-start: 1px solid var(--rule); }
+.learn .recent-chats .chat-list { display: block; max-inline-size: 42rem; border-block-start: 1px solid var(--hairline); }
 .learn .recent-chats .chat-list button { padding: 0.5rem 0.25rem; }
 .learn .recent-chats .chat-list .chat-title { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); white-space: normal; }
 .learn .recent-chats .see-all { display: inline-block; margin-block-start: 0.5rem; }
@@ -473,7 +473,7 @@ body.learn .nothing .hint {
   row-gap: 0.15rem;
   margin: 0;
   padding: 0.8rem 1.25rem 0.9rem;
-  border-block-start: 1px solid var(--rule);
+  border-block-start: 1px solid var(--hairline);
   font-family: var(--chrome);
   font-size: 0.875rem;
   color: var(--ink-soft);
@@ -511,7 +511,7 @@ body.learn .nothing .hint {
 .page-actions { grid-area: actions; display: flex; align-items: center; gap: 0.5rem; margin: 0; }
 .page-foot .open {
   padding: 0.45rem 0.9rem;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   background: var(--ink);
   color: var(--paper);
   font-weight: 600;
@@ -521,16 +521,16 @@ body.learn .nothing .hint {
 /* A card on the desk: what everything that is not the sheet sits in. */
 .card {
   background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-raised);
 }
 .section-title { font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
 .section-sub { font-family: var(--chrome); }
 /* The doors are cards too, and so are the two steps beside them. */
 .door {
   background: var(--card);
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--shadow-raised);
 }
 /* The two steps are cards in the same grid as the door beside them, not a row under it
    (2026-09-11: a door alone in a third of a row). */
@@ -541,3 +541,12 @@ body.learn .nothing .hint {
   .talk.card { padding: 0.9rem 0.9rem 1rem; }
   .front { gap: 1rem; }
 }
+
+/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
+.card { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+.page-sheet { border-radius: var(--radius-card); }
+.page-foot { border-block-start: 1px solid var(--hairline); }
+.page-foot .open { border-radius: 999px; background: var(--teal); color: var(--teal-ink); padding: 0.5rem 1rem; }
+.page-foot .open:hover { background: var(--teal); filter: brightness(1.08); }
+.step { border: 0; box-shadow: var(--shadow-raised); }
+.known-line { font-weight: 300; letter-spacing: -0.02em; }

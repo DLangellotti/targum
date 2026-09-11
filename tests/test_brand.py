@@ -97,8 +97,15 @@ INK_ONLY = {"#e2a33c": 2.09, "#7ba646": 2.70}
 # §1 and §10. The identity is flat forever; the gloss recipe is for UI only.
 IDENTITY = ("brand-mark", "brand", "lockup", "wordmark")
 
-# §8. Radii are exact, and never snapped.
-RADII = {"4px", "5px", "6px", "8px", "999px", "50%", "0"}
+# §8. Radii are exact, and never snapped: the reader's 4/5/6/8, and since 2026-09-11 the
+# desk's own 8/12/16/24 (§13), which a rule names by its token.
+RADII = {"4px", "5px", "6px", "8px", "12px", "16px", "24px", "999px", "50%", "0"}
+RADIUS_TOKENS = {
+    "--radius-control": "8px",
+    "--radius-row": "12px",
+    "--radius-card": "16px",
+    "--radius-sheet": "24px",
+}
 
 # §5. The type scale. `em` sizes are relative to a component already on the scale.
 # §5, plus the landing display step §12 records (2026-08-31): a public landing page's one
@@ -141,12 +148,24 @@ def test_only_brand_colours(sheet: Path) -> None:
 
 @pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)
 def test_radii_are_on_the_scale(sheet: Path) -> None:
-    """4 controls, 5 rows, 6 cards, 8 panels, 999 pills."""
+    """The reader's 4 controls, 5 rows, 6 cards, 8 panels; the desk's 8, 12, 16, 24; 999
+    pills. A rule may name a corner by its token, and the token is on the scale."""
     for value in re.findall(r"border-radius:\s*([^;]+);", sheet.read_text(encoding="utf-8")):
         for corner in value.split():
+            if corner.startswith("var(--radius-"):
+                assert corner[4:-1] in RADIUS_TOKENS, f"{sheet.name}: {corner} is no token"
+                continue
             assert corner in RADII, (
                 f"{sheet.name}: border-radius {value.strip()!r} is off the scale"
             )
+
+
+def test_the_radius_tokens_are_the_scale() -> None:
+    """§13: the desk names its corners once, in the stylesheet every page loads."""
+    text = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    for token, size in RADIUS_TOKENS.items():
+        found = set(re.findall(rf"{token}:\s*([^;]+);", text))
+        assert found == {size}, f"{token} should be {size} everywhere, found {found}"
 
 
 @pytest.mark.parametrize("sheet", STYLESHEETS, ids=lambda p: p.name)

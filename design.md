@@ -191,14 +191,19 @@ arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the contr
 
 ## 8 · Surfaces, states, motion
 
-- Resting surfaces are flat: raised paper, 1px rule border, radii 4–8px — exactly 4
-  controls, 5 rows, 6 cards, 8 panels, 999 pills, never snapped. Shadows exist only on
-  floating overlays (gloss card, menus, tips).
+- In the reader, resting surfaces are flat: raised paper, 1px rule border, radii 4–8px —
+  exactly 4 controls, 5 rows, 6 cards, 8 panels, 999 pills, never snapped. Shadows exist
+  only on floating overlays (gloss card, menus, tips). **On the desk (§13, since
+  2026-09-11) the scale is its own** — 8 controls, 12 rows and fields, 16 cards, 24
+  sheets and floating panels, 999 pills — and depth is three tiers rather than a line:
+  rest, raised, floating. A hairline (ink at 8%) stands only where two same-tone
+  surfaces meet.
 - Hover lifts muted to ink; row hovers are 7–10% accent washes. Selection is ink-soft with
   paper text. Focus is a 2px `#b8935e` ring.
 - **Motion is rare and purposeful:** the mode pill slides 240ms on
-  `cubic-bezier(0.32, 0.72, 0, 1)`; mode switches settle with a 200ms fade. Everything
-  honours `prefers-reduced-motion`.
+  `cubic-bezier(0.32, 0.72, 0, 1)`; mode switches settle with a 200ms fade. On the desk
+  one curve moves everything, `cubic-bezier(0.2, 0.8, 0.2, 1)`, 240ms in and 160ms out,
+  and a press gives to 0.98. Everything honours `prefers-reduced-motion`.
 - **RTL is structural, not cosmetic:** logical CSS properties throughout, so every layout
   mirrors itself. Never `left`/`right`.
 - **A control a thumb presses answers a tap over 44px.** Where a coarse pointer is the
@@ -362,6 +367,25 @@ reader entry above stand as they are. The reader fetches nothing, so it keeps
 system-ui for its bar and never loads the chrome's face. `test_brand.py` widens its
 palette, its type scale and its face allowlist by exactly what §13 names, and nothing
 else; where a chrome page still carries a reader rule, the chrome rule wins.
+
+### The desk grows up — 2026-09-11
+
+Shown the desk after a day on it, its maker said: "the whole design feels clunky, like
+it's from 2016 not 2026." He was right, and what dated it was not the palette, the face or
+the voice — those stay — but the grammar it had inherited from §8, written for the
+reader: a hairline around every box, corners at 4–8px, controls at 13px with a word in
+each, a small-capitals label over every section and column, and nothing that moved.
+Decided, in order: the bar is **glass** rather than ink; the phone gets a **bottom bar**
+for the three places; corners go to **16 for cards and 24 for sheets**; and the reader's
+own chrome — its bar, word card and keys, never the page's lines — follows as a fifth
+phase. The plan, with the diagnosis and the page-by-page pass:
+https://claude.ai/code/artifact/8408e102-f2aa-4ac3-9da7-3cb2a91ab186.
+
+What this entry changes in the rules: §8's radii and flat-surface bullets now say they
+are the reader's, and §13 carries the desk's own scale, tiers, tint, glass, three kinds
+of button and one curve. `test_brand.py` admits 12, 16 and 24 to the radii and lets a
+rule name a corner by its token. What it does not overturn: everything about the reader
+— §8 as written still governs the page.
 
 ### The front page is named, and answers in place — 2026-09-11
 
@@ -1010,15 +1034,20 @@ Progress, the account, the Add page — is the desk the page lies on, and is bui
 operated rather than read. Added 2026-09-11; the reasons are in §12.
 
 **Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
-things sit on it as cards, `#fffdf9` (dark `#201e1b`), with a 1px rule and a shadow of
-`0 1px 2px` at 6% (dark 40%). The one pure-paper surface, `#fbf9f5`, is the reader's page
+things sit on it as cards, `#fffdf9` (dark `#201e1b`), raised by their shadow and not by
+a line: three tiers — rest `0 1px 2px` at 6%, raised with `0 8px 24px -12px` at 18%
+under it, floating with `0 24px 48px -20px` at 28% (dark 40 / 60 / 80%). A hairline, ink
+at 8%, stands only where two same-tone surfaces meet. Two more surfaces: **tint**, the
+primary at 9%, which is the ordinary press; and **glass**, the card at 78% under a 12px
+blur, which is the bar. The one pure-paper surface, `#fbf9f5`, is the reader's page
 — and, on the desk, the sheet: a text drawn as itself — the reader, framed and working,
 at the place it was left (`?preview=1`: it draws no bar, keeps its own links in the
 frame, sends every other link to the page, and counts a visit at the first press rather
 than at being shown), its title, Expand and Open under it — a shadow offset `2px 3px` as
-a page casts, no card chrome. The header is the ink bar, `#171614` with `#e6e1d8` text, the screen's one
-inverted block; the reader keeps its own bar and never inverts. Fields are wells: a rule
-at `#cfc7b9`, the desk tone inside, the primary's ring on focus. "One raised layer per
+a page casts, no card chrome. The header is glass (decided 2026-09-11; it was the ink bar, `#171614`, for a
+morning): sticky, no rule under it, the places as tint pills with the current one in the
+primary, the bell and the account as round buttons; the reader keeps its own bar. Fields are wells: no line,
+the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.
 
@@ -1043,7 +1072,12 @@ and is never scaled (§5). Counts keep tabular figures.
 serves a hand and a wall; the reader sets its own type. A 62rem column, cards on a
 12-column grid, 8px base, sections 48px apart
 with no rule between them, cards padded 20px, controls 40px tall and 44px under a coarse
-pointer (§8). Radii keep the scale: 4 controls, 5 rows, 6 cards, 8 panels, 999 pills.
+pointer (§8). Radii are the desk's own scale: 8 controls, 12 rows and fields, 16 cards, 24 sheets and
+floating panels, 999 pills; the sheet's paper stays at 16 so it still reads as a page.
+Buttons are three kinds and no more: **filled** in the primary, one per view — Send,
+Open, a Follow that is on; **tonal**, tint with the primary's text, the ordinary press;
+**ghost**, no fill, for Hide, Close and dismiss. All are pills. The bordered word-button
+is retired.
 The front page is the reader's own highlight (2026-09-11): the sheet across the row at
 a reading height, then the shelf, and nothing else. The lists of words and phrases are a
 page behind the account, and so are the series to follow. The conversation lives on no
@@ -1056,7 +1090,8 @@ both directions. Notifications — what is building, what is ready, what landed 
 bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
 the window but the pill.
 
-**Motion.** 120ms on hover and press, 200ms for a card arriving, none under
+**Motion.** One curve, `cubic-bezier(0.2, 0.8, 0.2, 1)`: 240ms for a thing arriving,
+160ms for a thing settling or leaving, a press giving to 0.98; none under
 `prefers-reduced-motion` (§8).
 
 **What stays the reader's.** The page tone, the serif, the hairlines, the brown, the

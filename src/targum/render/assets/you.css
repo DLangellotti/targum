@@ -15,7 +15,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 50%;
   /* §9: one raised layer per view. This always sits inside a raised card or
      panel, so the fill repeated the surface underneath it and the hairline is
@@ -37,8 +37,8 @@
   inline-size: 100%;
   max-inline-size: 18rem;
   padding: 0.35rem 0.6rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
   background: var(--paper);
   color: var(--ink);
   font: inherit;
@@ -52,7 +52,7 @@
    about to press — §4 keeps clay for cost, errors and things that cannot be undone. */
 .go-quiet {
   padding: 0.25rem 0.7rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--hairline);
   border-radius: 999px;
   background: none;
   color: var(--ink-soft);
@@ -120,3 +120,6 @@
 .you .said { margin: 0.6rem 0 0; color: var(--ink); font-size: 0.8125rem; }
 .you .said.bad { color: var(--clay); }
 .you .said[hidden] { display: none; }
+
+/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
+.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
