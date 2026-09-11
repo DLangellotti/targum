@@ -890,3 +890,21 @@ def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
     assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
     assert pressed["carry"]["meta"].startswith("A step up from what you have read")
     assert pressed["carry"]["href"] == "/library?k=k#harder"
+
+
+def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
+    """Live (2026-09-11): a reader who has built every modern text saw no Suggested door
+    at all. Past the modern catalogue the fallback offers what is left in any register."""
+    built_all = [
+        reader("m1", "מ1", "m1", document="m1", opened=5, difficulty=10),
+        reader("m2", "מ2", "m2", document="m2", opened=4, difficulty=30),
+    ]
+    stored = {"targum:opened": json.dumps({"m1": 5, "m2": 4})}
+    catalogue = [
+        entry("m1", "מ1", 10, register="modern"),
+        entry("m2", "מ2", 30, register="modern"),
+        entry("ruth", "רות", 12, register="biblical"),
+    ]
+    drawn = draw(built_all, stored, catalogue=catalogue, do=[{"door": "suggested"}])
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
+    assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"
