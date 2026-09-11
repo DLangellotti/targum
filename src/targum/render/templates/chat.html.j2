@@ -69,6 +69,14 @@
       metric "right in your face" (2026-09-10, targum-internal#237). Conversation comes
       out of the same hours a recording does. -#}
   <p class="chat-hours" id="chat-hours" hidden></p>
+  {#- Where the reader is, when this is the drawer in a reader (2026-09-11): the sentence
+      in front of them, and one press to ask about it. Every line typed here rides with
+      it, so the answer is about the text. -#}
+  <p class="chat-reading" id="chat-reading" hidden>
+    <span class="chat-reading-label">Reading</span>
+    <bdi class="chat-reading-text" id="chat-reading-text" dir="auto"></bdi>
+    <button type="button" class="chat-reading-ask" id="chat-reading-ask">Explain this sentence</button>
+  </p>
   {% set placeholder = 'Write in Hebrew or English' %}
   {% include '_composer.html.j2' %}
 </main>

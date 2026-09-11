@@ -539,3 +539,31 @@ body.embed > .chat-main > .composer {
 @media (max-width: 40rem) {
   .chat-list.open { z-index: 26; padding-block-end: calc(4.5rem + env(safe-area-inset-bottom)); }
 }
+/* Where the reader is (2026-09-11): one quiet line above the box in the reader's drawer,
+   the sentence in the reading face, and one press to ask about it. */
+.chat-reading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.chat-reading[hidden] { display: none; }
+.chat-reading-label { font-weight: 600; }
+.chat-reading-text { flex: 1 1 12rem; min-inline-size: 0; font-family: var(--reading); font-size: 0.9375rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-reading-text:lang(he) { font-family: var(--reading-hebrew); }
+.chat-reading-ask {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  cursor: pointer;
+}
+.chat-reading-ask:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+@media (hover: none) and (pointer: coarse) { .chat-reading-ask { min-height: 44px; } }

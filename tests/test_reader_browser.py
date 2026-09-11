@@ -5348,3 +5348,39 @@ def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
     assert preview["opened"] is None and preview["days"] is None, "a picture is not a visit"
     assert not visit["flagged"] and visit["bar"] != "none", visit
     assert visit["opened"] and visit["days"], "opened as itself, the reader keeps the day"
+
+
+def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: Path) -> None:
+    """ "When I am reading something I want to literally be able to chat with it"
+    (2026-09-11). A served reader carries the pill; off a disk it would carry nothing to
+    talk to. The reader says where it is — the text, the section, the sentence across
+    the middle of the window, or the one a word was last tapped in — and says it again
+    on the document whenever that moves."""
+    context = browser.new_context(viewport={"width": 900, "height": 600})
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_function("() => !!document.querySelector('.w')")
+    page.wait_for_timeout(200)
+    state = page.evaluate(
+        """() => {
+          const pill = document.getElementById('talk-open');
+          const w = window.TargumReader.where();
+          return {
+            pill: !pill.hidden && getComputedStyle(pill).display !== 'none',
+            drawer: document.getElementById('talk-drawer').hidden,
+            frameSrc: document.getElementById('talk-frame').getAttribute('src'),
+            document: w.document, section: w.section,
+            segment: w.segment, sentence: w.sentence,
+          };
+        }"""
+    )
+    assert state["pill"] and state["drawer"] and state["frameSrc"] is None, state
+    assert state["document"] and state["section"] and state["segment"] and state["sentence"]
+    heard = page.evaluate(
+        """() => new Promise((resolve) => {
+          document.addEventListener('targum:where', (e) => resolve(e.detail), { once: true });
+          document.querySelectorAll('.w')[3].click();
+        })"""
+    )
+    assert heard["sentence"] and heard["segment"], "a tapped word says where"
+    context.close()

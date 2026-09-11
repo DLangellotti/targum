@@ -1364,3 +1364,41 @@ def test_the_first_exchange_is_not_drawn_twice_nor_for_a_reader_with_words() -> 
     assert whole["claim"] and whole["claim"]["rows"] == ["של", "את", "הוא"], (
         "the conversation page itself asks too"
     )
+
+
+# -- chatting with the text (2026-09-11) --------------------------------------------------------
+
+READING = {"document": "mendele-he", "section": "2", "segment": "s7", "sentence": "וַיֵּלֶךְ בִּנְיָמִין"}
+
+
+def test_in_a_reader_the_conversation_hears_where_you_are_and_asks_about_it() -> None:
+    """ "When I am reading something I want to literally be able to chat with it." The
+    page holding the drawer says where the reader is; the drawer shows the sentence
+    above the box, sends it with every line so the answer is about the text, and offers
+    one press that asks what it means."""
+    page = run(
+        embed=True,
+        do=[{"type": "reading", "about": READING}, {"type": "say", "text": "מה זה?"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert page["reading"] == "וַיֵּלֶךְ בִּנְיָמִין"
+    assert page["posted"][0]["body"]["about"] == {
+        "document": "mendele-he",
+        "section": "2",
+        "sentence": "וַיֵּלֶךְ בִּנְיָמִין",
+    }
+    explained = run(
+        embed=True,
+        do=[{"type": "reading", "about": READING}, {"type": "explain"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert explained["posted"][0]["body"]["text"] == "What does this sentence mean?"
+    assert explained["posted"][0]["body"]["about"]["sentence"] == "וַיֵּלֶךְ בִּנְיָמִין"
+    alone = run(
+        embed=True,
+        do=[{"type": "say", "text": "hello"}],
+        answers={"/chat/say": {"chat": "c1", "turn": 1}},
+    )
+    assert alone["reading"] == "" and "about" not in alone["posted"][0]["body"], (
+        "nowhere in particular"
+    )

@@ -1197,6 +1197,35 @@
 
   /* --- asking -------------------------------------------------------------- */
 
+  // Where the reader is, when this is the drawer in a reader (2026-09-11): said by the
+  // page holding the frame, shown above the box, and sent with every line so the answer
+  // is about the sentence in front of them.
+  var reading = null;
+  var readingLine = document.getElementById("chat-reading");
+  var readingText = document.getElementById("chat-reading-text");
+  var readingAsk = document.getElementById("chat-reading-ask");
+  function drawReading() {
+    if (!readingLine) return;
+    var sentence = reading && reading.sentence ? String(reading.sentence) : "";
+    readingLine.hidden = !sentence;
+    if (readingText) readingText.textContent = sentence.length > 90 ? sentence.slice(0, 88) + "…" : sentence;
+  }
+  if (readingAsk) {
+    readingAsk.onclick = function () {
+      say("What does this sentence mean?");
+    };
+  }
+  if (EMBED) {
+    window.addEventListener("message", function (event) {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return;
+      var data = event.data || {};
+      if (data.type === "targum:reading") {
+        reading = data.about && typeof data.about === "object" ? data.about : null;
+        drawReading();
+      }
+    });
+  }
+
   function say(text, brought) {
     if (busy || !text) return;
     if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
@@ -1207,6 +1236,11 @@
     var line = { chat: current, text: text };
     // The text sent with the line, by its job, so the model knows what it was given.
     if (brought) line.brought = brought;
+    // Where the reader is, when the drawer is in a reader: the model is told the text,
+    // the section and the sentence, and answers about them.
+    if (reading && reading.sentence) {
+      line.about = { document: reading.document, section: reading.section, sentence: reading.sentence };
+    }
     ask("/chat/say", line).then(function (got) {
       if (got.error) {
         answer.className = "chat-turn them bad";

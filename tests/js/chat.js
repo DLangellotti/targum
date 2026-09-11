@@ -401,6 +401,17 @@ function drawn() {
       if (step.what === "no") part("claim-no").onclick();
       for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
     }
+    if (step.type === "reading") {
+      // Where the reader is, said by the page holding the frame (2026-09-11).
+      (windowListeners.message || []).forEach((handler) =>
+        handler({ origin: global.window.location.origin, source: global.window.parent, data: { type: "targum:reading", about: step.about } }),
+      );
+      for (let i = 0; i < 4; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (step.type === "explain") {
+      byId["chat-reading-ask"].onclick();
+      for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+    }
     if (step.type === "row") {
       // A press on the list's row for that conversation.
       const row = (byId["chat-list"].children || [])
@@ -435,6 +446,7 @@ function drawn() {
       offered,
       replaced,
       freshHidden: !!byId["chat-new"].hidden,
+      reading: byId["chat-reading"].hidden ? "" : byId["chat-reading-text"].textContent,
       chipsHidden: !!byId["chat-chips"].hidden,
       emptyHidden: !!byId["chat-empty"].hidden,
       claim: (() => {

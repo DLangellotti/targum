@@ -221,6 +221,7 @@ def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() ->
     assert 'class="site-head"' not in EMBED and "data-nav=" not in EMBED, "no bar, no foot"
     assert 'id="composer"' in EMBED and 'id="chat-thread"' in EMBED and "TargumChat" in EMBED
     assert 'class="chat"' in PAGES["chat"] and "<base " not in PAGES["chat"]
+    assert 'id="chat-reading"' in EMBED, "and it can be told where the reader is"
 
 
 def test_the_box_is_the_front_door() -> None:

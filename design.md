@@ -1102,7 +1102,7 @@ the window but the pill.
 
 **What stays the reader's.** The page tone, the serif, the hairlines between lines, the
 brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
-nothing. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+nothing — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 

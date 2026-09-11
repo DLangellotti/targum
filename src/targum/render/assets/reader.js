@@ -3514,6 +3514,13 @@ var targumReader = function () {
       on.className = "ask-on";
       on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
       on.textContent = "Continue in chat";
+      // In the drawer, where there is one (2026-09-11): the conversation goes on here,
+      // beside the text, rather than on a page of its own.
+      on.addEventListener("click", function (event) {
+        if (!window.TargumTalk || !window.TargumTalk.open) return;
+        event.preventDefault();
+        window.TargumTalk.open(state.chat);
+      });
       row.appendChild(on);
     }
     return row;
@@ -6875,7 +6882,60 @@ var targumReader = function () {
      The word queue is here for the same reason: which words are in it and which one
      comes next are decided entirely in the embedded data, without asking the page
      anything. Reaching the word once it is chosen is the half that needs a browser. */
+  /* Where the reader is, for the conversation (2026-09-11): the text, the section and
+     the sentence in front of them — the one a word was last tapped in, else the pair
+     standing across the middle of the window. Said on every scroll that settles and
+     every page turned, as `targum:where` on the document; `talk.js` carries it into
+     the drawer. */
+  var lastAsked = null;
+  function where() {
+    var pair = lastAsked && lastAsked.closest ? lastAsked.closest("[data-id]") : null;
+    if (!pair) {
+      var middle = window.innerHeight / 2;
+      var best = null;
+      var nearest = Infinity;
+      for (var i = 0; i < pairs.length; i++) {
+        var box = pairs[i].getBoundingClientRect();
+        if (box.bottom < 0 || box.top > window.innerHeight) continue;
+        var away = Math.abs((box.top + box.bottom) / 2 - middle);
+        if (away < nearest) {
+          nearest = away;
+          best = pairs[i];
+        }
+      }
+      pair = best;
+    }
+    var id = pair ? pair.getAttribute("data-id") : "";
+    return {
+      document: String(documentId || ""),
+      section: String(sectionId || ""),
+      segment: id || "",
+      sentence: id ? segmentText(id) : "",
+    };
+  }
+  var whereTimer = null;
+  function sayWhere() {
+    clearTimeout(whereTimer);
+    whereTimer = setTimeout(function () {
+      try {
+        document.dispatchEvent(new CustomEvent("targum:where", { detail: where() }));
+      } catch (e) {
+        /* an old browser without CustomEvent: the drawer asks instead */
+      }
+    }, 250);
+  }
+  window.addEventListener("scroll", sayWhere, { passive: true });
+  document.addEventListener("targum:page", sayWhere);
+  document.addEventListener("click", function (event) {
+    var word = event.target && event.target.closest ? event.target.closest(".w") : null;
+    if (word) {
+      lastAsked = word;
+      sayWhere();
+    }
+  });
+
   window.TargumReader = {
+    where: where,
     placeNear: placeNear,
     stopHover: stopHover,
     hovering: function () {

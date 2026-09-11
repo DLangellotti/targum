@@ -414,6 +414,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Added
+- You can talk to targum about the text you are reading (2026-09-11: "when I am reading
+  something I want to literally be able to chat with it"). A served reader carries the
+  same pill and drawer every chrome page has; the reader says where you are — the text,
+  the section, the sentence across the middle of the window or the one you last tapped a
+  word in — and says it again as you move, so the drawer shows the sentence above the
+  box, sends it with every line, and offers one press that asks what it means. A word's
+  card still answers two turns in place, and "Continue in chat" now goes on in the
+  drawer beside the text. Off a disk the reader carries nothing to talk to, and the
+  page still fetches nothing by itself.
 - A command palette on every page (2026-09-11): ⌘K, or the search in the bar, finds a
   place, a text on your shelf or in the catalogue, or a conversation, and Enter goes
   there — a conversation opens in the drawer.

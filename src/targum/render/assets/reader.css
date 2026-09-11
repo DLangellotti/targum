@@ -3427,3 +3427,76 @@ html:fullscreen { background: var(--paper); }
     box-shadow: var(--shadow-floating);
   }
 }
+
+/* --- Talk to targum, in the reader (2026-09-11) ----------------------------------------
+   The same drawer the desk has, on the reader's own tokens and in its own face; the
+   press that opens it is a control in the bar like the others, since the corner at the
+   foot of the window is the player's. The button is on while the drawer is up. */
+.bar .talk-cta[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
+.talk-drawer {
+  position: fixed;
+  inset-block: 4.5rem 1rem;
+  inset-inline-end: 1rem;
+  z-index: 31;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  inline-size: min(26rem, calc(100vw - 2rem));
+  background: var(--card);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-floating);
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+  direction: ltr;
+  animation: talk-in var(--in) var(--ease);
+}
+.talk-drawer[hidden] { display: none; }
+.talk-drawer.leaving { animation: talk-out var(--out) var(--ease) forwards; }
+.talk-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.8rem 0.7rem 1.2rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.talk-drawer-title { font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+.talk-close {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.talk-close:hover { color: var(--teal); background: var(--teal-wash); }
+.talk-frame { display: block; inline-size: 100%; block-size: 100%; border: 0; background: var(--card); }
+.talk-scrim { display: none; }
+@keyframes talk-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes talk-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(0.5rem); }
+}
+@media (max-width: 60rem) {
+  .talk-drawer {
+    inset-inline: 0;
+    inset-block: auto 0;
+    inline-size: auto;
+    block-size: min(88vh, 100vh - 3rem);
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  .talk-scrim[hidden] { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .talk-drawer, .talk-drawer.leaving { animation: none; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .talk-close { min-height: 44px; min-width: 44px; }
+}

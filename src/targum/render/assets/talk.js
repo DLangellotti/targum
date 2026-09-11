@@ -21,7 +21,19 @@
   var scrim = document.getElementById("talk-scrim");
   if (!pill || !drawer || !frame) return;
 
+  // The reader is a built page with no key baked in: it carries the one it was served
+  // with in its own address, as `reader.js` does. Off a disk there is nothing to talk
+  // to, and the pill stays hidden.
   var key = window.TARGUM_KEY || "";
+  if (!key) {
+    try {
+      key = new URLSearchParams(window.location.search).get("k") || "";
+    } catch (e) {
+      key = "";
+    }
+  }
+  if (!/^https?:$/.test(window.location.protocol)) return;
+  pill.hidden = false;
   function keyed(path) {
     if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
@@ -29,6 +41,27 @@
 
   var OPEN = "targum:talk";
   var loaded = false;
+
+  // Where the reader is, in a reader (2026-09-11): the text, the section, the sentence.
+  // Said to the frame whenever it changes and once more when the frame arrives, so the
+  // conversation can answer about what is in front of them.
+  var reading = null;
+  function tellReading() {
+    if (!reading || !loaded || !frame.contentWindow) return;
+    try {
+      frame.contentWindow.postMessage({ type: "targum:reading", about: reading }, window.location.origin);
+    } catch (e) {
+      /* the frame is not ours yet; the next word will reach it */
+    }
+  }
+  document.addEventListener("targum:where", function (event) {
+    reading = event.detail || null;
+    tellReading();
+  });
+  frame.addEventListener("load", function () {
+    if (!reading && window.TargumReader && window.TargumReader.where) reading = window.TargumReader.where();
+    tellReading();
+  });
 
   function load() {
     if (loaded) return;
@@ -38,7 +71,11 @@
 
   var leaving = null;
   function show(on) {
-    if (on) load();
+    if (on) {
+      if (!reading && window.TargumReader && window.TargumReader.where) reading = window.TargumReader.where();
+      load();
+      tellReading();
+    }
     clearTimeout(leaving);
     drawer.classList.remove("leaving");
     if (on) drawer.hidden = false;

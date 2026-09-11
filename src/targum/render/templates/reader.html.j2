@@ -253,6 +253,14 @@
         </svg>
       </button>
     </div>
+    {#- Talk to targum about this text (2026-09-11): a bar control like the others, since
+        the corner at the foot is the player's. Hidden until the page knows it is served:
+        off a disk there is nothing to talk to. -#}
+    <div class="group" data-what="Talk to targum">
+      <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="Talk to targum about this text" title="Talk to targum about this text" hidden>
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
+      </button>
+    </div>
     <div class="group" data-what="Keys">
       <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
     </div>
@@ -713,6 +721,20 @@
     and archaic forms are sometimes read wrongly on a card.</p>
   {% endif %}
 </div>
+{#- Talk to targum, in the reader (2026-09-11): "when I am reading something I want to
+    literally be able to chat with it". The same pill and drawer every chrome page has,
+    drawn only when the page is served — off a disk there is nothing to talk to — and the
+    conversation is told where the reader is: the text, the section, the sentence in
+    front of them. Nothing loads until the pill is pressed; the frame has no address
+    until then, so the page still fetches nothing by itself. -#}
+<div class="talk-scrim" id="talk-scrim" hidden></div>
+<aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
+  <div class="talk-drawer-head">
+    <span class="talk-drawer-title">Talk to targum</span>
+    <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
+  </div>
+  <iframe class="talk-frame" id="talk-frame" title="Talk to targum"></iframe>
+</aside>
 <script type="application/json" id="targum-data">{{ data }}</script>
 {#- The ledger's arithmetic, shared with Learn and /progress: the foot of a finished
     section says what moved (targum-internal#175), and the longest run of days is
@@ -721,5 +743,6 @@
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('reader.js') }}</script>
+<script>{{ asset('talk.js') }}</script>
 </body>
 </html>
