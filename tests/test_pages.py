@@ -96,18 +96,11 @@ def test_learn_carries_what_belongs_to_the_reader() -> None:
     assert 'id="carry"' in learn, "what you came back for"
     assert 'id="library-list"' in learn, "your shelf"
     assert 'id="trash-list"' in learn, "your trash"
-    assert 'id="word-table"' in learn and 'id="phrase-list"' in learn, "what you know"
+    assert 'id="word-table"' not in learn and 'id="phrase-list"' not in learn, (
+        "the lists left for Your Words on 2026-09-11: Learn is the room you learn in"
+    )
+    assert 'id="suggest"' not in learn and "data-door=" not in learn, "and not a lobby"
     assert 'id="catalogue"' not in learn, "the catalogue has its own page"
-
-
-def test_learn_says_what_to_do_next() -> None:
-    """Carry on, or: find something, bring something, see what you have built. The card
-    comes first because most visits are somebody returning to a text."""
-    learn = PAGES["learn"]
-    steps = re.findall(r'data-door="(\w+)"', learn)
-    assert steps == ["library", "progress"], "bringing a text is the `+` on the box"
-    assert 'id="carry"' in learn[: learn.index('data-door="library"')], "the card comes first"
-    assert 'id="suggest"' in learn, "and something to read, picked for this reader"
 
 
 def test_the_numbers_belong_to_the_progress_page() -> None:
@@ -207,11 +200,10 @@ def test_the_front_page_names_its_parts_and_frames_the_conversation() -> None:
     assert "Talk to targum" in learn and 'id="talk-frame"' in learn
     assert 'src="/chat?embed=1&amp;k=k"' in learn
     assert 'id="composer"' not in learn and "TargumChat" not in learn, "the box is in the frame"
-    assert 'class="section-title" id="read-title">Read<' in learn
     assert (
         learn.index('id="talk-title"')
         < learn.index('id="talk-frame"')
-        < learn.index('id="read-title"')
+        < learn.index('id="shelf-panel"')
     )
     assert 'class="chat embed"' in EMBED and '<base target="_top">' in EMBED
     assert 'class="site-head"' not in EMBED and "data-nav=" not in EMBED, "no bar, no foot"
@@ -308,22 +300,6 @@ def test_the_first_visit_s_question_stands_on_both_pages_with_the_languages_it_m
         assert 'window.TARGUM_INTO = ["en", "ru"]' in page, name
 
 
-def test_words_you_may_already_know_stand_on_learn() -> None:
-    """targum-internal#245: the way to say your level is higher than your count is to
-    raise the count for real, a page of the commonest words at a time."""
-    learn = PAGES["learn"]
-    assert learn.count('id="claim-panel"') == 1 and 'id="claim-yes"' in learn
-    assert 'id="claim-all"' in learn and 'aria-label="Check all"' in learn, (
-        "a checkbox at the head checks the page (2026-09-11)"
-    )
-    assert "Words you may already know" in learn and "TargumClaim" in learn
-    assert (
-        learn.index('id="word-table"')
-        < learn.index('id="claim-panel"')
-        < learn.index('id="phrase-list"')
-    ), "under Your Words, above Your Phrases"
-
-
 # -- what each page says it is --------------------------------------------------
 
 
@@ -355,15 +331,15 @@ def test_learn_is_honest_when_there_is_nothing() -> None:
     assert 'href="/add"' in empty, "with your own text as the quieter option"
 
 
-def test_an_empty_shelf_still_gets_the_suggestion() -> None:
-    """The suggestion — the one thing on Learn that says where to start — lives inside
+def test_an_empty_shelf_still_draws_the_page() -> None:
+    """The sheet — the one thing on Learn that says where to start — lives inside
     `#page`, and an empty shelf used to hide `#page` wholesale. So the reader with nothing
     was the one reader who never saw it, and the first alpha reader's first words were
     "no idea where to start"."""
     from targum.render.builder import ASSETS
 
     learn = PAGES["learn"]
-    assert learn.index('id="page"') < learn.index('id="suggest"') < learn.index('id="nothing"')
+    assert learn.index('id="page"') < learn.index('id="carry-sheet"') < learn.index('id="nothing"')
     script = (ASSETS / "learn.js").read_text(encoding="utf-8")
     assert 'getElementById("page").hidden = nothing' not in script
     assert 'getElementById("page").hidden = false' in script
@@ -729,19 +705,13 @@ def test_the_corner_is_a_circle_rather_than_an_address() -> None:
 def test_learn_caps_every_list_and_says_where_the_rest_is() -> None:
     """A page somebody lands on with four hundred rows on it is not a landing page."""
     learn = PAGES["learn"]
-    for link, where in (
-        ("shelf-more", "/texts"),
-        ("words-more", "/words"),
-        ("phrases-more", "/phrases"),
-    ):
-        assert f'id="{link}"' in learn, link
-        assert f'href="{where}"' in learn, where
+    assert 'id="shelf-more"' in learn and 'href="/texts"' in learn
 
 
-def test_every_list_on_learn_can_be_folded_away() -> None:
+def test_the_shelf_on_learn_can_be_folded_away() -> None:
     learn = PAGES["learn"]
-    assert learn.count('class="fold"') == 3, "the shelf, the words and the phrases"
-    assert learn.count('class="fold-body"') == 3, "and each one folds a body"
+    assert learn.count('class="fold"') == 1, "the shelf; the lists left for Your Words"
+    assert learn.count('class="fold-body"') == 1, "and it folds a body"
 
 
 def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:

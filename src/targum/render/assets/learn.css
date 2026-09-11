@@ -51,16 +51,6 @@ body.learn main[hidden] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
 }
-.step {
-  display: block;
-  padding: 0.6rem 0.9rem;
-  border-radius: 5px;
-  color: var(--ink);
-  text-decoration: none;
-}
-.step + .step {
-  border-inline-start: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
-}
 /* Stacked on a narrow window, where the rule belongs on top rather than at the side. */
 @media (max-width: 40rem) {
   .next {
@@ -74,20 +64,6 @@ body.learn main[hidden] {
 /* §8: a row hover is a 7–10% accent wash. */
 .step:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-.step[hidden] {
-  display: none;
-}
-.step-what {
-  display: block;
-  font-weight: 600;
-  font-size: 0.9375rem;
-}
-.step-why {
-  display: block;
-  margin-block-start: 0.15rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
 }
 /* One word saying why this row is a title rather than a place. */
 .step-tag {
@@ -107,21 +83,6 @@ body.learn main[hidden] {
   color: var(--ink);
   text-decoration: none;
   min-inline-size: 0;
-}
-.door h2 {
-  margin: 0 0 0.6rem;
-  font-size: 1.0625rem;
-}
-.door:hover h2 {
-  color: var(--ink);
-}
-.door .note {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 0.9375rem;
-}
-.door[hidden] {
-  display: none;
 }
 /* The suggestion is a button, because pressing it builds the text rather than going to a
    page about it. Everything that makes it a card is above; this is only undoing what a
@@ -378,26 +339,6 @@ body.learn .nothing .hint {
   border-block-end: 1px solid var(--rule);
   font-size: 0.9375rem;
 }
-.weekly-line[hidden] {
-  display: none;
-}
-.weekly-line a {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--ink);
-  font-family: var(--reading);
-  text-decoration: none;
-}
-.weekly-line a:hover {
-  text-decoration: underline;
-}
-.weekly-line .at,
-.weekly-line .when {
-  color: var(--ink-soft);
-  font-family: system-ui, sans-serif;
-  font-size: 0.8125rem;
-}
 /* Read already: still there, and no longer asking. */
 .weekly-line.done a {
   color: var(--ink-soft);
@@ -431,7 +372,6 @@ body.learn .nothing .hint {
   color: var(--ink);
 }
 .talk { margin-block: 2rem 3rem; }
-.read { margin-block: 0 3rem; }
 /* The thread on the front page: in place under the box, a hairline rather than raised
    paper (the cards below have this page's one raised layer), never taller than most of
    a screen, scrolling inside itself past that. */
@@ -466,7 +406,6 @@ body.learn .nothing .hint {
   text-transform: uppercase;
   color: var(--ink);
 }
-
 
 /* --- the desk (§13, 2026-09-11) --------------------------------------------------
    The front page: the sheet and the conversation side by side, the sheet first on a
@@ -655,41 +594,17 @@ body.learn .nothing .hint {
 .talk .section-note { margin-block-end: 0.9rem; }
 .section-title { font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
 .section-sub { font-family: var(--chrome); }
-.read { margin-block: 0 3rem; }
-.weekly-line.card {
-  padding: 0.85rem 1.1rem;
-  margin: 0 0 1rem;
-  border-block-end: 1px solid var(--rule);
-}
-.weekly-line .label { margin: 0; }
 /* The doors are cards too, and so are the two steps beside them. */
 .door {
   background: var(--card);
   box-shadow: var(--card-shadow);
 }
-.door h2 { font-family: var(--chrome); }
-.doors { align-items: stretch; }
 /* The two steps are cards in the same grid as the door beside them, not a row under it
    (2026-09-11: a door alone in a third of a row). */
 .next { display: contents; }
-.step { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--card-shadow); padding: 1rem 1.1rem; }
-.step + .step { border-inline-start: 1px solid var(--rule); border-block-start: 1px solid var(--rule); }
-.weekly-line.card { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.9rem; font-family: var(--chrome); }
-.weekly-line.card a { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
-.weekly-line.card .at {
-  font-family: var(--chrome);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 0.1rem 0.55rem;
-  border-radius: 999px;
-  background: var(--ground);
-  color: var(--ink);
-}
-.weekly-line.card .when { font-family: var(--chrome); font-size: 0.875rem; margin-inline-start: auto; }
 /* Small screens: the sheet and the cards keep their gutters, nothing runs past the edge. */
 @media (max-width: 26rem) {
   .page-foot { padding-inline: 0.9rem; }
   .talk.card { padding: 0.9rem 0.9rem 1rem; }
   .front { gap: 1rem; }
 }
-.step-what { font-family: var(--chrome); }

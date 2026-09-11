@@ -37,7 +37,7 @@ function foldPair(name) {
   return press;
 }
 
-const folds = ["shelf", "words", "phrases"].map(foldPair);
+const folds = ["shelf"].map(foldPair);
 
 // What the page listens to on the window — `message`, from the framed conversation
 // (2026-09-11) — so a step can send one.
@@ -109,7 +109,6 @@ require(path.join(assets, "charts.js"));
 global.window.TargumCharts.growth = () => {};
 global.window.TargumCharts.tiles = () => {};
 
-require(path.join(assets, "lists.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
 require(path.join(assets, "scenes.js"));
@@ -184,59 +183,15 @@ setTimeout(() => {
       asked: asked,
       went: global.location.href,
       known: at("known-line").textContent,
-      progress: at("step-progress").textContent,
-      suggested: at("suggest").hidden
-        ? null
-        : {
-            heading: at("suggest-heading").textContent,
-            title: at("suggest-title").textContent,
-            why: at("suggest-why").textContent,
-            blurb: at("suggest-blurb").textContent,
-            english: at("suggest-english").hidden ? "" : at("suggest-english").textContent,
-            track: at("suggest-track").hidden ? "" : at("suggest-track").textContent,
-            primary: at("suggest").classList.contains("primary"),
-            cover: tile(at("suggest-cover")),
-            // A button has no href. What it is offering is on the card itself.
-            entry: at("suggest").getAttribute("data-entry"),
-            disabled: at("suggest").disabled,
-          },
-      seeAll: {
-        shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent,
-        words: at("words-more").hidden ? "" : at("words-more").textContent,
-        phrases: at("phrases-more").hidden ? "" : at("phrases-more").textContent,
+      seeAll: { shelf: at("shelf-more").hidden ? "" : at("shelf-more").textContent },
+      folds: {
+        shelf: {
+          open: byId["fold-shelf"].getAttribute("aria-expanded"),
+          shown: !byId["shelf-body"].hidden,
+        },
       },
-      folds: ["shelf", "words", "phrases"].reduce(function (out, name) {
-        out[name] = {
-          open: byId["fold-" + name].getAttribute("aria-expanded"),
-          shown: !byId[name + "-body"].hidden,
-        };
-        return out;
-      }, {}),
       remembered: global.localStorage.getItem("targum:folded") || "",
-      exports: {
-        words: at("export-words").hidden,
-        phrases: at("export-phrases").hidden,
-      },
-      words: words(),
-      // The copy control every row carries, by what it says it copies.
-      copies: {
-        words: at("word-rows")
-          .children.filter((row) => !String(row.className).includes("editor-row"))
-          .map((row) => (row.children[0].querySelector(".copy") || { attrs: {} }).attrs["aria-label"]),
-        phrases: at("phrase-list").children.flatMap((group) =>
-          group.children[1].children.map(
-            (item) => (item.querySelector(".copy") || { attrs: {} }).attrs["aria-label"],
-          ),
-        ),
-      },
-      wordsTitle: at("words-title").textContent,
-      wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,
       shelfNote: at("shelf-note").textContent,
-      editors: at("word-rows").children.filter((row) =>
-        String(row.className).includes("editor-row")
-      ).length,
-      phrases: phrases(),
-      phrasesTitle: at("phrases-title").textContent,
       carry: {
         english: at("carry-english").hidden ? "" : at("carry-english").textContent,
         known: at("carry-known").hidden ? "" : at("carry-known").textContent,

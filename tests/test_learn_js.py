@@ -260,157 +260,6 @@ def test_knowing_nothing_yet_asks_rather_than_scoring_zero() -> None:
     assert drawn["known"] == "Mark a word while reading and it starts here."
 
 
-def test_the_word_list_starts_on_what_you_are_still_learning() -> None:
-    """Known words are the ones that need no more work. The list opens on the ones that
-    do, which is what the markup's selected option says and what the page must obey."""
-    drawn = draw(
-        [reader("a", "א")],
-        vocabulary(
-            word("ספר", "book", status=9),
-            word("דרך", "road", status=2),
-            word("עיר", "city", status=0),
-        ),
-    )
-    assert [row["term"] for row in drawn["words"]] == ["דרך"]
-    assert drawn["wordsTitle"] == "Your Words (1)"
-
-
-def test_every_word_is_there_when_that_is_what_was_asked_for() -> None:
-    drawn = draw(
-        [reader("a", "א")],
-        vocabulary(word("ספר", "book", status=9), word("דרך", "road", status=2)),
-        filter="all",
-    )
-    assert sorted(row["term"] for row in drawn["words"]) == ["דרך", "ספר"]
-
-
-def test_a_search_looks_at_the_word_its_dictionary_form_and_its_meaning() -> None:
-    """Three columns, because a reader who remembers only the English is the one most in
-    need of the search."""
-    kept = vocabulary(
-        word("ספר", "book", status=2),
-        word("הלך", "walked", status=2, surface="הולך"),
-        word("עיר", "city", status=2),
-    )
-    assert [row["term"] for row in draw([reader("a", "א")], kept, search="book")["words"]] == [
-        "ספר"
-    ]
-    assert [row["term"] for row in draw([reader("a", "א")], kept, search="הלך")["words"]] == [
-        "הולך"
-    ]
-    assert (
-        draw([reader("a", "א")], kept, search="zzz")["wordsEmpty"] == "Nothing here matches that."
-    )
-
-
-def test_only_one_language_of_meanings_is_shown_and_it_says_which() -> None:
-    """A reader of two languages has two answers for every word, and the page shows one.
-
-    Which one is the language they last read this one into. The cell says so in its own
-    markup, because a Russian meaning inside a page marked English is read out in the
-    wrong voice and — for a right-to-left meaning — punctuated at the wrong end.
-    """
-    stored = vocabulary(word("ספר", "book", status=2))
-    stored["targum:meanings:he:ru"] = json.dumps(
-        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 500}}, ensure_ascii=False
-    )
-
-    drawn = draw([reader("a", "א")], stored)
-
-    # The Russian was written later, so it is the one the page is showing.
-    assert [w["meaning"] for w in drawn["words"]] == ["книга"]
-    assert drawn["words"][0]["lang"] == "ru"
-    assert drawn["words"][0]["dir"] == "ltr"
-
-
-def test_a_language_this_account_does_not_read_is_never_offered() -> None:
-    """Meanings in a language somebody does not read are not an answer they can use.
-
-    The switcher offers the languages this browser holds meanings in — which is a fact
-    about the browser, and says nothing about whether the reader can read them. Somebody
-    who tried Russian and then turned it off should not still be offered it, nor be shown
-    a column of it.
-    """
-    stored = vocabulary(word("ספר", "book", status=2))
-    stored["targum:meanings:he:ru"] = json.dumps(
-        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 900}}, ensure_ascii=False
-    )
-    # What the account said, mirrored by `sync.js` for pages that cannot wait for it.
-    stored["targum:reads"] = json.dumps(["en"])
-
-    drawn = draw([reader("a", "א")], stored)
-
-    # Russian is the newer of the two and would otherwise have been chosen.
-    assert [w["meaning"] for w in drawn["words"]] == ["book"]
-    assert drawn["words"][0]["lang"] == "en"
-
-
-def test_with_nobody_signed_in_nothing_is_hidden() -> None:
-    """Absent is not the same as empty. On a machine somebody runs themselves, everything
-    in the browser is theirs and no account has said otherwise."""
-    stored = vocabulary(word("ספר", "book", status=2))
-    stored["targum:meanings:he:ru"] = json.dumps(
-        {"ספר": {"meaning": "книга", "note": "", "at": 0, "seen": 900}}, ensure_ascii=False
-    )
-
-    drawn = draw([reader("a", "א")], stored)
-
-    assert [w["meaning"] for w in drawn["words"]] == ["книга"]
-
-
-def test_a_meaning_in_a_language_you_are_not_reading_is_not_shown() -> None:
-    """The English of a word is no answer at all to somebody reading in Russian, and
-    showing it is worse than showing nothing: it is confidently the wrong language."""
-    stored = vocabulary(word("ספר", "book", status=2))
-    stored["targum:meanings:he:ru"] = json.dumps(
-        {"אור": {"meaning": "свет", "note": "", "at": 0, "seen": 500}}, ensure_ascii=False
-    )
-
-    drawn = draw([reader("a", "א")], stored)
-
-    # Russian is the language being shown, and it has nothing to say about this word.
-    assert [w["meaning"] for w in drawn["words"]] == [""]
-
-
-def test_your_own_meaning_is_the_one_shown() -> None:
-    """A definition the reader corrected beats the one the machine wrote, here as in the
-    reader itself."""
-    drawn = draw(
-        [reader("a", "א")],
-        vocabulary(word("ספר", "book", status=2, note="scroll")),
-    )
-    assert drawn["words"][0]["meaning"] == "scroll"
-
-
-def test_phrases_are_grouped_by_the_text_they_came_from() -> None:
-    """A phrase out of its text is a string of words nobody can place."""
-    stored = {
-        "targum:docs": json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}}),
-        "targum:picked:h1": json.dumps({"s1": [{"text": "לב טוב", "meaning": "a good heart"}]}),
-    }
-    drawn = draw([reader("a", "א")], stored)
-    assert drawn["phrases"] == {"אהבת ציון": ["לב טוב"]}
-    assert drawn["phrasesTitle"] == "Your Phrases (1)"
-
-
-def test_every_row_offers_to_copy_its_word() -> None:
-    """One control beside the word, named for it — the same one the reader's card and
-    its list carry, so a word is copied the same way wherever it is met."""
-    stored = vocabulary(word("ספר", "book", status=2), word("דרך", "road", status=2))
-    stored["targum:docs"] = json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}})
-    stored["targum:picked:h1"] = json.dumps({"s1": [{"text": "לב טוב", "meaning": "a good heart"}]})
-    drawn = draw([reader("a", "א")], stored)
-    assert sorted(drawn["copies"]["words"]) == ["Copy דרך", "Copy ספר"]
-    assert drawn["copies"]["phrases"] == ["Copy לב טוב"]
-
-
-def test_nothing_offers_an_export_to_a_browser_with_no_account() -> None:
-    """An export comes from the account. Signed out there is nothing to hand back but a
-    subset of one browser, with no sign that anything is missing."""
-    drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=2)))
-    assert drawn["exports"] == {"words": True, "phrases": True}, "hidden, both of them"
-
-
 def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     """A card with a link in the corner asks a reader to aim at it. The whole card takes
     the click, which also means nothing focusable inside anything focusable — and every
@@ -430,11 +279,9 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     assert 'id="carry-frame"' in top and 'id="carry-expand"' in top, (
         "the reader itself, framed and working, with Expand beside Open"
     )
-    assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
-    assert top.count('<a class="step"') == 2, (
-        "the library and the progress; uploading is the + on the box"
+    assert 'id="suggest"' not in page and 'class="door' not in page, (
+        "the suggestion card and the steps left Learn on 2026-09-11: the Library has them"
     )
-    assert 'id="suggest"' in top, "and the suggestion is only there when there is one"
     assert "<h2><a " not in top, "no heading is a link; the box around it is"
     assert "<h2><button" not in top
     assert 'id="carry-cover"' in top and '<a class="carry-cover' not in top
@@ -458,56 +305,35 @@ def test_a_short_shelf_is_not_offered_a_page_of_its_own() -> None:
     assert drawn["seeAll"]["shelf"] == "", "one row left, and nowhere else to go"
 
 
-def test_the_word_list_stops_at_ten_and_points_at_the_rest() -> None:
-    words = vocabulary(*(word(f"מילה{n}", f"word {n}", status=2) for n in range(24)))
-    drawn = draw([reader("a", "א")], words)
-    assert len(drawn["words"]) == 10
-    assert drawn["seeAll"]["words"] == "See all 24 →"
-
-
-def test_the_phrase_list_stops_at_five() -> None:
-    stored = {
-        "targum:docs": json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}}),
-        "targum:picked:h1": json.dumps(
-            {f"s{n}": [{"text": f"לב טוב {n}", "meaning": "a good heart"}] for n in range(9)}
-        ),
-    }
-    drawn = draw([reader("a", "א")], stored)
-    assert sum(len(rows) for rows in drawn["phrases"].values()) == 5
-    assert drawn["seeAll"]["phrases"] == "See all 9 →"
-
-
 # -- folding a list away ---------------------------------------------------------
 
 
-def test_every_list_starts_open() -> None:
+def test_the_shelf_starts_open() -> None:
     drawn = draw([reader("a", "א")])
-    for name, state in drawn["folds"].items():
-        assert state == {"open": "true", "shown": True}, name
+    assert drawn["folds"]["shelf"] == {"open": "true", "shown": True}
 
 
-def test_folding_a_list_shuts_it_and_is_remembered() -> None:
-    """Which lists somebody wants open is theirs to decide. Kept in this browser: it is
-    the state of a screen, not a fact about a person."""
-    drawn = draw([reader("a", "א")], do=[{"fold": "words"}])
-    assert drawn["folds"]["words"] == {"open": "false", "shown": False}
-    assert drawn["folds"]["shelf"]["shown"] is True, "and only the one pressed"
-    assert json.loads(drawn["remembered"]) == {"words-body": 1}
+def test_folding_the_shelf_shuts_it_and_is_remembered() -> None:
+    """Whether somebody wants the shelf open is theirs to decide. Kept in this browser:
+    it is the state of a screen, not a fact about a person. The word and phrase lists
+    that folded beside it left for Your Words on 2026-09-11."""
+    drawn = draw([reader("a", "א")], do=[{"fold": "shelf"}])
+    assert drawn["folds"]["shelf"] == {"open": "false", "shown": False}
+    assert json.loads(drawn["remembered"]) == {"shelf-body": 1}
 
 
-def test_a_list_folded_last_time_starts_folded() -> None:
-    drawn = draw([reader("a", "א")], {"targum:folded": json.dumps({"phrases-body": 1})})
-    assert drawn["folds"]["phrases"] == {"open": "false", "shown": False}
-    assert drawn["folds"]["words"]["shown"] is True
+def test_a_shelf_folded_last_time_starts_folded() -> None:
+    drawn = draw([reader("a", "א")], {"targum:folded": json.dumps({"shelf-body": 1})})
+    assert drawn["folds"]["shelf"] == {"open": "false", "shown": False}
 
 
 def test_unfolding_forgets_it_rather_than_remembering_a_negative() -> None:
     drawn = draw(
         [reader("a", "א")],
-        {"targum:folded": json.dumps({"words-body": 1})},
-        do=[{"fold": "words"}],
+        {"targum:folded": json.dumps({"shelf-body": 1})},
+        do=[{"fold": "shelf"}],
     )
-    assert drawn["folds"]["words"] == {"open": "true", "shown": True}
+    assert drawn["folds"]["shelf"] == {"open": "true", "shown": True}
     assert json.loads(drawn["remembered"]) == {}
 
 
@@ -599,105 +425,6 @@ def test_an_unfinished_text_of_your_own_is_the_door_whatever_the_catalogue_offer
     assert drawn["carry"]["heading"] == "Continue" and drawn["carry"]["title"] == "א"
 
 
-def test_nothing_is_suggested_when_there_is_nothing_left() -> None:
-    """An empty row saying nothing is worse than no row."""
-    shelf = [reader(name, name, entry=name, difficulty=20) for name in ("easy", "middling")]
-    drawn = draw(shelf, catalogue=[entry("easy", "קל", 16), entry("middling", "בינוני", 24)])
-    assert drawn["suggested"] is None
-
-
-def test_the_progress_step_carries_the_two_numbers_behind_it() -> None:
-    kept = vocabulary(word("ספר", "book", status=9))
-    stored = dict(kept)
-    stored["targum:days"] = json.dumps({"2026-08-24": 1, "2026-08-25": 1})
-    drawn = draw([reader("a", "א")], stored)
-    assert drawn["progress"] == "1 word, 2 days"
-
-
-def test_the_suggestion_is_a_card_with_a_picture_and_a_reason() -> None:
-    """A line of text in a list is not something anybody takes up. It gets the same shape
-    as the book you were already reading: a cover, a title, and a line about it."""
-    drawn = draw(
-        [reader("a", "א", difficulty=16, register="biblical", opened=1)],
-        FINISHED_A,
-        catalogue=[
-            entry("psalms", "תהילים", 24, blurb="A hundred and fifty of them.", register="biblical")
-        ],
-    )
-    assert drawn["suggested"]["blurb"] == "A hundred and fifty of them."
-    assert drawn["suggested"]["cover"] is not None, "the same tile the shelf draws"
-    assert drawn["suggested"]["cover"]["letter"] == "ת", "or the text's own first letter"
-
-
-def test_pressing_the_suggestion_builds_the_text_it_offered() -> None:
-    """The card acts rather than pointing somewhere.
-
-    It used to be a link to the catalogue with this text outlined somewhere in it, which
-    handed back the choice that had just been made for the reader — and the outline was
-    lost altogether whenever the library had a filter remembered from last time.
-
-    What is asserted is which text was sent. A card offering one book and building its
-    neighbour would be unnoticeable, and expensive.
-    """
-    shelf = [reader("a", "א", difficulty=28, register="biblical", opened=1)]
-    drawn = draw(shelf, FINISHED_A, catalogue=SCRIPTURE, do=[{"press": "suggest"}])
-
-    assert drawn["suggested"]["entry"] == "harder", "the easiest one harder than 28"
-    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
-    assert len(started) == 1, "one press, one build"
-    assert started[0]["body"]["source"] == "s:harder"
-    assert started[0]["body"]["from"] == "he"
-    # Every published translation, not the first. The reader switches between them, so a
-    # build that sent one would quietly halve what the finished text offers.
-    assert started[0]["body"]["translations"] == ["t:hard", "t:hard2"]
-
-
-def test_a_text_nobody_has_translated_is_still_built() -> None:
-    """Most of the catalogue has a published translation and some of it does not. The
-    build is the same call either way — an empty list, not a missing key, which is what
-    `/prepare` reads to mean there is nothing to line up against."""
-    drawn = draw(
-        [reader("a", "א", difficulty=28, register="biblical", opened=1)],
-        FINISHED_A,
-        catalogue=[SCRIPTURE[3]],
-        do=[{"press": "suggest"}],
-    )
-    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
-    assert started[0]["body"]["source"] == "s:hardest"
-    assert started[0]["body"]["translations"] == []
-
-
-def test_the_card_says_what_it_is_doing_and_cannot_be_pressed_twice() -> None:
-    """A build takes minutes. The line that said why the text was suggested has done its
-    job by then, so it is where the build narrates — and a card that stayed pressable
-    would start a second build over the first, which costs twice."""
-    drawn = draw(
-        [reader("a", "א", difficulty=28, register="biblical", opened=1)],
-        FINISHED_A,
-        catalogue=SCRIPTURE,
-        do=[{"press": "suggest"}, {"press": "suggest"}, {"press": "suggest"}],
-    )
-    assert drawn["suggested"]["why"] != "", "it says something"
-    assert not drawn["suggested"]["why"].startswith("A step up"), "and it is not the reason"
-    assert drawn["suggested"]["disabled"] is True
-    started = [call for call in drawn["asked"] if "/prepare" in call["path"]]
-    assert len(started) == 1, "three presses, one build"
-
-
-def test_an_ignored_word_does_not_blank_the_table() -> None:
-    """Ignored is 0, and the status table has no 0: it is not a step on the ramp. Asking
-    it for one threw, and the whole word table went blank for anybody who had ever
-    pressed `i` and then asked to see everything."""
-    drawn = draw(
-        [reader("a", "א")],
-        vocabulary(word("ספר", "book", status=9), word("עיר", "city", status=0)),
-        filter="all",
-    )
-    rows = {row["term"]: row["well"] for row in drawn["words"]}
-    assert rows["עיר"] == "ignored"
-    assert rows["ספר"] == "known"
-
-
 def test_a_reader_with_nothing_is_handed_the_shared_text() -> None:
     """ "When alpha user logs in, no idea where to start." The first card on the page is
     where to start: a text already built, so there is nothing to choose and nothing to
@@ -723,56 +450,25 @@ def test_nothing_known_is_not_said_on_the_first_card() -> None:
     assert later["carry"]["known"] == "You know 40% of its words"
 
 
-def test_each_hebrew_has_its_own_door_whichever_was_built_last() -> None:
-    """Modern on the left, Biblical on the right, whatever order the shared texts were
-    built in. Two cohorts with little crossover, and each finds theirs at a glance."""
-    drawn = draw(
+def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
+    """One sheet, two tracks (2026-09-11: Learn is the room you learn in, and the
+    Biblical door that stood beside the sheet is on the Library). A first visit opens
+    on modern Hebrew; once either track has been opened, the sheet is that one."""
+    holon = reader("holon", "הפועל חולון", "sport-holon-basketball", kind="article")
+    ruth = reader("ruth", "רות", "ruth", register="biblical")
+    fresh = draw([], shared=[ruth, holon])
+    assert fresh["carry"]["track"] == "Modern Hebrew" and fresh["carry"]["title"] == "הפועל חולון"
+    assert fresh["carry"]["heading"] == "Start here"
+    assert fresh["known"] == "Mark a word while reading and it starts here."
+    biblical = draw([], {"targum:opened": json.dumps({"ruth": 7})}, shared=[holon, ruth])
+    assert biblical["carry"]["track"] == "Biblical Hebrew" and biblical["carry"]["title"] == "רות"
+    assert biblical["carry"]["heading"] == "Continue"
+    both = draw(
         [],
-        shared=[
-            reader("holon", "הפועל חולון", "sport-holon-basketball", kind="article"),
-            reader("ruth", "רות", "ruth", register="biblical"),
-        ],
+        {"targum:opened": json.dumps({"ruth": 7, "holon": 9})},
+        shared=[ruth, holon],
     )
-    assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["title"] == "הפועל חולון"
-    assert drawn["suggested"]["track"] == "Biblical Hebrew" and drawn["suggested"]["title"] == "רות"
-
-
-def test_the_start_comes_with_a_modern_alternative() -> None:
-    """Ruth is the start. A reader an open Tanakh would put off — most people arriving
-    somewhere around aleph plus — is offered something modern beside it, already built,
-    so pressing the card opens it rather than buying anything."""
-    drawn = draw(
-        [],
-        shared=[
-            reader("ruth", "רות", "ruth", register="biblical"),
-            reader("holon", "הפועל חולון", "sport-holon-basketball", kind="article", minutes=5),
-        ],
-        do=[{"press": "suggest"}],
-    )
-    # Said as a choice: two doors in the same state, each naming its Hebrew, and a line
-    # above them that says to pick one. Neither carries the accent — the choice is
-    # genuinely two-way — and nothing on the page says "ready", which is build talk.
-    assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["heading"] == "Start here"
-    assert drawn["carry"]["title"] == "הפועל חולון" and drawn["carry"]["meta"] == "5 min"
-    assert drawn["suggested"] is not None
-    assert drawn["suggested"]["track"] == "Biblical Hebrew"
-    assert drawn["suggested"]["heading"] == "Start here"
-    assert drawn["suggested"]["title"] == "רות"
-    assert drawn["suggested"]["entry"] == "ruth"
-    assert drawn["carry"]["primary"] is False and drawn["suggested"]["primary"] is False
-    assert drawn["known"] == "Modern or Biblical. Start with one."
-    assert not [call for call in drawn["asked"] if "/prepare" in call["path"]], "nothing is built"
-    assert "/reader/ruth/reader/index.html" in drawn["went"], (
-        "pressing the Biblical door opens Ruth"
-    )
-
-
-def test_with_one_shared_text_the_catalogue_suggestion_still_draws() -> None:
-    drawn = draw([], shared=[reader("ruth", "רות", "ruth")], catalogue=[])
-    assert drawn["carry"]["heading"] == "Start here"
-    assert drawn["suggested"] is None, (
-        "nothing in the catalogue to offer, and no second shared text"
-    )
+    assert both["carry"]["title"] == "הפועל חולון", "the one opened last"
 
 
 def test_a_text_with_no_uncommon_word_in_it_is_still_offered() -> None:
@@ -810,20 +506,6 @@ def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
     )
     (row,) = drawn["shelf"]
     assert row["chapters"] == "2 of 4 translated"
-
-
-def test_every_empty_list_says_what_fills_it() -> None:
-    """A new account meets three empty lists at once. Each says what lands in it and
-    where to go, rather than naming a stage the reader has not met."""
-    drawn = draw([], {})
-    assert (
-        drawn["wordsEmpty"] == "Nothing yet. Tap a word while reading and say how well you know it."
-    )
-    assert drawn["shelfNote"] == "Nothing here yet. Texts you open land here."
-
-    # With words kept but none still being learned, the stage is the honest answer.
-    known_only = draw([], vocabulary(word("שלום", "hello", status=9)))
-    assert known_only["wordsEmpty"] == "Nothing at that stage yet."
 
 
 def test_a_card_carries_the_title_in_english_under_the_hebrew() -> None:
@@ -889,12 +571,11 @@ RUTH = reader(
 )
 
 
-def test_an_account_that_knows_nothing_starts_on_scene_one_and_ruth() -> None:
-    """Two doors, one per Hebrew, both at Start here. Scene 1 says which scene of how
-    many, how long, and that it can be heard; Ruth says its chapters. Nothing says
-    "ready", nothing is accented, and pressing either opens a built text."""
-    drawn = draw([], shared=SCENES + [RUTH], do=[{"press": "suggest"}])
-    assert drawn["known"] == "Modern or Biblical. Start with one."
+def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
+    """The sheet at Start here on Scene 1, which says which scene of how many, how long,
+    and that it can be heard. Nothing says "ready", and Open opens a built text."""
+    drawn = draw([], shared=SCENES + [RUTH])
+    assert drawn["known"] == "Mark a word while reading and it starts here."
     assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["heading"] == "Start here"
     assert (
         drawn["carry"]["title"] == "נעים מאוד" and drawn["carry"]["english"] == "Nice to meet you"
@@ -903,12 +584,10 @@ def test_an_account_that_knows_nothing_starts_on_scene_one_and_ruth() -> None:
     assert drawn["carry"]["href"].endswith(
         "/reader/scene-01-nice-to-meet-you-he/reader/index.html?k=k"
     )
-    assert drawn["suggested"]["track"] == "Biblical Hebrew"
-    assert drawn["suggested"]["heading"] == "Start here" and drawn["suggested"]["title"] == "רות"
-    assert drawn["suggested"]["why"] == "4 chapters · audio"
-    assert drawn["carry"]["primary"] is False and drawn["suggested"]["primary"] is False
     assert not [call for call in drawn["asked"] if "/prepare" in call["path"]]
-    assert "/reader/ruth-he/reader/index.html" in drawn["went"]
+    assert drawn["carry"]["frame"].endswith(
+        "scene-01-nice-to-meet-you-he/reader/index.html?k=k&preview=1"
+    )
 
 
 def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
@@ -917,8 +596,6 @@ def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
     drawn = draw([], opened, shared=[first, *SCENES[1:], RUTH])
     assert drawn["carry"]["heading"] == "Continue"
     assert drawn["carry"]["meta"] == "Scene 1 of 3 · 12 words left · audio"
-    assert drawn["carry"]["primary"] is True, "the track opened most recently carries the accent"
-    assert drawn["suggested"]["primary"] is False
     assert drawn["known"] == "Mark a word while reading and it starts here."
 
 
@@ -933,7 +610,6 @@ def test_a_finished_scene_hands_over_to_the_next() -> None:
     assert drawn["carry"]["title"] == "בבית קפה"
     assert drawn["carry"]["meta"] == "Scene 2 of 3 · 19 words · audio"
     assert drawn["known"] == "You know 3 Hebrew words."
-    assert drawn["suggested"]["heading"] == "Start here", "the other track is where it was"
 
 
 def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
@@ -959,9 +635,7 @@ def test_an_upload_takes_the_door_of_its_own_hebrew() -> None:
     mine = reader("mine-he", "שלי")
     drawn = draw([mine], {"targum:opened": json.dumps({"mine-he": 3})}, shared=SCENES + [RUTH])
     assert drawn["carry"]["heading"] == "Continue" and drawn["carry"]["title"] == "שלי"
-    assert drawn["carry"]["primary"] is True
-    assert drawn["suggested"]["heading"] == "Start here" and drawn["suggested"]["title"] == "רות"
-    assert [row["title"] for row in drawn["shelf"]] == [], "the door's text is not repeated below"
+    assert [row["title"] for row in drawn["shelf"]] == [], "the sheet's text is not repeated below"
 
 
 def test_nothing_on_learn_says_ready() -> None:

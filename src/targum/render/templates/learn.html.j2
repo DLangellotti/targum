@@ -20,7 +20,10 @@
 
 <main id="page" hidden>
   {#- How much of the language you have. First thing on the page, and a real count of a
-      real thing rather than a score — §6: no invented currency. -#}
+      real thing rather than a score — §6: no invented currency. The lists of the words
+      and phrases themselves left this page on 2026-09-11 for Your Words, behind the
+      account: Learn is the room you learn in — the text, the conversation, the shelf —
+      and not a lobby. -#}
   <p class="known-line" id="known-line"></p>
 
   <div class="front" id="front">
@@ -79,45 +82,6 @@
       window, in the primary. Drawn only while the conversation is hidden. -#}
   <button type="button" class="talk-cta" id="talk-cta" hidden>Talk to targum</button>
 
-  <section class="read" aria-labelledby="read-title">
-    <h2 class="section-title" id="read-title">Read</h2>
-    <p class="section-note">Start something new, or see what came out this week.</p>
-    <p class="weekly-line card" id="weekly-line" hidden>
-    <span class="label">This week</span>
-    <a id="weekly-link" href="/">
-      <bdi id="weekly-title" lang="he" dir="rtl"></bdi>
-      <span class="at" id="weekly-at"></span>
-    </a>
-    <span class="when" id="weekly-when"></span>
-  </p>
-
-    <div class="doors">
-    <button type="button" class="door suggest" id="suggest" hidden>
-      <span class="card-track" id="suggest-track" hidden></span>
-      <h2 id="suggest-heading">Suggested</h2>
-      <div class="card-body">
-        <span class="card-cover" id="suggest-cover" aria-hidden="true"></span>
-        <div class="card-what">
-          <bdi class="card-title" id="suggest-title"></bdi>
-          <p class="card-english" id="suggest-english" lang="en" dir="ltr" hidden></p>
-          <p class="card-meta" id="suggest-why"></p>
-          <p class="suggest-blurb" id="suggest-blurb"></p>
-        </div>
-      </div>
-    </button>
-    <nav class="next" aria-label="What next">
-    <a class="step" href="/library" data-door="library">
-      <span class="step-what">Library</span>
-      <span class="step-why">Scenes, the Bible, novels, news.</span>
-    </a>
-    <a class="step" href="/progress" data-door="progress">
-      <span class="step-what">Your Progress</span>
-      <span class="step-why" id="step-progress">Words known, days reading.</span>
-    </a>
-  </nav>
-    </div>
-  </section>
-
   <section class="panel" id="shelf-panel">
     <div class="list-controls">
       <h2>{% include '_fold.html.j2' %}<span>Your targums</span></button></h2>
@@ -139,95 +103,6 @@
       </div>
       <ul class="books shelf-rows" id="library-list"></ul>
       <p class="empty" id="shelf-empty" hidden></p>
-    </div>
-  </section>
-
-  {#- Everything you are learning, on the page you land on. Both lists were on Your
-      Progress, which put half of learning next to the charts. -#}
-  <section class="panel">
-    <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span id="words-title">Your Words</span></button></h2>
-      {#- Which language the meanings are in. Drawn only for somebody who has meanings in
-          more than one, the same way the language switcher is: a control with one answer
-          in it is only a question nobody asked. -#}
-      <div class="langs quiet" id="meaning-langs" role="tablist"
-           aria-label="Definition language" hidden></div>
-      <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
-      <select id="status-filter" aria-label="Filter by how well you know them">
-        <option value="learning">Still learning</option>
-        <option value="all">All</option>
-        <option value="1">1 · just met</option>
-        <option value="2">2 · getting there</option>
-        <option value="3">3 · nearly there</option>
-        <option value="9">Known</option>
-        <option value="0">Ignored</option>
-      </select>
-      {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>Export</button>
-      <a class="see-all" id="words-more" href="/words" hidden></a>
-    </div>
-    <div class="fold-body" id="words-body">
-    <div class="table-wrap">
-      <table class="rows" id="word-table">
-        <thead>
-          <tr>
-            <th scope="col">Word</th>
-            <th scope="col">Dictionary form</th>
-            <th scope="col">Meaning</th>
-            <th scope="col">How common</th>
-            <th scope="col">How well</th>
-            <th scope="col">Kept</th>
-          </tr>
-        </thead>
-        <tbody id="word-rows"></tbody>
-      </table>
-    </div>
-    <p class="empty" id="words-empty" hidden></p>
-    <button type="button" class="more" id="more" hidden></button>
-    </div>
-  </section>
-
-  {#- Words you may already know (2026-09-10, targum-internal#245). A reader who reads
-      Hebrew already arrives with a ledger of nothing, and the level is a real count of
-      known words: rather than a level they could claim, the commonest words they have
-      not met, fifty at a time, a checkbox on each and one at the head that checks
-      them all (2026-09-11: "this should work with checkboxes") — every check a real
-      known word, so the count rises because it should. Hebrew only, drawn by
-      `claim.js`, and hidden until it has rows to show. -#}
-  <section class="panel claim" id="claim-panel" hidden>
-    <h2>Words you may already know</h2>
-    <p class="note">The commonest words of modern Hebrew that are not on your ledger yet.
-      Check the ones you know; the rest are left, and the next fifty come up.</p>
-    <div class="table-wrap">
-      <table class="rows claim-table" id="claim-table">
-        <thead>
-          <tr>
-            <th scope="col" class="claim-tick"><input type="checkbox" class="claim-check" id="claim-all" aria-label="Check all"></th>
-            <th scope="col">Word</th>
-            <th scope="col">Meaning</th>
-            <th scope="col">How common</th>
-          </tr>
-        </thead>
-        <tbody id="claim-rows"></tbody>
-      </table>
-    </div>
-    <div class="claim-actions">
-      <button type="button" class="claim-yes" id="claim-yes" disabled>Mark checked as known</button>
-      <button type="button" class="claim-no" id="claim-no">None of these</button>
-      <span class="claim-said" id="claim-said"></span>
-    </div>
-  </section>
-
-  <section class="panel">
-    <div class="list-controls">
-      <h2>{% include '_fold.html.j2' %}<span id="phrases-title">Your Phrases</span></button></h2>
-      <button type="button" id="export-phrases" hidden>Export</button>
-      <a class="see-all" id="phrases-more" href="/phrases" hidden></a>
-    </div>
-    <div class="fold-body" id="phrases-body">
-      <p class="note">Phrases stay with the text they came from.</p>
-      <div id="phrase-list"></div>
-      <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while reading.</p>
     </div>
   </section>
 
@@ -254,18 +129,14 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
-window.TARGUM_WEEKLY = {{ weekly|tojson }};
 </script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
-<script>{{ asset('vocab.js') }}</script>
-<script>{{ asset('lists.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
-<script>{{ asset('claim.js') }}</script>
 </body>
 </html>
