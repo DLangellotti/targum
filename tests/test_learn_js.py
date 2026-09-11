@@ -366,8 +366,10 @@ def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
     page = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
     ).read_text(encoding="utf-8")
-    top = page[page.index('<div class="doors">') : page.index('id="shelf-panel"')]
-    assert top.count('<a class="door') == 1, "carrying on is a link: it goes to a reader"
+    top = page[page.index('<div class="front">') : page.index('id="shelf-panel"')]
+    assert top.count('<a class="page-sheet" id="carry"') == 1, (
+        "carrying on is a link: it goes to a reader — the sheet, since §13"
+    )
     assert top.count('<button type="button" class="door') == 1, "the suggestion acts"
     assert top.count('<a class="step"') == 2, (
         "the library and the progress; uploading is the + on the box"

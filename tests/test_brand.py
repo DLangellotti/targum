@@ -73,6 +73,16 @@ PALETTE = {
     "#c2517a": "rose",
     # Deep paper (§9): structural only, never a text background.
     "#ece7de": "desk",
+    # The desk's own values (§13, 2026-09-11): the one cool hue that marks a control, in
+    # both themes and as the text on it; the well's rule; the bar on dark; the muted on
+    # the bar. The ground, the card and the bar on light are values already here.
+    "#1f6f6b": "teal, light",
+    "#6fb8b3": "teal, dark",
+    "#0f1a19": "text on teal, dark",
+    "#cfc7b9": "well, light",
+    "#3a3631": "well, dark",
+    "#0c0b0a": "bar, dark",
+    "#8a827a": "bar muted, dark",
     # The other two deep paper tones are already above: #e7e1d6 doubles as the chart
     # grid and #e6e1d8 as ink on the dark surface. Same values, different jobs.
     # The max-contrast pair (§9).
@@ -99,6 +109,9 @@ SIZES = {
     "1.75rem",
     "1.5rem",
     "1.5em",
+    # §13: section titles and meta on the desk.
+    "1.25rem",
+    "0.875rem",
     "1.0625rem",
     "0.9375rem",
     "0.8125rem",

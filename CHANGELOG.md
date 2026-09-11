@@ -414,6 +414,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   number that stands for something else. Nobody is named in it (targum-internal#50).
 
 ### Changed
+- The chrome has a system of its own, the desk (design.md §13), and the front page is
+  the first page on it: every chrome page stands on the desk in the chrome's own face,
+  Source Sans 3, carried in the page like the Hebrew faces; the header is the ink bar;
+  cards lift off the ground; teal marks every control; and the text to carry on with is
+  drawn as a sheet lying on the desk — pure paper, the reading faces, its first two
+  lines with their English off `/excerpt/<name>` — beside the conversation. The reader
+  is untouched and never loads the face. `test_brand.py` widens its palette and type
+  scale by exactly what §13 names (2026-09-11).
 - The front page is in named parts, and a line typed there is answered in place. Under
   the count, Talk to targum with one sentence saying what it is, the box, the things
   most readers ask as verbs, and the thread opening under them — the conversation page's

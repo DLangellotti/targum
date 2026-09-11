@@ -3821,6 +3821,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith("/excerpt/"):
+            return self._excerpt(unquote(route[len("/excerpt/") :]))
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
@@ -4535,6 +4537,45 @@ class Handler(BaseHTTPRequestHandler):
                 "into": target,
             }
         )
+
+    #: How many lines the sheet on the front page shows of a text.
+    EXCERPT_LINES = 2
+
+    def _excerpt(self, name: str) -> None:
+        """A text's first lines with their English, for the sheet on the front page
+        (design.md §13): the page shows the thing it is about rather than describing it.
+        Off the artifacts on disk — the segments and the translation the reader is
+        drawn in — never a model. Nothing for a text with no translation yet."""
+        from .models import SegmentedDocument, Translation, read_artifact
+
+        home = self._home()
+        folder = self.library.within(home, name)
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if segmented is None:
+            return self._json({"lines": []})
+        reads = self._reads(self._person())
+        best: Translation | None = None
+        for path in sorted((folder / "translations").glob("*.json")):
+            translation = read_artifact(Translation, path)
+            if translation is None:
+                continue
+            if best is None or (
+                translation.target_language in reads and best.target_language not in reads
+            ):
+                best = translation
+        lines: list[dict[str, str]] = []
+        for segment in segmented.segments:
+            if segment.kind.value in ("heading", "byline") or not segment.text.strip():
+                continue
+            english = best.segments.get(segment.id, "") if best else ""
+            if not english:
+                continue
+            lines.append({"he": segment.text, "en": english, "id": segment.id})
+            if len(lines) >= self.EXCERPT_LINES:
+                break
+        self._json({"lines": lines, "language": segmented.language})
 
     def _hours(self, person_id: int | None) -> dict[str, Any]:
         """The month's hours, used and allowed, and when the month turns. Reckoned in one

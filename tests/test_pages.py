@@ -171,6 +171,23 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     assert order.index("learn") == 0
 
 
+def test_the_front_page_opens_on_the_sheet_beside_the_conversation() -> None:
+    """design.md §13 (2026-09-11): the text to read, drawn as a page on the desk with its
+    first lines, and the conversation beside it; the chrome's face carried in every page
+    that wears the bar; the reader never loads it."""
+    learn = PAGES["learn"]
+    assert learn.index('class="front"') < learn.index('id="carry"') < learn.index('id="talk-title"')
+    assert 'class="page-sheet" id="carry"' in learn and 'id="carry-lines"' in learn
+    for name, page in PAGES.items():
+        assert page.count('font-family:"Source Sans 3"') == 2, (
+            f"{name}: the chrome face, upright and italic"
+        )
+    from targum.render.builder import ASSETS
+
+    reader = (ASSETS / "reader.css").read_text(encoding="utf-8")
+    assert "--chrome:" in reader and "--ground:" in reader and "--teal:" in reader
+
+
 def test_the_front_page_names_its_parts_and_answers_in_place() -> None:
     """2026-09-11: "nothing is labeled", "I can't really tell that it's a chat", "I should
     not be sent to a new page". The conversation is a named section with a sentence
@@ -200,8 +217,8 @@ def test_the_box_is_the_front_door() -> None:
     learn = PAGES["learn"]
     assert 'id="composer"' in learn and 'id="say"' in learn
     assert (
-        learn.index('id="known-line"') < learn.index('id="composer"') < learn.index('id="carry"')
-    ), "under the count, above the cards"
+        learn.index('id="known-line"') < learn.index('id="carry"') < learn.index('id="composer"')
+    ), "under the count, beside the sheet (§13)"
     for name in ("learn", "chat"):
         page = PAGES[name]
         for control in ('id="chat-bring"', 'id="chat-mic"', 'id="chat-send"', 'id="chat-said"'):

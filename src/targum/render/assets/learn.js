@@ -290,6 +290,37 @@
     var said = share(reader);
     known.hidden = !said;
     known.textContent = said;
+    drawLines(reader);
+  }
+
+  // The sheet's first lines (§13): the text's own words with their English, off the
+  // server's artifacts and never a model. A text with none yet shows its title alone.
+  function drawLines(reader) {
+    var host = document.getElementById("carry-lines");
+    if (!host || !reader || !reader.name) return;
+    host.textContent = "";
+    if (typeof fetch !== "function") return;
+    fetch(keyed("/excerpt/" + encodeURIComponent(reader.name)))
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (answer) {
+        host.textContent = "";
+        (answer.lines || []).forEach(function (line) {
+          var he = document.createElement("span");
+          he.className = "he";
+          he.setAttribute("lang", answer.language || "he");
+          he.textContent = line.he;
+          var en = document.createElement("span");
+          en.className = "en";
+          en.textContent = line.en;
+          host.appendChild(he);
+          host.appendChild(en);
+        });
+      })
+      .catch(function () {
+        host.textContent = "";
+      });
   }
 
   /* --- what to read next ------------------------------------------------------

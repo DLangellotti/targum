@@ -203,6 +203,7 @@ def _environment() -> Environment:
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     env.globals["hebrew_face"] = _hebrew_face
+    env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
     return env
 
@@ -320,6 +321,29 @@ def _hebrew_face(biblical: bool = False) -> Markup:
         f'@font-face{{font-family:"{family}";'
         f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
         f':root{{--reading-hebrew:"{family}", {_FALLBACK}}}'
+        "</style>"
+    )
+
+
+#: The chrome's own face (design.md §13, 2026-09-11): Source Sans 3, Adobe's, under the
+#: OFL, the variable Latin cut from Google Fonts and its italic. Carried in the page like
+#: the Hebrew faces, on chrome pages only: a reader fetches nothing and keeps system-ui in
+#: its bar, and a chrome page that merely named the face would get whatever the machine
+#: has, which is the wall of text §12 records.
+CHROME_FACE = ("Source Sans 3", "fonts/SourceSans3.woff2", "fonts/SourceSans3-Italic.woff2")
+
+
+@cache
+def _chrome_face() -> Markup:
+    """The chrome's face, in the page. `--chrome` in reader.css names it with its
+    fallbacks; this is what makes the name true."""
+    family, upright, italic = CHROME_FACE
+    return Markup(
+        "<style>"
+        f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
+        f'src:url({_data_uri(upright)}) format("woff2");font-display:block}}'
+        f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
+        f'src:url({_data_uri(italic)}) format("woff2");font-display:block}}'
         "</style>"
     )
 

@@ -194,10 +194,14 @@ main {
   border: 1px solid var(--rule);
   border-radius: 8px;
   min-width: 0;
+  /* A card on the desk (§13): it lifts off the ground, and its name is in the
+     chrome's face — the serif here is for a word, never a heading. */
+  background: var(--card);
+  box-shadow: var(--card-shadow);
 }
 .panel h2 {
   margin: 0;
-  font-family: var(--reading);
+  font-family: var(--chrome);
   font-size: 1.0625rem;
   font-weight: 600;
 }

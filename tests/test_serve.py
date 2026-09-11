@@ -2653,3 +2653,17 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
         "settled to the clip, not the estimate"
     )
     assert job.spent == pytest.approx(4.0 / 60 * 0.02)
+
+
+def test_the_sheet_reads_a_text_s_first_lines_off_the_disk(served: tuple[int, str, Path]) -> None:
+    """design.md §13: the front page shows the text with its English, two lines of it, in
+    the language the reader reads; headings are skipped; a text with no translation yet
+    shows nothing."""
+    port, key, out = served
+    _book(out / "local" / "book-he", chapters=2, translated=1)
+    status, answer = get(port, f"/excerpt/book-he?k={key}")
+    assert status == 200
+    assert [line["he"] for line in answer["lines"]] == ["line 0", "line 1"], "two lines, no heading"
+    assert all(line["en"] == "translated" for line in answer["lines"])
+    status, missing = get(port, f"/excerpt/nowhere?k={key}")
+    assert status == 404

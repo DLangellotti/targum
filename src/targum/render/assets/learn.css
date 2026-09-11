@@ -22,9 +22,11 @@ body.learn main[hidden] {
 /* How much of the language you have, said once, in the reading face with tabular
    figures. The ledger treatment §6 asks for: a count of a real thing, not a score. */
 .known-line {
-  margin: 0 0 0.25rem;
-  font-family: var(--reading);
+  margin: 0 0 1.5rem;
+  font-family: var(--chrome);
   font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
@@ -474,3 +476,133 @@ body.learn .nothing .hint {
   text-transform: uppercase;
   color: var(--ink);
 }
+
+
+/* --- the desk (§13, 2026-09-11) --------------------------------------------------
+   The front page: the sheet and the conversation side by side, the sheet first on a
+   phone; then Read; then the panels as cards. Headings in the chrome's face; the
+   reading faces only inside the sheet and where a text's own title stands. */
+.front {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 1.5rem;
+  align-items: start;
+  margin-block-end: 3rem;
+}
+@media (max-width: 48rem) { .front { grid-template-columns: minmax(0, 1fr); } }
+/* Nothing to carry on with: the conversation takes the row. */
+.front:has(.page-sheet[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.front:has(.page-sheet[hidden]) .talk { max-inline-size: 42rem; }
+.label {
+  margin: 0 0 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.carry-on[hidden], .carry-on:has(.page-sheet[hidden]) { display: none; }
+/* The sheet: a text drawn as itself, on the desk. Pure paper, the reading faces, a
+   shadow with the offset a page casts. Not a card: no rule, and the only pure-paper
+   surface on the page. */
+.page-sheet {
+  display: block;
+  padding: 1.4rem 1.6rem 1.3rem;
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: 0;
+  box-shadow: var(--page-shadow);
+  min-inline-size: 0;
+}
+.page-sheet[hidden] { display: none; }
+.page-sheet:hover { transform: translateY(-1px); transition: transform 120ms ease-out; }
+.page-sheet .card-track { color: var(--ink-soft); }
+.page-sheet .card-cover { display: none; }
+.page-title {
+  display: block;
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0.3rem 0 0;
+}
+.page-title:lang(he) { font-family: var(--reading-hebrew); direction: rtl; text-align: right; }
+.page-english {
+  margin: 0 0 0.8rem;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  color: var(--ink-soft);
+}
+.page-lines { display: grid; gap: 0.5rem; margin: 0.6rem 0 0; }
+.page-lines .he {
+  display: block;
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  line-height: 1.95;
+  direction: rtl;
+  text-align: right;
+}
+.page-lines .en {
+  display: block;
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.page-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 1rem 0 0;
+  padding-block-start: 0.9rem;
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.page-foot .carry-known { color: var(--leaf); font-weight: 600; font-family: var(--chrome); font-size: 0.875rem; margin: 0; }
+.page-foot .carry-known[hidden] { display: none; }
+.page-foot .open {
+  margin-inline-start: auto;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+@media (prefers-reduced-motion: reduce) { .page-sheet:hover { transform: none; transition: none; } }
+
+/* A card on the desk: what everything that is not the sheet sits in. */
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: var(--card-shadow);
+}
+.talk.card { padding: 1.1rem 1.25rem 1.25rem; margin: 0; }
+.talk .section-title { font-size: 1.0625rem; margin-block-end: 0.25rem; }
+.talk .section-note { margin-block-end: 0.9rem; }
+.section-title { font-family: var(--chrome); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+.section-sub { font-family: var(--chrome); }
+.read { margin-block: 0 3rem; }
+.weekly-line.card {
+  padding: 0.85rem 1.1rem;
+  margin: 0 0 1rem;
+  border-block-end: 1px solid var(--rule);
+}
+.weekly-line .label { margin: 0; }
+/* The doors are cards too, and so are the two steps beside them. */
+.door {
+  background: var(--card);
+  box-shadow: var(--card-shadow);
+}
+.door h2 { font-family: var(--chrome); }
+.doors { align-items: stretch; }
+.next { grid-column: 1 / -1; }
+.step { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--card-shadow); }
+.step-what { font-family: var(--chrome); }
+/* The thread on the front page sits in the conversation's card. */
+.learn .chat-thread { background: var(--ground); }

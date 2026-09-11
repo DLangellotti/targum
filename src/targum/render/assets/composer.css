@@ -56,9 +56,9 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   padding: 0.6rem 0.75rem;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--well);
   border-radius: 6px;
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
   /* One row at rest, growing with what is typed to six lines or so, then scrolling;
      the grip is gone because the field sizes itself. `field-sizing` where the browser
@@ -69,7 +69,7 @@
   max-block-size: 9.5rem;
   width: 100%;
 }
-.composer textarea:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.composer textarea:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
 
 /* A file or a recording, brought and priced in place (2026-09-06): the Add page's job
    in one press, where Upload was a corner of the nav. A typed `+` as itself (§7), in a
@@ -80,9 +80,9 @@
   width: 2.4rem;
   height: 2.4rem;
   padding: 0;
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--well);
   border-radius: 999px;
-  background: transparent;
+  background: var(--card);
   font: inherit;
   font-size: 1.0625rem;
   line-height: 1;
@@ -204,7 +204,7 @@
 
 .quote-more {
   font-size: 0.8125rem;
-  color: var(--accent);
+  color: var(--teal);
   text-decoration: none;
   border-block-end: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
@@ -221,9 +221,9 @@
   width: 2.4rem;
   height: 2.4rem;
   padding: 0;
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--well);
   border-radius: 999px;
-  background: transparent;
+  background: var(--card);
   color: var(--ink);
   cursor: pointer;
 }
@@ -232,7 +232,7 @@
 .chat-mic[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .chat-mic[hidden] { display: none; }
 
-/* Send: the one accent on the row, and an arrow in it. */
+/* Send: the desk's one control colour (§13), and an arrow in it. */
 .chat-send {
   display: inline-grid;
   place-items: center;
@@ -241,8 +241,8 @@
   padding: 0;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--paper);
+  background: var(--teal);
+  color: var(--teal-ink);
   cursor: pointer;
 }
 .chat-send:hover { filter: brightness(1.08); }
@@ -272,19 +272,20 @@
 .chat-chips[hidden] { display: none; }
 .chat-ask {
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
   padding: 0.4rem 0.8rem;
-  border: 1px solid var(--ink-soft);
+  border: 1px solid var(--well);
   border-radius: 999px;
-  background: transparent;
-  color: var(--ink);
+  background: var(--card);
+  color: var(--teal);
   cursor: pointer;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chat-ask:hover { background: var(--paper-raised); }
+.chat-ask:hover { background: var(--teal-wash); }
 .chat-ask:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* "Another", under the card the first chip hands back: the next text, the same way. */
 .chat-another {

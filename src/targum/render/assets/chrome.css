@@ -10,12 +10,21 @@
    three pages had drifted into three different arrangements of the same three
    things, which made moving between them feel like moving between three sites. */
 
-.site-head {
-  padding-block-start: 1.6rem;
-  /* Pinned rather than inherited: the start page sets its own body font, and the same
-     header rendered in two faces sat six pixels apart between pages. */
-  font-family: system-ui, sans-serif;
+/* The desk (§13, 2026-09-11): every chrome page stands on the ground, in the chrome's
+   face; the reader, which never loads this file, keeps its page. */
+body {
+  background: var(--ground);
+  font-family: var(--chrome);
 }
+/* The ink bar: the screen's one inverted block, the name and the places on it. */
+.site-head {
+  background: var(--bar);
+  color: var(--bar-ink);
+  font-family: var(--chrome);
+}
+.site-head-row { padding-block: 0.65rem; }
+.site-head .brand, .site-head .brand span { color: var(--bar-ink); }
+.site-head [data-theme-toggle] { color: var(--bar-ink); border-color: rgb(255 253 249 / 0.25); }
 .site-head-row,
 .site-head h1,
 .site-head .langs,
@@ -33,6 +42,7 @@
 .brand {
   display: inline-flex;
   align-items: center;
+  color: var(--bar-ink);
   /* Clear space is what the mark asks of whatever surrounds it, not of the name it is
      joined to. The drawn lockup's own gap measures 0.14em, but that is set against a
      84-unit name: at 1.2rem the same ratio closes up, so this is the optical match. */
@@ -82,14 +92,16 @@
   font-size: 0.8125rem;
 }
 .site-nav a {
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  color: var(--ink-soft);
+  padding: 0.35rem 0.7rem;
+  border-radius: 6px;
+  color: var(--bar-muted);
+  font-size: 0.9375rem;
+  font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
 }
-.site-nav a:hover { color: var(--ink); background: var(--paper-raised); }
-.site-nav a.on { color: var(--paper); background: var(--ink-soft); }
+.site-nav a:hover { color: var(--bar-ink); background: rgb(255 253 249 / 0.08); }
+.site-nav a.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.10); box-shadow: inset 0 -2px 0 var(--teal); }
 
 /* Under 46rem the things in the bar — name, three places, account, light switch — do
    not fit on one line. Left to wrap on their own, the name took the first line alone
@@ -116,16 +128,19 @@
 
 .account { position: relative; }
 .account > button {
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  color: var(--bar-ink);
+  border: 1px solid rgb(255 253 249 / 0.25);
+  background: transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
   white-space: nowrap;
   max-width: 12rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.account > button:hover { color: var(--ink); }
+.account > button:hover { color: var(--bar-ink); background: rgb(255 253 249 / 0.08); }
 
 /* Signed in, the button is a circle rather than a name: an address is too long for a
    corner and is nobody else's business on a shared screen. A picture fills it where a
@@ -137,22 +152,26 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--rule);
+  border: 0;
   border-radius: 50%;
-  color: var(--ink-soft);
+  background: var(--teal);
+  color: var(--teal-ink);
   font-size: 0.6875rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
 }
-.account > button.avatar:hover { color: var(--ink); border-color: var(--ink-soft); }
+.account > button.avatar:hover { color: var(--teal-ink); filter: brightness(1.08); }
 .account > button.avatar img {
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
   display: block;
 }
-.account > button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
+.account > button.on { color: var(--bar-ink); background: rgb(255 253 249 / 0.14); }
 
 .account-panel {
+  color: var(--ink);
+  font-family: var(--chrome);
   position: absolute;
   inset-inline-end: 0;
   inset-block-start: calc(100% + 0.4rem);
