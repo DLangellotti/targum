@@ -2124,7 +2124,9 @@ def render(
         # recording, and only while the voice has a price, the door and what it costs
         # in the reader's own hours. Nothing where audio exists or the voice is unpriced.
         voice_offer: dict[str, Any] | None = None
-        if not spoken.audio and document.language.split("-")[0] == "he":
+        from ..speech import speaks
+
+        if not spoken.audio and speaks(document.language):
             from ..chat.hebrew import seconds_for, words_in
             from ..speech import priced
 

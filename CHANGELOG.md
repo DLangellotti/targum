@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Read-aloud in French, Russian and Italian. The voice was told "Read this Hebrew aloud"
+  whatever the text was; it is now told the text's language (`speech.ask`), Hebrew's
+  instruction byte for byte as it was. "Hear this section" is offered on a silent section
+  in any of the four, and a spoken reply is read in its conversation's language. Yiddish
+  and Aramaic are not offered a voice and are refused at the door: Gemini's speech model
+  lists neither, and a Hebrew reading of their letters would be wrong.
 - The chat's shelf says when each text was last opened and finished. "What was the
   last targum I read?" was answered "the list does not keep times" (2026-09-08); the
   reader's own sync had always clocked every open and every chapter finished, and only

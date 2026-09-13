@@ -2648,7 +2648,7 @@ def test_a_voice_that_stops_part_way_settles_what_was_said(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
         raise speech.Interrupted("The voice did not answer.", seconds=6.0)
 
     monkeypatch.setattr(speech, "render_lines", render_lines)
@@ -2702,7 +2702,7 @@ def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
         folder / "document.json"
     )
 
-    def render_lines(lines: list[str], into: Path, voice: str = "") -> Any:
+    def render_lines(lines: list[str], into: Path, voice: str = "", language: str = "he") -> Any:
         into.parent.mkdir(parents=True, exist_ok=True)
         clip = into.with_suffix(".mp3")
         clip.write_bytes(b"mp3")
