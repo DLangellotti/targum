@@ -203,6 +203,16 @@ class Rendering:
     publisher: str = ""
     licence: str = ""
 
+    @property
+    def language(self) -> str:
+        """What it is written in, as its source names it — `sefaria:en:Genesis`, and
+        `sefaria:arc:Genesis` for Targum Onkelos — by the rule `parallel_key` reads a
+        language off a source with. English where the source names none: a Global Voices
+        address is the English original, and so is everything else on the shelf."""
+        parts = self.source.split(":")
+        named = parts[1] if len(parts) > 2 else ""
+        return named if named.isalpha() and named.islower() and len(named) <= 3 else "en"
+
 
 @dataclass(frozen=True)
 class Collection:

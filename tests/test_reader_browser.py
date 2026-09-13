@@ -185,7 +185,9 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
     return pages[0]
 
 
-def bilingual(out: Path) -> Path:
+def bilingual(
+    out: Path, second: tuple[str, str, str] = ("Russian", "ru", "На земле Израиля")
+) -> Path:
     """The same chapter with two translations and a glossary for each.
 
     Short, because nothing here is about layout: what it is for is the one question a
@@ -238,7 +240,7 @@ def bilingual(out: Path) -> Path:
         segmented,
         [
             translation("English", "en", "In the land of Israel"),
-            translation("Russian", "ru", "На земле Израиля"),
+            translation(*second),
         ],
         out,
         annotation=Annotation(
@@ -1283,6 +1285,33 @@ def test_switching_translation_switches_the_language(browser, two_languages: Pat
     russian = page.evaluate(CELLS)
     assert russian["langs"] == ["ru"], "the cells still claimed the first language"
     assert "На земле Израиля" in russian["first"]
+    context.close()
+
+
+@pytest.fixture(scope="module")
+def beside_onkelos(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return bilingual(
+        tmp_path_factory.mktemp("onkelos") / "reader", ("Onkelos", "arc", "בְּאַרְעָא דְיִשְׂרָאֵל")
+    )
+
+
+def test_onkelos_changes_the_column_and_the_card_stays_in_english(
+    browser, beside_onkelos: Path
+) -> None:
+    """Targum Onkelos is read beside the Hebrew, not into a language (targum-internal#65).
+    Pressed, the column turns Aramaic and right to left — and a word tapped under it still
+    means what it means in English, written as English, rather than looking for a meaning
+    in Aramaic that nobody holds and a lookup would buy."""
+    context, page = open_reader(browser, beside_onkelos)
+    page.evaluate(SWITCH, "t1")
+
+    cells = page.evaluate(CELLS)
+    assert cells["langs"] == ["arc"] and cells["dirs"] == ["rtl"]
+    assert "בְּאַרְעָא" in cells["first"]
+
+    card = page.evaluate(TAP_FIRST)
+    assert card["meaning"] == f"the English of {card['text']}"
+    assert card["lang"] == "en" and not card["asking"]
     context.close()
 
 

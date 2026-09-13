@@ -23,6 +23,7 @@ from targum.models import (
     Token,
     Translation,
     Vocalization,
+    read_artifact,
 )
 from targum.parasha import calendar as cal
 from targum.parasha import cut as cutmod
@@ -206,6 +207,30 @@ def test_everything_keyed_to_a_segment_comes_with_it(corpus: Path, library: Path
     assert portion.vocalization is not None
     assert portion.vocalization.segments.keys() == verses
     assert portion.glossaries["en"].entries
+
+
+def test_a_book_carrying_onkelos_cuts_a_portion_carrying_it(corpus: Path, library: Path) -> None:
+    """Targum Onkelos is a second rendering on the book (targum-internal#65), so the week's
+    portion carries it beside the English, narrowed to the same verses, with nothing
+    fetched and nothing bought."""
+    folder = library / "דברים-he"
+    english = read_artifact(Translation, folder / "translations" / "aligned.deuteronomy.en.json")
+    assert english is not None
+    english.model_copy(
+        update={
+            "name": "Onkelos Deuteronomy",
+            "target_language": "arc",
+            "segments": {sid: f"ארמית {sid}" for sid in english.segments},
+        }
+    ).write(folder / "translations" / "aligned.onkelos-deuteronomy.arc.json")
+
+    reading = a_reading(corpus)
+    portion = cutmod.cut(reading, cutmod.books_for(reading, library))
+    verses = {s.id for s in portion.segmented.segments if s.kind is BlockKind.verse}
+    by_language = {t.target_language: t for t in portion.translations}
+    assert sorted(by_language) == ["arc", "en"]
+    assert by_language["arc"].segments.keys() == verses
+    assert all(text.startswith("ארמית") for text in by_language["arc"].segments.values())
 
 
 def test_the_portion_declares_itself_scripture(corpus: Path, library: Path) -> None:

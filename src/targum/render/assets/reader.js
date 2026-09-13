@@ -244,12 +244,38 @@ var targumReader = function () {
   var glosses = [];
   // Which of the translations is on show. The page opens on the first one.
   var showing = "t0";
+  // Which one the meanings are in. The same one, except while the column shows a
+  // rendering read beside the text rather than into a language — Targum Onkelos beside
+  // the Torah (targum-internal#65). Nobody reads a Hebrew word's meaning in Aramaic, and
+  // asking for one would buy it: so the cards, the list and every lookup stay in the
+  // language they were in, and on a page that opens on Onkelos they take the first
+  // rendering that is not read beside.
+  var meaningFrom = "t0";
+  // And the column's own language and direction, which Onkelos does change: its cells
+  // are Aramaic and run right to left whatever the meanings are in.
+  var columnLanguage = "";
+  var columnDirection = "";
+
+  function besideless() {
+    if (translationData[meaningFrom] && !translationData[meaningFrom].beside) return meaningFrom;
+    var ids = Object.keys(translationData);
+    for (var i = 0; i < ids.length; i++) {
+      if (!translationData[ids[i]].beside) return ids[i];
+    }
+    return "";
+  }
 
   function useTarget(id) {
     showing = id;
     var entry = translationData[id] || {};
-    targetLanguage = entry.language || "";
-    targetDirection = entry.direction || "";
+    columnLanguage = entry.language || "";
+    columnDirection = entry.direction || "";
+    meaningFrom = entry.beside ? besideless() : id;
+    var meant = translationData[meaningFrom];
+    // A text carrying nothing but a rendering read beside has no language of its own to
+    // mean words in, and the reader's is the one they said they read into.
+    targetLanguage = meant ? meant.language || "" : readInto() || "en";
+    targetDirection = meant ? meant.direction || "" : "ltr";
     // A copy, because `lookUp` and `takeMeanings` write into it and the payload's own
     // table is the answer for this language rather than a scratch pad.
     glosses = (glossesBy[targetLanguage] || []).slice();
@@ -2003,8 +2029,11 @@ var targumReader = function () {
     if (element) element.textContent = count === 1 ? one : one + "s";
   }
 
+  // In the language of the meanings, which is the column's except beside Onkelos: this
+  // is what stands in for a phrase's meaning and what a phrase is asked about against,
+  // and an Aramaic sentence under "meaning (English)" is neither.
   function translationFor(segmentId) {
-    var entry = translationData[showing] || translationData.t0;
+    var entry = translationData[meaningFrom];
     return entry && entry.text ? entry.text[segmentId] || "" : "";
   }
 
@@ -5665,8 +5694,8 @@ var targumReader = function () {
       // The template stamps these from the first translation, so every other one wore
       // the first one's language — a Russian sentence marked English, punctuated at the
       // wrong end of the line and read out in the wrong voice.
-      if (targetLanguage) cell.setAttribute("lang", targetLanguage);
-      if (targetDirection) cell.setAttribute("dir", targetDirection);
+      if (columnLanguage) cell.setAttribute("lang", columnLanguage);
+      if (columnDirection) cell.setAttribute("dir", columnDirection);
       // Each translation is aligned independently, so which regions are approximate
       // changes with the translation on show.
       pair.classList.toggle("coarse", !!coarse[segmentId]);
@@ -5675,7 +5704,8 @@ var targumReader = function () {
     // The subtitle over the picture is copied out of the cells, and claims their
     // language and direction the same way.
     var subtitle = document.querySelector(".video-tr");
-    if (subtitle) inTarget(subtitle);
+    if (subtitle && columnLanguage) subtitle.setAttribute("lang", columnLanguage);
+    if (subtitle && columnDirection) subtitle.setAttribute("dir", columnDirection);
     if (prefs.translationBy && documentId) prefs.translationBy[documentId] = id;
     save();
     if (!first && targetLanguage !== was) {
@@ -7011,6 +7041,15 @@ var targumReader = function () {
     rendering: function (id) {
       if (id) applyTranslation(id);
       return showing;
+    },
+    // Which language the meanings are in, and the sentence a phrase is read against:
+    // the column's, except beside Onkelos, which leaves both where they were.
+    meaningsIn: function (segmentId) {
+      return {
+        language: targetLanguage,
+        direction: targetDirection,
+        text: translationFor(segmentId),
+      };
     },
     // The arithmetic of a page, for tests with no browser to lay anything out.
     boundariesFrom: boundariesFrom,
