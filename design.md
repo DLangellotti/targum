@@ -336,6 +336,24 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### Add is a place again — 2026-09-13
+
+The entry of 2026-09-06 below took Upload out of the nav and made it the `+` on the box,
+with the Add page as the card's "More options". Since 2026-09-11 the box lives in a
+drawer, and the page it was a door to had no door of its own: a reader who wanted to
+bring a text of their own, with a translation or a transcript beside it, had to know to
+open the conversation, press `+`, choose a file and then find "More options" — or to
+type ⌘K. Its maker asked for the Add page to be reachable from the main navigation, "in
+a sleek way".
+
+So the nav is four: Learn · Library · Your Progress · Add. Add is last because the order
+is how often somebody wants each one, and bringing a text is the rarest of the four. It
+is drawn as the other three are — a pill, current in the primary on its own page — and
+is the one place whose glyph, a `+`, stands beside its word at a desk as well as over it
+on a phone, since the `+` is how the product already says "bring something". On a phone
+the bar at the foot takes four columns. The `+` on the box stays: it brings a file while
+asking, and the page is for everything else.
+
 ### The chrome gets a system of its own: the desk — 2026-09-11
 
 Shown the front page after a night of building on it, its maker said: "there might be a
@@ -578,7 +596,8 @@ for a translation or a transcript of the reader's own. (Until 2026-09-07 the car
 box on Learn with a button to press: "I'm chatting, I think I should be pressing Send",
 and "I originally just gave the file… it should have been enough to just open it".) Chat is no longer a place in the nav and Upload
 is no longer a corner: both are the box. The nav is Learn · Library · Your Progress, and
-the conversation page marks Learn, the way Learn's own lists do.
+the conversation page marks Learn, the way Learn's own lists do. (Amended 2026-09-13: Add
+is the fourth place again, after Your Progress; the `+` on the box stays.)
 
 What was tried first, and cut the same day, so it is not tried again: a board of three
 doors under the box (the text to read, a conversation to have, the week's words) that
@@ -1053,8 +1072,9 @@ than at being shown), its title, Expand and Open under it — a shadow offset `2
 a page casts, no card chrome. The header is glass (decided 2026-09-11; it was the ink bar, `#171614`, for a
 morning): sticky, no rule under it, the places as tint pills with the current one in the
 primary, the bell and the account as round buttons; the reader keeps its own bar. On a
-phone (under 40rem) the three places are a bar at the foot of the window on glass, a
-glyph over each word; the top bar keeps the mark, the bell and the account; the pill
+phone (under 40rem) the four places — Learn, Library, Your Progress, Add — are a bar at
+the foot of the window on glass, a glyph over each word, and at a desk only Add keeps its
+glyph, a `+` before the word; the top bar keeps the mark, the bell and the account; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
 as a sheet from the foot. Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per

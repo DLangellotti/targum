@@ -251,7 +251,7 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
     """On a phone the header is one line — the name at one corner and the bell, the
-    account and the light switch at the other — and the three places are a bar at the
+    account and the light switch at the other — and the four places are a bar at the
     foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
     under the name, and before that indented under it with Upload cut off at the edge:
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
@@ -275,6 +275,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
             noUpload: document.querySelector('.upload') === null,
+            cut: [...document.querySelectorAll('.site-nav a')]
+              .filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -286,6 +288,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
+    assert measured["cut"] == [], "all four places are read whole, Add among them (2026-09-13)"
     assert measured["width"] <= width, "and the page does not scroll sideways"
 
 
@@ -304,8 +307,14 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
           return nav.top < brand.bottom && nav.bottom > brand.top;
         }"""
     )
+    glyphs = open_page.evaluate(
+        """() => [...document.querySelectorAll('.site-nav a')]
+          .filter((a) => getComputedStyle(a.querySelector('.nav-glyph')).display !== 'none')
+          .map((a) => a.dataset.nav)"""
+    )
     context.close()
     assert one_line
+    assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
 def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
@@ -687,7 +696,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
     assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
-    # Phase 4: on a phone the three places are a bar at the foot of the window.
+    # Phase 4: on a phone the four places are a bar at the foot of the window.
     assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
     if width <= 640:
         assert abs(got["navBottom"] - 800) <= 1 and got["navLeft"] == 0, (
