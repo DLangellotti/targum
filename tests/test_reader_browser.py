@@ -4233,10 +4233,11 @@ def test_a_kept_phrase_is_a_card_too(browser, built) -> None:
     context.close()
 
 
-def portion(out: Path) -> Path:
+def portion(out: Path, onkelos: bool = False) -> Path:
     """A built portion: chapter 2 cut across two aliyot, each under its own heading, the
     way `targum parasha build` cuts one — so the chapter is two files, and the chapter
-    number alone cannot say which file holds verse 55."""
+    number alone cannot say which file holds verse 55. With `onkelos`, Onkelos beside
+    the English, as a portion carries it since targum-internal#65."""
     segments: list[Segment] = []
     for title, chapter, numbers in (
         ("ראשון", 2, range(1, 31)),
@@ -4270,7 +4271,12 @@ def portion(out: Path) -> Path:
                 )
             )
     document = Document(
-        source="sefaria:Ruth", title="רות", language="he", blocks=[], content_hash="h"
+        source="sefaria:Ruth",
+        title="רות",
+        language="he",
+        blocks=[],
+        content_hash="h",
+        ingester="parasha/1" if onkelos else "",
     )
     segmented = SegmentedDocument(
         document_hash="h", language="he", segmenter="test/1", segments=segments
@@ -4283,13 +4289,173 @@ def portion(out: Path) -> Path:
         provider="null",
         segments={s.id: f"And it came to pass ({s.ref or s.text})." for s in segments},
     )
-    render(document, segmented, [translation], out)
+    renderings = [translation]
+    if onkelos:
+        renderings.append(
+            Translation(
+                name="Onkelos",
+                document_hash="h",
+                source_language="he",
+                target_language="arc",
+                provider="aligned",
+                segments={s.id: f"ארמית {s.ref or s.text}" for s in segments},
+            )
+        )
+    render(document, segmented, renderings, out)
     return out
 
 
 @pytest.fixture(scope="module")
 def aliyot(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return portion(tmp_path_factory.mktemp("portion") / "reader")
+
+
+@pytest.fixture(scope="module")
+def with_onkelos(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return portion(tmp_path_factory.mktemp("onkelos-portion") / "reader", onkelos=True)
+
+
+#: The verse walk as a reader sees it: which verse is being read, which are quieter for
+#: having been read, what the press under the verse says, the Onkelos shown under it, and
+#: how many translation cells are on show.
+WALK = """
+() => {
+  const verses = [...document.querySelectorAll('.pair.verse')];
+  const now = document.querySelector('.pair.practising');
+  const line = now && now.querySelector('.practice-line');
+  const onkelos = line && line.querySelector('.practice-targum');
+  const cells = verses.map((v) => v.querySelector('.tr')).filter(Boolean);
+  return {
+    at: now ? now.getAttribute('data-ref') : null,
+    read: verses
+      .filter((v) => v.classList.contains('practised'))
+      .map((v) => v.getAttribute('data-ref')),
+    press: line ? line.querySelector('button').textContent : null,
+    onkelos: onkelos
+      ? [onkelos.textContent, onkelos.getAttribute('lang'), onkelos.getAttribute('dir')]
+      : null,
+    columns: cells.filter((c) => getComputedStyle(c).display !== 'none').length,
+    label: [...document.querySelectorAll('#practice .practice-key')].map((k) => k.textContent),
+  };
+}
+"""
+
+
+def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
+    browser, with_onkelos: Path
+) -> None:
+    """The practice on a portion (targum-internal#202): each verse twice in Hebrew, then
+    its Onkelos under it, then the next — with the verses read quieter than the ones left,
+    no translation column in the way, and the place kept for the next visit."""
+    # Paged, as a reader's is by default — and in a context that leaves the stored
+    # preferences alone across the reload, which `SCROLLING` would overwrite.
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(with_onkelos / "sec-0001.html"))
+    page.wait_for_selector(".pair.verse")
+    assert page.evaluate(WALK)["label"] == ["Read", "By verse", "By aliyah"]
+
+    page.click('#practice [data-practice="verse"]')
+    walk = page.evaluate(WALK)
+    assert (walk["at"], walk["read"], walk["press"], walk["columns"]) == (
+        "Ruth 2:1",
+        [],
+        "Again",
+        0,
+    )
+
+    page.click(".practice-line button")
+    assert page.evaluate(WALK)["press"] == "Onkelos"
+    page.click(".practice-line button")
+    walk = page.evaluate(WALK)
+    assert walk["onkelos"] == ["ארמית Ruth 2:1", "arc", "rtl"]
+    assert walk["press"] == "Next verse"
+    page.click(".practice-line button")
+    walk = page.evaluate(WALK)
+    assert (walk["at"], walk["read"], walk["onkelos"]) == ("Ruth 2:2", ["Ruth 2:1"], None)
+
+    page.reload()
+    page.wait_for_selector(".pair.practising")
+    walk = page.evaluate(WALK)
+    assert (walk["at"], walk["read"], walk["press"]) == ("Ruth 2:2", ["Ruth 2:1"], "Again")
+
+    # A verse's number is where the walk goes, to start anywhere.
+    page.eval_on_selector('[data-ref="Ruth 2:5"] .verse-number', "a => a.click()")
+    walk = page.evaluate(WALK)
+    assert (walk["at"], walk["read"]) == (
+        "Ruth 2:5",
+        ["Ruth 2:1", "Ruth 2:2", "Ruth 2:3", "Ruth 2:4"],
+    )
+
+    page.click('#practice [data-practice=""]')
+    walk = page.evaluate(WALK)
+    assert (walk["at"], walk["read"], walk["columns"]) == (None, [], 30), "reading as usual again"
+    context.close()
+
+
+#: The foot of an aliyah kept by section: what the strip says, whether Done is there, the
+#: page the reader is on, and which language the column is in and whether it shows.
+FOOT = """
+() => {
+  const step = document.getElementById('practice-step');
+  const done = document.getElementById('finished');
+  const cell = document.querySelector('.pair.verse:not([hidden]) .tr');
+  return {
+    said: step && !step.hidden ? document.getElementById('practice-said').textContent : null,
+    press: step && !step.hidden ? document.getElementById('practice-next').textContent : null,
+    done: !!done && getComputedStyle(done).display !== 'none',
+    page: (document.getElementById('page-of') || {}).textContent || '',
+    column: cell ? [cell.getAttribute('lang'), getComputedStyle(cell).display !== 'none'] : null,
+  };
+}
+"""
+
+
+def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
+    browser, with_onkelos: Path
+) -> None:
+    """Paged, as a reader's is by default. The first two readings are the Hebrew alone,
+    and the section's Done waits for the third, which puts Onkelos in the column; each
+    new reading starts again at the first page. Leaving the practice gives the column
+    back as it was."""
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(with_onkelos / "sec-0001.html"))
+    page.wait_for_selector(".pair.verse")
+    page.click('#practice [data-practice="section"]')
+
+    def last_page() -> None:
+        for _ in range(20):
+            if page.evaluate("() => document.body.classList.contains('last-page')"):
+                return
+            page.keyboard.press("PageDown")
+            page.wait_for_timeout(50)
+
+    last_page()
+    foot = page.evaluate(FOOT)
+    assert (foot["said"], foot["press"], foot["done"]) == (
+        "First reading, in Hebrew",
+        "Read it again",
+        False,
+    )
+    assert foot["column"] == ["en", False]
+
+    page.click("#practice-next")
+    foot = page.evaluate(FOOT)
+    assert foot["page"].startswith("1 of"), "a new reading starts at the top"
+    last_page()
+    assert page.evaluate(FOOT)["said"] == "Second reading, in Hebrew"
+
+    page.click("#practice-next")
+    last_page()
+    foot = page.evaluate(FOOT)
+    assert (foot["said"], foot["press"], foot["done"]) == ("Once in Onkelos", "Start again", True)
+    assert foot["column"] == ["arc", True]
+
+    page.click('#practice [data-practice=""]')
+    foot = page.evaluate(FOOT)
+    assert foot["said"] is None and foot["column"] == ["en", True]
+    context.close()
 
 
 def test_a_verse_link_into_a_portion_lands_on_the_aliyah_that_holds_it(

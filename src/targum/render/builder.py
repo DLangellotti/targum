@@ -1969,6 +1969,15 @@ def render(
             "note": annotation.method_note,
             "annotator": annotation.annotator,
         },
+        # Shnayim mikra, where it can be kept: a Hebrew source with Onkelos beside it. What
+        # the section is called in it — an aliyah on a portion, a chapter on a book — or
+        # "" where the practice is not offered, which is every other text on the shelf.
+        "practice": (
+            ("aliyah" if document.ingester.startswith("parasha/") else "chapter")
+            if segmented.language.split("-")[0] == "he"
+            and any(t.target_language in BESIDE for t in translations)
+            else ""
+        ),
         "translations": [
             {
                 "id": f"t{index}",

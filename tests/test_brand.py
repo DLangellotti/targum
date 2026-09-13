@@ -198,6 +198,11 @@ def test_the_focus_ring_does_not_change_with_the_theme() -> None:
 #: `inset-inline-end: -1.9rem`, outside the pair, so its reach crosses a margin and never
 #: the words. A control that sat among them could not take this.
 THUMBED = (
+    # Shnayim mikra's presses (2026-09-13, targum-internal#202): the way it is kept, the
+    # press on under a verse, and the press at the foot of a section.
+    ".practice-key",
+    ".practice-row button",
+    ".practice-step button",
     ".player-play",
     ".player-back",
     ".player-on",

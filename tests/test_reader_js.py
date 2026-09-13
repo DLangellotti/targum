@@ -1156,3 +1156,132 @@ def test_a_rendering_with_nothing_for_this_page_is_never_opened_on() -> None:
         "In the beginning",
         "And the earth",
     ]
+
+
+# --- shnayim mikra (targum-internal#202) ----------------------------------------------
+
+#: Three verses of a section, against English and against Onkelos.
+PRACTICE_RENDERINGS = {
+    "t0": {
+        "text": {"a": "In the beginning", "b": "And the earth", "c": "And God said"},
+        "coarse": [],
+        "language": "en",
+        "direction": "ltr",
+    },
+    "t1": {
+        "text": {"a": "בְּקַדְמִין", "b": "וְאַרְעָא", "c": "וַאֲמַר"},
+        "coarse": [],
+        "language": "arc",
+        "direction": "rtl",
+        "beside": True,
+    },
+}
+PRACTICE_PAIRS = [
+    {"id": "a", "src": "בראשית", "tr": "In the beginning", "verse": True},
+    {"id": "b", "src": "והארץ", "tr": "And the earth", "verse": True},
+    {"id": "c", "src": "ויאמר", "tr": "And God said", "verse": True},
+]
+
+
+def practising(*presses: str, **more: Any) -> dict[str, Any]:
+    return run(
+        [],
+        translations=PRACTICE_RENDERINGS,
+        pairs=PRACTICE_PAIRS,
+        switch=SWITCH,
+        practice=list(presses),
+        **more,
+    )["practice"]
+
+
+def test_a_text_opens_on_reading_and_offers_the_practice() -> None:
+    opened = practising()["opened"]
+    assert opened["offered"] and opened["kind"] == ""
+    assert not opened["hebrewOnly"] and opened["showing"] == "t0"
+
+
+def test_no_onkelos_beside_it_means_no_practice() -> None:
+    """The haftarah is read once and with no targum (#203), and a text that carries no
+    Onkelos has nothing to be read once in. Neither offers it, whatever was chosen."""
+    english_only = {"t0": PRACTICE_RENDERINGS["t0"]}
+    said = run(
+        [],
+        translations=english_only,
+        pairs=PRACTICE_PAIRS,
+        practice=["verse"],
+        prefs={"practice": "verse"},
+    )["practice"]
+    assert not said["opened"]["offered"]
+    assert said["after"][0]["kind"] == "" and not said["after"][0]["hebrewOnly"]
+
+
+def test_by_verse_each_verse_is_read_twice_in_hebrew_then_once_in_onkelos() -> None:
+    steps = practising("verse", "next", "next", "next", "next", "next", "next")["after"]
+    walk = [(s["verse"] or "a", s["step"], s["onkelos"], s["practised"]) for s in steps]
+    assert walk == [
+        ("a", 0, "", []),
+        ("a", 1, "", []),
+        ("a", 2, "בְּקַדְמִין", []),
+        ("b", 0, "", ["a"]),
+        ("b", 1, "", ["a"]),
+        ("b", 2, "וְאַרְעָא", ["a"]),
+        ("c", 0, "", ["a", "b"]),
+    ]
+    assert all(s["hebrewOnly"] for s in steps), "the column is not read in the verse walk"
+    assert all(s["showing"] == "t0" for s in steps), "the walk never takes the column over"
+
+
+def test_the_last_verse_ends_the_walk_and_says_so_at_the_foot() -> None:
+    presses = ["verse"] + ["next"] * 9
+    steps = practising(*presses)["after"]
+    ended = steps[-1]
+    assert ended["verse"] == "done" and ended["practised"] == ["a", "b", "c"]
+    assert ended["foot"] == "Every verse, twice in Hebrew and once in Onkelos"
+    again = practising(*presses, "next")["after"][-1]
+    assert (again["verse"], again["step"], again["practised"]) == ("a", 0, [])
+
+
+def test_by_section_the_whole_of_it_twice_then_its_onkelos_in_the_column() -> None:
+    steps = practising("section", "next", "next", "next")["after"]
+    assert [(s["pass"], s["hebrewOnly"], s["showing"], s["foot"]) for s in steps] == [
+        (1, True, "t0", "First reading, in Hebrew"),
+        (2, True, "t0", "Second reading, in Hebrew"),
+        (3, False, "t1", "Once in Onkelos"),
+        (1, True, "t0", "First reading, in Hebrew"),
+    ]
+
+
+def test_onkelos_in_the_column_for_a_reading_is_not_the_reader_s_choice() -> None:
+    """The third reading borrows the column and gives it back: leaving the practice puts
+    the English the reader had there back, and nothing is remembered as chosen."""
+    said = run(
+        [],
+        translations=PRACTICE_RENDERINGS,
+        pairs=PRACTICE_PAIRS,
+        switch=SWITCH,
+        practice=["section", "next", "next", ""],
+    )
+    third, left = said["practice"]["after"][2], said["practice"]["after"][3]
+    assert third["showing"] == "t1"
+    assert left["showing"] == "t0" and left["kind"] == "" and not left["hebrewOnly"]
+    assert said["rendering"]["switched"]["kept"] == {}
+
+
+def test_switching_between_the_two_ways_loses_neither_place() -> None:
+    """Each way keeps its own place in the section, so trying the other and coming back
+    finds the verse and the reading where they were."""
+    said = practising("verse", "next", "next", "next", "section", "next", "verse", "section")
+    after = said["after"]
+    assert (after[6]["kind"], after[6]["verse"], after[6]["step"]) == ("verse", "b", 0)
+    assert (after[7]["kind"], after[7]["pass"]) == ("section", 2)
+    assert said["kept"]["a-chapter#1"] == {"pass": 2, "step": 0, "verse": "b"}
+    assert said["prefs"] == "section", "the way it is kept is remembered across pages"
+
+
+def test_the_place_is_where_the_page_opens_next_time() -> None:
+    kept = {"a-chapter#1": {"pass": 1, "step": 2, "verse": "b"}}
+    opened = practising(stored={"targum:practice": json.dumps(kept)}, prefs={"practice": "verse"})[
+        "opened"
+    ]
+    assert (opened["kind"], opened["verse"], opened["step"]) == ("verse", "b", 2)
+    assert opened["practised"] == ["a"] and opened["onkelos"] == "וְאַרְעָא"

@@ -71,7 +71,7 @@ document.getElementById("targum-data").textContent = JSON.stringify({
 const main = byId.reader = element("main");
 const pairs = (payload.pairs || []).map((row) => {
   const pair = element("div");
-  pair.className = "pair" + (row.coarse ? " coarse" : "");
+  pair.className = "pair" + (row.verse ? " verse" : "") + (row.coarse ? " coarse" : "");
   if (row.coarse) pair.classList.add("coarse");
   pair.setAttribute("data-id", row.id);
   const src = element("p");
@@ -221,11 +221,25 @@ const opened = rendering();
 if (payload.switchTo) reader.rendering(payload.switchTo);
 const switched = rendering();
 
+/* Shnayim mikra: where it stands on opening, and after each of a run of presses — a way
+ * of keeping it chosen by name, or "next" for the press on. */
+const practiced = {
+  opened: reader.practice(),
+  after: (payload.practice || []).map((press) => {
+    if (press === "next") reader.practiceNext();
+    else reader.practice(press);
+    return reader.practice();
+  }),
+  kept: JSON.parse(localStorage.getItem("targum:practice") || "{}"),
+  prefs: (JSON.parse(localStorage.getItem("targum:prefs") || "{}") || {}).practice,
+};
+
 process.stdout.write(
   JSON.stringify({
     placed: (payload.words || []).map((word) => ({ word, card: place(word, payload.card) })),
     hover,
     rendering: { opened, switched },
+    practice: practiced,
     queue: reader.queue().map(entry),
     // Each asked of a freshly built queue, the way a keypress asks it.
     steps: (payload.steps || []).map((ask) => entry(reader.step(ask.from, ask.forward))),
