@@ -64,7 +64,7 @@ def test_a_line_is_posted_and_the_stream_is_followed() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     assert page["posted"] == [
-        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read"}}
+        {"path": "/chat/say", "body": {"chat": "", "text": "what should I read", "language": "he"}}
     ]
     assert page["streams"] == ["/chat/stream/abc/1?k=k"], "the key rides in the address"
     assert [t["text"] for t in page["turns"]] == ["what should I read", ""]
@@ -875,13 +875,13 @@ def test_the_list_says_when_and_pages_at_fifty() -> None:
         do=[{"type": "press", "selector": "chat-more"}],
         answers={
             "/chat/list": {"chats": first, "usable": True},
-            "/chat/list?limit=50&offset=50": {"chats": second, "usable": True},
+            "/chat/list?limit=50&offset=50&language=he": {"chats": second, "usable": True},
             "/chat/c0": {"chat": {"id": "c0"}, "turns": []},
         },
     )
     assert page["whens"][:3] == ["just now", "yesterday", "2 days ago"]
     assert len(page["list"]) == 60 and page["list"][-1] == "Chat 59"
-    assert "/chat/list?limit=50&offset=50" in page["asked"]
+    assert "/chat/list?limit=50&offset=50&language=he" in page["asked"]
     assert "More" not in page["list"], "ten came back, so there is no next page"
 
 
@@ -927,7 +927,7 @@ def test_the_chips_stand_in_the_empty_state_and_go_once_there_is_a_turn() -> Non
     )
     assert said["posted"][0] == {
         "path": "/chat/say",
-        "body": {"chat": "", "text": "Use my new words in a short conversation."},
+        "body": {"chat": "", "text": "Use my new words in a short conversation.", "language": "he"},
     }, "a chip is Send with a fixed line"
     assert said["chips"]["hidden"], "a thread with a turn in it has no chips"
 
@@ -948,7 +948,10 @@ def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> No
             },
         },
     )
-    assert page["posted"][0] == {"path": "/chat/suggest", "body": {"chat": "", "skip": []}}
+    assert page["posted"][0] == {
+        "path": "/chat/suggest",
+        "body": {"chat": "", "skip": [], "language": "he"},
+    }
     assert not any(p["path"] == "/chat/say" for p in page["posted"]), "the model was not asked"
     assert [t["text"] for t in page["turns"]][:1] == ["Find me something to read"]
     assert page["cards"] and page["cards"][0]["title"] == "רות"
@@ -969,7 +972,7 @@ def test_something_to_read_posts_suggest_and_draws_the_card_with_another() -> No
     )
     assert another["posted"][1] == {
         "path": "/chat/suggest",
-        "body": {"chat": "abc", "skip": ["ruth"]},
+        "body": {"chat": "abc", "skip": ["ruth"], "language": "he"},
     }
 
 
@@ -1239,7 +1242,7 @@ def test_framed_in_the_front_page_nothing_opens_by_itself() -> None:
     (the front page is a door, not a thread), and the list is still every conversation,
     behind the pill."""
     page = run(embed=True, answers={"/chat/list": TWO})
-    assert "/chat/list" in page["asked"]
+    assert "/chat/list?language=he" in page["asked"]
     assert page["hash"] == "" and page["replaced"] == [], "a front door, not a thread"
     assert page["list"] == ["First", "Second"] and page["turns"] == []
     assert page["freshHidden"], "New has nothing to do until a conversation is open"

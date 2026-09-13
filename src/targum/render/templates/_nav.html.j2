@@ -46,6 +46,12 @@
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span>Your Progress</span></a>
       <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>Add</span></a>
     </nav>
+    {#- Which language (design.md §13, 2026-09-13): one menu at the end of the places on
+        every desk page that reads in a language, filled by `lang.js`. Hidden until the
+        reader learns more than one: a menu with one thing in it asks nothing. -#}
+    {%- if here in ('learn', 'chat', 'library', 'progress', 'add') %}
+    <div class="langs" id="langs" hidden></div>
+    {%- endif %}
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
         what is ready, and anything else the page has to say later. The bell carries a
         count; the panel lists them, newest first, each with its own ×. It replaced the
@@ -97,7 +103,6 @@
   </div>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}
-  <div class="langs" id="langs" role="tablist" aria-label="Language" hidden></div>
   <p class="beta-note" id="beta-note" hidden></p>
   {%- endif %}
 </header>

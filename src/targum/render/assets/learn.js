@@ -988,7 +988,14 @@
   // The catalogue's own next step, worked out here from what this browser knows, when
   // the server has no pick to give: the door is never simply missing.
   var fallbackPick = null;
+  // The language Learn is in: the switcher's (2026-09-13).
+  function speaking() {
+    var lang = window.TargumLang;
+    return lang && lang.learning ? lang.current(lang.learning()) : "he";
+  }
+  var suggestedIn = "";
   function suggested() {
+    suggestedIn = speaking();
     var skip = [];
     try {
       skip = finished();
@@ -1015,7 +1022,11 @@
         because: up.why,
       });
     }
-    ask("/suggest" + (skip.length ? "?skip=" + encodeURIComponent(skip.join(",")) : ""))
+    ask(
+      "/suggest?language=" +
+        encodeURIComponent(suggestedIn) +
+        (skip.length ? "&skip=" + encodeURIComponent(skip.join(",")) : "")
+    )
       .then(function (got) {
         place(suggestedDoor(got && got.suggestion) || fallback());
       })
@@ -1028,6 +1039,10 @@
   window.addEventListener("storage", function (event) {
     if (event && event.key === "targum:docs") suggested();
   });
+  // And again in the language the switcher moves to, once the first has been asked.
+  window.addEventListener("targum:language", function () {
+    if (suggestedIn && speaking() !== suggestedIn) suggested();
+  });
 
   function landed() {
     var follow = window.TargumFollow;
@@ -1035,6 +1050,8 @@
     follow.list().then(function (series) {
       var today = document.getElementById("today");
       if (today) today.textContent = todayLine(series);
+      // The series are Hebrew's: under another language they are not this page's doors.
+      if (speaking() !== "he") return;
       doors = doors.concat(seriesDoors(series));
       drawDoors();
       var fresh = follow.fresh(series);

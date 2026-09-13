@@ -667,7 +667,10 @@ served invisibly: the next text is chosen for the words just saved, the week's w
 delivered at the foot of a section, and the words come back inside the conversation from
 the ledger block, with no door and no label.
 
-One conversation, always in Hebrew, was decided the same morning. The one exception,
+One conversation, always in Hebrew, was decided the same morning. (*Amended 2026-09-13:*
+one conversation per language, since the language menu in §13. Hebrew's is exactly as
+decided here. A language without a conversation of its own yet opens in the English find
+mode described next, and Aramaic stays there.) The one exception,
 decided the same afternoon: a reader whose every text is scripture is not written Hebrew
 at. Nobody converses in the Hebrew of Judges, and a model writing it graded to a ledger
 of biblical words would be pastiche on the one shelf where every line must be right. That
@@ -1192,6 +1195,23 @@ Learn and on the reader's own page anywhere else; both frames are same-origin on
 both directions. Notifications — what is building, what is ready, what landed — are a
 bell in the ink bar with a count and a panel under it; nothing is fixed at the foot of
 the window but the pill.
+
+**Language.** One menu at the end of the places, on every desk page that is in a
+language — Learn, Library, Your Progress, Add, the conversation — says which language the
+page is in and lists the reader's languages under it, with "Your languages" last, where
+the list itself is chosen (decided 2026-09-13; it replaced a row of tabs under the
+heading that only three pages drew). The button is the bar's own kind, its panel the
+bell's. Drawn only when the reader learns more than one language. The choice is kept on
+the account, so another device opens in it; opening a text never moves it, because a
+reader and its drawer follow their own text. Everything on the desk follows it — the
+shelf, the counts and the level, what is suggested, what is added, and the conversation,
+which is one per language — and what only Hebrew has (the tracks and scenes on Learn,
+"Which Hebrew" on the Library, the followed series) hides under another language rather
+than showing Hebrew. A text in two languages, Daniel's Hebrew and Aramaic, is on both
+shelves, and a word is kept in the language of the row it was met in. This is not the
+switch between finding and talking cut on 2026-09-06: that asked a reader to pick a mode
+of one thing; this says which of their languages they are in, which a reader of two
+already knows.
 
 **Motion.** One curve, `cubic-bezier(0.2, 0.8, 0.2, 1)`: 240ms for a thing arriving,
 160ms for a thing settling or leaving, a press giving to 0.98; none under

@@ -851,7 +851,9 @@ def test_a_finished_suggestion_makes_way_for_the_next() -> None:
         suggest={"id": "ruth", "title": "רות", "because": "Not measured yet."},
     )
     asked = [a["path"] for a in drawn["asked"] if a["path"].startswith("/suggest")]
-    assert asked == ["/suggest?skip=esther&k=k"], "finished, by catalogue id, and nothing else"
+    assert asked == ["/suggest?language=he&skip=esther&k=k"], (
+        "finished, by catalogue id, and nothing else"
+    )
     assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Suggested"]
     nothing_done = draw(
         [mine],
@@ -860,7 +862,7 @@ def test_a_finished_suggestion_makes_way_for_the_next() -> None:
         suggest={"id": "esther", "title": "אסתר", "because": "You know 50% of its words."},
     )
     asked = [a["path"] for a in nothing_done["asked"] if a["path"].startswith("/suggest")]
-    assert asked == ["/suggest?k=k"]
+    assert asked == ["/suggest?language=he&k=k"], "in the language Learn is in"
 
 
 def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:

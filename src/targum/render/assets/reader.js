@@ -543,7 +543,85 @@ var targumReader = function () {
   // annotation behind it and so passes none.
   if (window.TargumVocab) window.TargumVocab.migrate(language, documentId, data.moves);
 
-  var vocab = read(VOCAB, "{}");
+  /* A word is filed under the language of the row it is met in (2026-09-13).
+   *
+   * Daniel is Hebrew with Aramaic chapters, and a word marked in 3:1 went into the
+   * Hebrew list with the rest of the page, so Aramaic's list, count and level stayed
+   * empty however much of it a reader learned. The page ships which rows are in another
+   * language (`data.languages`), and a word met on this page only in such rows belongs
+   * to that language's list. A word the page's own list already holds stays there
+   * whatever row it is met in: moving it would take it out of a list it is already
+   * counted in. The page shows one list either way; they are split where they are kept.
+   */
+  var homeHad = read(VOCAB, "{}");
+  var tongueOfLemma = {};
+  (function () {
+    var rows = data.languages || {};
+    var met = {};
+    Object.keys(wordData).forEach(function (sid) {
+      var tongue = String(rows[sid] || language)
+        .split("-")[0]
+        .toLowerCase();
+      (wordData[sid] || []).forEach(function (row) {
+        var lemma = lemmas[row[4]];
+        if (!lemma) return;
+        met[lemma] = met[lemma] || {};
+        met[lemma][tongue] = true;
+      });
+    });
+    Object.keys(met).forEach(function (lemma) {
+      var tongues = Object.keys(met[lemma]);
+      if (tongues.length === 1 && tongues[0] !== language && !(lemma in homeHad)) {
+        tongueOfLemma[lemma] = tongues[0];
+      }
+    });
+  })();
+  var otherTongues = Object.keys(tongueOfLemma)
+    .map(function (lemma) {
+      return tongueOfLemma[lemma];
+    })
+    .filter(function (tongue, at, all) {
+      return all.indexOf(tongue) === at;
+    });
+
+  function tongueOf(lemma) {
+    return tongueOfLemma[lemma] || language;
+  }
+
+  function readVocab() {
+    var merged = read(VOCAB, "{}");
+    otherTongues.forEach(function (tongue) {
+      var theirs = read("targum:vocab:" + tongue, "{}");
+      Object.keys(theirs).forEach(function (lemma) {
+        if (tongueOfLemma[lemma] === tongue && !(lemma in merged)) merged[lemma] = theirs[lemma];
+      });
+    });
+    return merged;
+  }
+
+  function keepVocab() {
+    // The page's own list is written as it always was — the page's copy of it — less
+    // the words filed under another language.
+    var mine = {};
+    Object.keys(vocab).forEach(function (lemma) {
+      if (tongueOf(lemma) === language) mine[lemma] = vocab[lemma];
+    });
+    targumKeep(VOCAB, JSON.stringify(mine));
+    // Another language's list holds words from other texts too, so only this page's
+    // words in it are written, or taken off.
+    otherTongues.forEach(function (tongue) {
+      var name = "targum:vocab:" + tongue;
+      var theirs = read(name, "{}");
+      Object.keys(tongueOfLemma).forEach(function (lemma) {
+        if (tongueOfLemma[lemma] !== tongue) return;
+        if (lemma in vocab) theirs[lemma] = vocab[lemma];
+        else delete theirs[lemma];
+      });
+      targumKeep(name, JSON.stringify(theirs));
+    });
+  }
+
+  var vocab = readVocab();
   var picks = read(PICKED, "{}");
 
   /* --- what words mean, in the language you read them in ---------------------
@@ -651,7 +729,8 @@ var targumReader = function () {
 
   function remember() {
     try {
-      targumKeep(VOCAB, JSON.stringify(vocab));
+      if (otherTongues.length) keepVocab();
+      else targumKeep(VOCAB, JSON.stringify(vocab));
       targumKeep(PICKED, JSON.stringify(picks));
       updateDocs();
     } catch (e) {}
@@ -1512,8 +1591,8 @@ var targumReader = function () {
       if (records && records[lemma]) delete records[lemma];
     });
     if (window.TargumSync) {
-      window.TargumSync.forgetWord(language, lemma);
-      window.TargumSync.forgetMeanings(language, lemma);
+      window.TargumSync.forgetWord(tongueOf(lemma), lemma);
+      window.TargumSync.forgetMeanings(tongueOf(lemma), lemma);
     }
   }
 
@@ -6892,7 +6971,7 @@ var targumReader = function () {
     window.TargumSync.onChange(function (changed) {
       took("the account answered" + (changed ? "" : ", with nothing new"));
       if (!changed) return;
-      vocab = read(VOCAB, "{}");
+      vocab = readVocab();
       picks = read(PICKED, "{}");
       redraw();
       took("marks redrawn from the account");
@@ -6942,6 +7021,9 @@ var targumReader = function () {
       section: String(sectionId || ""),
       segment: id || "",
       sentence: id ? segmentText(id) : "",
+      // The language of the line, so the drawer opens that language's conversation
+      // (2026-09-13): a row in another language says so on itself.
+      language: (pair && pair.getAttribute("data-lang")) || language,
     };
   }
   var whereTimer = null;

@@ -758,6 +758,14 @@
           if (!api.who) return false;
           write(READS, me.reads || []);
           write(LEARNING, me.learning || []);
+          // The language chosen on another device, for the next page this one opens. Not
+          // the page already drawn: redrawing under somebody's hand is worse than one
+          // page in the language they last saw here.
+          if (me.language) {
+            try {
+              localStorage.setItem("targum:language", me.language);
+            } catch (e) {}
+          }
           var was = state();
           if (was.email && was.email !== me.email) {
             // Another person signed in on this browser. Nothing of theirs is mixed in
@@ -865,6 +873,15 @@
   // And which it is learning, the same way.
   api.learning = function () {
     return (api.who && api.who.learning) || null;
+  };
+
+  // The language menu's press, kept on the account (2026-09-13). Nothing for somebody
+  // signed out: the browser keeps it, as it always did.
+  api.language = function (code) {
+    if (!api.who || !code) return Promise.resolve(null);
+    return ask("/account/language", { language: code }).catch(function () {
+      return null;
+    });
   };
 
   /* A language to build into that this account will actually be allowed. What somebody

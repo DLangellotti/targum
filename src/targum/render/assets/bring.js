@@ -104,7 +104,11 @@
   // most of what this is for; no whole-text glossary, because most of one is never
   // read and a word is looked up from its card when wanted.
   function options(into, from) {
-    return { to: into || "en", from: from || "he", words: true, gloss: false };
+    // In the language the switcher shows, not Hebrew by assumption (2026-09-13): a French
+    // file brought into the conversation is a French text.
+    var lang = window.TargumLang;
+    var here = lang && lang.learning ? lang.current(lang.learning()) : "he";
+    return { to: into || "en", from: from || here, words: true, gloss: false };
   }
 
   /* What the reader gave, sent up, as the fields `/prepare` takes: `{ upload }` for a
