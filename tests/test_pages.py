@@ -125,19 +125,19 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_three_places() -> None:
+def test_every_page_carries_the_same_four_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
-    once already. Three since 2026-09-06: the chat, second here for a day, is the box at
-    the top of Learn, and uploading, which was a corner, is the `+` on that box."""
+    once already. Three from 2026-09-06, when the chat became the box at the top of
+    Learn and uploading the `+` on it; four since 2026-09-13, when Add came back last,
+    because with the box in a drawer the Add page had no door of its own."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress"], name
+        assert found == ["learn", "library", "progress", "add"], name
 
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
-#: can be, it is who you are while you are in one of them; and bringing a text is the
-#: `+` on the box, a thing you do while asking.
-NOT_IN_THE_NAV = {"you", "add"}
+#: can be, it is who you are while you are in one of them.
+NOT_IN_THE_NAV = {"you"}
 
 #: Learn's lists, gone to a page of their own, and the conversation, which is where a
 #: line typed into Learn's box goes. They mark Learn, which is where they came from and
@@ -157,9 +157,10 @@ def test_the_nav_marks_where_you_are() -> None:
         assert current == [name], f"{name} should mark itself and nothing else"
 
 
-def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
-    """Add used to be first in the nav, then the corner. Since 2026-09-06 it is the `+`
-    on the box, on both pages that carry one, and nothing in the nav points at it."""
+def test_bringing_a_text_is_the_box_and_a_place() -> None:
+    """Add used to be first in the nav, then the corner, then from 2026-09-06 only the
+    `+` on the box. Since 2026-09-13 it is both: the `+` brings a file while asking, and
+    the page is the last place in the nav, the one that keeps its `+` at a desk."""
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
@@ -168,6 +169,8 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
     assert order.index("learn") == 0
+    add = re.search(r'<a href="/add" data-nav="add"[^>]*>(.*?)</a>', PAGES["learn"])
+    assert add and 'class="nav-glyph"' in add.group(1) and "<span>Add</span>" in add.group(1)
 
 
 def test_the_front_page_is_the_reader_s_own_highlight() -> None:

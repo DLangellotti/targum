@@ -230,7 +230,7 @@ THUMBED = (
     # And the two presses under Words you may already know (2026-09-10, #245).
     ".claim-yes",
     ".claim-no",
-    # And the bar's own presses (2026-09-11): the three places, at the foot of a phone,
+    # And the bar's own presses (2026-09-11): the four places, at the foot of a phone,
     # the pill that opens the conversation, the bell and the account.
     ".site-nav a",
     ".talk-cta",

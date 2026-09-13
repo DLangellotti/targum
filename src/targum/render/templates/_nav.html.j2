@@ -1,9 +1,10 @@
-{#- The same header on every page: the name on the left, the three places you can be,
+{#- The same header on every page: the name on the left, the four places you can be,
     and the light switch. It is one file because copies of a navigation bar drift apart —
     they had already drifted into three different orders once.
 
     The order is how often somebody wants each one. Learn is most visits; Library is
-    finding the next thing; Your Progress is deliberate study.
+    finding the next thing; Your Progress is deliberate study; Add, bringing a text of
+    your own, is the rarest.
 
     Two things left this row on 2026-09-06 (design.md §12, "The front door is a
     question"). The chat was second here for a day — added 2026-09-05 as where you go
@@ -11,6 +12,11 @@
     the conversation page marks Learn the way Learn's own lists do. Uploading a text was
     never a place at all; it sat in the corner with the account, and it is now the `+`
     on that box.
+
+    Add came back on 2026-09-13 (design.md §12, "Add is a place again"): with the box in a
+    drawer, the Add page had no door but the card's "More options" and ⌘K. It is last,
+    and it is the one place that keeps its glyph at a desk — a `+` before the word, the
+    way the product already says "bring something". The `+` on the box stays.
 
     Your Progress was called Words until it became an account of what a reader has built
     rather than a list of what they had kept. It is the only two-word label here, which
@@ -32,12 +38,13 @@
       <span>targum</span>
     </a>
     <nav class="site-nav" aria-label="Pages">
-      {#- On a phone the three places are a bar at the foot of the window, a glyph over
-          each word (phase 4, 2026-09-11); at a desk the glyphs are not drawn. §7: sixteen
+      {#- On a phone the four places are a bar at the foot of the window, a glyph over
+          each word (phase 4, 2026-09-11); at a desk only Add draws its glyph. §7: sixteen
           pixels, a stroke at 1.4, round caps. -#}
       <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>Learn</span></a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>Library</span></a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span>Your Progress</span></a>
+      <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>Add</span></a>
     </nav>
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
         what is ready, and anything else the page has to say later. The bell carries a
