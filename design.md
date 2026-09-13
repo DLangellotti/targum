@@ -411,6 +411,35 @@ on a phone, since the `+` is how the product already says "bring something". On 
 the bar at the foot takes four columns. The `+` on the box stays: it brings a file while
 asking, and the page is for everything else.
 
+### A language with CEFR levels shows them — 2026-09-13
+
+§6 says engagement counts real things and never shows levels, and Your Progress already
+departed from it once: Hebrew's ulpan rung, shown as "A guide, not a placement." Every other
+language got milestones only, on the ground that a ladder hung off a Russian word list
+"would be a score with a letter on it". David decided the opposite for a language that has
+a real ladder of its own: **French, Russian and Italian show a CEFR level, and Hebrew shows
+its ulpan rung with the CEFR equivalent beside it** ("ב+ bet plus · about A2+"). Yiddish and
+Aramaic keep the milestones, with one line saying why: there is no frequency table to
+measure a vocabulary in either against.
+
+What makes it not a score with a letter on it is that the measure is the one the research
+ties the levels to, and the page still says it is a guide. The CEFR is climbed by known
+words among a language's commonest five thousand or so — Meara and Milton's measure — with
+each level starting halfway between the mean vocabularies Milton and Alexiou (2009) found
+for learners of French at that level and the one below: A1 at 250, A2 at 1,350, B1 at
+2,000, B2 at 2,400, C1 at 2,750, C2 at 3,300. **Measured for French; Russian and Italian
+borrow the figures** until a study covers them, and `level.py` says so. "The commonest five
+thousand" is read off the bands a word already carries: the 5,000th form in wordfreq sits
+just above the Zipf cut where "moderate" ends in all three languages, so nothing new is
+generated or shipped. The ulpan's CEFR equivalents follow CEFR-aligned Hebrew teaching,
+which treats aleph to vav as roughly A1 to C2.
+
+What does not move: **a word's band is still not a CEFR level.** A band describes a word
+and a level describes a reader, and `annotate/base.py` goes on refusing to call band 3
+"B1". The distance line counts words, never points ("Another 100 common words to B1."), the
+chip is the one celebration a screen allows, and the chat, told the reader's level so it
+can grade what it writes, still never tells the reader what level they are.
+
 ### The chrome gets a system of its own: the desk — 2026-09-11
 
 Shown the front page after a night of building on it, its maker said: "there might be a

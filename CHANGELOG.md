@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- French, Russian and Italian show a CEFR level on Your Progress, and Hebrew's ulpan rung
+  shows its CEFR equivalent beside it ("aleph · about A1"). The CEFR is climbed by known
+  words among the language's commonest five thousand or so — read off the band every
+  marked word already carries — with levels from Milton and Alexiou's measured vocabularies
+  for learners of French (A1 250, A2 1,350, B1 2,000, B2 2,400, C1 2,750, C2 3,300),
+  borrowed for Russian and Italian. The distance is in words ("Another 100 common words to
+  B1."), the page still says "A guide, not a placement.", and Yiddish and Aramaic keep
+  their milestones with a line saying why. The chat is told the reader's ladder in their
+  language and still never tells them their level. `level.py` and `charts.js` carry one
+  ladder per language, pinned to each other by the node test; `design.md` §12 records the
+  decision.
 - The chat's shelf says when each text was last opened and finished. "What was the
   last targum I read?" was answered "the list does not keep times" (2026-09-08); the
   reader's own sync had always clocked every open and every chapter finished, and only

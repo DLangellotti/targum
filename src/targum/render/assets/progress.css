@@ -101,6 +101,8 @@
 .progress .panel .standing:empty { margin-block-start: 0; }
 .progress .panel .next { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .progress .panel .next b { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Why a language has milestones and no level: said once, quietly, like `.next`. */
+.progress .panel .why { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .progress .panel .basis { margin-block-start: 0.9rem; max-inline-size: 34rem; }
 .progress .panel .basis[hidden] { display: none; }
 
@@ -228,6 +230,9 @@
    glyph with a small caption beside it. */
 .progress .ledger .reached .letter,
 .progress .panel .reached .letter { margin-inline-end: 0.4rem; }
+/* The CEFR equivalent beside an ulpan name: part of the label, a shade quieter. */
+.progress .ledger .reached .cefr,
+.progress .panel .reached .cefr { color: var(--ink-soft); }
 
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */

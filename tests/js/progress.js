@@ -132,6 +132,10 @@ process.stdout.write(
     tiles: counts_(),
     ulpan: {
       shown: at("basis").hidden === false,
+      title: at("rung-title").textContent,
+      why: (at("standing").children.find((c) => String(c.className) === "why") || {
+        textContent: "",
+      }).textContent,
       rung: (standing.children.find((c) => String(c.className) === "reached") || {
         textContent: "",
       }).textContent,

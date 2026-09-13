@@ -1,8 +1,8 @@
 /* Words you may already know (targum-internal#245).
  *
  * "We need a way for a user to indicate that their level is higher than their word
- * count." The level is a real count of known words, and §12 refuses a self-rated rung;
- * so the way up is to raise the count for real. The commonest words of modern Hebrew
+ * count." The level is a real count of known words, and a rung the reader rated
+ * themselves would not be one; so the way up is to raise the count for real. The commonest words of modern Hebrew
  * that are not on the ledger, fifty at a time, each with the meaning the glossary already
  * holds and a checkbox (2026-09-11: "this should work with checkboxes, you can mark
  * words you checked as known, also option to check all"). One at the head checks the
