@@ -27,7 +27,14 @@ dependencies = [
   # reachable only through the `speech-align` extra until 2026-09-03, which meant a
   # plain install could segment Hebrew and not find a single dictionary form in it.
   # Torch rides in with Stanza already.
-  "transformers>=4.40",
+  #
+  # Capped below 5.17 because 5.17.0 (2026-09-09) removed
+  # `get_extended_attention_mask`, which DICTA's own model code for dictabert-joint
+  # calls on every forward pass. The lockfile held 5.15.1, so every check passed, while
+  # the box's `uv tool install` resolved fresh, took 5.17.0, and failed every Hebrew
+  # build on 2026-09-13. Lift the cap when DICTA's code stops calling it:
+  # `tests/test_annotate.py` checks both halves.
+  "transformers>=4.40,<5.17",
   "anthropic>=0.40",
   "beautifulsoup4>=4.12",
   "trafilatura>=1.12",
@@ -50,7 +57,7 @@ align = ["sentence-transformers>=3.0"]
 # every other model rather than pinned here, because it is weights and not code.
 speech-align = [
   "torchaudio>=2.1",
-  "transformers>=4.40",
+  "transformers>=4.40,<5.17",
 ]
 covers = ["pillow>=10.0"]
 # Bringing a picture or a PDF through the `+` (targum-internal#217, 2026-09-07). Pillow

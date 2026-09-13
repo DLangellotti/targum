@@ -4232,8 +4232,8 @@ requires-dist = [
     { name = "stanza", specifier = ">=1.8" },
     { name = "torchaudio", marker = "extra == 'speech-align'", specifier = ">=2.1" },
     { name = "trafilatura", specifier = ">=1.12" },
-    { name = "transformers", specifier = ">=4.40" },
-    { name = "transformers", marker = "extra == 'speech-align'", specifier = ">=4.40" },
+    { name = "transformers", specifier = ">=4.40,<5.17" },
+    { name = "transformers", marker = "extra == 'speech-align'", specifier = ">=4.40,<5.17" },
     { name = "typer", specifier = ">=0.12" },
     { name = "wordfreq", marker = "extra == 'difficulty'", specifier = ">=3.1" },
 ]
