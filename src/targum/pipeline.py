@@ -222,6 +222,8 @@ class Build:
         self.gloss_model = gloss_model
         self._annotator = annotator
         self._lemmatizer = lemmatizer
+        # The lemmatizer the last annotation ran with, so what it spent is on the receipt.
+        self._reading: object | None = None
         self._vocalizer = vocalizer
         self.provider: Any = build_provider(
             provider_name, model=model, batch_size=batch_size, effort=effort
@@ -837,8 +839,32 @@ class Build:
 
         return dictionary_module.for_language(language, self.cache)
 
+    @staticmethod
+    def _words_owed(
+        existing: Annotation, segmented: SegmentedDocument, only: list[Segment] | None
+    ) -> bool:
+        """Whether a paid-for annotation lacks words this build is buying.
+
+        A text the model reads is annotated a chapter at a time, so an annotation with the
+        right name can still be missing the chapters bought since. Only for those
+        languages: every other annotator reads the whole text for nothing, and asking
+        would re-read a shelf to answer a question it never had.
+        """
+        from .annotate import model_lemma
+
+        if not model_lemma.reads(segmented.language):
+            return False
+        wanted = only or segmented.segments
+        return any(
+            segment.id not in existing.tokens and any(ch.isalpha() for ch in segment.text)
+            for segment in wanted
+        )
+
     def annotate(
-        self, segmented: SegmentedDocument, vocalization: Vocalization | None = None
+        self,
+        segmented: SegmentedDocument,
+        vocalization: Vocalization | None = None,
+        only: list[Segment] | None = None,
     ) -> Annotation | None:
         """Difficulty bands, when asked for, and how each word is said where that can be had."""
         if not self.difficulty:
@@ -863,12 +889,17 @@ class Build:
             if candidate.available()[0]:
                 pronouncer = candidate
 
+        # A language the model reads is paid for, so this build reads only what it is
+        # buying: the chapters it translates, and whatever an earlier build already read.
+        allowed = {segment.id for segment in only} if only else None
         annotator = self._annotator or annotate_module.Annotator(
-            lemmatizer=self._lemmatizer or lemma.for_source(self.source),
+            lemmatizer=self._lemmatizer
+            or lemma.for_text(self.source, segmented.language, buy=True, allowed=allowed),
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
             **self._dictionary(segmented.language),
         )
+        self._reading = getattr(annotator, "lemmatizer", None)
         existing = read_artifact(Annotation, path)
         if not self.force:
             # Same text, and made by the same annotator that would run now. Naming
@@ -879,6 +910,7 @@ class Build:
                 existing is not None
                 and existing.document_hash == segmented.document_hash
                 and existing.annotator == annotator.name
+                and not self._words_owed(existing, segmented, only)
             ):
                 self.reused.append("difficulty")
                 # Nothing moved this time, and what moved before still has to reach a
@@ -1714,6 +1746,10 @@ class Build:
         heard = getattr(self._transcriber, "spent", None) if self._transcriber else None
         if heard:
             total = total + heard
+        # Reading a French or Russian text's words is bought from the model too.
+        read = getattr(self._reading, "spent", None) if self._reading is not None else None
+        if isinstance(read, Usage) and read.calls:
+            total = total + read
         return total
 
     def plan(self, chapters: int | None = None) -> Plan:
@@ -1754,11 +1790,92 @@ class Build:
             plan.chapters = len(split_sections(plan.segmented))
             plan.buying = len(buying)
             plan.buying_segments = list(buying)
+        if self.difficulty and plan.segmented is not None:
+            plan.estimated_cost += self._words_estimate(plan.segmented, chapters)
         if self.is_recording_source:
             plan.audio = self._audio_plan(chapters)
             if plan.audio is not None:
                 plan.estimated_cost += plan.audio.transcription + plan.audio.translation_guess
         return plan
+
+    def _words_estimate(self, segmented: SegmentedDocument, chapters: int | None) -> float:
+        """What reading this build's words will cost, where the model reads them.
+
+        Nothing for every language a local model reads. For French, Russian, Italian and
+        Yiddish it is part of the price the card shows, priced for the chapters being
+        bought and net of every sentence already read — so the press that starts the
+        build is the consent to it, the rule every other spend here keeps.
+        """
+        from .annotate import model_lemma
+
+        if not model_lemma.reads(segmented.language) or self._lemmatizer is not None:
+            return 0.0
+        buying = (
+            self._first_chapters(segmented, chapters) if chapters else None
+        ) or segmented.segments
+        owed = model_lemma.unpaid(
+            buying, segmented.language, model_lemma.provider_name(), self.cache
+        )
+        return model_lemma.estimate(owed, segmented.language)
+
+    def annotate_chapter(
+        self, segmented: SegmentedDocument, wanted: list[Segment]
+    ) -> Annotation | None:
+        """Read the words of chapters bought after the first build, into its annotation.
+
+        Only where the model reads the language: everywhere else the first build read the
+        whole text for nothing and there is nothing to add. What is read is merged into
+        the annotation already on disk, under the same annotator's name.
+        """
+        from .annotate import model_lemma
+
+        path = self.resolved_out / "annotation.json"
+        existing = read_artifact(Annotation, path)
+        if not self.difficulty or not model_lemma.reads(segmented.language):
+            return existing
+        if existing is not None and existing.document_hash == segmented.document_hash:
+            if not self._words_owed(existing, segmented, wanted):
+                return existing
+            fresh = self.annotate_segments(segmented, wanted)
+            if fresh is None:
+                return existing
+            existing.tokens.update(fresh.tokens)
+            existing.annotator = fresh.annotator
+            existing.write(path)
+            return existing
+        fresh = self.annotate_segments(segmented, wanted)
+        if fresh is not None:
+            fresh.write(path)
+        return fresh
+
+    def annotate_segments(
+        self, segmented: SegmentedDocument, wanted: list[Segment]
+    ) -> Annotation | None:
+        """An annotation of some of a document's segments, under the whole document's hash."""
+        from .annotate import biblical, lemma
+
+        run = SegmentedDocument(
+            document_hash=segmented.document_hash,
+            language=segmented.language,
+            segmenter=segmented.segmenter,
+            segments=wanted,
+        )
+        annotator = annotate_module.Annotator(
+            lemmatizer=lemma.for_text(
+                self.source,
+                segmented.language,
+                buy=True,
+                allowed={segment.id for segment in wanted},
+            ),
+            bands=biblical.for_source(self.source),
+            **self._dictionary(segmented.language),
+        )
+        self._reading = annotator.lemmatizer
+        try:
+            return annotator.annotate(run)
+        except TargumError as error:
+            self.notify(f"{error.message} The chapter is there without its words.")
+            return None
 
     def _audio_plan(self, chapters: int | None) -> AudioPlan | None:
         """What hearing the recording will cost, priced from its clock.
@@ -1875,7 +1992,7 @@ class Build:
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
-        annotation = self.annotate(segmented, vocalization)
+        annotation = self.annotate(segmented, vocalization, only=only)
 
         def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
             self.notify("Building the reader…")

@@ -6,7 +6,10 @@
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
-{{ hebrew_face(biblical) }}
+{#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
+    script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
+    it, Yiddish and Aramaic included. -#}
+{% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
 <script>{{ asset('durable.js') }}</script>
 <script>{{ asset('theme.js') }}</script>
 </head>

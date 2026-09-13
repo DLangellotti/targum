@@ -928,7 +928,10 @@ def repair(
                         if candidate.available()[0]:
                             pronouncer = candidate
                     annotator = Annotator(
-                        lemmatizer=lemma.for_source(document.source),
+                        # Cache only: a repair never buys a word. Where the model reads
+                        # the language, a paragraph whose text changed keeps no words
+                        # until the text is built again.
+                        lemmatizer=lemma.for_text(document.source, segmented.language),
                         bands=biblical.for_source(document.source),
                         pronouncer=pronouncer,
                         **dictionary_module.for_language(segmented.language),
@@ -1263,15 +1266,19 @@ def rebuild(
 
         # One lemmatizer per register for the whole run: the models it loads are most of
         # the cost, and a Tanakh and a newspaper are read with different tokenizers.
-        lemmatizers: dict[bool, LemmatizerProtocol] = {}
+        lemmatizers: dict[tuple[bool, str], LemmatizerProtocol] = {}
         phonikud = PhonikudPronouncer()
         has_phonikud = phonikud.available()[0]
 
-        def lemmatizer_for(source: str) -> LemmatizerProtocol:
-            scripture = is_biblical(source)
-            if scripture not in lemmatizers:
-                lemmatizers[scripture] = lemma.for_source(source)
-            return lemmatizers[scripture]
+        def lemmatizer_for(source: str, language: str) -> LemmatizerProtocol:
+            from .annotate import model_lemma
+
+            # A language the model reads gets its own, cache only: a rebuild re-reads
+            # what was bought and buys nothing.
+            held = (is_biblical(source), language if model_lemma.reads(language) else "")
+            if held not in lemmatizers:
+                lemmatizers[held] = lemma.for_text(source, language)
+            return lemmatizers[held]
 
         def annotate(folder: Path, document: Document) -> Annotator:
             pronouncer: Pronouncer | None = None
@@ -1279,7 +1286,7 @@ def rebuild(
                 if read_artifact(Vocalization, folder / "vocalization.json") is not None:
                     pronouncer = phonikud
             return Annotator(
-                lemmatizer=lemmatizer_for(document.source),
+                lemmatizer=lemmatizer_for(document.source, document.language),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
                 **dictionary_module.for_language(document.language),

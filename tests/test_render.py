@@ -1335,6 +1335,34 @@ def test_the_page_carries_the_face_it_needs_and_not_the_other(tmp_path: Path) ->
     assert "url(data:font/woff2;base64," in scripture
 
 
+def test_a_french_page_carries_no_hebrew_face(tmp_path: Path) -> None:
+    """A hundred kilobytes of Hebrew letters in a page with none to draw (2026-09-13)."""
+    from targum.models import SegmentedDocument
+
+    segment = Segment(
+        id="0000.000-fr",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.paragraph,
+        text="Le chat dort.",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="fr", segmenter="cased-rules/1", segments=[segment]
+    )
+    document = Document(source="m", title="Conte", language="fr", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="fr",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "The cat sleeps."},
+    )
+    html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
+    assert 'lang="fr"' in html and "url(data:font/woff2" not in html
+
+
 def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> None:
     """A page measured in the wrong font is a page whose last verse falls off it.
 

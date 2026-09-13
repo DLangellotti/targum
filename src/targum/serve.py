@@ -1754,6 +1754,18 @@ class Library:
             plan = builder.plan(chapters=FIRST_CHAPTERS)
             job.title = plan.document.title or job.source
             job.language = plan.document.language
+            if not job.options.get("from") and not self._reads_language(job.language):
+                # Nobody said, and the guess landed on a language targum does not read —
+                # Latin script with nothing chosen guesses English. Asked rather than
+                # built: the door that checks a chosen language cannot check a guess.
+                from .translate.prompts import language_name
+
+                job.error = (
+                    f"This looks like {language_name(job.language)}, which targum does not "
+                    "read yet. Choose the language it is in."
+                )
+                job.stage = "failed"
+                return
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
             job.known_share = self._known_share(job, plan.document)
             job.chapters = plan.chapters
@@ -1794,6 +1806,14 @@ class Library:
         except Exception as error:  # a bad file should not take the server down
             job.error = str(error)
             job.stage = "failed"
+
+    @staticmethod
+    def _reads_language(language: str) -> bool:
+        """Whether a language, however it is tagged, is one targum reads."""
+        from .segment import stanza_code
+        from .translate.prompts import READING
+
+        return stanza_code(language or "") in {code for code, _ in READING}
 
     def _known_share(self, job: Job, document: Any) -> float | None:
         """How much of a text the reader already has, at quote time (targum-internal#244):
@@ -2140,7 +2160,8 @@ class Library:
         # by the build that follows and leave every other chapter unmarked.
         try:
             annotation = Annotator(
-                lemmatizer=lemma.for_source(builder.source),
+                # Cache only: pricing a card may never buy the words it is pricing.
+                lemmatizer=lemma.for_text(builder.source, segmented.language),
                 bands=biblical.for_source(builder.source),
                 **dictionary_module.for_language(segmented.language),
             ).annotate(run)
@@ -2379,7 +2400,7 @@ class Library:
         are sitting in the folder. This translates one chapter and rewrites the reader
         around it, which is the whole of what asking for a chapter costs.
         """
-        from .models import Annotation, Document, SegmentedDocument, Vocalization, glossaries_in
+        from .models import Document, SegmentedDocument, Vocalization, glossaries_in
         from .models import read_artifact as read
         from .render import render as render_reader
 
@@ -2409,6 +2430,10 @@ class Library:
             translation = builder.translate(
                 segmented, lambda done: setattr(job, "done", job.done + done), only=wanted
             )
+            # A text whose words the model reads is read a chapter at a time too, so the
+            # chapter just bought gets its words here; for every other text this is the
+            # annotation already on disk, read back.
+            annotation = builder.annotate_chapter(segmented, wanted)
             # Every translation the folder holds, with the one just bought at the front.
             # Rendering from this chapter's alone rewrote the reader without the others —
             # so buying chapter two of a book somebody reads in two languages took the
@@ -2418,7 +2443,7 @@ class Library:
                 segmented,
                 [translation, *builder.already_here([translation])],
                 folder / "reader",
-                annotation=read(Annotation, folder / "annotation.json"),
+                annotation=annotation,
                 glossaries=glossaries_in(folder),
                 vocalization=read(Vocalization, folder / "vocalization.json"),
                 clean=False,

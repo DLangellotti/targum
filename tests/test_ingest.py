@@ -69,6 +69,19 @@ def test_detects_language_by_script(tmp_path: Path) -> None:
         assert ingest.load(str(source)).language == expected
 
 
+def test_yiddish_is_told_from_hebrew_by_what_hebrew_cannot_hold() -> None:
+    """Both are the Hebrew alphabet, so the script says Hebrew. The ligatures and the
+    function words say Yiddish, and a Hebrew text sharing a word or two stays Hebrew."""
+    from targum.ingest.base import detect_language
+
+    assert detect_language("דער טאַטע איז געקומען אַהיים און ער האָט זיך געזעצט.") == "yi"
+    assert detect_language("װען ער ײַלט זיך, ױסט ער אױף דער גאַס.") == "yi"
+    assert detect_language("בארץ ישראל קם העם היהודי, ובה עוצבה דמותו הרוחנית.") == "he"
+    # One shared spelling in a long Hebrew paragraph is not enough.
+    hebrew = "הוא הלך אל העיר ומצא שם את חברו הוותיק " * 10 + "און"
+    assert detect_language(hebrew) == "he"
+
+
 def test_source_language_overrides_detection(tmp_path: Path) -> None:
     source = tmp_path / "x.txt"
     source.write_text("Ambiguous 1897", encoding="utf-8")

@@ -618,3 +618,87 @@ def test_a_matched_alignment_is_keyed_on_what_split_the_translation(
     assert aligner.calls == 1, "the same lines, the same alignment, reused"
     align_with(Whole())
     assert aligner.calls == 2, "the translation was split differently, so it is lined up again"
+
+
+def _french(tmp_path: Path) -> Path:
+    path = tmp_path / "conte.md"
+    path.write_text(
+        "# Premier\n\nLe chat dort. L'homme mange.\n\n# Second\n\nLe chat mange.\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_the_price_of_a_french_text_includes_reading_its_words(
+    tmp_path: Path, source: Path, fake_segmenter: object
+) -> None:
+    """The model reads French words, and reading them is paid for, so the card's price
+    says so before the press that consents to it. Hebrew's words are read for nothing."""
+    french = _french(tmp_path)
+
+    def priced(path: Path, words: bool, language: str) -> float:
+        built = build(
+            path,
+            tmp_path / f"out-{language}-{words}",
+            fake_segmenter,
+            difficulty=words,
+            source_language=language,
+        )
+        return built.plan().estimated_cost
+
+    assert priced(french, True, "fr") > priced(french, False, "fr")
+    assert priced(source, True, "he") == priced(source, False, "he")
+
+
+def test_a_chapter_bought_later_gets_its_words(
+    tmp_path: Path, fake_segmenter: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A book is read a chapter at a time where the words cost money, and the chapter
+    bought afterwards is merged into the annotation the first build wrote."""
+    from targum.annotate import model_lemma
+    from targum.render.builder import split_sections
+
+    class Model:
+        asked = 0
+
+        def client(self):  # type: ignore[no-untyped-def]
+            return self
+
+        @property
+        def messages(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def create(self, **kwargs):  # type: ignore[no-untyped-def]
+            Model.asked += 1
+            lines = []
+            for chunk in kwargs["messages"][0]["content"].split("\n\n"):
+                number, _, text = chunk.partition(". ")
+                for word in text.replace("'", "' ").replace(".", " ").split():
+                    lines.append(f"{number}\t{word}\t{word.lower()}\tNOUN")
+            answer = "\n".join(lines)
+            usage = type("U", (), {"input_tokens": 10, "output_tokens": 10})()
+            block = type("B", (), {"text": answer})()
+            return type("A", (), {"content": [block], "usage": usage, "stop_reason": "end_turn"})()
+
+    monkeypatch.setattr(model_lemma.ModelLemmatizer, "provider", lambda self: Model())
+    built = build(
+        _french(tmp_path), tmp_path / "out", fake_segmenter, difficulty=True, source_language="fr"
+    )
+    plan = built.plan()
+    segmented = plan.segmented
+    assert segmented is not None
+    first, second = split_sections(segmented)[:2]
+    ids = lambda section: [s for s in segmented.segments if s.id in set(section.segment_ids)]  # noqa: E731
+    annotation = built.annotate(segmented, only=ids(first))
+    assert annotation is not None
+    assert not any(s.id in annotation.tokens for s in ids(second)), "only what was bought"
+    assert built.spent.calls >= 1, "and what reading them cost is on the receipt"
+
+    merged = built.annotate_chapter(segmented, ids(second))
+    assert merged is not None
+    assert all(
+        s.id in merged.tokens for s in ids(first) + ids(second) if any(c.isalpha() for c in s.text)
+    )

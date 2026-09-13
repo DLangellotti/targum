@@ -6,6 +6,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- French, Russian and Italian can be read, beside Yiddish, with a word card on every
+  word. No Stanza model for any of them clears the licence bar, so their dictionary forms
+  and parts of speech are read by the model (`annotate/model_lemma.py`, Haiku 4.5): a
+  sentence at a time, cached forever by its text, scored against each language's Universal
+  Dependencies dev set before it is trusted (`scripts/eval_lemma.py`, with floors). It
+  costs money where Stanza did not, so it keeps targum's rule: the card's price includes
+  reading the words, only a build that was pressed may buy them, and a book's words are
+  read with the chapters bought, the later ones merged in as they are. Everything that
+  prices, repairs or rebuilds reads from the cache alone. Hebrew's annotator and its name
+  are untouched. A text whose language nobody chose and whose guess lands on one targum
+  does not read — Latin script guesses English — is asked for its language instead of
+  being built; Yiddish is told from Hebrew by its ligatures and function words; and a
+  French, Russian or Italian reader no longer carries the Hebrew typeface. The quote
+  rates for the four languages were measured with the counting endpoint, and
+  `LICENSING.md` records the dev sets as evaluation-only and says precisely what wordfreq's
+  CC BY-SA tables reach.
 - The chat's shelf says when each text was last opened and finished. "What was the
   last targum I read?" was answered "the list does not keep times" (2026-09-08); the
   reader's own sync had always clocked every open and every chapter finished, and only

@@ -37,7 +37,7 @@ def system_prompt(source_language: str, target_language: str, style: Style) -> s
 # has been checked end to end: a Stanza model to find dictionary forms with, and
 # frequency data to rate words by, except Latin which has the first but not the second
 # and so shows meanings without levels. Yiddish has neither and is not offered.
-OFFERED = ("he", "ru", "en", "ar", "fr", "es", "de", "la")
+OFFERED = ("he", "ru", "en", "ar", "fr", "it", "es", "de", "la")
 
 # What somebody may upload, and how far along each one is. Hebrew is what targum was
 # built for and everything works in it. The other two are here because a reader who has
@@ -46,7 +46,18 @@ OFFERED = ("he", "ru", "en", "ar", "fr", "es", "de", "la")
 # either, so those readers get the text and the translation without the word levels.
 #
 # A picker is not a boundary — see `_prepare`, which checks a request against these.
-READING = (("he", "alpha"), ("arc", "R&D"), ("yi", "R&D"))
+#
+# French, Russian and Italian since 2026-09-13, beside Yiddish: their words are read by the
+# model (`annotate/model_lemma.py`) because no Stanza model for them clears the licence
+# bar, and each is scored against its Universal Dependencies dev set before it is trusted.
+READING = (
+    ("he", "alpha"),
+    ("arc", "R&D"),
+    ("yi", "R&D"),
+    ("fr", "R&D"),
+    ("ru", "R&D"),
+    ("it", "R&D"),
+)
 
 # And what it may be turned into. English first because the glossaries are deepest there.
 # Russian is beta rather than R&D: it has been read end to end, it is simply not Hebrew.
@@ -74,6 +85,7 @@ _NAMES = {
     "ru": "Russian",
     "en": "English",
     "fr": "French",
+    "it": "Italian",
     "es": "Spanish",
     "de": "German",
     "ar": "Arabic",

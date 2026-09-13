@@ -2295,7 +2295,7 @@ def test_a_translation_has_to_be_something_targum_can_read(
     ("view", "expected"),
     [
         ({"to": "de"}, "translates into"),
-        ({"from": "fr"}, "reads"),
+        ({"from": "de"}, "reads"),
     ],
 )
 def test_a_pair_the_page_does_not_offer_is_refused(
@@ -2336,6 +2336,43 @@ def test_working_out_the_language_is_still_allowed(
         cookie=cookie,
     )
     assert status == 200, answer
+
+
+def test_a_guess_that_lands_on_a_language_targum_does_not_read_is_asked_back(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """An empty `from` lets the text say what it is, and Latin script with nothing chosen
+    guesses English. The door that checks a chosen language cannot check a guess, so the
+    card asks for the language instead of building a French text as English."""
+    import base64
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, job, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"name": "mine.txt", "content": base64.b64encode(b"Le chat dort.").decode(), "from": ""},
+        cookie=cookie,
+    )
+    assert status == 200, job
+    assert job["stage"] == "failed" and "Choose the language" in job["error"], job
+
+
+def test_french_russian_and_italian_are_read(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Offered on the profile, and let through the door for an account that ticked them."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, saved, _ = call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "fr", "ru", "it"], "reads": ["en"]},
+        cookie=cookie,
+    )
+    assert status == 200 and set(saved["learning"]) == {"he", "fr", "ru", "it"}, saved
 
 
 def test_an_uploaded_texts_cover_is_not_the_whole_boxs(tmp_path: Path) -> None:

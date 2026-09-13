@@ -51,7 +51,7 @@ building on targum is entitled to know about.
 | `align` | sentence-transformers | Apache-2.0 | |
 | `speech-align` | torchaudio, transformers | BSD-2, Apache-2.0 | the acoustic model is Apache-2.0 too |
 | `covers` | pillow | MIT-CMU | |
-| `difficulty` | wordfreq | Apache-2.0 | the code; its frequency data is mixed |
+| `difficulty` | wordfreq | Apache-2.0 | the code; its data files are CC BY-SA 4.0 — see below |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
 | `browser` | playwright | Apache-2.0 | test-only |
 
@@ -273,6 +273,25 @@ Scriptures morphology, CC BY 4.0, hand-tagged.
 
 This is the honest state of the supply chain.
 
+### wordfreq's frequency tables — CC BY-SA 4.0, and an open decision (2026-09-13)
+
+This table said wordfreq's data was "mixed". It is more precise than that, in wordfreq's
+own words: the code is Apache-2.0, and "it includes data files that may be redistributed
+under a Creative Commons Attribution-ShareAlike 4.0 license", built from Google Books
+Ngrams, Wikipedia, the Leeds Internet Corpus, ParaCrawl, OpenSubtitles and the SUBTLEX
+lists. Every difficulty band a reader sees, in Hebrew since the first build and in French,
+Russian and Italian now, is a word's place in one of those tables.
+
+What that does and does not reach, as this document reads it: a band is a fact about a
+word (how common it is), computed at build time and never the table itself, so no
+wordfreq file is redistributed by a reader. What would be a redistribution is shipping a
+list derived from the tables, and the CEFR lemma lists planned for `annotate/cefr/` are
+exactly that; they would go out under CC BY-SA 4.0 with wordfreq credited, which the
+content rule below permits for a business. The ShareAlike rule decided on 2026-09-13 is
+about **models trained on** ShareAlike data, and wordfreq is not a model. Whether the
+same caution should reach a frequency table is not decided here, and is written down so
+that it is decided rather than drifted into.
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each
@@ -346,6 +365,20 @@ If that ever stops being true of either — if a sentence reaches a prompt the w
 Tatoeba's do, or a page — the ShareAlike term reaches whatever it touched and this
 paragraph is wrong. It is written down here so that would have to be a decision rather
 than a drift.
+
+### The Universal Dependencies dev sets the model's dictionary forms are scored against, which never ship
+
+French, Russian, Italian and Yiddish words are read by the model (`annotate/model_lemma.py`)
+because no Stanza model for them clears the bar above. What the model returns is scored
+against the dev split of a Universal Dependencies treebank per language
+(`scripts/eval_lemma.py`): **French GSD** (CC BY-SA 4.0), **Russian SynTagRus** (CC BY-NC-SA
+4.0), **Italian ISDT** (CC BY-NC-SA 3.0) and **Yiddish YiTB** (CC BY-SA 4.0). Two of those
+are NonCommercial, which is exactly why they are fine here and nowhere else: nothing is
+trained on them, no prompt carries a sentence of them, no build reads them, and nothing
+derived from them is served. They are downloaded to the model directory on a developer's
+machine, and their whole contribution is rows in `evals/ledger.jsonl` under
+`stage=lemma`. The same sentence as FLORES+'s applies: if one ever reaches a prompt or a
+page, this paragraph is wrong, and that has to be a decision rather than a drift.
 
 ### HeQ, which the chat's answers about a text are scored against
 

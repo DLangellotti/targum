@@ -67,10 +67,12 @@ CONTEXT_SEGMENTS_PER_BATCH = 4
 # billed inside output_tokens and measures at 15% or less, so it needs no separate term.
 OUTPUT_RATIO = 1.0
 
-# Characters per token, for when the counting endpoint cannot be reached. Only Hebrew
-# and English are measured. The default is a Latin-script guess and reads low on any
-# script that is not one: Hebrew is 1.45, not the 2.5 an English-shaped guess gives.
-CHARS_PER_TOKEN = {"he": 1.45, "en": 2.73}
+# Characters per token, for when the counting endpoint cannot be reached. The default is
+# a Latin-script guess and reads low on any script that is not one: Hebrew is 1.45, not
+# the 2.5 an English-shaped guess gives. French, Italian, Russian and Yiddish measured on
+# 2026-09-13 with the counting endpoint, over sixty Universal Dependencies dev sentences
+# each; Yiddish is denser than Hebrew because it spells out its vowels in the same script.
+CHARS_PER_TOKEN = {"he": 1.45, "en": 2.73, "fr": 3.1, "it": 3.09, "ru": 2.59, "yi": 1.36}
 DEFAULT_CHARS_PER_TOKEN = 2.5
 
 
