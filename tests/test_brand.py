@@ -208,6 +208,9 @@ THUMBED = (
     ".video-mode",
     ".video-corner",
     ".video-close",
+    # And the picture's grip and size key, on a wide touch screen (2026-09-13).
+    ".video-grip",
+    ".video-size",
     ".pair.voiced .say",
     # The chat's controls (2026-09-05): the button that sends, the door to a fresh
     # conversation, and the rows that open an old one.

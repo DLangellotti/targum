@@ -308,6 +308,43 @@ Eighteen places. Each was a deliberate decision with a date, kept here so nobody
 "corrects" the code back to a rule that was already retired.
 
 
+### The picture can be picked up — 2026-09-13
+
+The entry below dated 2026-09-03 said *the picture is never dragged; it docks*, and
+argued that a corner solves for good what a drag solves once. David reversed it. It is
+the third time a draggable picture has been asked for, this time by the owner directly,
+and a rule that has to be defended against the same request three times is a rule the
+people using the page are not agreeing with. The
+corner answers where the picture may not stand; it does not answer where the reader
+wants it, and those are different on every screen and every text.
+
+- **On a wide window the picture is moved by its grip, anywhere in the window**, and
+  clamped so it cannot leave it. The grip is a key in the picture's rail, not the frame:
+  the picture itself is the play button, and a press on it stays a press. While a
+  pointer holds it, it follows the pointer and nothing else (the 2026-09-04 rule); the
+  page is laid out again when it is let go of. The arrow keys move it for a keyboard.
+- **It is sized from a corner**, the one across from the corner it is held by, keeping
+  the picture's shape, between 260px and nine tenths of the window, and never taller
+  than the window.
+- **Docking is still the default and the start.** A text opens with the picture in the
+  reader's corner; the first press of the corner key puts a picked-up picture back
+  there and forgets the place. The size survives a dock.
+- **A picture put somewhere floats and takes no room.** `room()` stops cutting the pages
+  around it, because the reader chose what it covers, and cutting the pages around their
+  choice would move the words away from where they put it. This is the one place the
+  rule "a control fixed over a page of text takes its room out of the layout" gives way,
+  and it gives way only for a place the reader set by hand.
+- **Place and size are kept per device**, like the corner, as fractions of the window,
+  so a smaller window still has the picture on it.
+- **Not on a phone.** Below 60rem the picture is full-bleed in the band and pulled down
+  to close; a drag would be a second meaning for the same thumb, and there is nowhere
+  else for a full-width panel to stand. Phones keep the two docks. A place kept on a
+  wide window waits there for the window to be wide again.
+
+The corner key's name changed with it, from "Move the picture" to "Put the picture in a
+corner", because "Move the video" is now the grip's, and two controls answering to the
+same name is one name too many.
+
 ### The streak is the longest one, and the current one is refused — 2026-09-03
 
 §4 gives `--sun` to "streak milestones, the daily spark", and #34 specified two streaks,
@@ -766,7 +803,10 @@ Two rules, decided together because they pull opposite ways and only settle as a
   reader can be in with the text in front of them, which is what that sentence was
   protecting. It is not protecting a thumbnail.
 
-- **The picture is never dragged.** It docks. Learn mode puts the video in one of four
+- ~~**The picture is never dragged.** It docks.~~ *Superseded 2026-09-13, see "The
+  picture can be picked up" above: on a wide window it can be moved anywhere and sized
+  from a corner, and the dock described here is the default it starts in and the corner
+  key returns it to.* Learn mode puts the video in one of four
   corners, the reader chooses which once and it is remembered, and the dock is a resident
   of the band in the sense "A word's card covers the page on a phone" gives that word: it
   takes its room out of the layout, and the reading is laid out around it.
