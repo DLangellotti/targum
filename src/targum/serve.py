@@ -2146,7 +2146,7 @@ class Library:
         # by the build that follows and leave every other chapter unmarked.
         try:
             annotation = Annotator(
-                lemmatizer=lemma.for_source(builder.source),
+                lemmatizer=lemma.for_source(builder.source, language=run.language),
                 bands=biblical.for_source(builder.source),
                 **dictionary_module.for_language(segmented.language),
             ).annotate(run)
