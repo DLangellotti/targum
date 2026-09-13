@@ -1,5 +1,7 @@
-/* Adding a text targum does not have. Reads a file or a link, prices the translation, and only spends
-   once you have seen the number. */
+/* Adding a text targum does not have, in any medium. One box takes a file, several
+   files, a link, some Hebrew or a description; a line under it says what targum thinks it
+   was given; every choice sits behind Change. Prices before anything is spent, and only
+   spends once you have seen the number (design.md §12, 2026-09-13, targum-internal#249). */
 
 (function () {
   "use strict";
@@ -31,8 +33,15 @@
   }
   var drop = document.getElementById("drop");
   var fileInput = document.getElementById("file");
-  var sourceInput = document.getElementById("source");
-  var pasted = document.getElementById("pasted");
+  //: The one box: a link, some Hebrew, or what the reader wants to read.
+  var given = document.getElementById("given");
+  var understood = document.getElementById("understood");
+  var givenFiles = document.getElementById("given-files");
+  var askTargum = document.getElementById("ask-targum");
+  var summary = document.getElementById("summary");
+  var summaryLine = document.getElementById("summary-line");
+  var change = document.getElementById("change");
+  var choices = document.getElementById("options");
   var go = document.getElementById("go");
   var status = document.getElementById("status");
   var chosen = null;
@@ -63,16 +72,330 @@
     return p;
   }
 
-  /* --- choosing something -------------------------------------------------- */
+  /* --- the box -------------------------------------------------------------
+   *
+   * It never asks what kind of thing it was given. A file is known by its name, words
+   * by their script and their length, and files that belong together are paired: a
+   * recording with a subtitle file is a recording with its own transcript, and a text
+   * with another in a Latin script is a text with its translation. Where a pairing
+   * cannot tell, the first file is kept and the line says what to do with the other.
+   *
+   * The language is not guessed. Hebrew, Yiddish and Aramaic share a script, and a
+   * reader cannot check a guess on a build they are about to pay for; the summary line
+   * names the language last chosen, where it can be seen, and Change is where it is
+   * changed.
+   */
+
+  var RESTING = understood ? understood.textContent : "";
+  var SUBTITLES = /\.(srt|vtt)$/i;
+  var TEXTUAL = /\.(txt|md|markdown)$/i;
+  var MOVING = /\.(mp4|m4v|mov|webm|mkv)$/i;
+  var LINK = /^https?:\/\/\S+$/i;
+  //: A source targum reads directly, by its id (`ingest/fetch/__init__.py` FETCHERS).
+  var IDENTIFIER = /^(gutenberg|sefaria|siddur|wikisource|dialogue|weekly|video):\S+$/i;
+  //: Under this many words, Hebrew is as likely a request as a text to read.
+  var FEW = 12;
+  //: Over this many words, Latin letters are a text in another script, not a request.
+  var DESCRIBED = 40;
+
+  // The share of the letters that are Hebrew script: Hebrew, Yiddish and Aramaic alike.
+  function hebrewShare(text) {
+    var letters = String(text).match(/\p{L}/gu) || [];
+    if (!letters.length) return 0;
+    var hebrew = String(text).match(/[\u0590-\u05FF\uFB1D-\uFB4F]/g) || [];
+    return hebrew.length / letters.length;
+  }
+
+  // What the words in the box are.
+  function readGiven() {
+    var text = given ? given.value.trim() : "";
+    if (!text) return { kind: "empty", text: "" };
+    if (LINK.test(text) || IDENTIFIER.test(text)) return { kind: "link", text: text };
+    var words = text.split(/\s+/).length;
+    if (hebrewShare(text) >= 0.5) {
+      var sentence = /[.!?׃:]\s*$|[.!?׃]\s/.test(text);
+      return { kind: words <= FEW && !sentence ? "few" : "text", text: text, words: words };
+    }
+    if (words <= DESCRIBED) return { kind: "description", text: text, words: words };
+    return { kind: "foreign", text: text, words: words };
+  }
+
+  function medium(file) {
+    if (isAudio(file)) return MOVING.test(file.name) ? "video" : "recording";
+    if (SUBTITLES.test(file.name)) return "subtitles";
+    if (bringing.isPicture(file)) return "picture";
+    if (bringing.isPdf(file)) return "pdf";
+    if (/\.epub$/i.test(file.name)) return "book";
+    if (TEXTUAL.test(file.name)) return "text";
+    return "other";
+  }
+
+  // The first few kilobytes of a text file, which is enough to know its script.
+  function head(file) {
+    return new Promise(function (resolve) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        resolve(String(reader.result || ""));
+      };
+      reader.onerror = function () {
+        resolve("");
+      };
+      reader.readAsText(file.slice(0, 4096));
+    });
+  }
+
+  //: What the last pairing had to say, when it could not pair.
+  var unpaired = "";
+  //: What the box paired by itself, so that new files put down only that, and never a
+  //: translation or a transcript the reader brought under Change.
+  var paired = { translation: false, transcript: false };
+
+  function putDownPaired() {
+    if (paired.translation) translationHalf.putDown();
+    if (paired.transcript) transcriptHalf.putDown();
+    paired = { translation: false, transcript: false };
+  }
+
+  function hold(files) {
+    chosen = files && files.length ? files : null;
+    if (window.TargumAddAudio) {
+      window.TargumAddAudio.toggle(!!chosen && chosen.length === 1 && isAudio(chosen[0]));
+    }
+    var row = document.getElementById("translation-row");
+    // A recording, a PDF or pictures go up in pieces, and a translation is not sent
+    // with them: the row that offers one is not there.
+    if (row) row.hidden = !!chosen && inPieces(chosen);
+  }
+
+  // Files from the box, the picker or the clipboard: whatever was held is put down,
+  // along with anything paired to it, and the new files are paired afresh.
+  function take(files) {
+    var list = bringing.listed(files);
+    if (!list.length) return Promise.resolve();
+    if (given) given.value = "";
+    unpaired = "";
+    putDownPaired();
+    var kinds = list.map(medium);
+    function count(kind) {
+      return kinds.filter(function (one) {
+        return one === kind;
+      }).length;
+    }
+    function first(kind) {
+      return list[kinds.indexOf(kind)];
+    }
+
+    if (list.length === 2 && count("recording") + count("video") === 1 && count("subtitles") === 1) {
+      hold([first("recording") || first("video")]);
+      transcriptHalf.take(first("subtitles"));
+      paired.transcript = true;
+      settle();
+      return Promise.resolve();
+    }
+    if (list.length === 2 && count("text") === 2) {
+      return Promise.all(list.map(head)).then(function (heads) {
+        var shares = heads.map(hebrewShare);
+        var hebrew = shares[0] >= 0.5 ? 0 : shares[1] >= 0.5 ? 1 : -1;
+        if (hebrew < 0 || shares[1 - hebrew] >= 0.5) {
+          hold([list[0]]);
+          unpaired =
+            "Both are in the same script, so only " +
+            list[0].name +
+            " is used. A translation you have goes under Change.";
+        } else {
+          hold([list[hebrew]]);
+          translationHalf.take(list[1 - hebrew]);
+          paired.translation = true;
+        }
+        settle();
+      });
+    }
+    if (list.length > 1 && count("picture") === list.length) {
+      hold(list);
+    } else if (list.length > 1) {
+      hold([list[0]]);
+      unpaired =
+        "Only " +
+        list[0].name +
+        " is used. Files go together as a recording and its subtitles, or a text and its translation.";
+    } else {
+      hold(list);
+    }
+    settle();
+    return Promise.resolve();
+  }
+
+  function forget() {
+    unpaired = "";
+    hold(null);
+    putDownPaired();
+    fileInput.value = "";
+    settle();
+  }
+
+  function sized(files) {
+    var total = 0;
+    files.forEach(function (file) {
+      total += file.size || 0;
+    });
+    return total >= 1048576 ? (total / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(total / 1024)) + " KB";
+  }
+
+  // One chip per file in the box, and one for whatever was paired to it.
+  function drawFiles() {
+    if (!givenFiles) return;
+    givenFiles.textContent = "";
+    var rows = [];
+    if (chosen) {
+      rows.push({
+        label: chosen.length === 1 ? chosen[0].name : chosen.length + " photos of pages",
+        size: sized(chosen),
+        remove: forget,
+      });
+    }
+    var transcript = transcriptHalf.held();
+    if (transcript) rows.push({ label: transcript.name, role: "transcript", size: sized([transcript]), remove: transcriptHalf.putDown });
+    if (theirs) rows.push({ label: theirs.name, role: "translation", size: sized([theirs]), remove: translationHalf.putDown });
+    rows.forEach(function (row) {
+      var li = document.createElement("li");
+      li.className = "given-file";
+      var name = document.createElement("span");
+      name.className = "given-file-name";
+      name.textContent = row.label;
+      li.appendChild(name);
+      var meta = document.createElement("span");
+      meta.className = "given-file-meta";
+      meta.textContent = (row.role ? row.role + " · " : "") + row.size;
+      li.appendChild(meta);
+      var x = document.createElement("button");
+      x.type = "button";
+      x.className = "given-file-x";
+      x.setAttribute("aria-label", "Remove " + row.label);
+      x.textContent = "×";
+      x.onclick = function () {
+        row.remove();
+        settle();
+      };
+      li.appendChild(x);
+      givenFiles.appendChild(li);
+    });
+    givenFiles.hidden = !rows.length;
+    if (given) given.hidden = !!chosen;
+  }
+
+  // What targum thinks it was given, in a sentence.
+  function understanding() {
+    if (chosen) {
+      var kind = medium(chosen[0]);
+      var transcript = transcriptHalf.held();
+      var said = {
+        recording: "A recording.",
+        video: "A video.",
+        subtitles: "Subtitles, read as a text.",
+        picture: chosen.length > 1 ? chosen.length + " photos of pages, read as one text." : "A photo of a page, read as it is printed.",
+        pdf: "A .pdf file.",
+        book: "A book.",
+        text: "A text.",
+        other: "A file.",
+      }[kind];
+      if (kind === "recording" || kind === "video") {
+        said += transcript
+          ? " Its own transcript comes with it, so nothing is transcribed."
+          : " targum writes down what is said, and it counts against your hours.";
+      }
+      if (theirs) said += " Your translation is lined up with it, sentence by sentence.";
+      return unpaired ? said + " " + unpaired : said;
+    }
+    var read = readGiven();
+    if (read.kind === "link") return "A link. targum reads what is there before it gives a price.";
+    if (read.kind === "text") return "Hebrew, " + read.words + (read.words === 1 ? " word." : " words.");
+    if (read.kind === "few") {
+      return talks()
+        ? "A few words. Continue reads them as a text; Ask targum looks for something to read."
+        : "A few words, read as a text.";
+    }
+    if (read.kind === "description") {
+      return talks()
+        ? "That reads as what you want to read. Ask targum looks for it, as a turn of conversation."
+        : "That reads as what you want to read. Paste a link or the text itself here.";
+    }
+    if (read.kind === "foreign") return "targum reads Hebrew, Yiddish and Aramaic, and this is in another script.";
+    return RESTING;
+  }
+
+  // Whether the conversation is on this page to ask in.
+  function talks() {
+    return !!(window.TargumTalk && window.TargumTalk.say);
+  }
+
+  // Every choice on one line, and Change at the end of it.
+  function summarise() {
+    var from = document.getElementById("from");
+    var to = document.getElementById("to");
+    var parts = [named(from && from.value) + " → " + named(to && to.value)];
+    var typed = document.getElementById("pasted-translation");
+    if (!(chosen && inPieces(chosen))) {
+      parts.push(theirs || (typed && typed.value.trim()) ? "your translation" : "targum translates");
+    } else {
+      parts.push("targum translates");
+    }
+    if (chosen && chosen.length === 1 && isAudio(chosen[0])) {
+      parts.push(transcriptHalf.held() ? "your transcript" : "targum transcribes");
+    }
+    return parts.join(" · ");
+  }
+
+  // Everything the box says, drawn again from what it holds.
+  function settle() {
+    drawFiles();
+    var read = readGiven();
+    if (understood) understood.textContent = understanding();
+    var something = !!chosen || read.kind === "link" || read.kind === "text" || read.kind === "few";
+    if (askTargum) askTargum.hidden = chosen !== null || !talks() || (read.kind !== "description" && read.kind !== "few");
+    if (summary) {
+      summary.hidden = !something && (!choices || choices.hidden);
+      summaryLine.textContent = summarise();
+    }
+  }
+
+  // Change: the manual page, open for whoever opened it last in this browser.
+  var OPENED = "targum:add-choices";
+  function openChoices(on) {
+    if (!choices || !change) return;
+    choices.hidden = !on;
+    change.setAttribute("aria-expanded", on ? "true" : "false");
+    change.textContent = on ? "Done" : "Change";
+    try {
+      if (on) localStorage.setItem(OPENED, "open");
+      else localStorage.removeItem(OPENED);
+    } catch (e) {
+      /* nowhere to keep it; the choices still open */
+    }
+    settle();
+  }
+  if (change) {
+    change.onclick = function () {
+      openChoices(choices.hidden);
+    };
+  }
+  if (choices) {
+    // A choice made there is said on the line at once.
+    choices.addEventListener("click", function () {
+      setTimeout(settle, 0);
+    });
+    choices.addEventListener("change", settle);
+    choices.addEventListener("input", settle);
+  }
 
   document.getElementById("choose").onclick = function () {
     fileInput.click();
   };
 
   fileInput.onchange = function () {
-    if (fileInput.files[0]) take(fileInput.files);
+    if (fileInput.files[0]) take(Array.prototype.slice.call(fileInput.files));
   };
 
+  // The whole box is where a file is dropped.
   ["dragenter", "dragover"].forEach(function (name) {
     drop.addEventListener(name, function (event) {
       event.preventDefault();
@@ -87,63 +410,35 @@
   });
   drop.addEventListener("drop", function (event) {
     var files = event.dataTransfer && event.dataTransfer.files;
-    if (files && files[0]) take(files);
+    if (files && files[0]) take(Array.prototype.slice.call(files));
   });
 
-  var unchoose = document.getElementById("unchoose");
-  var DROP_LABEL = drop.querySelector(".drop-label").textContent;
-  var DROP_NOTE = drop.querySelector(".drop-note").textContent;
-
-  // What was chosen, said: one file by its name, several pictures by their count.
-  function chosenLabel() {
-    if (chosen.length === 1) return chosen[0].name;
-    return chosen.length + " pictures";
-  }
-  function chosenSize() {
-    var total = 0;
-    chosen.forEach(function (file) {
-      total += file.size || 0;
+  if (given) {
+    given.addEventListener("input", settle);
+    // A screenshot on the clipboard is a file like any other.
+    given.addEventListener("paste", function (event) {
+      var files = event.clipboardData && event.clipboardData.files;
+      if (files && files.length) {
+        event.preventDefault();
+        take(Array.prototype.slice.call(files));
+      }
     });
-    return Math.round(total / 1024) + " KB";
-  }
-
-  function showChosen() {
-    var picked = chosen !== null;
-    drop.querySelector(".drop-label").textContent = picked ? chosenLabel() : DROP_LABEL;
-    drop.querySelector(".drop-note").textContent = picked ? chosenSize() : DROP_NOTE;
-    document.getElementById("choose").hidden = picked;
-    if (unchoose) unchoose.hidden = !picked;
-  }
-
-  // `chosen` is always a list: one file, or the pictures of one text chosen together.
-  function take(files) {
-    chosen = bringing.listed(files);
-    if (!chosen.length) return forget();
-    sourceInput.value = "";
-    showChosen();
-    if (window.TargumAddAudio) window.TargumAddAudio.toggle(chosen.length === 1 && isAudio(chosen[0]));
-  }
-
-  function forget() {
-    chosen = null;
-    fileInput.value = "";
-    showChosen();
-    if (window.TargumAddAudio) window.TargumAddAudio.toggle(false);
-  }
-
-  if (unchoose) unchoose.onclick = forget;
-
-  // Typing a link puts the file down, and so does pasting the text. Leaving the filename
-  // on screen while something else is what gets used left no way to tell which would win.
-  sourceInput.addEventListener("input", function () {
-    if (sourceInput.value.trim() && chosen) forget();
-  });
-  if (pasted) {
-    pasted.addEventListener("input", function () {
-      if (!pasted.value.trim()) return;
-      if (chosen) forget();
-      sourceInput.value = "";
+    // A pasted text keeps its lines; ⌘ or Ctrl with Enter is Continue.
+    given.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        go.click();
+      }
     });
+  }
+
+  // Said in the conversation, by the reader's own press: a description is a turn of it.
+  if (askTargum) {
+    askTargum.onclick = function () {
+      var read = readGiven();
+      if (!read.text || !talks()) return;
+      window.TargumTalk.say(read.text);
+    };
   }
 
   /* --- the translation, where the reader has one ----------------------------- */
@@ -151,7 +446,7 @@
   /* Same drop zone, same three states, one text down. Its own copy rather than a shared
      one: the two zones hold different files and say different things, and a version of
      this that took both had four arguments and told you less than this does. */
-  (function () {
+  var translationHalf = (function () {
     var half = document.getElementById("have-translation");
     var zone = document.getElementById("drop-translation");
     var field = document.getElementById("translation");
@@ -159,7 +454,7 @@
     var undo = document.getElementById("unchoose-translation");
     var how = document.getElementById("how");
     var note = document.getElementById("how-note");
-    if (!zone || !field || !how) return;
+    if (!zone || !field || !how) return { take: function () {}, putDown: function () {} };
 
     var LABEL = zone.querySelector(".drop-label").textContent;
     var NOTE = zone.querySelector(".drop-note").textContent;
@@ -233,6 +528,17 @@
         }
       });
     });
+
+    // For the box, which pairs a translation without anybody pressing I have one.
+    return {
+      take: function (file) {
+        how.querySelector('[data-how="mine"]').click();
+        take(file);
+      },
+      putDown: function () {
+        if (theirs || !half.hidden) how.querySelector('[data-how="make"]').click();
+      },
+    };
   })();
 
   /* --- a recording, and the transcript it may have come with ----------------- */
@@ -252,7 +558,7 @@
   //: The transcript the reader brought for their recording, if they brought one.
   var spokenText = null;
 
-  (function () {
+  var transcriptHalf = (function () {
     var step = document.getElementById("audio-extra");
     var zone = document.getElementById("drop-transcript");
     var field = document.getElementById("transcript");
@@ -261,7 +567,9 @@
     var how = document.getElementById("spoken-how");
     var note = document.getElementById("spoken-note");
     var half = document.getElementById("have-transcript");
-    if (!step || !zone || !field || !how) return;
+    if (!step || !zone || !field || !how) {
+      return { take: function () {}, putDown: function () {}, held: function () { return null; } };
+    }
 
     var LABEL = zone.querySelector(".drop-label").textContent;
     var NOTE = zone.querySelector(".drop-note").textContent;
@@ -337,6 +645,22 @@
           field.value = "";
           show();
         }
+      },
+    };
+
+    // For the box, which pairs a subtitle file with its recording without anybody
+    // pressing I have one.
+    return {
+      take: function (file) {
+        how.querySelector('[data-spoken="mine"]').click();
+        spokenText = file;
+        show();
+      },
+      putDown: function () {
+        if (spokenText || !half.hidden) how.querySelector('[data-spoken="make"]').click();
+      },
+      held: function () {
+        return spokenText;
       },
     };
   })();
@@ -551,7 +875,7 @@
       });
     }
 
-    var text = pasted ? pasted.value.trim() : "";
+    var read = readGiven();
     if (chosen && inPieces(chosen)) {
       // A recording, a PDF, or the pictures of one text: up the chunked door, the
       // fields it answers with merged into the request, then priced.
@@ -583,20 +907,29 @@
           return ask("/prepare", body);
         });
       });
-    } else if (text) {
-      var file = fromPaste(text);
+    } else if (read.kind === "text" || read.kind === "few") {
+      var file = fromPaste(read.text);
       payload.name = file.name;
       payload.content = file.content;
       prepared = withTranslation(payload).then(function (body) {
         return ask("/prepare", body);
       });
     } else {
-      payload.source = sourceInput.value.trim();
-      if (!payload.source) {
+      // A description is never priced: it is a request, and Ask targum is where it
+      // goes. Words in another script are not a text targum reads.
+      if (read.kind !== "link") {
         go.disabled = false;
-        say(line("Paste a link, drop a file, paste the text, or give an id."), true);
+        say(
+          line(
+            read.kind === "description" || read.kind === "foreign"
+              ? understanding()
+              : "Paste a link or some Hebrew, or drop a file."
+          ),
+          true
+        );
         return;
       }
+      payload.source = read.text;
       // A YouTube address goes to /prepare like any other link. It was turned away
       // here while the box would not fetch one; now it does, and a page that still
       // refused would be refusing something that works.
@@ -676,6 +1009,7 @@
     row.className = "row";
     var go = document.createElement("button");
     go.type = "button";
+    go.className = "filled";
     go.textContent = "Open it";
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
@@ -685,6 +1019,7 @@
     row.appendChild(go);
     var anyway = document.createElement("button");
     anyway.type = "button";
+    anyway.className = "ghost";
     anyway.textContent = "Translate it anyway";
     anyway.onclick = function () {
       // Deliberate, so it is asked for a second time rather than assumed.
@@ -711,8 +1046,13 @@
           payload.content = content;
           return ask("/prepare", payload);
         });
+      } else if (readGiven().kind === "link") {
+        payload.source = readGiven().text;
+        again = ask("/prepare", payload);
       } else {
-        payload.source = sourceInput.value.trim();
+        var pastedAgain = fromPaste(readGiven().text);
+        payload.name = pastedAgain.name;
+        payload.content = pastedAgain.content;
         again = ask("/prepare", payload);
       }
       again
@@ -791,6 +1131,7 @@
     row.className = "row";
     var confirm = document.createElement("button");
     confirm.type = "button";
+    confirm.className = "filled";
     confirm.textContent = "Start reading";
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
@@ -859,7 +1200,7 @@
    * is typed by whoever sends the link and not only by us.
    */
   (function () {
-    if (!sourceInput || !window.URLSearchParams) return;
+    if (!given || !window.URLSearchParams) return;
     var asked = new URLSearchParams(window.location.search).get("source");
     if (!asked) return;
     var url;
@@ -869,11 +1210,19 @@
       return;
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") return;
-    sourceInput.value = url.href;
-    if (sourceInput.dispatchEvent) {
-      sourceInput.dispatchEvent(new Event("input", { bubbles: true }));
-    }
+    given.value = url.href;
+    settle();
   })();
+
+  // Change stays open for whoever opened it last; otherwise the box says what it holds.
+  var wasOpen = false;
+  try {
+    wasOpen = localStorage.getItem(OPENED) === "open";
+  } catch (e) {
+    wasOpen = false;
+  }
+  if (wasOpen) openChoices(true);
+  else settle();
 
   /* --- getting about ------------------------------------------------------- */
 

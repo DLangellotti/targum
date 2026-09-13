@@ -230,7 +230,7 @@ THUMBED = (
     # And the two presses under Words you may already know (2026-09-10, #245).
     ".claim-yes",
     ".claim-no",
-    # And the bar's own presses (2026-09-11): the three places, at the foot of a phone,
+    # And the bar's own presses (2026-09-11): the four places, at the foot of a phone,
     # the pill that opens the conversation, the bell and the account.
     ".site-nav a",
     ".talk-cta",
@@ -244,6 +244,16 @@ THUMBED = (
     ".ways-item",
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
+    # And the Add page's box (2026-09-13, targum-internal#249): Choose files, Ask
+    # targum, Continue, the × on a file in the box, Change, the presses on a priced card,
+    # and Choose file for a translation or a transcript.
+    ".bring-choose",
+    ".bring-ask",
+    ".add .go",
+    ".given-file-x",
+    ".add .change",
+    ".add .status button",
+    ".drop.small button",
     # And the button on a quote that starts a build — the one press that spends.
     ".quote-go",
     # And the door a path becomes: the reader opens a text, never the model.

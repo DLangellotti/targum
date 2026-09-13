@@ -60,7 +60,7 @@ def test_add_still_does_everything_only_it_could() -> None:
     assert 'type="file"' in add, "the file input"
     assert 'accept=".txt,.md,.markdown,.epub"' in add, "and what it accepts"
     assert 'id="drop"' in add, "the drop zone"
-    assert 'id="source"' in add, "the free-text source field"
+    assert 'id="given"' in add, "the one box a link or a text is typed into"
     assert 'id="from"' in add and 'id="to"' in add, "both language selects"
     assert 'id="status"' in add, "the price-before-you-commit surface"
 
@@ -123,19 +123,19 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_three_places() -> None:
+def test_every_page_carries_the_same_four_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
-    once already. Three since 2026-09-06: the chat, second here for a day, is the box at
-    the top of Learn, and uploading, which was a corner, is the `+` on that box."""
+    once already. Three from 2026-09-06, when the chat became the box at the top of
+    Learn and uploading the `+` on it; four since 2026-09-13, when Add came back last,
+    because with the box in a drawer the Add page had no door of its own."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress"], name
+        assert found == ["learn", "library", "progress", "add"], name
 
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
-#: can be, it is who you are while you are in one of them; and bringing a text is the
-#: `+` on the box, a thing you do while asking.
-NOT_IN_THE_NAV = {"you", "add"}
+#: can be, it is who you are while you are in one of them.
+NOT_IN_THE_NAV = {"you"}
 
 #: Learn's lists, gone to a page of their own, and the conversation, which is where a
 #: line typed into Learn's box goes. They mark Learn, which is where they came from and
@@ -155,9 +155,10 @@ def test_the_nav_marks_where_you_are() -> None:
         assert current == [name], f"{name} should mark itself and nothing else"
 
 
-def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
-    """Add used to be first in the nav, then the corner. Since 2026-09-06 it is the `+`
-    on the box, on both pages that carry one, and nothing in the nav points at it."""
+def test_bringing_a_text_is_the_box_and_a_place() -> None:
+    """Add used to be first in the nav, then the corner, then from 2026-09-06 only the
+    `+` on the box. Since 2026-09-13 it is both: the `+` brings a file while asking, and
+    the page is the last place in the nav, the one that keeps its `+` at a desk."""
     for name, page in (("chat", PAGES["chat"]), ("embed", EMBED)):
         assert 'id="chat-bring"' in page and 'id="chat-file"' in page, name
         assert 'class="upload' not in page, name
@@ -166,6 +167,8 @@ def test_bringing_a_text_is_the_box_and_not_a_place() -> None:
     assert 'keyed("/add")' in bring, "the Add page is one link away, on the card"
     order = re.findall(r'data-nav="(\w+)"', PAGES["learn"])
     assert order.index("learn") == 0
+    add = re.search(r'<a href="/add" data-nav="add"[^>]*>(.*?)</a>', PAGES["learn"])
+    assert add and 'class="nav-glyph"' in add.group(1) and "<span>Add</span>" in add.group(1)
 
 
 def test_the_front_page_is_the_reader_s_own_highlight() -> None:
@@ -239,10 +242,11 @@ def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
     a microphone, an arrow, a loudspeaker from one sprite, each to §7 — sixteen pixels,
     no fill, a stroke at 1.4 with round caps — and the word kept as the label, so a
     screen reader says what the button used to say. The `+` stays typed, as §7 keeps
-    typed characters as themselves."""
+    typed characters as themselves. A file joined them on 2026-09-13, for Choose files
+    on the Add page's box (targum-internal#249)."""
     sprite = (TEMPLATES / "_glyphs.html.j2").read_text(encoding="utf-8")
     symbols = re.findall(r'<symbol id="glyph-(\w+)" viewBox="([^"]+)">', sprite)
-    assert sorted(name for name, _ in symbols) == ["hear", "mic", "send", "stop"]
+    assert sorted(name for name, _ in symbols) == ["file", "hear", "mic", "send", "stop"]
     assert all(box == "0 0 16 16" for _, box in symbols), "§7: a 16px viewBox"
     assert 'fill="' not in sprite and "stroke=" not in sprite, "the stroke is the stylesheet's"
     glyph = (ASSETS / "composer.css").read_text(encoding="utf-8")
@@ -823,15 +827,41 @@ def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
 # -- bringing your own text ------------------------------------------------------
 
 
-def test_the_upload_page_takes_a_text_three_ways() -> None:
-    """A file, a link, or the text itself. Half of what anybody wants to read is already
-    on their clipboard, and saving it to a file to hand it back is a step for nothing."""
+def test_the_upload_page_takes_anything_in_one_box() -> None:
+    """A file, a link, or the text itself — and since 2026-09-13 in one box rather than
+    three to choose between (design.md §12, targum-internal#249). Half of what anybody
+    wants to read is already on their clipboard, and saving it to a file to hand it back
+    is a step for nothing."""
     add = PAGES["add"]
-    assert 'id="file"' in add and 'id="source"' in add and 'id="pasted"' in add
+    assert 'id="file"' in add and 'id="given"' in add
+    assert 'id="source"' not in add and 'id="pasted"' not in add, "one box, not three"
+    accepted = re.search(r'id="file" multiple\s+accept="([^"]+)"', add)
+    assert accepted, "the box's file input takes several files"
+    for kind in (".epub", ".pdf", ".srt", ".vtt", ".jpg", ".mp3", ".opus", ".mp4"):
+        assert kind in accepted.group(1), f"any medium: {kind}"
 
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     assert "function fromPaste(" in source, "pasted text goes through the one door"
     assert "btoa(unescape(encodeURIComponent(" in source, "and Hebrew survives the trip"
+
+
+def test_a_description_is_said_in_the_conversation_by_the_reader_s_press() -> None:
+    """A sentence about what the reader wants is a turn of conversation, not a text to
+    price (2026-09-13, targum-internal#249). Ask targum hands it to the talk drawer, and
+    the framed conversation says it only when it came from its own parent on this origin
+    — the model is never the one who sends it, and no other page can."""
+    add = (ASSETS / "add.js").read_text(encoding="utf-8")
+    assert "window.TargumTalk.say(read.text)" in add, "Ask targum is the reader's press"
+    go = add[add.index("go.onclick") :]
+    assert 'read.kind !== "link"' in go, "Continue never prices a description"
+
+    talk = (ASSETS / "talk.js").read_text(encoding="utf-8")
+    assert "say: say" in talk and '"targum:say"' in talk
+
+    chat = (ASSETS / "chat.js").read_text(encoding="utf-8")
+    listener = chat[chat.index('window.addEventListener("message"') :][:1200]
+    assert "event.origin !== window.location.origin || event.source !== window.parent" in listener
+    assert 'data.type === "targum:say"' in listener, "said only through the checked listener"
 
 
 def test_the_upload_page_offers_a_translation_you_already_have() -> None:

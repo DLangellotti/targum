@@ -1,12 +1,13 @@
-/* Bringing a text targum does not have.
+/* Adding a text targum does not have, in any medium.
 
-   Not the page anybody lands on any more — Learn is — so this no longer has to introduce
-   the product. Same palette and type as a reader, so the tool still looks like one thing
-   rather than a form bolted to a book. */
+   A chrome page (§13): the desk, cards lifted off it, wells for what is typed, and the
+   three kinds of button. One box takes whatever it is given; a line under it says what
+   targum thinks that was; every choice is behind Change (design.md §12, 2026-09-13,
+   targum-internal#249). Until then this page still wore the reader's language — a
+   dashed drop zone, bordered word-buttons and a brown button — which §13 retired. */
 
 /* The header spans the page like it does everywhere else; only the column under it
-   is narrow. `justify-items` rather than `place-items`, so a full-width header can
-   still stretch while the column stays centred. */
+   is narrow, and it starts where the header's name starts. */
 body.add {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -14,274 +15,333 @@ body.add {
   min-height: 100svh;
 }
 body.add > .site-head { justify-self: stretch; }
-/* The column starts where the header's name starts, so the whole site shares one
-   left edge rather than centring each page on its own width. */
 body.add > .add-main {
   justify-self: start;
   margin-inline-start: max(0px, calc((100% - 62rem) / 2));
 }
 
 .add-main {
-  width: min(62rem, 100%);
-  /* 1.25rem to the side, the same as the header, so the two share a left edge. The
-     six rems that used to sit under this were room for a column nothing reaches the
-     bottom of any more. */
-  padding: 1.5rem 1.25rem 2rem;
-  font-family: system-ui, sans-serif;
+  width: min(46rem, 100%);
+  padding: 2rem 1.25rem 3rem;
+  font-family: var(--chrome);
+  display: grid;
+  gap: 1rem;
+  align-content: start;
 }
 
 .add .lede {
-  margin: 0 0 1.75rem;
+  margin: 0;
   font-family: var(--reading);
   font-size: 1.75rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  line-height: 1.1;
   color: var(--ink);
 }
+.hint { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.55; }
+.add .lede + .hint { margin-block-start: -0.5rem; }
+.to-library { color: var(--teal); font-weight: 600; text-decoration: none; }
+.to-library:hover { text-decoration: underline; }
 
-/* Two columns while there is room for two, one below that. What the page asks for is
-   small; asking for it in single file was what made it long. */
-.add-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: 1.25rem 2rem;
-  align-items: start;
-}
-.add-grid .beside { display: flex; flex-direction: column; }
-
-.drop {
-  display: grid;
-  gap: 0.4rem;
-  place-items: center;
-  padding: 1.5rem 1rem;
-  border: 1px dashed var(--rule);
-  border-radius: var(--radius-card);
-  background: color-mix(in srgb, var(--paper-raised) 60%, transparent);
-  text-align: center;
-  transition: border-color 200ms ease, background-color 200ms ease;
-}
-.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.drop-label { margin: 0; color: var(--ink); font-size: 1.0625rem; }
-.drop-note { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
-.drop button { margin-block-start: 0.6rem; }
-
-.or { margin: 1.1rem 0; color: var(--ink-soft); text-align: center; font-size: 0.8125rem; }
-
-.field { display: grid; gap: 0.3rem; margin-block-end: 0.9rem; }
-.field span { color: var(--ink-soft); font-size: 0.8125rem; }
-.field input, .field select {
-  width: 100%;
-  padding: 0.5rem 0.65rem;
-  font: inherit;
-  color: var(--ink);
-  background: var(--paper-raised);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-}
-.field input:focus, .field select:focus { outline: 2px solid var(--focus); outline-offset: -1px; }
-.hint { margin: -0.4rem 0 0; color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.6; }
-/* Said before anything is priced, so it sits with the heading rather than with the
-   form. Ink with a hairline, not accent: the button below it is the page's one primary
-   action, and §4 rations the hue to that. Two accents above and below the fold is how a
-   page ends up with no primary action at all. */
-.add .lede + .hint { margin: -1.25rem 0 1.75rem; }
-.to-library {
-  color: var(--ink);
-  text-decoration: none;
-  border-block-end: 1px solid var(--hairline);
-}
-.to-library:hover { border-block-end-color: var(--ink-soft); }
-/* Two hints in a row sat on top of each other: the rule above pulls each one up under
-   the field it explains, and with no bottom margin the second climbed into the first. */
-.hint + .hint { margin-block-start: 0.55rem; }
-.hint.caps { margin-block-start: 0.75rem; text-align: center; }
-
-/* Nothing new can be translated, said before a text is chosen rather than after the
-   wait. Warm rather than red: it is a condition, not a failure. */
+/* Nothing new can be translated, said before anything is chosen. */
 .notice {
-  margin: 0 0 2rem;
+  margin: 0;
   padding: 0.8rem 1rem;
-  border-inline-start: 3px solid var(--accent);
-  background: var(--paper-raised);
-  /* Logical corners: paired with a logical rail, `0 6px 6px 0` put the flat edge and
-     the rail on opposite sides of the box in Hebrew. */
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
-  border-start-end-radius: 6px;
-  border-end-end-radius: 6px;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
   color: var(--ink);
-  font-size: 0.8125rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
-.unchoose {
-  margin-block-start: 0.5rem;
-  background: none;
+/* --- the box: a card, and a well inside it ---------------------------------------- */
+.bring {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.bring > .drop {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-block-size: 6rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  transition: box-shadow var(--out) var(--ease);
+}
+.bring > .drop.over,
+.bring > .drop:focus-within { box-shadow: inset 0 0 0 2px var(--teal); }
+.bring textarea {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 3.2rem;
+  padding: 0;
   border: 0;
-  color: var(--ink-soft);
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
   font: inherit;
-  font-size: 0.8125rem;
-  text-decoration: underline;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.bring textarea::placeholder { color: var(--ink-soft); }
+.bring textarea[hidden] { display: none; }
+.understood { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
+
+/* What is in the box, one chip a file, with its × on it. */
+.given-files { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+.given-files[hidden] { display: none; }
+.given-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-inline-size: 100%;
+  padding-block: 0.2rem;
+  padding-inline: 0.75rem 0.2rem;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  font-size: 0.875rem;
+}
+.given-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.given-file-meta { color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.given-file-x {
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.0625rem;
+  line-height: 1;
   cursor: pointer;
 }
-.unchoose:hover { color: var(--ink); }
-.unchoose[hidden] { display: none; }
-.hint br { content: ""; display: block; margin-block-start: 0.5rem; }
-.hint code { background: var(--paper-raised); padding: 0.05rem 0.3rem; border-radius: var(--radius-control); }
+.given-file-x:hover { background: var(--teal-wash); color: var(--teal); }
 
-.step { margin-block-end: 1.5rem; }
-.step h2 {
-  margin: 0 0 0.9rem;
-  font-size: 0.8125rem;
+.bring-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+/* --- the three kinds of button (§13) ------------------------------------------------
+   Filled in the primary, one per view: Continue, and the card's own press once it is
+   drawn. Tonal, tint with the primary's text, for the ordinary press. Ghost for Change,
+   Done and dismiss. All pills. */
+.add .go,
+.add .filled,
+.add .bring-choose,
+.add .bring-ask,
+.add .status button,
+.add .change,
+.add .ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  white-space: nowrap;
+  cursor: pointer;
+  background: var(--teal-wash);
+  color: var(--teal);
+  box-shadow: none;
 }
+.add .go { margin-inline-start: auto; }
+.add .go,
+.add .filled,
+.add .status .filled { background: var(--teal); color: var(--teal-ink); }
+.add .go:hover,
+.add .filled:hover,
+.add .status .filled:hover { background: var(--teal); filter: brightness(1.08); }
+.add .bring-choose:hover,
+.add .bring-ask:hover,
+.add .status button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.add .change,
+.add .ghost,
+.add .status .ghost { background: transparent; color: var(--ink-soft); }
+.add .change:hover,
+.add .ghost:hover,
+.add .status .ghost:hover { background: var(--teal-wash); color: var(--ink); }
+.add .go[disabled] { opacity: 0.5; cursor: progress; }
+.add .go:focus-visible,
+.add .filled:focus-visible,
+.add .bring-choose:focus-visible,
+.add .bring-ask:focus-visible,
+.add .change:focus-visible,
+.add .ghost:focus-visible,
+.add .status button:focus-visible,
+.given-file-x:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.add [hidden] { display: none; }
+.glyph { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* The sprite the glyphs come from: on the page so `<use>` can reach it, and no size. */
+.add .glyphs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; }
 
-.options { display: flex; flex-wrap: wrap; gap: 0.7rem 1rem; align-items: end; margin-block-end: 0.9rem; }
-.field.short { margin: 0; width: 11rem; }
-.field.wide { margin: 0; width: 13rem; }
-.hint.plain { margin-block-start: 1.1rem; }
-/* The label wraps to two or three lines, so the box sits with the first of them
-   rather than halfway down the paragraph. */
-.check {
+/* --- every choice on one line, and the manual page behind it ------------------------ */
+.summary {
   display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  margin-block-start: 1.1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  padding-block: 0.35rem;
+  padding-inline: 1rem 0.35rem;
+  border-radius: var(--radius-row);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+.summary-line { margin: 0; flex: 1 1 14rem; color: var(--ink); font-size: 0.9375rem; }
+
+.options {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.option-row { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 0.4rem 1rem; align-items: start; }
+.option-row h2 {
+  margin: 0;
+  padding-block-start: 0.45rem;
   color: var(--ink-soft);
-  font-size: 0.8125rem;
-  line-height: 1.6;
-  max-width: 46ch;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.check input { margin-block-start: 0.3rem; flex: none; }
-.check b { color: var(--ink); font-weight: 600; }
-
-.go {
-  width: 100%;
-  padding: 0.7rem;
-  font-size: 1.0625rem;
-  color: var(--paper);
-  /* The one primary action per view: accent, with the sheen the recipe permits. */
-  background: linear-gradient(var(--gloss), transparent) var(--accent);
-  border: none;
-  border-radius: var(--radius-card);
-  transition: box-shadow 200ms ease;
+.option-body { display: grid; gap: 0.55rem; min-inline-size: 0; }
+.pickers { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; }
+.field { display: grid; gap: 0.3rem; margin: 0; }
+.field span { color: var(--ink-soft); font-size: 0.8125rem; }
+.field.short { inline-size: 12rem; max-inline-size: 100%; }
+.field select,
+.field input,
+.options textarea {
+  inline-size: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
 }
-.go:hover { box-shadow: var(--lift); }
-.go[disabled] { opacity: 0.5; }
+.options textarea { min-block-size: 4.5rem; resize: vertical; }
+.field select:focus-visible,
+.field input:focus-visible,
+.options textarea:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--teal); }
+.add .segment { font-size: 0.875rem; font-weight: 600; padding: 0.35rem 0.85rem; }
 
+/* A translation or a transcript the reader has, in its own small well. */
+.drop.small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  transition: box-shadow var(--out) var(--ease);
+}
+.drop.small.over { box-shadow: inset 0 0 0 2px var(--teal); }
+.drop.small .drop-label { margin: 0; color: var(--ink); font-size: 0.9375rem; }
+.drop.small .drop-note { margin: 0; flex: 1 1 auto; color: var(--ink-soft); font-size: 0.8125rem; }
+.drop.small button {
+  min-block-size: 2.25rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.drop.small .unchoose { background: transparent; color: var(--ink-soft); }
+
+.limits { font-size: 0.8125rem; }
+
+/* --- what was priced, refused, or is being built ----------------------------------- */
 .status {
-  margin-block-start: 1.25rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--hairline);
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.1rem 1.25rem;
   border-radius: var(--radius-card);
-  background: var(--paper-raised);
-  font-size: 0.8125rem;
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  font-size: 0.9375rem;
   line-height: 1.55;
 }
 .status[hidden] { display: none; }
-.status b { color: var(--ink); }
-.status .cost { display: block; margin-block-start: 0.35rem; color: var(--ink-soft); }
-.status .bar { height: 3px; margin-block-start: 0.6rem; background: var(--rule); border-radius: 999px; }
+.status b { font-weight: 600; }
+.status .cost { display: block; color: var(--ink-soft); font-size: 0.875rem; }
+.status .hint.plain { margin: 0; }
+.status .bar { height: 4px; background: var(--field); border-radius: 999px; overflow: hidden; }
 .status .bar i {
   display: block;
   height: 100%;
   width: 0;
   border-radius: 999px;
-  /* Progress is leaf, and a progress fill is one of the two places the gloss recipe
-     is allowed. One sheen, top-down, light on glass. */
-  background: linear-gradient(var(--gloss), transparent) var(--leaf);
-  transition: width 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  background: var(--leaf);
+  transition: width var(--in) var(--ease);
 }
-.status .row { display: flex; gap: 0.5rem; margin-block-start: 0.7rem; }
-/* A command to take away: on page paper inside the raised box, in the details face,
-   and selected whole at a tap — a shell command is copied or it is nothing. */
+.status .row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-start: 0.25rem; }
 .status .cmd {
   display: block;
-  margin-block-start: 0.5rem;
   padding: 0.4rem 0.6rem;
   border-radius: var(--radius-control);
-  background: var(--paper);
+  background: var(--field);
   color: var(--ink);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8125rem;
   overflow-wrap: anywhere;
   user-select: all;
 }
-.status.bad { border-color: var(--clay); }
+.status .excerpt { margin: 0; font-family: var(--reading-hebrew); font-size: 1.25rem; }
 .status.bad b { color: var(--clay); }
+.status.bad > p:first-child { color: var(--clay); }
+/* A duration is a count: lined-up digits (§5). */
+.status .clock { font-variant-numeric: tabular-nums; }
+
+/* This text is already in the library with a published translation. */
+.instead { margin: 0; line-height: 1.55; }
+.instead .row { margin-block-start: 0.6rem; }
+
+@media (max-width: 40rem) {
+  .add-main { padding-block-start: 1.25rem; }
+  .option-row { grid-template-columns: minmax(0, 1fr); }
+  .option-row h2 { padding-block-start: 0; }
+  .add .go { flex: 1 1 100%; }
+}
+
+/* §8: a control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .add .go,
+  .add .bring-choose,
+  .add .bring-ask,
+  .add .change,
+  .add .status button,
+  .given-file-x,
+  .drop.small button {
+    min-height: 44px;
+  }
+  .given-file-x { min-width: 44px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .status .bar i,
-  .go,
-  .drop { transition: none; }
+  .bring > .drop,
+  .drop.small { transition: none; }
 }
-
-/* The text, pasted rather than saved to a file and dropped in. Same box as the link
-   field, taller, and it keeps the reading face: what goes in here is Hebrew. */
-.add textarea {
-  inline-size: 100%;
-  min-block-size: 5rem;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-row);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  resize: vertical;
-}
-.add textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-
-/* One line, one box, one question: draw a picture for this or do not. */
-.tick {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9375rem;
-}
-
-/* The type selector for `.drop` otherwise beats the user-agent [hidden] rule, which is
-   how a drop zone for a translation nobody said they had stayed on the page. */
-.add .drop[hidden] { display: none; }
-
-/* The switch, and the line under it that says what the switch just chose. */
-.add .segmented { margin-block-end: 0.5rem; }
-.add #how-note { margin-block-start: 0; }
-
-/* The second drop zone is the smaller offer: it is only there once somebody has said
-   they have a translation, and it should not tower over the text they came to add. */
-.drop.small { padding: 1rem 0.9rem; }
-.drop.small .drop-label { font-size: 0.9375rem; }
-
-/* --- offered instead of paying for a translation --------------------------
- *
- * add.js builds this notice; it lives in library.css, which this page does not load,
- * so the one message that saves a reader money rendered as a bare paragraph. The
- * corners are logical too: paired with a logical rail, `0 6px 6px 0` put the flat edge
- * and the rail on opposite sides of the box in Hebrew. */
-
-.instead {
-  margin-block-start: 0.6rem;
-  padding: 0.8rem 1rem;
-  border-inline-start: 3px solid var(--accent);
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
-  border-start-end-radius: 6px;
-  border-end-end-radius: 6px;
-  background: var(--paper-raised);
-  line-height: 1.55;
-}
-.instead b { color: var(--ink); }
-.instead .row { margin-block-start: 0.6rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
-
-/* A duration is a count, and counts are set in the details face with lined-up digits
-   (§5) — a clock whose colons wander reads as three numbers. */
-.status .clock {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-variant-numeric: tabular-nums;
-}
-
-/* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
-.panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }

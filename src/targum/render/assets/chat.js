@@ -1234,6 +1234,15 @@
         reading = data.about && typeof data.about === "object" ? data.about : null;
         drawReading();
       }
+      // A line the page holding the drawer was asked to say, by the reader's press
+      // there (Add's Ask targum). Said once the list has loaded, so it lands in a
+      // conversation rather than before the page knows whether it can ask at all.
+      if (data.type === "targum:say" && typeof data.text === "string") {
+        var asked = data.text.trim().slice(0, 2000);
+        Promise.resolve(booted).then(function () {
+          if (asked) say(asked);
+        });
+      }
     });
   }
 
@@ -1392,7 +1401,8 @@
   // `TARGUM_KEY` — which is why nothing looked wrong (targum-internal#232).
   if (window.TargumSync) window.TargumSync.start();
 
-  load();
+  //: The first load, which a line said from the parent page waits for.
+  var booted = load();
 
   window.TargumChat = {
     say: say,

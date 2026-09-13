@@ -158,7 +158,7 @@ def test_pasted_text_reaches_the_server_when_the_button_is_pressed(browser, tmp_
     open_page = context.new_page()
     open_page.route("http://add.test/**", answer)
     open_page.goto("http://add.test/add")
-    open_page.fill("#pasted", "בארץ־ישראל קם העם היהודי")
+    open_page.fill("#given", "בארץ־ישראל קם העם היהודי")
     open_page.click("#go")
     open_page.wait_for_timeout(400)
     context.close()
@@ -170,6 +170,123 @@ def test_pasted_text_reaches_the_server_when_the_button_is_pressed(browser, tmp_
     assert sent["name"].endswith(".txt")
     assert base64.b64decode(sent["content"]).decode("utf-8") == "בארץ־ישראל קם העם היהודי"
     assert sent["to"] and sent["words"] is True
+
+
+#: A subtitle file, a text and its translation, as the box is given them.
+SUBTITLE = b"1\n00:00:01,000 --> 00:00:02,000\nshalom\n"
+ENGLISH = b"In the beginning God created the heaven and the earth."
+HEBREW = "בראשית ברא אלהים את השמים ואת הארץ".encode()
+
+
+def _add_served(browser, asked: list[dict]):
+    """The Add page from an address, with `/prepare` answered and remembered."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/prepare" in request.url:
+            asked.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    return context, open_page
+
+
+def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
+    """One box (2026-09-13, targum-internal#249): a link typed where a text could be is
+    sent as the source, and the line under the box says it is a link before anything."""
+    asked: list[dict] = []
+    context, open_page = _add_served(browser, asked)
+    open_page.fill("#given", "https://www.kan.org.il/content/kan/podcasts/p-1/12345/")
+    said = open_page.text_content("#understood")
+    summary = open_page.is_visible("#summary")
+    open_page.click("#go")
+    open_page.wait_for_timeout(400)
+    context.close()
+
+    assert said and said.startswith("A link"), said
+    assert summary, "every choice on one line once something is in the box"
+    assert asked and asked[0]["source"].startswith("https://www.kan.org.il/"), asked
+    assert "content" not in asked[0], "a link is not a pasted text"
+
+
+def test_a_recording_and_its_subtitles_are_paired_without_asking(browser) -> None:
+    """Dropped together, a recording and a subtitle file are a recording with its own
+    transcript: Transcript is set to I have one by the box, not by the reader."""
+    context, open_page = _add_served(browser, [])
+    open_page.set_input_files(
+        "#file",
+        [
+            {"name": "shiur-12.m4a", "mimeType": "audio/mp4", "buffer": b"\x00" * 2048},
+            {"name": "shiur-12.srt", "mimeType": "text/plain", "buffer": SUBTITLE},
+        ],
+    )
+    open_page.wait_for_timeout(200)
+    got = open_page.evaluate(
+        """() => ({
+          chips: [...document.querySelectorAll('.given-file-meta')].map((m) => m.textContent),
+          said: document.getElementById('understood').textContent,
+          mine: document.querySelector('[data-spoken="mine"]').getAttribute('aria-pressed'),
+          transcriptRow: !document.getElementById('audio-extra').hidden,
+          translationRow: !document.getElementById('translation-row').hidden,
+          line: document.getElementById('summary-line').textContent,
+        })"""
+    )
+    context.close()
+
+    assert len(got["chips"]) == 2 and got["chips"][1].startswith("transcript"), got
+    assert "Its own transcript comes with it" in got["said"], got
+    assert got["mine"] == "true" and got["transcriptRow"], got
+    assert not got["translationRow"], "a recording goes up in pieces, with no translation row"
+    assert "your transcript" in got["line"], got
+
+
+def test_a_text_and_its_translation_are_paired_by_their_script(browser) -> None:
+    """Two plain texts, one in Hebrew letters and one in Latin: the Hebrew is the text and
+    the other is its translation, and both reach `/prepare`."""
+    asked: list[dict] = []
+    context, open_page = _add_served(browser, asked)
+    open_page.set_input_files(
+        "#file",
+        [
+            {"name": "english.txt", "mimeType": "text/plain", "buffer": ENGLISH},
+            {"name": "hebrew.txt", "mimeType": "text/plain", "buffer": HEBREW},
+        ],
+    )
+    open_page.wait_for_timeout(300)
+    mine = open_page.get_attribute('[data-how="mine"]', "aria-pressed")
+    open_page.click("#go")
+    open_page.wait_for_timeout(500)
+    context.close()
+
+    assert mine == "true", "the box pressed I have one"
+    assert asked, "Continue asked for a price"
+    assert asked[0]["name"] == "hebrew.txt", asked[0].get("name")
+    assert asked[0]["translationName"] == "english.txt"
+
+
+def test_a_description_is_never_priced(browser) -> None:
+    """A sentence about what the reader wants is a request, not a text: Continue sends
+    nothing to `/prepare`, and Ask targum — a turn of conversation, the reader's own
+    press — is offered where the talk drawer is on the page."""
+    asked: list[dict] = []
+    context, open_page = _add_served(browser, asked)
+    open_page.fill("#given", "a short podcast about why flats in Tel Aviv cost so much")
+    said = open_page.text_content("#understood")
+    offered = open_page.is_visible("#ask-targum")
+    open_page.click("#go")
+    open_page.wait_for_timeout(400)
+    context.close()
+
+    assert said and "what you want to read" in said, said
+    assert offered, "Ask targum is offered for a description"
+    assert asked == [], "a description never reaches /prepare"
 
 
 def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
@@ -251,7 +368,7 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
     """On a phone the header is one line — the name at one corner and the bell, the
-    account and the light switch at the other — and the three places are a bar at the
+    account and the light switch at the other — and the four places are a bar at the
     foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
     under the name, and before that indented under it with Upload cut off at the edge:
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
@@ -275,6 +392,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
             noUpload: document.querySelector('.upload') === null,
+            cut: [...document.querySelectorAll('.site-nav a')]
+              .filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -286,6 +405,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
     assert measured["toggleAtEdge"], "at the far edge"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
+    assert measured["cut"] == [], "all four places are read whole, Add among them (2026-09-13)"
     assert measured["width"] <= width, "and the page does not scroll sideways"
 
 
@@ -304,8 +424,14 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
           return nav.top < brand.bottom && nav.bottom > brand.top;
         }"""
     )
+    glyphs = open_page.evaluate(
+        """() => [...document.querySelectorAll('.site-nav a')]
+          .filter((a) => getComputedStyle(a.querySelector('.nav-glyph')).display !== 'none')
+          .map((a) => a.dataset.nav)"""
+    )
     context.close()
     assert one_line
+    assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
 def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
@@ -687,7 +813,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
     assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
-    # Phase 4: on a phone the three places are a bar at the foot of the window.
+    # Phase 4: on a phone the four places are a bar at the foot of the window.
     assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
     if width <= 640:
         assert abs(got["navBottom"] - 800) <= 1 and got["navLeft"] == 0, (
