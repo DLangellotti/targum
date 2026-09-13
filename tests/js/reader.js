@@ -192,6 +192,7 @@ if (payload.undoAfter) reader.undo();
 function rendering() {
   return {
     showing: reader.rendering(),
+    meanings: reader.meaningsIn(pairs.length ? pairs[0].getAttribute("data-id") : ""),
     cells: pairs.map((pair) => {
       const tr = pair.querySelector(".tr");
       return {

@@ -43,7 +43,7 @@ from ..models import (
     direction_for,
     is_biblical,
 )
-from ..translate.prompts import language_name
+from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 
 # A section beyond this many segments is split again. Sized so a section stays under a
@@ -1276,7 +1276,7 @@ def text_schema(entry: Entry, address: str = "") -> dict[str, Any]:
             {
                 "@type": "Book",
                 "name": rendering.name,
-                "inLanguage": "en",
+                "inLanguage": rendering.language,
                 **(
                     {"publisher": {"@type": "Organization", "name": rendering.publisher}}
                     if rendering.publisher
@@ -1773,6 +1773,11 @@ def render(
     beside the source is not a reader at all, which is the worse of the two answers — and
     it only arises where somebody stopped reading a language they had already built in.
 
+    A rendering in a `BESIDE` language is not a translation into anything a person reads,
+    so the question is not put to it: Onkelos stays on a Torah reader whatever the reader
+    reads. It does not count as the page's translation, though — a reader of Russian
+    handed a Genesis with only English and Onkelos in it still keeps the English.
+
     `siblings` are other readers of the same text at other levels, each a dict of
     `name`, `figure`, `href` and `current`. The weekly is one issue written three times,
     and a reader who finds one level too hard should be able to say so in one press
@@ -1794,9 +1799,14 @@ def render(
     if not translations:
         raise ValueError("a reader needs at least one translation")
 
-    if reads is not None:
-        offered = [t for t in translations if t.target_language in reads]
-        translations = offered or translations
+    if reads is not None and any(t.target_language in reads for t in translations):
+        translations = [
+            t for t in translations if t.target_language in reads or t.target_language in BESIDE
+        ]
+    # And it comes after them, so a Torah opens in the reader's language with Onkelos one
+    # press away — asked of the language rather than left to the order the files on disk
+    # happen to sort in. Stable, so nothing else moves.
+    translations = sorted(translations, key=lambda t: t.target_language in BESIDE)
 
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
@@ -2001,6 +2011,10 @@ def render(
                 # for meanings in a language nobody was reading.
                 "language": translation.target_language,
                 "direction": direction_for(translation.target_language),
+                # A rendering read beside the text rather than into a language — Onkelos
+                # — which the page shows without looking a word up in it. Only where it
+                # is true, so every other text's payload is the one it always was.
+                **({"beside": True} if translation.target_language in BESIDE else {}),
             }
             for index, translation in enumerate(translations)
         }

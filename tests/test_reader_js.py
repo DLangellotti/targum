@@ -1086,6 +1086,56 @@ def test_the_language_read_into_picks_the_opening_rendering() -> None:
     assert kept["opened"]["showing"] == "t0"
 
 
+#: The same two, as the builder ships Onkelos: read beside the Torah, not into a language.
+BESIDE = {**RENDERINGS, "t1": {**RENDERINGS["t1"], "beside": True}}
+
+
+def test_onkelos_changes_the_column_and_not_the_language_of_the_meanings() -> None:
+    """Targum Onkelos is read beside the Hebrew, and nobody reads a Hebrew word's meaning
+    in Aramaic (targum-internal#65). Switching to it rewrites the cells in Aramaic, right
+    to left — and leaves the cards, the lookups and the sentence a phrase is read against
+    in the English they were in, because a word looked up "into Aramaic" is bought."""
+    said = run([], translations=BESIDE, pairs=PAIRS, switch=SWITCH, switchTo="t1")["rendering"]
+    switched = said["switched"]
+    assert [cell["tr"] for cell in switched["cells"]] == ["בְּקַדְמִין", "וְאַרְעָא"]
+    assert {(cell["lang"], cell["dir"]) for cell in switched["cells"]} == {("arc", "rtl")}
+    assert switched["meanings"] == {
+        "language": "en",
+        "direction": "ltr",
+        "text": "In the beginning",
+    }
+    assert said["opened"]["meanings"] == switched["meanings"]
+
+
+def test_a_page_that_opens_on_onkelos_means_words_in_the_other_rendering() -> None:
+    """Kept from last time, Onkelos is what the page opens on. The meanings were never in
+    any language on this page yet, and they take the first rendering that is not read
+    beside rather than the one on show."""
+    said = run(
+        [],
+        translations=BESIDE,
+        pairs=PAIRS,
+        switch=SWITCH,
+        prefs={"translationBy": {"a-chapter": "t1"}},
+    )["rendering"]["opened"]
+    assert said["showing"] == "t1"
+    assert {cell["lang"] for cell in said["cells"]} == {"arc"}
+    assert said["meanings"]["language"] == "en"
+
+
+def test_a_second_language_still_moves_the_meanings() -> None:
+    """The rule is about a rendering read beside, not about the second button: English
+    beside Russian is two languages to read into, and the meanings follow the switch."""
+    words = {"a": "В начале", "b": "И земля"}
+    russian = {**RENDERINGS, "t1": {**RENDERINGS["t0"], "language": "ru", "text": words}}
+    said = run([], translations=russian, pairs=PAIRS, switch=SWITCH, switchTo="t1")["rendering"]
+    assert said["switched"]["meanings"] == {
+        "language": "ru",
+        "direction": "ltr",
+        "text": "В начале",
+    }
+
+
 def test_a_rendering_with_nothing_for_this_page_is_never_opened_on() -> None:
     """A book bought a chapter at a time in one language and held whole in another has
     pages one rendering does not cover. Neither a kept choice, the language read into,

@@ -931,7 +931,7 @@ def repair(
                         # Cache only: a repair never buys a word. Where the model reads
                         # the language, a paragraph whose text changed keeps no words
                         # until the text is built again.
-                        lemmatizer=lemma.for_text(document.source, segmented.language),
+                        lemmatizer=lemma.for_text(document.source, document.language),
                         bands=biblical.for_source(document.source),
                         pronouncer=pronouncer,
                         **dictionary_module.for_language(segmented.language),
@@ -1277,7 +1277,13 @@ def rebuild(
             # what was bought and buys nothing.
             held = (is_biblical(source), language if model_lemma.reads(language) else "")
             if held not in lemmatizers:
-                lemmatizers[held] = lemma.for_text(source, language)
+                # Unwrapped: an Aramaic text is wrapped per text by `for_language`, so a
+                # lemmatizer shared with the Hebrew texts of the run is never wrapped.
+                lemmatizers[held] = (
+                    lemma.for_text(source, language)
+                    if model_lemma.reads(language)
+                    else lemma.for_source(source)
+                )
             return lemmatizers[held]
 
         def annotate(folder: Path, document: Document) -> Annotator:
@@ -1286,7 +1292,9 @@ def rebuild(
                 if read_artifact(Vocalization, folder / "vocalization.json") is not None:
                     pronouncer = phonikud
             return Annotator(
-                lemmatizer=lemmatizer_for(document.source, document.language),
+                lemmatizer=lemma.for_language(
+                    lemmatizer_for(document.source, document.language), document.language
+                ),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
                 **dictionary_module.for_language(document.language),

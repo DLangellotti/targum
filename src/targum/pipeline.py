@@ -893,8 +893,11 @@ class Build:
         # buying: the chapters it translates, and whatever an earlier build already read.
         allowed = {segment.id for segment in only} if only else None
         annotator = self._annotator or annotate_module.Annotator(
-            lemmatizer=self._lemmatizer
-            or lemma.for_text(self.source, segmented.language, buy=True, allowed=allowed),
+            lemmatizer=lemma.for_language(
+                self._lemmatizer
+                or lemma.for_text(self.source, segmented.language, buy=True, allowed=allowed),
+                segmented.language,
+            ),
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
             **self._dictionary(segmented.language),

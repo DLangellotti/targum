@@ -113,6 +113,28 @@ def test_readiness_is_asked_of_one_language_at_a_time(tmp_path: Path) -> None:
     assert library.targets(folder) == ["en", "ru"]
 
 
+def test_onkelos_is_never_a_language_a_book_is_read_into(tmp_path: Path) -> None:
+    """A whole book of Onkelos beside a whole book of English ties on completeness, and
+    "arc" sorts before "en" — which made Aramaic the language Genesis opened in on the
+    shelf and the one a prefetch bought its next chapter in. It is read beside, not
+    into (targum-internal#65)."""
+    library = Library(tmp_path)
+    folder = library.home(None) / "book-he"
+    book(folder, chapters=2, translated=2)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert segmented is not None
+    Translation(
+        name="Onkelos",
+        document_hash="book",
+        source_language="he",
+        target_language="arc",
+        provider="aligned",
+        segments={s.id: "תרגום" for s in segmented.segments},
+    ).write(folder / "translations" / "aligned.onkelos.arc.json")
+
+    assert library.targets(folder) == ["en"]
+
+
 def test_readiness_is_derived_not_recorded(tmp_path: Path) -> None:
     """A second place saying which chapters are ready would drift from the truth the
     first time a build died between writing them."""
