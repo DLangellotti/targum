@@ -30,11 +30,11 @@
     <input type="hidden" name="t" value="{{ token }}">
     <button class="go" type="submit">Sign in</button>
   </form>
-  <p class="aside">Did not ask for it? Close this page.</p>
+  <p class="aside">Didn't ask for this? You can close the page.</p>
 
   {% elif expired %}
   <h1>That link has been used</h1>
-  <p class="said">Links work once, for twenty minutes. Ask for another.</p>
+  <p class="said">Each link works once, for twenty minutes. We'll send you another.</p>
   <form method="post" action="/account/sign-in" id="ask">
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required autocomplete="email"
@@ -46,14 +46,14 @@
   <h1>Hebrew, with the translation beside it</h1>
   {#- One door. An address targum has not seen makes an account; one it has sends a
       link. Nobody has to work out which of two buttons they are. -#}
-  <p class="said">No password. targum emails you a link.</p>
+  <p class="said">No password. We'll email you a link.</p>
   <form method="post" action="/account/sign-in" id="ask">
     <label for="email">Email</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="you@example.com">
     <button class="go" type="submit">Send a link</button>
   </form>
-  <p class="aside">Signed in, your words follow you between browsers.</p>
+  <p class="aside">Once you're signed in, your words follow you between browsers.</p>
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>

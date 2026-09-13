@@ -585,12 +585,15 @@ class Chats:
         left = {str(one) for one in skip}
         rows = [row for row in found.get("suggestions", []) if row["id"] not in left]
         if not rows:
-            return {"error": "Nothing left to suggest. Ask for something.", "status": 404}
+            return {"error": "We're out of suggestions. Ask us for something.", "status": 404}
         top = rows[0]
         quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
         quote = quoted.get("quote")
         if quote is None:
-            return {"error": quoted.get("error") or "That cannot be made ready now.", "status": 409}
+            return {
+                "error": quoted.get("error") or "We can't get that ready right now.",
+                "status": 409,
+            }
         if not chat_id:
             mode = "talk" if self.library.talks(home, person_id) else "find"
             chat_id = store.chat_open(person_id, mode=mode)
@@ -645,7 +648,7 @@ class Chats:
         handler that raises takes the worker with it after all.
         """
         traceback.print_exc()
-        said = "The conversation could not continue. Try again."
+        said = "We couldn't carry on the conversation. Try again."
         try:
             if self.store is not None:
                 self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)
@@ -873,7 +876,7 @@ class Chats:
             # how a 400 on every second turn looked like a shrug.
             traceback.print_exc()
             job.stage = "failed"
-            job.error = "The conversation could not continue. Try again."
+            job.error = "We couldn't carry on the conversation. Try again."
             self.library.release(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=job.error)
             feed.put("error", {"message": job.error, "detail": type(error).__name__})

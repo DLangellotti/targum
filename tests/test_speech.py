@@ -22,7 +22,7 @@ def test_no_key_means_no_voice_and_says_where_the_key_goes(monkeypatch: Any) -> 
     monkeypatch.delenv(speech.KEY, raising=False)
     usable, why = speech.available()
     assert usable is False and speech.KEY in why
-    with pytest.raises(TargumError, match="No voice"):
+    with pytest.raises(TargumError, match="can't make a voice"):
         speech.say("שָׁלוֹם")
 
 

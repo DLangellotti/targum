@@ -60,7 +60,7 @@
         say(mic, "Stop", "stop");
       },
       function () {
-        onFail("The microphone could not be opened.");
+        onFail("We couldn't open the microphone. Check that your browser allows it.");
       }
     );
     return true;

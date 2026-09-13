@@ -202,7 +202,7 @@
           } else if (job.stage === "failed" || job.blocked) {
             clearInterval(timer);
             button.disabled = false;
-            button.textContent = job.error || job.blocked || "That did not work.";
+            button.textContent = job.error || job.blocked || "We couldn't do that. Try again.";
           }
         });
     }, 1500);
@@ -280,7 +280,7 @@
               } else if (state.stage === "failed" || state.blocked) {
                 clearInterval(timer);
                 press.disabled = false;
-                press.textContent = state.error || state.blocked || "That did not work.";
+                press.textContent = state.error || state.blocked || "We couldn't prepare it. Try again.";
               }
             });
         }, 1500);

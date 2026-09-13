@@ -429,7 +429,7 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     _, asked2, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more"})
     chats.answer(chats.queue.get())
     status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")
-    assert status == 402 and "No voice" in body["error"]
+    assert status == 402 and "read aloud here" in body["error"]
     assert call(port, "GET", f"/chat/audio/{store.chat_open(42)}/1?k={key}")[0] == 404
 
 

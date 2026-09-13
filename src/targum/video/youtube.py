@@ -97,7 +97,7 @@ _TO_THE_OPERATOR = (" --", "http://", "https://")
 #: What still works when YouTube will not answer, in the reader's terms. A video file
 #: uploads through the same door a recording does, hosted included — so "YouTube links
 #: are CLI-only" would be the wrong sentence here, and so would silence.
-OTHER_DOOR = "A video file uploads."
+OTHER_DOOR = "You can upload the video file instead."
 
 
 def proxy() -> str:
@@ -136,7 +136,7 @@ def is_youtube(url: str) -> bool:
         # One video at a time. A playlist is a queue of separate decisions, and a
         # channel is somebody's whole shelf.
         raise TargumError(
-            "targum reads one video at a time.", "Give the address of a single video."
+            "We can take one video at a time.", "Paste the address of a single video."
         )
     return parsed.path.startswith(("/watch", "/shorts/", "/live/"))
 
@@ -174,7 +174,7 @@ def fetch(url: str, into: Path) -> Path:
     the rest of the pipeline expects to find as `source.*`.
     """
     if not is_youtube(url):
-        raise TargumError("That address is not a YouTube video.")
+        raise TargumError("We couldn't find a YouTube video at that address.")
     usable, hint = ytdlp_available()
     if not usable:
         raise TargumError("yt-dlp is not installed.", hint)
@@ -220,12 +220,12 @@ def fetch(url: str, into: Path) -> Path:
             "yt-dlp ran for two hours without finishing, so it was stopped."
         ) from error
     except subprocess.CalledProcessError as error:
-        raise _refusal(error, "YouTube would not hand targum that video.") from error
+        raise _refusal(error, "YouTube wouldn't give us that video.") from error
     if not target.is_file():
         raise TargumError("yt-dlp fetched nothing it could merge to mp4.")
     if target.stat().st_size > MAX_VIDEO_BYTES:
         target.unlink()
-        raise TargumError("That video is larger than 4 GB.")
+        raise TargumError("That video is over 4 GB. Try a shorter one.")
     return target
 
 
@@ -264,7 +264,7 @@ def _refusal(error: subprocess.CalledProcessError, fallback: str) -> TargumError
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
     if not is_youtube(argv[-1]):
-        raise TargumError("That address is not a YouTube video.")
+        raise TargumError("We couldn't find a YouTube video at that address.")
     usable, hint = ytdlp_available()
     if not usable:
         raise TargumError("yt-dlp is not installed.", hint)
@@ -278,7 +278,7 @@ def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]
     except subprocess.TimeoutExpired as error:
         raise TargumError("yt-dlp did not answer in time, so it was stopped.") from error
     except subprocess.CalledProcessError as error:
-        raise _refusal(error, "YouTube would not tell targum about that video.") from error
+        raise _refusal(error, "YouTube wouldn't tell us about that video.") from error
 
 
 def describe(url: str) -> dict[str, Any]:

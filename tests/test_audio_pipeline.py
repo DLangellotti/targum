@@ -140,7 +140,7 @@ def test_the_manifest_beside_document_json_is_what_speech_reads_with_no_restart(
 def test_nothing_said_in_the_first_part_is_an_honest_sentence(fake_audio, tmp_path: Path) -> None:
     fake_audio.duration = 600.0
     build = builder(tmp_path, recording(tmp_path), transcriber=NullTranscriber(text=""))
-    with pytest.raises(TargumError, match="Nothing was said in the first"):
+    with pytest.raises(TargumError, match="didn't hear anyone speak in the first"):
         build.run()
 
 
@@ -228,10 +228,10 @@ def test_an_untranscribed_part_says_not_transcribed_yet_and_offers_to_transcribe
     result = build.run(chapters=1)
     waiting = next(page for page in result.pages if page.name == "sec-0002.html")
     text = waiting.read_text(encoding="utf-8")
-    assert "Not transcribed yet." in text
+    assert "We haven't transcribed this part yet." in text
     assert ">Transcribe<" in text
     ready = next(page for page in result.pages if page.name == "sec-0001.html")
-    assert "Not transcribed yet." not in ready.read_text(encoding="utf-8")
+    assert "We haven't transcribed this part yet." not in ready.read_text(encoding="utf-8")
 
 
 def test_a_text_transcript_without_the_aligner_plays_straight_through(

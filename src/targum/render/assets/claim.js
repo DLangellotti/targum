@@ -212,7 +212,7 @@
       }
       if (next === null || next === undefined) {
         draw([]);
-        said.textContent = "That is the whole list.";
+        said.textContent = "That's the whole list.";
         return;
       }
       load(next);
@@ -246,7 +246,7 @@
       });
       write(LEDGER, ledger);
       write(PASSED, passed);
-      said.textContent = known.length + " marked known.";
+      said.textContent = "We've marked " + known.length + " as known.";
       if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
       if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
       if (options.onMarked) options.onMarked(known.length);

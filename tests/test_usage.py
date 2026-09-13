@@ -192,7 +192,7 @@ def test_the_box_has_a_ceiling_no_per_account_limit_could_give_it(tmp_path: Path
     assert library.claim(owned(library, 2, 2.5, "b")) == ""
     refused = library.claim(owned(library, 3, 2.5, "c"))
     assert refused, "a third reader, inside their own limit, should still be stopped"
-    assert "at its limit" in refused
+    assert "our limit" in refused
 
 
 def test_a_refusal_says_which_limit_and_when_it_lifts(tmp_path: Path) -> None:

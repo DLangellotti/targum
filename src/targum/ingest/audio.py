@@ -56,7 +56,7 @@ class AudioIngester:
         if plan is None:
             plan = parts_module.plan(found)
         if len(plan.parts) > MAX_PARTS:
-            raise TargumError("That recording is over 12 hours.")
+            raise TargumError("That recording is over 12 hours. Try a shorter one.")
 
         refinements: dict[int, Refined] = {}
         for part in plan.parts:

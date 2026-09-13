@@ -210,7 +210,7 @@ def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
     open_page.wait_for_timeout(400)
     context.close()
 
-    assert said and said.startswith("A link"), said
+    assert said and said.startswith("Thanks for the link"), said
     assert summary, "every choice on one line once something is in the box"
     assert asked and asked[0]["source"].startswith("https://www.kan.org.il/"), asked
     assert "content" not in asked[0], "a link is not a pasted text"
@@ -241,7 +241,7 @@ def test_a_recording_and_its_subtitles_are_paired_without_asking(browser) -> Non
     context.close()
 
     assert len(got["chips"]) == 2 and got["chips"][1].startswith("transcript"), got
-    assert "Its own transcript comes with it" in got["said"], got
+    assert "the transcript that came with it" in got["said"], got
     assert got["mine"] == "true" and got["transcriptRow"], got
     assert not got["translationRow"], "a recording goes up in pieces, with no translation row"
     assert "your transcript" in got["line"], got

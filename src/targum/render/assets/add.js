@@ -199,9 +199,9 @@
         if (hebrew < 0 || shares[1 - hebrew] >= 0.5) {
           hold([list[0]]);
           unpaired =
-            "Both are in the same script, so only " +
+            "Both are in the same script, so we'll use only " +
             list[0].name +
-            " is used. A translation you have goes under Change.";
+            ". You can add a translation under Change.";
         } else {
           hold([list[hebrew]]);
           translationHalf.take(list[1 - hebrew]);
@@ -215,9 +215,9 @@
     } else if (list.length > 1) {
       hold([list[0]]);
       unpaired =
-        "Only " +
+        "We'll use only " +
         list[0].name +
-        " is used. Files go together as a recording and its subtitles, or a text and its translation.";
+        ". Files go together as a recording and its subtitles, or a text and its translation.";
     } else {
       hold(list);
     }
@@ -289,37 +289,37 @@
       var kind = medium(chosen[0]);
       var transcript = transcriptHalf.held();
       var said = {
-        recording: "A recording.",
-        video: "A video.",
-        subtitles: "Subtitles, read as a text.",
-        picture: chosen.length > 1 ? chosen.length + " photos of pages, read as one text." : "A photo of a page, read as it is printed.",
-        pdf: "A .pdf file.",
-        book: "A book.",
-        text: "A text.",
-        other: "A file.",
+        recording: "Thanks for the recording.",
+        video: "Thanks for the video.",
+        subtitles: "Thanks for the subtitles. We'll read them as a text.",
+        picture: chosen.length > 1 ? "Thanks for the photos. We'll read all " + chosen.length + " pages as one text." : "Thanks for the photo. We'll read the page as it's printed.",
+        pdf: "Thanks for the PDF.",
+        book: "Thanks for the book.",
+        text: "Thanks for the text.",
+        other: "Thanks for the file.",
       }[kind];
       if (kind === "recording" || kind === "video") {
         said += transcript
-          ? " Its own transcript comes with it, so nothing is transcribed."
-          : " targum writes down what is said, and it counts against your hours.";
+          ? " We'll use the transcript that came with it, so there's nothing to write down."
+          : " We'll write down what's said, and that uses some of your hours.";
       }
-      if (theirs) said += " Your translation is lined up with it, sentence by sentence.";
+      if (theirs) said += " We'll line up your translation with it, sentence by sentence.";
       return unpaired ? said + " " + unpaired : said;
     }
     var read = readGiven();
-    if (read.kind === "link") return "A link. targum reads what is there before it gives a price.";
-    if (read.kind === "text") return "Hebrew, " + read.words + (read.words === 1 ? " word." : " words.");
+    if (read.kind === "link") return "Thanks for the link. We'll work out how long it'll take.";
+    if (read.kind === "text") return "That's " + read.words + (read.words === 1 ? " word" : " words") + " of Hebrew.";
     if (read.kind === "few") {
       return talks()
-        ? "A few words. Continue reads them as a text; Ask targum looks for something to read."
-        : "A few words, read as a text.";
+        ? "A few words. Continue and we'll read them as a text, or Ask targum and we'll find something to read."
+        : "A few words. We'll read them as a text.";
     }
     if (read.kind === "description") {
       return talks()
-        ? "That reads as what you want to read. Ask targum looks for it, as a turn of conversation."
-        : "That reads as what you want to read. Paste a link or the text itself here.";
+        ? "That sounds like what you want to read. Ask targum and we'll look for it."
+        : "That sounds like what you want to read. Paste a link or the text itself here.";
     }
-    if (read.kind === "foreign") return "targum reads Hebrew, Yiddish and Aramaic, and this is in another script.";
+    if (read.kind === "foreign") return "We read Hebrew, Yiddish and Aramaic, and this is in another script.";
     return RESTING;
   }
 
@@ -335,12 +335,12 @@
     var parts = [named(from && from.value) + " → " + named(to && to.value)];
     var typed = document.getElementById("pasted-translation");
     if (!(chosen && inPieces(chosen))) {
-      parts.push(theirs || (typed && typed.value.trim()) ? "your translation" : "targum translates");
+      parts.push(theirs || (typed && typed.value.trim()) ? "your translation" : "we translate");
     } else {
-      parts.push("targum translates");
+      parts.push("we translate");
     }
     if (chosen && chosen.length === 1 && isAudio(chosen[0])) {
-      parts.push(transcriptHalf.held() ? "your transcript" : "targum transcribes");
+      parts.push(transcriptHalf.held() ? "your transcript" : "we transcribe");
     }
     return parts.join(" · ");
   }
@@ -513,8 +513,8 @@
         });
         half.hidden = !mine;
         note.textContent = mine
-          ? "targum lines it up with the Hebrew, sentence by sentence."
-          : "targum translates it, sentence by sentence.";
+          ? "We'll line it up with the Hebrew, sentence by sentence."
+          : "We'll translate it, sentence by sentence.";
         // Switching back to Make one puts down whatever was brought: leaving it attached
         // would send a translation the reader had just said they did not want to use.
         if (!mine) {
@@ -626,8 +626,8 @@
         });
         half.hidden = !mine;
         note.textContent = mine
-          ? "Its timings are kept, so nothing is transcribed."
-          : "targum writes down what is said, part by part.";
+          ? "We'll keep its timings, so there's nothing to write down."
+          : "We'll write down what's said, part by part.";
         if (!mine && spokenText) {
           spokenText = null;
           field.value = "";
@@ -705,7 +705,7 @@
         note.textContent =
           found.name +
           (found.stage === "R&D"
-            ? " is experimental: no word levels yet, and everything works best in Hebrew."
+            ? " is experimental. It has no word levels yet, and everything works best in Hebrew."
             : " is experimental. Everything works best in Hebrew.");
       }
       if (code) lang.set(code);
@@ -820,7 +820,7 @@
   // unchanging line for all of that reads as a hang, so it keeps talking.
   function waiting() {
     var box = document.createDocumentFragment();
-    var text = line("Fetching it…");
+    var text = line("We're fetching it…");
     var note = document.createElement("p");
     note.className = "hint plain";
     note.textContent = "";
@@ -833,7 +833,7 @@
       note.textContent =
         seconds < 12
           ? ""
-          : "Still going. The first in a language takes longer.";
+          : "Still working. The first text in a language takes us longer.";
     }, 1000);
     return box;
   }
@@ -881,7 +881,7 @@
       // fields it answers with merged into the request, then priced.
       prepared = bringing
         .upload(chosen, function (share) {
-          say(line("Uploading… " + share + "%"));
+          say(line("We're uploading it… " + share + "%"));
         })
         .then(function (sent) {
           // The same bytes were already imported: the reader is the answer.
@@ -998,11 +998,11 @@
     head.querySelector("b").textContent = entry.title;
     head.appendChild(
       document.createTextNode(
-        " is in the library already, with " +
+        " is already in the library, with " +
           (entry.translations.length === 1
             ? "a translation"
             : entry.translations.length + " translations") +
-          " somebody published. Better than a machine."
+          " a person published. It'll read better than ours."
       )
     );
     var row = document.createElement("div");
@@ -1064,7 +1064,7 @@
         .catch(function () {
           // A dropped connection used to leave both buttons dead with no way forward.
           go.disabled = anyway.disabled = false;
-          say(line("That did not go through. Try again."), true);
+          say(line("We couldn't send that. Try again."), true);
         });
     };
     row.appendChild(anyway);
@@ -1118,7 +1118,7 @@
     }
     if (job.doubtful > 0) {
       box.appendChild(
-        line(job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " could not be read clearly.")
+        line("We couldn't read " + job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " clearly.")
       );
     }
 
@@ -1150,7 +1150,7 @@
 
   function watch(job) {
     var box = document.createDocumentFragment();
-    var text = line("Getting it ready…");
+    var text = line("We're getting it ready…");
     var bar = document.createElement("div");
     bar.className = "bar";
     bar.appendChild(document.createElement("i"));
@@ -1166,7 +1166,7 @@
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
         text.textContent = state.done
-          ? "Getting it ready… " + Math.round((state.done / state.total) * 100) + "%"
+          ? "We're getting it ready… " + Math.round((state.done / state.total) * 100) + "%"
           : plain(state.message);
         var share = state.total ? state.done / state.total : 0;
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";

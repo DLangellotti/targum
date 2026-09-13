@@ -420,9 +420,9 @@
 
     var line = el("p", "next");
     if (next === null) {
-      line.textContent = "Past every milestone targum keeps.";
+      line.textContent = "You're past every milestone we keep.";
     } else if (known === 0) {
-      line.textContent = "Mark a word while reading and it starts here.";
+      line.textContent = "Mark a word while you read and it starts here.";
     } else {
       line.appendChild(document.createTextNode("Another "));
       line.appendChild(el("b", null, grouped(next - known)));
@@ -463,7 +463,7 @@
     if (!got.words) {
       line.textContent = "Mark a word as known and this starts.";
     } else if (!found.next) {
-      line.textContent = "Past every rung an ulpan keeps.";
+      line.textContent = "You're past every rung an ulpan keeps.";
     } else {
       // Turned back into words at the weight of the ones this reader actually knows, so
       // the figure is words rather than a score. Counting a point is inventing a

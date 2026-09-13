@@ -52,8 +52,8 @@
   function plain(message) {
     if (!message) return "";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "lining up";
-    if (message.indexOf("Looking up") === 0) return "looking words up";
+    if (message.indexOf("Matching") === 0) return "lining it up";
+    if (message.indexOf("Looking up") === 0) return "looking up the words";
     return "";
   }
 
@@ -63,17 +63,17 @@
     var title = job.title || "your text";
     if (job.english) title = job.english + " · " + title;
     if (job.stage === "done") return title + " is ready.";
-    if (job.stage === "failed") return title + ": " + (job.error || "that did not work.");
-    if (job.stage === "blocked") return title + ": " + (job.blocked || "not now.");
+    if (job.stage === "failed") return title + ": " + (job.error || "we couldn't get it ready.");
+    if (job.stage === "blocked") return title + ": " + (job.blocked || "we can't do this one right now.");
     if (job.stage === "queued") {
       return job.behind === 1
-        ? "Waiting behind one other text: " + title
+        ? "We'll start " + title + " after one other text."
         : job.behind > 1
-          ? "Waiting behind " + job.behind + " other texts: " + title
-          : "Waiting: " + title;
+          ? "We'll start " + title + " after " + job.behind + " other texts."
+          : "We'll start " + title + " next.";
     }
     var far = job.total ? Math.round((job.done / job.total) * 100) + "%" : plain(job.message);
-    return "Building " + title + (far ? " · " + far : "");
+    return "We're getting " + title + " ready" + (far ? " · " + far : "");
   }
 
   function live(job) {
@@ -184,7 +184,7 @@
   // Putting a live build away is asking to be told another way. The server says whether
   // it can — hosted, signed in, with an address to send — and only then is the promise
   // made, and said once.
-  var PROMISE = "You'll be updated by email when your targum is ready.";
+  var PROMISE = "We'll email you when it's ready.";
   function dismissJob(job) {
     putAway(job.id);
     draw();
@@ -238,7 +238,7 @@
     .then(function (got) {
       ((got && got.chats) || []).forEach(function (chat) {
         if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        note("chat:" + chat.id + ":" + chat.answered, "targum answered: " + (chat.title || "a conversation"), {
+        note("chat:" + chat.id + ":" + chat.answered, "We replied: " + (chat.title || "your conversation"), {
           label: "Read",
           action: function () {
             if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
@@ -278,8 +278,8 @@
     .then(function (me) {
       var hours = me && me.signedIn && me.hours;
       if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
-      var month = hours.ends ? " until " + hours.ends : " this month";
-      note("hours:" + (hours.ends || "now"), hours.used + " of " + hours.allowed + " hours used" + month, {
+      var reset = hours.ends ? " They reset on " + hours.ends + "." : "";
+      note("hours:" + (hours.ends || "now"), "You've used " + hours.used + " of your " + hours.allowed + " hours this month." + reset, {
         href: keyed("/progress"),
         label: "See",
       });

@@ -84,7 +84,7 @@
     if (!mine.length) {
       note.textContent = readers.length
         ? "Nothing in " + named(code) + " yet."
-        : "Nothing here yet. Texts you open land here.";
+        : "Nothing here yet. We'll keep the texts you open here.";
       return;
     }
     note.textContent = settings.note || "";
@@ -256,7 +256,7 @@
         } else if (job.stage === "failed" || job.blocked) {
           clearInterval(timer);
           button.disabled = false;
-          button.textContent = job.error || job.blocked || "That did not work.";
+          button.textContent = job.error || job.blocked || "We couldn't translate it. Try again.";
         }
       });
     }, 1500);

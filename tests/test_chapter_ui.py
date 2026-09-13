@@ -432,18 +432,18 @@ def test_an_untranslated_chapter_says_so_rather_than_showing_nothing(tmp_path: P
     reader followed the arrow into it: "didn't translate all sections of the uploaded
     text, when followed arrow to next section there was no translation"."""
     pages = _render_book(tmp_path, translated=1)
-    assert "Not translated yet" in pages[2]
+    assert "We haven't translated this chapter yet" in pages[2]
     assert 'id="translate-chapter"' in pages[2]
     assert '<p class="tr"' not in pages[2], "no column of blanks"
     assert 'class="src plain"' in pages[2], "the source is still there to read and mark"
 
-    assert "Not translated yet" not in pages[1]
+    assert "We haven't translated this chapter yet" not in pages[1]
     assert '<p class="tr"' in pages[1]
 
 
 def test_a_translated_chapter_carries_no_waiting_note(tmp_path: Path) -> None:
     pages = _render_book(tmp_path, translated=2)
-    assert "Not translated yet" not in pages[2]
+    assert "We haven't translated this chapter yet" not in pages[2]
     assert '<p class="tr"' in pages[2]
 
 

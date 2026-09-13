@@ -152,8 +152,15 @@ scale Hebrew down**. Parity comes from leading: **1.75 Latin, 1.95 Hebrew**.
 
 Two registers, and which one applies depends on who is reading.
 
-- **Inside the product:** literary, precise, unpatronising — a designer-engineer explaining
-  a decision. Somebody who has already chosen targum is not sold to again.
+- **Inside the product, targum talks to the reader, warmly and directly.** It speaks as
+  "we" and to "you", the way a person behind a counter would: "Thanks for the link. We're
+  working out how long it'll take." Thank the reader when they hand us something — a link,
+  a file, a correction. Say what we are doing while we do it ("We're reading the page"),
+  and what happens next in the reader's own time ("Your first chapter will be ready in
+  about 4 minutes"). Contractions are welcome. Somebody who has already chosen targum is
+  not sold to again, and is never talked down to. See §12, 2026-09-13.
+- **Inside the product there is no price.** The reader pays by the month; what a thing
+  takes is said in minutes and in their hours, never as a price, a quote or a sale.
 - **On public pages — landing, pricing, the weekly's front — the copy sells.** A stranger
   owes targum nothing and will leave in seconds, so lead with what they get, name it in
   their words rather than ours, and ask for the sign-up plainly. Feature names that only
@@ -169,9 +176,12 @@ Two registers, and which one applies depends on who is reading.
   ("12 days reading", "500 words known"), never XP, points or levels. Milestones brag the
   brand's way: "the page is 31% quieter than when you began." Missed streak days are quiet,
   never red.
-- **And short.** Buttons and links are one or two words: "Send a link", not "Email me a
-  link"; "Delete", not "Move to the trash". State what happened without justifying it,
-  softening it, or answering the question nobody asked — see §12.
+- **And short.** Warm is not long. A line is one or two sentences, and a button or a link
+  is one or two words: "Send a link", not "Email me a link"; "Delete", not "Move to the
+  trash". No filler that says nothing — no "Oops", no "Awesome", no "Just a moment
+  please" — and no answering the question nobody asked.
+- **When something goes wrong, we own it** and say what the reader can do: "We couldn't
+  open that page. Try pasting the text itself." Never blame the reader, never go vague.
 - **What the chat writes is chrome when it is English and content when it is Hebrew.**
   Every English sentence the assistant produces obeys this section in full; the Hebrew
   it writes for a learner is a text, and the English rules do not reach it. A model's
@@ -1092,7 +1102,23 @@ policy applies, so every check passed. The policy now names `font-src data:`,
 `test_serve.py` pins it, and the lesson is recorded here: **a reader is checked the way a
 reader is served.**
 
+### targum talks to the reader, as "we" — 2026-09-13
+
+Until today the product described itself in the third person, in a literary register
+("A link. targum reads what is there before it gives a price."). David asked for copy
+that talks straight to the reader and is a pleasure to meet — "Thanks for the link.
+We're estimating how long it'll take." — everywhere. §6 now says so: "we" to "you",
+thanks for what the reader brings, what we are doing now and how long it will take.
+
+What survives from the terse voice below: short lines, one- or two-word buttons, no
+exclamation marks, no emoji, the lowercase name, no invented currency, no superlatives.
+What does not: the third-person narrator and the refusal to soften. Price language left
+the product the same day — the reader pays by the month, so a wait is a time and a cost
+is hours.
+
 ### The voice is terser than "reasons given" — 2026-08-24
+
+*Partly superseded on 2026-09-13 by the entry above: still short, no longer impersonal.*
 
 §6 asks for complete sentences with "reasons given", which is what produced 131 words on a
 sign-in page. David cut that by half and the terser reading wins. Reasons are still given

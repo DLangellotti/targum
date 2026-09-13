@@ -100,7 +100,7 @@
   // A failed request is an answer with an error in it, never a rejection left to the
   // console: opened off the disk, or with the server gone, every fetch here fails, and
   // the page still has to stand and say so.
-  var UNREACHED = { error: "targum could not be reached. Try again." };
+  var UNREACHED = { error: "We couldn't connect. Try again." };
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -247,7 +247,7 @@
               line.removeChild(look);
               line.appendChild(document.createTextNode(" · " + got.meaning));
             } else {
-              look.textContent = (got && got.error) || "nothing found";
+              look.textContent = (got && got.error) || "we couldn't find it";
             }
           }
         );
@@ -562,11 +562,11 @@
     sentTurn(chosen);
     var li = turn("assistant", "", "working");
     var line = li.querySelector(".chat-line");
-    line.textContent = "Uploading…";
+    line.textContent = "Thanks. We're uploading it…";
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
     return bringing
       .bring(chosen, { to: into }, function (share) {
-        line.textContent = "Uploading… " + share + "%";
+        line.textContent = "Thanks. We're uploading it… " + share + "%";
       })
       .then(function (job) {
         li.className = "chat-turn them";
@@ -603,7 +603,7 @@
       })
       .catch(function (why) {
         li.className = "chat-turn them bad";
-        line.textContent = String(why || "That did not go through. Try again.");
+        line.textContent = String(why || "We couldn't send that. Try again.");
       })
       .then(function (job) {
         busy = false;
@@ -997,7 +997,7 @@
       talk = answer.talk !== false;
       showMic();
       drawHours(answer.hours);
-      if (!usable) tell("Nothing can be asked now. Everything you have still opens.");
+      if (!usable) tell("We can't answer questions right now. Everything you have still opens.");
       drawList();
       showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
@@ -1051,7 +1051,7 @@
     welcomed = true;
     var li = turn(
       "assistant",
-      "Before anything else: which of these words do you already know? Check them, and I will write at your level.",
+      "First, which of these words do you already know? Check them and we'll write at your level.",
       ""
     );
     var host = document.createElement("div");
@@ -1077,7 +1077,7 @@
       onDone: function () {
         var note = document.createElement("p");
         note.className = "chat-claim-done";
-        note.textContent = "Thank you. The rest of the list is under Your words and phrases, behind your account.";
+        note.textContent = "Thank you. You'll find the rest of the list under Your words and phrases, in your account.";
         host.appendChild(note);
         if (chips) chips.show(true);
         // The second turn: a text at the level the checks just set, offered without a
@@ -1170,7 +1170,7 @@
 
   function suggest() {
     if (busy) return;
-    if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
+    if (!usable) return tell("We can't answer questions right now. Everything you have still opens.");
     busy = true;
     send.disabled = true;
     tell("");
@@ -1248,7 +1248,7 @@
 
   function say(text, brought) {
     if (busy || !text) return;
-    if (!usable) return tell("Nothing can be asked now. Everything you have still opens.");
+    if (!usable) return tell("We can't answer questions right now. Everything you have still opens.");
     busy = true;
     send.disabled = true;
     turn("user", text);

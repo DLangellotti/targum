@@ -422,7 +422,7 @@ def test_only_an_invited_address_gets_a_link(tmp_path: Path, free_port: Callable
             time.sleep(0.1)
 
     status, body = post(port, "/account/sign-in", {"email": "wife@example.com"})
-    assert status == 403 and "not open" in body["error"]
+    assert status == 403 and "isn't open" in body["error"]
     assert sent == [], "an uninvited address must not be mailed"
 
     # Messy on the way in, tidied on the way through — the same rule addresses already

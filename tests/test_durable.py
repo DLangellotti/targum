@@ -66,7 +66,7 @@ def test_the_budget_still_refuses_after_a_restart(tmp_path: Path) -> None:
     )
     blocked = second.claim(job(second, 4.0, id="j2"))
     assert blocked, "the second build should not fit in what is left"
-    assert "at once" in blocked or "its limit" in blocked
+    assert "at once" in blocked or "our limit" in blocked
 
 
 def test_a_failed_build_gives_its_money_back(tmp_path: Path) -> None:
@@ -240,7 +240,7 @@ def test_the_box_ceiling_is_not_waived_for_an_admin(tmp_path: Path) -> None:
 
     assert lib.claim(job(lib, 4.0, id="a", owner=boss, admin=True)) == ""
     refused = lib.claim(job(lib, 4.0, id="b", owner=boss, admin=True))
-    assert refused and "targum is at its limit" in refused
+    assert refused and "We've hit our limit for today" in refused
 
 
 def test_one_readers_spending_does_not_count_against_another(tmp_path: Path) -> None:

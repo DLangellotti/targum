@@ -100,7 +100,7 @@ def _load(source: str) -> Document:
         # It was addressed like an identifier, so answer as one rather than reporting
         # a missing file the user never meant to name.
         raise UnsupportedSource(
-            f"targum does not know the source '{source.split(':', 1)[0]}'.",
+            f"We don't know the source '{source.split(':', 1)[0]}'.",
             f"Supported: {', '.join(sources())}",
         )
 
@@ -108,7 +108,7 @@ def _load(source: str) -> Document:
     suffix = path.suffix.lower()
 
     if is_drm(source):
-        raise UnsupportedSource("This file is protected, so targum cannot read it.")
+        raise UnsupportedSource("This file is protected, so we can't read it.")
     if not path.exists():
         raise TargumError(f"No such file: {source}")
     if path.is_dir():
@@ -116,7 +116,7 @@ def _load(source: str) -> Document:
         # numbers them into a folder, and the folder is the source.
         if is_pictures(path):
             return PictureIngester().load(source)
-        raise UnsupportedSource(f"targum reads a folder only when it holds pictures: {path.name}")
+        raise UnsupportedSource(f"We only read a folder that holds pictures: {path.name}")
     if is_audio(source) or is_video(source):
         # A video is the audio import with pictures kept: the same ingester reads the
         # same transcripts, and the pictures never enter the document at all.
@@ -125,7 +125,7 @@ def _load(source: str) -> Document:
     ingester = _BY_SUFFIX.get(suffix)
     if ingester is None:
         raise UnsupportedSource(
-            f"targum does not read '{suffix or path.name}' files.",
+            f"We can't read '{suffix or path.name}' files.",
             f"Supported: {', '.join(sources())}",
         )
     return ingester.load(source)

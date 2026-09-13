@@ -139,7 +139,7 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # Said once, in the page, rather than as a stack trace after the wait. Without a key the
 # builder can still open everything already built, so this blocks a text rather than
 # stopping the server.
-NO_KEY = "Nothing new can be built now. Everything you have still opens."
+NO_KEY = "We can't make anything new right now. Everything you have still opens."
 
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
@@ -478,7 +478,7 @@ def parasha_is_indexed() -> bool:
 
 # What somebody who has not been invited is told. Honest about the state of things and
 # says nothing about who is on the list.
-NOT_OPEN = "targum is not open yet."
+NOT_OPEN = "Thanks for asking. targum isn't open yet."
 
 #: What a drawn cover may be saved as. No SVG: these arrive from an image model and an
 #: SVG is a script that runs, which is not a thing to serve from a directory anybody can
@@ -545,14 +545,14 @@ STALE = """<!doctype html>
 <body>
 <main>
   <h1>This tab has gone stale</h1>
-  <p>Nothing is lost. Everything you were reading, and every word you have kept, is
-  still there.</p>
-  <p>Sign in and this stops happening: a signed-in tab keeps working, and your words
-  follow you to whatever you read on next.</p>
+  <p>Nothing is lost. Everything you were reading and every word you've kept is still
+  here.</p>
+  <p>Sign in and this won't happen again. A signed-in tab keeps working, and your words
+  follow you to whatever you read next.</p>
   <form id="in">
     <input type="email" id="email" placeholder="you@example.com" autocomplete="email"
            spellcheck="false" required>
-    <button type="submit">Email me a link</button>
+    <button type="submit">Send a link</button>
   </form>
   <p class="said" id="said" hidden></p>
   <p class="aside">Running targum yourself? The Terminal window also prints a link, and
@@ -571,7 +571,7 @@ document.getElementById("in").addEventListener("submit", function (event) {
   })
     .then(function (response) { return response.json(); })
     .then(function (answer) { said.textContent = answer.message || answer.error; })
-    .catch(function () { said.textContent = "That did not go through. Try again."; });
+    .catch(function () { said.textContent = "We couldn't send that. Try again."; });
 });
 </script>
 </body>
@@ -1259,40 +1259,43 @@ class Library:
             # agreeing the moment the constant moved, which is the whole bug.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return (
-                f"That is your {allowed / 3600:g} hours of audio for this month. "
-                f"More on {self._month_ends()}. Text uploads carry on, and the "
+                f"You've used your {allowed / 3600:g} hours of audio for this month. "
+                f"They come back on {self._month_ends()}. Text uploads still work, and the "
                 "library is always free."
             )
         if whose == "account":
             # Never "you have read your fill". Nothing here is a limit on reading — text
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
-            return f"Building a lot at once. Try again {when}. The library is always free."
+            return f"That's a lot to build at once. Try again {when}. The library is always free."
         if whose == "talk-hours":
             # The allowance, reached by talking rather than by uploading. The same number
             # the pricing page names, and the same promise that reading carries on.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return (
-                f"That is your {allowed / 3600:g} hours of audio and conversation for this "
-                f"month. More on {self._month_ends()}. Reading carries on, and the library "
-                "is always free."
+                f"You've used your {allowed / 3600:g} hours of audio and conversation for "
+                f"this month. They come back on {self._month_ends()}. You can keep reading, "
+                "and the library is always free."
             )
         if whose == "chat":
             # The same rule for the conversation's own rail: a lot of talking is not a
             # lot of reading, and the shelf is still open.
             return (
-                f"A lot of conversation for one day. Try again {when}. The library is always free."
+                f"That's a lot of conversation for one day. Try again {when}. "
+                "The library is always free."
             )
-        return f"targum is at its limit. Try again {when}, or read from the library."
+        return f"We've hit our limit for today. Try again {when}, or read from the library."
 
     def why_blocked(self, estimate: float) -> str:
         """Whether this build may go ahead, in words the page can show."""
         if estimate > self.max_cost:
             # The reader pays by the month and never by the text, so what stops them is
             # a limit on the thing itself, not a sum of money they have never been shown.
-            return "Too long. Try a chapter, or something from the library."
+            return (
+                "That's too long to take in one go. Try a chapter, or something from the library."
+            )
         if estimate > self.remaining():
-            return "Enough for one sitting. Come back later."
+            return "That's all we can take on for now. Come back later."
         return ""
 
     @staticmethod
@@ -1842,7 +1845,7 @@ class Library:
         paths = picture_module.pages_of(source)
         if len(paths) > MAX_PAGES:
             raise TargumError(
-                f"That is {len(paths)} pictures. targum reads up to {MAX_PAGES} at a time."
+                f"That's {len(paths)} pictures. We can read up to {MAX_PAGES} at a time."
             )
         job.pages = len(paths)
         usable, _ = vision.can_read()
@@ -1913,7 +1916,7 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            job.error = f"This targum cannot fetch from YouTube. {hint}"
+            job.error = f"We can't fetch from YouTube here. {hint}"
             job.stage = "failed"
             return
         try:
@@ -1928,14 +1931,13 @@ class Library:
         if not found.duration:
             # A live stream has no duration, and neither has a premiere that has not
             # started. Both would price at nothing and then run until the disk filled.
-            job.error = "That video has no length yet. A live stream cannot be imported."
+            job.error = "That video has no length yet. We can't bring in a live stream."
             job.stage = "failed"
             return
         if found.duration > MAX_VIDEO_DURATION_S:
             hours = MAX_VIDEO_DURATION_S / 3600
             job.error = (
-                f"That video is longer than {hours:g} hours, which is more than targum "
-                "imports at once."
+                f"That video is longer than {hours:g} hours. That's more than we can take at once."
             )
             job.stage = "failed"
             return
@@ -2222,7 +2224,7 @@ class Library:
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(
                 job,
-                "Something went wrong. The Terminal has the detail.",
+                "Something went wrong on our side. The Terminal has the detail.",
             )
 
     def propose(self, job: Job) -> None:
@@ -2337,7 +2339,7 @@ class Library:
 
         try:
             for name, prompt in plan:
-                job.message = "Drawing…"
+                job.message = "We're drawing…"
                 self.remember(job)
                 reference = None
                 if name != entry_id:
@@ -2385,11 +2387,11 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "That one is no longer on disk.")
+            return self._blame(job, "We can't find that one any more.")
         document = read(Document, folder / "document.json")
         segmented = read(SegmentedDocument, folder / "segments.json")
         if document is None or segmented is None:
-            return self._blame(job, "That one is no longer on disk.")
+            return self._blame(job, "We can't find that one any more.")
 
         builder = self._builder(job)
         builder._resolved_out = folder
@@ -2400,7 +2402,7 @@ class Library:
             for segment in builder.chapter_segments(segmented, int(number))
         ]
         if not wanted:
-            return self._blame(job, "No such chapter.")
+            return self._blame(job, "We can't find that chapter.")
 
         job.stage = "working"
         job.total = len(wanted)
@@ -2432,7 +2434,9 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+            return self._blame(
+                job, "Something went wrong on our side. The Terminal has the detail."
+            )
 
         job.spent = builder.spent.cost()
         job.reader = f"{folder.name}/reader/{pages[0].name}"
@@ -2461,22 +2465,22 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "That one is no longer on disk.")
+            return self._blame(job, "We can't find that one any more.")
         document = read(Document, folder / "document.json")
         segmented = read(SegmentedDocument, folder / "segments.json")
         if document is None or segmented is None:
-            return self._blame(job, "That one is no longer on disk.")
+            return self._blame(job, "We can't find that one any more.")
         number = int(job.options.get("section") or 0)
         sections = split_sections(segmented)
         section = next((one for one in sections if one.number == number), None)
         if section is None:
-            return self._blame(job, "No such section.")
+            return self._blame(job, "We can't find that section.")
         wanted = set(section.segment_ids)
         segments = [segment for segment in segmented.segments if segment.id in wanted]
         lines = [segment.text for segment in segments]
         job.stage = "working"
         job.total = len(lines)
-        job.message = "Reading it aloud…"
+        job.message = "We're reading it aloud…"
         self.remember(job)
         try:
             clip, spans = speech.render_lines(lines, folder / "audio" / f"voice-{number:03d}")
@@ -2485,7 +2489,9 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice", error, job=job.id)
-            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+            return self._blame(
+                job, "Something went wrong on our side. The Terminal has the detail."
+            )
         kept = manifest_module.load(folder) or manifest_module.AudioManifest(
             source=str(folder),
             sha256=str(document.content_hash or ""),
@@ -2533,7 +2539,9 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice:render", error, job=job.id)
-            return self._blame(job, "Something went wrong. The Terminal has the detail.")
+            return self._blame(
+                job, "Something went wrong on our side. The Terminal has the detail."
+            )
         job.seconds = clip.seconds
         spent = Usage()
         spent.add_seconds(speech.NAME, clip.seconds)
@@ -2561,7 +2569,7 @@ class Library:
             # joined bare, "../" in it would write a reader into someone else's home.
             folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
             if folder is None:
-                return self._blame(job, "That one is no longer on disk.")
+                return self._blame(job, "We can't find that one any more.")
             builder = self._builder(job)
             builder._resolved_out = folder
             builder.notify = lambda message: setattr(job, "message", message)
@@ -2588,7 +2596,7 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            self._blame(job, "Something went wrong. The Terminal has the detail.")
+            self._blame(job, "Something went wrong on our side. The Terminal has the detail.")
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -2684,7 +2692,7 @@ SESSION_COOKIE = "targum_session"
 # What the sign-in page says, whether or not the address has an account, and whether or
 # not the mail went out. Anything more specific turns the form into a way of asking
 # which addresses are registered here.
-SENT = "Check your email."
+SENT = "Thanks. Check your email."
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -3314,16 +3322,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200,
                         weekly_note(
-                            "That link has been used, or it has expired.",
+                            "That link has already been used, or it's expired.",
                             address=self.address,
                             done=False,
                         ).encode("utf-8"),
                         HTML,
                     )
-                message = f"Send the weekly to {waiting} on Mondays?"
+                message = f"Should we send the weekly to {waiting} every Monday?"
                 button = "Yes, send it"
             else:
-                message = "Stop sending you the weekly?"
+                message = "Should we stop sending you the weekly?"
                 button = "Yes, stop"
             page = weekly_note(
                 message,
@@ -3392,9 +3400,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/weekly/subscribe":
             address = (form.get("email") or "").strip()
             if not plausible(address):
-                return self._weekly_said("That does not look like an email address.", done=False)
+                return self._weekly_said(
+                    "We couldn't read that as an email address. Check it and try again.", done=False
+                )
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._weekly_said("You have asked a few times. Try again in an hour.", False)
+                return self._weekly_said(
+                    "We've had a few requests for that address. Try again in an hour.", False
+                )
             token = store.subscribe(address)
             # `can_mail` asks about a build's owner; a subscriber has none, so the two
             # halves it actually needs are checked here instead.
@@ -3411,19 +3423,19 @@ class Handler(BaseHTTPRequestHandler):
                         f"ignore this.\n",
                     )
             # The same sentence either way, including when the address is already on.
-            return self._weekly_said("Check your email, and press the button in it.")
+            return self._weekly_said("Thanks. Check your email and press the button in it.")
 
         if route == "/weekly/confirm":
             found = store.confirm_subscription(form.get("t", ""))
             if found is None:
-                return self._weekly_said("That link has been used, or it has expired.", False)
-            return self._weekly_said("You will get the weekly on Mondays.")
+                return self._weekly_said("That link has already been used, or it's expired.", False)
+            return self._weekly_said("Thanks. You'll get the weekly every Monday.")
 
         if route == "/weekly/stop":
             store.stop_subscription(form.get("t", ""))
             # Nothing is said about whether the token was one: an unsubscribe endpoint
             # that reported back would answer whether an address is on the list.
-            return self._weekly_said("You will not get the weekly again.")
+            return self._weekly_said("We won't send you the weekly again.")
 
         return self._send(404, b"not found", "text/plain")
 
@@ -3442,7 +3454,7 @@ class Handler(BaseHTTPRequestHandler):
         if payload is not None:
             series = str(payload.get("series") or "").strip()
             if not series or not SERIES_ID.match(series):
-                return self._json({"error": "Which series?"}, 400)
+                return self._json({"error": "We couldn't tell which series you meant."}, 400)
             wanted = bool(payload.get("on", True))
             if series == "weekly":
                 store.follow(person.email, wanted)
@@ -3463,7 +3475,7 @@ class Handler(BaseHTTPRequestHandler):
         if form is None:
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             page = weekly_note(
-                "Stop telling you when a new one comes out?",
+                "Should we stop telling you when a new one comes out?",
                 address=self.address,
                 done=False,
                 pending={"action": "/series/stop", "token": token, "button": "Yes, stop"},
@@ -3473,7 +3485,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), HTML)
         store.stop_following(form.get("t", ""))
         page = weekly_note(
-            "You will not be told about it again.",
+            "We won't tell you about it again.",
             address=self.address,
             heading="your subscriptions",
             home="/library",
@@ -3485,7 +3497,7 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         store = self.library.store
         if person is None or store is None:
-            return self._json({"error": "Sign in first."}, 401)
+            return self._json({"error": "You'll need to sign in first."}, 401)
         wanted = bool(payload.get("on", True))
         store.follow(person.email, wanted)
         return self._json({"following": store.following(person.email)})
@@ -3877,7 +3889,9 @@ class Handler(BaseHTTPRequestHandler):
             if route.startswith(
                 ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
             ):
-                return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
+                return self._json(
+                    {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
+                )
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
@@ -3986,7 +4000,7 @@ class Handler(BaseHTTPRequestHandler):
             # help, and a wall of JSON in a browser tab is not a thing anybody can keep.
             person = self._person()
             if person is None:
-                return self._json({"error": "Sign in first."}, 401)
+                return self._json({"error": "You'll need to sign in first."}, 401)
             body = json.dumps(self.store.everything(person), ensure_ascii=False, indent=1).encode(
                 "utf-8"
             )
@@ -4011,7 +4025,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 job.state()
                 if job
-                else {"error": "That build was lost when targum restarted. Start it again."}
+                else {"error": "We lost that build when we restarted. Start it again."}
             )
         self._send(404, b"not found", "text/plain")
 
@@ -4037,10 +4051,15 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/series/stop":
             return self._series_stop(self._form())
         if self._needs_account(route):
-            return self._json({"error": "Sign in first.", "signIn": "/account/signin"}, 401)
+            return self._json(
+                {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
+            )
         if route != "/account/sign-in" and not self._authorised():
             return self._json(
-                {"error": "This page is from an earlier session. Open the Terminal link."},
+                {
+                    "error": "This page is from an earlier session. "
+                    "Open the new link in the Terminal."
+                },
                 403,
             )
         # The chunked door, before the JSON parse: a chunk's body is raw bytes, and
@@ -4053,7 +4072,8 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_UPLOAD:
             return self._json(
-                {"error": f"That file is over {MAX_FILE_MB} MB. Try a single part of it."}, 413
+                {"error": f"That file is over {MAX_FILE_MB} MB. Try sending us one part of it."},
+                413,
             )
         try:
             payload = json.loads(self.rfile.read(length) or b"{}")
@@ -4332,7 +4352,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_file(kept, "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav")
         usable, why = speech.available()
         if not usable:
-            return self._json({"error": f"No voice on this box: {why}."}, 402)
+            return self._json({"error": f"We can't read aloud here: {why}."}, 402)
         turns = store.chat_turns(chat_id)
         said = "".join(
             str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
@@ -4340,7 +4360,7 @@ class Handler(BaseHTTPRequestHandler):
         found = hebrew_module.pairs(said)
         text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
         if not text:
-            return self._json({"error": "Nothing to read aloud yet."}, 404)
+            return self._json({"error": "There's nothing for us to read aloud yet."}, 404)
         job = Job(
             id=f"speak-{chat_id}-{n}",
             source=f"chat:{chat_id}",
@@ -4397,9 +4417,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
-            return self._json({"error": "Nothing was heard."}, 400)
+            return self._json({"error": "We didn't hear anything. Try again."}, 400)
         if length > MAX_UPLOAD:
-            return self._json({"error": "That is long for one line. Try a shorter one."}, 413)
+            return self._json({"error": "That's too long for one line. Try a shorter one."}, 413)
         body = self.rfile.read(length)
         kind = (self.headers.get("Content-Type") or "audio/webm").split(";")[0].strip()
         suffixes = {
@@ -4423,7 +4443,7 @@ class Handler(BaseHTTPRequestHandler):
         usable, why = transcriber.available()
         if not usable:
             clip.unlink(missing_ok=True)
-            return self._json({"error": f"Nothing here can write speech down: {why}."}, 402)
+            return self._json({"error": f"We can't write speech down here: {why}."}, 402)
         admin = bool(person and self.store.is_admin(person.email))
         job = Job(
             id=f"hear-{secrets.token_hex(6)}",
@@ -4460,7 +4480,7 @@ class Handler(BaseHTTPRequestHandler):
             str(getattr(word, "text", "")) for word in getattr(transcript, "words", [])
         ).strip()
         if not text:
-            return self._json({"error": "Nothing was heard. Try again, a little closer."}, 400)
+            return self._json({"error": "We didn't catch that. Try again a little closer."}, 400)
         asked = self.chats.say(person, home, chat_id, text, admin=admin, heard_seconds=heard)
         self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
 
@@ -4474,7 +4494,7 @@ class Handler(BaseHTTPRequestHandler):
         if not text:
             return self._json({"error": "Say something first."}, 400)
         if len(text) > 4000:
-            return self._json({"error": "That is long for one turn. Try a shorter one."}, 413)
+            return self._json({"error": "That's too long for one turn. Try a shorter one."}, 413)
         person = self._person()
         person_id = person.id if person else None
         chat_id = str(payload.get("chat") or "")
@@ -4548,10 +4568,10 @@ class Handler(BaseHTTPRequestHandler):
         if folder is None:
             return self._json({"error": "not found"}, 404)
         if not speech.priced():
-            return self._json({"error": "The voice has no price yet, so it is not for sale."}, 402)
+            return self._json({"error": "We can't give this text a voice yet."}, 402)
         usable, why = speech.available()
         if not usable:
-            return self._json({"error": f"No voice on this box: {why}."}, 402)
+            return self._json({"error": f"We can't read aloud here: {why}."}, 402)
         try:
             number = int(payload.get("section") or 0)
         except (TypeError, ValueError):
@@ -4811,7 +4831,9 @@ class Handler(BaseHTTPRequestHandler):
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
-            return self._json({"error": "That does not look like an email address."}, 400)
+            return self._json(
+                {"error": "We couldn't read that as an email address. Check it and try again."}, 400
+            )
         # Hosted, an address has to have been invited. Without this, standing a box up
         # on a public address with a funded key lets whoever finds it open an account and
         # start spending — held back only by a per-account rail that is $3.00 a *day*,
@@ -4825,7 +4847,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": NOT_OPEN}, 403)
         if self.store.asking_too_often(email):
             return self._json(
-                {"error": "Too many links to that address. Check your spam folder."},
+                {
+                    "error": "We've sent a few links to that address already. "
+                    "Check your spam folder."
+                },
                 429,
             )
         token = self.store.start_sign_in(email)
@@ -4835,7 +4860,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Said plainly, because a link that never arrives with a cheerful "check
             # your email" is the worst version of this failing.
-            return self._json({"error": "The link could not be sent."}, 502)
+            return self._json({"error": "We couldn't send the link. Try again in a minute."}, 502)
         self._json({"sent": True, "message": SENT})
 
     def _enter(self, token: str) -> None:
@@ -4866,7 +4891,7 @@ class Handler(BaseHTTPRequestHandler):
     def _forget(self) -> None:
         person = self._person()
         if person is None:
-            return self._json({"error": "Nobody is signed in."}, 401)
+            return self._json({"error": "You're not signed in."}, 401)
         self.store.forget(person)
         self._sign_out()
 
@@ -4913,13 +4938,19 @@ class Handler(BaseHTTPRequestHandler):
         wanted = str(payload.get("to") or "en")
         if wanted not in {code for code, _ in INTO}:
             offered = ", ".join(language_name(code) for code, _ in INTO)
-            return self._json({"error": f"targum translates into {offered}."}, 400)
+            return self._json({"error": f"We translate into {offered}."}, 400)
         # And of those, the ones this account reads. Buying a translation into a language
         # nobody said they read spends money on a page they cannot use — and every word
         # they keep from it carries a meaning in it into every text they own. The
         # sentence names where to change that, because it is theirs to change now.
         if wanted not in self._reads():
-            return self._json({"error": f"{language_name(wanted)} is not in your profile."}, 400)
+            return self._json(
+                {
+                    "error": f"{language_name(wanted)} isn't in your profile yet. "
+                    "Add it there and try again."
+                },
+                400,
+            )
         # `from` is allowed to be empty: that means work it out from the text. A catalogue
         # text names its own language and is not somebody's upload, so it is let past.
         reading = str(payload.get("from") or "")
@@ -4929,10 +4960,16 @@ class Handler(BaseHTTPRequestHandler):
 
             if catalogue_module.matching(str(payload.get("source") or "")) is None:
                 names = ", ".join(language_name(code) for code, _ in READING)
-                return self._json({"error": f"targum reads {names}."}, 400)
+                return self._json({"error": f"We can read {names}."}, 400)
         # And of those, the ones this account said it is learning.
         if reading in known and reading not in self._learning():
-            return self._json({"error": f"{language_name(reading)} is not in your profile."}, 400)
+            return self._json(
+                {
+                    "error": f"{language_name(reading)} isn't in your profile yet. "
+                    "Add it there and try again."
+                },
+                400,
+            )
 
         try:
             source = self._source_from(payload)
@@ -4984,8 +5021,8 @@ class Handler(BaseHTTPRequestHandler):
         if job is None:
             return self._json(
                 {
-                    "error": "That build was lost when targum restarted. Start it again; "
-                    "nothing is paid for twice."
+                    "error": "We lost that build when we restarted. Start it again, and "
+                    "nothing counts twice."
                 },
                 404,
             )
@@ -5021,7 +5058,7 @@ class Handler(BaseHTTPRequestHandler):
 
         entry, plan = self.library.cover_plan(folder, bool(payload.get("chapters")))
         if entry is None:
-            return self._json({"error": "There is nothing here to draw."}, 400)
+            return self._json({"error": "We can't find anything here to draw."}, 400)
         if not plan:
             return self._json({"drawn": 0, "message": "Already drawn."})
 
@@ -5245,7 +5282,9 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/gloss", error)
-            return self._json({"error": "Could not look that word up just now."}, 502)
+            return self._json(
+                {"error": "We couldn't look that word up just now. Try again in a moment."}, 502
+            )
         return self._json(
             {
                 "lemma": lemma,
@@ -5308,7 +5347,9 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/phrase", error)
-            return self._json({"error": "Could not look that phrase up just now."}, 502)
+            return self._json(
+                {"error": "We couldn't look that phrase up just now. Try again in a moment."}, 502
+            )
         return self._json(
             {
                 "meaning": answer.meaning,
@@ -5336,10 +5377,10 @@ class Handler(BaseHTTPRequestHandler):
         """
         suffix = Path(name).suffix.lower()
         if suffix in {".aax", ".aa"}:
-            raise TargumError("This file is protected, so targum cannot read it.")
+            raise TargumError("This file is protected, so we can't read it.")
         if suffix not in self.READABLE:
             raise TargumError(
-                f"targum cannot read '{suffix}' files. Save it as plain text or "
+                f"We can't read '{suffix}' files. Save it as plain text or "
                 "markdown and drop that in instead."
             )
         uploads = self._home() / "uploads" / secrets.token_hex(8)
@@ -5358,11 +5399,11 @@ class Handler(BaseHTTPRequestHandler):
         if upload:
             held = self._upload_folder(upload)
             if held is None:
-                raise TargumError("That upload is no longer here. Start it again.")
+                raise TargumError("We can't find that upload any more. Send it again.")
             folder, meta = held
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
-                raise TargumError("That upload is no longer here. Start it again.")
+                raise TargumError("We can't find that upload any more. Send it again.")
             if target.suffix.lower() in PICTURE_SUFFIXES or target.suffix.lower() == ".pdf":
                 return str(self._gathered([upload]))
             return str(target)
@@ -5390,21 +5431,23 @@ class Handler(BaseHTTPRequestHandler):
 
         if len(uploads) > MAX_PAGES:
             raise TargumError(
-                f"That is {len(uploads)} pictures. targum reads up to {MAX_PAGES} at a time."
+                f"That's {len(uploads)} pictures. We can read up to {MAX_PAGES} at a time."
             )
         found: list[tuple[Path, Path]] = []
         for upload in uploads:
             held = self._upload_folder(upload)
             if held is None:
-                raise TargumError("That upload is no longer here. Start it again.")
+                raise TargumError("We can't find that upload any more. Send it again.")
             folder, meta = held
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
-                raise TargumError("That upload is no longer here. Start it again.")
+                raise TargumError("We can't find that upload any more. Send it again.")
             found.append((folder, target))
         pictures = all(vision.is_picture(target) for _, target in found)
         if not pictures and (len(found) > 1 or found[0][1].suffix.lower() != ".pdf"):
-            raise TargumError("Several files at once must all be pictures of one text.")
+            raise TargumError(
+                "When you send several files, they all need to be pictures of one text."
+            )
         home, _ = found[0]
         kept: list[Path] = []
         for number, (folder, target) in enumerate(found, start=1):
@@ -5473,17 +5516,19 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             size = 0
         if suffix in DRM_SUFFIXES:
-            return self._json({"error": "This file is protected, so targum cannot read it."}, 400)
+            return self._json({"error": "This file is protected, so we can't read it."}, 400)
         if suffix in PICTURE_SUFFIXES or suffix == ".pdf":
             # A picture or a handout, through the recording's door: the same chunks, the
             # same quota, a ceiling of its own.
             if size <= 0 or size > MAX_PICTURE_BYTES:
                 what = "PDF" if suffix == ".pdf" else "picture"
                 limit = MAX_PICTURE_BYTES // (1024 * 1024)
-                return self._json({"error": f"That {what} is over {limit} MB."}, 413)
+                return self._json(
+                    {"error": f"That {what} is over {limit} MB. Try a smaller one."}, 413
+                )
         elif suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
             return self._json(
-                {"error": "That is not a recording, a video, a picture or a PDF targum can read."},
+                {"error": "We can only read a recording, a video, a picture or a PDF."},
                 400,
             )
         else:
@@ -5492,13 +5537,18 @@ class Handler(BaseHTTPRequestHandler):
             if size <= 0 or size > ceiling:
                 limit = ceiling // (1024 * 1024 * 1024)
                 what = "video" if moving else "recording"
-                return self._json({"error": f"That {what} is over {limit} GB."}, 413)
+                return self._json(
+                    {"error": f"That {what} is over {limit} GB. Try a shorter one."}, 413
+                )
         home = self._home()
         self.library.sweep_uploads(home)
         if self.library.used(home) + size > MEDIA_QUOTA_BYTES:
             gigs = MEDIA_QUOTA_BYTES // (1024 * 1024 * 1024)
             return self._json(
-                {"error": f"That would put your recordings over {gigs} GB. Delete one first."},
+                {
+                    "error": f"That would take your recordings over {gigs} GB. "
+                    "Delete one and try again."
+                },
                 413,
             )
         upload = secrets.token_hex(8)
@@ -5550,7 +5600,7 @@ class Handler(BaseHTTPRequestHandler):
         target = folder / name
         pieces = sorted((folder / ".part").glob("[0-9]*"), key=lambda piece: int(piece.name))
         if [int(piece.name) for piece in pieces] != list(range(len(pieces))):
-            return self._json({"error": "The upload is missing a chunk. Start it again."}, 400)
+            return self._json({"error": "Part of the upload didn't reach us. Send it again."}, 400)
         digest = hashlib.sha256()
         with target.open("wb") as out:
             for piece in pieces:
@@ -5560,7 +5610,7 @@ class Handler(BaseHTTPRequestHandler):
         claimed = str(payload.get("sha256") or "")
         if claimed and claimed != digest.hexdigest():
             target.unlink()
-            return self._json({"error": "The upload arrived damaged. Start it again."}, 400)
+            return self._json({"error": "The upload reached us damaged. Send it again."}, 400)
         for piece in pieces:
             piece.unlink()
         (folder / ".sha256").write_text(digest.hexdigest(), encoding="utf-8")
@@ -5592,7 +5642,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": error.message}, 400)
             if pages > MAX_PAGES:
                 shutil.rmtree(folder, ignore_errors=True)
-                too_many = f"That PDF is {pages} pages. targum reads up to {MAX_PAGES} at a time."
+                too_many = f"That PDF has {pages} pages. We can read up to {MAX_PAGES} at a time."
                 return self._json({"error": too_many}, 413)
             return self._json({"upload": upload, "pages": pages})
         from .video import VIDEO_SUFFIXES
@@ -5608,7 +5658,7 @@ class Handler(BaseHTTPRequestHandler):
             # now heard the file. Sound alone in a video container is a recording,
             # and a recording's ceiling is 1 GB whatever the container claims.
             shutil.rmtree(folder, ignore_errors=True)
-            return self._json({"error": "That recording is over 1 GB."}, 413)
+            return self._json({"error": "That recording is over 1 GB. Try a shorter one."}, 413)
         drafted = parts_module.plan(found)
         self._json(
             {"upload": upload, "seconds": round(found.duration, 1), "parts": len(drafted.parts)}

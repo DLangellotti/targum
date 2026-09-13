@@ -118,7 +118,7 @@
     var pictures = chosen.filter(isPicture);
     if (pictures.length) {
       if (pictures.length !== chosen.length) {
-        return Promise.reject("Several files at once must all be pictures of one text.");
+        return Promise.reject("We can take several files at once only when they're pictures of one text.");
       }
       var ids = [];
       function next(n) {
@@ -176,7 +176,7 @@
       var listening = Math.max(1, Math.round(spoken / 6));
       var translating = Math.max(1, Math.round((job.total || 25) / 25));
       var minutes = listening + translating;
-      var opener = job.parts > 1 ? "First part in " : "Ready in ";
+      var opener = job.parts > 1 ? "Your first part will be ready in " : "Ready in ";
       if (minutes <= 1) return opener + "about a minute.";
       if (minutes <= 4) return opener + "a few minutes.";
       return opener + "about " + minutes + " minutes.";
@@ -185,9 +185,9 @@
     // A book opens on its first chapter, so the wait is that chapter's — not the
     // novel's. `total` is what is being translated now.
     var mins = Math.max(1, Math.round((job.total || job.segments) / 25));
-    var start = job.chapters > 1 ? "First chapter in " : "";
-    if (mins <= 1) return start ? start + "about a minute." : "About a minute.";
-    if (mins <= 4) return start ? start + "a couple of minutes." : "A couple of minutes.";
+    var start = job.chapters > 1 ? "Your first chapter will be ready in " : "Ready in ";
+    if (mins <= 1) return start + "about a minute.";
+    if (mins <= 4) return start + "a couple of minutes.";
     return start + "about " + mins + " minutes.";
   }
 
@@ -200,8 +200,8 @@
   function hoursWarning(got) {
     if (!got || got.allowed === null || got.allowed === undefined) return "";
     if (!(got.used >= got.allowed * HOURS_WARN)) return "";
-    var line = got.used + " of " + got.allowed + " hours used this month.";
-    if (got.ends) line += " Resets " + got.ends + ".";
+    var line = "You've used " + got.used + " of your " + got.allowed + " hours this month.";
+    if (got.ends) line += " They reset on " + got.ends + ".";
     return line;
   }
 
@@ -212,20 +212,20 @@
   }
 
   var PLAIN = {
-    "Finding each word's dictionary form…": "Reading the words…",
-    "Adding vowel points…": "Adding vowel points…",
-    "Building the reader…": "Setting the page…",
+    "Finding each word's dictionary form…": "We're reading the words…",
+    "Adding vowel points…": "We're adding vowel points…",
+    "Building the reader…": "We're setting the page…",
   };
 
   // The pipeline narrates itself in its own vocabulary. This is the reader's.
   function plain(message) {
-    if (!message) return "Getting it ready…";
+    if (!message) return "We're getting it ready…";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining up…";
-    if (message.indexOf("Transcribing") === 0) return "Writing down what is said…";
-    if (message.indexOf("Finding the pauses") === 0) return "Finding the pauses…";
-    if (message.indexOf("Looking up") === 0) return "Looking words up…";
-    return "Getting it ready…";
+    if (message.indexOf("Matching") === 0) return "We're lining it up…";
+    if (message.indexOf("Transcribing") === 0) return "We're writing down what's said…";
+    if (message.indexOf("Finding the pauses") === 0) return "We're finding the pauses…";
+    if (message.indexOf("Looking up") === 0) return "We're looking up the words…";
+    return "We're getting it ready…";
   }
 
   // The card the reader presses. Drawn from the quote itself — the server's state of
@@ -360,7 +360,7 @@
       var doubt = document.createElement("p");
       doubt.className = "quote-doubt";
       doubt.textContent =
-        job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " could not be read clearly.";
+        "We couldn't read " + job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " clearly.";
       card.appendChild(doubt);
     }
     var note = document.createElement("p");
@@ -378,7 +378,7 @@
             card.classList.add("refused");
             return;
           }
-          note.textContent = "Getting it ready. It will appear above when it is.";
+          note.textContent = "We're getting it ready. It'll appear above when it's done.";
           card.classList.add("started");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
         });
@@ -392,7 +392,7 @@
     } else if (job.stage === "working" || job.stage === "reading") {
       // Sent from the box, so already pressed: the card is its progress. "Getting it
       // ready", never "building" (2026-09-11): a text is getting ready, then ready.
-      note.textContent = "Getting it ready. It will appear above when it is.";
+      note.textContent = "We're getting it ready. It'll appear above when it's done.";
       card.classList.add("started");
       if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
     } else if (job.stage === "done" && job.reader) {
@@ -403,7 +403,7 @@
       card.appendChild(open);
       card.classList.add("started");
     } else {
-      note.textContent = job.blocked || job.error || "This cannot be made ready now.";
+      note.textContent = job.blocked || job.error || "We can't get this ready right now.";
       card.classList.add("refused");
     }
     card.appendChild(note);

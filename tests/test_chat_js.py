@@ -168,12 +168,13 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     )
     card = page["cards"][0]
     assert card["title"] == "מאמר על הים" and card["english"] == "An article about the sea"
-    assert card["meta"] == "40 sentences · A couple of minutes."
+    assert card["meta"] == "40 sentences · Ready in a couple of minutes."
     assert "$" not in json.dumps(card), "never money"
     assert card["button"] == "Read this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
-    assert card["note"].startswith("Getting it ready.") and card["cls"] == "quote-card started"
+    assert card["note"].startswith("We're getting it ready.")
+    assert card["cls"] == "quote-card started"
     assert page["stripAsked"] == 1, "the strip is told to look again"
 
 
@@ -204,7 +205,8 @@ def test_a_recording_is_quoted_in_hours() -> None:
         ],
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
-    assert page["cards"][0]["meta"].startswith("1.5 hours of audio · First part in")
+    meta = page["cards"][0]["meta"]
+    assert meta.startswith("1.5 hours of audio · Your first part will be ready in")
 
 
 def test_a_refused_press_says_why_on_the_card() -> None:
@@ -242,7 +244,7 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
-    assert page["hours"] == "6.5 of 8 hours used this month. Resets 1 October."
+    assert page["hours"] == "You've used 6.5 of your 8 hours this month. They reset on 1 October."
     assert not page["hoursHidden"]
     quiet = run(
         answers={
@@ -638,7 +640,7 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"]
     assert card["button"] == "", "Send was the press: no button to press again"
-    assert card["note"] == "Getting it ready. It will appear above when it is."
+    assert card["note"] == "We're getting it ready. It'll appear above when it's done."
     assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
@@ -1370,7 +1372,7 @@ def test_a_first_visit_opens_on_the_words_you_may_already_know() -> None:
     and tells the page holding the frame that the count changed."""
     page = run(embed=True, answers=COMMON)
     assert page["claim"] and page["claim"]["rows"] == ["של", "את", "הוא"]
-    assert [t["text"] for t in page["turns"]][0].startswith("Before anything else")
+    assert [t["text"] for t in page["turns"]][0].startswith("First, which of these words")
     assert page["chipsHidden"] and page["emptyHidden"], "the checklist first"
     marked = run(
         embed=True,

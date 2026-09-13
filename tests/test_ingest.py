@@ -81,7 +81,7 @@ def test_a_broken_pdf_says_so_without_a_traceback(tmp_path: Path) -> None:
     pytest.importorskip("pypdf")
     source = tmp_path / "book.pdf"
     source.write_bytes(b"%PDF-1.4")
-    with pytest.raises(TargumError, match="could not be opened"):
+    with pytest.raises(TargumError, match="couldn't open that PDF"):
         ingest.load(str(source))
 
 

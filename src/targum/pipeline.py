@@ -365,7 +365,7 @@ class Build:
                 return existing
         segmented = segment_document(document, self.segmenter)
         if not segmented.segments:
-            raise TargumError(f"No text found in {self.source}.")
+            raise TargumError(f"We couldn't find any text in {self.source}.")
         segmented.write(path)
         return segmented
 
@@ -1541,7 +1541,7 @@ class Build:
             # Every part heard so far came back empty. Music, or silence — either way
             # an honest sentence beats a reader with nothing on its pages.
             minutes = max(1, round(sum(by_number[n].end - by_number[n].start for n in owed) / 60))
-            raise TargumError(f"Nothing was said in the first {minutes} minutes.")
+            raise TargumError(f"We didn't hear anyone speak in the first {minutes} minutes.")
         return heard
 
     def _probe_language(self, recording: Path, found: Any, drafted: Any, workspace: Path) -> Any:
@@ -1581,7 +1581,7 @@ class Build:
         readable = {tag for tag, _ in READING}
         if code and code not in readable:
             names = ", ".join(language_name(tag) for tag, _ in READING)
-            raise TargumError(f"This recording is in {language_name(code)}. targum reads {names}.")
+            raise TargumError(f"This recording is in {language_name(code)}. We can read {names}.")
         if code and code != drafted.language:
             drafted.language = code
             parts_module.write(workspace, drafted)

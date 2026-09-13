@@ -74,7 +74,7 @@ def test_a_stranger_address_never_reaches_the_binary(monkeypatch, tmp_path: Path
         raise AssertionError("yt-dlp was handed an address outside the allowlist")
 
     monkeypatch.setattr(youtube.subprocess, "run", explode)
-    with pytest.raises(TargumError, match="not a YouTube video"):
+    with pytest.raises(TargumError, match="YouTube video at that address"):
         youtube.fetch("https://example.com/watch?v=abc", tmp_path)
 
 
@@ -117,7 +117,7 @@ def test_an_oversized_fetch_is_deleted_not_kept(monkeypatch, tmp_path: Path) -> 
     monkeypatch.setattr(youtube.subprocess, "run", pretend)
     monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
     monkeypatch.setattr(youtube, "MAX_VIDEO_BYTES", 2)
-    with pytest.raises(TargumError, match="larger than"):
+    with pytest.raises(TargumError, match="over 4 GB"):
         youtube.fetch("https://youtu.be/abc123", tmp_path)
     assert not (tmp_path / "source.mp4").exists()
 

@@ -53,7 +53,7 @@ def test_a_video_is_accepted_only_where_the_routing_chose_video(fake_audio, tmp_
     refuses a film, and the video door writes down that it saw one."""
     fake_audio.video = True
     source = film(tmp_path)
-    with pytest.raises(TargumError, match="could not read"):
+    with pytest.raises(TargumError, match="couldn't read"):
         probe.examine(source)
     seen = probe.examine(source, allow_video=True)
     assert seen.has_video
@@ -195,6 +195,7 @@ def test_a_video_from_youtube_links_home_at_the_line_and_an_upload_links_nowhere
     assert '"home": "https://www.youtube.com/watch?v=abc123"' in html
     assert '"offset": 0.0' in html, "the first part begins at the start"
     assert "data-video aria-pressed" in html, "and the sidecar is still the instrument"
+    assert '<span class="player-said">Watch the video</span>' in html, "a video is watched"
 
     (tmp_path / "up").mkdir()
     uploaded = builder(tmp_path / "up", film(tmp_path / "up")).run()
@@ -290,6 +291,7 @@ def test_a_soundtrack_only_reader_offers_no_video_toggle(fake_audio, tmp_path) -
         # The script rides in every page; the markup is what must not.
         assert "data-video aria-pressed" not in text
         assert 'id="video"' not in text
+        assert "Watch the video" not in text, "a soundtrack is listened to"
 
 
 def test_an_old_manifest_without_the_video_field_still_reads(tmp_path: Path) -> None:

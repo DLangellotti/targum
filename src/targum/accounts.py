@@ -1237,7 +1237,7 @@ class Store:
         wanted.discard("")
         strange = sorted(wanted - offered)
         if strange:
-            raise ValueError(f"targum does not have {language_name(strange[0])}.")
+            raise ValueError(f"We don't offer {language_name(strange[0])}.")
         if not wanted:
             raise ValueError("Keep at least one.")
         if kind == "learning" and not wanted >= set(REQUIRED_LEARNING):

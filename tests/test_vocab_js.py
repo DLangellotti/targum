@@ -340,7 +340,11 @@ def test_with_no_way_to_copy_it_says_so_rather_than_throwing() -> None:
     What it must not do is break the card it sits on."""
     done = copied()
     assert done["written"] == []
-    assert done["after"] == {"text": "Not copied", "copied": True, "announced": "Not copied."}
+    assert done["after"] == {
+        "text": "Not copied",
+        "copied": True,
+        "announced": "We couldn't copy that.",
+    }
 
 
 def test_the_press_stays_on_the_card() -> None:

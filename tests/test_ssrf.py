@@ -39,7 +39,7 @@ def test_a_private_address_is_refused(url: str) -> None:
     "url", ["file:///etc/passwd", "gopher://x/", "ftp://x/", "data:text/html,x"]
 )
 def test_only_web_pages(url: str) -> None:
-    with pytest.raises(TargumError, match="only reads web pages"):
+    with pytest.raises(TargumError, match="only read web pages"):
         get(url)
 
 

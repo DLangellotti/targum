@@ -126,7 +126,7 @@ def probe(path: Path) -> tuple[int, int]:
             width, height = image.size
             return int(width), int(height)
     except Exception as why:
-        raise TargumError("That picture could not be read.") from why
+        raise TargumError("We couldn't read that picture.") from why
 
 
 def prepared(path: Path) -> tuple[bytes, str]:
@@ -264,7 +264,7 @@ def read_pages(
 
     chosen = model or GLOSS_MODEL
     if len(paths) > MAX_PAGES:
-        raise TargumError(f"That is {len(paths)} pages. targum reads up to {MAX_PAGES} at a time.")
+        raise TargumError(f"That's {len(paths)} pages. We can read up to {MAX_PAGES} at a time.")
     held = cached(paths, chosen)
     wanted = [index for index, read in enumerate(held) if read is None]
     if wanted:

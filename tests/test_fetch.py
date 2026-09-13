@@ -347,7 +347,7 @@ def test_an_empty_text_file_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "targum.ingest.url.fetch", lambda url, params=None: Fetched("  ", "text/plain")
     )
-    with pytest.raises(TargumError, match="No readable text"):
+    with pytest.raises(TargumError, match="couldn't find any text"):
         UrlIngester().load("https://example.com/empty.txt")
 
 

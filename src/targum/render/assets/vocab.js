@@ -448,7 +448,7 @@
       event.stopPropagation();
       copy(text).then(function (ok) {
         said(ok ? "Copied" : "Not copied");
-        (options.say || announce)(ok ? "Copied." : "Not copied.");
+        (options.say || announce)(ok ? "Copied." : "We couldn't copy that.");
       });
     });
     // Enter on the button is the button's; the reader's Enter opens and closes cards.

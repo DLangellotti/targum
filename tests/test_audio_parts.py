@@ -95,7 +95,7 @@ def test_a_file_ffprobe_cannot_read_is_one_plain_sentence(
         raise subprocess.CalledProcessError(1, "ffprobe")
 
     monkeypatch.setattr(subprocess, "run", refuse)
-    with pytest.raises(TargumError, match="could not read this audio file"):
+    with pytest.raises(TargumError, match="couldn't read this audio file"):
         tools.ffprobe_json(tmp_path / "noise.mp3")
 
 
@@ -116,7 +116,7 @@ def test_a_video_container_is_refused(fake_audio, tmp_path: Path) -> None:
 
     with _pytest.MonkeyPatch.context() as patch:
         patch.setattr(tools_module, "ffprobe_json", with_video)
-        with pytest.raises(TargumError, match="could not read"):
+        with pytest.raises(TargumError, match="couldn't read"):
             probe.examine(recording)
 
 

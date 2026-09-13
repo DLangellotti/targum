@@ -17,7 +17,7 @@
 <main>
   {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}
   <section class="panel" id="stranger" hidden>
-    <p class="note">Sign in from the corner and this page fills itself in.</p>
+    <p class="note">Sign in from the corner and we'll fill this page in.</p>
   </section>
 
   <section class="panel" id="who" hidden>
@@ -27,7 +27,7 @@
         <label class="field">
           <span>Name</span>
           <input type="text" id="you-name" maxlength="60" autocomplete="name"
-                 placeholder="What to call you" spellcheck="false">
+                 placeholder="What should we call you?" spellcheck="false">
         </label>
         <p class="you-email" id="you-email"></p>
       </div>
@@ -49,7 +49,7 @@
       <span class="ticks-label" id="reads-label">Reading into</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
-    <p class="note">Nothing is deleted when you untick.</p>
+    <p class="note">You lose nothing when you untick one.</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
@@ -68,8 +68,8 @@
       hidden until the server has named a series. -#}
   <section class="panel" id="subscriptions" hidden>
     <h2>Your subscriptions</h2>
-    <p class="note">Series that come out on their own clock. Follow one and its newest
-      instalment opens on Learn when it lands, and you are told by email.</p>
+    <p class="note">Series that come out on their own clock. Follow one and we'll put each
+      new instalment on Learn when it lands and email you.</p>
     <ul class="series" id="series"></ul>
   </section>
 
@@ -83,7 +83,7 @@
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
         the fact somebody about to press this needs, and it is true either way. -#}
-    <p class="note">Deleting waits seven days.
+    <p class="note">We wait seven days before deleting.
       {%- if legal_is_public() %}
       <a href="/deletion">What that means</a>.
       {%- endif %}</p>

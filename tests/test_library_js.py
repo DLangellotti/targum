@@ -321,7 +321,7 @@ def test_an_empty_tab_says_which_kind_of_empty_it_is(tmp_path: Path) -> None:
     """ "Nothing here matches that" is what a filter says. A reader who has uploaded
     nothing has not filtered anything out."""
     drawn = draw(tmp_path, view={"where": "mine"})
-    assert drawn["empty"] == "Nothing uploaded yet. Add your own from Upload."
+    assert drawn["empty"] == "You haven't added anything yet. Use Add to bring your own."
 
     filtered = draw(tmp_path, view={"find": "zzzzz"})
     assert filtered["empty"] == "Nothing here matches that."
@@ -420,9 +420,10 @@ def test_choosing_a_kind_does_not_hide_the_other_kinds(tmp_path: Path) -> None:
 
 
 def test_a_row_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None:
-    """`build()` writes "Getting ready…", then "Lining up…", then the progress into a
-    `.row-state` cell. When the Public/Private word moved out of the rows and into the
-    two tabs, that cell went with it and pressing any unbuilt row threw on a null."""
+    """`build()` writes "We're getting it ready…", then "We're lining it up…", then the
+    progress into a `.row-state` cell. When the Public/Private word moved out of the rows
+    and into the two tabs, that cell went with it and pressing any unbuilt row threw on a
+    null."""
     row = draw(tmp_path)["rows"][0]
     assert row["cells"][-1] == "", "empty until there is something to say"
 
@@ -525,7 +526,7 @@ def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None
     )
     (row,) = unmeasured["rows"]
     assert row["cells"][3] == "—"
-    assert unmeasured["note"].endswith("— means not measured yet.")
+    assert unmeasured["note"].endswith("— means we haven't measured it yet.")
 
 
 def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:

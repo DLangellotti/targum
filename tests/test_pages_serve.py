@@ -129,7 +129,7 @@ def test_a_picture_is_proved_a_picture_at_the_door(served, reading) -> None:
     status, done = send(port, token, "screen.png", (FIXTURES / "screenshot.png").read_bytes())
     assert status == 200 and done["picture"] is True and done["upload"]
     status, refused = send(port, token, "fake.png", b"not a picture at all")
-    assert status == 400 and "could not be read" in refused["error"]
+    assert status == 400 and "couldn't read that picture" in refused["error"]
     assert reading == [], "nothing is read at the door; the reading is the quote's"
 
 
