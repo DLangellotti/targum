@@ -405,6 +405,18 @@ def _conversing_in(learning: set[str]) -> str:
     return "he" if "he" in learning else sorted(learning)[0]
 
 
+def _mode_for(language: str, talks: bool) -> str:
+    """What a new conversation in a language is for.
+
+    `talk` — held in the language, graded to the reader — only in Hebrew, and only for a
+    reader with modern Hebrew to hold it in (`Library.talks`). Every other language opens
+    in the English find mode (2026-09-13): it finds and answers about texts in English
+    until conversation in that language is built, and Aramaic stays there, because nobody
+    converses in the Aramaic of Daniel.
+    """
+    return "talk" if (language or "he").split("-")[0] == "he" and talks else "find"
+
+
 class Chats:
     """The workers that answer turns, and the feeds their answers stream through."""
 
@@ -462,18 +474,25 @@ class Chats:
             return self._client
 
     def context(
-        self, person: Person | None, home: Path, chat_id: str, admin: bool
+        self, person: Person | None, home: Path, chat_id: str, admin: bool, language: str = ""
     ) -> tools_module.Ctx:
         """Who is asking and what the server knows about them — the same `Ctx` a turn
         runs its tools against, for anything else that reads a conversation as its
-        owner (the save door, for one)."""
+        owner (the save door, for one).
+
+        In the conversation's own language where there is one, then the language the
+        page asked in, then the one the switcher shows (2026-09-13)."""
         if self.store is None:
             raise RuntimeError("a chat needs a store")
         from ..translate.prompts import INTO, READING
 
         store = self.store
         person_id = person.id if person else None
-        language = _conversing_in(store.learning(person_id)) if person_id else "he"
+        opened = store.chat_owned(person_id, chat_id) if chat_id else None
+        if opened and opened.get("language"):
+            language = str(opened["language"])
+        elif not language:
+            language = store.language(person_id) if person_id else "he"
         # The same sets `Handler._reads` and `_learning` compute: everything where there
         # is nobody to ask, the account's own answer where there is.
         into = {code for code, _ in INTO}
@@ -565,6 +584,7 @@ class Chats:
         *,
         admin: bool,
         skip: Sequence[str] = (),
+        language: str = "",
     ) -> dict[str, Any]:
         """ "Something to read", answered without the model (targum-internal#240).
 
@@ -580,7 +600,7 @@ class Chats:
             raise RuntimeError("a chat needs a store")
         store = self.store
         person_id = person.id if person else None
-        ctx = self.context(person, home, chat_id, admin)
+        ctx = self.context(person, home, chat_id, admin, language)
         found = tools_module.suggest_next(ctx, {"limit": 10})
         left = {str(one) for one in skip}
         rows = [row for row in found.get("suggestions", []) if row["id"] not in left]
@@ -595,8 +615,9 @@ class Chats:
                 "status": 409,
             }
         if not chat_id:
-            mode = "talk" if self.library.talks(home, person_id) else "find"
-            chat_id = store.chat_open(person_id, mode=mode)
+            spoken = ctx.level.language
+            mode = _mode_for(spoken, self.library.talks(home, person_id))
+            chat_id = store.chat_open(person_id, language=spoken, mode=mode)
         because = str(top.get("because") or "").strip()
         into = hebrew_module.gloss_language(ctx.reads)
         line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
@@ -681,6 +702,7 @@ class Chats:
         heard_seconds: float = 0.0,
         about: dict[str, str] | None = None,
         brought: dict[str, Any] | None = None,
+        language: str = "",
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -703,8 +725,11 @@ class Chats:
             # A note of where the reader is — a word's card, the drawer in a reader —
             # changes what the answer is about and never its language (2026-09-11: "the
             # chat with the reader should be in Hebrew at your level ... a general rule").
-            mode = "talk" if self.library.talks(home, person_id) else "find"
-            chat_id = self.store.chat_open(person_id, mode=mode)
+            # Each language has a conversation of its own (2026-09-13): opened in the
+            # language the page is in, which is the switcher's.
+            spoken = language or (self.store.language(person_id) if person_id else "he")
+            mode = _mode_for(spoken, self.library.talks(home, person_id))
+            chat_id = self.store.chat_open(person_id, language=spoken, mode=mode)
         n = self.store.chat_say(
             chat_id, "user", framed(text, about, brought), text, stage="working"
         )

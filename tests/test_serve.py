@@ -570,6 +570,70 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
     assert status == 400 and answer["error"].startswith("Aramaic isn't in your profile")
 
 
+def test_the_switcher_s_language_is_kept_on_the_account(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Chosen on one device, opened on the next (2026-09-13). Refused for a language the
+    reader is not learning, whatever the page offered."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["language"] == "he"
+
+    status, refused, _ = call(
+        port, "POST", f"/account/language?k={token}", {"language": "yi"}, cookie=cookie
+    )
+    assert status == 400 and refused["language"] == "he", refused
+
+    call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he", "yi"], "reads": ["en"]},
+        cookie=cookie,
+    )
+    status, chosen, _ = call(
+        port, "POST", f"/account/language?k={token}", {"language": "yi"}, cookie=cookie
+    )
+    assert status == 200 and chosen["language"] == "yi", chosen
+    _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["language"] == "yi"
+
+    # The commonest words, in the language asked: wordfreq has no Yiddish list, so the
+    # panel has nothing to offer rather than offering Hebrew.
+    _, common, _ = call(port, "GET", f"/words/common?language=yi&k={token}", cookie=cookie)
+    assert common["language"] == "yi" and common["words"] == []
+    _, hebrew, _ = call(port, "GET", f"/words/common?language=he&k={token}", cookie=cookie)
+    assert hebrew["language"] == "he" and hebrew["words"]
+    # A language the reader is not learning is not one a page can ask in.
+    _, asked, _ = call(port, "GET", f"/words/common?language=fr&k={token}", cookie=cookie)
+    assert asked["language"] == "yi", "the switcher's, not the page's"
+
+
+def test_a_text_shows_under_every_language_it_is_written_in(tmp_path: Path) -> None:
+    """Daniel is Hebrew with Aramaic chapters, and shows under both (2026-09-13)."""
+    library = Library(tmp_path)
+    folder = tmp_path / "local" / "daniel-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {
+                "title": "דניאל",
+                "language": "he",
+                "source": "sefaria:Daniel",
+                "blocks": [
+                    {"id": "b0000", "text": "בִּשְׁנַת שָׁלוֹשׁ"},
+                    {"id": "b0001", "text": "מַלְכָּא לְעָלְמִין חֱיִי", "language": "arc"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    [row] = library.readers(tmp_path / "local")
+    assert row["language"] == "he" and row["languages"] == ["arc", "he"]
+
+
 @pytest.mark.parametrize(
     ("asked", "said"),
     [

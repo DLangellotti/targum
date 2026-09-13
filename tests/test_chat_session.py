@@ -1134,3 +1134,52 @@ def test_a_line_from_inside_the_text_stays_in_hebrew_at_their_level(tmp_path: Pa
     assert about["sentence"] in turns[0]["content"]
     chats.answer(asked)
     assert hebrew.CONTRACT.splitlines()[0] in client.requests[0]["system"][0]["text"]
+
+
+def test_each_language_has_a_conversation_of_its_own(tmp_path: Path) -> None:
+    """The switcher (2026-09-13): a conversation opens in the language the reader is in.
+    Hebrew's is held in Hebrew as it always was. Any other language opens in the English
+    find mode until conversation in it is built, with no Hebrew contract in the prompt."""
+    from targum.chat import hebrew
+
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    store.choose(person, "learning", ["he", "yi"])
+
+    client = Script(
+        [
+            reply([{"type": "text", "text": "שלום."}]),
+            reply([{"type": "text", "text": "Here are two Yiddish texts."}]),
+        ]
+    )
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    hebrew_chat = chats.say(person, home, "", "hi", admin=False)
+    assert store.chat_owned(person.id, hebrew_chat.chat_id)["language"] == "he"
+    assert store.chat_owned(person.id, hebrew_chat.chat_id)["mode"] == "talk"
+
+    store.use_language(person, "yi")
+    yiddish_chat = chats.say(person, home, "", "something to read", admin=False)
+    opened = store.chat_owned(person.id, yiddish_chat.chat_id)
+    assert opened["language"] == "yi" and opened["mode"] == "find"
+    chats.answer(yiddish_chat)
+    assert hebrew.CONTRACT.splitlines()[0] not in client.requests[-1]["system"][0]["text"]
+    assert chats.context(person, home, yiddish_chat.chat_id, False).level.language == "yi"
+    # A conversation keeps its language whatever the switcher says afterwards.
+    assert chats.context(person, home, hebrew_chat.chat_id, False).level.language == "he"
+
+    assert [c["id"] for c in store.chats(person.id, language="yi")] == [yiddish_chat.chat_id]
+    assert [c["id"] for c in store.chats(person.id, language="he")] == [hebrew_chat.chat_id]
+
+
+def test_the_current_language_is_one_the_reader_is_learning(tmp_path: Path) -> None:
+    _, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    assert store.language(person.id) == "he", "nothing chosen: Hebrew"
+    with pytest.raises(ValueError, match="isn't one of your languages"):
+        store.use_language(person, "yi")
+    store.choose(person, "learning", ["he", "yi"])
+    assert store.use_language(person, "yi") == "yi" and store.language(person.id) == "yi"
+    store.choose(person, "learning", ["he"])
+    assert store.language(person.id) == "he", "unticked: it falls back rather than failing"
+    assert store.language(None) == "he"
