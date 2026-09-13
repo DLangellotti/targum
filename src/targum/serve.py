@@ -1767,8 +1767,8 @@ class Library:
                 from .translate.prompts import language_name
 
                 job.error = (
-                    f"This looks like {language_name(job.language)}, which targum does not "
-                    "read yet. Choose the language it is in."
+                    f"This looks like {language_name(job.language)}, and we can't read that "
+                    "yet. Choose the language it's in."
                 )
                 job.stage = "failed"
                 return
