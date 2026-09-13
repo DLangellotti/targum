@@ -100,8 +100,12 @@ class Usage:
 
     def cost(self) -> float:
         """USD, from the prices the provider publishes for each model it used."""
-        from .transcribe import PRICES as MINUTES
+        from .speech import PRICES as SPOKEN
+        from .transcribe import PRICES as HEARD
         from .translate.anthropic_provider import PRICES, SEARCH_PRICE
+
+        # Both are dollars a minute: listening to a recording, and speaking a line.
+        MINUTES = {**HEARD, **SPOKEN}
 
         total = 0.0
         for model, (used_in, used_out) in self.by_model.items():

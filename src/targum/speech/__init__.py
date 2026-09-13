@@ -13,11 +13,12 @@ first sound. That is push-to-talk, and the page calls it that.
 **Metered by the clip, not the text.** Speech out draws on the same eight hours a
 recording does (decided 2026-09-05), and the seconds charged are read off the WAV the API
 returned — 24 kHz mono 16-bit, so `len(pcm) / 48000` — never estimated from the words.
-**Counted, not yet priced:** no rate for this model is written in any `PRICES` table, so
-`Usage.cost()` counts its seconds and charges nothing, which `usage.py` says is the honest
-answer to an unknown price. The rate belongs beside `transcribe.PRICES` the day it is read
-off the console, and until then a spoken reply costs the reader hours and the box a
-figure the ledger does not know.
+**Priced since 2026-09-13.** Until then no rate was written anywhere, so `Usage.cost()`
+counted the seconds and charged nothing, and every money ceiling — the box's day, the
+account's, the chat's — was blind to speech: a claim of nothing is invisible to a sum of
+claims. The rate is `PRICES` below, in this module rather than beside
+`transcribe.PRICES`, because that table's dearest row is the fallback rate for a
+transcriber with no key, and a voice in it would raise every recording's quote.
 """
 
 from __future__ import annotations
@@ -34,9 +35,14 @@ from pathlib import Path
 from ..errors import TargumError
 
 MODEL = "gemini-3.1-flash-tts-preview"
-#: What `Usage` records the seconds under. Not in `transcribe.PRICES`, on purpose: see
-#: the module docstring.
+#: What `Usage` records the seconds under, and the key of its row in `PRICES`.
 NAME = f"gemini/{MODEL}"
+#: USD per minute of speech out. Google's published rate for this model is $20 per
+#: million audio tokens at 25 tokens a second — 1,500 a minute, so $0.03 — and $1 per
+#: million text tokens in, which at a sentence a request is a rounding error and is left
+#: out (read off ai.google.dev/gemini-api/docs/pricing on 2026-09-13). Charged on the
+#: clip's seconds, which are measured, rather than on tokens nobody here reads back.
+PRICES: dict[str, float] = {NAME: 0.03}
 #: The voice the weekly narrates in.
 VOICE = "Leda"
 #: Where the key comes from. Its own variable rather than the weekly's key file, because
@@ -57,12 +63,23 @@ def available() -> tuple[bool, str]:
 
 
 def priced() -> bool:
-    """Whether the voice has a rate in `transcribe.PRICES` — the condition on which it
-    may be sold to a reader (decided 2026-09-10, targum-internal#246): until the row is
-    there, seconds are counted and not costed, and nothing on a page offers them."""
-    from ..transcribe import PRICES
-
+    """Whether the voice has a rate in `PRICES` — the condition on which it may be sold
+    to a reader (decided 2026-09-10, targum-internal#246): without the row, seconds are
+    counted and not costed, and nothing on a page offers them."""
     return NAME in PRICES
+
+
+class Interrupted(TargumError):
+    """The voice stopped after some of the speech was already made, and paid for.
+
+    `seconds` is how much: the lines said before the one that failed, or the whole clip
+    when it was said and could not be written. Releasing the claim on a failure like
+    this would hand money back to the budget that Google has already taken.
+    """
+
+    def __init__(self, message: str, hint: str | None = None, *, seconds: float) -> None:
+        super().__init__(message, hint)
+        self.seconds = seconds
 
 
 def say(text: str, voice: str = VOICE, key: str | None = None) -> bytes:
@@ -120,7 +137,15 @@ def render(text: str, into: Path, voice: str = VOICE) -> Clip:
     """Say `text` and write the clip beside `into` (its suffix chosen here): mp3 where
     ffmpeg is present, at the bitrate the rest of the shelf's speech is at; the WAV
     itself where it is not. The seconds come off the WAV either way."""
-    return write(say(text, voice), into)
+    spoken = say(text, voice)
+    try:
+        return write(spoken, into)
+    except Exception as error:
+        raise Interrupted(
+            "The voice was made and could not be kept.",
+            "Try again in a moment.",
+            seconds=duration(spoken),
+        ) from error
 
 
 def render_lines(
@@ -137,12 +162,24 @@ def render_lines(
     pcm = b""
     spans: list[tuple[float, float]] = []
     for line in lines:
-        spoken = say(line, voice) if line.strip() else wav(b"")
+        try:
+            spoken = say(line, voice) if line.strip() else wav(b"")
+        except TargumError as error:
+            raise Interrupted(
+                error.message, error.hint, seconds=len(pcm) / BYTES_PER_SECOND
+            ) from error
         start = len(pcm) / BYTES_PER_SECOND
         pcm += spoken[44:]
         end = len(pcm) / BYTES_PER_SECOND
         spans.append((round(start, 3), round(end, 3)))
-    return write(wav(pcm), into), spans
+    try:
+        return write(wav(pcm), into), spans
+    except Exception as error:
+        raise Interrupted(
+            "The voice was made and could not be kept.",
+            "Try again in a moment.",
+            seconds=len(pcm) / BYTES_PER_SECOND,
+        ) from error
 
 
 def write(spoken: bytes, into: Path) -> Clip:

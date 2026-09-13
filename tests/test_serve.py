@@ -2526,13 +2526,16 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
 
 
 def _priced(monkeypatch: Any, rate: float = 0.02) -> None:
-    from targum import speech, transcribe
+    from targum import speech
 
-    monkeypatch.setitem(transcribe.PRICES, speech.NAME, rate)
+    monkeypatch.setitem(speech.PRICES, speech.NAME, rate)
     monkeypatch.setenv(speech.KEY, "test")
 
 
-def test_an_unpriced_voice_is_not_for_sale(served: tuple[int, str, Path]) -> None:
+def test_an_unpriced_voice_is_not_for_sale(served: tuple[int, str, Path], monkeypatch: Any) -> None:
+    from targum import speech
+
+    monkeypatch.delitem(speech.PRICES, speech.NAME)
     port, key, out = served
     _book(out / "local" / "book-he", chapters=2, translated=2)
     status, answer, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 1})
@@ -2579,6 +2582,95 @@ def test_hear_this_section_is_a_job_claimed_at_the_estimate(
     )
     status, ready, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 1})
     assert ready == {"ready": True}, "audio already there: nothing to make, nothing to claim"
+
+
+def test_hear_this_section_is_reserved_before_it_is_made(tmp_path: Path, monkeypatch: Any) -> None:
+    """`Store.claim` reserves by updating the job's row. The press used to claim before
+    the row existed, so the reservation — money and hours — went nowhere, and a second
+    press passed the rails the first should have filled. And a second press while the
+    first is still being made joins it rather than making the section twice."""
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from targum.accounts import Store
+
+    _priced(monkeypatch, rate=0.03)
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    # Nothing runs the queue here, so a press stays queued and a second one meets it.
+    monkeypatch.setattr(library, "enqueue", lambda job: None)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    handler = type("VoiceHandler", (Handler,), {"library": library, "token": "k", "store": store})
+    server.RequestHandlerClass = handler
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        port = server.server_address[1]
+        _book(library.home(None) / "book-he", chapters=2, translated=2)
+        status, first, _ = call(port, "POST", "/voice?k=k", {"name": "book-he", "section": 2})
+        assert status == 200, first
+        row = store.db.execute(
+            "SELECT claimed, length FROM job WHERE id = ?", (first["id"],)
+        ).fetchone()
+        assert row is not None, "written down before it was claimed"
+        assert row["claimed"] == pytest.approx(first["seconds"] / 60 * 0.03) and row["claimed"] > 0
+        assert row["length"] == pytest.approx(first["seconds"])
+        assert store.committed(0) == pytest.approx(row["claimed"]), "the box's day sees it"
+
+        status, second, _ = call(port, "POST", "/voice?k=k", {"name": "book-he", "section": 2})
+        assert status == 200 and second["id"] == first["id"], "the same job, not another"
+        assert store.committed(0) == pytest.approx(row["claimed"]), "and nothing claimed twice"
+    finally:
+        server.shutdown()
+
+
+def test_a_voice_that_stops_part_way_settles_what_was_said(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Google charged for the lines said before the one that failed. Releasing the claim
+    would give that money back to a budget it has left; settling keeps it counted."""
+    from targum import speech
+    from targum.accounts import Store
+    from targum.models import Document
+    from targum.serve import Job
+
+    _priced(monkeypatch, rate=0.03)
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    person = store.finish_sign_in(store.start_sign_in("r@example.com"))[0]  # type: ignore[index]
+    home = library.home(person)
+    folder = home / "book-he"
+    _book(folder, chapters=2, translated=2)
+    Document(source="memory", title="A Book", language="he", blocks=[], content_hash="book").write(
+        folder / "document.json"
+    )
+
+    def render_lines(lines: list[str], into: Path, voice: str = "") -> Any:
+        raise speech.Interrupted("The voice did not answer.", seconds=6.0)
+
+    monkeypatch.setattr(speech, "render_lines", render_lines)
+    job = Job(
+        id="v2",
+        source=str(folder),
+        options={"voice": True, "folder": "book-he", "section": 1},
+        owner=person.id,
+        home=home,
+        kind="voice",
+        seconds=30.0,
+        estimate=30.0 / 60 * 0.03,
+    )
+    library.jobs[job.id] = job
+    library.remember(job)
+    assert library.claim_turn(job, kind="voice") == ""
+    library.run(job)
+    assert job.stage == "failed" and job.error == "The voice did not answer."
+    assert job.spent == pytest.approx(6.0 / 60 * 0.03)
+    row = store.db.execute("SELECT claimed, spent, length FROM job WHERE id = 'v2'").fetchone()
+    assert row["spent"] == pytest.approx(6.0 / 60 * 0.03), "settled, not released"
+    assert store.hours_used(person.id, 0) == pytest.approx(6.0), "the hours it really took"
 
 
 def test_run_voice_writes_the_manifest_and_charges_the_clip_s_seconds(
