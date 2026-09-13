@@ -124,13 +124,14 @@ def test_the_estimate_prices_the_first_part_from_its_duration(fake_audio, tmp_pa
 def test_a_recording_in_a_language_targum_does_not_read_costs_a_minute_not_a_part(
     fake_audio, tmp_path: Path
 ) -> None:
-    """The probe hears sixty seconds before a part is bought; a Russian audiobook is
-    refused for a cent, with the refusal saying what targum does read."""
+    """The probe hears sixty seconds before a part is bought; a German audiobook is
+    refused for a cent, with the refusal saying what targum does read. (Russian was the
+    example until Russian became a language targum reads, 2026-09-13.)"""
     from targum.errors import TargumError
 
     class Russian(NullTranscriber):
         def __init__(self) -> None:
-            super().__init__(text="привет мир как дела", language="ru")
+            super().__init__(text="hallo welt wie geht es", language="de")
 
         def price_per_minute(self) -> float:
             return 0.006
