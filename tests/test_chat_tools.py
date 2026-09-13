@@ -328,6 +328,10 @@ def test_a_quote_is_refused_on_the_add_page_s_grounds(world, monkeypatch) -> Non
         in tools.quote_build(ctx, {"source": "https://x.org/a", "to": "fr"})["error"]
     )
     assert "link" in tools.quote_build(ctx, {"source": "just some words"})["error"]
+    # A path is read off the server's disk. One with a colon in it passed the old check.
+    assert "link" in tools.quote_build(ctx, {"source": "/srv/notes:today.txt"})["error"]
+    assert "link" in tools.quote_build(ctx, {"source": "file:///etc/hostname"})["error"]
+    assert "address" in tools.quote_build(ctx, {"source": "https:///nothing"})["error"]
     assert "Say what" in tools.quote_build(ctx, {})["error"]
     assert library.jobs == {}, "a refused quote leaves no job behind"
 

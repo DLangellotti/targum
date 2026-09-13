@@ -4922,9 +4922,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"{language_name(wanted)} is not in your profile."}, 400)
         # `from` is allowed to be empty: that means work it out from the text. A catalogue
         # text names its own language and is not somebody's upload, so it is let past.
+        #
+        # Carrying `translations` used to let any `from` past as well. Nothing needed it:
+        # the catalogue's button names a catalogue source, which the line below lets
+        # through, and a reader's own translation is uploaded rather than named.
         reading = str(payload.get("from") or "")
         known = {code for code, _ in READING}
-        if reading and reading not in known and not payload.get("translations"):
+        if reading and reading not in known:
             from . import catalogue as catalogue_module
 
             if catalogue_module.matching(str(payload.get("source") or "")) is None:
@@ -4943,6 +4947,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": error.message}, 400)
         if mine:
             payload = dict(payload, translations=mine)
+        elif payload.get("translations"):
+            # The Library's button names the published translations a catalogue text
+            # has, and the reader switches between them. That list is taken only where the
+            # catalogue itself holds it for this source: anything else in it is a path or
+            # a link the request chose, and `Build` would read it — off this server's
+            # disk, for a path — and put it on the reader's page as a translation.
+            from . import catalogue as catalogue_module
+
+            entry = catalogue_module.matching(source)
+            published = {rendering.source for rendering in entry.translations} if entry else set()
+            asked = payload.get("translations")
+            if not isinstance(asked, list) or not {str(one) for one in asked} <= published:
+                return self._json({"error": "That translation is not one targum has."}, 400)
         try:
             spoken_text = self._transcript_from(payload)
         except TargumError as error:
@@ -5372,7 +5389,15 @@ class Handler(BaseHTTPRequestHandler):
             return str(self._written(str(name), str(content)))
 
         source = str(payload.get("source", "")).strip()
-        if not source:
+        # A link or an identifier, never a path: see `ingest.fetchable`. A source the
+        # catalogue names is ours whatever its shape. The same sentence answers an empty
+        # source and a refused one, because both are somebody not yet having given a text.
+        from . import catalogue as catalogue_module
+        from . import ingest as ingest_module
+
+        if not source or (
+            not ingest_module.fetchable(source) and catalogue_module.matching(source) is None
+        ):
             raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
 

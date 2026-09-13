@@ -26,6 +26,7 @@ from .url import UrlIngester
 __all__ = [
     "Ingester",
     "detect_language",
+    "fetchable",
     "load",
     "normalize",
     "parse_frontmatter",
@@ -69,6 +70,25 @@ def sources() -> list[str]:
             *(f"{name}:" for name in fetch.FETCHERS),
         }
     )
+
+
+def fetchable(source: str) -> bool:
+    """Whether a source names something to fetch, rather than a file on this machine.
+
+    `load` reads a path as readily as a link, which is right for the command line, where
+    the person naming the file owns the disk. It is wrong for anything that arrives in a
+    request: a path handed to the Add page's door or to the chat's quote would be read
+    off the server's own disk and shown back as a text. Those doors take a link or a
+    fetcher's identifier and nothing else; a file somebody uploads is written down by the
+    server first and reaches `load` by the path the server chose.
+
+    A link has to name a host. Where it may then go is the URL ingester's business, which
+    refuses private addresses on every hop.
+    """
+    if fetch.is_identifier(source):
+        return True
+    parsed = urlparse(source)
+    return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
 
 
 def load(source: str, language: str | None = None) -> Document:

@@ -759,6 +759,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   are clean (targum-internal#86).
 
 ### Fixed
+- A build request can no longer have the server read a file off its own disk. The Add
+  page's door took `source` and `translations` as given, and the ingester reads a path
+  as readily as a link, so a signed-in request naming a path got that file back as a
+  text or as its translation; the door's own docstring said nothing could. `source` must
+  now be a link or a fetcher's identifier (`ingest.fetchable`), or a source the catalogue
+  names; `translations` is taken only where the catalogue holds that list for that text,
+  which is all the Library's button ever sends. The chat's quote tool shares the rule and
+  stops letting a path with a colon in it through. Carrying `translations` no longer lets
+  a `from` targum does not read past the check either. Links were already safe: the URL
+  ingester refuses private addresses on every hop.
 - Buying a recording's second part, or a book's next chapter, no longer rebuilds the
   reader without a word to tap. Every reader is built through one place, and that place
   read `words` off the door's options and took silence for no; the part and chapter
