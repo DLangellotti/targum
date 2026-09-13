@@ -53,6 +53,15 @@ READING = (("he", "alpha"), ("arc", "R&D"), ("yi", "R&D"))
 # Both words reach a reader as "Experimental" — see STAGE_LABELS below.
 INTO = (("en", "alpha"), ("ru", "beta"))
 
+# What a text may carry a rendering in without that being a language anybody reads it
+# *into*. Targum Onkelos is Aramaic, beside the Hebrew of the Torah (targum-internal#65):
+# it is half of a practice rather than a way of understanding the Hebrew, and nobody is
+# handed a definition in it. So a reader keeps it whichever languages they said they read,
+# it is never the language a book is said to open in, and while it is on show the word
+# meanings stay in the language they were in — a Hebrew word looked up "into Aramaic"
+# would be bought, and be no use to anybody.
+BESIDE = frozenset({"arc"})
+
 # What every account is learning whether it says so or not. Hebrew is what targum is for,
 # and in this version the profile draws it ticked and will not let it be unticked. Empty
 # this out when that stops being true; nothing else has to change.

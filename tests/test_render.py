@@ -4924,6 +4924,38 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
     assert '<p class="tr"' not in three
 
 
+def test_onkelos_is_kept_whatever_the_reader_reads(tmp_path: Path) -> None:
+    """A hosted reader carries only the translations its owner reads, and Aramaic is not a
+    language anybody reads a text *into*: Onkelos is half of a practice (targum-internal
+    #65). So it stays beside the English on a reader of English — and it is never taken
+    for the page's translation, so a reader of Russian handed a Genesis with only English
+    and Onkelos keeps both, as it would have kept the English alone."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    english = _payload(_genesis(tmp_path / "en", [_english(), russian, _onkelos()], reads=["en"]))
+    assert [v["language"] for v in english["translations"].values()] == ["en", "arc"]
+
+    nothing = _payload(_genesis(tmp_path / "ru", [_english(), _onkelos()], reads=["ru"]))
+    assert [v["language"] for v in nothing["translations"].values()] == ["en", "arc"]
+
+
+def test_a_torah_opens_in_its_own_language_with_onkelos_one_press_away(tmp_path: Path) -> None:
+    """Whatever order the renderings arrive in — a folder's files sort by name — the page
+    is drawn in the language a person reads, and Onkelos waits on the switch."""
+    html = _genesis(tmp_path, [_onkelos(), _english()])
+    shipped = _payload(html)["translations"]
+    assert [v["language"] for v in shipped.values()] == ["en", "arc"]
+    assert 'data-drawn="t0"' in _switch(html)
+    assert set(re.findall(r'<p class="tr" lang="(\w+)"', html)) == {"en"}
+
+
+def test_only_a_rendering_read_beside_says_so(tmp_path: Path) -> None:
+    """The page is told which rendering the meanings must not follow, and only that one
+    carries the word — so every text without Onkelos ships the payload it always did."""
+    literal = _rendering("literal", "en", {s.id: f"word for word {s.index}" for s in GENESIS})
+    shipped = _payload(_genesis(tmp_path / "a", [_english(), _onkelos(), literal]))["translations"]
+    assert {k: v.get("beside") for k, v in shipped.items()} == {"t0": None, "t1": None, "t2": True}
+
+
 def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Path) -> None:
     """The regression that matters, from the other side: a second rendering adds the
     switch and its own data, and leaves every byte of the text, the cells and the first

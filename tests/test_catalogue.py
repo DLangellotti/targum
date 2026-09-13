@@ -162,3 +162,18 @@ def test_every_kind_and_register_has_a_word_a_reader_would_use() -> None:
 
     assert {one.value for one in Kind} <= _labelled("KINDS"), "a kind with no word for it"
     assert registers <= _labelled("REGISTERS"), "a register with no word for it"
+
+
+def test_a_rendering_is_in_the_language_its_source_names() -> None:
+    """Every rendering on the shelf was English until Onkelos, and a text page's structured
+    data said so of all of them (targum-internal#65)."""
+    from targum.catalogue import Rendering
+
+    def language(source: str) -> str:
+        return Rendering(name="x", source=source).language
+
+    assert language("sefaria:arc:Genesis") == "arc"
+    assert language("sefaria:en:Genesis") == "en"
+    assert language("siddur:en:shacharit") == "en"
+    assert language("wikisource:United States Declaration of Independence") == "en"
+    assert language("https://globalvoices.org/2014/07/15/farz") == "en"

@@ -83,6 +83,7 @@ def test_hebrew_numerals(number: int, written: str) -> None:
         ("sefaria:en:Ruth", ("en", "Ruth")),
         ("Genesis 1-11", ("he", "Genesis 1-11")),
         ("I_Samuel", ("he", "I Samuel")),
+        ("sefaria:arc:Genesis", ("arc", "Genesis")),
     ],
 )
 def test_identifiers(identifier: str, expected: tuple[str, str]) -> None:
@@ -687,6 +688,105 @@ def test_a_sefaria_build_is_shared_between_readers() -> None:
     from targum.pipeline import Build
 
     assert "sefaria:" in Build.PUBLIC_SOURCES
+
+
+# -- Targum Onkelos (targum-internal#65) ----------------------------------------------
+
+
+def genesis(language: str) -> Any:
+    """Genesis 1–2 as Sefaria sent it on 2026-09-13: the accented Hebrew, or Onkelos."""
+    name = "genesis-1-2.he.json" if language == "he" else "onkelos-genesis-1-2.arc.json"
+    body = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    return sefaria.document_from_payload(
+        {"edition": body["versions"][0], "body": body}, "Genesis 1-2", language
+    )
+
+
+def test_onkelos_is_pinned_to_the_one_edition_that_may_be_served() -> None:
+    """Three Onkelos texts on Sefaria and one that is public domain. The pin is the edition
+    and not a name match, so the CC-BY-SA Yemenite text and the CC-BY-NC Metsudah cannot
+    be reached by a title that happens to contain the word."""
+    for book in ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"):
+        assert sefaria.version_for("arc", book) == f"Onkelos {book}"
+        assert sefaria.version_for("arc", f"{book} 3-4") == f"Onkelos {book}"
+    assert sefaria.asked_as("Genesis 1-2", "arc") == "Onkelos Genesis 1-2"
+    assert sefaria.asked_as("Genesis 1-2", "he") == "Genesis 1-2"
+
+
+def test_there_is_no_aramaic_of_a_book_onkelos_did_not_translate() -> None:
+    with pytest.raises(TargumError, match="no Aramaic edition of Isaiah"):
+        sefaria.version_for("arc", "Isaiah")
+
+
+def test_onkelos_is_asked_for_as_its_own_index_in_hebrew_letters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Sefaria version's language is its script: Onkelos is `hebrew|Onkelos Genesis`,
+    under the index `Onkelos Genesis`, and the licence it reports is asserted like any
+    other edition's."""
+    body = (FIXTURES / "onkelos-genesis-1-2.arc.json").read_text(encoding="utf-8")
+    asked: list[str] = []
+
+    def get(url: str) -> str:
+        asked.append(url)
+        return body
+
+    monkeypatch.setattr(sefaria, "get", get)
+    document = sefaria.SefariaFetcher().load("arc:Genesis 1-2")
+    assert asked == [
+        "https://www.sefaria.org/api/v3/texts/Onkelos%20Genesis%201-2"
+        "?version=hebrew|Onkelos%20Genesis"
+    ]
+    assert document.language == "arc"
+    assert document.source == "sefaria:arc:Genesis 1-2"
+
+
+@pytest.mark.parametrize("licence", ["CC-BY-SA", "CC-BY-NC"])
+def test_an_onkelos_under_a_licence_the_shelf_refuses_is_refused(
+    monkeypatch: pytest.MonkeyPatch, licence: str
+) -> None:
+    """Asserted at fetch, not assumed from the pin: an edition can change what it points
+    at, and the two other Onkelos texts on Sefaria carry exactly these two licences."""
+    body = json.loads((FIXTURES / "onkelos-genesis-1-2.arc.json").read_text(encoding="utf-8"))
+    body["versions"][0]["license"] = licence
+    monkeypatch.setattr(sefaria, "get", lambda url: json.dumps(body))
+    with pytest.raises(TargumError, match="may not serve"):
+        sefaria.SefariaFetcher().load("arc:Genesis 1-2")
+
+
+def test_onkelos_reads_as_aramaic_verses_under_hebrew_headings() -> None:
+    """Named in English, the way the English beside it is, because the name is what the
+    reader's switch calls it. Headed in Hebrew numerals, because the headings sit in a
+    column of Hebrew letters. Every verse carries its own ref, and the text arrives
+    pointed, as Onkelos is printed."""
+    document = genesis("arc")
+    assert document.title == "Onkelos Genesis 1-2"
+    heads = [b.text for b in document.blocks if b.kind is BlockKind.heading]
+    assert heads == ["תרגום אונקלוס על בראשית א׳", "תרגום אונקלוס על בראשית ב׳"]
+    verses = [b for b in document.blocks if b.kind is BlockKind.verse]
+    assert len(verses) == 56
+    assert verses[0].ref == "Onkelos Genesis 1:1" and verses[-1].ref == "Onkelos Genesis 2:25"
+    assert verses[0].text == "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא"
+    assert all(block.language is None for block in document.blocks), (
+        "the document is Aramaic, so no verse needs to say it is"
+    )
+
+
+def test_onkelos_and_the_hebrew_claim_each_other_and_pair_verse_for_verse() -> None:
+    """The whole reason Onkelos costs nothing: it translates verse for verse, so the
+    pairing is the numbering, exactly as it is for a published English."""
+    hebrew, onkelos = genesis("he"), genesis("arc")
+    assert parallel.parallel_key(hebrew) == parallel.parallel_key(onkelos)
+
+    source = segment_document(hebrew, _WholeBlocks())
+    target = segment_document(onkelos, _WholeBlocks())
+    alignment = parallel.pair(source, target, onkelos.title)
+    assert alignment.target_language == "arc"
+    assert alignment.coverage() == 1.0
+    assert all(link.confidence == 1.0 and not link.coarse for link in alignment.links)
+    by_id = {segment.id: segment for segment in target.segments}
+    first = next(link for link in alignment.links if link.source[0] == source.segments[1].id)
+    assert by_id[first.target[0]].text.startswith("בְּקַדְמִין")
 
 
 class _WholeBlocks:
