@@ -1374,11 +1374,6 @@ class Build:
         from .transcribe.models import write as write_model
 
         assert self.transcript is not None
-        aligner = CtcAligner()
-        usable, hint = aligner.available()
-        if not usable:
-            self.notify(f"{hint}. The recording plays without following along.")
-            return
         found = probe_module.load(workspace)
         recording = self._audio_file(workspace)
         if found is None or recording is None:
@@ -1387,6 +1382,12 @@ class Build:
             return
 
         written = ingest.load(str(self.transcript))
+        # The model is the language's, so the language is known before the aligner is.
+        aligner = CtcAligner(written.language or drafted.language)
+        usable, hint = aligner.available()
+        if not usable:
+            self.notify(f"{hint}. The recording plays without following along.")
+            return
         flowing = [block for block in written.blocks if block.kind not in (BlockKind.byline,)]
         words = [piece for block in flowing for piece in block.text.split()]
         if not drafted.settled:
