@@ -211,10 +211,19 @@ def test_the_delegate_is_told_not_to_download(monkeypatch: pytest.MonkeyPatch) -
     from targum.errors import ModelMissing
     from targum.segment import HebrewSegmenter, stanza_segmenter
 
-    monkeypatch.setattr(stanza_segmenter, "is_downloaded", lambda *args, **kwargs: False)
+    # Nothing is audited today, so the delegate is reached only for a language a test lists.
+    monkeypatch.setitem(stanza_segmenter.AUDITED, "xx", {"tokenize": "checked"})
+    asked: list[tuple[object, ...]] = []
+
+    def is_downloaded(*args: object, **kwargs: object) -> bool:
+        asked.append(args)
+        return False
+
+    monkeypatch.setattr(stanza_segmenter, "is_downloaded", is_downloaded)
     monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: pytest.fail("downloaded"))
     with pytest.raises(ModelMissing, match="not downloaded"):
-        HebrewSegmenter(auto_download=False).split(["Один. Два."], "ru")
+        HebrewSegmenter(auto_download=False).split(["One. Two."], "xx")
+    assert asked == [("xx", "tokenize", "checked")], "the checked build, not Stanza's default"
 
 
 def test_the_name_carries_the_installed_stanza_version(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -232,8 +241,8 @@ def test_the_name_carries_the_installed_stanza_version(monkeypatch: pytest.Monke
     assert stanza_segmenter.StanzaSegmenter().name == "stanza/unknown"
 
 
-def test_other_languages_still_go_to_the_delegate() -> None:
-    from targum.segment import HebrewSegmenter
+def test_only_an_audited_language_goes_to_the_delegate(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum.segment import HebrewSegmenter, stanza_segmenter
 
     class Counting:
         name = "fake/1"
@@ -247,10 +256,146 @@ def test_other_languages_still_go_to_the_delegate() -> None:
 
     delegate = Counting()
     segmenter = HebrewSegmenter(other=delegate)
-    assert segmenter.split(["One. Two."], "en") == [["One. Two."]]
+    assert segmenter.split(["One. Two."], "en") == [["One.", "Two."]], "by rule, since 2026-09-13"
     assert segmenter.split(["אחת. שתיים."], "he-IL") == [["אחת.", "שתיים."]]
-    assert delegate.asked == ["en"]
-    assert segmenter.name == "hebrew-rules/1+fake/1"
+    monkeypatch.setitem(stanza_segmenter.AUDITED, "xx", {"tokenize": "checked"})
+    assert segmenter.split(["One. Two."], "xx") == [["One. Two."]]
+    assert delegate.asked == ["xx"]
+    assert segmenter.name == "hebrew-rules/1+cased-rules/1+fake/1"
+
+
+@pytest.mark.parametrize("language", ["en", "ru", "it", "fr", "es", "de", "la", "ar", "hbo"])
+def test_no_unaudited_language_reaches_a_stanza_model(
+    monkeypatch: pytest.MonkeyPatch, language: str
+) -> None:
+    """Every Stanza default targum could reach is trained on a NonCommercial or
+    ShareAlike treebank (2026-09-13): English's includes GUM, Russian's is SynTagRus. The
+    Hebrew refusal matched the one code `he`, so `hbo` and every other language walked
+    past it. Refused at all three doors now, before anything is imported or fetched."""
+    import stanza
+
+    from targum.annotate import StanzaLemmatizer
+    from targum.errors import TargumError
+    from targum.segment import StanzaSegmenter, stanza_segmenter
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError(f"Stanza was reached for {language}")
+
+    monkeypatch.setattr(stanza, "Pipeline", refuse)
+    monkeypatch.setattr(stanza, "download", refuse)
+    for door in (
+        lambda: StanzaSegmenter().pipeline(language),
+        lambda: StanzaLemmatizer().pipeline(language),
+        lambda: stanza_segmenter.download(language, "tokenize,pos,lemma"),
+    ):
+        with pytest.raises(TargumError, match="not cleared"):
+            door()
+
+
+def test_a_published_english_translation_is_split_without_stanza(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every build carrying an English prose translation split it with Stanza's English
+    model, which includes GUM (CC BY-NC-SA), before lining it up against the Hebrew."""
+    import stanza
+
+    from targum.ids import content_hash
+    from targum.models import Block
+    from targum.segment import HebrewSegmenter
+
+    def refuse(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Stanza was built for an English translation")
+
+    monkeypatch.setattr(stanza, "Pipeline", refuse)
+    monkeypatch.setattr(stanza, "download", refuse)
+    text = "In the Land of Israel the Jewish people arose. Dr. Herzl convened the congress."
+    english = Document(
+        source="memory",
+        language="en",
+        blocks=[Block(id="b0000", text=text)],
+        content_hash=content_hash(text),
+    )
+    segmented = segment_document(english, HebrewSegmenter())
+    assert [s.text for s in segmented.segments] == [
+        "In the Land of Israel the Jewish people arose.",
+        "Dr. Herzl convened the congress.",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("language", "text", "expected"),
+    [
+        (
+            "en",
+            'Mr. Smith left at 3.15 on Jan. 5. He asked "Why now?" and went. '
+            "It was approx. five miles. J. K. Rowling wrote it. I don't know... Maybe.",
+            [
+                "Mr. Smith left at 3.15 on Jan. 5.",
+                'He asked "Why now?" and went.',
+                "It was approx. five miles.",
+                "J. K. Rowling wrote it.",
+                "I don't know...",
+                "Maybe.",
+            ],
+        ),
+        (
+            "fr",
+            "M. Dupont est arrivé. Il a dit : « Pourquoi ? » puis il est parti. "
+            "Né en 63 av. J.-C. à Rome.",
+            [
+                "M. Dupont est arrivé.",
+                "Il a dit : « Pourquoi ? » puis il est parti.",
+                "Né en 63 av. J.-C. à Rome.",
+            ],
+        ),
+        (
+            "ru",
+            "Проф. Иванов приехал в 1990 г. в Москву. Он сказал: «Нет!» — и ушёл. Это т.е. конец.",
+            [
+                "Проф. Иванов приехал в 1990 г. в Москву.",
+                "Он сказал: «Нет!» — и ушёл.",
+                "Это т.е. конец.",
+            ],
+        ),
+        (
+            "it",
+            "Il sig. Rossi è arrivato. Vedi pag. 5.",
+            ["Il sig. Rossi è arrivato.", "Vedi pag. 5."],
+        ),
+        # No capitals to read, so no boundary is guessed at: the block is whole.
+        ("ar", "مرحبا. كيف حالك؟ أنا بخير.", ["مرحبا. كيف حالك؟ أنا بخير."]),
+    ],
+)
+def test_a_cased_script_is_split_by_rule(language: str, text: str, expected: list[str]) -> None:
+    from targum.segment import HebrewSegmenter
+
+    assert HebrewSegmenter().split([text], language) == [expected]
+
+
+@pytest.mark.parametrize("language", ["yi", "arc"])
+def test_yiddish_and_aramaic_are_split_by_the_hebrew_rules(language: str) -> None:
+    """Both used to be handed to Stanza, which has models for neither, so a paragraph
+    of either failed the build at its first step."""
+    from targum.segment import HebrewSegmenter
+
+    assert HebrewSegmenter().split(["ער איז געקומען. זי איז אַוועק!"], language) == [
+        ["ער איז געקומען.", "זי איז אַוועק!"]
+    ]
+
+
+def test_hebrew_is_split_exactly_as_before_the_cased_rules() -> None:
+    """The cased rules are the Hebrew ones called with two more arguments. Called without
+    them, nothing moves: `NAME` still says `hebrew-rules/1`, and must still be true."""
+    from targum.segment import hebrew
+
+    text = '– מה יש? – שאל הוא עברית. ד"ר כהן בא. נ.ב. זה הכל... וכן. "מה?" שאל.'
+    assert hebrew.sentences(text) == [
+        "– מה יש? – שאל הוא עברית.",
+        'ד"ר כהן בא.',
+        "נ.ב. זה הכל... וכן.",
+        '"מה?" שאל.',
+    ]
+    assert hebrew.NAME == "hebrew-rules/1"
 
 
 def test_a_model_download_says_what_it_is_waiting_for(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -264,12 +409,13 @@ def test_a_model_download_says_what_it_is_waiting_for(monkeypatch: pytest.Monkey
     from targum.segment import stanza_segmenter
 
     monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
+    monkeypatch.setitem(stanza_segmenter.AUDITED, "ru", {"tokenize": "checked"})
     said: list[str] = []
 
     with stanza_segmenter.telling(said.append):
-        stanza_segmenter.download("he")
+        stanza_segmenter.download("ru")
 
-    assert said == ["Fetching the Hebrew language model. This happens once."], (
+    assert said == ["Fetching the Russian language model. This happens once."], (
         "it names the language, and that the wait happens once"
     )
 
@@ -284,7 +430,8 @@ def test_a_model_download_is_silent_when_nobody_is_listening(
     from targum.segment import stanza_segmenter
 
     monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
-    stanza_segmenter.download("he")  # no telling(), no error, nothing said
+    monkeypatch.setitem(stanza_segmenter.AUDITED, "ru", {"tokenize": "checked"})
+    stanza_segmenter.download("ru")  # no telling(), no error, nothing said
 
 
 def test_the_listener_does_not_outlive_its_block(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,10 +441,11 @@ def test_the_listener_does_not_outlive_its_block(monkeypatch: pytest.MonkeyPatch
     from targum.segment import stanza_segmenter
 
     monkeypatch.setattr(stanza, "download", lambda *args, **kwargs: None)
+    monkeypatch.setitem(stanza_segmenter.AUDITED, "ru", {"tokenize": "checked"})
     said: list[str] = []
 
     with stanza_segmenter.telling(said.append):
-        stanza_segmenter.download("he")
-    stanza_segmenter.download("he")
+        stanza_segmenter.download("ru")
+    stanza_segmenter.download("ru")
 
     assert len(said) == 1, "the second download was outside the block and said nothing"

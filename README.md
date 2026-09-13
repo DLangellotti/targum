@@ -47,9 +47,10 @@ that targum.page carries is data, kept privately alongside the code.
 
 AGPL-3.0-or-later. Copyright © 2026 David Langellotti.
 
-Two of the models targum ran were licensed for non-commercial use only: the forced
-aligner behind the `speech-align` extra, and Stanza's Hebrew models through the treebank
-they are trained on. Neither has run since 2026-09-03. The AGPL cannot lift somebody
+Some of the models targum ran were licensed for non-commercial use only: the forced
+aligner behind the `speech-align` extra, and Stanza's models through the treebanks they
+are trained on — Hebrew's, and until 2026-09-13 English's and Russian's as well. None has
+run since. The AGPL cannot lift somebody
 else's NonCommercial term, so `LICENSING.md` sets out what was encumbered and what
 replaced it.
 

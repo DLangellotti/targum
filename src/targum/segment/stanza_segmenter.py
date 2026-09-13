@@ -22,6 +22,49 @@ from ..paths import ensure, model_dir
 # Stanza's own tag for a language, where it differs from the BCP-47 primary subtag.
 _STANZA_CODE = {"iw": "he", "ji": "yi"}
 
+#: The Stanza models targum may load: a language, and for each processor the build that
+#: was checked. **Empty, on purpose (2026-09-13).**
+#:
+#: Stanza's code is Apache-2.0 and its models are not; each is trained on a Universal
+#: Dependencies treebank with a licence of its own, and `LICENSING.md` holds that a
+#: NonCommercial or ShareAlike term on what a model was trained on reaches the model. The
+#: Hebrew treebank was found NonCommercial and Hebrew left Stanza for it
+#: (targum-internal#116) — and every other language stayed, on the assumption that only
+#: Hebrew's was. It was not: the English default includes GUM and the Russian default is
+#: SynTagRus, both CC BY-NC-SA, as are the Italian, Arabic and Latin defaults, and French,
+#: Spanish and German are ShareAlike. None passes, so nothing is listed, and a language
+#: whose treebank is checked and clean is added here with the build that was checked —
+#: never Stanza's default, which a Stanza release can repoint at another treebank.
+AUDITED: dict[str, dict[str, str]] = {}
+
+_NONCOMMERCIAL_HEBREW = (
+    "Hebrew is not read by Stanza: its Hebrew models are NonCommercial.",
+    "Hebrew words are DICTA's and Hebrew sentences are drawn by rule.",
+)
+
+
+def audited(language: str, processors: str) -> dict[str, str]:
+    """The checked build for each processor asked for, or a refusal that says why.
+
+    Every door to a Stanza model goes through this: the download, the tokenizer and the
+    lemmatizer. `mwt` is Stanza's to add where a tokenizer needs it, so it is pinned when
+    listed and not demanded when not.
+    """
+    code = stanza_code(language)
+    if code == "he":
+        raise TargumError(*_NONCOMMERCIAL_HEBREW)
+    pinned = AUDITED.get(code, {})
+    wanted = [processor for processor in processors.split(",") if processor != "mwt"]
+    if not pinned or any(processor not in pinned for processor in wanted):
+        raise TargumError(
+            f"targum does not read '{code}' with Stanza: its models are not cleared for "
+            f"a paid offering.",
+            "LICENSING.md says which treebanks have been checked.",
+        )
+    return {
+        processor: pinned[processor] for processor in processors.split(",") if processor in pinned
+    }
+
 
 def stanza_code(language: str) -> str:
     primary = language.split("-")[0].lower()
@@ -95,16 +138,19 @@ def download(
 ) -> None:
     """Fetch models for one language. Loud on failure, quiet on success.
 
-    `packages` names a build for a processor, as `annotate.lemma` does for the Hebrew
-    tokenizer; every processor it leaves unnamed comes as Stanza's default.
+    Only builds listed in `AUDITED`: whatever `packages` a caller names, the checked build
+    is what is fetched, and a language with none is refused before anything is asked of
+    the network.
     """
+    code = stanza_code(language)
+    packages = audited(code, processors)
+
     import stanza
 
     # Local, because `translate.prompts` reaches back into this package and a top-level
     # import would close the circle.
     from ..translate.prompts import language_name
 
-    code = stanza_code(language)
     say = _TELLING.get()
     if say is not None:
         # Said before the wait, not after it, and it names the one thing that makes the
@@ -144,12 +190,10 @@ def installed_version() -> str:
 
 
 class StanzaSegmenter:
-    """Sentence splitting via Stanza's tokenizer, for every language but Hebrew.
+    """Sentence splitting via Stanza's tokenizer, for a language listed in `AUDITED`.
 
-    Abbreviations, quoted dialogue, initials and ellipses all break a regex on periods
-    in a language that abbreviates with them. Hebrew does not, and its Stanza models are
-    trained on a NonCommercial treebank, so Hebrew is refused here and drawn by rule in
-    `hebrew.py` (targum-internal#146). `HebrewSegmenter` holds one of these for the rest.
+    Which today is none. `HebrewSegmenter` holds one of these and hands it only a language
+    that is listed; everything else is drawn by rule in `hebrew.py` and `cased.py`.
     """
 
     def __init__(self, *, auto_download: bool = True) -> None:
@@ -164,21 +208,17 @@ class StanzaSegmenter:
         code = stanza_code(language)
         if code in self._pipelines:
             return self._pipelines[code]
-        if code == "he":
-            raise TargumError(
-                "Hebrew is not split by Stanza: its Hebrew models are NonCommercial.",
-                "HebrewSegmenter() draws Hebrew sentences by rule and keeps Stanza for the rest.",
-            )
+        packages = audited(code, "tokenize")
 
         import stanza
 
-        if not is_downloaded(code):
+        if not is_downloaded(code, "tokenize", packages.get("tokenize")):
             if not self.auto_download:
                 raise ModelMissing(
                     f"The {code} language model is not downloaded.",
                     f"targum models fetch {code}",
                 )
-            download(code)
+            download(code, "tokenize", packages)
 
         logging.getLogger("stanza").setLevel(logging.ERROR)
         try:
@@ -187,6 +227,7 @@ class StanzaSegmenter:
                 self._pipelines[code] = stanza.Pipeline(
                     lang=code,
                     processors="tokenize",
+                    package=packages,
                     dir=str(model_dir()),
                     download_method=None,
                     verbose=False,
