@@ -132,6 +132,48 @@ class TestDownloaded:
         assert dicta.hub_root() == tmp_path / "hf"
 
 
+class TestLoad:
+    def test_it_loads_from_where_downloaded_looked_whatever_hf_home_says(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """targum.service sets `HF_HOME` for Stanza; the fetch runs without it. The check
+        looked in models/hf and the load in models/huggingface, so the box called the
+        menaked downloaded and then failed to load it on every build (2026-09-13)."""
+        import huggingface_hub
+        import tokenizers
+        import torch
+        import transformers
+
+        monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path / "models"))
+        monkeypatch.setenv("HF_HOME", str(tmp_path / "models" / "huggingface"))
+        monkeypatch.setattr(dicta, "_LOADED", {})
+        monkeypatch.setattr(torch, "set_grad_enabled", lambda _on: None)
+        asked: list[str | None] = []
+
+        def download(*_args: Any, cache_dir: str | None = None, **_kwargs: Any) -> str:
+            asked.append(cache_dir)
+            return "tokenizer.json"
+
+        class Model:
+            def eval(self) -> Model:
+                return self
+
+        def pretrained(*_args: Any, cache_dir: str | None = None, **_kwargs: Any) -> Model:
+            asked.append(cache_dir)
+            return Model()
+
+        monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+        monkeypatch.setattr(tokenizers.Tokenizer, "from_file", lambda _path: object())
+        monkeypatch.setattr(transformers, "PreTrainedTokenizerFast", lambda **_kw: object())
+        monkeypatch.setattr(transformers.AutoModel, "from_pretrained", pretrained)
+
+        dicta.DictaVocalizer().load()
+
+        where = str(dicta.hub_root() / "hub")
+        assert asked == [where, where]
+        assert dicta.snapshot_dir().is_relative_to(where), "the check and the load agree"
+
+
 class TestTheRegisterGate:
     """The menaked's card: not for biblical, rabbinic or premodern Hebrew."""
 
