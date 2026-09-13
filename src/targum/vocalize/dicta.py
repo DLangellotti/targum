@@ -193,10 +193,20 @@ class DictaVocalizer:
             ) from missing
 
         offline = not self.auto_download
+        # Named outright rather than left to `HF_HOME`, because `setdefault` above only
+        # holds where nothing set it first, and the service does: targum.service points
+        # `HF_HOME` at models/huggingface for Stanza, while `targum models fetch` runs
+        # without that line and lands the weights in models/hf. `downloaded()` looked in
+        # the one and the load in the other, so on the box every build found the model
+        # "downloaded" and then could not load it (2026-09-13). One directory for the
+        # check, the fetch and the load, whatever the environment says.
+        hub = str(hub_root() / "hub")
         try:
             tokenizer = PreTrainedTokenizerFast(  # type: ignore[no-untyped-call]
                 tokenizer_object=Tokenizer.from_file(
-                    hf_hub_download(MODEL, "tokenizer.json", local_files_only=offline)
+                    hf_hub_download(
+                        MODEL, "tokenizer.json", cache_dir=hub, local_files_only=offline
+                    )
                 ),
                 model_max_length=MAX_CHARS,
                 cls_token="[CLS]",
@@ -206,7 +216,7 @@ class DictaVocalizer:
                 mask_token="[MASK]",
             )
             model = AutoModel.from_pretrained(
-                MODEL, trust_remote_code=True, local_files_only=offline
+                MODEL, trust_remote_code=True, cache_dir=hub, local_files_only=offline
             )
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             raise TargumError(
