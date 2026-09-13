@@ -928,7 +928,7 @@ def repair(
                         if candidate.available()[0]:
                             pronouncer = candidate
                     annotator = Annotator(
-                        lemmatizer=lemma.for_source(document.source),
+                        lemmatizer=lemma.for_source(document.source, language=document.language),
                         bands=biblical.for_source(document.source),
                         pronouncer=pronouncer,
                         **dictionary_module.for_language(segmented.language),
@@ -1279,7 +1279,7 @@ def rebuild(
                 if read_artifact(Vocalization, folder / "vocalization.json") is not None:
                     pronouncer = phonikud
             return Annotator(
-                lemmatizer=lemmatizer_for(document.source),
+                lemmatizer=lemma.for_language(lemmatizer_for(document.source), document.language),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
                 **dictionary_module.for_language(document.language),

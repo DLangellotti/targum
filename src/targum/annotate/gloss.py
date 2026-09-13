@@ -21,7 +21,7 @@ from ..cache import Cache
 from ..errors import ProviderError, TargumError
 from ..models import VERB_MARK, Annotation, Glossary
 from ..translate.prompts import language_name
-from . import closed, oshb
+from . import aramaic, closed, oshb
 
 BATCH_SIZE = 40
 # Glosses are short, so a batch is cheap. Tokens per lemma, in and out, for the estimate
@@ -262,7 +262,11 @@ def from_the_tagging(annotation: Annotation) -> dict[str, Sense]:
             key = token.glossed_as
             if key in found:
                 continue
-            if token.pos in CONTENT_WORDS and token.lexeme:
+            if token.lexeme and token.lexeme.startswith(aramaic.HAND):
+                # A word of a Targum the hand table answered, whatever it is: the table
+                # holds particles and nouns alike and claims no part of speech for either.
+                said = aramaic.sense(token.lexeme)
+            elif token.pos in CONTENT_WORDS and token.lexeme:
                 said = oshb.sense(token.lexeme)
             else:
                 # The closed class, written by hand because the lexicon is worst exactly
