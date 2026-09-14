@@ -1285,6 +1285,8 @@ def test_the_place_is_where_the_page_opens_next_time() -> None:
     ]
     assert (opened["kind"], opened["verse"], opened["step"]) == ("verse", "b", 2)
     assert opened["practised"] == ["a"] and opened["onkelos"] == "וְאַרְעָא"
+
+
 def test_a_word_is_kept_in_the_language_of_the_row_it_is_met_in() -> None:
     """Daniel turns into Aramaic at 2:4 (2026-09-13). A word met on the page only in an
     Aramaic row goes into the Aramaic list, so Aramaic has a count and a level of its own;
