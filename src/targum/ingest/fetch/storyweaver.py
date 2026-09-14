@@ -144,8 +144,9 @@ def drop_repeated_half(lines: list[str]) -> list[str]:
 
     StoryWeaver's editor can carry a page's text box over into a second box on the same
     page, so the page reads through once and then again, beside or instead of the
-    capitals: nine of the 12,180 Italian pages with words on them. Matched exactly, letter for letter, and only as the whole page, because a line
-    a picture book says twice on purpose is said once more and never the whole page over.
+    capitals: nine of the 12,180 Italian pages with words on them. Matched exactly, letter
+    for letter, and only as the whole page, because a line a picture book says twice on
+    purpose is said once more and never the whole page over.
     """
     for split in range(1, len(lines)):
         first = _letters(" ".join(lines[:split]))
