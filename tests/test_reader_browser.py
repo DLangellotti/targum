@@ -5876,9 +5876,15 @@ CARD_LINES = """
 """
 
 
-def test_a_russian_card_says_the_case_and_the_other_forms_here(browser, tmp_path: Path) -> None:
+def test_a_russian_card_says_the_case_and_the_other_forms_here(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The case goes on the grammar line, and the card lists the shapes the same word takes
     elsewhere in the text: the paradigm this reader has actually met."""
+    from targum.annotate import openrussian
+
+    # As a machine without OpenRussian's tables builds it, whatever this one has fetched.
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
     context, page = open_reader(browser, russian(tmp_path / "reader"))
     shown = page.evaluate(CARD_LINES, "руку")
     assert shown["use"] == "noun · f · accusative"
