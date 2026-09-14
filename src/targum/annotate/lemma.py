@@ -17,7 +17,13 @@ from typing import Any
 from ..errors import TargumError
 from ..models import Segment, Token, is_biblical
 from ..paths import model_dir
-from ..segment.stanza_segmenter import download, has_processors, installed_version, stanza_code
+from ..segment.stanza_segmenter import (
+    audited,
+    download,
+    has_processors,
+    installed_version,
+    stanza_code,
+)
 from .base import Lemmatizer
 from .hebrew import binyan_of, kept_feats, pieces_of, root_of
 
@@ -52,6 +58,11 @@ FEATURES = "roots+everyword+names+grammar/2"
 # built without would band as unknown. Each register is read with the tokenizer it does
 # better with, and the name says which, so only the texts whose reading changed are read
 # again.
+#
+# Hebrew no longer reaches Stanza at all (targum-internal#116, and `AUDITED` since
+# 2026-09-13), so this table is no longer consulted. It stays because the `+charlm` in
+# `StanzaLemmatizer.name` is embedded in every Hebrew annotation's name, and this is
+# where that suffix is explained.
 MODERN_TOKENIZERS = {"he": "combined_charlm"}
 
 # Not a word at all. Everything else is a token the reader can tap, names and numerals
@@ -95,21 +106,17 @@ class StanzaLemmatizer:
         return base if self.scripture else f"{base}+charlm"
 
     def packages(self, language: str) -> dict[str, str]:
-        """The builds asked for by name, beside Stanza's defaults for the rest."""
-        code = stanza_code(language)
-        if self.scripture or code not in MODERN_TOKENIZERS:
-            return {}
-        return {"tokenize": MODERN_TOKENIZERS[code]}
+        """The checked build for each processor, from `AUDITED` — never Stanza's default,
+        which a Stanza release can point at a different treebank. Raises for a language
+        that has none, which is every language today."""
+        return audited(language, PROCESSORS)
 
     def pipeline(self, language: str) -> Any:
         code = stanza_code(language)
         if code in self._pipelines:
             return self._pipelines[code]
-        if code == "he":
-            raise TargumError(
-                "Hebrew is not read by Stanza: its Hebrew models are NonCommercial.",
-                "DictaLemmatizer() reads Hebrew and keeps Stanza for the rest.",
-            )
+        # Refused before Stanza is imported or anything is fetched (`AUDITED`).
+        packages = self.packages(code)
 
         import stanza
 
@@ -124,7 +131,6 @@ class StanzaLemmatizer:
         # The lemma and part-of-speech models are extra files beside the tokenizer, so
         # a language fetched for segmentation alone is still missing them — and so is
         # one fetched with the default tokenizer when a named build is wanted.
-        packages = self.packages(code)
         if not has_processors(code, PROCESSORS, packages):
             if not self.auto_download:
                 raise TargumError(

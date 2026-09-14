@@ -20,9 +20,12 @@ building on targum is entitled to know about.
 - Run the Hebrew annotator and you are using **DICTA**, CC BY 4.0, which permits
   commercial use and asks to be named. targum names it at the foot of every reader whose
   words it read — and, since targum-internal#148, whose modern Hebrew it pointed.
-- Nothing in targum is NonCommercial any more. Two things were: the forced aligner until
-  2026-09-02, and Stanza's Hebrew models until later the same day — except for the
-  sentence splitter, which the swap overlooked and which ran on them until 2026-09-03.
+- Nothing in targum is NonCommercial any more. Four things were: the forced aligner until
+  2026-09-02; Stanza's Hebrew models until later the same day, except for the sentence
+  splitter, which ran on them until 2026-09-03; and Stanza's models for every other
+  language, which this document said were clean and were not, until 2026-09-13 — see
+  "Stanza's other languages" below.
+- A model trained on NonCommercial **or ShareAlike** data is not used (2026-09-13).
 
 ## Direct dependencies
 
@@ -38,7 +41,7 @@ building on targum is entitled to know about.
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
 | tokenizers, huggingface_hub | Apache-2.0 | load the menaked's own character tokenizer and fetch its weights |
-| **stanza** | Apache-2.0 (code) | Hebrew is no longer read by it — see below |
+| **stanza** | Apache-2.0 (code) | installed, and loads no model: nothing is audited — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
 ### Optional extras
@@ -75,6 +78,10 @@ CC BY 4.0. Stanza stays installed and keeps every other language it served; it i
 never handed a Hebrew word. Annotations made before the swap carry Stanza's name and are
 read again — free, because annotating runs on the machine.
 
+**The middle sentence of that paragraph was wrong too, and for longer.** "Keeps every other
+language it served" assumed that only Hebrew's treebank was encumbered. Nobody checked.
+See the next section.
+
 **That sentence was not true on the day it was written.** The swap moved every Hebrew
 word off Stanza and left every Hebrew sentence boundary on it: DICTA takes a sentence at
 a time and publishes no splitter, so each sentence it was handed had been cut by Stanza's
@@ -97,6 +104,52 @@ segmentation they were translated under — the pipeline reuses it by document h
 the switch bought no translation again. A forced rebuild of everything would re-buy 2,227
 translated segments, about $5.77, and re-annotate and re-time every one of them, which is
 the actual reason nothing forces one.
+
+### Stanza's other languages — resolved 2026-09-13
+
+Every Stanza model is trained on a Universal Dependencies treebank, and each treebank has
+a licence of its own. Checked against the treebank pages on 2026-09-13, for the default
+package of every language targum could reach:
+
+| Language | Stanza default | Trained on | Worst licence |
+| --- | --- | --- | --- |
+| English | `combined` | EWT, GUM, GUMReddit, PUD | GUM: **CC BY-NC-SA 4.0** |
+| Russian | `syntagrus` | SynTagRus | **CC BY-NC-SA 4.0** |
+| Italian | `combined` | ISDT, VIT, PoSTWITA, TWITTIRO | ISDT, VIT: **CC BY-NC-SA 3.0** |
+| Arabic | `padt` | PADT | **CC BY-NC-SA 3.0** |
+| Latin | `ittb` | ITTB | **CC BY-NC-SA 3.0** |
+| French | `combined` | GSD, ParisStories, Rhapsodie, Sequoia | Sequoia LGPL-LR; the rest CC BY-SA 4.0 |
+| Spanish | `combined` | AnCora, GSD | GSD CC BY-SA 4.0 |
+| German | `combined` | GSD, with Wiktionary lemmas | CC BY-SA 4.0 |
+
+The English row is the one that ran. A published translation is split into sentences
+before it is lined up against the Hebrew, and every build of a Global Voices article or a
+declaration split its English with that model — eleven alignments on the laptop's shelf.
+One Russian reader was lemmatized with SynTagRus.
+
+**The rule, stated so the next language meets it in writing:** a model is not used when
+what it was trained on carries a NonCommercial term *or a ShareAlike one*. NonCommercial
+for the reason Hebrew's section gives. ShareAlike because it is the one door the
+evaluation data below is kept behind, for the same reason: a model tuned on it may carry
+the term into what it makes, and what targum makes is the corpus. On that rule none of
+the rows above passes; the only clean single treebanks are tiny (Italian MarkIT, CC BY
+4.0, 38 thousand tokens) or Spanish AnCora alone.
+
+So Stanza now reads nothing unless `segment/stanza_segmenter.AUDITED` names the language
+and the exact build that was checked — never Stanza's default, which a release can point
+at a different treebank. `AUDITED` is empty. The download, the tokenizer and the
+lemmatizer all refuse an unlisted language before anything is imported or fetched, and
+`hbo`, which walked past a check on the literal `he`, is refused with the rest. Sentences
+in a script with capitals are drawn by rule in `segment/cased.py`, the Hebrew rules taught
+case and a short abbreviation list per language; a script without capitals is left whole.
+A language with no audited lemmatizer builds with its text and translation and no word
+cards, as Yiddish always has. Before a language is added to `AUDITED`, its tokenizer's
+pretrained vectors (`conll17`) and character language models are checked as well: they
+are separate downloads with sources of their own.
+
+What did not need doing again: no translation is bought, because a text on a shelf keeps
+its stored segmentation. The eleven alignments are keyed on the segmenter now and line up
+again for nothing, and the Russian reader keeps its annotation until it is rebuilt.
 
 **What the swap cost, measured rather than asserted** (targum-internal#116, 47 readers):
 the two agree on 75% of tokens, DICTA declines to lemmatize 3.7% of them where 1900s

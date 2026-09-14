@@ -697,11 +697,19 @@ class Build:
             if mine is not None and theirs is not None and mine != theirs:
                 self.notify(f"{name} covers a different range; matching it instead.")
 
+            # A matched alignment points at the translation's segment ids, and those are
+            # drawn fresh on every build, not reused from disk. So the thing that drew
+            # them is part of the key: when the English stopped being split by Stanza
+            # (2026-09-13), an alignment keyed on the document alone would have been
+            # found, pointed at ids that no longer exist, and rendered blank rows. A
+            # declared pairing never splits prose, and its key is left as it was.
+            drawn = {} if declared else {"segmenter": target.segmenter}
             key = self.cache.key(
                 "align",
                 document=segmented.document_hash,
                 translation=target.document_hash,
                 aligner=parallel.NAME if declared else self.aligner.name,
+                **drawn,
             )
             stored = self.cache.get("align", key)
             if isinstance(stored, dict):

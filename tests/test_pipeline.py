@@ -563,3 +563,58 @@ def test_the_default_segmenter_draws_hebrew_by_rule(tmp_path: Path) -> None:
     built = Build("x.md", target_language="en", provider_name="null", out=tmp_path)
     assert isinstance(built.segmenter, HebrewSegmenter)
     assert isinstance(built.segmenter.other, StanzaSegmenter)
+
+
+def test_a_matched_alignment_is_keyed_on_what_split_the_translation(
+    source: Path, tmp_path: Path, fake_segmenter: object
+) -> None:
+    """A published translation is split afresh on every build, and the alignment points at
+    its segment ids. When the English stopped being split by Stanza (2026-09-13), an
+    alignment keyed on the document alone would have been found and pointed at ids that no
+    longer exist. Aligning again costs nothing: the aligner runs on the machine."""
+    from targum.align import Aligner
+    from targum.ingest import load
+    from targum.segment import segment_document
+
+    english = tmp_path / "declaration.en.md"
+    english.write_text(
+        "# Declaration\n\nIn the Land of Israel the Jewish people arose. Its identity was "
+        "shaped there.\n\nIn 1897 the congress met.\n",
+        encoding="utf-8",
+    )
+
+    class Flat:
+        name = "flat/test"
+
+        def similarity(self, source, target):  # type: ignore[no-untyped-def]
+            return [[1.0 for _ in target] for _ in source]
+
+    class Counting(Aligner):
+        def __init__(self) -> None:
+            super().__init__(encoder=Flat())
+            self.calls = 0
+
+        def align(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            self.calls += 1
+            return super().align(*args, **kwargs)
+
+    class Whole:
+        name = "whole/1"
+
+        def split(self, texts: list[str], language: str) -> list[list[str]]:
+            return [[text] for text in texts]
+
+    aligner = Counting()
+    document = load(str(source))
+    segmented = segment_document(document, fake_segmenter)  # type: ignore[arg-type]
+
+    def align_with(segmenter: object) -> None:
+        built = build(source, tmp_path / "out", segmenter, translations=[english], aligner=aligner)
+        built._resolved_out = tmp_path / "out"
+        built.aligned(document, segmented)
+
+    align_with(fake_segmenter)
+    align_with(fake_segmenter)
+    assert aligner.calls == 1, "the same lines, the same alignment, reused"
+    align_with(Whole())
+    assert aligner.calls == 2, "the translation was split differently, so it is lined up again"

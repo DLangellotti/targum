@@ -2728,24 +2728,17 @@ def models_fetch(
         _fetch_menaked()
         return
 
-    # Both builds of the tokenizer, where the language has two: scripture is read with
-    # one and everything else with the other, and a box that fetches ahead of a long job
-    # should not find that out halfway through it.
-    wanted: list[dict[str, str]] = [{}]
-    modern = StanzaLemmatizer().packages(code)
-    if modern:
-        wanted.append(modern)
-    missing = [
-        packages
-        for packages in wanted
-        if not segment_module.has_processors(code, PROCESSORS, packages)
-    ]
-    if not missing:
+    # Only the build `AUDITED` names for the language, which today is no language at all:
+    # the refusal says why, and nothing is fetched.
+    try:
+        packages = StanzaLemmatizer().packages(code)
+    except TargumError as error:
+        fail(error)
+    if segment_module.has_processors(code, PROCESSORS, packages):
         console.print(f"[dim]{code} is already downloaded.[/dim]")
         return
     try:
-        for packages in missing:
-            segment_module.download(code, processors=PROCESSORS, packages=packages)
+        segment_module.download(code, processors=PROCESSORS, packages=packages)
     except TargumError as error:
         fail(error)
     console.print(f"[green]Downloaded[/green] {code}")

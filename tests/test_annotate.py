@@ -368,10 +368,18 @@ def test_scripture_and_the_rest_are_read_with_different_tokenizers() -> None:
     tanakh = model(for_source("sefaria:Ruth"))
     dialogue = model(for_source("dialogue:08-that-is-my-spot"))
     assert tanakh.scripture and not dialogue.scripture
-    assert tanakh.packages("he") == {}
-    assert dialogue.packages("he") == {"tokenize": MODERN_TOKENIZERS["he"]}
-    assert dialogue.packages("iw") == dialogue.packages("he"), "the same language"
-    assert dialogue.packages("ru") == {}, "only Hebrew has a second build to choose"
+    # Neither is handed a build for Hebrew any more, or for anything Stanza's defaults
+    # would read (`AUDITED`, 2026-09-13). What stays pinned is the names: the `+charlm`
+    # that `MODERN_TOKENIZERS` explains is in every Hebrew annotation's name, and moving
+    # it would re-read the whole shelf.
+    from targum.errors import TargumError
+
+    assert MODERN_TOKENIZERS["he"] == "combined_charlm"
+    for lemmatizer in (tanakh, dialogue):
+        with pytest.raises(TargumError, match="NonCommercial"):
+            lemmatizer.packages("iw")
+        with pytest.raises(TargumError, match="not cleared"):
+            lemmatizer.packages("ru")
     assert tanakh.name == StanzaLemmatizer(scripture=True).name
     assert dialogue.name != tanakh.name, "a modern text built before is read again"
     assert dialogue.name.startswith(tanakh.name), "and the old name is still in it"

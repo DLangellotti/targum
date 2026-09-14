@@ -783,6 +783,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   A voice that stops part-way settles the lines it already said instead of releasing
   them, and a spoken reply that fails in any way gives its claim back. A test fails when
   a model targum spends on has no price, so this cannot recur quietly.
+- Stanza loads no model unless its training data has been checked, and none has.
+  `LICENSING.md` said Stanza kept "every other language it served" once Hebrew left it,
+  on the assumption that only Hebrew's treebank was NonCommercial. It was not: English's
+  default model includes GUM and Russian's is SynTagRus, both CC BY-NC-SA, and every
+  build carrying a published English prose translation split that English with it
+  before lining it up. `segment/stanza_segmenter.AUDITED` lists the language and exact
+  build that may load, and is empty; the download, the tokenizer and the lemmatizer all
+  refuse anything else before importing Stanza, including `hbo`, which slipped past a
+  check on the literal `he`. Sentences in a script with capitals are drawn by rule
+  (`segment/cased.py`: the Hebrew rules taught case and a short abbreviation list per
+  language), and Yiddish and Aramaic paragraphs, which used to fail the build at Stanza,
+  are split by the Hebrew rules. A matched alignment is keyed on what split the
+  translation, so the eleven affected alignments line up again for nothing rather than
+  pointing at segment ids that no longer exist. Hebrew splits exactly as before, no
+  annotator name moves, and no translation is bought. `LICENSING.md` states the rule now:
+  a model trained on NonCommercial or ShareAlike data is not used.
 - Buying a recording's second part, or a book's next chapter, no longer rebuilds the
   reader without a word to tap. Every reader is built through one place, and that place
   read `words` off the door's options and took silence for no; the part and chapter

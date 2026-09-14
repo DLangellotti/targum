@@ -64,7 +64,7 @@ from __future__ import annotations
 import re
 
 from .base import Segmenter
-from .stanza_segmenter import StanzaSegmenter, stanza_code
+from .stanza_segmenter import AUDITED, StanzaSegmenter, stanza_code
 
 #: Part of every segments.json this draws. Bump it when a rule changes, so the artifact
 #: says which rules cut it — see the docstring for why that is a record and not a key.
@@ -86,6 +86,12 @@ _RUN = re.compile(rf"[{re.escape(TERMINAL)}][{re.escape(TERMINAL + CLOSING + FOR
 _AFTER = re.compile(rf"[\s{FORMAT}]*(.{{0,3}})", re.S)
 _LETTER = re.compile(r"[^\W\d_]")
 _DROP_FORMAT = {ord(c): None for c in FORMAT}
+# The word a full stop closes, dots and hyphens inside it included: `Dr`, `e.g`, `J.-C`.
+# Anchored at the end of a short window, so it reads a handful of characters and never
+# the block before them.
+_ABBREVIATED = re.compile(r"[^\W\d_]+(?:[.\-'’][^\W\d_]+)*$")
+#: How far back an abbreviation is looked for. Longer than any in `cased.ABBREVIATIONS`.
+_LOOKBACK = 24
 
 
 def _initial(text: str, at: int) -> bool:
@@ -97,7 +103,25 @@ def _initial(text: str, at: int) -> bool:
     return not earlier or earlier.isspace() or earlier == "."
 
 
-def _ends_here(text: str, found: re.Match[str]) -> bool:
+def _abbreviation(text: str, stop: int, abbreviations: frozenset[str]) -> bool:
+    """Whether the full stop at `stop` closes a word on the language's list."""
+    word = _ABBREVIATED.search(text, max(0, stop - _LOOKBACK), stop)
+    return bool(word) and word.group(0).lower() in abbreviations  # type: ignore[union-attr]
+
+
+def _ends_here(
+    text: str,
+    found: re.Match[str],
+    *,
+    cased: bool = False,
+    abbreviations: frozenset[str] = frozenset(),
+) -> bool:
+    """Whether a run of marks ends a sentence.
+
+    `cased` and `abbreviations` are for a script with capitals (`cased.py`). With neither,
+    which is how Hebrew calls this, every rule is exactly the one the module docstring
+    lists and `NAME` records.
+    """
     end = found.end()
     if end < len(text) and not text[end].isspace():
         # `3.14`, `?"בוא` — the mark is inside something.
@@ -109,22 +133,42 @@ def _ends_here(text: str, found: re.Match[str]) -> bool:
         # `...!)` — the terminal is inside something, and the outer sentence goes on.
         return False
     after = _AFTER.match(text, end).group(1)  # type: ignore[union-attr]
+    if cased and after and after[0] in CLOSING:
+        # French sets a space inside its guillemets — `« Pourquoi ? »` — so the closer
+        # arrives after the space; it is still this sentence's, and the rule above keeps
+        # what follows it with it.
+        return False
 
     if "!" not in marks and "?" not in marks and marks not in (".", "׃"):
-        # Ellipsis alone is a pause, unless a new speaker takes over after it.
-        return bool(after) and after[0] in DASHES + OPENING
+        # Ellipsis alone is a pause, unless a new speaker takes over after it — or, where
+        # there are capitals, a new sentence visibly starts.
+        return bool(after) and (after[0] in DASHES + OPENING or (cased and after[0].isupper()))
     if after and after[0] in DASHES and (len(after) == 1 or after[1].isspace()):
         # `– שאל הוא` — the tag stays with what was said. `– – –` is a section break.
         return len(after) > 2 and after[2] in DASHES
-    return not (marks == "." and _initial(text, found.start() + last_closer + 1))
+    if marks != ".":
+        return True
+    stop = found.start() + last_closer + 1
+    if _initial(text, stop):
+        return False
+    if cased:
+        # A sentence starts with a capital, so a full stop before a small letter did not
+        # end one (`approx. five`), and one closing a word on the list did not either.
+        if after and after[0].islower():
+            return False
+        if _abbreviation(text, stop, abbreviations):
+            return False
+    return True
 
 
-def sentences(text: str) -> list[str]:
+def sentences(
+    text: str, *, cased: bool = False, abbreviations: frozenset[str] = frozenset()
+) -> list[str]:
     """One block's sentences, in order, whitespace-trimmed, nothing dropped."""
     out: list[str] = []
     start = 0
     for found in _RUN.finditer(text):
-        if not _ends_here(text, found):
+        if not _ends_here(text, found, cased=cased, abbreviations=abbreviations):
             continue
         piece = text[start : found.end()].strip()
         if piece:
@@ -136,13 +180,24 @@ def sentences(text: str) -> list[str]:
     return out
 
 
+#: Written in the Hebrew alphabet, abbreviated with geresh and gershayim, and uncased:
+#: the rules above fit all three. Yiddish and Aramaic used to be handed to Stanza, which
+#: has models for neither, so a paragraph of either failed the build.
+HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
+
+
 class HebrewSegmenter:
-    """Rules for Hebrew; Stanza, held as the delegate, for every other language.
+    """Rules for every language; Stanza, held as the delegate, only where it is audited.
+
+    Hebrew-script text by the rules above, text in a script with capitals by the same
+    rules taught abbreviations and case (`cased.py`), and Stanza for a language listed in
+    `stanza_segmenter.AUDITED`, which today is none. The class keeps its name because
+    everything that builds a reader constructs it.
 
     The same shape as `annotate.dicta.DictaLemmatizer` and for the same reason: the
     language only arrives with the text, so the thing that routes by it has to hold both.
-    The delegate's name is part of this one's, so a segments.json says everything that
-    could have drawn its lines.
+    Every name that could draw a line is part of this one's, so a segments.json says
+    everything that could have drawn its lines.
     """
 
     def __init__(self, *, other: Segmenter | None = None, auto_download: bool = True) -> None:
@@ -152,9 +207,16 @@ class HebrewSegmenter:
 
     @property
     def name(self) -> str:
-        return f"{NAME}+{self.other.name}"
+        from . import cased
+
+        return f"{NAME}+{cased.NAME}+{self.other.name}"
 
     def split(self, texts: list[str], language: str) -> list[list[str]]:
-        if stanza_code(language) != "he":
+        from . import cased
+
+        code = stanza_code(language)
+        if code in HEBREW_SCRIPT:
+            return [sentences(text) for text in texts]
+        if code in AUDITED:
             return self.other.split(texts, language)
-        return [sentences(text) for text in texts]
+        return [cased.sentences(text, code) for text in texts]
