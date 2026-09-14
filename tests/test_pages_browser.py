@@ -1116,6 +1116,84 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     ), f"the line and the press overlap at {width}px: {foot}"
 
 
+@pytest.mark.parametrize(
+    ("width", "height", "framed"), [(320, 568, False), (375, 667, False), (390, 844, True)]
+)
+def test_a_phone_too_short_to_read_in_the_sheet_frames_nothing(
+    browser, width: int, height: int, framed: bool
+) -> None:
+    """At 320×568 the sheet's window held one line of the reader, with its page count and
+    arrows over it (targum-internal#275). Where the window would be shorter than two
+    pairs and the reader's foot, the sheet is what it is for a library row — the title,
+    the known share and Open the reader."""
+    html = learn_page(TOKEN)
+    readers = [
+        {
+            "name": "doctor-he",
+            "title": "תור לרופא",
+            "language": "he",
+            "register": "modern",
+            "document": "h1",
+            "built": 1,
+            "chapters": [1],
+            "readyChapters": 1,
+            "known": 0.31,
+            "reader": "doctor-he/reader/index.html",
+        }
+    ]
+
+    def answer(route, request):
+        u = request.url
+        if "/reader/" in u:
+            route.fulfill(status=200, content_type="text/html", body="<p>שורה</p>")
+            return
+        if "/readers" in u:
+            body: dict = {"readers": readers, "shared": [], "trash": []}
+        elif "/chat/list" in u:
+            body = {"chats": [], "usable": True, "talk": True, "chips": []}
+        elif "/account/me" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": width, "height": height})
+    page = context.new_page()
+    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.wait_for_selector("#carry-sheet:not([hidden])")
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+          const shown = (id) => {
+            const el = document.getElementById(id);
+            return !el.hidden && getComputedStyle(el).display !== 'none'
+              && el.getBoundingClientRect().height > 0;
+          };
+          return {
+            window: shown('carry-window'),
+            height: document.getElementById('carry-window').getBoundingClientRect().height,
+            src: document.getElementById('carry-frame').getAttribute('src') || '',
+            title: shown('carry-title'),
+            open: shown('carry'),
+            hint: shown('carry-hint'),
+          };
+        }"""
+    )
+    context.close()
+    assert got["open"], got
+    if framed:
+        assert got["window"] and "preview=1" in got["src"], got
+        assert got["height"] >= 320, f"room to read at {width}×{height}: {got}"
+    else:
+        assert not got["window"], f"no frame at {width}×{height}: {got}"
+        assert got["title"] and not got["hint"], "the sheet names the text and says no 'Read here'"
+
+
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
     """The whole of what a reader does with a phone's worth of pages, on the client's
     side: two files chosen together on Learn sit in the box as chips, Send takes them up

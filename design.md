@@ -1364,7 +1364,9 @@ a phone is quiet (2026-09-14, "the whole page is just way too busy"): the greeti
 count without the date, the doors one row that scrolls sideways, and over a framed reader
 the sheet's head is the known share, the line "Read here, or go full screen",
 and Open the reader, since the door pressed says why this text and the reader's own bar
-names it; the frame ends above whatever is fixed at the foot. Fields are wells: no line,
+names it; the frame ends above whatever is fixed at the foot, and where that would leave
+under 20rem to read in (a 320×568 or 375×667 phone) there is no frame: the sheet is the
+title, the known share and Open the reader, as over a library row (targum-internal#275). Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.
