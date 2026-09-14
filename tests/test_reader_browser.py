@@ -5518,6 +5518,50 @@ def test_watching_fills_the_window_whatever_size_it_is(browser, tmp_path) -> Non
             context.close()
 
 
+def test_watching_on_a_phone_is_picture_line_and_one_transport(browser, tmp_path) -> None:
+    """Portrait watching is the picture, the line under it and the strip at the foot, on
+    paper. Three things broke that on a 390px phone (the audit's R-07,
+    targum-internal#274): the docked keys' pale box stayed on under pills written for a
+    dark frame, so Close and Transcript could not be read; the tap that plays spread
+    over the whole panel and floated its disc in the empty paper, a second play button;
+    and the strip kept the words tab's start while the tab was under the panel, which
+    cut "Watch the video" short."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built, viewport={"width": 390, "height": 844})
+    try:
+        page.wait_for_selector("#video.watching")
+        page.wait_for_timeout(150)
+        got = page.evaluate(
+            """() => {
+              const box = (s) => document.querySelector(s).getBoundingClientRect();
+              const keys = document.querySelector('#video .video-keys');
+              const close = getComputedStyle(document.querySelector('#video .video-close'));
+              const said = document.querySelector('#video .player-said');
+              const discs = [...document.querySelectorAll('.player-play, .video-tap-glyph')]
+                .filter((el) => getComputedStyle(el).display !== 'none'
+                  && el.getBoundingClientRect().width > 0);
+              return {
+                keysGround: getComputedStyle(keys).backgroundColor,
+                closeInk: close.color, closeGround: close.backgroundColor,
+                keysBottom: box('#video .video-keys').bottom,
+                picture: box('#video .video-el').toJSON(),
+                tap: box('#video .video-tap').toJSON(),
+                plays: discs.length,
+                cut: said.scrollWidth > said.clientWidth + 1,
+              };
+            }"""
+        )
+    finally:
+        context.close()
+    assert got["keysGround"] == "rgba(0, 0, 0, 0)", f"no box behind the keys: {got}"
+    assert got["closeGround"] != got["closeInk"], got
+    assert got["keysBottom"] <= got["picture"]["top"] + 1, "the keys stand above the picture"
+    for edge in ("top", "bottom", "left", "right"):
+        assert abs(got["tap"][edge] - got["picture"][edge]) < 2, f"the tap is the picture: {got}"
+    assert got["plays"] == 1, "one play button on the screen"
+    assert not got["cut"], "the label is not cut"
+
+
 def test_the_docked_picture_stands_clear_of_the_transport(browser, tmp_path) -> None:
     """The dock's offset was a figure written into the stylesheet, and the strip is not
     one height: it grows a bar and a clock the moment a text has a place to show, which

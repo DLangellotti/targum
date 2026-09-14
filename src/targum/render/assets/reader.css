@@ -3354,11 +3354,56 @@ body.watching { overflow: hidden; }
   .video.watching .video-mode { color: var(--ink-soft); }
   .video.watching .video-close:hover,
   .video.watching .video-mode:hover { color: var(--ink); }
+  /* On paper the keys are the reader's own pills, in the room above the picture rather
+     than on it. The phone's docked keys carry a pale ground of their own to stand on a
+     film, and it stayed on here under dark pills written for a dark frame: two grey
+     lozenges in a milky box, with words nobody could read (the audit's R-07,
+     targum-internal#274). */
+  .video.watching .video-keys {
+    position: relative;
+    inset: auto;
+    z-index: 3;
+    grid-row: 1;
+    justify-self: end;
+    align-self: start;
+    margin: 0.4rem 0.75rem 0;
+    padding: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .video.watching .video-close,
+  .video.watching .video-mode {
+    block-size: 2.25rem;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+  }
+  .video.watching .video-close:hover,
+  .video.watching .video-mode:hover { background: var(--paper-raised); }
+  /* The tap that plays is the picture's, so it is the picture's size and in its place;
+     spread over the whole panel it put a grey disc in the empty paper under the line.
+     And no disc at all: the strip at the foot is the one play button on the screen. */
+  .video.watching .video-tap {
+    position: relative;
+    inset: auto;
+    grid-row: 1;
+    align-self: start;
+    margin-block-start: 3rem;
+    inline-size: 100%;
+    aspect-ratio: 16 / 9;
+  }
+  .video.watching .video-tap-glyph { display: none; }
 }
 
 @media (max-width: 46rem) {
   .video-src { font-size: 1.0625rem; }
   .video-tr { font-size: 0.9375rem; }
+}
+/* The strip keeps a start for the words tab (`--tab`), and while watching the tab is under
+   the picture's panel: the reserve was empty room, and the label paid for it — "Watch
+   the v…" on a 390px phone. */
+@media (max-width: 60rem) {
+  .video.watching .player { padding-inline: 0.75rem; }
 }
 /* Landscape only: in portrait the line is under the picture and has a row of its own,
    and this margin is the room the transport takes when the line is over it. */
