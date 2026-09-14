@@ -15,7 +15,7 @@ from typing import Any
 
 from ..errors import TargumError
 from ..usage import Usage
-from .base import Progress
+from .base import Progress, language_tag
 from .models import Transcript, Word
 
 URL = "https://api.elevenlabs.io/v1/speech-to-text"
@@ -111,7 +111,7 @@ class ScribeTranscriber:
         return Transcript(
             provider=self.name,
             model=self.model,
-            language=str(answer.get("language_code") or "") or language,
+            language=language_tag(str(answer.get("language_code") or "")) or language,
             duration=length,
             words=words,
         )

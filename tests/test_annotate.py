@@ -1644,6 +1644,29 @@ def test_a_token_with_no_letter_of_its_language_is_not_a_word() -> None:
     assert surfaces == ["הודעות", "קהילת", "שחרית"], surfaces
 
 
+def test_a_hebrew_prefix_on_an_english_word_goes_with_the_word() -> None:
+    """Spoken Hebrew puts its prefixes on English words — ה-AI, וה-NSA, ב-MIT — and a
+    transcript writes them apart or joined. With the English read past, "ה" and "וה"
+    were left standing as words, tappable and counted (2026-09-14). A prefix goes with
+    the English word it belongs to; a real word made of the same letters stays."""
+    segmented = document(["עבדתי ב MIT וגם ה-AI של וה NSA מה Google עשה"])
+    annotation = Annotator(lemmatizer=FakeLemmatizer(), bands=FakeBands()).annotate(segmented)
+    surfaces = [token.surface for token in annotation.tokens[segmented.segments[0].id]]
+    assert surfaces == ["עבדתי", "וגם", "של", "מה", "עשה"], surfaces
+
+
+def test_the_prefix_rules_ask_only_of_hebrew() -> None:
+    from targum.annotate.base import is_prefixed_foreign, is_stranded_prefix
+
+    assert is_stranded_prefix("ה", "AI", "he") and is_stranded_prefix("וְה", "NSA", "he")
+    assert not is_stranded_prefix("ה", "בית", "he"), "before a Hebrew word it is Hebrew"
+    assert not is_stranded_prefix("מה", "Google", "he"), "מה is a word"
+    assert not is_stranded_prefix("ה", "", "he"), "at the end of a line it is left alone"
+    assert is_prefixed_foreign("ה-AI", "he") and is_prefixed_foreign("בMIT", "he")
+    assert not is_prefixed_foreign("ב22", "he"), "a number with a prefix is the tagger's"
+    assert not is_prefixed_foreign("בית", "he") and not is_prefixed_foreign("ה-AI", "arc")
+
+
 def test_the_script_rule_is_the_blocks_own_language() -> None:
     """An English block inside a Hebrew document keeps its English words, where
     something can read it; the rule asks the block's language, not the document's."""

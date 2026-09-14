@@ -146,3 +146,18 @@ def test_a_word_with_no_letters_still_gets_a_row(monkeypatch: pytest.MonkeyPatch
     assert len(got) == 3
     assert all(start == end for start, end, _ in got)
     assert all(score == align_module.SCORE_FLOOR for *_, score in got)
+
+
+def test_a_word_the_model_cannot_spell_does_not_count_against_the_match() -> None:
+    """English inside a Hebrew transcript is placed at the floor score; averaged in, a
+    few English phrases took following along away from a part the model matched well
+    (2026-09-14). Only the words it has letters for are asked how well they matched."""
+    from targum.audio.align import MATCH_FLOOR, SCORE_FLOOR, match_score
+
+    words = ["היום", "אנחנו", "ב", "MIT", "וזה", "really", "amazing", "trip", "2024"]
+    scores = [-1.0, -1.5, -2.0, SCORE_FLOOR, -1.0] + [SCORE_FLOOR] * 4
+    assert sum(scores) / len(scores) < MATCH_FLOOR, "the old mean failed this part"
+    matched = match_score(words, scores, "he")
+    assert matched is not None and matched == -1.375
+    assert match_score(["MIT", "2024"], [SCORE_FLOOR, SCORE_FLOOR], "he") is None
+    assert match_score(["rivière"], [-2.0], "fr") == -2.0, "a French word is French's"

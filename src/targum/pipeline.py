@@ -1447,7 +1447,7 @@ class Build:
         from .audio import PAD
         from .audio import parts as parts_module
         from .audio import probe as probe_module
-        from .audio.align import MATCH_FLOOR, CtcAligner
+        from .audio.align import MATCH_FLOOR, CtcAligner, match_score
         from .ingest.audio import refined_path
         from .transcribe.models import Refined, RefinedParagraph, Word
         from .transcribe.models import write as write_model
@@ -1505,6 +1505,7 @@ class Build:
             offset = max(0.0, span.start - PAD)
             paragraphs: list[RefinedParagraph] = []
             at = 0
+            heard: list[str] = []
             scores: list[float] = []
             for block in flowing:
                 mine = block.text.split()
@@ -1522,6 +1523,7 @@ class Build:
                 ]
                 if not inside:
                     continue
+                heard.extend(word.text for word in inside)
                 scores.extend(word.confidence for word in inside)
                 paragraphs.append(
                     RefinedParagraph(
@@ -1530,7 +1532,8 @@ class Build:
                         words=inside,
                     )
                 )
-            if scores and sum(scores) / len(scores) < MATCH_FLOOR:
+            matched = match_score(heard, scores, written.language or drafted.language)
+            if matched is not None and matched < MATCH_FLOOR:
                 self.notify(
                     "The text and the recording do not match closely. The recording "
                     "plays without following along."

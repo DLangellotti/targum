@@ -159,3 +159,27 @@ def test_each_provider_says_which_key_is_missing(monkeypatch: pytest.MonkeyPatch
     assert not usable and "OPENAI_API_KEY" in fix
     usable, fix = ScribeTranscriber().available()
     assert not usable and "ELEVENLABS_API_KEY" in fix
+
+
+@pytest.mark.parametrize("said", ["he", "heb", "HEB", "hebrew", "iw"])
+def test_scribe_s_language_is_the_short_tag_whatever_it_is_spelled(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, said: str
+) -> None:
+    """Scribe is documented to answer "en" and takes ISO-639-3 besides, so "heb" is a
+    spelling it may answer with. Downstream asks for exactly "he": the rule that reads
+    English past inside a Hebrew transcript would have read every English word in as a
+    word of the text (2026-09-14)."""
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "xi-test")
+    recording = tmp_path / "part.mp3"
+    recording.write_bytes(b"audio")
+    word = {"text": "שלום", "start": 0.0, "end": 0.5, "type": "word"}
+    canned(monkeypatch, [{"language_code": said, "words": [word]}])
+    assert ScribeTranscriber().transcribe(recording, "he").language == "he"
+
+
+def test_a_language_tag_is_short_whatever_a_provider_calls_it() -> None:
+    from targum.transcribe.base import language_tag
+
+    assert [language_tag(x) for x in ("hebrew", "eng", "yid", "fra", "arc", "pt-BR", "")] == [
+        "he", "en", "yi", "fr", "arc", "pt", "",
+    ]  # fmt: skip

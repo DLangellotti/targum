@@ -20,6 +20,8 @@ from .base import (
     Pronouncer,
     highlight_levels,
     in_script,
+    is_prefixed_foreign,
+    is_stranded_prefix,
     method_label,
     unread,
 )
@@ -180,10 +182,17 @@ class Annotator:
         for segment_id, tokens in by_segment.items():
             positions = to_source.get(segment_id)
             marked: list[Token] = []
-            for token in tokens:
-                if not in_script(token.surface, spoken.get(segment_id, segmented.language)):
+            said_in = spoken.get(segment_id, segmented.language)
+            for at, token in enumerate(tokens):
+                if not in_script(token.surface, said_in):
                     # An English name, a time, an emoji inside the Hebrew: read past,
                     # the way the reader reads past it. See `in_script`.
+                    continue
+                if is_prefixed_foreign(token.surface, said_in) or is_stranded_prefix(
+                    token.surface, _next_word(tokens, at), said_in
+                ):
+                    # The Hebrew prefix on an English word — ה-AI, "ה AI" — belongs to
+                    # the word it is read past with. See `PREFIXES`.
                     continue
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
@@ -384,3 +393,13 @@ def annotate(
     vocalization: Vocalization | None = None,
 ) -> Annotation:
     return (annotator or Annotator()).annotate(segmented, vocalization)
+
+
+def _next_word(tokens: list[Token], at: int) -> str:
+    """The surface of the next token with a letter in it, past a hyphen or a maqaf."""
+    for token in tokens[at + 1 :]:
+        if any(char.isalpha() for char in token.surface):
+            return token.surface
+        if token.surface.strip("-\u05be"):
+            return ""
+    return ""
