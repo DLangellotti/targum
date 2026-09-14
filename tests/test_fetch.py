@@ -430,6 +430,48 @@ def test_a_url_that_answers_with_plain_text_is_read_as_text(
     assert document.blocks[0].text.startswith("First paragraph")
 
 
+@pytest.mark.parametrize(
+    ("note", "said"),
+    [
+        (" [en, come tutti i link successivi, salvo diversa indicazione]", True),
+        (" [ky, come tutti i link successivi, salvo diverse indicazioni]", True),
+        (" [ru]", True),
+        (" [uzb]", True),
+        (" [sic]", False),
+        (" [ndr]", False),
+        (" […]", False),
+    ],
+)
+def test_a_global_voices_edition_loses_its_link_language_notes(
+    monkeypatch: pytest.MonkeyPatch, note: str, said: bool
+) -> None:
+    """Italian Global Voices marks every link with the language it opens in, and the
+    extractor drops the link and keeps the note, so a reader read "[en, come tutti i link
+    successivi, salvo diversa indicazione]" mid-sentence (2026-09-14). An editor's own
+    brackets stay, and so does everything on another site."""
+    from targum.ingest.url import Fetched, UrlIngester
+
+    sentence = (
+        "Secondo un rapporto pubblicato da Human Rights Watch{note} "
+        "il governo ha chiuso tre giornali indipendenti nel corso dell'ultimo anno."
+    )
+    html = (
+        "<html><head><title>Un titolo</title></head><body><article>"
+        + "".join(f"<p>{sentence.format(note=note)}</p>" for _ in range(4))
+        + "</article></body></html>"
+    )
+    monkeypatch.setattr(
+        "targum.ingest.url.fetch", lambda url, params=None: Fetched(html, "text/html")
+    )
+    body = " ".join(
+        b.text for b in UrlIngester().load("https://it.globalvoices.org/2024/01/01/x/").blocks
+    )
+    assert (note.strip() in body) is not said
+    assert "Human Rights Watch il governo" in body or not said
+    elsewhere = " ".join(b.text for b in UrlIngester().load("https://example.org/x/").blocks)
+    assert note.strip() in elsewhere
+
+
 def test_an_empty_text_file_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
     from targum.errors import TargumError
     from targum.ingest.url import Fetched, UrlIngester

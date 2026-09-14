@@ -108,6 +108,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A Global Voices post in a language other than English loses its translators' notes on
+  what language each link opens in, such as "[en, come tutti i link successivi, salvo
+  diversa indicazione]". The extractor dropped the link and kept the note in the sentence.
+  None of the five Hebrew Global Voices rows has such a note, so none changes.
 - A line break in a web page, an EPUB or a Wikisource page reads as a space. `lettura<br>rende`
   came out as one word on the EU's easy-read pages. The URL ingester is `url/5`: one
   catalogue text changes, a Hebrew Wikinews article whose reference line read

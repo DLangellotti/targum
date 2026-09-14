@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 import socket
 import threading
 import time
@@ -353,10 +354,38 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
         response.close()
 
 
+#: What a Global Voices translator writes after a link to say the page it opens is in
+#: another language: `[en]`, or `[en, come tutti i link successivi, salvo diversa
+#: indicazione]` for the first of several. A note about the links, which the extractor
+#: drops, left in the prose it sat in. Narrow on purpose: a two-letter code, or one of
+#: the three-letter codes the edition uses, and a longer note only where it says
+#: "link", so `[sic]`, `[ndr]` and `[…]` stay.
+_LINK_LANGUAGE = re.compile(
+    r"\s?\[(?:[a-z]{2}|uzb|kaz|kir|tgk|tuk|tat|fil|yue)(?:-[A-Z]{2})?"
+    r"(?:, [^\[\]]{0,60}\b(?:link|liens?|enlaces?)\b[^\[\]]{0,60})?\]"
+)
+
+
+def _translated_edition(source: str) -> bool:
+    """A Global Voices edition in a language other than English.
+
+    Not the English site: its links go to English pages, and there a bracketed `[it]` is
+    far more often a word an editor put into a quotation.
+    """
+    host = (urlparse(source).hostname or "").lower()
+    edition = host.removesuffix(".globalvoices.org")
+    return edition != host and len(edition) in (2, 3) and edition.isalpha() and edition != "en"
+
+
+def drop_link_languages(text: str) -> str:
+    return _LINK_LANGUAGE.sub("", text).strip()
+
+
 class UrlIngester:
     # 5: a line break reads as a space (`htmltext`), which moved one catalogue text of 54
-    # measured — a he.wikinews reference line, "2022מסכי" — so the pages already on a
-    # shelf are read again rather than kept as though somebody had edited them.
+    # measured — a he.wikinews reference line, "2022מסכי" — and a Global Voices edition
+    # loses its translators' link-language notes, so the pages already on a shelf are read
+    # again rather than kept as though somebody had edited them.
     name = "url/5"
 
     # A .txt served over http is a text file that happens to live on the web, and the
@@ -417,6 +446,12 @@ class UrlIngester:
                 "Save the page as .txt or .md and drop the file in.",
             )
         paragraphs = [(kind, level, normalize(text)) for kind, level, text in paragraphs]
+        if _translated_edition(source):
+            paragraphs = [
+                (kind, level, kept)
+                for kind, level, text in paragraphs
+                if (kept := drop_link_languages(text))
+            ]
 
         metadata = trafilatura.extract_metadata(html)
         title = getattr(metadata, "title", None)
