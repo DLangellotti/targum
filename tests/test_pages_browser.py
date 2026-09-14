@@ -492,6 +492,59 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["width"] <= width, "and the page does not scroll sideways"
 
 
+@pytest.mark.parametrize("width", [320, 360, 384, 412])
+def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
+    """Signed in, with two languages, the bar holds the name, the language, find, the
+    bell, the account and the light switch. It was 385px wide whatever the screen, so a
+    phone narrower than that scrolled sideways; the account was squashed into an oval;
+    and the language's chevron stood outside its pill, its `::after` taken by the reach
+    `reader.css` gives the button on a touch screen (2026-09-14)."""
+    html = learn_page(TOKEN)
+
+    def answer(route, request):
+        u = request.url
+        if "/account/me" in u:
+            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ", "language": "he"}
+        elif request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": 700}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.add_init_script(
+        "localStorage.setItem('targum:learning', JSON.stringify(['he', 'it']));"
+        "localStorage.setItem('targum:language', 'he')"
+    )
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.wait_for_selector(".account > button.avatar")
+    page.wait_for_selector(".lang-open")
+    page.wait_for_timeout(200)
+    got = page.evaluate(
+        """() => {
+          const open = document.querySelector('.lang-open');
+          const pill = open.getBoundingClientRect();
+          const chevron = getComputedStyle(open, '::before');
+          const account = document.querySelector('.account > button').getBoundingClientRect();
+          return {
+            inner: window.innerWidth, scrollWidth: document.documentElement.scrollWidth,
+            chevronDrawn: chevron.content === '""' && chevron.position !== 'absolute',
+            flag: open.querySelector('.lang-flag').getBoundingClientRect().left >= pill.left,
+            round: Math.abs(account.width - account.height) <= 1,
+          };
+        }"""
+    )
+    context.close()
+    assert got["inner"] == width and got["scrollWidth"] <= width, f"sideways at {width}px: {got}"
+    assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill: {got}"
+    assert got["round"], f"the account is a circle: {got}"
+
+
 def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     """At 768px everything fits, and the two-line arrangement must not apply."""
     page_file = tmp_path / "learn.html"
@@ -846,6 +899,18 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
+    # Before the drawer opens, while the pill stands at the corner: on a phone the sheet's
+    # window ends above everything fixed at the foot (2026-09-14), so the reader's own bar
+    # at the bottom of the frame is never behind the places or the pill.
+    page.wait_for_selector("#carry-window:not([hidden])")
+    page.wait_for_timeout(300)
+    foot = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          return { window: box('#carry-window').bottom, nav: box('.site-nav').top,
+                   pill: box('#talk-open').top };
+        }"""
+    )
     # The conversation is the conversation page framed in the drawer the pill opens
     # (2026-09-11): the chips and the box are measured inside it, against the drawer's
     # own width, with the drawer open.
@@ -904,6 +969,10 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
         )
         assert got["navRight"] == width
     assert 0 <= got["drawerTop"] and got["drawerBottom"] <= 800 + 1, f"the drawer on screen: {got}"
+    if width <= 640:
+        assert foot["window"] <= min(foot["nav"], foot["pill"]), f"the sheet runs under: {foot}"
+        # And the page you were on still shows above the drawer (2026-09-14).
+        assert got["drawerTop"] >= 800 * 0.15, f"the drawer covers the page: {got}"
     assert "preview=1" in got["reader"], "the sheet frames the reader, working"
     assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
     assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"

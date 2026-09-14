@@ -369,6 +369,7 @@
       return;
     }
     window_.hidden = false;
+    fitWindow();
     frame.title = reader.title || "";
     // A series' instalment names its reader's page itself (`door.src`): the weekly
     // portion's and a cycle's live under their own `/read/`, not under `/reader/`.
@@ -377,6 +378,40 @@
     // Set only when it changes: a frame reloads on every write to its address.
     if (frame.getAttribute("src") === src) return;
     frame.setAttribute("src", src);
+  }
+
+  // On a phone the window runs from where it stands down to whatever is fixed at the foot
+  // of the screen — the bar of places and the round pill above it — so the reader's own
+  // bar at the bottom of the frame is never under them (2026-09-14). The stylesheet
+  // guessed the height of everything above the window, and a greeting that wrapped or a
+  // row of doors made the guess short: the frame ran behind the bar. Measured here, and
+  // again whenever anything above it changes size.
+  var phone = window.matchMedia ? window.matchMedia("(max-width: 40rem)") : null;
+  function fitWindow() {
+    var window_ = document.getElementById("carry-window");
+    if (!window_ || window_.hidden) return;
+    if (!phone || !phone.matches) {
+      window_.classList.remove("fitted");
+      return;
+    }
+    var bottom = window.innerHeight;
+    [".site-nav", "#talk-open"].forEach(function (selector) {
+      var fixed = document.querySelector(selector);
+      if (!fixed || getComputedStyle(fixed).position !== "fixed") return;
+      var box = fixed.getBoundingClientRect();
+      if (box.height) bottom = Math.min(bottom, box.top - 8);
+    });
+    var top = window_.getBoundingClientRect().top + (window.scrollY || 0);
+    window_.style.setProperty("--sheet-above", Math.round(top + window.innerHeight - bottom) + "px");
+    window_.classList.add("fitted");
+  }
+  window.addEventListener("resize", fitWindow);
+  if (window.ResizeObserver) {
+    var watching = new ResizeObserver(fitWindow);
+    [".site-head", ".learn-head", ".page-head"].forEach(function (selector) {
+      var above = document.querySelector(selector);
+      if (above) watching.observe(above);
+    });
   }
 
   /* --- the greeting, today, and the row of doors (2026-09-11) ---------------------
