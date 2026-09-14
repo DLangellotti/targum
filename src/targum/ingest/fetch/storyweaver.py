@@ -11,8 +11,8 @@ One call reads a book. `/api/v1/stories/{id}/read` hands back every page as HTML
 cover, the story pages, the attribution pages and the back cover. `/api/v1/stories/{id}`
 carries the same credits as structured data, and nothing this fetcher needs that the
 pages do not, so it is never asked. The host puts a bot check in front of anybody who
-knocks faster than about once a second, and `url.get` already waits a second and a half
-between two knocks on one host.
+knocks too often. `url.get` already waits a second and a half between two knocks on one
+host, and a challenge that comes anyway is waited out (`CHALLENGE_WAITS`).
 
 **The attribution page is the licence, and it is read rather than assumed.** StoryWeaver
 is CC BY 4.0 almost throughout, and "almost" is the reason. Every credit on the page
@@ -40,6 +40,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -138,22 +139,64 @@ def _letters(text: str) -> str:
 COPY_LIKENESS = 0.75
 
 
+def drop_repeated_half(lines: list[str]) -> list[str]:
+    """Take the second half off a page that is its first half twice, in the same case.
+
+    StoryWeaver's editor can carry a page's text box over into a second box on the same
+    page, so the page reads through once and then again, beside or instead of the
+    capitals: nine of the 12,180 Italian pages with words on them. Matched exactly, letter for letter, and only as the whole page, because a line
+    a picture book says twice on purpose is said once more and never the whole page over.
+    """
+    for split in range(1, len(lines)):
+        first = _letters(" ".join(lines[:split]))
+        if first and first == _letters(" ".join(lines[split:])):
+            return lines[:split]
+    return lines
+
+
 def drop_capital_copies(lines: list[str]) -> list[str]:
     """Take the capitals off a page that is the page typed twice.
 
     Only the whole page at once, and only where both halves are there. A page written in
     capitals throughout is written that way, and a shout inside a page of prose is part
     of the story; neither is a copy of anything, and the copies were never measured
-    splitting across two pages.
+    splitting across two pages. The page may also carry its lower-case text twice, one
+    box copied into the next, and that is taken out first or the capitals would be
+    measured against two copies and kept.
     """
     capitals = [line for line in lines if _shouting(line)]
-    rest = [line for line in lines if not _shouting(line)]
+    rest = drop_repeated_half([line for line in lines if not _shouting(line)])
     if not capitals or not rest:
-        return lines
+        return drop_repeated_half(lines)
     likeness = difflib.SequenceMatcher(
         None, _letters(" ".join(capitals)), _letters(" ".join(rest)), autojunk=False
     ).ratio()
-    return rest if likeness >= COPY_LIKENESS else lines
+    return rest if likeness >= COPY_LIKENESS else drop_repeated_half(lines)
+
+
+#: How alike every pair of pages must be for a book to be a book with each page twice.
+#: Measured over the 1,020 Italian books on 2026-09-14: *Buonanotte, Tinku!* (7751), whose
+#: twenty-two pages are its eleven twice, pairs at 0.99 at the worst; no other book of
+#: four pages or more pairs above 0.71 throughout.
+DOUBLED_LIKENESS = 0.95
+
+
+def drop_doubled_pages(pages: list[str]) -> list[str]:
+    """Keep one of each page of a book that carries every page twice running.
+
+    The whole book or nothing, and never under four pages: a picture book turns a page
+    on a line it has just said often enough, and "Oh, no!" over "OH, NO!" is two pages of
+    the story. What this catches is every page followed by itself, which no story does.
+    """
+    if len(pages) < 4 or len(pages) % 2:
+        return pages
+    for first, second in zip(pages[::2], pages[1::2], strict=True):
+        likeness = difflib.SequenceMatcher(
+            None, _letters(first), _letters(second), autojunk=False
+        ).ratio()
+        if likeness < DOUBLED_LIKENESS:
+            return pages
+    return pages[::2]
 
 
 def page_text(html: str) -> str:
@@ -430,17 +473,28 @@ def refuse_unservable(number: int, credits: Attribution) -> None:
 # -- the fetcher -------------------------------------------------------------------------
 
 
+#: How long to wait before knocking again when the host answers with a bot check, in
+#: seconds, one wait a retry. A second and a half between knocks is not always enough:
+#: on 2026-09-14 a pilot run of twenty-one books was challenged after twenty-one calls
+#: at that pace, and the same address was let through again a few minutes later. So a
+#: challenge is waited out rather than reported at once, and reported only after these.
+CHALLENGE_WAITS: tuple[float, ...] = (20.0, 60.0, 120.0)
+
+
 def _read(number: int) -> dict[str, Any]:
-    try:
-        raw = get(READ.format(id=number))
-    except Unreachable as error:
-        if error.challenge:
-            raise TargumError(
-                "StoryWeaver asked for a bot check instead of the book.",
-                "It does that to anybody knocking faster than about once a second. "
-                "Wait a minute and try again.",
-            ) from error
-        raise
+    for wait in (*CHALLENGE_WAITS, None):
+        try:
+            raw = get(READ.format(id=number))
+            break
+        except Unreachable as error:
+            if not error.challenge:
+                raise
+            if wait is None:
+                raise TargumError(
+                    "StoryWeaver asked for a bot check instead of the book.",
+                    "It does that to anybody knocking too often. Wait a few minutes and try again.",
+                ) from error
+            time.sleep(wait)
     try:
         payload: Any = json.loads(raw)
     except json.JSONDecodeError as error:
@@ -460,12 +514,12 @@ def document_from(number: int, data: dict[str, Any], ingester: str) -> Document:
     """A read book, as a document: title, byline, and a paragraph a page."""
     refuse_unservable(number, attribution(data))
     pages = data.get("pages") or []
-    paragraphs: list[Paragraph] = []
-    for page in pages:
-        if page.get("pageType") != "StoryPage":
-            continue
-        if text := page_text(page.get("html") or ""):
-            paragraphs.append((BlockKind.paragraph, None, text))
+    texts = [
+        page_text(page.get("html") or "") for page in pages if page.get("pageType") == "StoryPage"
+    ]
+    paragraphs: list[Paragraph] = [
+        (BlockKind.paragraph, None, text) for text in drop_doubled_pages([t for t in texts if t])
+    ]
     if not paragraphs:
         raise TargumError(f"StoryWeaver story {number} has no words in it.", "A wordless book.")
 

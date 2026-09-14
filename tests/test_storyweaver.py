@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from targum import ingest
-from targum.errors import TargumError
+from targum.errors import TargumError, Unreachable
 from targum.ingest import fetch
 from targum.ingest.fetch import storyweaver
 from targum.ingest.fetch.storyweaver import (
@@ -24,6 +24,7 @@ from targum.ingest.fetch.storyweaver import (
     book_id,
     document_from,
     drop_capital_copies,
+    drop_doubled_pages,
     english_in,
     page_text,
 )
@@ -122,6 +123,38 @@ def test_a_shout_inside_the_story_is_part_of_the_story() -> None:
 def test_a_page_in_capitals_throughout_is_written_that_way() -> None:
     page = ["TIMMI HA INSEGNATO AL SUO CANE A PENSARE."]
     assert drop_capital_copies(page) == page
+
+
+def test_a_page_whose_box_was_copied_into_a_second_box_reads_once() -> None:
+    """Buonanotte, Tinku! (7751): the page's text, then the same text again in a second box
+    with the capitals under it. Measured against both lower-case copies the capitals
+    were not a copy of either, and all three stayed."""
+    page = [
+        "Era una notte di luna piena.",
+        "Tutti gli animali della fattoria dormivano.",
+        "Era una notte di luna piena.",
+        "Tutti gli animali della fattoria dormivano.",
+        "ERA UNA NOTTE DI LUNA PIENA.",
+        "TUTTI GLI ANIMALI DELLA FATTORIA DORMIVANO.",
+    ]
+    assert drop_capital_copies(page) == page[:2]
+    assert drop_capital_copies(page[:4]) == page[:2], "and with no capitals at all"
+
+
+def test_a_line_said_twice_on_purpose_stays() -> None:
+    page = ['"Chi sei?" chiese Tinku.', '"Chi sei?" chiese Tinku.', '"Sono un grillo!"']
+    assert drop_capital_copies(page) == page
+
+
+def test_a_book_with_every_page_twice_keeps_one_of_each() -> None:
+    pages = ["Era una notte.", "Era una notte.", "Una di esse volò giù!", "Una di esse volò giù."]
+    assert drop_doubled_pages(pages) == ["Era una notte.", "Una di esse volò giù!"]
+
+
+def test_a_refrain_over_a_page_turn_is_two_pages_of_the_story() -> None:
+    assert drop_doubled_pages(["Oh, no!", "OH, NO!"]) == ["Oh, no!", "OH, NO!"]
+    pages = ["Oh, no!", "OH, NO!", "Timmi ha insegnato al cane a stare in piedi.", "E a pensare."]
+    assert drop_doubled_pages(pages) == pages
 
 
 def test_every_text_box_on_a_page_is_read_and_a_nested_paragraph_once() -> None:
@@ -305,6 +338,33 @@ def test_the_terms_a_catalogue_row_carries(monkeypatch: pytest.MonkeyPatch) -> N
     assert terms.licence_url == "http://creativecommons.org/licenses/by/4.0/"
     assert terms.page == "https://storyweaver.org.in/stories/7686-la-luna-e-il-cappello"
     assert terms.credit.startswith("LA LUNA E IL CAPPELLO, translated by Silvia Lucchin")
+
+
+def test_a_bot_check_is_waited_out_before_it_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A challenge clears in a few minutes. A pilot of twenty-one books met one after
+    twenty-one calls at a second and a half apiece."""
+    slept: list[float] = []
+    answers = iter([None, None, json.dumps(saved(7686))])
+
+    def get(url: str) -> str:
+        answer = next(answers)
+        if answer is None:
+            raise Unreachable("shut", status=403, host="storyweaver.org.in", challenge=True)
+        return answer
+
+    monkeypatch.setattr(storyweaver, "get", get)
+    monkeypatch.setattr(storyweaver.time, "sleep", slept.append)
+    assert StoryWeaverFetcher().load("7686").language == "it"
+    assert slept == list(storyweaver.CHALLENGE_WAITS[:2])
+
+    def shut(url: str) -> str:
+        raise Unreachable("shut", status=403, host="storyweaver.org.in", challenge=True)
+
+    slept.clear()
+    monkeypatch.setattr(storyweaver, "get", shut)
+    with pytest.raises(TargumError, match="bot check"):
+        StoryWeaverFetcher().load("7686")
+    assert slept == list(storyweaver.CHALLENGE_WAITS)
 
 
 def test_a_bot_check_is_named_as_one(monkeypatch: pytest.MonkeyPatch) -> None:
