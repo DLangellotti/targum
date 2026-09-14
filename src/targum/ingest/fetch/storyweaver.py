@@ -336,9 +336,10 @@ def _held(credit: Credit) -> str:
 # Case matters: "CC BY 4.0 license" and "Public Domain Mark by Pratham Books" are both
 # written here, and the licence's BY is in capitals where the publisher's by is not.
 _RELEASED = re.compile(r"Released under (?!licen[cs]e\b)(.+?)(?:\s+licen[cs]e\b|\s+by\s|\.?\s*$)")
-_HELD = re.compile(r"©\s*(?:for this translation lies with\s*)?(.+?)\s*,\s*(\d{4})")
-_TITLE = re.compile(r"This story:\s*(.+?)\s+is\s+(written|translated|adapted|illustrated)\b")
-_QUOTED = re.compile(r"'\s*(.+?)\s*'")
+# "The © for this translation lies with", and once in the Italian, "for this re-level".
+_HELD = re.compile(r"©\s*(?:for this [\w -]+? lies with\s*)?(.+?)\s*,\s*(\d{4})")
+# `written`, `translated`, and whatever else the page says was done: `re-levelled`.
+_MADE = re.compile(r"\bis\s+([\w-]+)\s+by\b")
 _STORY_LINK = re.compile(r"/stories/(\d+)")
 
 #: The footer links the licence it states. A Creative Commons licence is named the way
@@ -377,28 +378,28 @@ def _people(span: Any) -> tuple[str, ...]:
 
 
 def _credit(span: Any, *, own: bool) -> Credit:
+    """One story's line on the attribution page.
+
+    Titles are read from the markup rather than the sentence around them. The page quotes
+    a title in apostrophes, and "It's All the Cat's Fault!" was read as `It`.
+    """
     text = _clean(span.get_text(" "))
     held = _HELD.search(text)
+    linked = [a for a in span.find_all("a") if _STORY_LINK.search(str(a.get("href") or ""))]
     if own:
-        titled = _TITLE.search(text)
-        title, made = (titled.group(1), titled.group(2)) if titled else ("", "")
+        named = span.find("span")
+        made = _MADE.search(text)
+        title = _clean(named.get_text("")) if named is not None else ""
         story = None
     else:
-        quoted = _QUOTED.search(text)
-        title, made = (quoted.group(1) if quoted else ""), ""
-        linked = next(
-            (
-                _STORY_LINK.search(a.get("href") or "")
-                for a in span.find_all("a")
-                if _STORY_LINK.search(a.get("href") or "")
-            ),
-            None,
-        )
-        story = int(linked.group(1)) if linked else None
+        title = _clean(linked[0].get_text("")) if linked else ""
+        made = None
+        found = _STORY_LINK.search(str(linked[0].get("href") or "")) if linked else None
+        story = int(found.group(1)) if found else None
     return Credit(
         title=title,
         names=_people(span),
-        made=made,
+        made=made.group(1) if made else "",
         holder=held.group(1) if held else "",
         year=held.group(2) if held else "",
         licence=_released(text),

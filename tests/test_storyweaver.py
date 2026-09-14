@@ -212,6 +212,32 @@ def test_an_original_is_credited_as_written() -> None:
     )
 
 
+def test_a_title_with_an_apostrophe_is_read_whole() -> None:
+    """The page quotes the title in apostrophes: "It's All the Cat's Fault!" came back as
+    `It`, and so did "What's in the Pot?" and "There's a Hole in my Galaxy"."""
+    data = saved(7686)["data"]
+    for page in data["pages"]:
+        page["html"] = page["html"].replace("La lune et la casquette", "C'est la lune d'Annie")
+    parent = attribution(data).parent
+    assert parent is not None and parent.title == "C'est la lune d'Annie"
+
+
+def test_a_re_levelled_story_says_so_and_names_who_holds_it() -> None:
+    data = saved(234)["data"]
+    for page in data["pages"]:
+        page["html"] = (
+            page["html"]
+            .replace("is written by", "is re-levelled by")
+            .replace(
+                '© <span class="english">Pratham Books</span>',
+                'The © for this re-level lies with <span class="english">Janani Ganapathi</span>',
+            )
+        )
+    story = attribution(data).story
+    assert story.made == "re-levelled"
+    assert story.holder == "Janani Ganapathi"
+
+
 def _relicensed(number: int, span: str, licence: str) -> dict[str, Any]:
     """A saved book with one credit's terms changed, the way a real page states them."""
     data = saved(number)["data"]
