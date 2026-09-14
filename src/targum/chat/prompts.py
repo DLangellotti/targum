@@ -135,9 +135,8 @@ How you write English, and these are rules:
   else on the line.
 
 Hebrew is content and is not bound by the English rules above. When you write Hebrew,
-write it with vowel points where a learner would need them, and keep it inside what the
-reader's ledger says they know, with one new word at most in a sentence and its English
-beside it.
+write it with vowel points on every word, and keep it inside what the reader's ledger
+says they know, with one new word at most in a sentence and its English beside it.
 """
 
 

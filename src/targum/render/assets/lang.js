@@ -54,8 +54,9 @@
   function remember(code) {
     set(code);
     if (window.TargumSync && typeof window.TargumSync.language === "function") {
-      window.TargumSync.language(code);
+      return window.TargumSync.language(code);
     }
+    return null;
   }
 
   function into(code) {
@@ -184,6 +185,31 @@
       '<path d="M8.2 7.75H9.8M8.2 5.1Q9 5.9 9.8 5.1" fill="none" stroke="#3a3a3a" stroke-width="0.3"/>',
   };
 
+  /* Each language in its own name as well as English's (2026-09-14): a Russian reader
+   * choosing what their translations are in was offered "Russian". The English name
+   * leads, because the chrome is English; the language's own follows, in its own face. */
+  var NATIVE = {
+    he: ["עברית", "rtl"],
+    arc: ["ארמית", "rtl"],
+    yi: ["ייִדיש", "rtl"],
+    fr: ["Français", "ltr"],
+    it: ["Italiano", "ltr"],
+    ru: ["Русский", "ltr"],
+    en: ["English", "ltr"],
+  };
+
+  function native(code) {
+    var key = String(code || "").split("-")[0].toLowerCase();
+    var own = NATIVE[key];
+    if (!own) return null;
+    var span = document.createElement("bdi");
+    span.className = "lang-native";
+    span.setAttribute("lang", key);
+    span.setAttribute("dir", own[1]);
+    span.textContent = own[0];
+    return span;
+  }
+
   function flag(code) {
     var box = document.createElement("span");
     box.className = "lang-flag";
@@ -287,7 +313,14 @@
     var panel = document.createElement("div");
     panel.className = "lang-panel";
     panel.setAttribute("role", "menu");
+    panel.setAttribute("aria-label", "The language you're learning");
     panel.hidden = true;
+    // What the menu changes, said at its head (2026-09-14): not the language the pages
+    // are written in, and not the one the translations are in.
+    var head = document.createElement("p");
+    head.className = "lang-head";
+    head.textContent = "You're learning";
+    panel.appendChild(head);
     all.forEach(function (code) {
       var item = document.createElement("button");
       item.type = "button";
@@ -298,6 +331,8 @@
       named.className = "lang-item";
       named.appendChild(flag(code));
       named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
+      var own = native(code);
+      if (own && own.textContent !== (names[code] || "")) named.appendChild(own);
       item.appendChild(named);
       if (tag(code)) {
         var mark = document.createElement("span");
@@ -308,8 +343,7 @@
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
-        remember(code);
-        onPick(code);
+        onPick(code, remember(code));
       });
       panel.appendChild(item);
     });
@@ -377,8 +411,15 @@
     if (!host || host.children.length) return;
     var codes = learning();
     var names = window.TARGUM_LANGUAGES || {};
-    switcher(host, codes, names, current(codes), function () {
-      window.location.reload();
+    // Reloaded once the account has the new language, not before: the page asks the
+    // server for this language's conversations, and a reload that raced the save was
+    // answered in the old one and drew an empty list (2026-09-14).
+    switcher(host, codes, names, current(codes), function (code, saved) {
+      var reload = function () {
+        window.location.reload();
+      };
+      if (saved && typeof saved.then === "function") saved.then(reload, reload);
+      else reload();
     });
   }
   if (typeof document !== "undefined" && document.addEventListener) {
@@ -410,5 +451,6 @@
     order: order,
     switcher: switcher,
     betaNote: betaNote,
+    native: native,
   };
 })();

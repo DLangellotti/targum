@@ -20,6 +20,11 @@ const stored = {};
 if (payload.follows) stored["targum:follows"] = JSON.stringify(payload.follows);
 if (payload.seen) stored["targum:series-seen"] = JSON.stringify(payload.seen);
 install({ TARGUM_KEY: "k", stored });
+// The day the fixtures were written about, so "new for a week" is decided by them and
+// not by the day the suite happens to run.
+global.window.TargumClock = Object.assign({}, global.window.TargumClock, {
+  now: () => Date.parse(payload.now || "2026-09-14T12:00:00Z"),
+});
 
 const asked = [];
 global.fetch = (url, options) => {

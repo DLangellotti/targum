@@ -180,7 +180,9 @@
 
   function drawEnglishToggle() {
     if (!englishToggle) return;
-    englishToggle.textContent = englishOpen ? "Hide English" : "Show English";
+    // "Translations", not "English": the line under the Hebrew is in whichever language
+    // the reader reads into, Russian as often as English (2026-09-14).
+    englishToggle.textContent = englishOpen ? "Hide translations" : "Show translations";
     englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
     englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
   }
@@ -304,7 +306,9 @@
 
   // A Hebrew run is marked as one, so the stylesheet can give it its own leading and
   // the browser can shape it right-to-left inside an English line.
-  var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'־׀׃-]*[֐-׿]|[֐-׿]/g;
+  // Numbers and gershayim stay inside the run (2026-09-14): stopped at a digit, "פרק 3
+  // של ספר" was two runs, and an English line put the halves in the wrong order.
+  var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
   var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
   var ONLY_PATH = /^\/(?:reader|library)\/\S+$/;
@@ -461,7 +465,7 @@
           // A tap on the pair — not on a word, which has a card of its own — opens
           // or folds its English. Reachable from a keyboard as a control is.
           pair.setAttribute("tabindex", "0");
-          pair.setAttribute("title", "The English");
+          pair.setAttribute("title", "The translation");
           pair.onclick = function (event) {
             var hit = event && event.target;
             if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
@@ -652,6 +656,11 @@
       return;
     }
     if (!text) return;
+    // Kept in the box while an answer is still coming, or while the conversation cannot
+    // answer: the line used to be cleared first and then dropped without a word
+    // (2026-09-14).
+    if (busy) return tell("We're still answering. Send it when the answer is in.");
+    if (!usable) return say(text);
     field.value = "";
     say(text);
   }
@@ -838,6 +847,11 @@
       var title = document.createElement("span");
       title.className = "chat-title";
       title.textContent = chat.title || "Untitled";
+      // The first thing somebody typed, in whichever language they typed it: its own
+      // direction, so a Hebrew title clips at its end and not at its first word
+      // (2026-09-14), and its own language where the conversation says what it was.
+      title.setAttribute("dir", "auto");
+      if (chat.title && /[\u0590-\u05FF]/.test(chat.title)) title.setAttribute("lang", "he");
       button.appendChild(title);
       var when = document.createElement("span");
       when.className = "chat-when";

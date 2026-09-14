@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Add — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
@@ -20,7 +20,7 @@
   <h1 class="lede">Add</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
-  <p class="hint">We may already have it in
+  <p class="hint">It may already be in the
     <a class="to-library" href="/library">Library</a>.</p>
 
   {% if no_key %}
@@ -36,8 +36,8 @@
   <section class="bring" aria-label="What to add">
     <div class="drop" id="drop">
       <ul class="given-files" id="given-files" hidden></ul>
+      <label class="given-label" for="given">What would you like to read?</label>
       <textarea id="given" rows="2" dir="auto" spellcheck="false" aria-describedby="understood"
-                aria-label="A link, some Hebrew, or what you want to read"
                 placeholder="Paste a link or some Hebrew, drop a file, or say what you want"></textarea>
       <p class="understood" id="understood" aria-live="polite">We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.</p>
     </div>
@@ -49,7 +49,9 @@
           looking for a text by describing it is a turn of conversation, metered like one,
           and the reader's own press sends it. -#}
       <button type="button" id="ask-targum" class="bring-ask" hidden>Ask targum</button>
-      <button type="button" id="go" class="go">Continue</button>
+      {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
+          the button went on offering, and a press only repeated the notice. -#}
+      <button type="button" id="go" class="go"{% if no_key %} disabled{% endif %}>Continue</button>
     </div>
   </section>
 
@@ -77,7 +79,7 @@
             </select>
           </label>
           <label class="field short">
-            <span>Translate into</span>
+            <span>Translations in</span>
             {# No `selected` here: which language you read into is a choice you have
                already made, and `add.js` restores it. Marking the first one selected made
                the page forget it on every visit, which for anyone who reads into anything
@@ -111,7 +113,7 @@
             <button type="button" id="unchoose-translation" class="unchoose" hidden>Something else</button>
           </div>
           <label class="field">
-            <textarea id="pasted-translation" rows="3" spellcheck="false"
+            <textarea id="pasted-translation" rows="3" dir="auto" spellcheck="false"
                       placeholder="Or paste the translation"></textarea>
           </label>
         </div>

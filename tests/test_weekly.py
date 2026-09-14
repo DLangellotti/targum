@@ -192,7 +192,7 @@ def test_an_edition_says_how_it_was_made(weekly_root: Path) -> None:
 def test_every_edition_carries_its_level_in_the_title(weekly_root: Path) -> None:
     titles = {entry.id: entry.title for entry in entries.entries()}
     assert titles["weekly-2026-w36-aleph"].endswith("Easy · 1,000 words")
-    assert titles["weekly-2026-w36-gimel"].endswith("Real Hebrew · 5,000+ words")
+    assert titles["weekly-2026-w36-gimel"].endswith("Native · 5,000+ words")
 
 
 def test_editions_are_measured_like_any_other_text(weekly_root: Path) -> None:
@@ -268,7 +268,8 @@ def test_the_byline_rides_on_the_document(weekly_root: Path) -> None:
     """So the marking is drawn by machinery that already exists and cannot be lost by
     a change to a template."""
     document = fetch.load("weekly:2026-w36-aleph")
-    assert document.author == entries.BYLINE_HE
+    # The fixture was written before the byline changed (2026-09-14); both are bylines.
+    assert document.author in entries.BYLINES_HE
     assert document.blocks[1].kind is BlockKind.byline
 
 

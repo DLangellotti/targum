@@ -350,7 +350,8 @@ def test_the_wrong_script_names_the_language_chosen(browser) -> None:
     context.close()
 
     assert said == (
-        "You're adding Russian, and this isn't in Cyrillic letters. Choose its language at the top."
+        "You're adding Russian, and this isn't in Cyrillic letters. "
+        "Choose its language under Change."
     ), said
 
 
@@ -917,7 +918,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
             "reader": "x/reader/index.html",
         },
         {"id": "words", "line": "Use my new words"},
-        {"id": "stuck", "line": "Explain a word I am stuck on"},
+        {"id": "stuck", "line": "Explain a word I'm stuck on"},
     ]
     readers = [
         {

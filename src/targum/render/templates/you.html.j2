@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>You — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
@@ -26,12 +26,22 @@
       <div class="who-what">
         <label class="field">
           <span>Name</span>
-          <input type="text" id="you-name" maxlength="60" autocomplete="name"
+          <input type="text" id="you-name" dir="auto" maxlength="60" autocomplete="name"
                  placeholder="What should we call you?" spellcheck="false">
         </label>
         <p class="you-email" id="you-email"></p>
       </div>
     </div>
+    {#- How the conversation says "you" in Hebrew (2026-09-14). Every second person and
+        every present-tense "I" in Hebrew has a gender, and nikkud makes it visible; a
+        conversation that guessed once rewrote a man's sentence into the feminine and
+        called it a correction. -#}
+    <fieldset class="address" id="you-address">
+      <legend>In Hebrew, targum calls you</legend>
+      <label><input type="radio" name="address" id="address-m" value="m"> <bdi lang="he" dir="rtl">אַתָּה</bdi></label>
+      <label><input type="radio" name="address" id="address-f" value="f"> <bdi lang="he" dir="rtl">אַתְּ</bdi></label>
+      <label><input type="radio" name="address" id="address-either" value=""> Either</label>
+    </fieldset>
     <p class="said" id="you-said" hidden></p>
   </section>
 
@@ -46,10 +56,10 @@
       <span class="tick-list" id="you-learning" role="group" aria-labelledby="learning-label"></span>
     </div>
     <div class="ticks">
-      <span class="ticks-label" id="reads-label">Reading into</span>
+      <span class="ticks-label" id="reads-label">Translations in</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
-    <p class="note">You lose nothing when you untick one.</p>
+    <p class="note">Hebrew is always on. Everything else is experimental, and you lose nothing when you untick one.</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
@@ -78,7 +88,12 @@
     <div class="row">
       <a class="go-quiet" id="you-export" href="/account/export">Download your words</a>
       <button type="button" class="go-quiet" id="you-out">Sign out</button>
+    </div>
+    {#- On a row of its own, in clay (2026-09-14): it stood beside Download and Sign out in
+        the same quiet pill, three presses that looked alike and were nothing alike. -#}
+    <div class="row ending-row">
       <button type="button" class="go-quiet danger" id="you-forget">Delete account</button>
+      <button type="button" class="go-quiet" id="you-keep" hidden>Keep my account</button>
     </div>
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
@@ -94,10 +109,14 @@
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
+{#- The language menu stands in the bar here too, so the bar does not move between pages
+    (2026-09-14). -#}
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_READING = {{ reading|tojson }};
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_REQUIRED = {{ required|tojson }};
 </script>
+<script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('you.js') }}</script>

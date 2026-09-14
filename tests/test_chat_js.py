@@ -245,7 +245,10 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
-    assert page["hours"] == "You've used 6.5 of your 8 hours this month. They reset on 1 October."
+    assert (
+        page["hours"]
+        == "You've used 6 hours 30 minutes of your 8 hours this month. They reset on 1 October."
+    )
     assert not page["hoursHidden"]
     quiet = run(
         answers={
@@ -1045,7 +1048,7 @@ def test_the_english_is_folded_under_the_hebrew_and_the_recast_is_open() -> None
     page = said(ledger=KNOWN)
     assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
     assert [p["recast"] for p in page["pairs"]] == [True, False, False]
-    assert not page["english"]["hidden"] and page["english"]["text"] == "Show English"
+    assert not page["english"]["hidden"] and page["english"]["text"] == "Show translations"
 
 
 def test_a_reader_with_no_known_words_sees_the_english_open() -> None:
@@ -1064,7 +1067,7 @@ def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
 def test_show_english_opens_all_of_it_and_is_remembered() -> None:
     page = said(ledger=KNOWN, then=[{"type": "english"}])
     assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
-    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide English"
+    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide translations"
     assert page["english"]["kept"] == "open"
     remembered = said(ledger=KNOWN, stored={"targum:chat-english": "open"})
     assert [p["enHidden"] for p in remembered["pairs"]] == [False, False, False]
@@ -1324,7 +1327,7 @@ def test_a_line_in_the_frame_is_answered_there_and_a_text_is_offered_to_the_page
 def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
     """targum-internal#243, on the page it stands on."""
     page = run(embed=True, language="ru-RU", answers={"/chat/list": TWO})
-    assert page["first"]["ask"] == "Отвечать по-русски?" and not page["first"]["hidden"]
+    assert page["first"]["ask"] == "Переводы на русском?" and not page["first"]["hidden"]
     yes = run(
         embed=True,
         language="ru-RU",
@@ -1358,7 +1361,7 @@ def test_the_chips_start_with_a_verb() -> None:
             {"line": "Use my new words"},
             {"line": "Show me what I know"},
             {"line": "Read today's news"},
-            {"line": "Explain a word I am stuck on"},
+            {"line": "Explain a word I'm stuck on"},
         ]
     ]
     assert all(

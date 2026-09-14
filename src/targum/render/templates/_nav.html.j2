@@ -43,13 +43,13 @@
           pixels, a stroke at 1.4, round caps. -#}
       <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>Learn</span></a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>Library</span></a>
-      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span>Your Progress</span></a>
+      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span><span class="nav-your">Your </span>Progress</span></a>
       <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>Add</span></a>
     </nav>
     {#- Which language (design.md §13, 2026-09-13): one menu at the end of the places on
         every desk page that reads in a language, filled by `lang.js`. Hidden until the
         reader learns more than one: a menu with one thing in it asks nothing. -#}
-    {%- if here in ('learn', 'chat', 'library', 'progress', 'add') %}
+    {%- if here in ('learn', 'chat', 'library', 'progress', 'add', 'yours', 'you') %}
     <div class="langs" id="langs" hidden></div>
     {%- endif %}
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
@@ -139,7 +139,7 @@
     a conversation, and one press that goes there. Drawn by `palette.js`. -#}
 <div class="palette-scrim" id="palette-scrim" hidden></div>
 <div class="palette" id="palette" role="dialog" aria-label="Find anything" hidden>
-  <input type="search" id="palette-find" class="palette-find" placeholder="Find a text, a page, a conversation" autocomplete="off" spellcheck="false">
+  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="Find a text, a page, a conversation" autocomplete="off" spellcheck="false">
   <ul class="palette-list" id="palette-list" role="listbox"></ul>
 </div>
 <script>{{ asset('palette.js') }}</script>

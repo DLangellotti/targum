@@ -82,7 +82,8 @@ def test_the_file_is_written_in_the_home_and_read_as_turns_with_speakers(
     path, kept, dropped = transcript.write(store, home, chat_id, "Dov")
     assert path == home / "chats" / f"{chat_id}.chat" and kept == 5 and dropped == 1
     written = json.loads(path.read_text(encoding="utf-8"))
-    assert written["language"] == "he" and written["title"] == "I went to the market this morning"
+    # Titled by its first Hebrew line, not by the English the reader typed (2026-09-14).
+    assert written["language"] == "he" and written["title"].startswith("הָלַכְתִּי")
 
     document = ingest_load(str(path))
     assert document.language == "he" and document.ingester == transcript_ingest.NAME

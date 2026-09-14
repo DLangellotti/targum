@@ -123,3 +123,32 @@
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+
+/* How the conversation addresses you in Hebrew (2026-09-14): three answers in a row, the
+   Hebrew in its own face at the size of the words beside it. */
+.address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.address legend {
+  float: inline-start;
+  margin-inline-end: 0.6rem;
+  padding: 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.address label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9375rem; color: var(--ink); cursor: pointer; }
+.address bdi { font-size: 1.0625rem; line-height: 1.4; }
+.address input { accent-color: var(--teal); }
+@media (hover: none) and (pointer: coarse) {
+  .address label { min-block-size: 44px; }
+}
+
+/* Delete, apart and in words of its own colour: §4 keeps clay for what cannot be undone. */
+.ending-row { margin-block-start: 0.9rem; }
+.go-quiet.danger { color: var(--clay); }

@@ -139,7 +139,7 @@ def test_both_directions_are_explicit(rendered: Path) -> None:
     html = rendered.read_text(encoding="utf-8")
     assert 'class="src plain" data-form="plain" lang="he" dir="rtl"' in html
     assert 'class="tr" lang="en" dir="ltr"' in html
-    assert '<html lang="he" dir="rtl">' in html
+    assert '<html lang="en" dir="rtl" data-language="he">' in html
 
 
 def test_layout_uses_logical_properties_only(rendered: Path) -> None:
@@ -920,7 +920,7 @@ def test_the_list_offers_an_anki_deck_beside_the_spreadsheet(tmp_path: Path) -> 
     assert "function exportAnki()" in script
     assert "function ankiText(name, cards)" in script
     # The same offer as the CSV's: nothing to hand over is not worth offering.
-    assert "ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0" in script
+    assert "ankiButton.disabled = nothing" in script and "ankiButton.hidden = nothing" in script
     # The vowels without the chant: a Masoretic text is learned unaccented.
     assert "cells.unaccented[segmentId] || cells.pointed[segmentId]" in script
 
@@ -4842,7 +4842,7 @@ def test_a_turn_with_no_recording_still_names_its_speaker(tmp_path: Path) -> Non
     )
     html = render(document, segmented, [translation], tmp_path / "r")[0].read_text(encoding="utf-8")
     assert 'data-speaker="אמא"' in html
-    assert '<span class="who" aria-hidden="true">אמא</span>' in html
+    assert '<span class="who" lang="he">אמא</span>' in html
 
 
 # --- several renderings (targum-internal#199) ---------------------------------

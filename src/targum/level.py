@@ -209,6 +209,8 @@ class Level:
     ladder: str = "Ulpan level"
     #: Known words among the commonest, for a ladder that counts those.
     common: int = 0
+    #: How the reader wants to be addressed in Hebrew: 'm', 'f', or '' for not said.
+    address: str = ""
 
     def state(self) -> dict[str, Any]:
         return {
@@ -271,6 +273,7 @@ def snapshot(
         texts=int(activity.get("texts") or 0),
         ladder=ladder.title if ladder else "",
         common=among,
+        address=store.address(person_id) if hasattr(store, "address") else "",
     )
 
 
@@ -292,6 +295,28 @@ def describe(level: Level) -> str:
         "Never tell the reader they are 'at a level' or name the rung as a placement — it is "
         "a guide from self-reported words, not a placement and not a test. Quote the real "
         "counts instead."
+        f"{_address_sentence(level.address)}"
+    )
+
+
+def _address_sentence(address: str) -> str:
+    """How to say "you" to this reader in Hebrew, and how to point their "I" (2026-09-14).
+
+    A recast once turned a man's unpointed רוצה into רוֹצָה and labelled it corrected; the
+    same reply then called him אַתָּה. Nothing had told the model either way."""
+    if address == "m":
+        return (
+            " Address the reader as a man (אַתָּה, רוֹצֶה, שֶׁלְּךָ), and point their own "
+            "first-person present in the masculine."
+        )
+    if address == "f":
+        return (
+            " Address the reader as a woman (אַתְּ, רוֹצָה, שֶׁלָּךְ), and point their own "
+            "first-person present in the feminine."
+        )
+    return (
+        " The reader has not said how to be addressed in Hebrew: use forms that do not "
+        "choose a gender, and keep the gender of their own words in a recast."
     )
 
 

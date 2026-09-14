@@ -206,3 +206,23 @@ def test_known_share_is_fast_enough_to_ask_at_quote_time() -> None:
     start = time.perf_counter()
     level.known_share(text, forms)
     assert time.perf_counter() - start < 0.05
+
+
+def test_the_chat_is_told_how_to_address_the_reader_in_hebrew(tmp_path: Path) -> None:
+    """A recast turned a man's unpointed רוצה into רוֹצָה and called it corrected, and the
+    same reply called him אַתָּה (2026-09-14). Nothing had told the model either way: now
+    the account says, and a reader who has not said is addressed without a guess."""
+    store = Store(tmp_path / "words.db")
+    store.start_sign_in("reader@example.com")
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+    assert store.address(person.id) == ""
+    assert "do not choose a gender" in level.describe(level.snapshot(store, person.id, "he"))
+    store.set_address(person, "f")
+    assert store.profile(person)["address"] == "f"
+    said = level.describe(level.snapshot(store, person.id, "he"))
+    assert "as a woman" in said and "אַתְּ" in said
+    store.set_address(person, "m")
+    assert "as a man" in level.describe(level.snapshot(store, person.id, "he"))
+    with pytest.raises(ValueError):
+        store.set_address(person, "x")

@@ -63,11 +63,18 @@
     return "";
   }
 
+  // A title inside an English line, isolated (U+2068 … U+2069): unisolated, a Hebrew
+  // title took the words beside it into its own direction, and a question mark at its
+  // end jumped to the other side of the line (2026-09-14).
+  function iso(text) {
+    return "\u2068" + text + "\u2069";
+  }
+
   function line(job) {
     // The English first where there is one: this line is read by somebody waiting, and
     // a title they can read is the one that tells them which build this is.
-    var title = job.title || "your text";
-    if (job.english) title = job.english + " · " + title;
+    var title = job.title ? iso(job.title) : "your text";
+    if (job.english) title = iso(job.english) + " · " + title;
     if (job.stage === "done") return title + " is ready.";
     if (job.stage === "failed") return title + ": " + (job.error || "we couldn't get it ready.");
     if (job.stage === "blocked") return title + ": " + (job.blocked || "we can't do this one right now.");
@@ -273,8 +280,8 @@
     .then(function (got) {
       ((got && got.chats) || []).forEach(function (chat) {
         if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        note("chat:" + chat.id + ":" + chat.answered, "We replied: " + (chat.title || "your conversation"), {
-          label: "Read",
+        note("chat:" + chat.id + ":" + chat.answered, "New reply in " + (chat.title ? iso(chat.title) : "your conversation"), {
+          label: "Open",
           action: function () {
             if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
             else window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
@@ -331,7 +338,7 @@
     window.TargumFollow.list().then(function (series) {
       window.TargumFollow.fresh(series).forEach(function (one) {
         var inst = one.instalment;
-        note("series:" + one.id + ":" + inst.id, one.name + ": " + (inst.hebrew || inst.title), {
+        note("series:" + one.id + ":" + inst.id, one.name + ": " + iso(inst.hebrew || inst.title), {
           href: keyed(one.page || window.TargumFollow.readerOf(one)),
           label: "Open",
         });

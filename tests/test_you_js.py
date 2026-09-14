@@ -65,7 +65,7 @@ def test_the_page_fills_itself_in_for_whoever_is_signed_in() -> None:
     assert page["name"] == "Yosef Cohen"
     assert page["email"] == "yosef@example.com"
     assert page["avatar"] == "YC"
-    assert page["kept"] == "512 words, 24 phrases"
+    assert page["kept"] == "512 words and 24 phrases, across all your languages."
 
 
 def test_typing_a_name_is_one_request_and_not_one_per_keystroke() -> None:
@@ -92,16 +92,17 @@ def test_a_refused_name_says_so_rather_than_claiming_it_saved() -> None:
 def test_every_language_is_drawn_with_its_stage_and_the_account_ticked() -> None:
     """This is the page where somebody says what they read, so a language missing from
     it would be a question they had no way to answer. Hebrew is drawn on and cannot be
-    pressed off in this version; the experimental ones say so on the box."""
+    pressed off in this version. Which are experimental is said once, in the note under
+    the lists, rather than on five boxes of six (2026-09-14)."""
     page = run(who={**SIGNED_IN, "learning": ["he", "yi"], "reads": ["en", "ru"]})
     assert page["learning"] == [
         {"code": "he", "on": True, "fixed": True, "experimental": False},
-        {"code": "arc", "on": False, "fixed": False, "experimental": True},
-        {"code": "yi", "on": True, "fixed": False, "experimental": True},
+        {"code": "arc", "on": False, "fixed": False, "experimental": False},
+        {"code": "yi", "on": True, "fixed": False, "experimental": False},
     ]
     assert page["reads"] == [
         {"code": "en", "on": True, "fixed": False, "experimental": False},
-        {"code": "ru", "on": True, "fixed": False, "experimental": True},
+        {"code": "ru", "on": True, "fixed": False, "experimental": False},
     ]
 
 
@@ -165,7 +166,7 @@ def test_the_corner_is_told_when_the_name_changes() -> None:
 def test_deleting_an_account_asks_twice() -> None:
     once = run(do=[{"type": "press", "id": "you-forget"}])
     assert once["posted"] == [], "the first press asks; it does not delete"
-    assert once["forget"]["label"] == "Delete for good?"
+    assert once["forget"]["label"] == "Delete my account and words"
     assert once["forget"]["disabled"] is False
 
     twice = run(

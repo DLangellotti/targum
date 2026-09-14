@@ -32,7 +32,9 @@
   //: The question and its two answers, in the language it asks about. A language with
   //: no line of its own here is asked in English, by its name.
   var COPY = {
-    ru: { ask: "Отвечать по-русски?", yes: "Да, по-русски", no: "English" },
+    // "Переводы на русском?" and not "Отвечать по-русски?": what the answer changes is
+    // the line under each Hebrew one, and the conversation stays in Hebrew (2026-09-14).
+    ru: { ask: "Переводы на русском?", yes: "Да, на русском", no: "English" },
   };
 
   function remembered(name) {
@@ -74,13 +76,19 @@
       return;
     }
     var copy = COPY[code] || {
-      ask: "Answers in " + (names[code] || code) + "?",
+      ask: "Translations in " + (names[code] || code) + "?",
       yes: names[code] || code,
       no: "English",
     };
     ask.textContent = copy.ask;
     yes.textContent = copy.yes;
     no.textContent = copy.no;
+    // The question and its yes are in the language they ask about, and say so, so a screen
+    // reader reads Russian in a Russian voice (2026-09-14).
+    var spoken = COPY[code] ? code : "en";
+    ask.setAttribute("lang", spoken);
+    yes.setAttribute("lang", spoken);
+    no.setAttribute("lang", "en");
     yes.onclick = function () {
       answer(code);
     };

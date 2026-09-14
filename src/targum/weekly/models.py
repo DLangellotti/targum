@@ -115,7 +115,13 @@ LEVELS: dict[Level, LevelSpec] = {
     Level.aleph: LevelSpec(name="Easy", written_for=1000, band=(5, 15), sentence=(4, 9.5)),
     Level.bet: LevelSpec(name="Simplified", written_for=3000, band=(7, 20), sentence=(9, 14)),
     Level.gimel: LevelSpec(
-        name="Real Hebrew", written_for=5000, open_ended=True, band=(14, 28), sentence=(12.5, 26)
+        # "Native", not "Real Hebrew": the other two editions are real Hebrew too, and a
+        # learner reading one should not be told otherwise (2026-09-14).
+        name="Native",
+        written_for=5000,
+        open_ended=True,
+        band=(14, 28),
+        sentence=(12.5, 26),
     ),
 }
 

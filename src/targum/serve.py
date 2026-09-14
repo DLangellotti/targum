@@ -52,6 +52,7 @@ from .render.builder import (
     holding_page,
     legal_is_public,
     legal_page,
+    not_found_page,
     parasha_page,
     shelf_page,
     signin_page,
@@ -1134,11 +1135,14 @@ class Library:
                 return
             path = "/".join(quote(part) for part in job.reader.split("/"))
             link = f"{self.address}/reader/{path}" if self.address else ""
-            title = job.title or job.source
+            # English first, the title isolated (U+2068 … U+2069): a subject that began
+            # with a Hebrew title took "is ready" into its direction and showed as
+            # "is ready בראשית" in a mail client (2026-09-14).
+            title = f"\u2068{job.title or job.source}\u2069"
             self.mailer.notify(
                 person.email,
-                f"{title} is ready",
-                f"{title} is ready to read.\n\n{link}\n".rstrip() + "\n",
+                f"Ready to read: {title}",
+                f"Ready to read: {title}\n\n{link}\n".rstrip() + "\n",
             )
 
     def enqueue(self, job: Job) -> None:
@@ -1246,7 +1250,9 @@ class Library:
         """When this month's allowance comes back, as a date a refusal can name."""
         today = datetime.now(UTC)
         year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
-        return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
+        # Month first, as every other date in the product is written ("Monday, September
+        # 14" on Learn); "1 October" beside it was a second convention on one screen.
+        return datetime(year, month, 1, tzinfo=UTC).strftime("%B %-d")
 
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
@@ -2948,6 +2954,39 @@ class Handler(BaseHTTPRequestHandler):
             return everything
         return self.store.learning(who.id) & everything
 
+    #: Every address a person can be looking at, or that a page asks for data from.
+    #: Anything else is not a page, and says so rather than answering "Coming soon".
+    PAGES = frozenset(
+        {
+            "/",
+            "/add",
+            "/chat",
+            "/progress",
+            "/library",
+            "/you",
+            "/readers",
+            "/suggest",
+            "/series",
+            "/words/common",
+            "/jobs",
+            "/account/export",
+            "/account/follows",
+        }
+    )
+    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/")
+
+    def _is_a_page(self, route: str) -> bool:
+        return (
+            route in self.PAGES
+            or route.lstrip("/") in self.lists
+            or route.startswith(self.PAGE_PREFIXES)
+        )
+
+    def _not_found(self) -> None:
+        """A page that is not there, said as a page (2026-09-14): a bare `not found` in
+        plain text, or the holding page with a 200, were both a dead end."""
+        self._send(404, not_found_page().encode("utf-8"), HTML)
+
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
 
@@ -4055,6 +4094,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(
                     {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
                 )
+            if not self._is_a_page(route):
+                return self._not_found()
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
@@ -4188,7 +4229,7 @@ class Handler(BaseHTTPRequestHandler):
                 if job
                 else {"error": "We lost that build when we restarted. Start it again."}
             )
-        self._send(404, b"not found", "text/plain")
+        self._not_found()
 
     def _post(self) -> None:
         route = urlparse(self.path).path
@@ -4284,6 +4325,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._sync(payload)
         if route == "/account/name":
             return self._rename(payload)
+        if route == "/account/address":
+            return self._address(payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -4338,7 +4381,11 @@ class Handler(BaseHTTPRequestHandler):
             if store.chat_owned(person_id, chat_id) is None:
                 return self._json({"error": "not found"}, 404)
             if pieces[0] == "turn":
-                return self._json(self._chat_turn_state(chat_id, n))
+                state = self._chat_turn_state(chat_id, n)
+                if state.get("done"):
+                    # A page polling rather than streaming saw the answer too.
+                    store.chat_opened(chat_id)
+                return self._json(state)
             if pieces[0] == "audio":
                 return self._chat_audio(chat_id, n, person)
             return self._chat_stream(chat_id, n)
@@ -4497,6 +4544,7 @@ class Handler(BaseHTTPRequestHandler):
                 kind = "error" if state["error"] else "done"
                 payload = {"message": state["error"]} if state["error"] else {"text": state["text"]}
                 self._chat_event(0, kind, json.dumps(payload, ensure_ascii=False))
+                self._chat_seen(chat_id)
                 return
             while True:
                 fresh, closed = feed.wait(after, self.STREAM_PATIENCE_S)
@@ -4504,12 +4552,22 @@ class Handler(BaseHTTPRequestHandler):
                     self._chat_event(index, kind, data)
                     after = index + 1
                 if closed and after >= len(feed.events):
+                    # The whole answer reached a page that was showing it, so it is not
+                    # news. Every reply used to ring the bell as "We replied: …" though
+                    # the reader had watched it arrive (2026-09-14).
+                    self._chat_seen(chat_id)
                     return
                 if not fresh:
                     self.wfile.write(b": still here\n\n")
                     self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
+
+    def _chat_seen(self, chat_id: str) -> None:
+        """An answer was delivered to a page that was open on it."""
+        store = getattr(self.chats, "store", None)
+        if store is not None:
+            store.chat_opened(chat_id)
 
     def _chat_event(self, index: int, kind: str, data: str) -> None:
         lines = "".join(f"data: {line}\n" for line in data.split("\n"))
@@ -5053,6 +5111,17 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "name": stored}
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _address(self, payload: dict[str, Any]) -> None:
+        """How the conversation addresses them in Hebrew (2026-09-14)."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            stored = self.store.set_address(person, str(payload.get("address") or ""))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "address": stored})
 
     def _languages(self, payload: dict[str, Any]) -> None:
         """What they are learning and what they read into, from the profile page.
@@ -6121,7 +6190,7 @@ class Handler(BaseHTTPRequestHandler):
                     query = urlparse(self.path).query
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
-        return self._send(404, b"not found", "text/plain")
+        return self._not_found()
 
 
 def _spelled_like(root: Path, folder: str) -> str | None:

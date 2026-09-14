@@ -58,6 +58,9 @@
     // corner anyway. Two letters do, and they are the same two whatever the window.
     open.className = "avatar";
     open.title = who.name ? who.name + " — " + who.email : who.email;
+    // Named for what it opens: its text is two initials, and "D" is not a name for a
+    // button to a screen reader (2026-09-14).
+    open.setAttribute("aria-label", "Your account");
     if (who.picture) {
       var image = new Image();
       image.alt = "";
@@ -78,16 +81,26 @@
   // is no cap.
   var hoursLine = document.getElementById("account-hours");
   var ledgerLine = document.getElementById("hours-line");
+  // "50 minutes", "1 hour 5 minutes", "3 hours": the hours as a person says them. "0.83
+  // of 8 hours" was a decimal nobody reads as fifty minutes (2026-09-14).
+  function spoken(hours) {
+    var minutes = Math.round((Number(hours) || 0) * 60);
+    var whole = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    var parts = [];
+    if (whole) parts.push(whole + (whole === 1 ? " hour" : " hours"));
+    if (rest || !whole) parts.push(rest + (rest === 1 ? " minute" : " minutes"));
+    return parts.join(" ");
+  }
   function drawHours(got) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
+    var said = has ? spoken(got.used) + " of your " + spoken(got.allowed) + " used this month" : "";
     if (hoursLine) {
-      hoursLine.textContent = has ? got.used + " of " + got.allowed + " hours this month" : "";
+      hoursLine.textContent = said;
       hoursLine.hidden = !has;
     }
     if (ledgerLine) {
-      ledgerLine.textContent = has
-        ? got.used + " of " + got.allowed + " hours this month" + (got.ends ? " · resets " + got.ends : "")
-        : "";
+      ledgerLine.textContent = said ? said + (got.ends ? " · resets " + got.ends : "") : "";
       ledgerLine.hidden = !has;
     }
   }

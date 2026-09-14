@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>targum</title>
+<title>{% if missing %}Not found — {% endif %}targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('holding.css') }}</style>
 {{ hebrew_face() }}
@@ -27,7 +27,15 @@
   </a>
   {#- A state, not an action, and now it looks like one. As a pill it read as a button
       on a page with nothing else to press, which is a promise the page cannot keep. -#}
+  {%- if missing %}
+  {#- An address that is not a page (2026-09-14). It answered "Coming soon" with a 200,
+      which told a reader with a mistyped link that the whole site was closed, and told a
+      search engine there was a page there. -#}
+  <p class="soon">We can't find that page</p>
+  <p class="missing">It may have moved, or the link may be mistyped. <a href="/library">Go to the library</a>.</p>
+  {%- else %}
   <p class="soon">Coming soon</p>
+  {%- endif %}
 </main>
 
 {#- The way in for anyone curious enough to look. It is an open-source project and the

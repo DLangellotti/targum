@@ -69,7 +69,7 @@ PARASHA = {
 }
 QUIET = {
     "id": "mishna-yomi",
-    "name": "Mishna Yomi",
+    "name": "Mishnah Yomit",
     "what": "Two mishnayot a day.",
     "page": "/mishna-yomi",
     "instalment": None,
@@ -119,6 +119,18 @@ def test_what_is_fresh_is_followed_unseen_and_newest_first() -> None:
     assert seen["fresh"] == ["weekly"], "seen once, not again"
     nobody = run(series=[WEEKLY, PARASHA])
     assert nobody["fresh"] == [], "only what is followed"
+
+
+def test_an_instalment_weeks_old_is_not_news() -> None:
+    """A browser that had never seen the weekly was told an issue three weeks old was
+    "New", in the bell and in Learn's sheet (2026-09-14). Followed and unseen is not the
+    same as new: ten days, and then it is simply the current issue."""
+    later = run(
+        series=[WEEKLY, PARASHA], follows={"weekly": 1, "parasha": 1}, now="2026-09-28T12:00:00Z"
+    )
+    assert later["fresh"] == [], "both are more than ten days old by then"
+    week = run(series=[WEEKLY], follows={"weekly": 1}, now="2026-09-16T12:00:00Z")
+    assert week["fresh"] == ["weekly"], "nine days is still this week's"
 
 
 def test_the_weekly_opens_at_the_lowest_level_for_a_reader_with_no_words() -> None:

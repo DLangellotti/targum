@@ -93,7 +93,10 @@ def write(store: Store, home: Path, chat_id: str, reader: str) -> tuple[Path, in
     title = store.chat_title(chat_id)
     payload = {
         "chat": chat_id,
-        "title": title or (kept[0].hebrew if kept else chat_id),
+        # The conversation's first Hebrew line, where it has one: the text is Hebrew, and
+        # a shelf of saved conversations titled "what do you suggest we do today?" and
+        # "hey targum chat" read as junk among the books (2026-09-14).
+        "title": (kept[0].hebrew if kept else "") or title or chat_id,
         "language": "he",
         "speakers": {"reader": reader or "you", "targum": TARGUM},
         "lines": [line.state() for line in kept],

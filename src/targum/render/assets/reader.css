@@ -226,6 +226,28 @@
    root is excluded so `body` keeps the reading face underneath it. */
 [lang|="he"]:not(html) { font-family: var(--reading-hebrew); }
 
+/* And that rule loses to any component that names its own face with two classes —
+   `.chat-turn .chat-pair .chat-he`, `.gloss-card .lemma`, `.books .book-title` — so the
+   Hebrew in every conversation and on every word card was drawn in whatever the system
+   put in for Iowan Old Style (2026-09-14). Specificity is the wrong fight. Inside
+   anything that declares itself Hebrew-script, the reading and chrome faces *are* the
+   Hebrew stack, so a component that says `var(--reading)` or `var(--chrome)` gets the
+   right face whatever its selector weighs. Romanised Hebrew (`he-Latn`, the greeting)
+   and pronunciation (`he-fonipa`) are Latin letters and keep their Latin faces. */
+[lang|="he"]:not(html):not([lang$="-Latn"]):not([lang*="-fonipa"]),
+[lang|="yi"]:not(html):not([lang$="-Latn"]),
+[lang="arc"]:not(html) {
+  --reading: var(--reading-hebrew);
+  --chrome: var(--reading-hebrew);
+}
+
+/* Every field a reader types into takes each line's direction from what is typed, so a
+   Hebrew sentence with an English word, a number or a question mark in it reads in order
+   while it is being written (2026-09-14). `dir="auto"` decides the field; `plaintext`
+   decides each paragraph inside it. */
+textarea[dir="auto"],
+input[dir="auto"] { unicode-bidi: plaintext; }
+
 body {
   margin: 0;
   background: var(--paper);
@@ -339,6 +361,14 @@ a.bar-brand:hover { color: var(--accent); }
 /* The narrow bar has room for the title or the count, not both, and the title is the
    one that says where you are. */
 @media (max-width: 40rem) {
+  .bar-title .known { display: none; }
+}
+/* A window just wider than the band keeps every desktop control in the bar, and with
+   both titles and the count beside them the bar wrapped to two rows from 961px to about
+   1200 (2026-09-14). The English title and the count wait for the room; the list beside
+   the text says the count, and the document title keeps both names. */
+@media (min-width: 60.01rem) and (max-width: 75rem) {
+  .bar-english,
   .bar-title .known { display: none; }
 }
 
@@ -770,6 +800,10 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
 /* The title in English under the Hebrew heading of the contents page, in ink: a reader
    who cannot yet read the heading came for this line. */
 #reader > .english { margin-block-start: -0.75rem; color: var(--ink); font-size: 0.9375rem; }
+/* Under a right-to-left title the English stands at the same edge as the title it names.
+   It is its own left-to-right line, so it started at the far side of the page, a column's
+   width from the Hebrew (2026-09-14). */
+html[dir="rtl"] #reader > .english { text-align: end; }
 
 /* --- a drawn cover -------------------------------------------------------- */
 
@@ -847,6 +881,11 @@ body.marking .w[data-status="3"] {
 }
 /* Known and ignored are deliberately plain. A word you have finished with should read
    like any other word. */
+/* And so are names, numerals and a byline: none of them is a word to learn, and tinting
+   them spent the page's one wash on "26", on "שרון" and on the product's own name in the
+   weekly's byline (2026-09-14). */
+body.marking .w.not-vocab,
+body.marking .byline .w { background: none; box-shadow: none; }
 
 /* Nothing marks a split word in the running text. Most Hebrew words carry a prefix,
    so marking them all decorated the page without telling a reader anything they could
@@ -924,7 +963,9 @@ body.marking .w.here,
    a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
    beat and then nothing. The timings are `LINGER` and `FADE` in reader.js. */
 .gloss-card.going { opacity: 0; transition: opacity 220ms ease; }
-.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
+/* The word the card is about, larger than anything else on it (2026-09-14). At 1.1em it
+   was smaller than the English meaning under it, and Hebrew is never the small half. */
+.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.5em; line-height: 1.5; }
 .gloss-card .form { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* How well you know it, and what you want it to say. A scale rather than a switch: the
@@ -1550,7 +1591,7 @@ body[data-case="Loc"] .w.case-Loc {
 /* Only while the window cannot hold both: past ~101rem the centred column and the
    15rem panel fit side by side, and shoving the text over anyway moved it off-centre
    on exactly the screens with the most room. */
-@media (min-width: 60rem) and (max-width: 101rem) {
+@media (min-width: 60.01rem) and (max-width: 101rem) {
   body.has-list.list-open { padding-inline-end: 15rem; }
   /* The text gives up the width; the bar does not. It is the window's strip, not the
      column's, so the mark keeps the far corner of the screen — on an RTL page the
@@ -1664,6 +1705,32 @@ body[data-case="Loc"] .w.case-Loc {
     inset-block-start: 50%;
     block-size: max(100%, 44px);
     transform: translateY(-50%);
+  }
+
+  /* The ones the audit of 2026-09-14 found under 44px with no reach at all: the copy and
+     hear keys on every card line, the grab that closes every phone sheet, the words tab,
+     Keep on a phrase, the pager's links, a weekly's level links, look it up, a note's
+     Save, Translate on a waiting chapter and Undo under the rest. Reached both ways — the
+     earlier reach grew height only, so a 22px key stayed 22px wide under a thumb — and
+     centred on the key by its margins, which needs no left or right. */
+  /* The grab and the words tab are already placed (sticky, fixed), and a `position` here
+     would unplace them; the rest are given one. */
+  :is(
+    .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+  ) {
+    position: relative;
+  }
+  :is(
+    .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+  )::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    inline-size: max(100%, 44px);
+    block-size: max(100%, 44px);
   }
 }
 
@@ -1841,7 +1908,7 @@ body.paged:not(.last-page) .rest { display: none; }
 .turn[hidden] { display: none; }
 /* The open list takes a column of the window, and the page — arrows included — moves
    over to make room, the same way `body.list-open` moves the text. */
-@media (min-width: 60rem) and (max-width: 101rem) {
+@media (min-width: 60.01rem) and (max-width: 101rem) {
   body.has-list.list-open .turn { inset-inline-end: 15rem; }
 }
 .turn span {
@@ -2353,13 +2420,15 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .pair.said,
 .pair.voiced { position: relative; }
 
+/* 0.8125rem, not the label size: a Hebrew name at 11px beside a 17px pointed line was
+   the smallest Hebrew on the page, which §5 forbids (2026-09-14). */
 .pair.said .who {
   position: absolute;
-  inset-inline-start: -4.2rem;
-  inset-block-start: 0.42rem;
-  width: 3.6rem;
+  inset-inline-start: -4.4rem;
+  inset-block-start: 0.35rem;
+  width: 3.9rem;
   text-align: end;
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--ink-soft);
   white-space: nowrap;
@@ -2453,10 +2522,15 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   .list-items .copy, table.rows .copy, .text-group .copy { opacity: 1; }
 }
 
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   /* Room outside the column on both sides: the name hangs off one edge and the play
-     control off the other, and a margin cut for one of them clips the other. */
-  main { padding-inline-start: 4.6rem; padding-inline-end: 2.6rem; }
+     control off the other, and a margin cut for one of them clips the other.
+
+     The reader's own `main` and no other: every page carries this sheet, and on the
+     sign-in page, the public text pages and the parasha's band this cut a 384px form to
+     269px off centre, a 34rem measure to 26.8, and pushed a full-bleed band 16px past
+     the window so the page scrolled sideways (2026-09-14). */
+  body.reader main { padding-inline-start: 4.6rem; padding-inline-end: 2.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2957,6 +3031,13 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .video-corner[data-corner="bottom-start"] svg .corner { transform: translateX(-6px); }
 .video-corner[data-corner="top-start"] svg .corner { transform: translate(-6px, -6px); }
 .video-corner[data-corner="top-end"] svg .corner { transform: translateY(-6px); }
+/* On a page that reads right to left the end is the left: the square is drawn at the
+   bottom right, so in RTL it moves for the end corners and stays for the start ones, the
+   way the resize key below already turns (2026-09-14). */
+html[dir="rtl"] .video-corner[data-corner="bottom-end"] svg .corner { transform: translateX(-6px); }
+html[dir="rtl"] .video-corner[data-corner="bottom-start"] svg .corner { transform: none; }
+html[dir="rtl"] .video-corner[data-corner="top-end"] svg .corner { transform: translate(-6px, -6px); }
+html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: translateY(-6px); }
 .video-close:hover, .video-mode:hover, .video-corner:hover, .video-grip:hover { color: var(--ink); }
 .video-close:focus-visible,
 .video-mode:focus-visible,
@@ -2978,7 +3059,7 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .video-grip,
 .video-size { display: none; }
 .video-grip svg { inline-size: 0.85rem; block-size: 0.85rem; fill: currentColor; }
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   .video .video-grip { display: grid; cursor: grab; touch-action: none; }
   .video.moving,
   .video.moving .video-grip { cursor: grabbing; }
@@ -3042,7 +3123,7 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .video.watching .video-mode .shrink { display: inline; }
 .video-mode svg path { fill: none; }
 
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   .video:not(.watching) {
     flex-direction: column;
     align-items: stretch;
@@ -3289,7 +3370,7 @@ body.watching { overflow: hidden; }
    than sitting under it — and the video panel above the player steps the same step,
    or the picture floats over the words. Wide windows only: below 60rem the list is a
    bottom sheet and both rise above it instead — that rule lives with the sheet's. */
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   body.has-list.list-open .player,
   body.has-list.list-open .video { inset-inline-end: 15rem; }
 }
@@ -3299,7 +3380,7 @@ body.watching { overflow: hidden; }
    of them. The two rows are the whole of the band `room` reserves under a page — except
    on a phone with a player out, where the row is not wide enough for both and the tab
    stands above the player instead; that rule is with the other narrow ones. */
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   body.paged { --player-foot: 5.5rem; }
   body.paged .list-tab { inset-block-end: 5.5rem; }
 }
@@ -3792,16 +3873,21 @@ html:fullscreen { background: var(--paper); }
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(0.5rem); }
 }
+/* The reader's drawer as a sheet, on the reader alone. Unscoped, it reached every chrome
+   page too, where chrome.css puts the drawer back to a panel from 769px — and between
+   769 and 960 the two made a 416px panel pinned to the wrong edge, over the navigation,
+   with no scrim (2026-09-14). And in `svh`: a phone's `vh` is the window with its
+   toolbars hidden, which put the sheet's top under them. */
 @media (max-width: 60rem) {
-  .talk-drawer {
+  body.reader .talk-drawer {
     inset-inline: 0;
     inset-block: auto 0;
     inline-size: auto;
-    block-size: min(88vh, 100vh - 3rem);
+    block-size: min(88svh, 100svh - 3rem);
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   }
-  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
-  .talk-scrim[hidden] { display: none; }
+  body.reader .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  body.reader .talk-scrim[hidden] { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .talk-drawer, .talk-drawer.leaving { animation: none; }

@@ -366,7 +366,7 @@ def test_a_level_says_what_it_did_and_how_much_is_left() -> None:
         levels=[{"word": "one", "status": KNOWN}, {"word": "two", "status": 1}],
     )["said"]
     assert said[0]["spoken"] == "one, known. 2 left."
-    assert said[1]["spoken"] == "two, just met it. 2 left."
+    assert said[1]["spoken"] == "two, just met. 2 left."
 
 
 def test_saying_a_level_a_word_already_has_takes_it_off() -> None:

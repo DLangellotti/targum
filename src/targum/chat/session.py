@@ -667,16 +667,18 @@ class Chats:
                 chips.append({"id": "know", "line": "Show me what I know"})
         if any(one.feed for one in sources_module.load()):
             chips.append({"id": "news", "line": "Read today's news"})
-        chips.append({"id": "stuck", "line": "Explain a word I am stuck on"})
+        chips.append({"id": "stuck", "line": "Explain a word I'm stuck on"})
         return chips
 
     #: What the page says for the reader when the first chip is pressed, and what
     #: targum says back — fixed lines, pointed as the contract asks, because no model
     #: writes this turn. The English carries the reason the text was chosen.
     SUGGEST_ASKED = "Find me something to read"
-    SUGGEST_SAID = "הִנֵּה מַשֶּׁהוּ לִקְרוֹא."
+    #: "Here is a suggestion for reading": הִנֵּה מַשֶּׁהוּ לִקְרוֹא read as the English put
+    #: into Hebrew word for word (2026-09-14), and the Russian had the same trouble.
+    SUGGEST_SAID = "הִנֵּה הַצָּעָה לִקְרִיאָה."
     #: Its "= " line, in the languages the account may read (targum-internal#243).
-    SUGGEST_LINES = {"en": "Here is something to read.", "ru": "Вот что-то почитать."}
+    SUGGEST_LINES = {"en": "Here's something to read.", "ru": "Вот что почитать."}
 
     def suggest(
         self,

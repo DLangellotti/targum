@@ -197,6 +197,15 @@ var targumReader = function () {
   var extensions = data.extensions || {};
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
+  var POINTED_BINYANIM = {
+    "פעל": "פָּעַל",
+    "נפעל": "נִפְעַל",
+    "פיעל": "פִּעֵל",
+    "פועל": "פֻּעַל",
+    "הפעיל": "הִפְעִיל",
+    "הופעל": "הֻפְעַל",
+    "התפעל": "הִתְפַּעֵל",
+  };
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
@@ -449,7 +458,11 @@ var targumReader = function () {
   // One list, two kinds of thing in it. Words are held by dictionary form so every
   // form of the same word is marked at once; phrases are held as offsets into the
   // segment they came from, so they survive a rerender.
-  var language = (root.getAttribute("lang") || "und").split("-")[0].toLowerCase();
+  // The text's language. The root's own `lang` is the chrome's since 2026-09-14; a page
+  // built before then carries the text's language there and no `data-language`.
+  var language = (root.getAttribute("data-language") || root.getAttribute("lang") || "und")
+    .split("-")[0]
+    .toLowerCase();
   var documentId = data.document || location.pathname;
   var documentTitle = data.title || document.title || "";
   // Which part of the document this file is, and how many parts there are. A targum
@@ -1588,9 +1601,9 @@ var targumReader = function () {
   // word: the ignore button reads "a name or a number", and hearing that back as the
   // answer to a keystroke tells you nothing about what happened.
   var SAID = {};
-  SAID[1] = "just met it";
+  SAID[1] = "just met";
   SAID[2] = "getting there";
-  SAID[3] = "nearly know it";
+  SAID[3] = "nearly there";
   SAID[KNOWN] = "known";
   SAID[IGNORED] = "ignored";
 
@@ -1865,6 +1878,9 @@ var targumReader = function () {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
       if (token[3]) classes.push("split");
+      // A name or a numeral is not vocabulary: tappable as ever, never tinted as a word
+      // still to learn (2026-09-14). "בְּ־26" and "שָׁרוֹן" were marked like new words.
+      if (isName(token)) classes.push("not-vocab");
       // Which case the word is in, for the lens: a class the stylesheet lights only for
       // the one case chosen, so choosing another redraws nothing.
       var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
@@ -2369,8 +2385,10 @@ var targumReader = function () {
       return;
     }
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
+    // The bar says how many of how many; the list says what is left to do, in the same
+    // words, so one count is not said twice in two phrasings on one screen (2026-09-14).
     listStats.textContent =
-      share + "% known here · " + counts.fresh + " you have not marked yet";
+      share + "% known here · " + counts.fresh + (counts.fresh === 1 ? " word to mark" : " words to mark");
   }
 
   // Reading or marking. One class on the body, and nothing is redrawn: every word is
@@ -2572,8 +2590,17 @@ var targumReader = function () {
     if (wordsEmpty) wordsEmpty.hidden = onPhrases || lastWords > 0;
     if (phrasesEmpty) phrasesEmpty.hidden = !onPhrases || lastPhrases > 0;
     // Nothing to hand over is not worth offering.
-    if (exportButton) exportButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
-    if (ankiButton) ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
+    // Not offered at all: disabled, the two buttons were near-invisible grey boxes at the
+    // foot of an empty list (2026-09-14).
+    var nothing = (onPhrases ? lastPhrases : lastWords) === 0;
+    if (exportButton) {
+      exportButton.disabled = nothing;
+      exportButton.hidden = nothing;
+    }
+    if (ankiButton) {
+      ankiButton.disabled = nothing;
+      ankiButton.hidden = nothing;
+    }
   }
 
   function renderList() {
@@ -2627,7 +2654,7 @@ var targumReader = function () {
     if (remembered !== false) save();
   }
 
-  var roomy = window.matchMedia("(min-width: 60rem)");
+  var roomy = window.matchMedia("(min-width: 60.01rem)");
 
   /* --- the band at the foot of a narrow window --------------------------------
 
@@ -3391,6 +3418,27 @@ var targumReader = function () {
   // How the word you tapped is said, for this occurrence and not for its dictionary
   // form. בצל is batsˈal after "I ate" and btsˈel under a tree; the lemma is the same
   // word in both and the row drawn here is the only thing that knows which was meant.
+  // The stress mark before its syllable, as IPA writes it. phonikud sets it before the
+  // vowel — "mvukˈaʃ", "heχalˈav" — which a reader of IPA takes for a syllable that
+  // begins with a vowel (2026-09-14). Moved before the onset: "mvuˈkaʃ", "heχaˈlav".
+  var AFFRICATES = ["tʃ", "dʒ", "ts", "dz"];
+  function syllableStress(ipa) {
+    var text = String(ipa || "");
+    var out = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (ch !== "\u02c8" || !/[aeiouəɛɔ]/.test(text.charAt(i + 1))) {
+        out += ch;
+        continue;
+      }
+      var two = out.slice(-2);
+      var one = out.slice(-1);
+      var take = AFFRICATES.indexOf(two) >= 0 ? 2 : one && /[^\saeiouəɛɔˈ'.-]/.test(one) ? 1 : 0;
+      out = out.slice(0, out.length - take) + ch + out.slice(out.length - take);
+    }
+    return out;
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -3625,7 +3673,8 @@ var targumReader = function () {
         notation.className = "said";
         var heard = document.createElement("bdi");
         heard.setAttribute("dir", "ltr");
-        heard.textContent = said;
+        heard.setAttribute("lang", "he-fonipa");
+        heard.textContent = syllableStress(said);
         notation.appendChild(heard);
         saying.appendChild(notation);
       }
@@ -3700,7 +3749,10 @@ var targumReader = function () {
         // per function — shadowing it here silenced the split caveat for every verb.
         var pattern = document.createElement("bdi");
         pattern.setAttribute("lang", language);
-        pattern.textContent = binyan;
+        // Pointed, as a grammar prints them: unpointed, פועל is the everyday word for
+        // a worker, or for "verb" (2026-09-14). The stored name stays as the analyser
+        // wrote it, so nothing already built needs building again.
+        pattern.textContent = POINTED_BINYANIM[binyan] || binyan;
         verb.appendChild(pattern);
       }
       var pealim = document.createElement("a");
@@ -3857,6 +3909,8 @@ var targumReader = function () {
       var field = document.createElement("input");
       field.type = "text";
       field.className = "ask-field";
+      // Hebrew and English in one question, each line in its own direction (B-01).
+      field.dir = "auto";
       field.setAttribute("aria-label", "Ask about this word");
       field.placeholder = state.turns.length ? "One more" : "Ask about this word";
       field.autocomplete = "off";
@@ -4636,6 +4690,9 @@ var targumReader = function () {
   function title() {
     return (documentTitle || document.title || "targum")
       .replace(/[^\w\u0080-\uffff -]+/g, "")
+      // The tab title isolates its Hebrew (U+2066 to U+2069, 2026-09-14); a file name
+      // has no use for the marks.
+      .replace(/[\u2066-\u2069]/g, "")
       .trim();
   }
 
@@ -7776,7 +7833,12 @@ var targumReader = function () {
     if (!pick) return;
     if (link) {
       link.href = "/library#" + encodeURIComponent(pick.id);
-      link.textContent = pick.title;
+      link.textContent = "";
+      var named = document.createElement("bdi");
+      named.lang = document.documentElement.getAttribute("data-language") || "";
+      named.dir = "auto";
+      named.textContent = pick.title;
+      link.appendChild(named);
       if (pick.english) {
         var english = document.createElement("span");
         english.className = "next-up-english";
@@ -7923,6 +7985,10 @@ var targumReader = function () {
       })
       .then(function (job) {
         if (job.ready) return location.reload();
+        // Refused at the door — over the month's hours, or the day's — says so now. A
+        // refusal still carries an id, and polling a job that was never kept waited on
+        // "Translating…" for ever (2026-09-14).
+        if (job.blocked || job.stage === "blocked") throw new Error(job.blocked || job.error);
         if (!job.id) throw new Error(job.error || job.blocked || "We couldn't start that. Try again.");
         var timer = setInterval(function () {
           fetch(keyed("/job/" + job.id))
@@ -7933,11 +7999,16 @@ var targumReader = function () {
               if (state.stage === "done") {
                 clearInterval(timer);
                 location.reload();
-              } else if (state.stage === "failed" || state.blocked) {
+              } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
                 press.disabled = false;
                 press.textContent = state.error || state.blocked || "We couldn't start that. Try again.";
               }
+            })
+            .catch(function () {
+              clearInterval(timer);
+              press.disabled = false;
+              press.textContent = "We couldn't reach targum. Try again.";
             });
         }, 1500);
       })
@@ -8709,7 +8780,7 @@ var targumReader = function () {
     var gets = Array.prototype.slice.call(document.querySelectorAll(".player-get, .more-get"));
     var get = gets[0];
     if (get) {
-      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|]/g, "").trim();
+      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|\u2066-\u2069]/g, "").trim();
       /* Named for what it actually is. The build inlines whatever the scene was voiced
          as, so a suffix written into the page rather than read off it hands the reader a
          file their machine opens with the wrong thing. */
@@ -8913,7 +8984,7 @@ var targumReader = function () {
     var SIZE_STORE = "targum:video-size";
     var EDGE = 8;
     var SMALLEST = 260;
-    var wide = window.matchMedia("(min-width: 60rem)");
+    var wide = window.matchMedia("(min-width: 60.01rem)");
     var grip = videoBox.querySelector(".video-grip");
     var sizer = videoBox.querySelector(".video-size");
     var place = null;
@@ -9163,7 +9234,7 @@ var targumReader = function () {
            every press does something the reader can see, which is the whole promise of a
            toggle. The stored corner is untouched: a phone that becomes a wide window
            again finds the corner it left. */
-        var ring = window.matchMedia("(min-width: 60rem)").matches
+        var ring = window.matchMedia("(min-width: 60.01rem)").matches
           ? CORNERS
           : ["bottom-end", "top-start"];
         var at = ring.indexOf(cornerKey.getAttribute("data-corner"));

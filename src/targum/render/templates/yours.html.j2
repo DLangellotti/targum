@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ heading }} — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
@@ -15,7 +15,10 @@
     Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
     row there cannot drift. -#}
 <body class="words learn yours">
-{% set here = 'learn' %}{% set title = heading %}
+{#- Your targums is where Learn's Recently read goes on, so the nav says Learn. Your words
+    and phrases are reached from the account, and a nav that lit Learn on them said the
+    reader was somewhere they were not (2026-09-14). -#}
+{% set here = 'learn' if which == 'texts' else 'yours' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -51,8 +54,8 @@
           more than one, the same way the language switcher is: a control with one answer
           in it is only a question nobody asked. -#}
       <div class="langs quiet" id="meaning-langs" role="tablist"
-           aria-label="Definition language" hidden></div>
-      <input type="search" id="search" placeholder="Search a word or a meaning" spellcheck="false">
+           aria-label="Translations in" hidden></div>
+      <input type="search" id="search" dir="auto" placeholder="Search a word or a meaning" spellcheck="false">
       <select id="status-filter" aria-label="Filter by how well you know them">
         <option value="learning">Still learning</option>
         <option value="all">All</option>

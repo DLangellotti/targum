@@ -117,7 +117,7 @@ WEEKLY = {
 }
 QUIET = {
     "id": "mishna-yomi",
-    "name": "Mishna Yomi",
+    "name": "Mishnah Yomit",
     "what": "",
     "page": "/mishna-yomi",
     "instalment": None,

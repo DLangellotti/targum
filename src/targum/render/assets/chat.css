@@ -121,7 +121,10 @@ body.chat > .chat-main {
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
 .chat-list button.on { color: var(--ink); font-weight: 600; }
 /* The title, and under it when it was last opened (targum-internal#238). */
-.chat-list .chat-title { display: block; overflow: hidden; text-overflow: ellipsis; }
+/* Clipped on the title itself, which carries its own direction: on the button around it
+   the clip fell at the start of a Hebrew line (2026-09-14). A block keeps its row's edge. */
+.chat-list .chat-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
+.chat-list .chat-title:dir(rtl) { text-align: end; }
 .chat-list .chat-when { display: block; font-size: 0.8125rem; color: var(--ink-soft); font-weight: 400; }
 .chat-list .chat-more { color: var(--ink); text-align: center; }
 .chat-list .chat-more:disabled { opacity: 0.5; cursor: default; }
@@ -139,7 +142,7 @@ body.chat > .chat-main {
     position: fixed;
     inset-inline: 0;
     inset-block-end: 0;
-    max-block-size: 70vh;
+    max-block-size: 70svh;
     overflow: auto;
     padding: 0.5rem 1rem 1rem;
     background: var(--paper);
@@ -346,17 +349,21 @@ body.chat > .chat-main {
 .chat-sum .note { margin: 0; font-size: 0.8125rem; color: var(--clay); }
 .chat-sum .note:empty { display: none; }
 
-.chat-turn .chat-pair.recast .chat-en::before {
+/* The label over the recast itself, on its own line (2026-09-14). It stood at the start
+   of the English line under the Hebrew, at the far edge from it, and "CORRECTED I want to
+   read…" read as if the English were the correction. */
+.chat-turn .chat-pair.recast::before {
   content: "you said";
-  margin-inline-end: 0.5em;
+  font-family: var(--chrome);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  color: var(--ink-soft);
 }
 /* A recast that changed something says so in the label, and the words that changed
    carry a mark — the state in words as well as ink (§4). Why, from the model's one
    "~ " line, is folded under it and opened by a tap (targum-internal#242). */
-.chat-turn .chat-pair.recast.corrected .chat-en::before { content: "corrected"; }
+.chat-turn .chat-pair.recast.corrected::before { content: "corrected"; }
 .chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .chat-turn .chat-pair .chat-why {
   font-size: 0.8125rem;

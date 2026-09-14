@@ -36,7 +36,13 @@ BYLINE = "Compiled by the targum team"
 #: identically — not a byline, a bug that happens to be legible. A Hebrew paper's byline
 #: is in Hebrew, the translation column renders the English for free, and `Entry.author`
 #: keeps the English for the library, where the surrounding page is English too.
-BYLINE_HE = "חובר בידי צוות תרגום"
+BYLINE_HE = "נערך בידי מערכת ״תרגום״"
+
+#: What the byline said until 2026-09-14. "חובר בידי צוות תרגום" is a book's colophon
+#: rather than a paper's, and it reads as "compiled by the translation team": תרגום is the
+#: ordinary word, and nothing marked it as a name. The gershayim do now. Issues written
+#: before the change still carry the old line, and it is still a byline.
+BYLINES_HE = (BYLINE_HE, "חובר בידי צוות תרגום")
 
 NOTICE = (
     "Compiled by a model from this week's reporting and curated by the targum team "

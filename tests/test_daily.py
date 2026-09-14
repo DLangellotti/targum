@@ -186,3 +186,14 @@ def test_the_parasha_switch_does_not_invite_the_cycles(
     monkeypatch.setenv("TARGUM_INDEX_DAILY", "1")
     assert daily_is_indexed()
     assert not parasha_is_indexed()
+
+
+def test_a_hebrew_citation_is_written_in_letters() -> None:
+    """Hebcal gives the Mishnah in Arabic numerals beside Nach and Tehillim lines in
+    letters, and its hyphen glued a number to the next tractate (2026-09-14)."""
+    from targum.daily.calendar import hebrew_citation
+
+    assert hebrew_citation("אהלות 1:6-7") == "אהלות א׳, ו׳–ז׳"
+    assert hebrew_citation("כלים 30:4-אהלות 1:1") == "כלים ל׳, ד׳ – אהלות א׳, א׳"
+    assert hebrew_citation("תהלים י״ח-כ״ב") == "תהלים י״ח–כ״ב"
+    assert hebrew_citation("ירמיהו ב׳") == "ירמיהו ב׳"

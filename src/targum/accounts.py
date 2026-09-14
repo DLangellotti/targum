@@ -167,6 +167,10 @@ MIGRATIONS: tuple[str, ...] = (
     # avatar falls back to initials — which is what it draws either way when the picture
     # will not load.
     "ALTER TABLE person ADD COLUMN picture TEXT NOT NULL DEFAULT ''",
+    # How the conversation addresses them in Hebrew, where every "you" and every present
+    # tense "I" has a gender (2026-09-14): 'm', 'f', or empty for "either", which the
+    # conversation answers with forms that do not choose.
+    "ALTER TABLE person ADD COLUMN address TEXT NOT NULL DEFAULT ''",
     # Whether a word was worked up to known from a level below it, rather than ticked off
     # as already known. Nothing can recover this for words marked before it existed, so
     # it starts at nought for everybody and counts forward.
@@ -859,7 +863,7 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made FROM person WHERE id = ?", (person.id,)
+            "SELECT email, name, picture, made, address FROM person WHERE id = ?", (person.id,)
         ).fetchone()
         if row is None:
             return {}
@@ -869,7 +873,30 @@ class Store:
             "picture": row["picture"],
             "initials": initials(row["name"], row["email"]),
             "since": row["made"],
+            "address": row["address"] or "",
         }
+
+    #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
+    #: without choosing.
+    ADDRESSES = ("", "m", "f")
+
+    def address(self, person_id: int | None) -> str:
+        """'m', 'f', or '' where they have not said."""
+        if person_id is None:
+            return ""
+        row = self.db.execute(
+            "SELECT address FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return str(row["address"] or "") if row is not None else ""
+
+    def set_address(self, person: Person, address: str) -> str:
+        """Keep how they want to be addressed; anything else is refused."""
+        value = str(address or "").strip().lower()
+        if value not in self.ADDRESSES:
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            db.execute("UPDATE person SET address = ? WHERE id = ?", (value, person.id))
+        return value
 
     def rename(self, person: Person, name: str) -> str:
         """Set what to call them, and return what was stored.

@@ -56,6 +56,10 @@
     node.classList.toggle("bad", !!bad);
   }
 
+  function grouped(count) {
+    return String(count).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
+
   /* --- who you are ----------------------------------------------------------- */
 
   function drawWho(who) {
@@ -73,10 +77,20 @@
     avatar.appendChild(document.createTextNode(who.initials || "?"));
     at("you-email").textContent = who.email || "";
     at("you-name").value = who.name || "";
+    var address = who.address || "";
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="address"]'), function (box) {
+      box.checked = box.value === address;
+    });
 
     var counts = who.counts || {};
-    var kept = (counts.words || 0) + " words, " + (counts.phrases || 0) + " phrases";
-    at("you-kept").textContent = kept;
+    // Every language's, said so, and grouped: beside Your Progress's one language this
+    // read as a different number for the same thing (2026-09-14).
+    var words = counts.words || 0;
+    var phrases = counts.phrases || 0;
+    at("you-kept").textContent =
+      grouped(words) + (words === 1 ? " word and " : " words and ") +
+      grouped(phrases) + (phrases === 1 ? " phrase" : " phrases") +
+      ", across all your languages.";
   }
 
   var saving = null;
@@ -99,6 +113,18 @@
         if (window.TargumSync) window.TargumSync.start();
       });
     }, 400);
+  }
+
+  // How the conversation addresses them in Hebrew. Saved on the press, as a name is.
+  function saveAddress(event) {
+    var box = event && event.target;
+    if (!box || box.name !== "address") return;
+    ask("/account/address", { address: box.value }).then(function (answer) {
+      if (answer.error || answer.signedIn === false) {
+        return say("you-said", answer.error || "You've been signed out. Sign in again.", true);
+      }
+      say("you-said", "Saved.");
+    });
   }
 
   /* --- your languages ---------------------------------------------------------- */
@@ -137,12 +163,14 @@
       });
       label.appendChild(box);
       label.appendChild(document.createTextNode(row.name));
-      if (row.stage !== "alpha") {
-        var mark = document.createElement("span");
-        mark.className = "beta";
-        mark.textContent = "experimental";
-        label.appendChild(mark);
+      // And in its own name, where the menu knows it (2026-09-14).
+      var own = window.TargumLang && window.TargumLang.native ? window.TargumLang.native(row.code) : null;
+      if (own && own.textContent !== row.name) {
+        label.appendChild(document.createTextNode(" "));
+        label.appendChild(own);
       }
+      // "Experimental" is said once, in the note under the lists, rather than six times
+      // down them (2026-09-14).
       host.appendChild(label);
       boxes[id].push(box);
     });
@@ -209,14 +237,41 @@
       if (press.getAttribute("data-sure") !== "yes") {
         // Asked twice, in the button itself. A dialog for this would be a dialog nobody
         // reads; a button that changes what it says is read by everybody who presses it.
+        // And a way back beside it (2026-09-14): the second question had no answer but
+        // reloading the page.
         press.setAttribute("data-sure", "yes");
-        press.textContent = "Delete for good?";
+        press.textContent = "Delete my account and words";
+        var keep = at("you-keep");
+        if (keep) {
+          keep.hidden = false;
+          keep.onclick = function () {
+            press.removeAttribute("data-sure");
+            press.textContent = "Delete account";
+            keep.hidden = true;
+          };
+        }
         return;
       }
       press.disabled = true;
-      ask("/account/forget", {}).then(function (answer) {
-        say("you-ending-said", answer.message || "We're closing your account.");
-      });
+      var keeping = at("you-keep");
+      if (keeping) keeping.hidden = true;
+      ask("/account/forget", {})
+        .then(function (answer) {
+          say("you-ending-said", answer.message || "We're closing your account.");
+          // The words were left in this browser and the page went on showing the profile
+          // (2026-09-14). Signed out here too, the way Sign out empties the browser.
+          if (window.TargumSync && window.TargumSync.signOut) {
+            window.TargumSync.signOut().then(function () {
+              setTimeout(function () {
+                location.href = keyed("/");
+              }, 1500);
+            });
+          }
+        })
+        .catch(function () {
+          press.disabled = false;
+          say("you-ending-said", "We couldn't reach targum, so nothing was deleted. Try again.", true);
+        });
     });
   }
 
@@ -229,6 +284,8 @@
       drawWho(who);
       drawLanguages(who);
       at("you-name").addEventListener("input", saveName);
+      var address = at("you-address");
+      if (address) address.addEventListener("change", saveAddress);
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })

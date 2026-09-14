@@ -96,7 +96,7 @@
      "finished" in it was wider there than its neighbours, and its other columns sat in
      different places from theirs. Fixed, and what it holds is clipped rather than
      allowed to move the row. */
-  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 4.5rem 4rem 6.25rem 6rem;
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 6.5rem 4rem 6.25rem 6rem;
   align-items: center;
   gap: 0.7rem;
 }
@@ -785,3 +785,108 @@
 .filters:not([open]) > :not(summary) { display: none; }
 /* One register in front of the reader is no choice: the switch and its label go. */
 .switch-set:has(.segmented:empty) { display: none; }
+
+/* --- the audit of 2026-09-14 -------------------------------------------------------- */
+
+/* A title clips itself. The ellipsis used to sit on `.row-title`, an LTR cell, and the
+   edge an LTR box clips is the one a Hebrew line *begins* at: rows read "…תות חברתיות"
+   and a translator's name came down to a lone final mem. On the isolate, with its own
+   direction, the clip falls at the title's end whichever way it reads. */
+.row-title .row-name {
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+/* A text says it can be heard in a small label, not in a stray lowercase word the size
+   of the title. */
+.row-audio,
+.row-video {
+  display: inline-block;
+  inline-size: max-content;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1.6;
+}
+/* A weekly edition's level, beside its title rather than inside the Hebrew's isolate. */
+.row-level {
+  margin-inline-start: 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+/* The English and the byline under a title may take a second line rather than clip
+   inside a Hebrew word: a clip in the middle of "תרגום" left a lone final mem. */
+.rows .row-english {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+/* What a phone's row drops from its columns, said once under the title. */
+.row-meta { display: none; }
+/* Not here? Add your own — a link in the desk's own colour, not the browser's blue. */
+.elsewhere a { color: var(--teal); text-underline-offset: 2px; }
+/* The collection's disclosure at a size a pointer can find. */
+.row-fold { font-size: 0.9375rem; }
+
+/* The filters open into rows of their own under the search, and stay put as the search
+   is typed in. They were flex items beside the search, and the moment Clear appeared the
+   whole block reflowed into a column beside it and pushed the field down mid-word. */
+.sift > .find { flex: 1 1 60%; }
+.filters[open] > .switch-set,
+.filters[open] > .chips { flex: 1 1 100%; }
+.clear[hidden] { display: inline-block; visibility: hidden; }
+
+@media (max-width: 46rem) {
+  /* A long title wraps to two lines on a phone rather than clipping mid-word. */
+  .rows .row-title .row-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+  .rows .row-english,
+  .rows .row-by { white-space: normal; }
+  .rows .row-meta {
+    display: block;
+    color: var(--ink-soft);
+    font-family: var(--chrome);
+    font-size: 0.6875rem;
+  }
+  /* The row's own grid cannot be wider than a phone: the title's track gives way. */
+  .rows-head,
+  .rows .row-open { grid-template-columns: 2.25rem minmax(0, 1fr) auto; }
+  .rows-head > :empty:not(:first-child) { display: none; }
+  .rows .row-state:empty { display: none; }
+  /* Draw cover goes under the row rather than beside it, where it pushed the gauge
+     past the edge of the panel. */
+  .rows > li { flex-wrap: wrap; }
+  .rows > li > .draw { margin-inline-start: 2.95rem; }
+}
+
+/* The press that starts a build from a row, after the row has said how long it takes
+   (2026-09-14): the working action in the primary, its way out beside it. */
+.rows > li > .row-go,
+.rows > li > .row-not {
+  flex: none;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rows > li > .row-go { background: var(--teal); color: var(--teal-ink); }
+.rows > li > .row-not { background: transparent; color: var(--ink-soft); }
+@media (hover: none) and (pointer: coarse) {
+  .rows > li > .row-go, .rows > li > .row-not { min-height: 44px; }
+}

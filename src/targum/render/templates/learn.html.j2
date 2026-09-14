@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Learn — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
@@ -107,6 +107,15 @@
   <p class="lede">Nothing here yet.</p>
   <p>Pick something from <a href="/library">Library</a>.</p>
   <p class="hint">Or <a href="/add">add your own</a>.</p>
+</section>
+{#- While the shelf is being asked for, and when it could not be (2026-09-14). The page
+    stood blank under the bar until `/readers` answered, which on a large shelf is
+    seconds; and a failed answer was told as "Nothing here yet", which is what a new
+    account is told, not what a broken connection is. -#}
+<p class="learn-waiting" id="learn-waiting" role="status">Opening your texts…</p>
+<section class="nothing" id="learn-failed" role="alert" hidden>
+  <p class="lede">We couldn't load your texts.</p>
+  <p>Reload the page to try again. Everything you've read is still here.</p>
 </section>
 
 {% include '_foot.html.j2' %}
