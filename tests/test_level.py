@@ -56,6 +56,12 @@ def test_the_browser_s_ladder_gives_the_same_answer() -> None:
         weighted: got.weighted, known: got.words,
         here: stood.here ? stood.here.name : "", next: stood.next ? stood.next.name : "",
         rungs: charts.ULPAN.map(r => [r.at, r.name]),
+        cefr: charts.CEFR.map(r => [r.at, r.name]),
+        equivalents: charts.ULPAN.map(r => r.cefr),
+        ladders: Object.fromEntries(
+          Object.entries(charts.LADDERS).map(([k, v]) => [k, [v.title, v.measure]])
+        ),
+        common: charts.common(words),
       }}));
     """
     done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
@@ -66,6 +72,44 @@ def test_the_browser_s_ladder_gives_the_same_answer() -> None:
     assert theirs["here"] == given["here"]
     assert theirs["next"] == given["next"]
     assert theirs["rungs"] == [[rung.at, rung.name] for rung in level.ULPAN], "the rungs"
+    assert theirs["cefr"] == [[rung.at, rung.name] for rung in level.CEFR], "the CEFR levels"
+    assert theirs["equivalents"] == [rung.cefr for rung in level.ULPAN]
+    assert theirs["ladders"] == {
+        code: [ladder.title, ladder.measure] for code, ladder in level.LADDERS.items()
+    }
+    words = [(int(w["status"]), str(w["band"])) for w in given["words"]]  # type: ignore[index]
+    assert theirs["common"] == level.common(words), "the same count of common words"
+
+
+def test_the_cefr_is_climbed_by_known_words_among_the_commonest() -> None:
+    """Measured for French (Milton and Alexiou 2009), borrowed for Russian and Italian. A
+    hard word is not among the commonest five thousand, so it does not count here, and a
+    name or a number never counts anywhere."""
+    words = [(level.KNOWN, "easy")] * 1500 + [(level.KNOWN, "moderate")] * 499
+    words += [(level.KNOWN, "hard")] * 800 + [(level.KNOWN, "name")] * 50 + [(2, "easy")] * 40
+    assert level.common(words) == 1999
+    here, following = level.standing(level.common(words), level.CEFR)
+    assert here is not None and here.name == "A2" and following is not None
+    assert following.name == "B1" and following.at == 2000
+    here, _ = level.standing(2000, level.CEFR)
+    assert here is not None and here.name == "B1"
+    assert level.ladder_for("fr-FR") is level.CEFR_LADDER
+    assert level.ladder_for("he") is level.ULPAN_LADDER
+    assert level.ladder_for("yi") is None and level.ladder_for("arc") is None
+
+
+def test_the_chat_is_told_the_reader_s_ladder_in_their_language() -> None:
+    french = level.Level(
+        "fr", 2100, 10, 2500.0, level.CEFR[2], level.CEFR[3], 3, 1, 2, 4, 1, "CEFR level", 2050
+    )
+    said = level.describe(french)
+    assert said.startswith("The reader is learning French.")
+    assert "about B1 on the CEFR" in said and "B2 wants about 2,400" in said
+    assert "Never tell the reader they are 'at a level'" in said
+    hebrew = level.Level("he", 400, 0, 400.0, level.ULPAN[0], level.ULPAN[1], 0, 0, 0, 0, 0)
+    assert "'aleph' rung of the ulpan ladder (about A1 on the CEFR)" in level.describe(hebrew)
+    yiddish = level.Level("yi", 10, 0, 10.0, None, None, 0, 0, 0, 0, 0, "", 0)
+    assert "no level ladder" in level.describe(yiddish)
 
 
 def test_a_streak_counts_back_from_today_or_from_yesterday() -> None:

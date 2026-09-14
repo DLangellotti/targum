@@ -26,8 +26,9 @@ context, for everything else. Your own texts welcome: an EPUB, an article, a lin
 vocabulary across biblical and modern Hebrew, held by dictionary form, so every word you
 learn in Tanakh is yours in a newspaper too. Vowel points where the text has them,
 guessed elsewhere, with every guess marked. Progress that counts real things, words known,
-texts finished, days read, and places you on the ulpan ladder. Readers that are one file
-each: a phone, an e-reader, offline, in pages.
+texts finished, days read, and places you on a level ladder: the ulpan for Hebrew, the
+CEFR for French, Russian and Italian. Readers that are one file each: a phone, an
+e-reader, offline, in pages.
 
 The hosted version at [targum.page](https://targum.page) is in alpha and invite only.
 Once invited, sign in with an email address and a link.

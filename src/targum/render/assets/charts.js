@@ -619,16 +619,60 @@
   // The ladder, with the vocabulary each rung is usually reckoned to want. Estimates,
   // and round on purpose: the figures behind ulpan levels vary between ulpanim, and
   // false precision here would be a claim nobody can support.
+  // Each rung carries the CEFR level it is reckoned to correspond to (2026-09-13); the
+  // source is beside the same table in `level.py`.
   var ULPAN = [
-    { at: 250, letter: "א", name: "aleph" },
-    { at: 900, letter: "א+", name: "aleph plus" },
-    { at: 1800, letter: "ב", name: "bet" },
-    { at: 3000, letter: "ב+", name: "bet plus" },
-    { at: 4500, letter: "ג", name: "gimel" },
-    { at: 6500, letter: "ד", name: "dalet" },
-    { at: 9000, letter: "ה", name: "hey" },
-    { at: 12000, letter: "ו", name: "vav" },
+    { at: 250, letter: "א", name: "aleph", cefr: "A1" },
+    { at: 900, letter: "א+", name: "aleph plus", cefr: "A1" },
+    { at: 1800, letter: "ב", name: "bet", cefr: "A2" },
+    { at: 3000, letter: "ב+", name: "bet plus", cefr: "A2+" },
+    { at: 4500, letter: "ג", name: "gimel", cefr: "B1" },
+    { at: 6500, letter: "ד", name: "dalet", cefr: "B2" },
+    { at: 9000, letter: "ה", name: "hey", cefr: "C1" },
+    { at: 12000, letter: "ו", name: "vav", cefr: "C2" },
   ];
+
+  // The CEFR levels, by known words among the language's commonest five thousand or so —
+  // the measure the research ties the levels to. Measured for French and borrowed for
+  // Russian and Italian; the reasoning and the sources are beside `CEFR` in `level.py`.
+  var CEFR = [
+    { at: 250, letter: "A1", name: "A1" },
+    { at: 1350, letter: "A2", name: "A2" },
+    { at: 2000, letter: "B1", name: "B1" },
+    { at: 2400, letter: "B2", name: "B2" },
+    { at: 2750, letter: "C1", name: "C1" },
+    { at: 3300, letter: "C2", name: "C2" },
+  ];
+
+  // The bands inside a language's commonest five thousand words, near enough: the
+  // 5,000th form sits just above the Zipf cut where "moderate" ends, in French, Russian
+  // and Italian alike.
+  var COMMON_BANDS = { easy: true, "fairly easy": true, moderate: true };
+
+  // Which languages have a ladder. Yiddish and Aramaic have none: no frequency table to
+  // measure a vocabulary against.
+  var LADDERS = {
+    he: { title: "Ulpan level", rungs: ULPAN, measure: "weighted" },
+    fr: { title: "CEFR level", rungs: CEFR, measure: "common" },
+    ru: { title: "CEFR level", rungs: CEFR, measure: "common" },
+    it: { title: "CEFR level", rungs: CEFR, measure: "common" },
+  };
+
+  function ladderFor(code) {
+    var key = String(code || "")
+      .split("-")[0]
+      .toLowerCase();
+    return Object.prototype.hasOwnProperty.call(LADDERS, key) ? LADDERS[key] : null;
+  }
+
+  /** Known words among the language's commonest: what the CEFR ladder is climbed by. */
+  function common(words) {
+    var counted = 0;
+    vocabulary(words).forEach(function (word) {
+      if (word.status === KNOWN && COMMON_BANDS[word.band] === true) counted += 1;
+    });
+    return counted;
+  }
 
   /** The known words, weighted by how common each is. */
   function reach(words) {
@@ -646,11 +690,11 @@
     return { weighted: total, words: counted };
   }
 
-  /** Which rung that reaches, and the one after it. */
-  function standingIn(weighted) {
+  /** Which rung that reaches, and the one after it: on the ulpan ladder unless told. */
+  function standingIn(weighted, rungs) {
     var here = null;
     var next = null;
-    ULPAN.forEach(function (rung) {
+    (rungs || ULPAN).forEach(function (rung) {
       if (weighted >= rung.at) here = rung;
       else if (next === null) next = rung;
     });
@@ -709,6 +753,10 @@
     EARLIEST: EARLIEST,
     STATUS: STATUS,
     ULPAN: ULPAN,
+    CEFR: CEFR,
+    LADDERS: LADDERS,
+    ladderFor: ladderFor,
+    common: common,
     reach: reach,
     standingIn: standingIn,
     levelFor: levelFor,

@@ -46,10 +46,11 @@
         <div class="standing" id="standing"></div>
       </section>
 
-      {#- Hebrew only, and under the milestones because it is the same question asked in
-          the language's own units: how far in am I. -#}
+      {#- For a language with a ladder — the ulpan for Hebrew, the CEFR for French, Russian
+          and Italian — and under the milestones because it is the same question asked in
+          the language's own units: how far in am I. The heading is the ladder's name. -#}
       <section class="panel" id="rung" hidden>
-        <h2>Ulpan level</h2>
+        <h2 id="rung-title">Ulpan level</h2>
         <div class="standing" id="rung-standing"></div>
         {#- Where the rung comes from, said once. §6 is plain about limits, and
             `annotate/base.py` refuses to call a difficulty band a CEFR level for the same

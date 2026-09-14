@@ -397,15 +397,18 @@
     standing.textContent = "";
     inside.textContent = "";
 
-    // Hebrew's ladder is a block of its own, under the milestones. Every other language
-    // has no such ladder, so the milestones themselves are the standing and the line
-    // goes under the chips it belongs to.
-    rung.hidden = code !== "he";
-    basis.hidden = code !== "he";
-    if (code === "he") {
+    // A language with a ladder has a block of its own under the milestones: the ulpan
+    // for Hebrew, the CEFR for French, Russian and Italian (2026-09-13). A language with
+    // none — Yiddish, Aramaic — keeps the milestones as its standing, and says why.
+    var ladder = charts.ladderFor(code);
+    var title = document.getElementById("rung-title");
+    rung.hidden = !ladder;
+    basis.hidden = !ladder;
+    if (ladder) {
+      if (title) title.textContent = ladder.title;
       // The limit is all that is said (§6, and the 2026-08-24 amendment in §12).
       basis.textContent = "A guide, not a placement.";
-      drawLevel(inside, entry.words);
+      drawLevel(inside, entry.words, ladder);
       return;
     }
 
@@ -417,6 +420,14 @@
     });
 
     if (passed) standing.appendChild(el("span", "reached", grouped(passed) + " words known"));
+    // Said once, beside the milestones that stand in for a level.
+    standing.appendChild(
+      el(
+        "p",
+        "why",
+        "There's no level for this language yet: we have no word list to measure it against."
+      )
+    );
 
     var line = el("p", "next");
     if (next === null) {
@@ -440,22 +451,31 @@
    * `charts.standingIn`.
    */
 
-  function drawLevel(host, words) {
+  function drawLevel(host, words, ladder) {
+    ladder = ladder || charts.ladderFor("he");
     var got = charts.reach(words);
-    var found = charts.standingIn(got.weighted);
+    var weighted = ladder.measure === "weighted";
+    var value = weighted ? got.weighted : charts.common(words);
+    var found = charts.standingIn(value, ladder.rungs);
 
     // The rung takes the celebration chip §9 allows one of per screen. Hebrew and Latin
     // at the same size inside it, because §3 does not let Hebrew be the small half.
     if (found.here) {
       var chip = el("span", "reached");
-      var letter = el("bdi", "letter", found.here.letter);
-      // Said outright rather than left to the first strong character. Left to right,
-      // because the name it stands beside is English and the pair reads as one label —
-      // under rtl the plus went to the far side and "א+" came out as "+א".
-      letter.setAttribute("dir", "ltr");
-      letter.setAttribute("lang", "he");
-      chip.appendChild(letter);
-      chip.appendChild(el("span", "name", found.here.name));
+      if (weighted) {
+        var letter = el("bdi", "letter", found.here.letter);
+        // Said outright rather than left to the first strong character. Left to right,
+        // because the name it stands beside is English and the pair reads as one label —
+        // under rtl the plus went to the far side and "א+" came out as "+א".
+        letter.setAttribute("dir", "ltr");
+        letter.setAttribute("lang", "he");
+        chip.appendChild(letter);
+        chip.appendChild(el("span", "name", found.here.name));
+        // The CEFR equivalent beside the ulpan name, so one scale reads across languages.
+        if (found.here.cefr) chip.appendChild(el("span", "cefr", " · about " + found.here.cefr));
+      } else {
+        chip.appendChild(el("span", "name", found.here.name));
+      }
       host.appendChild(chip);
     }
 
@@ -463,18 +483,23 @@
     if (!got.words) {
       line.textContent = "Mark a word as known and this starts.";
     } else if (!found.next) {
-      line.textContent = "You're past every rung an ulpan keeps.";
+      line.textContent = weighted
+        ? "You're past every rung an ulpan keeps."
+        : "You're past every CEFR level.";
     } else {
-      // Turned back into words at the weight of the ones this reader actually knows, so
-      // the figure is words rather than a score. Counting a point is inventing a
-      // currency; counting words is counting what is there.
-      var each = got.weighted / got.words;
-      var more = Math.max(1, Math.round((found.next.at - got.weighted) / each));
+      // In words either way, because words are what the reader has. The ulpan's total is
+      // weighted, so it is turned back into words at the weight of the ones this reader
+      // knows; counting a point is inventing a currency. The CEFR counts words already.
+      var more = weighted
+        ? Math.max(1, Math.round((found.next.at - got.weighted) / (got.weighted / got.words)))
+        : Math.max(1, found.next.at - value);
       line.appendChild(document.createTextNode("Another "));
       line.appendChild(el("b", null, grouped(more)));
       line.appendChild(
         document.createTextNode(
-          " words to " + found.next.letter + " (" + found.next.name + ")."
+          weighted
+            ? " words to " + found.next.letter + " (" + found.next.name + ")."
+            : " common words to " + found.next.name + "."
         )
       );
     }

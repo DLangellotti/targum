@@ -52,20 +52,87 @@ class Rung:
     at: int
     letter: str
     name: str
+    #: The CEFR level this rung is reckoned to correspond to, where it has one.
+    cefr: str = ""
 
 
 #: The ladder, with the vocabulary each rung is usually reckoned to want. Estimates, and
 #: round on purpose: the figures behind ulpan levels vary between ulpanim.
+#:
+#: Each rung's CEFR equivalent since 2026-09-13. CEFR-aligned Hebrew teaching treats the
+#: six ulpan levels as roughly A1 to C2 (Scripta Judaica Cracoviensia 17, 2019, pp.
+#: 43–48); the two plus rungs take the level below and, for bet, the CEFR's own A2+.
 ULPAN: tuple[Rung, ...] = (
-    Rung(250, "א", "aleph"),
-    Rung(900, "א+", "aleph plus"),
-    Rung(1800, "ב", "bet"),
-    Rung(3000, "ב+", "bet plus"),
-    Rung(4500, "ג", "gimel"),
-    Rung(6500, "ד", "dalet"),
-    Rung(9000, "ה", "hey"),
-    Rung(12000, "ו", "vav"),
+    Rung(250, "א", "aleph", "A1"),
+    Rung(900, "א+", "aleph plus", "A1"),
+    Rung(1800, "ב", "bet", "A2"),
+    Rung(3000, "ב+", "bet plus", "A2+"),
+    Rung(4500, "ג", "gimel", "B1"),
+    Rung(6500, "ד", "dalet", "B2"),
+    Rung(9000, "ה", "hey", "C1"),
+    Rung(12000, "ו", "vav", "C2"),
 )
+
+#: The CEFR levels, by how many of the language's commonest words a reader knows.
+#:
+#: The research ties CEFR levels to recognition of a language's 5,000 most frequent
+#: lemmas (Meara and Milton's XLex), and Milton and Alexiou (2009), tabulated in Milton
+#: (2010), *EUROSLA Monographs* 1, Table 6, give the mean for learners of French at each
+#: level in Spain and in Greece. A level starts halfway between its mean and the one below
+#: it; A1 starts where aleph does. **Measured for French.** No study covers Italian or
+#: Russian, so both borrow these figures until one does.
+#:
+#: "The commonest 5,000" is read off the bands a word already carries: the 5,000th form
+#: in wordfreq sits at Zipf 4.17 in French, 4.30 in Russian and 4.23 in Italian, and the
+#: "moderate" band ends at 4.1 — so a known word in the three commonest bands is, near
+#: enough, a known word among them (`COMMON_BANDS`). Measured 2026-09-13.
+CEFR: tuple[Rung, ...] = (
+    Rung(250, "A1", "A1"),
+    Rung(1350, "A2", "A2"),
+    Rung(2000, "B1", "B1"),
+    Rung(2400, "B2", "B2"),
+    Rung(2750, "C1", "C1"),
+    Rung(3300, "C2", "C2"),
+)
+
+#: The bands inside a language's commonest five thousand or so words. See `CEFR`.
+COMMON_BANDS = frozenset({"easy", "fairly easy", "moderate"})
+
+
+@dataclass(frozen=True)
+class Ladder:
+    """A language's ladder: what it is called, its rungs, and what reaches them."""
+
+    title: str
+    rungs: tuple[Rung, ...]
+    #: `weighted` for the ulpan ladder (`reach`); `common` for the CEFR (`common`).
+    measure: str
+
+
+ULPAN_LADDER = Ladder("Ulpan level", ULPAN, "weighted")
+CEFR_LADDER = Ladder("CEFR level", CEFR, "common")
+
+#: Which languages have a ladder. Yiddish and Aramaic have none: there is no frequency
+#: table to measure a vocabulary in either against.
+LADDERS: dict[str, Ladder] = {
+    "he": ULPAN_LADDER,
+    "fr": CEFR_LADDER,
+    "ru": CEFR_LADDER,
+    "it": CEFR_LADDER,
+}
+
+
+def ladder_for(language: str) -> Ladder | None:
+    return LADDERS.get((language or "").split("-")[0].lower())
+
+
+def common(words: Iterable[tuple[int | None, str]]) -> int:
+    """How many known words sit among the language's commonest: the CEFR's measure."""
+    return sum(
+        1
+        for status, band in words
+        if status == KNOWN and band not in NOT_VOCABULARY and band in COMMON_BANDS
+    )
 
 
 def reach(words: Iterable[tuple[int | None, str]]) -> tuple[float, int]:
@@ -80,11 +147,11 @@ def reach(words: Iterable[tuple[int | None, str]]) -> tuple[float, int]:
     return total, counted
 
 
-def standing(weighted: float) -> tuple[Rung | None, Rung | None]:
+def standing(weighted: float, rungs: tuple[Rung, ...] = ULPAN) -> tuple[Rung | None, Rung | None]:
     """Which rung that reaches, and the one after it."""
     here: Rung | None = None
     following: Rung | None = None
-    for rung in ULPAN:
+    for rung in rungs:
         if weighted >= rung.at:
             here = rung
         elif following is None:
@@ -137,6 +204,11 @@ class Level:
     longest: int
     sections: int
     texts: int
+    #: What the language's ladder is called — "Ulpan level", "CEFR level" — or "" where
+    #: it has none.
+    ladder: str = "Ulpan level"
+    #: Known words among the commonest, for a ladder that counts those.
+    common: int = 0
 
     def state(self) -> dict[str, Any]:
         return {
@@ -151,8 +223,10 @@ class Level:
             # The rung is here for grading and for the page's own ledger line. It is
             # labelled for what it is so nobody downstream prints it as a score.
             "ladder": {
+                "name": self.ladder,
                 "reach": self.here.name if self.here else "",
                 "next": self.next.name if self.next else "",
+                "cefr": self.here.cefr if self.here else "",
                 "note": "A guide, not a placement.",
             },
         }
@@ -172,7 +246,14 @@ def snapshot(
     learning = sum(
         1 for _, status, band, _ in words if status in (1, 2, 3) and band not in NOT_VOCABULARY
     )
-    here, following = standing(weighted)
+    among = common((status, band) for _, status, band, _ in words)
+    ladder = ladder_for(language)
+    if ladder is None:
+        here, following = None, None
+    else:
+        here, following = standing(
+            weighted if ladder.measure == "weighted" else among, ladder.rungs
+        )
     activity = store.activity(person_id)
     days = [str(day) for day in activity.get("days") or []]
     current, longest = streaks(days, today or date.today())
@@ -188,33 +269,57 @@ def snapshot(
         longest=longest,
         sections=int(activity.get("sections") or 0),
         texts=int(activity.get("texts") or 0),
+        ladder=ladder.title if ladder else "",
+        common=among,
     )
 
 
 def describe(level: Level) -> str:
     """The ledger as a paragraph the chat's system prompt can carry.
 
-    Real counts, the way §6 asks. The rung is given so the Hebrew the chat writes can be
-    graded to it, and the same sentence says it is never to be quoted as a placement.
+    Real counts, the way §6 asks. The rung is given so what the chat writes can be graded
+    to it, and the same sentence says it is never to be quoted as a placement.
     """
-    ladder = (
-        f"Weighted by how common each word is, their known words reach about the "
-        f"'{level.here.name}' rung of the ulpan ladder"
+    from .translate.prompts import language_name
+
+    code = (level.language or "he").split("-")[0].lower()
+    ladder = _ladder_sentence(level, ladder_for(code))
+    return (
+        f"The reader is learning {language_name(code)}. Their ledger: {level.known:,} words "
+        f"marked known, {level.learning:,} still being learned; {level.days:,} days read, a "
+        f"current streak of {level.streak:,} (longest {level.longest:,}); "
+        f"{level.sections:,} sections finished across {level.texts:,} texts. {ladder}"
+        "Never tell the reader they are 'at a level' or name the rung as a placement — it is "
+        "a guide from self-reported words, not a placement and not a test. Quote the real "
+        "counts instead."
+    )
+
+
+def _ladder_sentence(level: Level, ladder: Ladder | None) -> str:
+    if ladder is None:
+        return "There is no level ladder for this language. "
+    if ladder.measure == "weighted":
+        said = (
+            f"Weighted by how common each word is, their known words reach about the "
+            f"'{level.here.name}' rung of the ulpan ladder (about {level.here.cefr} on the "
+            "CEFR)"
+            if level.here
+            else "Weighted by how common each word is, their known words have not yet "
+            "reached the first rung of the ulpan ladder"
+        )
+        if level.next:
+            said += f"; the next rung, '{level.next.name}', wants about {level.next.at:,} words"
+        return f"{said}. Use the rung to grade anything you write for them in Hebrew. "
+    said = (
+        f"{level.common:,} of their known words are among the language's commonest, which "
+        f"is about {level.here.name} on the CEFR"
         if level.here
-        else "Weighted by how common each word is, their known words have not yet reached "
-        "the first rung of the ulpan ladder"
+        else f"{level.common:,} of their known words are among the language's commonest, "
+        "short of A1 on the CEFR"
     )
     if level.next:
-        ladder += f"; the next rung, '{level.next.name}', wants about {level.next.at:,} words"
-    return (
-        f"The reader is learning Hebrew. Their ledger: {level.known:,} words marked known, "
-        f"{level.learning:,} still being learned; {level.days:,} days read, a current streak "
-        f"of {level.streak:,} (longest {level.longest:,}); {level.sections:,} sections "
-        f"finished across {level.texts:,} texts. {ladder}. Use the rung to grade any Hebrew "
-        "you write for them. Never tell the reader they are 'at a level' or name the rung "
-        "as a placement — it is a guide from self-reported words, not a placement and not a "
-        "test. Quote the real counts instead."
-    )
+        said += f"; {level.next.name} wants about {level.next.at:,}"
+    return f"{said}. A reader may name a CEFR level for themselves; take it as a guide. "
 
 
 # -- how much of a text a reader already has (targum-internal#244) -------------------

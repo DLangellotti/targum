@@ -108,13 +108,14 @@ def test_the_next_milestone_says_how_far_it_is() -> None:
     """The arithmetic somebody would notice being wrong, and the thousands separator —
     these numbers are the thing the page is for and they get read.
 
-    In a language with no ulpan behind it, which is where the word-count ladder still
-    leads the block. Hebrew shows the rung it has reached instead.
+    In a language with no level ladder behind it — Yiddish, since French, Russian and
+    Italian have the CEFR (2026-09-13) — which is where the word-count ladder still leads
+    the block. A language with a ladder shows the rung it has reached instead.
     """
     drawn = draw(
         {
-            "targum:vocab:ru": vocab(known=962),
-            "targum:docs": {"a": {"language": "ru", "title": "One"}},
+            "targum:vocab:yi": vocab(known=962),
+            "targum:docs": {"a": {"language": "yi", "title": "One"}},
             "targum:opened": {"a": 1},
         }
     )
@@ -230,17 +231,32 @@ def test_the_top_of_the_ladder_stops_rather_than_inventing_more() -> None:
     assert said["next"] == "You're past every rung an ulpan keeps."
 
 
-def test_ulpan_levels_are_shown_for_hebrew_and_nowhere_else() -> None:
-    """An ulpan is a Hebrew institution. Hung off a Russian word list it would be a number
-    dressed up as a standard — so every other language keeps the count of words known,
-    which is a real thing in any of them."""
+def test_a_language_with_cefr_shows_cefr_and_hebrew_shows_both() -> None:
+    """Decided 2026-09-13: languages with CEFR levels have them. Hebrew keeps the ulpan
+    rung first with its CEFR equivalent beside it, French, Russian and Italian show a CEFR
+    level, and a language with no word list to measure against keeps its milestones and
+    says why."""
     hebrew = ulpan(banded(easy=400), language="he")
-    assert "aleph" in hebrew["rung"]
-    assert hebrew["shown"], "and the block says what the rung is estimated from"
+    assert "aleph" in hebrew["rung"] and "about A1" in hebrew["rung"]
+    assert hebrew["title"] == "Ulpan level" and hebrew["shown"]
 
-    russian = ulpan(banded(easy=400), language="ru")
-    assert russian["rung"] == "250 words known", "the milestone it always had"
-    assert not russian["shown"], "and no caveat about a ladder it is not on"
+    french = ulpan(banded(easy=1500, fairly_easy=400, hard=900), language="fr")
+    assert french["title"] == "CEFR level" and french["shown"], "a guide, said as one"
+    assert french["rung"] == "A2", "1,900 common words: the hard ones do not count here"
+    assert french["next"] == "Another 100 common words to B1."
+
+    russian = ulpan(banded(easy=2000), language="ru")
+    assert russian["rung"] == "B1"
+
+    yiddish = ulpan(banded(easy=400), language="yi")
+    assert yiddish["rung"] == "250 words known", "the milestone it always had"
+    assert not yiddish["shown"], "and no caveat about a ladder it is not on"
+    assert "no level for this language" in yiddish["why"]
+
+
+def test_the_top_of_the_cefr_stops_rather_than_inventing_more() -> None:
+    said = ulpan(banded(easy=3300), language="it")
+    assert said["rung"] == "C2" and said["next"] == "You're past every CEFR level."
 
 
 def test_a_word_no_frequency_data_can_rate_still_counts() -> None:
