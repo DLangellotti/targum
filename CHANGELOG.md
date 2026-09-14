@@ -134,6 +134,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Sephardic reading Hebcal returns is recorded on the week and the portion and is not
   shown: no rite chooser. One chanting-marks switch reaches both frames
   (targum-internal#201).
+- The chat's search of the publishers' feeds pulls them side by side and keeps them
+  five minutes. It pulled nineteen feeds one after another, each allowed thirty seconds:
+  a "tech news" turn spent 21 s in that one step. A feed that misses the eight-second
+  budget is named as late and lands for the next search, and a feed that would not
+  answer is left alone for two minutes (targum-internal#272).
 - At the foot of a finished section, which words cost the reader the most
   (targum-internal#174). Every card opened on a word is counted, by lemma, in the
   browser (`targum:cards:<language>`), and the foot says which words were looked up
