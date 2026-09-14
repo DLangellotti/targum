@@ -140,12 +140,12 @@ def test_every_page_carries_the_same_four_places() -> None:
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
 #: can be, it is who you are while you are in one of them.
-NOT_IN_THE_NAV = {"you"}
+NOT_IN_THE_NAV = {"you", "words", "phrases"}
 
 #: Learn's lists, gone to a page of their own, and the conversation, which is where a
 #: line typed into Learn's box goes. They mark Learn, which is where they came from and
 #: the only nav entry that could honestly be current.
-UNDER_LEARN = {"texts", "words", "phrases", "chat"}
+UNDER_LEARN = {"texts", "chat"}
 
 
 def test_the_nav_marks_where_you_are() -> None:
@@ -799,11 +799,14 @@ def test_a_list_page_carries_its_own_list_and_no_other(which: str, has: str, lac
 
 
 def test_a_list_page_marks_learn_in_the_nav() -> None:
-    """These are where Learn's lists go on, not places of their own — nothing in the nav
-    points at them, so the nav goes on saying Learn."""
-    for which in ("texts", "words", "phrases"):
+    """Your targums is where Learn's Recently read goes on, so the nav goes on saying
+    Learn. Your words and phrases are reached from the account and mark no place: a nav
+    that lit Learn on them said the reader was somewhere they were not (2026-09-14)."""
+    current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES["texts"])
+    assert current == ["learn"]
+    for which in ("words", "phrases"):
         current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES[which])
-        assert current == ["learn"], which
+        assert current == [], which
 
 
 def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
@@ -823,7 +826,7 @@ def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:
     with a second chip also saying "All", and the two rows read as one row of ten."""
     library = PAGES["library"]
     assert 'class="segmented" id="register-chips"' in library
-    assert '<span class="switch-label">Hebrew</span>' in library, "and it says what it is"
+    assert '<span class="switch-label">Which Hebrew</span>' in library, "and it says what it is"
     assert 'class="chips" id="register-chips"' not in library
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")

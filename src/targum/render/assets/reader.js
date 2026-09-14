@@ -2631,7 +2631,7 @@ var targumReader = function () {
     if (remembered !== false) save();
   }
 
-  var roomy = window.matchMedia("(min-width: 60rem)");
+  var roomy = window.matchMedia("(min-width: 60.01rem)");
 
   /* --- the band at the foot of a narrow window --------------------------------
 
@@ -8924,7 +8924,7 @@ var targumReader = function () {
     var SIZE_STORE = "targum:video-size";
     var EDGE = 8;
     var SMALLEST = 260;
-    var wide = window.matchMedia("(min-width: 60rem)");
+    var wide = window.matchMedia("(min-width: 60.01rem)");
     var grip = videoBox.querySelector(".video-grip");
     var sizer = videoBox.querySelector(".video-size");
     var place = null;
@@ -9174,7 +9174,7 @@ var targumReader = function () {
            every press does something the reader can see, which is the whole promise of a
            toggle. The stored corner is untouched: a phone that becomes a wide window
            again finds the corner it left. */
-        var ring = window.matchMedia("(min-width: 60rem)").matches
+        var ring = window.matchMedia("(min-width: 60.01rem)").matches
           ? CORNERS
           : ["bottom-end", "top-start"];
         var at = ring.indexOf(cornerKey.getAttribute("data-corner"));

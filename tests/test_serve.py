@@ -2004,7 +2004,7 @@ def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
     # reader rather than a contents page.
     page = (folder / "reader" / "index.html").read_text(encoding="utf-8")
     assert '<span class="bar-english" lang="en" dir="ltr">Psalms</span>' in page
-    assert "<title>תהילים · Psalms</title>" in page
+    assert "<title>\u2068תהילים\u2069 · Psalms</title>" in page
 
 
 def test_an_upload_has_no_english_title_anywhere(tmp_path: Path) -> None:
@@ -2047,7 +2047,7 @@ def test_an_upload_has_no_english_title_anywhere(tmp_path: Path) -> None:
     # The stylesheet inlined into every reader names `.bar-english`; the markup is what
     # must be absent.
     assert '<span class="bar-english"' not in page and '<p class="english"' not in page
-    assert "<title>שלי</title>" in page
+    assert "<title>\u2068שלי\u2069</title>" in page
 
 
 def test_a_cover_is_served_and_only_from_the_covers_directory(

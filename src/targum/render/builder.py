@@ -1056,6 +1056,12 @@ def holding_page() -> str:
     return _environment().get_template("holding.html.j2").render()
 
 
+def not_found_page() -> str:
+    """An address that is not a page: said plainly, with the way back, in the same
+    quiet frame a stranger already meets."""
+    return _environment().get_template("holding.html.j2").render(missing=True)
+
+
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
 LEGAL_CHANGED = "29 August 2026"
@@ -1620,6 +1626,7 @@ def you_page(token: str) -> str:
             reading=_staged(READING),
             into=_staged(INTO),
             required=list(REQUIRED_LEARNING),
+            languages=_language_names(),
         )
     )
 

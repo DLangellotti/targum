@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>You — targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
@@ -94,10 +94,14 @@
 
 <script>
 window.TARGUM_KEY = "{{ token }}";
+{#- The language menu stands in the bar here too, so the bar does not move between pages
+    (2026-09-14). -#}
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_READING = {{ reading|tojson }};
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_REQUIRED = {{ required|tojson }};
 </script>
+<script>{{ asset('lang.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('you.js') }}</script>

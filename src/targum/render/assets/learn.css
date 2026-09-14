@@ -605,6 +605,14 @@ body.learn main {
 }
 /* The bar's row runs as wide as the sheet under it. */
 body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
+/* Wide, not endless: on a 2560px screen the sheet ran 2,500px across with the reader's
+   own type unscaled inside it (2026-09-14). */
+body.learn:not(.yours) main,
+body.learn:not(.yours) .site-head-row { max-width: 110rem; margin-inline: auto; }
+/* The lists behind the account are pages to read down, not a reader to fill the desk
+   with: they keep the column every other list page stands in, header and all. */
+body.yours main { max-width: 62rem; padding: 1.5rem 1.25rem 5rem; }
+body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 .front { gap: 0.75rem; margin-block-end: 2rem; }
 .learn-head {
   display: flex;

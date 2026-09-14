@@ -363,6 +363,14 @@ a.bar-brand:hover { color: var(--accent); }
 @media (max-width: 40rem) {
   .bar-title .known { display: none; }
 }
+/* A window just wider than the band keeps every desktop control in the bar, and with
+   both titles and the count beside them the bar wrapped to two rows from 961px to about
+   1200 (2026-09-14). The English title and the count wait for the room; the list beside
+   the text says the count, and the document title keeps both names. */
+@media (min-width: 60.01rem) and (max-width: 75rem) {
+  .bar-english,
+  .bar-title .known { display: none; }
+}
 
 /* Said rather than shown. Marking a word from the keyboard changes a count in the far
    corner and nothing else, which a screen reader never reaches and a reader watching the
@@ -1572,7 +1580,7 @@ body[data-case="Loc"] .w.case-Loc {
 /* Only while the window cannot hold both: past ~101rem the centred column and the
    15rem panel fit side by side, and shoving the text over anyway moved it off-centre
    on exactly the screens with the most room. */
-@media (min-width: 60rem) and (max-width: 101rem) {
+@media (min-width: 60.01rem) and (max-width: 101rem) {
   body.has-list.list-open { padding-inline-end: 15rem; }
   /* The text gives up the width; the bar does not. It is the window's strip, not the
      column's, so the mark keeps the far corner of the screen — on an RTL page the
@@ -1863,7 +1871,7 @@ body.paged:not(.last-page) .rest { display: none; }
 .turn[hidden] { display: none; }
 /* The open list takes a column of the window, and the page — arrows included — moves
    over to make room, the same way `body.list-open` moves the text. */
-@media (min-width: 60rem) and (max-width: 101rem) {
+@media (min-width: 60.01rem) and (max-width: 101rem) {
   body.has-list.list-open .turn { inset-inline-end: 15rem; }
 }
 .turn span {
@@ -2475,10 +2483,15 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   .list-items .copy, table.rows .copy, .text-group .copy { opacity: 1; }
 }
 
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   /* Room outside the column on both sides: the name hangs off one edge and the play
-     control off the other, and a margin cut for one of them clips the other. */
-  main { padding-inline-start: 4.6rem; padding-inline-end: 2.6rem; }
+     control off the other, and a margin cut for one of them clips the other.
+
+     The reader's own `main` and no other: every page carries this sheet, and on the
+     sign-in page, the public text pages and the parasha's band this cut a 384px form to
+     269px off centre, a 34rem measure to 26.8, and pushed a full-bleed band 16px past
+     the window so the page scrolled sideways (2026-09-14). */
+  body.reader main { padding-inline-start: 4.6rem; padding-inline-end: 2.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3007,7 +3020,7 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
 .video-grip,
 .video-size { display: none; }
 .video-grip svg { inline-size: 0.85rem; block-size: 0.85rem; fill: currentColor; }
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   .video .video-grip { display: grid; cursor: grab; touch-action: none; }
   .video.moving,
   .video.moving .video-grip { cursor: grabbing; }
@@ -3071,7 +3084,7 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
 .video.watching .video-mode .shrink { display: inline; }
 .video-mode svg path { fill: none; }
 
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   .video:not(.watching) {
     flex-direction: column;
     align-items: stretch;
@@ -3318,7 +3331,7 @@ body.watching { overflow: hidden; }
    than sitting under it — and the video panel above the player steps the same step,
    or the picture floats over the words. Wide windows only: below 60rem the list is a
    bottom sheet and both rise above it instead — that rule lives with the sheet's. */
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   body.has-list.list-open .player,
   body.has-list.list-open .video { inset-inline-end: 15rem; }
 }
@@ -3328,7 +3341,7 @@ body.watching { overflow: hidden; }
    of them. The two rows are the whole of the band `room` reserves under a page — except
    on a phone with a player out, where the row is not wide enough for both and the tab
    stands above the player instead; that rule is with the other narrow ones. */
-@media (min-width: 60rem) {
+@media (min-width: 60.01rem) {
   body.paged { --player-foot: 5.5rem; }
   body.paged .list-tab { inset-block-end: 5.5rem; }
 }
@@ -3821,16 +3834,21 @@ html:fullscreen { background: var(--paper); }
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(0.5rem); }
 }
+/* The reader's drawer as a sheet, on the reader alone. Unscoped, it reached every chrome
+   page too, where chrome.css puts the drawer back to a panel from 769px — and between
+   769 and 960 the two made a 416px panel pinned to the wrong edge, over the navigation,
+   with no scrim (2026-09-14). And in `svh`: a phone's `vh` is the window with its
+   toolbars hidden, which put the sheet's top under them. */
 @media (max-width: 60rem) {
-  .talk-drawer {
+  body.reader .talk-drawer {
     inset-inline: 0;
     inset-block: auto 0;
     inline-size: auto;
-    block-size: min(88vh, 100vh - 3rem);
+    block-size: min(88svh, 100svh - 3rem);
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   }
-  .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
-  .talk-scrim[hidden] { display: none; }
+  body.reader .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
+  body.reader .talk-scrim[hidden] { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .talk-drawer, .talk-drawer.leaving { animation: none; }

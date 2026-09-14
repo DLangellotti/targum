@@ -50,6 +50,7 @@ from .render.builder import (
     back_office_page,
     daily_page,
     holding_page,
+    not_found_page,
     legal_is_public,
     legal_page,
     parasha_page,
@@ -2951,6 +2952,26 @@ class Handler(BaseHTTPRequestHandler):
             return everything
         return self.store.learning(who.id) & everything
 
+    #: Every address a person can be looking at, or that a page asks for data from.
+    #: Anything else is not a page, and says so rather than answering "Coming soon".
+    PAGES = frozenset(
+        {"/", "/add", "/chat", "/progress", "/library", "/you", "/readers", "/suggest",
+         "/series", "/words/common", "/jobs", "/account/export", "/account/follows"}
+    )
+    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/")
+
+    def _is_a_page(self, route: str) -> bool:
+        return (
+            route in self.PAGES
+            or route.lstrip("/") in self.lists
+            or route.startswith(self.PAGE_PREFIXES)
+        )
+
+    def _not_found(self) -> None:
+        """A page that is not there, said as a page (2026-09-14): a bare `not found` in
+        plain text, or the holding page with a 200, were both a dead end."""
+        self._send(404, not_found_page().encode("utf-8"), HTML)
+
     def _needs_account(self, route: str) -> bool:
         """Whether this request has to be turned away at the door.
 
@@ -4058,6 +4079,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(
                     {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
                 )
+            if not self._is_a_page(route):
+                return self._not_found()
             return self._send(200, holding_page().encode("utf-8"), HTML)
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
@@ -4191,7 +4214,7 @@ class Handler(BaseHTTPRequestHandler):
                 if job
                 else {"error": "We lost that build when we restarted. Start it again."}
             )
-        self._send(404, b"not found", "text/plain")
+        self._not_found()
 
     def _post(self) -> None:
         route = urlparse(self.path).path
@@ -6139,7 +6162,7 @@ class Handler(BaseHTTPRequestHandler):
                     query = urlparse(self.path).query
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
-        return self._send(404, b"not found", "text/plain")
+        return self._not_found()
 
 
 def _spelled_like(root: Path, folder: str) -> str | None:

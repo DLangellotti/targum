@@ -142,7 +142,7 @@ body.chat > .chat-main {
     position: fixed;
     inset-inline: 0;
     inset-block-end: 0;
-    max-block-size: 70vh;
+    max-block-size: 70svh;
     overflow: auto;
     padding: 0.5rem 1rem 1rem;
     background: var(--paper);

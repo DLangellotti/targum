@@ -180,7 +180,9 @@ main {
 
 .panels {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  /* Never wider than the page it is on: at 320px a 20rem track was 32px wider than the
+     column and the page scrolled sideways (2026-09-14). */
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
   gap: 1.25rem;
 }
 /* Flat, and the hairline does the grouping. §9 allows one raised layer per view and the

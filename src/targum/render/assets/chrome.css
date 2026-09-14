@@ -20,6 +20,11 @@ body {
   background: var(--ground);
   font-family: var(--chrome);
   margin: 0;
+  /* The desk pages draw to the edge of the glass (`viewport-fit=cover`, 2026-09-14), so
+     the bar at the foot clears a phone's home indicator by the inset it already names —
+     which was 0 while no page asked to cover — and a phone on its side keeps the page
+     out from under the notch. */
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
 /* The ink bar: the screen's one inverted block, the name and the places on it. */
 .site-head {
@@ -117,6 +122,16 @@ body {
    The break between the two lines is a zero-height item the whole width of the row,
    which is the only way flex has of saying "new line here". After the rules it
    overrides, on purpose. */
+/* Between a phone and a laptop the places are one row that does not wrap: left to
+   themselves they fitted three and dropped "+ Add" onto a line of its own (641 to about
+   850px, 2026-09-14). Two things give way first — the word "Your", and the language's
+   name beside its flag, as on a phone. */
+@media (max-width: 60rem) {
+  .site-nav { flex-wrap: nowrap; }
+  .site-nav .nav-your { display: none; }
+  .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
+}
+
 @media (max-width: 46rem) {
   .site-head-row { flex-wrap: wrap; row-gap: 0; }
   .site-head-row::before { content: ""; order: 1; flex: 1 0 100%; height: 0; }
@@ -276,9 +291,14 @@ body {
    upload page has no reason to load — and so wore three unstyled blue links, invisible
    only because that page used to be too long to reach the bottom of. */
 .site-foot {
-  max-width: 46rem;
+  /* The column every desk page's content stands in, so the links start where the page
+     does. At 46rem, centred, they started a hand's width in from it on some pages and in
+     the middle on others (2026-09-14). */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 62rem;
   margin: 3rem auto 0;
-  padding: 1.2rem 1rem 2rem;
+  padding: 1.2rem 1.25rem 2rem;
   border-block-start: 1px solid var(--hairline);
   display: flex;
   flex-wrap: wrap;
@@ -584,7 +604,9 @@ body.chat > .talk-cta, body.chat > .talk-drawer, body.chat > .talk-scrim { displ
   }
   .talk-scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / 0.35); }
   .talk-scrim[hidden] { display: none; }
-  .talk-cta { inset-inline: 0.75rem; inset-block-end: max(0.75rem, env(safe-area-inset-bottom)); }
+  /* The end edge only. Both edges made the pill a bar the width of the window, over the
+     reader's page count on a tablet (2026-09-14). */
+  .talk-cta { inset-inline: auto 0.75rem; inset-block-end: max(0.75rem, env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .talk-drawer, .talk-drawer.leaving { animation: none; }
@@ -898,7 +920,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
   color: var(--ink);
 }
 .palette-find:focus { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-wash); }
-.palette-list { list-style: none; margin: 0.6rem 0 0; padding: 0; max-block-size: 50vh; overflow: auto; }
+.palette-list { list-style: none; margin: 0.6rem 0 0; padding: 0; max-block-size: 50svh; overflow: auto; }
 .palette-list[hidden] { display: none; }
 .palette-row {
   display: flex;
