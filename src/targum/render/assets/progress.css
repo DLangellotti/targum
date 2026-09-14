@@ -150,6 +150,14 @@
   color: var(--ink);
   font-weight: 600;
 }
+/* Not buttons (2026-09-14). A bordered pill is the shape of a press, and none of these
+   can be pressed: reached is a filled leaf wash with its figure in ink, unreached is the
+   figure alone. */
+.progress .mark { border-color: transparent; }
+.progress .mark.on {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--leaf) 16%, transparent);
+}
 
 /* --- days reading ---------------------------------------------------------- */
 
@@ -231,8 +239,10 @@
 .progress .ledger .reached .letter,
 .progress .panel .reached .letter { margin-inline-end: 0.4rem; }
 /* The CEFR equivalent beside an ulpan name: part of the label, a shade quieter. */
-.progress .ledger .reached .cefr,
-.progress .panel .reached .cefr { color: var(--ink-soft); }
+.progress .ledger .reached .cefr { color: var(--ink-soft); }
+/* On the leaf chip the equivalent is the chip's own paper, a weight lighter. In the muted
+   ink it was olive on green and could not be read (2026-09-14). */
+.progress .panel .reached .cefr { color: inherit; font-weight: 400; }
 
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */

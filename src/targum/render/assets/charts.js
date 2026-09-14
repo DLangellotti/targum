@@ -205,7 +205,8 @@
         svg("line", { x1: pad.left, y1: py(value), x2: W - pad.right, y2: py(value) })
       );
       var text = svg("text", { x: pad.left - 6, y: py(value) + 3, "text-anchor": "end" });
-      text.textContent = String(value);
+      // 1,818 rather than 1818, as the ledger above it writes the same count.
+      text.textContent = String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       grid.appendChild(text);
     });
     picture.appendChild(grid);

@@ -204,9 +204,20 @@
   function hoursWarning(got) {
     if (!got || got.allowed === null || got.allowed === undefined) return "";
     if (!(got.used >= got.allowed * HOURS_WARN)) return "";
-    var line = "You've used " + got.used + " of your " + got.allowed + " hours this month.";
+    var line = "You've used " + said(got.used) + " of your " + said(got.allowed) + " this month.";
     if (got.ends) line += " They reset on " + got.ends + ".";
     return line;
+  }
+
+  // Hours as a person says them: "6 hours 30 minutes", never "6.5" (2026-09-14).
+  function said(hours) {
+    var minutes = Math.round((Number(hours) || 0) * 60);
+    var whole = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    var parts = [];
+    if (whole) parts.push(whole + (whole === 1 ? " hour" : " hours"));
+    if (rest || !whole) parts.push(rest + (rest === 1 ? " minute" : " minutes"));
+    return parts.join(" ");
   }
 
   function hours(seconds) {

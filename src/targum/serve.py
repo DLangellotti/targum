@@ -1250,7 +1250,9 @@ class Library:
         """When this month's allowance comes back, as a date a refusal can name."""
         today = datetime.now(UTC)
         year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
-        return datetime(year, month, 1, tzinfo=UTC).strftime("%-d %B")
+        # Month first, as every other date in the product is written ("Monday, September
+        # 14" on Learn); "1 October" beside it was a second convention on one screen.
+        return datetime(year, month, 1, tzinfo=UTC).strftime("%B %-d")
 
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of

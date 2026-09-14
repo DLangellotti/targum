@@ -210,7 +210,7 @@
       var swatch = el("i");
       swatch.style.background = "var(" + STATUS[segment.status].slot + ")";
       item.appendChild(swatch);
-      item.appendChild(el("b", null, String(segment.count)));
+      item.appendChild(el("b", null, grouped(segment.count)));
       item.appendChild(document.createTextNode(" " + STATUS[segment.status].name));
       legend.appendChild(item);
     });
@@ -258,7 +258,9 @@
     var tip = null;
     BANDS.forEach(function (band, index) {
       var y = index * rowHeight + 3;
-      var width = (counts[index] / top) * (W - labelW - 26);
+      // Room for the count after the longest bar: 26 units was two digits' worth, and a
+      // four-digit count ran past the card's edge (2026-09-14).
+      var width = (counts[index] / top) * (W - labelW - 48);
 
       var label = svg("text", { x: labelW - 8, y: y + 13, "text-anchor": "end" });
       label.textContent = band;
@@ -292,7 +294,7 @@
         y: y + 13,
         class: "value",
       });
-      value.textContent = String(counts[index]);
+      value.textContent = grouped(counts[index]);
       picture.appendChild(value);
     });
 
@@ -358,18 +360,20 @@
     // Everything kept, and then the half of it that has been finished with. "Known" on
     // its own read as a claim about the reader; "marked known" is what actually happened,
     // which is that they pressed a key while reading.
-    count(sums.saved, sums.saved === 1 ? "word saved" : "words saved");
+    count(sums.saved, sums.saved === 1 ? "word on your list" : "words on your list");
     count(
       sums.known,
       sums.known === 1 ? "word marked known" : "words marked known",
       "leaf"
     );
     // What targum carried up to known, rather than what a reader arrived already having.
-    count(sums.learned, sums.learned === 1 ? "word learned" : "words learned", "sun");
+    // "Learned" alone read as contradicting the known count beside it (2026-09-14): it
+    // is the part of that count that started lower on the ladder and was read up to known.
+    count(sums.learned, sums.learned === 1 ? "word learned by reading" : "words learned by reading", "sun");
     count(sums.phrases, sums.phrases === 1 ? "phrase saved" : "phrases saved", "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
     // thing, and the one on this page that is a whole text rather than a word.
-    count(sums.finished, sums.finished === 1 ? "targum finished" : "targums finished", "leaf");
+    count(sums.finished, sums.finished === 1 ? "text finished" : "texts finished", "leaf");
     count(days.length, days.length === 1 ? "day reading" : "days reading");
     // The longest run of days there has ever been, and never the current one. Decided
     // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
@@ -379,7 +383,7 @@
     // legal here because this block is the inverted surface. It rises on /progress
     // quietly; the day it rises, the foot of the section that did it says so.
     var longest = charts.longest(days);
-    count(longest, longest === 1 ? "day running, your longest" : "days running, your longest", "sun");
+    count(longest, longest === 1 ? "day in your longest run" : "days in your longest run", "sun");
 
     drawStanding(standing, entry, code, sums.known);
   }
