@@ -190,6 +190,25 @@ ABOUT_FIELDS = {
     "meaning": 200,
 }
 
+
+def _about(raw: object) -> dict[str, str] | None:
+    """Where the reader is, when a line came from a word's card or the drawer in a reader:
+    the text, the section, the sentence and the word. Strings, capped, and nothing else —
+    a page can say anything here and the model reads it, so it is quoted as the reader's
+    note and never trusted as a fact about the shelf. Typed or spoken, the same note.
+    """
+    if not isinstance(raw, dict):
+        return None
+    about = {
+        key: str(raw.get(key) or "")[:limit] for key, limit in ABOUT_FIELDS.items() if raw.get(key)
+    }
+    # A word, a sentence, or the text alone (2026-09-11: "let's talk about it" from the
+    # sheet on Learn names the text and nothing narrower).
+    if not (about.get("surface") or about.get("sentence") or about.get("document")):
+        return None
+    return about
+
+
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
@@ -4249,10 +4268,10 @@ class Handler(BaseHTTPRequestHandler):
                     "chats": store.chats(person_id, limit=limit, offset=offset, language=spoken),
                     "language": spoken,
                     "usable": self.chats.usable,
-                    # Whether Speak is offered and the Hebrew contract rides: a reader
-                    # with modern Hebrew to speak, in Hebrew. Scripture-only readers, and
-                    # every other language, are answered in English, about the text
-                    # (`Library.talks`, `session._mode_for`).
+                    # Whether the Hebrew contract rides: a reader with modern Hebrew to
+                    # speak, in Hebrew. Scripture-only readers, and every other language,
+                    # are answered in English, about the text (`Library.talks`,
+                    # `session.mode_for`). Speak is offered either way since 2026-09-14.
                     "talk": spoken == "he" and self.library.talks(self._home(), person_id),
                     "hours": self._hours(person_id),
                     "chips": self.chats.chips(person, self._home()),
@@ -4520,9 +4539,16 @@ class Handler(BaseHTTPRequestHandler):
         The clip's seconds are metered as the reader's words — the same allowance, the
         same sum — and the turn it becomes counts the reply alone, so nothing is charged
         twice. The transcriber the recording pipeline uses is the one used here.
+
+        Offered in every conversation since 2026-09-14 ("people should be able to talk to
+        targum"), not only a Hebrew one: a conversation held in Hebrew is written down as
+        Hebrew, and every other one lets the transcriber hear which language it was — a
+        reader of Italian asks in Italian or in English. The line carries the language
+        and the note of where the reader is, as a typed line does.
         """
         from . import transcribe as transcribe_module
         from .audio import probe as probe_module
+        from .chat.session import mode_for
 
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
@@ -4531,8 +4557,23 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         chat_id = query.get("chat", [""])[0]
-        if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
+        owned = self.chats.store.chat_owned(person_id, chat_id) if chat_id else None
+        if chat_id and owned is None:
             return self._json({"error": "not found"}, 404)
+        spoken = self._asked_language(query.get("language", [""])[0])
+        about = None
+        try:
+            about = _about(json.loads(query.get("about", [""])[0] or "null"))
+        except ValueError:
+            about = None
+        home = self._home()
+        # What the conversation is held in decides what the clip is heard as: `talk` is
+        # Hebrew, and anything else is left to the transcriber to recognise.
+        if owned is not None:
+            mode = str(owned.get("mode") or "")
+        else:
+            mode = mode_for(spoken, self.library.talks(home, person_id))
+        hear_as = "he" if mode == "talk" else ""
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return self._json({"error": "We didn't hear anything. Try again."}, 400)
@@ -4544,10 +4585,16 @@ class Handler(BaseHTTPRequestHandler):
             "audio/webm": ".webm",
             "audio/ogg": ".ogg",
             "audio/mp4": ".m4a",
+            # What a phone's own recorder hands back, where the browser cannot record
+            # live and the press opens it (2026-09-14).
+            "audio/x-m4a": ".m4a",
+            "audio/aac": ".aac",
+            "audio/3gpp": ".3gp",
+            "audio/amr": ".amr",
             "audio/mpeg": ".mp3",
             "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
         }
-        home = self._home()
         clips = home / "chats" / "clips"
         clips.mkdir(parents=True, exist_ok=True)
         clip = clips / f"{secrets.token_hex(8)}{suffixes.get(kind, '.webm')}"
@@ -4584,7 +4631,7 @@ class Handler(BaseHTTPRequestHandler):
             clip.unlink(missing_ok=True)
             return self._json({"error": refused}, 402)
         try:
-            transcript = transcriber.transcribe(clip, "he")
+            transcript = transcriber.transcribe(clip, hear_as)
         except TargumError as error:
             job.stage = "failed"
             self.library.release(job)
@@ -4599,7 +4646,16 @@ class Handler(BaseHTTPRequestHandler):
         ).strip()
         if not text:
             return self._json({"error": "We didn't catch that. Try again a little closer."}, 400)
-        asked = self.chats.say(person, home, chat_id, text, admin=admin, heard_seconds=heard)
+        asked = self.chats.say(
+            person,
+            home,
+            chat_id,
+            text,
+            admin=admin,
+            heard_seconds=heard,
+            about=about,
+            language=spoken,
+        )
         self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
 
     def _chat_say(self, payload: dict[str, Any]) -> None:
@@ -4619,22 +4675,7 @@ class Handler(BaseHTTPRequestHandler):
         if chat_id and self.chats.store.chat_owned(person_id, chat_id) is None:
             return self._json({"error": "not found"}, 404)
         admin = bool(person and self.store.is_admin(person.email))
-        # Where the reader is, when the line came from a word's card: the text, the
-        # section, the sentence and the word. Strings, capped, and nothing else — a
-        # page can say anything here and the model reads it, so it is quoted as the
-        # reader's note and never trusted as a fact about the shelf.
-        about = None
-        raw = payload.get("about")
-        if isinstance(raw, dict):
-            about = {
-                key: str(raw.get(key) or "")[:limit]
-                for key, limit in ABOUT_FIELDS.items()
-                if raw.get(key)
-            }
-            # A word, a sentence, or the text alone (2026-09-11: "let's talk about it"
-            # from the sheet on Learn names the text and nothing narrower).
-            if not (about.get("surface") or about.get("sentence") or about.get("document")):
-                about = None
+        about = _about(payload.get("about"))
         # The text sent with the line, if one was: read from its own job, never from
         # the payload, so what the model is told about it is what the server knows.
         brought = None

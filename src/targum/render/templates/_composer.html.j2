@@ -6,9 +6,9 @@
     Left to right, on one row since 2026-09-10 (targum-internal#235): the `+`, which
     holds a file, a picture or a recording in the box for Send to bring (it used to be
     Upload, a corner of the nav; it is a thing you do while asking, not a place, and
-    since 2026-09-06 the Add page is its "More options"); the field; Speak, shown only
-    where the browser records and the reader has modern Hebrew to speak (the page's
-    script decides both); and Send, the working action, in the accent. Speak and Send
+    since 2026-09-06 the Add page is its "More options"); the field; Speak, in every
+    conversation and on every device since 2026-09-14 (the page's script shows it once it
+    works); and Send, the working action, in the accent. Speak and Send
     are glyphs from `_glyphs.html.j2` with the word as their label — the notes of
     2026-09-10: "default to icons in lieu of text" — and the `+` stays typed (§7).
 
@@ -37,7 +37,9 @@
       a line — the card is then a turn in the conversation, never a thing under the box. -#}
   <ul class="chat-held" id="chat-held" hidden></ul>
   {#- Push-to-talk, and called that: a clip goes up, is written down, and comes back
-      as a line — seconds, not a conversation. -#}
+      as a line — seconds, not a conversation. Where the browser cannot record live, the
+      press opens the device's own recorder through `chat-voice` (2026-09-14). -#}
+  <input type="file" id="chat-voice" hidden accept="audio/*" capture>
   <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden
           aria-label="Speak" title="Speak"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg></button>
   <button type="submit" class="chat-send" id="chat-send" aria-label="Send" title="Send"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-send"/></svg></button>

@@ -405,7 +405,7 @@ def _conversing_in(learning: set[str]) -> str:
     return "he" if "he" in learning else sorted(learning)[0]
 
 
-def _mode_for(language: str, talks: bool) -> str:
+def mode_for(language: str, talks: bool) -> str:
     """What a new conversation in a language is for.
 
     `talk` — held in the language, graded to the reader — only in Hebrew, and only for a
@@ -616,7 +616,7 @@ class Chats:
             }
         if not chat_id:
             spoken = ctx.level.language
-            mode = _mode_for(spoken, self.library.talks(home, person_id))
+            mode = mode_for(spoken, self.library.talks(home, person_id))
             chat_id = store.chat_open(person_id, language=spoken, mode=mode)
         because = str(top.get("because") or "").strip()
         into = hebrew_module.gloss_language(ctx.reads)
@@ -728,7 +728,7 @@ class Chats:
             # Each language has a conversation of its own (2026-09-13): opened in the
             # language the page is in, which is the switcher's.
             spoken = language or (self.store.language(person_id) if person_id else "he")
-            mode = _mode_for(spoken, self.library.talks(home, person_id))
+            mode = mode_for(spoken, self.library.talks(home, person_id))
             chat_id = self.store.chat_open(person_id, language=spoken, mode=mode)
         n = self.store.chat_say(
             chat_id, "user", framed(text, about, brought), text, stage="working"

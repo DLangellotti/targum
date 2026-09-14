@@ -193,6 +193,12 @@ if (payload.who) {
   global.window.TargumSync.who = payload.who;
   global.window.TargumSync.reads = () => payload.who.reads || null;
 }
+// The device's own recorder, where the browser cannot record live (2026-09-14): a press
+// on Speak clicks the file input that asks for sound, and the press is counted here.
+const voice = { opened: 0 };
+document.getElementById("chat-voice").click = () => {
+  voice.opened++;
+};
 require(path.join(assets, "bring.js"));
 require(path.join(assets, "chips.js"));
 require(path.join(assets, "lang.js"));
@@ -356,6 +362,12 @@ function drawn() {
       await new Promise((resolve) => setImmediate(resolve));
       byId["chat-mic"].onclick();
     }
+    if (step.type === "voice") {
+      // A press on Speak where nothing records live, and the clip the recorder gave back.
+      byId["chat-mic"].onclick();
+      byId["chat-voice"].files = [{ name: "memo.m4a", type: "audio/mp4" }];
+      byId["chat-voice"].onchange();
+    }
     if (step.type === "hash") {
       // The address changed by the back button or a typed link: the page opens what
       // it names (#238).
@@ -481,6 +493,7 @@ function drawn() {
         text: byId["chat-mic"].textContent,
       },
       plays,
+      voiceOpened: voice.opened,
       // Each row's title; its "when" beside it; the address the page wrote (#238).
       list: (byId["chat-list"].children || []).map((li) =>
         li.children[0].children.length ? li.children[0].children[0].textContent : li.children[0].textContent,

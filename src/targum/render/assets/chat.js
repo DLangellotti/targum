@@ -71,20 +71,17 @@
   var usable = true;
   var hoursLine = document.getElementById("chat-hours");
   var mic = document.getElementById("chat-mic");
-  // Push-to-talk needs a browser that records (`speak.js` says whether this one does)
-  // and a reader with modern Hebrew to speak — `/chat/list` says which, as `talk`, and
-  // the front door's box reads the same word. Without either the button never appears,
-  // and nothing on the page says a thing it cannot do.
+  var voice = document.getElementById("chat-voice");
+  // Push-to-talk, in every conversation and on every device (2026-09-14: "people should
+  // be able to talk to targum, and this should work on both desktop and mobile and on
+  // any other device"). It was offered only to a reader with modern Hebrew, in Hebrew,
+  // so a reader of Italian, or of scripture, had no microphone at all. A browser that
+  // records live (`speak.js`) records in place; one that cannot hands the press to the
+  // device's own recorder through a file input that asks for sound, and the clip goes
+  // up the same way. Shown by the script, so the button appears only once it works.
   var speak = window.TargumSpeak;
   var canRecord = !!(speak && speak.can);
-  var talk = true;
-
-  // Said by the script and not left to the template, so the two cannot disagree about
-  // what a page shows on a browser that cannot record.
-  function showMic() {
-    if (mic) mic.hidden = !canRecord || !talk;
-  }
-  showMic();
+  if (mic) mic.hidden = !(canRecord || voice);
 
   // The month's hours, above the box, and only past three quarters of them: the cap
   // should not be the first a reader hears of it, and a count on every visit was the
@@ -674,15 +671,30 @@
   // One press starts, the next stops. The clip goes up as itself, is written down by
   // the same transcriber a recording gets, and comes back as the reader's line.
   function toggleRecording() {
-    if (!canRecord || busy) return;
-    speak.toggle(mic, hear, tell);
+    if (busy) return;
+    if (canRecord) {
+      speak.toggle(mic, hear, tell);
+    } else if (voice) {
+      voice.value = "";
+      voice.click();
+    }
   }
 
+  // The clip goes up with what a typed line carries: the conversation's language, and
+  // where the reader is when the drawer is in a reader.
   function hear(clip) {
     busy = true;
     send.disabled = true;
+    tell("");
     var pending = turn("user", "…", "working");
-    var path = "/chat/hear?chat=" + encodeURIComponent(current);
+    var path = "/chat/hear?chat=" + encodeURIComponent(current) + "&language=" + encodeURIComponent(spoken());
+    if (reading && (reading.sentence || reading.document)) {
+      path +=
+        "&about=" +
+        encodeURIComponent(
+          JSON.stringify({ document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title })
+        );
+    }
     fetch(keyed(path), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": clip.type || "audio/webm" }),
@@ -1003,14 +1015,16 @@
 
   function load() {
     listedIn = spoken();
+    // The box names the conversation's language: an Italian one said "Write in Hebrew or
+    // English" until 2026-09-14.
+    var named = (window.TARGUM_LANGUAGES || {})[listedIn];
+    if (named && listedIn !== "en") field.placeholder = "Write in " + named + " or English";
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
       moreFrom = chats.length === PAGE ? PAGE : 0;
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
-      talk = answer.talk !== false;
-      showMic();
       drawHours(answer.hours);
       if (!usable) tell("We can't answer questions right now. Everything you have still opens.");
       drawList();
@@ -1412,6 +1426,12 @@
   });
   if (fresh) fresh.onclick = startNew;
   if (mic) mic.onclick = toggleRecording;
+  if (voice) {
+    voice.onchange = function () {
+      var clip = voice.files && voice.files[0];
+      if (clip) hear(clip);
+    };
+  }
 
   // The account, and the words. Every other page starts the sync — Learn, Library,
   // Progress, Add, Yours — and this one did not, so `/account/me` was never asked here.

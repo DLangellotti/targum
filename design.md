@@ -449,6 +449,31 @@ on a phone, since the `+` is how the product already says "bring something". On 
 the bar at the foot takes four columns. The `+` on the box stays: it brings a file while
 asking, and the page is for everything else.
 
+### Anybody can speak to targum, and the sheet says where to read — 2026-09-14
+
+Two things David noticed on the same morning. First: "there is no little microphone to
+press inside of the chat. This is important. People should be able to talk to targum, and
+this should work on both desktop and mobile and on any other device." Speak had been
+offered only in a Hebrew conversation, to a reader with modern Hebrew. Since the language
+menu (2026-09-13) every other language opens its own conversation, so most conversations
+had no microphone at all, and nor did a reader of scripture. So Speak is in every
+conversation now. A conversation held in Hebrew is written down as Hebrew; any other lets
+the transcriber recognise what was spoken, so a reader of Italian can ask in Italian or in
+English. A browser that records records in place. On one that cannot, the press opens the
+device's own recorder, and the clip goes up the same way. A spoken line carries what a
+typed one does: the conversation's language, and where the reader is in a reader. The box
+names that language too: an Italian conversation still said "Write in Hebrew or English".
+
+Second: on Learn "it should be clearer to the user that, while they can comfortably read on
+that page, and we do want it to be comfortable, for the best experience they should click
+Open and go to the reader page." The sheet's press was a small "Open" at the end of its
+head. It now reads **Open the reader**, with the expand corners a window is made
+full-size by, filled in the primary at control height. One line beside it says both
+halves: "Read here, or go full screen." That line stands only
+over a framed reader, beside the press at a desk and over the known share on a phone.
+Nothing about the sheet's comfort changes: it is still the reader, working, at the place
+it was left.
+
 ### The picture's keys say what they do — 2026-09-14
 
 David, looking at a docked video: the controls "don't make it obvious you can drag it or
@@ -749,7 +774,7 @@ the note of 2026-09-05 that asked for "the Lovable of language learning", and fr
 of looking at that product — one box on the front page that makes the thing, then a
 conversation beside it — Learn now carries one box under the ledger's own sentence, and
 nothing else on the page moves. The box takes a request, a link, a file by its `+`, or a
-word, and Speak where the browser records. A line typed there opens a conversation and
+word, and Speak (on every device since 2026-09-14). A line typed there opens a conversation and
 goes to it; nothing is answered on Learn. The `+` is the Add page's whole job in one
 press: a file, a picture or a recording is held in the box as a chip until Send, goes up
 as it did there, is priced, and the card the model's quote draws is a turn in the
@@ -785,8 +810,9 @@ mode described next, and Aramaic stays there.) The one exception,
 decided the same afternoon: a reader whose every text is scripture is not written Hebrew
 at. Nobody converses in the Hebrew of Judges, and a model writing it graded to a ledger
 of biblical words would be pastiche on the one shelf where every line must be right. That
-reader's box finds and answers in English, about the text, and is not offered a
-microphone. Decided from the shelf (`Library.talks`), because the ledger is one bucket
+reader's box finds and answers in English, about the text. (*Amended 2026-09-14:* it is
+offered the microphone like everybody else; see "Anybody can speak to targum" above.)
+Decided from the shelf (`Library.talks`), because the ledger is one bucket
 per language and cannot say which Hebrew a word came from.
 
 What it reverses: the `_nav.html.j2` note of 2026-09-05 that put Chat second because
@@ -1271,8 +1297,9 @@ as a sheet from the foot — the bell's, the language's, the account's and the d
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
 a phone is quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
 count without the date, the doors one row that scrolls sideways, and over a framed reader
-the sheet's head is the known share and Open alone, since the door pressed says why this
-text and the reader's own bar names it; the frame ends above whatever is fixed at the foot. Fields are wells: no line,
+the sheet's head is the known share, the line "Read here, or go full screen",
+and Open the reader, since the door pressed says why this text and the reader's own bar
+names it; the frame ends above whatever is fixed at the foot. Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.

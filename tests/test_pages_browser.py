@@ -979,8 +979,14 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     foot = page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const open = document.getElementById('carry');
+          const hint = document.getElementById('carry-hint');
           return { window: box('#carry-window').bottom, nav: box('.site-nav').top,
-                   pill: box('#talk-open').top };
+                   pill: box('#talk-open').top,
+                   open: open.textContent.trim(), openBox: open.getBoundingClientRect().toJSON(),
+                   head: box('.page-head').toJSON(),
+                   hint: getComputedStyle(hint).display === 'none' ? '' : hint.textContent,
+                   hintBox: hint.getBoundingClientRect().toJSON() };
         }"""
     )
     # The conversation is the conversation page framed in the drawer the pill opens
@@ -1019,11 +1025,13 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
           const chips = [...document.querySelectorAll('.chat-ask')]
             .map((c) => c.getBoundingClientRect().right);
           const send = document.getElementById('chat-send').getBoundingClientRect();
+          const mic = document.getElementById('chat-mic');
           return {
             width: window.innerWidth, scrollWidth: doc.scrollWidth,
             chipsPast: chips.filter((r) => r > window.innerWidth + 1).length,
             sendLeft: send.left, sendRight: send.right, sendBottom: send.bottom,
             height: window.innerHeight,
+            mic: !mic.hidden && mic.getBoundingClientRect().width > 0,
             base: document.querySelector('base') && document.querySelector('base').target,
           };
         }"""
@@ -1052,6 +1060,21 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert 0 <= inside["sendLeft"] and inside["sendRight"] <= inside["width"], inside
     assert inside["sendBottom"] <= inside["height"] + 1, f"Send is below the frame: {inside}"
     assert inside["base"] == "_top", "every link in the frame opens the page that holds it"
+    # 2026-09-14: "people should be able to talk to targum ... on any device".
+    assert inside["mic"], f"no microphone in the conversation at {width}px"
+    # And the sheet says the reader is the better place to read, at every width: the press
+    # names where it goes, the line beside it says why, and neither runs out of the head.
+    assert foot["open"] == "Open the reader", foot
+    assert foot["hint"] == "Read here, or go full screen.", foot
+    for part in ("openBox", "hintBox"):
+        box = foot[part]
+        assert box["left"] >= foot["head"]["left"] and box["right"] <= foot["head"]["right"] + 1, (
+            f"{part} runs out of the sheet's head at {width}px: {foot}"
+        )
+        assert box["width"] > 0 and box["height"] > 0
+    assert foot["hintBox"]["right"] <= foot["openBox"]["left"] + 1 or (
+        foot["hintBox"]["bottom"] <= foot["openBox"]["top"] + 1
+    ), f"the line and the press overlap at {width}px: {foot}"
 
 
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:

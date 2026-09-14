@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -336,25 +337,52 @@ def test_a_plain_answer_is_still_a_line() -> None:
     assert page["pairs"] == [] and page["turns"][1]["text"] == "Try Ruth."
 
 
-def test_the_microphone_appears_where_the_browser_records() -> None:
+def test_the_microphone_is_on_every_device() -> None:
+    """2026-09-14, David: "people should be able to talk to targum, and this should work
+    on both desktop and mobile and on any other device". A browser that records does it
+    in place; one that cannot hands the press to the device's own recorder."""
     page = run(do=[], record=True)
     assert page["mic"]["hidden"] is False
-    page = run(do=[], record=False)
-    assert page["mic"]["hidden"] is True, "a page never offers what the browser cannot do"
+    page = run(
+        do=[{"type": "voice"}],
+        answers={"/chat/hear": {"chat": "abc", "turn": 1, "heard": "ciao"}},
+        record=False,
+    )
+    assert page["mic"]["hidden"] is False, "no live recording is no reason to hide it"
+    assert page["voiceOpened"] == 1, "the press opens the device's recorder"
+    assert page["posted"] == [{"path": "/chat/hear", "body": "<blob audio/mp4>"}]
+    assert [t["text"] for t in page["turns"]] == ["ciao", ""]
 
 
-def test_the_microphone_is_kept_from_a_reader_with_no_modern_hebrew() -> None:
-    """`talk` on `/chat/list` is the server's word on whether a conversation in Hebrew
-    is offered — a reader whose every text is scripture is answered in English about
-    the text, and is not offered a microphone to speak Hebrew into."""
+def test_the_microphone_is_offered_whatever_the_conversation_is_in() -> None:
+    """It was kept from a reader with no modern Hebrew — every other language, and a
+    scripture-only shelf — so most conversations had no microphone (2026-09-14). `talk`
+    still says what a conversation is held in; it no longer says who may speak."""
+    for talk in (False, True):
+        page = run(
+            do=[], record=True, answers={"/chat/list": {"chats": [], "usable": True, "talk": talk}}
+        )
+        assert page["mic"]["hidden"] is False
+
+
+def test_a_spoken_line_carries_its_language_and_where_the_reader_is() -> None:
+    about = {"document": "ruth-he", "section": "1", "sentence": "וַיְהִי", "title": "Ruth"}
     page = run(
-        do=[], record=True, answers={"/chat/list": {"chats": [], "usable": True, "talk": False}}
+        do=[{"type": "reading", "about": about}, {"type": "record"}],
+        answers={"/chat/hear": {"chat": "abc", "turn": 1, "heard": "מה זה"}},
+        record=True,
+        embed=True,
     )
-    assert page["mic"]["hidden"] is True
-    page = run(
-        do=[], record=True, answers={"/chat/list": {"chats": [], "usable": True, "talk": True}}
-    )
-    assert page["mic"]["hidden"] is False
+    hear = [u for u in page["asked"] if u.startswith("/chat/hear")]
+    assert len(hear) == 1
+    query = parse_qs(urlsplit(hear[0]).query)
+    assert query["language"] == ["he"]
+    assert json.loads(query["about"][0]) == about
+
+
+def test_the_box_names_the_conversation_s_language() -> None:
+    page = run(do=[], stored={"targum:learning": '["he", "ru"]', "targum:language": "ru"})
+    assert page["placeholder"] == "Write in Russian or English"
 
 
 def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_source() -> None:
