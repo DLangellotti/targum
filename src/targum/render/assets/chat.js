@@ -115,6 +115,18 @@
       });
   }
 
+  /* Which language this conversation is in (2026-09-13): the switcher's, or — in the
+   * drawer in a reader — the text's own, so a French text is talked about in its own
+   * conversation. Each language keeps a conversation of its own on the server. */
+  var listedIn = "";
+  function spoken() {
+    var fromText =
+      EMBED && reading && reading.language ? String(reading.language).split("-")[0] : "";
+    if (fromText) return fromText;
+    var lang = window.TargumLang;
+    return lang && lang.learning ? lang.current(lang.learning()) : "he";
+  }
+
   function tell(text) {
     if (!said) return;
     said.textContent = text || "";
@@ -838,7 +850,9 @@
       more.textContent = "More";
       more.onclick = function () {
         more.disabled = true;
-        ask("/chat/list?limit=" + PAGE + "&offset=" + moreFrom).then(function (answer) {
+        ask(
+          "/chat/list?limit=" + PAGE + "&offset=" + moreFrom + "&language=" + encodeURIComponent(listedIn)
+        ).then(function (answer) {
           if (answer.error) return tell(answer.error);
           var got = answer.chats || [];
           chats = chats.concat(got);
@@ -988,7 +1002,8 @@
   /* --- loading ------------------------------------------------------------- */
 
   function load() {
-    return ask("/chat/list").then(function (answer) {
+    listedIn = spoken();
+    return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
       moreFrom = chats.length === PAGE ? PAGE : 0;
@@ -1174,7 +1189,7 @@
     busy = true;
     send.disabled = true;
     tell("");
-    ask("/chat/suggest", { chat: current, skip: offered }).then(function (got) {
+    ask("/chat/suggest", { chat: current, skip: offered, language: spoken() }).then(function (got) {
       busy = false;
       send.disabled = false;
       if (got.error) return tell(got.error);
@@ -1233,6 +1248,12 @@
       if (data.type === "targum:reading") {
         reading = data.about && typeof data.about === "object" ? data.about : null;
         drawReading();
+        // A text in another language than the conversation shown: that language's
+        // conversation instead, once the first list has been drawn.
+        if (listedIn && spoken() !== listedIn) {
+          current = "";
+          load();
+        }
       }
       // A line the page holding the drawer was asked to say, by the reader's press
       // there (Add's Ask targum). Said once the list has loaded, so it lands in a
@@ -1253,7 +1274,7 @@
     send.disabled = true;
     turn("user", text);
     var answer = turn("assistant", "", "working");
-    var line = { chat: current, text: text };
+    var line = { chat: current, text: text, language: spoken() };
     // The text sent with the line, by its job, so the model knows what it was given.
     if (brought) line.brought = brought;
     // Where the reader is, when the drawer is in a reader: the model is told the text,

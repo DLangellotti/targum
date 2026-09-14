@@ -1285,3 +1285,34 @@ def test_the_place_is_where_the_page_opens_next_time() -> None:
     ]
     assert (opened["kind"], opened["verse"], opened["step"]) == ("verse", "b", 2)
     assert opened["practised"] == ["a"] and opened["onkelos"] == "וְאַרְעָא"
+def test_a_word_is_kept_in_the_language_of_the_row_it_is_met_in() -> None:
+    """Daniel turns into Aramaic at 2:4 (2026-09-13). A word met on the page only in an
+    Aramaic row goes into the Aramaic list, so Aramaic has a count and a level of its own;
+    a word met in a Hebrew row stays Hebrew; and a word the Hebrew list already held stays
+    there whatever row it is met in, rather than leave a list it is counted in."""
+    words, lemmas = chapter(["שנה", "מלך"], ["מלכא", "חיי", "מלך"])
+    walked = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        languages={"s1": "arc"},
+        vocab={"מלך": {"status": 2}},
+        stored={"targum:vocab:arc": json.dumps({"דניאל": {"status": 9}})},
+        levels=[
+            {"word": "שנה", "status": KNOWN},
+            {"word": "מלכא", "status": KNOWN},
+            {"word": "מלך", "status": KNOWN},
+        ],
+    )
+    hebrew, aramaic = walked["stores"]["he"], walked["stores"]["arc"]
+    assert set(hebrew) == {"שנה", "מלך"}, "a Hebrew row's word, and one already Hebrew"
+    assert "מלכא" in aramaic and "מלכא" not in hebrew
+    assert "דניאל" in aramaic, "the Aramaic list's other words are left where they are"
+    assert [item["lemma"] for item in walked["list"] if item["lemma"] == "מלכא"], (
+        "and the page shows the one list either way"
+    )
+
+
+def test_a_page_in_one_language_keeps_one_list_as_it_did() -> None:
+    walked = walk(["one", "two"], levels=[{"word": "two", "status": KNOWN}])
+    assert set(walked["stores"]["he"]) == {"two"} and walked["stores"]["arc"] == {}

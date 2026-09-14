@@ -1217,6 +1217,40 @@ class Store:
 
         return self._chosen(person_id, "reading", {code for code, _ in INTO}, "en")
 
+    def language(self, person_id: int | None) -> str:
+        """The language this person is in right now: the one the switcher shows.
+
+        Their own choice (2026-09-13), kept as a `current` row in `chosen`, the one place a
+        language is kept; the browser keeps a copy. A choice they are no longer learning
+        falls back rather than failing: Hebrew where they learn it, then the first of the
+        rest. The fallback is the rule the conversation used before there was a choice
+        (targum-internal#228: alphabetical order put Aramaic ahead of Hebrew).
+        """
+        learning = self.learning(person_id) if person_id else {"he"}
+        if person_id:
+            row = self.db.execute(
+                "SELECT language FROM chosen WHERE person = ? AND kind = 'current'",
+                (int(person_id),),
+            ).fetchone()
+            if row is not None and str(row["language"]) in learning:
+                return str(row["language"])
+        return "he" if "he" in learning or not learning else sorted(learning)[0]
+
+    def use_language(self, person: Person, language: str) -> str:
+        """Put this person in a language they are learning. Refuses one they are not."""
+        from .translate.prompts import language_name
+
+        code = str(language or "").strip().lower()
+        if code not in self.learning(person.id):
+            raise ValueError(f"{language_name(code) or 'That'} isn't one of your languages.")
+        with self.write() as db:
+            db.execute("DELETE FROM chosen WHERE person = ? AND kind = 'current'", (person.id,))
+            db.execute(
+                "INSERT INTO chosen (person, kind, language, at) VALUES (?, 'current', ?, ?)",
+                (person.id, code, now()),
+            )
+        return code
+
     def choose(self, person: Person, kind: str, languages: list[str]) -> set[str]:
         """Replace one kind wholesale, which is the shape a form that submits a set wants.
 
@@ -1764,9 +1798,10 @@ class Store:
         return chat_id
 
     def chats(
-        self, person_id: int | None, limit: int = 50, offset: int = 0
+        self, person_id: int | None, limit: int = 50, offset: int = 0, language: str = ""
     ) -> list[dict[str, Any]]:
-        """Somebody's conversations, most recent first, a page at a time."""
+        """Somebody's conversations, most recent first, a page at a time — in one
+        language where one is named, since each language has its own (2026-09-13)."""
         rows = self.db.execute(
             "SELECT chat.id, chat.title, chat.language, chat.made, chat.seen, chat.spent,"
             "       chat.saved, chat.mode, chat.opened,"
@@ -1777,8 +1812,9 @@ class Store:
             "       (SELECT COALESCE(MAX(made), 0) FROM chat_turn"
             "         WHERE chat_turn.chat = chat.id AND role = 'assistant'"
             "         AND stage = 'done') AS answered"
-            " FROM chat WHERE person IS ? AND gone = 0 ORDER BY seen DESC LIMIT ? OFFSET ?",
-            (person_id, limit, offset),
+            " FROM chat WHERE person IS ? AND gone = 0 AND (? = '' OR chat.language = ?)"
+            " ORDER BY seen DESC LIMIT ? OFFSET ?",
+            (person_id, language, language, limit, offset),
         ).fetchall()
         return [dict(row) for row in rows]
 

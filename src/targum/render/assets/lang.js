@@ -8,6 +8,12 @@
  *
  * The choice is one preference shared by every page: picking Russian on the library
  * page and then opening your words shows you your Russian words.
+ *
+ * Since 2026-09-13 it is chosen in one place, a menu at the end of the nav on every desk
+ * page, and kept on the account so another device opens in it too (design.md §13). The
+ * pages that switched with a row of tabs still call `switcher` with the same arguments;
+ * pointed at the nav's host it draws the menu, and pointed anywhere else — the
+ * definition-language control on Your Words — it still draws tabs.
  */
 (function () {
   "use strict";
@@ -36,6 +42,20 @@
     try {
       localStorage.setItem(NAME, code);
     } catch (e) {}
+    // The nav's menu says which language it is in; a page that changed the language by
+    // some other control (the Add page's picker) is heard here.
+    try {
+      window.dispatchEvent(new CustomEvent("targum:language", { detail: code }));
+    } catch (e) {}
+  }
+
+  /* A choice the reader made, as opposed to a page settling on one as it loads: kept on
+   * the account as well. Only the menu calls this, so opening a page never writes. */
+  function remember(code) {
+    set(code);
+    if (window.TargumSync && typeof window.TargumSync.language === "function") {
+      window.TargumSync.language(code);
+    }
   }
 
   function into(code) {
@@ -94,6 +114,9 @@
     });
   }
 
+  /* The nav's host, which draws a menu rather than tabs. */
+  var NAV = "langs";
+
   /* One switcher, built the same way on the library page and the words page.
    *
    * `onPick` is handed the code. Nothing is drawn for a single language: a switcher
@@ -101,6 +124,7 @@
    */
   function switcher(host, codes, names, chosen, onPick, options) {
     if (!host) return;
+    if (host.id === NAV) return menu(host, codes, names, chosen, onPick, options);
     var settings = options || {};
     // Which codes wear "experimental", asked rather than assumed. `beta` means "not
     // Hebrew", which is the right question about a language being read and the wrong one
@@ -144,6 +168,139 @@
     });
   }
 
+  /* The menu at the end of the nav (2026-09-13): the language this page is in, and a
+   * list of the reader's languages under it.
+   *
+   * Every language the account learns is listed, whatever the page had to show in it: a
+   * switcher that left out a language with nothing on the shelf yet could never be used
+   * to go and add the first thing. The page's own languages come too, for a text in a
+   * language the account has since stopped learning. The last item goes to where the
+   * list itself is chosen.
+   */
+  function menu(host, codes, names, chosen, onPick, options) {
+    var settings = options || {};
+    var tag = settings.tag || beta;
+    var all = order(
+      learning().concat(codes).filter(function (code, at, list) {
+        return list.indexOf(code) === at;
+      }),
+      names
+    );
+    if (all.indexOf(chosen) < 0 && chosen) all.unshift(chosen);
+    host.textContent = "";
+    host.hidden = all.length < 2;
+    host.classList.add("lang-menu");
+
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "lang-open";
+    open.setAttribute("aria-haspopup", "menu");
+    open.setAttribute("aria-expanded", "false");
+    open.setAttribute("aria-label", "Language: " + (names[chosen] || chosen));
+    var label = document.createElement("span");
+    label.className = "lang-name";
+    label.textContent = names[chosen] || String(chosen || "").toUpperCase();
+    open.appendChild(label);
+    host.appendChild(open);
+
+    var panel = document.createElement("div");
+    panel.className = "lang-panel";
+    panel.setAttribute("role", "menu");
+    panel.hidden = true;
+    all.forEach(function (code) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("data-code", code);
+      item.setAttribute("aria-checked", code === chosen ? "true" : "false");
+      item.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
+      if (tag(code)) {
+        var mark = document.createElement("span");
+        mark.className = "beta";
+        mark.textContent = "experimental";
+        item.appendChild(mark);
+      }
+      item.addEventListener("click", function () {
+        close();
+        if (code === chosen) return;
+        remember(code);
+        onPick(code);
+      });
+      panel.appendChild(item);
+    });
+    var more = document.createElement("a");
+    more.className = "lang-more";
+    more.href = "/you#languages";
+    more.setAttribute("role", "menuitem");
+    more.textContent = "Your languages";
+    panel.appendChild(more);
+    host.appendChild(panel);
+
+    function close() {
+      panel.hidden = true;
+      open.setAttribute("aria-expanded", "false");
+      open.classList.remove("on");
+    }
+    open.addEventListener("click", function (event) {
+      event.stopPropagation();
+      var opening = panel.hidden;
+      panel.hidden = !opening;
+      open.setAttribute("aria-expanded", opening ? "true" : "false");
+      open.classList.toggle("on", opening);
+    });
+    if (!host.getAttribute("data-menu-bound")) {
+      host.setAttribute("data-menu-bound", "1");
+      document.addEventListener("click", function (event) {
+        var inside = host.contains && host.contains(event.target);
+        if (!inside) {
+          var shown = host.querySelector && host.querySelector(".lang-panel");
+          var button = host.querySelector && host.querySelector(".lang-open");
+          if (shown) shown.hidden = true;
+          if (button) button.setAttribute("aria-expanded", "false");
+        }
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        var shown = host.querySelector && host.querySelector(".lang-panel");
+        if (shown && !shown.hidden) {
+          shown.hidden = true;
+          var button = host.querySelector(".lang-open");
+          if (button) {
+            button.setAttribute("aria-expanded", "false");
+            button.focus();
+          }
+        }
+      });
+      // A language set by another control on the page: the label follows it.
+      window.addEventListener("targum:language", function (event) {
+        var code = event && event.detail;
+        var name = host.querySelector && host.querySelector(".lang-name");
+        if (name && code) name.textContent = names[code] || String(code).toUpperCase();
+      });
+    }
+  }
+
+  /* A page that never draws its own switcher — the conversation — still has the menu:
+   * the reader's languages, and a press that opens the page again in the one chosen,
+   * which for the conversation is that language's own conversation. Drawn once the page
+   * has had its turn, so a page that does draw one is not drawn over. */
+  function mountDefault() {
+    var host = document.getElementById(NAV);
+    if (!host || host.children.length) return;
+    var codes = learning();
+    var names = window.TARGUM_LANGUAGES || {};
+    switcher(host, codes, names, current(codes), function () {
+      window.location.reload();
+    });
+  }
+  if (typeof document !== "undefined" && document.addEventListener) {
+    var later = function () {
+      setTimeout(mountDefault, 0);
+    };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", later);
+    else later();
+  }
+
   // Said once, where the language is chosen, rather than on every card. The same
   // sentence the upload picker's own note uses, because it is the same claim.
   function betaNote(code, names) {
@@ -158,6 +315,8 @@
     beta: beta,
     offered: offered,
     set: set,
+    remember: remember,
+    learning: learning,
     into: into,
     current: current,
     order: order,

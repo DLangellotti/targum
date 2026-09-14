@@ -709,9 +709,17 @@
 
   /* Whether one row survives the filters. `using` lets a caller ask the question against
      a different set of them — see `present()`, which asks it with one filter lifted. */
+  // Every language a row is written in. Daniel is Hebrew with Aramaic chapters and is on
+  // both shelves (2026-09-13); a row from before `languages` existed has its one.
+  function inLanguage(row, code) {
+    var all = row.languages && row.languages.length ? row.languages : [row.language];
+    for (var n = 0; n < all.length; n++) if (base(all[n]) === code) return true;
+    return false;
+  }
+
   function matches(row, code, using) {
     var state = using || view;
-    if (base(row.language) !== code) return false;
+    if (!inLanguage(row, code)) return false;
     if (state.kind && row.kind !== state.kind) return false;
     if (state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
@@ -1038,6 +1046,9 @@
 
     function redraw() {
       remember("targum:library", view);
+      // "Which Hebrew" asks nothing of another language (2026-09-13).
+      var registerSet = document.getElementById("register-chips");
+      if (registerSet && registerSet.parentNode) registerSet.parentNode.hidden = chosen !== lang.HOME;
       // Only the registers actually in front of this reader, the same way the kinds are.
       // Two values could always both be offered; five cannot — a shelf of Hebrew
       // journalism would otherwise carry four chips that find nothing.
@@ -1089,7 +1100,7 @@
       // Counted within the list being looked at, not across both: "2 of 116" under Your
       // Uploads would be counting somebody's two texts against everybody's catalogue.
       var here = everything.filter(function (row) {
-        return base(row.language) === chosen && (view.where === "mine" ? !row.entry : row.entry);
+        return inLanguage(row, chosen) && (view.where === "mine" ? !row.entry : row.entry);
       });
       empty.hidden = showing.length > 0;
       if (!showing.length) {
@@ -1203,8 +1214,11 @@
     // who had never touched it — which is the opposite of what this switcher is for.
     var all = [lang.HOME];
     readers.concat(kept()).forEach(function (thing) {
-      var code = base(thing.language);
-      if (code && all.indexOf(code) < 0) all.push(code);
+      var codes = thing.languages && thing.languages.length ? thing.languages : [thing.language];
+      codes.forEach(function (one) {
+        var code = base(one);
+        if (code && all.indexOf(code) < 0) all.push(code);
+      });
     });
     var codes = lang.order(all, names);
     chosen = lang.current(codes);
@@ -1220,7 +1234,7 @@
       var store = charts ? charts.collect(charts.meaningLanguage(chosen))[chosen] : null;
       var known = charts ? charts.known(store && store.words) : 0;
       var ownHebrew = readers.some(function (reader) {
-        return base(reader.language) === chosen;
+        return inLanguage(reader, chosen);
       });
       if (!known && !ownHebrew) {
         view.kind = "dialogue";

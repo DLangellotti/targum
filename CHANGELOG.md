@@ -39,6 +39,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   language and still never tells them their level. `level.py` and `charts.js` carry one
   ladder per language, pinned to each other by the node test; `design.md` §12 records the
   decision.
+- A language menu at the end of the nav on every desk page — Learn, Library, Your
+  Progress, Add and the conversation — replacing the row of tabs only three pages drew
+  (design.md §13). It lists every language the reader learns, says which the page is in,
+  and ends with "Your languages". A press is kept on the account (`POST
+  /account/language`, `current` in the `chosen` table, no migration), so another device
+  opens in it; opening a text never moves it. What follows it: the Library and Learn's
+  shelf; Suggested (`/suggest?language=`); a file brought into the conversation, filed in
+  that language; and the conversation itself, one per language — Hebrew's exactly as it
+  was, any other language in the English find mode until it has a conversation of its
+  own. The Add page's language picker and the menu move together, so switching never
+  loses what is in the box. "Which Hebrew" and the followed series hide under another
+  language. A text written in two languages — Daniel's Hebrew and Aramaic — is on both
+  shelves (`/readers` gives `languages`), and a word marked in an Aramaic row is kept in
+  Aramaic's list rather than Hebrew's, while a word Hebrew's list already held stays put.
+  The drawer in a reader opens the conversation of the line's own language.
+
+### Fixed
+- The commonest-words list no longer offers English to a language wordfreq has no list
+  for. Asked for Yiddish, wordfreq answers with its fallback list instead of refusing,
+  and `common_words` only caught a refusal; it now checks the language is really there.
+  And the "Words you may already know" panel stops showing Hebrew words on a page in
+  another language: it asked the switcher about Hebrew alone, so its answer was always
+  Hebrew.
 - The chat's shelf says when each text was last opened and finished. "What was the
   last targum I read?" was answered "the list does not keep times" (2026-09-08); the
   reader's own sync had always clocked every open and every chapter finished, and only

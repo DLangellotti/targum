@@ -32,7 +32,6 @@ body {
 .site-head [data-theme-toggle] { color: var(--bar-ink); border-color: rgb(255 253 249 / 0.25); }
 .site-head-row,
 .site-head h1,
-.site-head .langs,
 .site-head .beta-note {
   width: 100%;
   max-width: 62rem;
@@ -85,7 +84,6 @@ body {
   .site-head-row { gap: 0.5rem; }
   .site-head-row,
   .site-head h1,
-  .site-head .langs,
   .site-head .beta-note { padding-inline: 1rem; }
 }
 
@@ -241,6 +239,7 @@ body {
    which still reads as one control; scrolled it would be a filter whose options you
    cannot see. */
 .switch-set { display: flex; align-items: center; gap: 0.35rem; }
+.switch-set[hidden] { display: none; }
 .switch-label {
   color: var(--ink-soft);
   font-size: 0.6875rem;
@@ -293,6 +292,88 @@ body {
 /* Notifications (2026-09-11): a bell in the bar with a count, and a panel under it —
    what is building, what is ready, and the × the guidelines ask for on each. It
    replaced a pill fixed at the foot of the window. The same panel as the account's. */
+/* --- which language, in the bar (design.md §13, 2026-09-13) ------------------------
+   One menu at the end of the places, on every desk page: the language the page is in on
+   the button, the reader's languages under it, and where the list itself is chosen. It
+   replaced a row of tabs under the heading that only three pages drew. Drawn by
+   `lang.js`; styled as the bar's other buttons are, and its panel as the bell's is. */
+.site-head .lang-menu {
+  position: relative;
+  display: block;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+.site-head .lang-menu[hidden] { display: none; }
+.lang-menu .lang-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid rgb(255 253 249 / 0.25);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--bar-ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lang-menu .lang-open::after {
+  content: "";
+  inline-size: 0.35rem;
+  block-size: 0.35rem;
+  border-inline-end: 1.4px solid currentColor;
+  border-block-end: 1.4px solid currentColor;
+  transform: translateY(-0.12rem) rotate(45deg);
+}
+.lang-menu .lang-open:hover, .lang-menu .lang-open.on { background: rgb(255 253 249 / 0.1); }
+.lang-panel {
+  color: var(--ink);
+  font-family: var(--chrome);
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-start: calc(100% + 0.4rem);
+  z-index: 20;
+  min-width: 12rem;
+  padding: 0.4rem;
+  display: grid;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-card);
+  background: var(--paper);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.13);
+}
+.lang-panel[hidden] { display: none; }
+.lang-panel button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: start;
+  cursor: pointer;
+}
+.lang-panel button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.lang-panel button[aria-checked="true"] { font-weight: 600; box-shadow: inset 2px 0 0 var(--teal); }
+.lang-panel .lang-more {
+  margin-block-start: 0.3rem;
+  padding: 0.5rem 0.6rem 0.2rem;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--teal);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lang-panel .lang-more:hover { text-decoration: underline; }
+
 .notices { position: relative; }
 .notices > button {
   position: relative;

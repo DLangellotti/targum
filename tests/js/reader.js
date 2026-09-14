@@ -51,6 +51,8 @@ document.documentElement.setAttribute("lang", language);
 document.getElementById("targum-data").textContent = JSON.stringify({
   words: payload.chapter || {},
   lemmas: payload.lemmas || [],
+  // Rows in another language than the page's, by segment id, as the builder ships them.
+  ...(payload.languages ? { languages: payload.languages } : {}),
   registers: payload.registers || [],
   sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
@@ -292,6 +294,13 @@ process.stdout.write(
       button: byId["rest-mark"].textContent,
       undo: !byId["rest-undo"].hidden,
     },
+    // Every word list in the browser, by language, after every level above was said.
+    stores: Object.fromEntries(
+      ["he", "arc", "yi"].map((code) => [
+        code,
+        JSON.parse(localStorage.getItem("targum:vocab:" + code) || "{}"),
+      ]),
+    ),
     // The list beside the text after every level above was said, top to bottom.
     list: reader.entries().map((item) => ({
       lemma: item.lemma,

@@ -280,10 +280,16 @@ def common_words(n: int = COMMON, language: str = "he") -> list[str]:
     (targum-internal#228). A missing list is a fact about wordfreq, not about the reader.
     """
     try:
-        from wordfreq import top_n_list, zipf_frequency
+        from wordfreq import available_languages, top_n_list, zipf_frequency
     except ImportError:
         return []
     code = language.split("-")[0].lower()
+    # Asked before the list is read, because not every missing language raises: asked for
+    # Yiddish, wordfreq answers with its fallback list, which is English, and a Yiddish
+    # reader would have been offered "the" and "of" as words they may already know
+    # (2026-09-13).
+    if code not in available_languages():
+        return []
     try:
         return [
             word

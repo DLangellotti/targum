@@ -270,9 +270,15 @@
   }
 
   // Hebrew only: the list is modern Hebrew's, and so is the ledger it is set against.
+  // Asked of the language the switcher shows (2026-09-13). It asked `current(["he"])`,
+  // which is Hebrew whatever the reader chose, so the panel offered Hebrew words on a
+  // page in Yiddish. Another language's commonest forms are inflections — `est`, not
+  // `être` — and would be marked as dictionary forms nobody's cards use, so the panel
+  // waits for a list of dictionary forms rather than offering those.
   function hebrew() {
     var lang = window.TargumLang;
-    return (lang && lang.current ? lang.current(["he"]) : "he") === "he";
+    if (!lang || !lang.current) return true;
+    return lang.current(lang.learning ? lang.learning() : ["he"]) === "he";
   }
 
   // The page that carries the panel mounts it by itself; the conversation mounts its own.

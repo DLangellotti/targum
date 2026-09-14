@@ -1659,6 +1659,7 @@ class Library:
             title = folder.name
             author = ""
             language = ""
+            contains: list[str] = []
             content_hash = ""
             source = ""
             words = 0
@@ -1674,6 +1675,19 @@ class Library:
                     # cannot show an issue without also showing that a model compiled it.
                     author = data.get("author", "")
                     language = data.get("language", "")
+                    # Every language the text is written in, its blocks' own included: a
+                    # Daniel is Hebrew and Aramaic, and shows under both (2026-09-13).
+                    contains = sorted(
+                        (
+                            {language}
+                            | {
+                                str(block.get("language"))
+                                for block in data.get("blocks", [])
+                                if block.get("language")
+                            }
+                        )
+                        - {""}
+                    )
                     source = data.get("source", "")
                     words = sum(len(str(b.get("text", "")).split()) for b in data.get("blocks", []))
                     # The same identity the reader keeps its word list under, so the
@@ -1687,6 +1701,7 @@ class Library:
                     "title": title,
                     "author": author,
                     "language": language,
+                    "languages": contains or ([language] if language else []),
                     # And which languages it can be read *into*. A text built twice is
                     # one text with two translations, and a shelf that said only what
                     # language it was in could not tell a reader of two which of them
@@ -4174,6 +4189,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._rename(payload)
         if route == "/account/languages":
             return self._languages(payload)
+        if route == "/account/language":
+            return self._language(payload)
         self._json({"error": "not found"}, 404)
 
     # -- the conversation ---------------------------------------------------
@@ -4199,16 +4216,21 @@ class Handler(BaseHTTPRequestHandler):
                 offset = max(0, int(query.get("offset", ["0"])[0]))
             except ValueError:
                 limit, offset = 50, 0
+            # One language's conversations (2026-09-13): each has its own, and the page
+            # asks in the language the switcher shows.
+            spoken = self._asked_language(query.get("language", [""])[0])
             return self._json(
                 {
                     # A page of them, newest first (targum-internal#238): the list used to
                     # be every conversation ever, and the page draws "More" at its foot.
-                    "chats": store.chats(person_id, limit=limit, offset=offset),
+                    "chats": store.chats(person_id, limit=limit, offset=offset, language=spoken),
+                    "language": spoken,
                     "usable": self.chats.usable,
                     # Whether Speak is offered and the Hebrew contract rides: a reader
-                    # with modern Hebrew to speak. Scripture-only readers are answered
-                    # in English, about the text (`Library.talks`).
-                    "talk": self.library.talks(self._home(), person_id),
+                    # with modern Hebrew to speak, in Hebrew. Scripture-only readers, and
+                    # every other language, are answered in English, about the text
+                    # (`Library.talks`, `session._mode_for`).
+                    "talk": spoken == "he" and self.library.talks(self._home(), person_id),
                     "hours": self._hours(person_id),
                     "chips": self.chats.chips(person, self._home()),
                 }
@@ -4619,6 +4641,7 @@ class Handler(BaseHTTPRequestHandler):
             admin=admin,
             about=about,
             brought=brought,
+            language=self._asked_language(payload.get("language")),
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
@@ -4721,10 +4744,13 @@ class Handler(BaseHTTPRequestHandler):
 
         person = self._person()
         admin = bool(person and self.store.is_admin(person.email))
-        ctx = self.chats.context(person, self._home(), "", admin)
+        query = parse_qs(urlparse(self.path).query)
+        # In the language Learn is showing, which is the switcher's (2026-09-13).
+        spoken = self._asked_language(query.get("language", [""])[0])
+        ctx = self.chats.context(person, self._home(), "", admin, spoken)
         # What the page says the reader has finished, by catalogue id: that is kept in
         # the browser, and a finished suggestion makes way for the next (2026-09-11).
-        skip = parse_qs(urlparse(self.path).query).get("skip", [""])[0]
+        skip = query.get("skip", [""])[0]
         done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
         rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
         return self._json({"suggestion": rows[0] if rows else None})
@@ -4742,7 +4768,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         skip = [str(one) for one in payload.get("skip") or [] if isinstance(one, str)]
         admin = bool(person and self.store.is_admin(person.email))
-        answer = self.chats.suggest(person, self._home(), chat_id, admin=admin, skip=skip)
+        answer = self.chats.suggest(
+            person,
+            self._home(),
+            chat_id,
+            admin=admin,
+            skip=skip,
+            language=self._asked_language(payload.get("language")),
+        )
         if "error" in answer:
             return self._json({"error": answer["error"]}, int(answer.get("status") or 409))
         return self._json(answer)
@@ -4796,18 +4829,23 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             offset, limit = 0, self.COMMON_PAGE
         offset = min(offset, self.COMMON_REACH)
-        forms = hebrew_module.common_words(n=min(self.COMMON_REACH, offset + limit))
+        # In the language the page is in (2026-09-13). wordfreq has lists for French,
+        # Russian and Italian as well as Hebrew; a language with none gets an empty page.
+        spoken = self._asked_language(query.get("language", [""])[0])
+        forms = hebrew_module.common_words(
+            n=min(self.COMMON_REACH, offset + limit), language=spoken
+        )
         page = forms[offset : offset + limit]
         target = hebrew_module.gloss_language(self._reads(self._person()))
         bands = FrequencyBands()
         provider = gloss_provider_name()
         rows = []
         for form in page:
-            held = cached_gloss(form, "he", target, provider)
+            held = cached_gloss(form, spoken, target, provider)
             rows.append(
                 {
                     "form": form,
-                    "band": BAND_NAMES.get(bands.band(form, "he"), ""),
+                    "band": BAND_NAMES.get(bands.band(form, spoken), ""),
                     "meaning": held.gloss if held else "",
                 }
             )
@@ -4819,6 +4857,7 @@ class Handler(BaseHTTPRequestHandler):
                 if len(page) == limit and offset + limit < self.COMMON_REACH
                 else None,
                 "into": target,
+                "language": spoken,
             }
         )
 
@@ -4855,6 +4894,9 @@ class Handler(BaseHTTPRequestHandler):
             # not a boundary.
             "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
+            # The language the switcher shows (2026-09-13), so every page and every device
+            # opens in the language the reader last chose.
+            "language": self.store.language(person.id),
             # Which series this account follows (2026-09-11), so a browser that has just
             # signed in draws the same row as the one they followed from.
             "follows": (["weekly"] if self.store.following(person.email) else [])
@@ -4914,6 +4956,32 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "learning": sorted(learning), "reads": sorted(reads)}
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _language(self, payload: dict[str, Any]) -> None:
+        """The language switcher's press (2026-09-13): which of their languages the reader
+        is in now. Kept on the account so another device opens in it too; refused for a
+        language they are not learning, whatever the page offered."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            chosen = self.store.use_language(person, str(payload.get("language") or ""))
+        except ValueError as error:
+            return self._json(
+                {"error": str(error), "language": self.store.language(person.id)}, 400
+            )
+        self._json({"signedIn": True, "language": chosen})
+
+    def _asked_language(self, raw: object) -> str:
+        """The language a page asked in, where it is one of the reader's; otherwise the
+        one the switcher shows. A page is not a boundary."""
+        person = self._person()
+        code = str(raw or "").strip().lower()
+        if code and code in self._learning(person):
+            return code
+        if person is not None and self.store is not None:
+            return self.store.language(person.id)
+        return "he"
 
     def _form(self) -> dict[str, str]:
         """A form post, read as a form. The landing page is a page, not an app."""

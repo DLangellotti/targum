@@ -712,6 +712,22 @@
     }
     from.addEventListener("change", say);
     say();
+
+    // The nav's language menu is the same choice (2026-09-13). Picking there sets this
+    // picker rather than opening the page again, so switching language never throws away
+    // what is already in the box; picking here moves the menu with it.
+    var names = window.TARGUM_LANGUAGES || {};
+    function drawMenu() {
+      var codes = [];
+      for (var n = 0; n < from.options.length; n++) codes.push(from.options[n].value);
+      lang.switcher(document.getElementById("langs"), codes, names, from.value, function (code) {
+        if (codes.indexOf(code) < 0) return;
+        from.value = code;
+        from.dispatchEvent(new Event("change"));
+      });
+    }
+    drawMenu();
+    from.addEventListener("change", drawMenu);
   })();
 
   /* And which language to read it into, remembered the same way. Both pickers are then
