@@ -252,6 +252,10 @@
   //: How often a page asks after a build it is waiting to open. A test sets it to 0.
   var POLL = 2000;
 
+  //: The languages a text may be in that are written right to left: Yiddish and Aramaic
+  //: as much as Hebrew.
+  var RIGHT_TO_LEFT = { he: true, yi: true, arc: true, ar: true };
+
   //: A line sent with a file that only says to open it, in English or Hebrew: "open
   //: this", "read it please", "תפתח את זה". Such a line is the file's own meaning and
   //: starts no conversation; anything that says more is a specification for the model.
@@ -303,7 +307,7 @@
     var he = document.createElement("bdi");
     var language = job.language || "he";
     he.setAttribute("lang", language);
-    he.setAttribute("dir", language === "he" ? "rtl" : "ltr");
+    he.setAttribute("dir", RIGHT_TO_LEFT[language] ? "rtl" : "ltr");
     he.textContent = job.title || "";
     title.appendChild(he);
     if (job.english) {
@@ -351,7 +355,7 @@
       var lines = document.createElement("p");
       lines.className = "quote-excerpt";
       lines.setAttribute("lang", language);
-      lines.setAttribute("dir", language === "he" ? "rtl" : "ltr");
+      lines.setAttribute("dir", RIGHT_TO_LEFT[language] ? "rtl" : "ltr");
       job.excerpt.forEach(function (text, n) {
         if (n) lines.appendChild(document.createElement("br"));
         var read = document.createElement("bdi");

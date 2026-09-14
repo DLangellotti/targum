@@ -1,5 +1,5 @@
 /* Adding a text targum does not have, in any medium. One box takes a file, several
-   files, a link, some Hebrew or a description; a line under it says what targum thinks it
+   files, a link, some of the language being added or a description; a line under it says what targum thinks it
    was given; every choice sits behind Change. Prices before anything is spent, and only
    spends once you have seen the number (design.md §12, 2026-09-13, targum-internal#249). */
 
@@ -33,7 +33,7 @@
   }
   var drop = document.getElementById("drop");
   var fileInput = document.getElementById("file");
-  //: The one box: a link, some Hebrew, or what the reader wants to read.
+  //: The one box: a link, a text, or what the reader wants to read.
   var given = document.getElementById("given");
   var understood = document.getElementById("understood");
   var givenFiles = document.getElementById("given-files");
@@ -83,7 +83,9 @@
    * The language is not guessed. Hebrew, Yiddish and Aramaic share a script, and a
    * reader cannot check a guess on a build they are about to pay for; the summary line
    * names the language last chosen, where it can be seen, and Change is where it is
-   * changed.
+   * changed. What the box does know is which letters that language is written in, and
+   * those are the letters it looks for: with Italian chosen a paste of Italian is a text,
+   * and nothing on the page says Hebrew (2026-09-14).
    */
 
   var RESTING = understood ? understood.textContent : "";
@@ -93,17 +95,64 @@
   var LINK = /^https?:\/\/\S+$/i;
   //: A source targum reads directly, by its id (`ingest/fetch/__init__.py` FETCHERS).
   var IDENTIFIER = /^(gutenberg|sefaria|siddur|wikisource|dialogue|weekly|video):\S+$/i;
-  //: Under this many words, Hebrew is as likely a request as a text to read.
+  //: Under this many words, a text is as likely a request as a text to read.
   var FEW = 12;
-  //: Over this many words, Latin letters are a text in another script, not a request.
+  //: Over this many words, words that are not the language being added are a text in
+  //: some other language, not a request.
   var DESCRIBED = 40;
 
-  // The share of the letters that are Hebrew script: Hebrew, Yiddish and Aramaic alike.
-  function hebrewShare(text) {
+  //: Which letters each language that may be added is written in, and what they are
+  //: called. A fact about writing rather than a setting; a language missing here is read
+  //: as Hebrew letters, which is what the page did for all of them before 2026-09-14.
+  var HEBREW = { letters: /[\u0590-\u05FF\uFB1D-\uFB4F]/g, called: "Hebrew letters", rtl: true };
+  var LATIN = { letters: /\p{Script=Latin}/gu, called: "the Latin alphabet", rtl: false };
+  var SCRIPTS = {
+    he: HEBREW,
+    yi: HEBREW,
+    arc: HEBREW,
+    ru: { letters: /\p{Script=Cyrillic}/gu, called: "Cyrillic letters", rtl: false },
+    fr: LATIN,
+    it: LATIN,
+  };
+
+  //: English words that are not also words of French or Italian. A request is written in
+  //: English and so is a translation, and with a language in the Latin alphabet chosen
+  //: the letters alone cannot tell either of them from a text.
+  var ENGLISH = /^(the|and|of|to|is|are|was|were|be|been|with|about|what|which|who|why|how|where|when|that|this|these|those|my|you|your|it|for|from|some|something|want|would|could|like|please|find|read|much|any|can|not|does|have|has|by|at|there|they|we|our|their|its|an|into|than|then)$/;
+
+  // The language being added: the one the menu at the top shows.
+  function adding() {
+    var from = document.getElementById("from");
+    return (from && from.value) || "he";
+  }
+
+  function scriptOf(code) {
+    return SCRIPTS[code] || HEBREW;
+  }
+
+  // The share of the letters that are in the script of the language being added.
+  function share(text, code) {
     var letters = String(text).match(/\p{L}/gu) || [];
     if (!letters.length) return 0;
-    var hebrew = String(text).match(/[\u0590-\u05FF\uFB1D-\uFB4F]/g) || [];
-    return hebrew.length / letters.length;
+    var ours = String(text).match(scriptOf(code).letters) || [];
+    return ours.length / letters.length;
+  }
+
+  // Whether the words are English rather than the language being added. Only asked where
+  // the two share an alphabet; anywhere else the letters have already said.
+  function english(text, code) {
+    if (scriptOf(code) !== LATIN) return false;
+    var words = String(text).toLowerCase().match(/[a-z']+/g) || [];
+    if (!words.length) return false;
+    var hits = words.filter(function (word) {
+      return ENGLISH.test(word);
+    }).length;
+    return hits / words.length >= 0.2;
+  }
+
+  // Whether some words are a text in the language being added.
+  function inLanguage(text, code) {
+    return share(text, code) >= 0.5 && !english(text, code);
   }
 
   // What the words in the box are.
@@ -112,7 +161,7 @@
     if (!text) return { kind: "empty", text: "" };
     if (LINK.test(text) || IDENTIFIER.test(text)) return { kind: "link", text: text };
     var words = text.split(/\s+/).length;
-    if (hebrewShare(text) >= 0.5) {
+    if (inLanguage(text, adding())) {
       var sentence = /[.!?׃:]\s*$|[.!?׃]\s/.test(text);
       return { kind: words <= FEW && !sentence ? "few" : "text", text: text, words: words };
     }
@@ -194,17 +243,21 @@
     }
     if (list.length === 2 && count("text") === 2) {
       return Promise.all(list.map(head)).then(function (heads) {
-        var shares = heads.map(hebrewShare);
-        var hebrew = shares[0] >= 0.5 ? 0 : shares[1] >= 0.5 ? 1 : -1;
-        if (hebrew < 0 || shares[1 - hebrew] >= 0.5) {
+        var code = adding();
+        var ours = heads.map(function (text) {
+          return inLanguage(text, code);
+        });
+        var text = ours[0] ? 0 : ours[1] ? 1 : -1;
+        if (text < 0 || ours[1 - text]) {
           hold([list[0]]);
           unpaired =
-            "Both are in the same script, so we'll use only " +
+            (text < 0 ? "Neither reads as " + named(code) : "Both read as " + named(code)) +
+            ", so we'll use only " +
             list[0].name +
             ". You can add a translation under Change.";
         } else {
-          hold([list[hebrew]]);
-          translationHalf.take(list[1 - hebrew]);
+          hold([list[text]]);
+          translationHalf.take(list[1 - text]);
           paired.translation = true;
         }
         settle();
@@ -308,7 +361,9 @@
     }
     var read = readGiven();
     if (read.kind === "link") return "Thanks for the link. We'll work out how long it'll take.";
-    if (read.kind === "text") return "That's " + read.words + (read.words === 1 ? " word" : " words") + " of Hebrew.";
+    if (read.kind === "text") {
+      return "That's " + read.words + (read.words === 1 ? " word" : " words") + " of " + named(adding()) + ".";
+    }
     if (read.kind === "few") {
       return talks()
         ? "A few words. Continue and we'll read them as a text, or Ask targum and we'll find something to read."
@@ -319,8 +374,20 @@
         ? "That sounds like what you want to read. Ask targum and we'll look for it."
         : "That sounds like what you want to read. Paste a link or the text itself here.";
     }
-    if (read.kind === "foreign") return "We read Hebrew, Yiddish and Aramaic, and this is in another script.";
+    if (read.kind === "foreign") {
+      var code = adding();
+      return english(read.text, code)
+        ? "You're adding " + named(code) + ", and this reads as English. Choose its language at the top."
+        : "You're adding " + named(code) + ", and this isn't in " + scriptOf(code).called + ". Choose its language at the top.";
+    }
     return RESTING;
+  }
+
+  // What Translation says under its two choices.
+  function lineUp(mine) {
+    return mine
+      ? "We'll line it up with the " + named(adding()) + ", sentence by sentence."
+      : "We'll translate it, sentence by sentence.";
   }
 
   // Whether the conversation is on this page to ask in.
@@ -348,6 +415,14 @@
   // Everything the box says, drawn again from what it holds.
   function settle() {
     drawFiles();
+    var name = named(adding());
+    if (given) {
+      given.placeholder = "Paste a link or some " + name + ", drop a file, or say what you want";
+      given.setAttribute("aria-label", "A link, some " + name + ", or what you want to read");
+    }
+    var note = document.getElementById("how-note");
+    var mine = document.querySelector('[data-how="mine"]');
+    if (note && mine) note.textContent = lineUp(mine.getAttribute("aria-pressed") === "true");
     var read = readGiven();
     if (understood) understood.textContent = understanding();
     var something = !!chosen || read.kind === "link" || read.kind === "text" || read.kind === "few";
@@ -512,9 +587,7 @@
           );
         });
         half.hidden = !mine;
-        note.textContent = mine
-          ? "We'll line it up with the Hebrew, sentence by sentence."
-          : "We'll translate it, sentence by sentence.";
+        note.textContent = lineUp(mine);
         // Switching back to Make one puts down whatever was brought: leaving it attached
         // would send a translation the reader had just said they did not want to use.
         if (!mine) {
@@ -727,6 +800,8 @@
       });
     }
     drawMenu();
+    // The box's own words name the language, and a change here bubbles to Change's
+    // listener, which says them again.
     from.addEventListener("change", drawMenu);
   })();
 
@@ -800,7 +875,7 @@
     return {
       name: name + ".txt",
       // The escape rather than the character: a browser's own base64 refuses anything
-      // above U+00FF, and every text this page is for is Hebrew.
+      // above U+00FF, and most of the texts this page is for are not in Latin letters.
       content: btoa(unescape(encodeURIComponent(text))),
     };
   }
@@ -939,7 +1014,7 @@
           line(
             read.kind === "description" || read.kind === "foreign"
               ? understanding()
-              : "Paste a link or some Hebrew, or drop a file."
+              : "Paste a link or some " + named(adding()) + ", or drop a file."
           ),
           true
         );
@@ -1123,7 +1198,7 @@
       var lines = document.createElement("p");
       lines.className = "excerpt";
       lines.setAttribute("lang", job.language || "he");
-      lines.setAttribute("dir", (job.language || "he") === "he" ? "rtl" : "ltr");
+      lines.setAttribute("dir", scriptOf(job.language || "he").rtl ? "rtl" : "ltr");
       job.excerpt.forEach(function (read, n) {
         if (n) lines.appendChild(document.createElement("br"));
         var bdi = document.createElement("bdi");
