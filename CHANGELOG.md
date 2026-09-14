@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A Russian word's card names its case and its aspect: "noun · f · accusative", "past ·
+  perfective · m", "future · perfective · he/she", "past participle · perfective · f ·
+  genitive". The model that reads French, Russian, Italian and Yiddish words now writes
+  each word's grammar in the same pass, a fifth column of Universal Dependencies features
+  from a fixed list (`model_lemma.FEATURES`), and the case and aspect are scored against
+  the SynTagRus dev set beside the dictionary forms, with floors (`scripts/eval_lemma.py`).
+  The card also lists the other forms the word takes in the same text ("here also as рука
+  · рукой"), and a question asked from the card carries its grammar line, so the answer
+  explains the tag the reader saw and says so when the tag is wrong. Hebrew cards are
+  unchanged. The question is prompt 2, so every French, Russian, Italian and Yiddish text
+  is read again, and paid for again, on its next build (targum-internal#258; the research
+  is `research/russian-cases-aspect-stress-2026-09-14.md` in targum-internal).
 - The Aramaic shelf has Aramaic texts of its own. Sefaria's public-domain targums can be
   fetched by the title Sefaria files each under — Targum Jonathan on the Torah and on the
   Prophets, the targums to the Writings and to Chronicles — pinned to one surveyed edition

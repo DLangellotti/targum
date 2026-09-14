@@ -775,6 +775,47 @@ def test_function_words_say_only_what_they_are() -> None:
     assert grammar("UPOS=ADV", "", "UPOS=X") == ["", "", ""]
 
 
+def test_a_russian_word_says_its_case() -> None:
+    """The case is the fact a Russian learner taps a word to find, and it goes last on
+    the line; a Hebrew line, which never carries one, is unchanged (targum-internal#258)."""
+    assert grammar("UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan") == [
+        "noun · f · accusative"
+    ]
+    assert grammar("UPOS=NOUN|Case=Loc|Gender=Neut|Number=Plur") == [
+        "noun · n · pl. · prepositional"
+    ]
+    assert grammar("UPOS=ADJ|Case=Gen|Gender=Masc|Number=Sing") == ["adjective · m · genitive"]
+    assert grammar("UPOS=ADJ|Case=Ins|Number=Plur") == ["adjective · pl. · instrumental"]
+    assert grammar("UPOS=PRON|Case=Dat|Person=1|Number=Sing") == ["I · dative"]
+    assert grammar("UPOS=PRON|Case=Gen") == ["pronoun · genitive"]
+    assert grammar("UPOS=DET|Case=Acc") == ["determiner · accusative"]
+    assert grammar("UPOS=NUM|Case=Gen") == ["number · genitive"]
+
+
+def test_a_russian_verb_says_its_aspect() -> None:
+    """Aspect after the tense, and a past says its gender, since сказал is "m" whoever
+    said it; a perfective present form is tagged future, and the card says so."""
+    assert grammar("UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin") == [
+        "past · perfective · m"
+    ]
+    assert grammar("UPOS=VERB|Number=Plur|Aspect=Imp|Tense=Past|VerbForm=Fin") == [
+        "past · imperfective · pl."
+    ]
+    assert grammar("UPOS=VERB|Number=Sing|Person=3|Aspect=Perf|Tense=Fut|VerbForm=Fin") == [
+        "future · perfective · he/she"
+    ]
+    assert grammar("UPOS=VERB|Aspect=Imp|VerbForm=Inf") == ["infinitive · imperfective"]
+    assert grammar("UPOS=VERB|Aspect=Perf|Mood=Imp|Number=Sing|Person=2|VerbForm=Fin") == [
+        "imperative · perfective · you"
+    ]
+    assert grammar("UPOS=VERB|Aspect=Imp|VerbForm=Conv") == ["verbal adverb · imperfective"]
+    # A participle declines, and the case is what tells it from the beinoni.
+    assert grammar(
+        "UPOS=VERB|Case=Gen|Gender=Fem|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Part"
+    ) == ["past participle · perfective · f · genitive"]
+    assert grammar("UPOS=VERB|Gender=Masc|Number=Plur|VerbForm=Part|Person=3") == ["present · they"]
+
+
 def test_a_pronoun_is_its_person() -> None:
     assert grammar("UPOS=PRON|Person=2|Gender=Masc|Number=Plur") == ["you (m, pl)"]
     assert run([], personLines=["Person=1|Number=Plur", "Person=3|Gender=Fem|Number=Sing"])[

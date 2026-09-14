@@ -28,6 +28,13 @@ the same discipline comes with it:
 The name is part of the annotator's name, so a new prompt version reads every text in these
 languages again — bought again, unlike every other annotator change. Move it only when
 what a correct answer looks like has changed.
+
+**The grammar comes with the word** (prompt 2, 2026-09-14, targum-internal#258). A Russian
+learner's two hardest facts about a word are its case and its aspect, and a card that
+names neither leaves the grammar line empty. Asked in the same pass rather than a second
+one, because the words are already being read and a second pass would bill every word
+twice: a fifth column of Universal Dependencies features, from a fixed list
+(`FEATURES`), scored against the same dev sets as the dictionary forms.
 """
 
 from __future__ import annotations
@@ -51,7 +58,7 @@ LANGUAGES = frozenset({"fr", "ru", "it", "yi"})
 MODEL = "claude-haiku-4-5"
 
 #: The question's version. See the module docstring for what moving it costs.
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 #: How much text goes in one request. Small enough that a batch cut off at `max_tokens`
 #: loses little, and is split and asked again rather than dropped.
@@ -59,14 +66,43 @@ BATCH_CHARS = 2400
 BATCH_SEGMENTS = 30
 
 #: For the price quoted before anything is spent. The system prompt rides on every batch;
-#: each word comes back as a line of number, word, lemma and tag. Measured with the
-#: counting endpoint on 2026-09-13, over sixty dev-set sentences a language: the prompt is
-#: 435 tokens, and a word comes back at 10.9 tokens in French and Italian, 12.2 in Russian
-#: and 15.8 in Yiddish, whose script tokenizes densely. Quoted a little high on purpose, as
-#: `dictionary.py` does: a cap fed high refuses less than it should, fed low it lets
-#: through more.
-TOKENS_PER_BATCH = 500
-TOKENS_PER_WORD_OUT = {"fr": 12, "it": 12, "ru": 13, "yi": 17}
+#: each word comes back as a line of number, word, lemma, tag and features. Prompt 1 was
+#: measured with the counting endpoint on 2026-09-13, over sixty dev-set sentences a
+#: language: 435 tokens of prompt, and a word back at 10.9 tokens in French and Italian,
+#: 12.2 in Russian and 15.8 in Yiddish, whose script tokenizes densely. Prompt 2 is 873
+#: tokens by the counting endpoint (2026-09-14), and its per-word figures are the eval's
+#: own usage over 120 dev sentences a language (`scripts/eval_lemma.py` prints them).
+#: Quoted a little high on purpose, as `dictionary.py` does: a cap fed high refuses less
+#: than it should, fed low it lets through more.
+TOKENS_PER_BATCH = 900
+TOKENS_PER_WORD_OUT = {"fr": 22, "it": 22, "ru": 30, "yi": 26}
+
+#: The features a card can say something with, and the values each may take. Anything
+#: else the model writes is dropped rather than shipped: a card must never say a word is
+#: in a case the list does not have. Order is the order they are written in, after the
+#: part of speech, which is the pipe format `hebrew.kept_feats` gives the card already.
+#: `Loc` is the Russian prepositional, which is what Universal Dependencies calls it.
+FEATURES: dict[str, frozenset[str]] = {
+    "Case": frozenset({"Nom", "Gen", "Dat", "Acc", "Ins", "Loc", "Par", "Voc"}),
+    "Gender": frozenset({"Masc", "Fem", "Neut"}),
+    "Number": frozenset({"Sing", "Plur"}),
+    "Animacy": frozenset({"Anim", "Inan"}),
+    "Aspect": frozenset({"Perf", "Imp"}),
+    "Tense": frozenset({"Past", "Pres", "Fut"}),
+    "Person": frozenset({"1", "2", "3"}),
+    "VerbForm": frozenset({"Inf", "Fin", "Part", "Conv"}),
+    "Mood": frozenset({"Ind", "Imp", "Cnd", "Sub"}),
+}
+
+#: The features a language's card may show, where that is narrower than `FEATURES`. French
+#: and Italian keep no case, animacy or aspect: their nouns have none, and the model's
+#: case for a French pronoun agreed with the treebank 39% of the time on 2026-09-14 — a
+#: card must not say what is measured to be a guess. Yiddish has case and no aspect.
+KEPT: dict[str, frozenset[str]] = {
+    "fr": frozenset(FEATURES) - {"Case", "Animacy", "Aspect"},
+    "it": frozenset(FEATURES) - {"Case", "Animacy", "Aspect"},
+    "yi": frozenset(FEATURES) - {"Animacy", "Aspect"},
+}
 
 #: The Universal POS tags, which is what a token's `pos` holds for every other lemmatizer.
 UPOS = frozenset(
@@ -76,11 +112,12 @@ _SKIPPED = frozenset({"PUNCT", "SYM"})
 _NUMBER = re.compile(r"^[#(\[]?(\d+)(?:[.:)\]][\d.]*)?$")
 
 SYSTEM = """You tag {language} text for a reading tool that shows a learner the dictionary \
-form of every word.
+form and the grammar of every word.
 
 You are given numbered segments. For every word of every segment, in order, write one line:
 
-<segment number><TAB><word exactly as written><TAB><dictionary form><TAB><part of speech>
+<segment number><TAB><word exactly as written><TAB><dictionary form><TAB><part of speech>\
+<TAB><features>
 
 The first column is the segment's number alone, the same on every line of that segment: \
 3, never 3.1 or 3.2.
@@ -102,6 +139,21 @@ contraction of a preposition and an article (du, au, della, nel) give the prepos
 infinitive.
 - The part of speech is one Universal Dependencies tag: ADJ ADP ADV AUX CCONJ DET INTJ NOUN \
 NUM PART PRON PROPN SCONJ VERB X.
+- The features are the word's grammar as it is used in this sentence, in Universal \
+Dependencies form, joined with |, and only these: Case (Nom Gen Dat Acc Ins Loc Par Voc), \
+Gender (Masc Fem Neut), Number (Sing Plur), Animacy (Anim Inan), Aspect (Perf Imp), Tense \
+(Past Pres Fut), Person (1 2 3), VerbForm (Inf Fin Part Conv), Mood (Ind Imp Cnd Sub). For \
+example Case=Acc|Gender=Fem|Number=Sing, or Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|\
+VerbForm=Fin|Mood=Ind. Write _ when none apply.
+- In Russian, Loc is the prepositional case. Every noun, pronoun, adjective, determiner, \
+declined numeral and participle has its Case, and every verb form, participles and \
+converbs included, has its Aspect. A participle (описанный, идущий, заданных) is tagged \
+VERB with VerbForm=Part, never ADJ, and its dictionary form is the verb's infinitive; it has \
+Case, Gender, Number, Aspect and Tense. A noun has its Animacy.
+- Case is read from the sentence, not from the ending alone: where nominative and \
+accusative look the same, the subject is Nom and the direct object is Acc, whichever comes \
+first; a noun after a preposition is in the case that preposition takes here (в школе Loc, \
+в школу Acc, по мере Dat). Words of a name in apposition take the case of the phrase.
 - Write nothing else: no heading, no explanation, no blank lines."""
 
 
@@ -162,7 +214,24 @@ def estimate(segments: Sequence[Segment], language: str, model: str = MODEL) -> 
     return (tokens_in * in_price + tokens_out * out_price) / 1_000_000
 
 
-def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
+def features(raw: str, pos: str, language: str = "") -> str:
+    """The card's grammar string: the part of speech, then the features `FEATURES` allows
+    and the language keeps (`KEPT`).
+
+    Written in the order `FEATURES` lists, whatever order the model used, so the same
+    grammar is the same string — which is what the reader's table of distinct strings
+    counts on.
+    """
+    kept = KEPT.get(_code(language), frozenset(FEATURES))
+    said: dict[str, str] = {}
+    for part in (raw or "").split("|"):
+        name, _, value = part.strip().partition("=")
+        if name in kept and value in FEATURES.get(name, ()):
+            said.setdefault(name, value)
+    return "|".join([f"UPOS={pos}", *(f"{name}={said[name]}" for name in FEATURES if name in said)])
+
+
+def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[Token] | None]:
     """Tokens per segment from the model's lines, placed by searching each segment's text.
 
     Offsets are found, never trusted: each word is looked for in its own segment from where
@@ -170,14 +239,16 @@ def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
     rather than put on a card over the wrong letters. A segment the answer never mentioned
     is `None`, which is different from a segment that was read and held no word.
     """
-    lines: list[list[tuple[str, str, str]]] = [[] for _ in texts]
+    lines: list[list[tuple[str, str, str, str]]] = [[] for _ in texts]
     mentioned = [False for _ in texts]
     for line in answer.splitlines():
         fields = [field.strip() for field in line.split("\t")]
         # The segment's number leads the line. Asked for alone, it sometimes arrives as
         # the word's place too — `3.1`, `3.2` — which lost whole batches until it was
         # read for what it leads with (measured on the French dev set, 2026-09-13).
-        numbered = _NUMBER.match(fields[0]) if len(fields) == 4 else None
+        # Four columns is an answer that left the features off, which still has words in
+        # it worth keeping.
+        numbered = _NUMBER.match(fields[0]) if len(fields) in (4, 5) else None
         if numbered is None:
             continue
         number = int(numbered.group(1)) - 1
@@ -185,8 +256,10 @@ def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
             continue
         mentioned[number] = True
         surface, lemma, pos = fields[1], fields[2], fields[3].upper()
+        grammar = fields[4] if len(fields) == 5 else ""
         if surface and pos not in _SKIPPED:
-            lines[number].append((surface, lemma or surface, pos if pos in UPOS else "X"))
+            tag = pos if pos in UPOS else "X"
+            lines[number].append((surface, lemma or surface, tag, features(grammar, tag, language)))
 
     out: list[list[Token] | None] = []
     for text, words, said in zip(texts, lines, mentioned, strict=True):
@@ -195,7 +268,7 @@ def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
             continue
         tokens: list[Token] = []
         cursor = 0
-        for surface, lemma, pos in words:
+        for surface, lemma, pos, feats in words:
             at = text.find(surface, cursor)
             if at < 0:
                 folded = text.casefold()
@@ -213,6 +286,7 @@ def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
                     lemma=lemma if pos == "PROPN" else lemma.lower(),
                     band=0,
                     pos=pos,
+                    feats=feats,
                 )
             )
             cursor = end
@@ -221,7 +295,7 @@ def parse(answer: str, texts: Sequence[str]) -> list[list[Token] | None]:
 
 
 def _stored(tokens: list[Token]) -> list[list[Any]]:
-    return [[t.start, t.end, t.surface, t.lemma, t.pos] for t in tokens]
+    return [[t.start, t.end, t.surface, t.lemma, t.pos, t.feats or ""] for t in tokens]
 
 
 def _restored(rows: Any, text: str) -> list[Token] | None:
@@ -229,19 +303,27 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
         return None
     tokens: list[Token] = []
     for row in rows:
-        if not isinstance(row, list) or len(row) != 5:
+        if not isinstance(row, list) or len(row) != 6:
             return None
-        start, end, surface, lemma, pos = row
+        start, end, surface, lemma, pos, feats = row
         if not (isinstance(start, int) and isinstance(end, int) and text[start:end] == surface):
             return None
         tokens.append(
-            Token(start=start, end=end, surface=surface, lemma=str(lemma), band=0, pos=str(pos))
+            Token(
+                start=start,
+                end=end,
+                surface=surface,
+                lemma=str(lemma),
+                band=0,
+                pos=str(pos),
+                feats=str(feats) or None,
+            )
         )
     return tokens
 
 
 class ModelLemmatizer:
-    """Tokens, dictionary forms and parts of speech, read by the model and cached."""
+    """Tokens, dictionary forms, parts of speech and grammar, read by the model and cached."""
 
     def __init__(
         self,
@@ -345,7 +427,7 @@ class ModelLemmatizer:
                 .client()
                 .messages.create(
                     model=self.model,
-                    max_tokens=min(16000, 400 + words * 20),
+                    max_tokens=min(16000, 400 + words * 40),
                     system=SYSTEM.format(language=language_name(code)),
                     messages=[{"role": "user", "content": body}],
                     **output_config(self.model, "low"),
@@ -362,7 +444,7 @@ class ModelLemmatizer:
             int(getattr(usage, "output_tokens", 0) or 0),
         )
         answer = "".join(str(getattr(block, "text", "")) for block in response.content)
-        found = parse(answer, texts)
+        found = parse(answer, texts, code)
         if getattr(response, "stop_reason", "") == "max_tokens" and len(batch) > 1:
             # Cut off: keep what arrived whole and ask again for the rest, in halves. The
             # last segment the answer reached may be cut too, so it is asked again.
