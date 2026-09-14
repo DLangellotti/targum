@@ -67,6 +67,11 @@ covers = ["pillow>=10.0"]
 # text should not carry libheif, and because a box without them refuses in one sentence.
 bring = ["pillow>=10.0", "pillow-heif>=0.18", "pypdf>=5.0"]
 difficulty = ["wordfreq>=3.1"]
+# Russian stress marks (targum-internal#260). MIT, with its weights inside the wheel
+# (38 MB) and torch, which Stanza already brings, as its only dependency. Its training
+# data is not disclosed, which LICENSING.md records. Without it a Russian reader is
+# built with no stress toggle and says so.
+stress = ["silero-stress>=1.4"]
 # Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
 # caps Python below 3.13, and the reader that would lose is the one on a Python targum
 # otherwise supports. Without it a text is built with no readings and says so in the
@@ -127,6 +132,7 @@ files = ["src/targum"]
 [[tool.mypy.overrides]]
 module = [
   "stanza.*",
+  "silero_stress.*",
   "trafilatura.*",
   "sentence_transformers.*",
   "wordfreq.*",

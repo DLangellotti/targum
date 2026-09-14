@@ -5788,9 +5788,9 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
     context.close()
 
 
-def russian(out: Path) -> Path:
+def russian(out: Path, stressed: bool = False) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
-    lines = ["Он взял её за руку.", "Рука болела, и рукой он писал."]
+    lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
     words = {
         0: [
             ("Он", "он", "UPOS=PRON|Case=Nom|Gender=Masc|Number=Sing|Person=3"),
@@ -5804,6 +5804,7 @@ def russian(out: Path) -> Path:
         1: [
             ("Рука", "рука", "UPOS=NOUN|Case=Nom|Gender=Fem|Number=Sing|Animacy=Inan"),
             ("рукой", "рука", "UPOS=NOUN|Case=Ins|Gender=Fem|Number=Sing|Animacy=Inan"),
+            ("брал", "брать", "UPOS=VERB|Gender=Masc|Aspect=Imp|Tense=Past|VerbForm=Fin"),
         ],
     }
     segments, tokens = [], {}
@@ -5854,7 +5855,26 @@ def russian(out: Path) -> Path:
         method_note="a test",
         tokens=tokens,
     )
-    return render(document, segmented, [translation], out, annotation=annotation)[0]
+    # The marks the stress stage writes: an acute after the vowel, ё as е plus a diaeresis.
+    marks = {
+        segments[0].id: "Он взял её за ру\u0301ку.",
+        segments[1].id: "Рука\u0301 боле\u0301ла, и руко\u0301й он брал хлеб.",
+    }
+    vocalization = Vocalization(
+        document_hash="r",
+        language="ru",
+        vocalizer="stress/test",
+        segments=marks,
+        machine=list(marks),
+    )
+    return render(
+        document,
+        segmented,
+        [translation],
+        out,
+        annotation=annotation,
+        vocalization=vocalization if stressed else None,
+    )[0]
 
 
 CARD_LINES = """
@@ -5865,17 +5885,86 @@ CARD_LINES = """
     const el = card.querySelector(selector);
     return el ? el.textContent : null;
   };
-  return { use: line('.use'), forms: line('.forms-here') };
+  return {
+    use: line('.use'),
+    forms: line('.forms-here'),
+    partner: line('.partner'),
+    moves: line('.stress-moves'),
+  };
 }
 """
 
 
-def test_a_russian_card_says_the_case_and_the_other_forms_here(browser, tmp_path: Path) -> None:
+def test_a_russian_card_says_the_case_and_the_other_forms_here(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The case goes on the grammar line, and the card lists the shapes the same word takes
     elsewhere in the text: the paradigm this reader has actually met."""
+    from targum.annotate import openrussian
+
+    # As a machine without OpenRussian's tables builds it, whatever this one has fetched.
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
     context, page = open_reader(browser, russian(tmp_path / "reader"))
     shown = page.evaluate(CARD_LINES, "руку")
-    assert shown == {"use": "noun · f · accusative", "forms": "here also as рука · рукой"}
+    assert shown["use"] == "noun · f · accusative"
+    assert shown["forms"] == "here also as рука · рукой"
     verb = page.evaluate(CARD_LINES, "взял")
-    assert verb == {"use": "past · perfective · m", "forms": None}, "one form, nothing to list"
+    assert verb["use"] == "past · perfective · m" and verb["forms"] is None, "nothing to list"
+    assert verb["partner"] is None and verb["moves"] is None, "built without the tables"
+    context.close()
+
+
+def test_a_russian_verb_names_its_partner_and_goes_to_it(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With OpenRussian's tables, a verb's card names its other aspect, stressed, and where
+    the partner is used in the same text the card goes there; a noun whose stress moves
+    says where (targum-internal#259). The page credits the tables at its foot."""
+    from targum.annotate import openrussian
+
+    lexicon = openrussian.Lexicon()
+    lexicon.entries = {
+        "взять": [openrussian.Entry("verb", "взя'ть", "perfective", ("брать",))],
+        "брать": [openrussian.Entry("verb", "бра'ть", "imperfective", ("взять",))],
+        "рука": [
+            openrussian.Entry("noun", "рука'", forms={"sg_nom": ["рука'"], "sg_acc": ["ру'ку"]})
+        ],
+    }
+    monkeypatch.setattr(openrussian, "lexicon", lambda: lexicon)
+    reader = russian(tmp_path / "reader")
+    html = reader.read_text(encoding="utf-8")
+    assert "OpenRussian.org" in html
+    context, page = open_reader(browser, reader)
+    verb = page.evaluate(CARD_LINES, "взял")
+    assert verb["partner"] == "the other aspect: бра́тьread брал here"
+    assert page.evaluate(CARD_LINES, "руку")["moves"] == "stress moves: рука́ · ру́ку"
+    page.evaluate(CARD_LINES, "взял")
+    page.click(".gloss-card .partner .here")
+    page.wait_for_timeout(300)
+    assert page.evaluate("() => document.querySelector('.gloss-card').hidden"), "gone to read it"
+    context.close()
+
+
+def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: Path) -> None:
+    """A Russian page's `n` shows the stress marks, the switch calls them stress marks, and
+    a word tapped with the marks on is the same word, saved the same way, as with them off
+    (targum-internal#260)."""
+    reader = russian(tmp_path / "reader", stressed=True)
+    html = reader.read_text(encoding="utf-8")
+    assert 'aria-label="Stress marks"' in html and 'aria-label="Vowel points"' not in html
+    context, page = open_reader(browser, reader)
+    bare = page.evaluate(CARD_LINES, "руку")
+    page.keyboard.press("Escape")
+    page.click("[data-nikkud-toggle]")
+    page.wait_for_timeout(200)
+    shown = page.evaluate(
+        "() => [...document.querySelectorAll('.pair .src')].filter((c) => !c.hidden"
+        " && c.offsetParent).map((c) => c.textContent.trim())"
+    )
+    assert "Он взял её за ру\u0301ку." in shown
+    marked = page.evaluate(CARD_LINES, "ру\u0301ку")
+    assert marked["use"] == bare["use"] == "noun · f · accusative"
+    assert marked["forms"] == bare["forms"] == "here also as рука · рукой", "offsets held"
+    head = page.evaluate("() => document.querySelector('.gloss-card .lemma').textContent")
+    assert head == "ру\u0301ку", "the card shows the word stressed, as tapped"
     context.close()

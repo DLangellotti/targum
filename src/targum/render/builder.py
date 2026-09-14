@@ -49,6 +49,9 @@ from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
 MAX_SEGMENTS_PER_SECTION = 400
+#: How many aspect partners a card names. OpenRussian lists сделать and поделать for
+#: делать; the first is the pair a course teaches, and a third is a list.
+PARTNERS = 2
 
 TEMPLATES = Path(__file__).parent / "templates"
 ASSETS = Path(__file__).parent / "assets"
@@ -1903,6 +1906,13 @@ def render(
         if segment.kind is BlockKind.verse and verse_address(segment.ref)
     }
     source_direction = direction_for(segmented.language)
+    # OpenRussian's tables, where the text is Russian and this machine fetched them. A
+    # reader built without them is the reader every earlier build made.
+    lexicon = None
+    if segmented.language.split("-")[0].lower() == "ru":
+        from ..annotate import openrussian
+
+        lexicon = openrussian.lexicon()
     # Which rows are in a language other than the document's. Daniel and Ezra turn into
     # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
     # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
@@ -1958,6 +1968,8 @@ def render(
         "source_direction": source_direction,
         "page_direction": source_direction,
         "has_nikkud": bool(pointed),
+        # Russian's marks are stress, not vowels, and the switch says so.
+        "stress_marks": bool(pointed) and segmented.language.split("-")[0].lower() == "ru",
         "has_taamim": bool(unaccented),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
@@ -2145,8 +2157,24 @@ def render(
             for at, form in enumerate(forms):
                 citations[at] = citations[at] or book.citations.get(form, "")
                 plurals[at] = plurals[at] or book.plurals.get(form, "")
+        # A Russian verb's aspect partner and a word whose stress moves, looked up in
+        # OpenRussian where this machine has its tables (targum-internal#259). Facts about
+        # the dictionary form, so they ride beside the lemmas like the root. Nothing is
+        # said about a lemma the dictionary spells two ways.
+        partners: list[str] = []
+        stresses: list[str] = []
+        if lexicon is not None:
+            partners = [" · ".join(lexicon.partners(lemma)[:PARTNERS]) for lemma in lemmas]
+            stresses = [" · ".join(lexicon.stress_line(lemma)) for lemma in lemmas]
         extensions = {
-            name: table for name, table in (("roots", roots), ("binyanim", binyanim)) if any(table)
+            name: table
+            for name, table in (
+                ("roots", roots),
+                ("binyanim", binyanim),
+                ("partners", partners),
+                ("stress", stresses),
+            )
+            if any(table)
         }
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
@@ -2274,6 +2302,11 @@ def render(
                 and vocalization.machine
                 and vocalization.vocalizer.startswith("dicta/")
             ),
+            # CC BY-SA asks the same naming, on a page that quoted the tables — which the
+            # stress marks do too, since every mark was confirmed against them.
+            lexicon_credit="partners" in extensions
+            or "stress" in extensions
+            or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
             segments=segments,
             verses=verses,
             languages=languages,

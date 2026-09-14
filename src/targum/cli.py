@@ -1094,7 +1094,14 @@ def rebuild_one(
     moves: dict[str, object] | None = moves_module.carried(folder) or None
     repointed = False
     vocalization = read_artifact(Vocalization, folder / "vocalization.json")
-    if vocalization is not None and vocalize is not None and vocalization.machine:
+    from .vocalize import russian as russian_stress
+
+    if (
+        vocalization is not None
+        and vocalize is not None
+        and vocalization.machine
+        and not russian_stress.supports(document.language)
+    ):
         # Only a text a model pointed: one pointed by its edition names `source` and is
         # nobody's to redo. The engine is chosen by register and by what is on disk, so
         # a box without the menaked's weights compares Nakdimon with Nakdimon and moves
@@ -1119,6 +1126,23 @@ def rebuild_one(
             if was.document_hash == annotation.document_hash:
                 moves = moves_module.keep(folder, moves_module.between(was, annotation))
             annotation.write(folder / "annotation.json")
+    # Russian stress after the words, which settle a homograph (targum-internal#260): marked
+    # again where the engine, the tables' pin or the words it was settled with changed. A
+    # machine without silero or the tables leaves the text as it was.
+    if vocalize is not None and russian_stress.supports(document.language):
+        engine = vocalize(document)
+        if isinstance(engine, russian_stress.StressVocalizer) and engine.available()[0]:
+            if not russian_stress.current(
+                vocalization, segmented.document_hash, engine, annotation
+            ):
+                try:
+                    fresh = russian_stress.mark_document(
+                        segmented, engine, annotation, document.source
+                    )
+                except TargumError as error:
+                    console.print(f"[dim]{error.message} Kept the text unmarked.[/dim]")
+                else:
+                    fresh.write(folder / "vocalization.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
         # Meanings held in the cache since this reader was written — looked up from
@@ -1249,7 +1273,15 @@ def rebuild(
                 said.add(message)
                 console.print(f"[dim]{message}[/dim]")
 
+        from .vocalize import russian as russian_stress
+
+        # One accentor for the run: silero takes a couple of seconds to load, and a
+        # rebuild of the Russian shelf would otherwise pay that per text.
+        stresser = russian_stress.StressVocalizer()
+
         def vocalize(document: Document) -> Vocalizer:
+            if russian_stress.supports(document.language):
+                return stresser
             return vocalizer_for(document.source, notify=once)
 
         from .annotate import (
@@ -2613,14 +2645,33 @@ def models_fetch(
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
-    their own, 'gold' for the treebanks the annotator is scored against, 'flores' for
-    the FLORES+ sentences the chat's recast is scored against, 'ntrex' for the news
-    sentences beside them, or 'heq' for the questions its answers about a text are
-    scored against."""
+    their own, 'openrussian' for the Russian dictionary tables, 'gold' for the treebanks
+    the annotator is scored against, 'flores' for the FLORES+ sentences the chat's recast
+    is scored against, 'ntrex' for the news sentences beside them, or 'heq' for the
+    questions its answers about a text are scored against."""
     from .align import embedding
 
     if language in {"menaked", "nikkud", "vowels", "pointing"}:
         _fetch_menaked()
+        return
+
+    if language in {"openrussian", "russian-dictionary"}:
+        from .annotate import openrussian
+
+        if openrussian.available():
+            console.print("[dim]OpenRussian's tables are already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching {openrussian.CREDIT}'s tables, {openrussian.LICENCE}. Looked up "
+            f"for a card, never trained on, never shipped as a list.[/dim]"
+        )
+        try:
+            got = openrussian.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[green]Downloaded[/green] {got} tables · {openrussian.CREDIT} · {openrussian.LICENCE}"
+        )
         return
 
     if language in {"scripture", "tanakh", "oshb"}:

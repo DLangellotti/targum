@@ -73,7 +73,21 @@
         itself in `data-what`, which is the row's label there and nothing here. -#}
     {#- Beside the modes rather than behind ⋯: on a phone the vowel points are the one
         thing a reader reaches for mid-sentence. -#}
-    {% if has_nikkud %}
+    {% if has_nikkud and stress_marks %}
+    {#- Russian's stress marks ride the same switch as Hebrew's vowels, and say what they
+        are: marked only where two sources agree, so a word left bare is a doubt rather
+        than a gap (targum-internal#260). -#}
+    <div class="group" data-what="Stress marks">
+      <button type="button" data-nikkud-toggle aria-pressed="false"
+              title="Stress marks (n). We mark a word only where two sources agree, so some words stay bare."
+              aria-label="Stress marks">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M4 12.5h8"/>
+          <path d="M9.5 3.5 7 8" class="dots"/>
+        </svg>
+      </button>
+    </div>
+    {% elif has_nikkud %}
     <div class="group" data-what="Vowel points">
       <button type="button" data-nikkud-toggle aria-pressed="false"
               {%- if mark_guessed %} title="Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed."
@@ -736,7 +750,7 @@
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}
-    {% if has_nikkud %}<dt>n</dt><dd>vowel points</dd>{% endif %}
+    {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>the chanting marks, with the vowels on</dd>{% endif %}
     <dt>p</dt><dd>parallel</dd>
     <dt>l</dt><dd>interlinear — the translation under each line</dd>
@@ -765,6 +779,11 @@
       vocalizer that ran, and only where it pointed something the edition had not. -#}
   {% if pointing_credit %}
   <p class="keys-credit">Vowel points by <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
+      partner or a word whose stress moves (targum-internal#259). -#}
+  {% if lexicon_credit %}
+  <p class="keys-credit">Aspect partners and stress from <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
   {% endif %}
   {% if biblical %}
   <p class="keys-credit">Our dictionary forms are less reliable on biblical Hebrew than
