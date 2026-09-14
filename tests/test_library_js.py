@@ -753,3 +753,54 @@ def test_a_view_from_before_languages_had_their_own_is_hebrews(tmp_path: Path) -
     assert moved["kindOn"] != "Poetry"
     assert moved["views"]["ru"]["kind"] == ""
     assert moved["views"]["he"]["kind"] == "poetry"
+
+
+def test_the_aramaic_shelf_is_aramaic_texts_and_not_the_hebrew_torah(tmp_path: Path) -> None:
+    """David, 2026-09-14: "why is it I just see hebrew tanakh in the aramaic library?" A
+    Torah book with Onkelos as a column was filed under Aramaic. Under Aramaic the shelf is
+    the targums, and Daniel for its Aramaic chapters; Genesis is Hebrew's."""
+    from targum.catalogue import Entry, Kind, Register, Rendering
+
+    def entry(id_: str, title: str, language: str, source: str, *renderings: str) -> Entry:
+        return Entry(
+            id=id_,
+            title=title,
+            author="",
+            language=language,
+            source=source,
+            blurb="",
+            english=title,
+            words=1000,
+            tags=frozenset(),
+            translations=[Rendering(name="r", source=one) for one in renderings],
+            kind=Kind.prose,
+            register=Register.biblical if language == "he" else Register.none,
+        )
+
+    shelf_ = [
+        entry(
+            "genesis",
+            "בראשית",
+            "he",
+            "sefaria:Genesis",
+            "sefaria:en:Genesis",
+            "sefaria:arc:Genesis",
+        ),
+        entry("daniel", "דניאל", "he", "sefaria:Daniel", "sefaria:en:Daniel"),
+        entry("onkelos-genesis", "תרגום אונקלוס על בראשית", "arc", "sefaria:arc:Genesis"),
+        entry(
+            "targum-jonathan-jonah",
+            "תרגום יונתן על יונה",
+            "arc",
+            "sefaria:arc:Targum Jonathan on Jonah",
+            "sefaria:en:Targum Jonathan on Jonah",
+        ),
+    ]
+    catalogue = [one.state() for one in shelf_]
+    titles = {
+        row["title"]
+        for row in draw(tmp_path, catalogue=catalogue, collections=[], language="arc")["rows"]
+    }
+    assert titles == {"תרגום אונקלוס על בראשית", "תרגום יונתן על יונה", "דניאל"}
+    hebrew = {row["title"] for row in draw(tmp_path, catalogue=catalogue, collections=[])["rows"]}
+    assert hebrew == {"בראשית", "דניאל"}
