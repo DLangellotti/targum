@@ -778,6 +778,7 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 }
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
+  body.learn .site-head-row { padding-inline: 1rem; }
   .front { gap: 1rem; margin-block-end: 1rem; }
   .front .learn-head { padding-inline: 1rem; }
   /* The track takes the width, and its pills wrap to a second row when four of them
@@ -796,6 +797,14 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
        (measured 2026-09-11: 81px, 66px and 65px on a 390px phone). */
     block-size: calc(100svh - 23.5rem - env(safe-area-inset-bottom));
     min-block-size: 22rem;
+  }
+  /* Measured by `learn.js` (2026-09-14): everything above the window and everything fixed
+     at the foot, so the reader's own bar is never behind the bar of places or the pill.
+     The floor is lower than the guess's: a short screen shows less text rather than a
+     frame whose foot is hidden. */
+  .page-window.fitted {
+    block-size: calc(100svh - var(--sheet-above));
+    min-block-size: 16rem;
   }
   /* The foot is two lines and Open, clear of the round pill at the corner. */
   .page-head { padding: 0.55rem 1rem 0.65rem; row-gap: 0.1rem; }
