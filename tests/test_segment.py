@@ -261,7 +261,7 @@ def test_only_an_audited_language_goes_to_the_delegate(monkeypatch: pytest.Monke
     monkeypatch.setitem(stanza_segmenter.AUDITED, "xx", {"tokenize": "checked"})
     assert segmenter.split(["One. Two."], "xx") == [["One. Two."]]
     assert delegate.asked == ["xx"]
-    assert segmenter.name == "hebrew-rules/1+cased-rules/1+fake/1"
+    assert segmenter.name == "hebrew-rules/1+cased-rules/2+fake/1"
 
 
 @pytest.mark.parametrize("language", ["en", "ru", "it", "fr", "es", "de", "la", "ar", "hbo"])
@@ -362,6 +362,39 @@ def test_a_published_english_translation_is_split_without_stanza(
             "Il sig. Rossi è arrivato. Vedi pag. 5.",
             ["Il sig. Rossi è arrivato.", "Vedi pag. 5."],
         ),
+        # A straight quote with a letter after it opens the next sentence, and a mark
+        # inside a closed quotation ends nothing — however the quotation is set.
+        (
+            "it",
+            'È finita. "Non lo so. Forse domani," disse Marco. "Aspetta... Non andare."',
+            [
+                "È finita.",
+                '"Non lo so. Forse domani," disse Marco.',
+                '"Aspetta... Non andare."',
+            ],
+        ),
+        (
+            "it",
+            "Lo disse. «Non lo so. Forse domani», rispose. Poi uscì.",
+            ["Lo disse.", "«Non lo so. Forse domani», rispose.", "Poi uscì."],
+        ),
+        (
+            "it",
+            "— Prendilo pure, l’ombrello. Ma perché vai? — chiese l’altro, sbadigliando.",
+            ["— Prendilo pure, l’ombrello. Ma perché vai? — chiese l’altro, sbadigliando."],
+        ),
+        # A quotation that runs on into the next paragraph holds nothing in this one.
+        (
+            "it",
+            "Ed elli a me: «La tua città è piena d’invidia. Sì che già trabocca il sacco.",
+            ["Ed elli a me: «La tua città è piena d’invidia.", "Sì che già trabocca il sacco."],
+        ),
+        # Nor does a dash that opens no dialogue line.
+        (
+            "it",
+            "Il ragazzo — stanco. Poi tornò — a casa.",
+            ["Il ragazzo — stanco.", "Poi tornò — a casa."],
+        ),
         # No capitals to read, so no boundary is guessed at: the block is whole.
         ("ar", "مرحبا. كيف حالك؟ أنا بخير.", ["مرحبا. كيف حالك؟ أنا بخير."]),
     ],
@@ -370,6 +403,32 @@ def test_a_cased_script_is_split_by_rule(language: str, text: str, expected: lis
     from targum.segment import HebrewSegmenter
 
     assert HebrewSegmenter().split([text], language) == [expected]
+
+
+def test_quotations_are_held_only_where_a_language_is_named() -> None:
+    """French and Russian quote the same way, but a boundary moved there moves under
+    English already bought, so the Italian rule reaches no other language by accident:
+    English splits as it did, half a quotation on each row included."""
+    from targum.segment import HebrewSegmenter
+
+    text = 'It ended. "I do not know. Maybe," he said.'
+    assert HebrewSegmenter().split([text], "en") == [
+        ['It ended. "I do not know.', 'Maybe," he said.']
+    ]
+
+
+def test_an_italian_block_of_any_size_splits_in_linear_time() -> None:
+    """The quotation pass reads the block once more; a megabyte of quotes that never
+    close, or of dialogue dashes, must still not park the build queue."""
+    import time
+
+    from targum.segment import cased
+
+    started = time.perf_counter()
+    assert len(cased.sentences("«Sì. " * 50_000, "it")) == 50_000
+    assert len(cased.sentences("— Sì. No. — disse. " * 20_000, "it")) == 1
+    assert len(cased.sentences('"Sì. No," disse. ' * 20_000, "it")) == 20_000
+    assert time.perf_counter() - started < 3.0
 
 
 @pytest.mark.parametrize("language", ["yi", "arc"])

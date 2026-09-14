@@ -108,6 +108,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- Italian quotations stay on one row. A full stop or an ellipsis inside «», “”, straight
+  quotes or a dash-set line of dialogue split the quotation in two, and a straight `"`
+  opening a sentence after a full stop was read as closing the one before, gluing the
+  two. Italian is the one language this is turned on for (`cased.QUOTING`); the cased
+  rules are `cased-rules/2`, and Hebrew splits exactly as before. On the Italian shelf it
+  changes 467 blocks and no curated video. A text already built keeps its segments.
 - The commonest-words list no longer offers English to a language wordfreq has no list
   for. Asked for Yiddish, wordfreq answers with its fallback list instead of refusing,
   and `common_words` only caught a refusal; it now checks the language is really there.
