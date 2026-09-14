@@ -4537,11 +4537,12 @@ def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
         context.close()
 
 
-# -- a video text opens as video, and the picture never floats ---------------------------
+# -- a video text opens as video, and the picture docks -----------------------------------
 #
 # design.md §12, 2026-09-03, and targum-internal#182. Two rules settled together:
 # a text carrying a sidecar opens full screen with its text as subtitles, and the
-# picture docks in a corner rather than being dragged around the page.
+# picture docks in a corner. The second was amended 2026-09-13: the reader may pick the
+# picture up, put it anywhere and size it, and the corner key docks it again.
 
 
 #: Which mode the picture is in, where the transport is, and what the subtitle says.
@@ -4856,29 +4857,216 @@ def test_the_band_gives_the_picture_back_after_a_word(browser, tmp_path) -> None
         context.close()
 
 
-def test_the_picture_is_never_dragged(browser, tmp_path) -> None:
-    """The note asked for a draggable player and the reason was real: a picture parked
-    over the sentence being read. §12 answers it with a corner the layout keeps room
-    for, because a drag answers it once per session and a corner answers it for good."""
+#: The panel's box, whether it floats, and what the two stores hold.
+PLACED = """() => {
+  const box = document.getElementById('video');
+  const r = box.getBoundingClientRect();
+  return {
+    x: r.left, y: r.top, w: r.width, h: r.height,
+    vw: document.documentElement.clientWidth, vh: document.documentElement.clientHeight,
+    free: box.classList.contains('free'),
+    dock: [...box.classList].filter((name) => name.startsWith('dock-'))[0] || null,
+    place: localStorage.getItem('targum:video-place'),
+    size: localStorage.getItem('targum:video-size'),
+  };
+}"""
+
+
+def pull(page, selector: str, dx: float, dy: float) -> None:
+    """Press on a handle's middle, move by (dx, dy) in steps, and let go."""
+    handle = page.locator(selector).bounding_box()
+    assert handle, f"{selector} is not drawn"
+    x = handle["x"] + handle["width"] / 2
+    y = handle["y"] + handle["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + dx, y + dy, steps=10)
+    page.mouse.up()
+
+
+def reading_alongside(page) -> None:
+    page.wait_for_selector("#video.watching")
+    page.click(".video-mode")
+    page.wait_for_timeout(100)
+
+
+def inward(page) -> int:
+    """+1 when the docked panel is on the left, so a move toward the middle is rightward.
+    The reader's direction is the text's, and a Hebrew page docks at its end on the left."""
+    box = page.evaluate(PLACED)
+    return 1 if box["x"] + box["w"] / 2 < box["vw"] / 2 else -1
+
+
+def outward(page, selector: str) -> int:
+    """Which way from the panel's middle a handle stands: +1 right, -1 left."""
+    panel = page.locator("#video").bounding_box()
+    handle = page.locator(selector).bounding_box()
+    middle = handle["x"] + handle["width"] / 2
+    return 1 if middle > panel["x"] + panel["width"] / 2 else -1
+
+
+def test_the_picture_is_picked_up_by_its_grip_and_stays_put(browser, tmp_path) -> None:
+    """§12, 2026-09-13: the owner reversed "the picture is never dragged". It is moved by
+    its grip to anywhere on a wide window, and it is there after the page is opened
+    again. A press dragged across the picture itself still moves nothing — the picture
+    is the play button, and a press on it has to stay a press."""
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
-        page.click(".video-mode")
-        page.wait_for_timeout(100)
-        before = page.locator("#video").bounding_box()
+        reading_alongside(page)
+        before = page.evaluate(PLACED)
+        assert before["dock"] and not before["free"], before
 
-        page.mouse.move(before["x"] + before["width"] / 2, before["y"] + 6)
+        film = page.locator(".video-el").bounding_box()
+        page.mouse.move(film["x"] + film["width"] / 2, film["y"] + 10)
         page.mouse.down()
-        page.mouse.move(before["x"] - 220, before["y"] - 160, steps=8)
+        page.mouse.move(film["x"] - 200, film["y"] - 150, steps=8)
         page.mouse.up()
+        still = page.evaluate(PLACED)
+        assert abs(still["x"] - before["x"]) < 1 and abs(still["y"] - before["y"]) < 1, still
 
-        after = page.locator("#video").bounding_box()
-        assert abs(after["x"] - before["x"]) < 1 and abs(after["y"] - before["y"]) < 1, (
-            before,
-            after,
+        way = inward(page)
+        pull(page, ".video-grip", way * 500, -300)
+        moved = page.evaluate(PLACED)
+        assert moved["free"], moved
+        assert abs(moved["x"] - (before["x"] + way * 500)) <= SLACK, (before, moved)
+        assert abs(moved["y"] - (before["y"] - 300)) <= SLACK, (before, moved)
+        assert moved["place"], "the place is kept"
+
+        # Far past the edge, and it stops at the window.
+        pull(page, ".video-grip", -3000, -3000)
+        edge = page.evaluate(PLACED)
+        assert edge["x"] >= 0 and edge["y"] >= 0, edge
+
+        pull(page, ".video-grip", 3000, 3000)
+        edge = page.evaluate(PLACED)
+        assert edge["x"] + edge["w"] <= edge["vw"] and edge["y"] + edge["h"] <= edge["vh"], edge
+
+        pull(page, ".video-grip", -300, -200)
+        kept = page.evaluate(PLACED)
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        again = page.evaluate(PLACED)
+        assert again["free"], again
+        assert abs(again["x"] - kept["x"]) <= SLACK and abs(again["y"] - kept["y"]) <= SLACK, (
+            kept,
+            again,
         )
-        assert page.get_attribute("#video", "draggable") is None
+    finally:
+        context.close()
+
+
+def test_the_picture_is_sized_from_its_corner_within_the_window(browser, tmp_path) -> None:
+    """The size key sits across from the corner the panel is held by, so a pull outward
+    widens it; it keeps the picture's shape, never passes nine tenths of the window or
+    its foot, never shrinks past a picture worth watching, and is kept."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        reading_alongside(page)
+        before = page.evaluate(PLACED)
+        film = page.locator(".video-el").bounding_box()
+        ratio = film["width"] / film["height"]
+
+        # Docked at the end, the key is at the start: pulling it away from the panel widens.
+        way = outward(page, ".video-size")
+        pull(page, ".video-size", way * 160, 0)
+        wider = page.evaluate(PLACED)
+        assert wider["w"] > before["w"] + 100, (before, wider)
+        assert wider["dock"] == before["dock"] and not wider["free"], "still docked"
+        film = page.locator(".video-el").bounding_box()
+        assert abs(film["width"] / film["height"] - ratio) < 0.05, "the picture keeps its shape"
+        assert wider["size"], "the size is kept"
+
+        pull(page, ".video-size", way * 3000, 0)
+        widest = page.evaluate(PLACED)
+        assert widest["w"] <= widest["vw"] * 0.9 + SLACK, widest
+        assert widest["x"] >= 0 and widest["y"] >= 0, widest
+        assert widest["y"] + widest["h"] <= widest["vh"], widest
+
+        way = outward(page, ".video-size")
+        pull(page, ".video-size", -way * 3000, 0)
+        smallest = page.evaluate(PLACED)
+        assert smallest["w"] >= 260 - SLACK, smallest
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_timeout(100)
+        assert abs(page.evaluate(PLACED)["w"] - smallest["w"]) <= SLACK
+    finally:
+        context.close()
+
+
+def test_the_corner_key_docks_a_picture_that_was_picked_up(browser, tmp_path) -> None:
+    """Docking is the default and the way home: the first press of the corner key puts a
+    picked-up picture back in the corner it came from and forgets the place."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        reading_alongside(page)
+        before = page.evaluate(PLACED)
+        pull(page, ".video-grip", inward(page) * 400, -250)
+        assert page.evaluate(PLACED)["free"]
+
+        page.click(".video-corner")
+        home = page.evaluate(PLACED)
+        assert not home["free"] and home["dock"] == before["dock"], (before, home)
+        assert abs(home["x"] - before["x"]) <= SLACK and abs(home["y"] - before["y"]) <= SLACK
+        assert home["place"] is None, "the place is forgotten"
+        assert page.evaluate("() => document.getElementById('video').style.insetBlock") == ""
+
+        page.click(".video-corner")
+        assert page.evaluate(PLACED)["dock"] != before["dock"], "and then the ring turns"
+
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        assert not page.evaluate(PLACED)["free"]
+    finally:
+        context.close()
+
+
+def test_a_picked_up_picture_takes_no_room_from_the_pages(browser, tmp_path) -> None:
+    """Docked, the pages are cut above the picture. Put somewhere by the reader, it
+    floats: the page gets its full height back, and turning pages still works."""
+    built = video_reader(tmp_path, lines=60)
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    shown = "() => document.querySelectorAll('.pair:not([hidden])').length"
+    try:
+        page.goto(address(built))
+        reading_alongside(page)
+        page.wait_for_function("() => document.body.classList.contains('paged')")
+        page.wait_for_timeout(250)
+        docked = page.evaluate(shown)
+
+        pull(page, ".video-grip", inward(page) * 600, -400)
+        page.wait_for_timeout(250)
+        floating = page.evaluate(shown)
+        assert floating > docked, (docked, floating)
+        assert page.evaluate("() => document.body.classList.contains('paged')")
+    finally:
+        context.close()
+
+
+def test_the_picture_is_not_picked_up_on_a_phone(browser, tmp_path) -> None:
+    """On a phone the panel is full-bleed in the band and pulled down to close, so there
+    is no grip and no size key, and a place kept on a wide window is not drawn here."""
+    built = video_reader(tmp_path)
+    context = opened(browser, viewport=PHONE_TALL, scrolling=False)
+    context.add_init_script(
+        "localStorage.setItem('targum:video-place', JSON.stringify({x: 0.3, y: 0.3}));"
+        "localStorage.setItem('targum:video-size', '0.5');"
+    )
+    page = context.new_page()
+    try:
+        page.goto(address(built))
+        reading_alongside(page)
+        page.wait_for_timeout(350)
+        assert not page.locator(".video-grip").is_visible()
+        assert not page.locator(".video-size").is_visible()
+        seen = page.evaluate(PLACED)
+        assert not seen["free"] and seen["w"] >= 320, seen
     finally:
         context.close()
 

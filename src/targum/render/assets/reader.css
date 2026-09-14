@@ -1573,7 +1573,9 @@ table.rows tr:hover .copy,
        either. The speed and the picture toggle draw at 24-38px in the strip, and the
        picture's own mode and corner keys at 24px beside a `.video-close` that had its
        44px already — so the × was comfortable and the two keys next to it were not. */
-    .player-rate-now, .player-video, .video-mode, .video-corner
+    .player-rate-now, .player-video, .video-mode, .video-corner,
+    /* The grip and the size key, on a wide touch screen (2026-09-13). */
+    .video-grip, .video-size
   ) {
     position: relative;
   }
@@ -1586,7 +1588,9 @@ table.rows tr:hover .copy,
        either. The speed and the picture toggle draw at 24-38px in the strip, and the
        picture's own mode and corner keys at 24px beside a `.video-close` that had its
        44px already — so the × was comfortable and the two keys next to it were not. */
-    .player-rate-now, .player-video, .video-mode, .video-corner
+    .player-rate-now, .player-video, .video-mode, .video-corner,
+    /* The grip and the size key, on a wide touch screen (2026-09-13). */
+    .video-grip, .video-size
   )::after {
     content: "";
     position: absolute;
@@ -2803,7 +2807,8 @@ body.has-player .next-up { margin-block-end: 9rem; }
 
 .video-close,
 .video-mode,
-.video-corner {
+.video-corner,
+.video-grip {
   flex: none;
   display: grid;
   place-items: center;
@@ -2836,15 +2841,82 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .video-corner[data-corner="bottom-start"] svg .corner { transform: translateX(-6px); }
 .video-corner[data-corner="top-start"] svg .corner { transform: translate(-6px, -6px); }
 .video-corner[data-corner="top-end"] svg .corner { transform: translateY(-6px); }
-.video-close:hover, .video-mode:hover, .video-corner:hover { color: var(--ink); }
+.video-close:hover, .video-mode:hover, .video-corner:hover, .video-grip:hover { color: var(--ink); }
 .video-close:focus-visible,
 .video-mode:focus-visible,
-.video-corner:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.video-corner:focus-visible,
+.video-grip:focus-visible,
+.video-size:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+
+/* --- picked up --------------------------------------------------------------
+   The picture can be moved anywhere and sized from a corner (§12, 2026-09-13). Wide
+   windows only: below 60rem the panel is an occupant of the band, full-bleed, and a
+   thing pulled down to close — there is nowhere else for it to stand. So both keys are
+   drawn only where they can do something, and never over the full-screen picture.
+
+   The grip is a key in the rail rather than the panel's frame, because the tap layer
+   spans the panel and a press on the picture plays it. The size key sits at the foot,
+   in the inline corner across from the one the panel is held by: a dock at the end is
+   held at its end and grows toward its start, so a handle at the end would run away
+   from the pointer that is pulling it. Picked up, the panel is held at its start. */
+.video-grip,
+.video-size { display: none; }
+.video-grip svg { inline-size: 0.85rem; block-size: 0.85rem; fill: currentColor; }
+@media (min-width: 60rem) {
+  .video .video-grip { display: grid; cursor: grab; touch-action: none; }
+  .video.moving,
+  .video.moving .video-grip { cursor: grabbing; }
+  .video .video-size {
+    position: absolute;
+    z-index: 3;
+    inset-block: auto 0;
+    inset-inline: 0 auto;
+    display: grid;
+    place-items: end start;
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+    padding: 0.2rem;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--ink-soft);
+    cursor: nesw-resize;
+    touch-action: none;
+  }
+  .video .video-size svg {
+    inline-size: 0.75rem;
+    block-size: 0.75rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    /* Drawn for the bottom-right corner and turned to face whichever corner it is in. */
+    transform: scaleX(-1);
+  }
+  .video.dock-bottom-start .video-size,
+  .video.dock-top-start .video-size,
+  .video.free .video-size { inset-inline: auto 0; place-items: end; cursor: nwse-resize; }
+  .video.dock-bottom-start .video-size svg,
+  .video.dock-top-start .video-size svg,
+  .video.free .video-size svg { transform: none; }
+  html[dir="rtl"] .video .video-size { cursor: nwse-resize; }
+  html[dir="rtl"] .video .video-size svg { transform: none; }
+  html[dir="rtl"] .video.dock-bottom-start .video-size,
+  html[dir="rtl"] .video.dock-top-start .video-size,
+  html[dir="rtl"] .video.free .video-size { cursor: nesw-resize; }
+  html[dir="rtl"] .video.dock-bottom-start .video-size svg,
+  html[dir="rtl"] .video.dock-top-start .video-size svg,
+  html[dir="rtl"] .video.free .video-size svg { transform: scaleX(-1); }
+  .video .video-size:hover { color: var(--ink); }
+  .video.watching .video-grip,
+  .video.watching .video-size { display: none; }
+}
 
 /* --- the dock --------------------------------------------------------------
-   Reading, with the picture in a corner the reader chose. Never dragged: a control
-   fixed over a page of text takes its room out of the layout (§12), and `room()` keeps
-   the reading clear of whichever corner this is.
+   Reading, with the picture in a corner the reader chose, which is where it starts: a
+   control fixed over a page of text takes its room out of the layout (§12), and
+   `room()` keeps the reading clear of whichever corner this is. A picture the reader
+   has picked up and put somewhere else floats, and takes nothing (2026-09-13).
 
    Before watching, deliberately: a panel carries its corner and its mode at once, and
    these two sets of insets have the same weight. Written the other way round, the

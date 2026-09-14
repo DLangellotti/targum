@@ -5337,13 +5337,20 @@ var targumReader = function () {
         }
         foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
       });
-    } else if (videoPanel && !videoPanel.hidden && !videoPanel.classList.contains("watching")) {
-      /* The dock, on a wide window, where the panel is not in the band. The note asked
-         for a draggable picture and the reason was that the picture covers the sentence
-         being read; §12 answered that a control fixed over a page of text takes its room
-         out of the layout rather than out of the reading, so the corner it stands in is
-         a corner the pages are cut around. Watching is the whole window and budgets
-         nothing: there is no reading column under it to keep clear. */
+    } else if (
+      videoPanel &&
+      !videoPanel.hidden &&
+      !videoPanel.classList.contains("watching") &&
+      !videoPanel.classList.contains("free")
+    ) {
+      /* The dock, on a wide window, where the panel is not in the band. The picture
+         covering the sentence being read was the complaint; §12 answered that a control
+         fixed over a page of text takes its room out of the layout rather than out of the
+         reading, so the corner it stands in is a corner the pages are cut around.
+         Watching is the whole window and budgets nothing: there is no reading column
+         under it to keep clear. Nor does a picture the reader picked up and put
+         somewhere (`free`, §12 2026-09-13): they chose where it covers, and cutting the
+         pages around that spot would move the words away from where they put it. */
       var picture = videoPanel.getBoundingClientRect();
       if (picture.height) {
         var atTop =
@@ -8214,6 +8221,7 @@ var targumReader = function () {
       // again so a mode entered mid-sentence opens with the sentence on it.
       saidNow = null;
       caption(saidAt(audio.currentTime));
+      applyPlace();
       revideo();
     };
 
@@ -8227,8 +8235,202 @@ var targumReader = function () {
         var reader = window.TargumReader;
         if (reader && reader.say) reader.say(SAID_CORNER[name] || "");
       }
+      applyPlace();
       revideo();
     };
+
+    /* Picked up (design.md §12, 2026-09-13). On a wide window the picture can be moved
+       anywhere by its grip and sized from its corner, and both are kept per device, like
+       the corner. Kept as fractions of the window rather than pixels, so a window made
+       smaller keeps the picture on it, and clamped each time they are drawn, so a
+       window made smaller still never loses it off an edge.
+
+       The dock stays the default and the start: nothing here is written until a reader
+       moves something, and the corner key clears the place and docks again. A picture
+       that has been put somewhere floats over the page and takes no room from it — the
+       reader put it where the text is not, and `room()` cutting the pages around a spot
+       they chose would be the layout second-guessing them. The size is kept through a
+       dock: a reader who wants a bigger picture wants it in the corner too.
+
+       Not on a phone. There the panel is full-bleed in the band and pulled down to
+       close; a drag would be a second meaning for the same thumb. The stores are left
+       alone there, so the window that grows wide again finds the picture where it was. */
+    var PLACE_STORE = "targum:video-place";
+    var SIZE_STORE = "targum:video-size";
+    var EDGE = 8;
+    var SMALLEST = 260;
+    var wide = window.matchMedia("(min-width: 60rem)");
+    var grip = videoBox.querySelector(".video-grip");
+    var sizer = videoBox.querySelector(".video-size");
+    var place = null;
+    var size = null;
+
+    var viewW = function () { return document.documentElement.clientWidth || window.innerWidth; };
+    var viewH = function () { return document.documentElement.clientHeight || window.innerHeight; };
+    var placeable = function () { return wide.matches && !watching; };
+    var rtl = function () { return getComputedStyle(videoBox).direction === "rtl"; };
+
+    /* Where the panel stands, written as logical insets from its physical box so the
+       page's direction mirrors it the way it mirrors the dock. Clamped to the window. */
+    var standAt = function (left, top) {
+      var box = videoBox.getBoundingClientRect();
+      var w = viewW();
+      var h = viewH();
+      left = Math.max(EDGE, Math.min(left, w - box.width - EDGE));
+      top = Math.max(EDGE, Math.min(top, h - box.height - EDGE));
+      var start = rtl() ? w - left - box.width : left;
+      videoBox.classList.add("free");
+      videoBox.style.insetInline = Math.round(start) + "px auto";
+      videoBox.style.insetBlock = Math.round(top) + "px auto";
+      return { start: start, top: top };
+    };
+
+    /* A width the window can hold: no narrower than a picture worth watching, no wider
+       than nine tenths of the window, and never taller than it. */
+    var sizeTo = function (width) {
+      var w = viewW();
+      var most = Math.min(w * 0.9, w - 2 * EDGE);
+      width = Math.max(Math.min(SMALLEST, most), Math.min(width, most));
+      videoBox.style.inlineSize = Math.round(width) + "px";
+      var box = videoBox.getBoundingClientRect();
+      var over = Math.max(0, EDGE - box.top) + Math.max(0, box.bottom - (viewH() - EDGE));
+      if (over && box.height) {
+        width = Math.max(Math.min(SMALLEST, most), width - (over * box.width) / box.height);
+        videoBox.style.inlineSize = Math.round(width) + "px";
+      }
+      return width;
+    };
+
+    var applyPlace = function () {
+      var style = videoBox.style;
+      if (!placeable()) {
+        videoBox.classList.remove("free");
+        style.insetInline = "";
+        style.insetBlock = "";
+        style.inlineSize = "";
+        return;
+      }
+      if (size) sizeTo(size * viewW());
+      else style.inlineSize = "";
+      if (!place) {
+        videoBox.classList.remove("free");
+        style.insetInline = "";
+        style.insetBlock = "";
+        return;
+      }
+      if (videoBox.hidden) {
+        videoBox.classList.add("free");
+        return;
+      }
+      var w = viewW();
+      var width = videoBox.getBoundingClientRect().width;
+      var start = place.x * w;
+      standAt(rtl() ? w - start - width : start, place.y * viewH());
+    };
+
+    var keepPlace = function () {
+      if (!place) return;
+      try { targumKeep(PLACE_STORE, JSON.stringify(place)); } catch (e) {}
+    };
+    var keepSize = function () {
+      if (!size) return;
+      try { targumKeep(SIZE_STORE, String(size)); } catch (e) {}
+    };
+    var placeFrom = function (at) {
+      place = { x: at.start / viewW(), y: at.top / viewH() };
+    };
+
+    /* While a pointer holds it, it follows the pointer and nothing else (§12,
+       2026-09-04): no transition is on it on a wide window, and the page is laid out
+       again only when it is let go of. */
+    var held = null;
+    var pickUp = function (event, kind) {
+      if (!placeable() || held) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      var box = videoBox.getBoundingClientRect();
+      var handle = event.currentTarget.getBoundingClientRect();
+      held = {
+        kind: kind,
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        box: box,
+        // Which physical side the size key is on decides which way a pull widens.
+        pullsRight: handle.left + handle.width / 2 > box.left + box.width / 2,
+        moved: false,
+        on: event.currentTarget,
+      };
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
+      videoBox.classList.add("moving");
+      event.preventDefault();
+    };
+    var follow = function (event) {
+      if (!held || event.pointerId !== held.id) return;
+      var dx = event.clientX - held.x;
+      var dy = event.clientY - held.y;
+      if (!held.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+      held.moved = true;
+      if (held.kind === "move") standAt(held.box.left + dx, held.box.top + dy);
+      else sizeTo(held.box.width + (held.pullsRight ? dx : -dx));
+    };
+    var letGo = function (event) {
+      if (!held || event.pointerId !== held.id) return;
+      var was = held;
+      held = null;
+      videoBox.classList.remove("moving");
+      try { was.on.releasePointerCapture(event.pointerId); } catch (e) {}
+      if (!was.moved) return;
+      settle(was.kind);
+    };
+    var settle = function (kind) {
+      var box = videoBox.getBoundingClientRect();
+      if (kind === "move" || place) {
+        var w = viewW();
+        placeFrom({ start: rtl() ? w - box.right : box.left, top: box.top });
+        keepPlace();
+      }
+      if (kind === "size") {
+        size = box.width / viewW();
+        keepSize();
+      }
+      revideo();
+    };
+
+    [[grip, "move"], [sizer, "size"]].forEach(function (pair) {
+      var handle = pair[0];
+      if (!handle) return;
+      handle.addEventListener("pointerdown", function (event) { pickUp(event, pair[1]); });
+      handle.addEventListener("pointermove", follow);
+      handle.addEventListener("pointerup", letGo);
+      handle.addEventListener("pointercancel", letGo);
+      /* And by keyboard: the arrows move it, or size it, 16px a press and 64 with
+         Shift. Stopped here, so the page's own arrows do not turn a page as well. */
+      handle.addEventListener("keydown", function (event) {
+        var step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+        if (!step || !placeable() || event.metaKey || event.ctrlKey || event.altKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        var by = event.shiftKey ? 64 : 16;
+        var box = videoBox.getBoundingClientRect();
+        if (pair[1] === "move") {
+          standAt(box.left + step[0] * by, box.top + step[1] * by);
+        } else {
+          // Right and up grow it, left and down shrink it, whichever corner it is in.
+          sizeTo(box.width + (step[0] || -step[1]) * by);
+        }
+        settle(pair[1]);
+      });
+    });
+
+    var replace = function () {
+      applyPlace();
+      revideo();
+    };
+    if (wide.addEventListener) wide.addEventListener("change", replace);
+    else if (wide.addListener) wide.addListener(replace);
+    window.addEventListener("resize", function () {
+      if (placeable() && (place || size)) applyPlace();
+    });
 
     var showVideo = function (out, chosen) {
       if (videoDead) out = false;
@@ -8249,6 +8451,7 @@ var targumReader = function () {
       // alone: putting the picture away and bringing it back should bring back the mode
       // it was in, not the default.
       if (!out && watching) showWatch(false, false);
+      applyPlace();
       revideo();
     };
 
@@ -8310,6 +8513,14 @@ var targumReader = function () {
           ? CORNERS
           : ["bottom-end", "top-start"];
         var at = ring.indexOf(cornerKey.getAttribute("data-corner"));
+        /* A picture that was picked up goes back to the corner it came from, and is
+           docked again: the first press is the way home, the next ones the ring. */
+        if (place && placeable()) {
+          place = null;
+          try { targumForget(PLACE_STORE); } catch (e) {}
+          setCorner(ring[Math.max(0, at)], true);
+          return;
+        }
         /* A corner the ring does not hold — a wide window's `top-end` met on a phone —
            steps to the first rather than nowhere: `indexOf` gives -1, and -1 + 1 is 0. */
         setCorner(ring[(at + 1) % ring.length], true);
@@ -8351,6 +8562,14 @@ var targumReader = function () {
       alongside = localStorage.getItem(READ_STORE) === "1";
       var stored = localStorage.getItem(CORNER_STORE);
       if (CORNERS.indexOf(stored) >= 0) where = stored;
+      /* Read with suspicion: a row from a later build, or a hand, may hold anything,
+         and a picture placed at NaN is a picture nobody can find. */
+      var kept = JSON.parse(localStorage.getItem(PLACE_STORE) || "null");
+      if (kept && isFinite(kept.x) && isFinite(kept.y)) {
+        place = { x: Math.min(1, Math.max(0, +kept.x)), y: Math.min(1, Math.max(0, +kept.y)) };
+      }
+      var keptSize = parseFloat(localStorage.getItem(SIZE_STORE));
+      if (keptSize > 0 && keptSize <= 1) size = keptSize;
     } catch (e) {}
     setCorner(where, false);
     showVideo(!putAway, false);

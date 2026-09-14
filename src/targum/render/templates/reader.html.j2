@@ -443,6 +443,16 @@
     {% if translated %}<p class="video-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
   </div>
   <div class="video-keys">
+    {#- Picked up and put anywhere on a wide window (design.md §12, 2026-09-13). A key of
+        its own rather than the panel's frame: the picture is the play button, and a
+        press on it has to stay a press. Arrow keys move it for a keyboard. -#}
+    <button type="button" class="video-grip" aria-label="Move the video" title="Move the video">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/>
+        <circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/>
+        <circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/>
+      </svg>
+    </button>
     {#- Watching or reading. Not a third state of the toggle in the bar: that one is
         whether there is a picture at all, and this is what the picture is doing. -#}
     <button type="button" class="video-mode" aria-pressed="true" aria-label="Read alongside" title="Read alongside (v)">
@@ -452,8 +462,9 @@
     </button>
     {#- Which corner it stands in while the reader reads. Four, cycled — a picture parked
         over the sentence being read is the whole complaint the note made, and a corner
-        the layout keeps room for answers it for good where a drag answers it once. -#}
-    <button type="button" class="video-corner" aria-label="Move the picture" title="Move the picture">
+        the layout keeps room for answers it for good. A picture that has been picked up
+        comes back to its corner on the first press. -#}
+    <button type="button" class="video-corner" aria-label="Put the picture in a corner" title="Put the picture in a corner">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
         <rect x="8.5" y="8.5" width="5" height="5" rx="1" class="corner"/>
@@ -461,6 +472,12 @@
     </button>
     <button type="button" class="video-close" aria-label="Close the video">×</button>
   </div>
+  {#- Its size, from the corner across from the one it is held by. -#}
+  <button type="button" class="video-size" aria-label="Resize the video" title="Resize the video">
+    <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path d="M10.5 4.5 4.5 10.5M10.5 8 8 10.5"/>
+    </svg>
+  </button>
 </div>
 {% endif %}
 {#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of
