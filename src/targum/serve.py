@@ -4290,6 +4290,19 @@ class Handler(BaseHTTPRequestHandler):
                 waiting.extend(self._quoted(turn))
                 if not (turn["said"] or turn["role"] == "user"):
                     continue
+                content = turn["content"]
+                if (
+                    turn["role"] == "user"
+                    and isinstance(content, list)
+                    and content
+                    and all(block.get("type") == "tool_result" for block in content)
+                ):
+                    # The tool traffic rides as `user` rows, and it is not the reader's
+                    # line. Handed to the page, each was an empty bubble, and each —
+                    # being `done` — told a page reopened mid-turn that nothing was
+                    # still being answered, so it never took the stream up again
+                    # (2026-09-14). Its cards are already gathered above.
+                    continue
                 entry: dict[str, Any] = {
                     "n": turn["n"],
                     "role": turn["role"],
