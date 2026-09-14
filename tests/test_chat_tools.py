@@ -317,6 +317,33 @@ def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypa
     assert "error" in tools.quote_build(ctx, {"catalogue_id": "nope"})
 
 
+def test_a_quote_takes_a_language_however_the_model_names_it(world, monkeypatch) -> None:
+    """A "tech news" turn on 2026-09-14 sent `"to": "English"`, was refused, sent
+    `"english"`, was refused again, and only then `"en"`: two whole model round trips on
+    a turn the reader was waiting for (targum-internal#270)."""
+    from targum.translate.prompts import INTO
+
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en", "ru"}
+    for said, code in [
+        ("English", "en"),
+        ("english", "en"),
+        ("EN", "en"),
+        ("en", "en"),
+        ("en-US", "en"),
+        ("Russian", "ru"),
+    ]:
+        got = tools.quote_build(ctx, {"source": "https://example.com/article", "to": said})
+        assert "quote" in got, (said, got)
+        assert library.jobs[got["quote"]["id"]].options["to"] == code, said
+    refused = tools.quote_build(ctx, {"source": "https://x.org/a", "to": "French"})["error"]
+    assert "(en)" in refused and "(ru)" in refused, "a refusal names the codes it takes"
+    schema = tools.BY_NAME["quote_build"].schema["properties"]["to"]
+    assert schema["enum"] == [code for code, _ in INTO], "the schema offers the codes"
+
+
 def test_a_quote_is_refused_on_the_add_page_s_grounds(world, monkeypatch) -> None:
     library, store, person, home = world
     monkeypatch.setattr(library, "prepare", priced)

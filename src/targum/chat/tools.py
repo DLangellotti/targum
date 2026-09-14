@@ -36,6 +36,7 @@ from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from .. import level as level_module
 from ..level import Level
+from ..translate.prompts import INTO, language_name
 from ..usage import Usage
 from . import hebrew as hebrew_module
 from . import sources as sources_module
@@ -490,6 +491,25 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"suggestions": [row for _, row in candidates[:limit]]}
 
 
+def language_code(value: str) -> str:
+    """The code for a language the model named, however it named it.
+
+    The model sends what the refusal said back to it: "English", then "english", then
+    "en". Each refusal was a whole model round trip on a turn the reader was waiting on
+    (targum-internal#270, a "tech news" turn on 2026-09-14), so a name, a code in any
+    case and a regional tag all mean the code. Anything else comes back as it was, and
+    the refusal still names what is offered.
+    """
+    said = value.strip()
+    if not said:
+        return ""
+    code = said.replace("_", "-").split("-")[0].lower()
+    if language_name(code) != code:
+        return code
+    by_name = {language_name(tag).lower(): tag for tag, _ in INTO}
+    return by_name.get(said.lower(), said)
+
+
 def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Price a text for nothing, and leave a job the reader can press to start.
 
@@ -499,13 +519,14 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     the page draws its card from that, and the card's button posts `/build`.
     """
     from ..serve import Job
-    from ..translate.prompts import INTO, language_name
 
     offered = {code for code, _ in INTO}
     reads = (ctx.reads & offered) or offered
-    wanted = str(args.get("to") or ("en" if "en" in reads else sorted(reads)[0]))
+    wanted = language_code(str(args.get("to") or "")) or (
+        "en" if "en" in reads else sorted(reads)[0]
+    )
     if wanted not in offered:
-        names = ", ".join(language_name(code) for code in sorted(offered))
+        names = ", ".join(f"{language_name(code)} ({code})" for code in sorted(offered))
         return {"error": f"targum translates into {names}."}
     if wanted not in reads:
         return {"error": f"{language_name(wanted)} is not in the reader's profile."}
@@ -1074,7 +1095,13 @@ REGISTRY: tuple[Tool, ...] = (
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
                 "catalogue_id": {"type": "string", "description": "A library text's id."},
-                "to": {"type": "string", "description": "Language to translate into."},
+                "to": {
+                    "type": "string",
+                    "enum": [code for code, _ in INTO],
+                    "description": "The code of the language to translate into: "
+                    + ", ".join(f"{code} for {language_name(code)}" for code, _ in INTO)
+                    + ". Leave it out for the language the reader reads.",
+                },
             }
         ),
         quote_build,

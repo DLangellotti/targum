@@ -124,6 +124,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the tool left them out. `search_my_shelf` comes back newest opened first with
   `last_opened`, `days_since_opened` and `finished` on each row and `now` beside the
   list, so the model can count as well as read.
+- The chat takes a language however the model names it. `quote_build` refused
+  `"to": "English"` and `"english"` and took only `"en"`, and each refusal cost the
+  reader a whole model round trip; a name, a code in any case and a regional tag now all
+  mean the code, and the tool's schema lists the codes (targum-internal#270).
 - The haftarah, under the reading on `/parasha`. Hebcal was already returning it on the
   call the calendar makes and the parser was throwing it away; now it is parsed beside
   the aliyot — `Reading.haftarah`, not a third `ReadingKind`, because it is the second
