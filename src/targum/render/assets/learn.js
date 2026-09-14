@@ -355,6 +355,9 @@
     return path.split("/").map(encodeURIComponent).join("/");
   }
 
+  // The address the sheet would frame, kept while the window is too short to hold it.
+  var framing = "";
+
   // The sheet's window (§13): the reader itself, framed and working, at the place it
   // was left — `preview=1` tells it it is on the front page, so it draws no bar, keeps
   // its own links in the frame and counts a visit at the first press. Only where the
@@ -365,19 +368,18 @@
     var frame = document.getElementById("carry-frame");
     if (!window_ || !frame) return;
     if (!door.src && (door.href || !reader.name)) {
+      framing = "";
       window_.hidden = true;
       return;
     }
-    window_.hidden = false;
-    fitWindow();
     frame.title = reader.title || "";
     // A series' instalment names its reader's page itself (`door.src`): the weekly
     // portion's and a cycle's live under their own `/read/`, not under `/reader/`.
     var src = keyed(door.src || "/reader/" + readerPath(reader, door));
     src += (src.indexOf("?") < 0 ? "?" : "&") + "preview=1";
-    // Set only when it changes: a frame reloads on every write to its address.
-    if (frame.getAttribute("src") === src) return;
-    frame.setAttribute("src", src);
+    framing = src;
+    window_.hidden = false;
+    fitWindow();
   }
 
   // On a phone the window runs from where it stands down to whatever is fixed at the foot
@@ -386,12 +388,24 @@
   // guessed the height of everything above the window, and a greeting that wrapped or a
   // row of doors made the guess short: the frame ran behind the bar. Measured here, and
   // again whenever anything above it changes size.
+  //
+  // And where that leaves too little to read in, there is no window (targum-internal#275).
+  // On a 320×568 phone the frame held one line, with the reader's own page count and
+  // arrows over it: a preview nobody can read is not comfortable reading. The sheet is then
+  // what it is for a library row — the title, the known share and Open the reader — and
+  // the frame is not loaded at all. The floor is the height of two short pairs and the
+  // reader's foot; a 390×844 phone clears it with room to spare.
   var phone = window.matchMedia ? window.matchMedia("(max-width: 40rem)") : null;
+  var READABLE = 20; // rem
   function fitWindow() {
     var window_ = document.getElementById("carry-window");
-    if (!window_ || window_.hidden) return;
+    var frame = document.getElementById("carry-frame");
+    var src = framing;
+    if (!window_ || !frame || !src) return;
+    window_.hidden = false;
     if (!phone || !phone.matches) {
       window_.classList.remove("fitted");
+      show(frame, src);
       return;
     }
     var bottom = window.innerHeight;
@@ -402,8 +416,21 @@
       if (box.height) bottom = Math.min(bottom, box.top - 8);
     });
     var top = window_.getBoundingClientRect().top + (window.scrollY || 0);
-    window_.style.setProperty("--sheet-above", Math.round(top + window.innerHeight - bottom) + "px");
+    var above = Math.round(top + window.innerHeight - bottom);
+    var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    if (window.innerHeight - above < READABLE * rem) {
+      window_.hidden = true;
+      return;
+    }
+    window_.style.setProperty("--sheet-above", above + "px");
     window_.classList.add("fitted");
+    show(frame, src);
+  }
+
+  // Set only when it changes: a frame reloads on every write to its address.
+  function show(frame, src) {
+    if (frame.getAttribute("src") === src) return;
+    frame.setAttribute("src", src);
   }
   window.addEventListener("resize", fitWindow);
   if (window.ResizeObserver) {
