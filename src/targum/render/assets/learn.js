@@ -811,7 +811,7 @@
       open.forEach(function (entry) {
         if (!pick && entry.difficulty > level) pick = entry;
       });
-      why = pick ? "A step up from what you have read" : "About where you are reading";
+      why = pick ? "A step up from what you've read" : "About where you're reading";
       if (!pick) pick = open[open.length - 1];
     }
     return { pick: pick, why: why, level: level };
@@ -908,7 +908,7 @@
     // (2026-09-11): until then the line says what to do, which is what makes the count.
     line.textContent = known >= KNOWN_FLOOR
       ? "You know " + known + " " + named(code) + " words."
-      : "Read, tap the words you do not know, and talk to targum about any line.";
+      : "Read, tap the words you don't know and talk to targum about any line.";
   }
 
   /* --- putting it together --------------------------------------------------- */

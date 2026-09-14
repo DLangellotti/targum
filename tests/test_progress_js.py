@@ -227,7 +227,7 @@ def test_the_distance_to_the_next_rung_is_counted_in_words() -> None:
 def test_the_top_of_the_ladder_stops_rather_than_inventing_more() -> None:
     said = ulpan(banded(easy=3000, fairly_easy=3000, moderate=3000, hard=2000, very_hard=1000))
     assert "vav" in said["rung"]
-    assert said["next"] == "Past every rung an ulpan keeps."
+    assert said["next"] == "You're past every rung an ulpan keeps."
 
 
 def test_ulpan_levels_are_shown_for_hebrew_and_nowhere_else() -> None:

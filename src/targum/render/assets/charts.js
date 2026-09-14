@@ -140,7 +140,7 @@
     });
     if (dated.length < 2) {
       host.appendChild(
-        el("p", "empty", "A line appears after two days.")
+        el("p", "empty", "We'll draw a line after your second day.")
       );
       return;
     }

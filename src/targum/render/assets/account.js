@@ -107,15 +107,15 @@
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    say("Sending…");
+    say("We're sending your link…");
     window.TargumSync.signIn(field.value)
       .then(function (answer) {
         if (answer.error && !answer.message) return say(answer.error, false, true);
-        say(answer.message || "Check your email.");
+        say(answer.sent ? "Thanks. We've sent a link to " + field.value + "." : answer.message || "Thanks. Check your email.");
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say("That did not go through.", false, true);
+        say("We couldn't send a link. Try again.", false, true);
       });
   });
 
@@ -139,9 +139,9 @@
   // A link that has just been used, or one that had expired. Said on the page it lands
   // on rather than on a page of its own.
   var arrived = new URLSearchParams(location.search).get("signin");
-  if (arrived === "welcome") say("Signed in.", true);
+  if (arrived === "welcome") say("You're signed in.", true);
   if (arrived === "expired") {
-    say("That link was used. Ask for another.", true, true);
+    say("That link has been used. Ask us for another.", true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

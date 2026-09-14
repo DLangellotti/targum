@@ -17,9 +17,32 @@ def test_the_voice_rules_are_in_the_prompt() -> None:
     assert "always lowercase: targum" in said
     assert "No emoji" in said and "No exclamation marks" in said
     assert "No invented currency" in said and "not a placement" in said
-    assert "Short." in said
+    assert "Short." in said and "Warm is not long" in said
     assert "Plain text only" in said and "no markdown" in said
     assert "Second person" in said
+
+
+def test_the_prompt_speaks_as_we_and_thanks_the_reader() -> None:
+    """design.md §6, 2026-09-13: targum talks to the reader as "we" to "you", thanks them
+    for what they bring, says what it is doing and when it will be ready, and owns what
+    goes wrong."""
+    said = " ".join(prompts.SYSTEM.split())
+    assert 'Speak as "we" and to "you"' in said and 'never "I"' in said
+    assert "Thank the reader when they hand you something" in said
+    assert "in their own time" in said
+    assert "we own it" in said and "Never blame the reader" in said
+
+
+def test_the_prompt_keeps_price_language_out_of_the_product() -> None:
+    """The reader pays by the month (design.md §6, 2026-09-13): a wait is a time and a
+    cost is hours, and the model is told to say neither as a price nor to price anything."""
+    said = " ".join(prompts.SYSTEM.split())
+    assert "No price language" in said
+    assert "never say price, cost, quote or sale" in said
+    assert "minutes of your hours" in said
+    assert "never in money" in said
+    assert "price a" not in said and "You can price" not in said
+    assert "we couldn't reach it" in prompts.shut_hosts(["example.org"])
 
 
 def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:

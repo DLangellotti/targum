@@ -118,7 +118,7 @@ def test_the_erasure_procedure_sits_beside_the_button_it_describes(opened: None)
 def test_the_seven_days_are_said_whether_or_not_the_link_is_there() -> None:
     """The link goes while the documents are shut; the fact does not. Somebody about to
     press Delete account still needs to know it waits a week."""
-    assert "Deleting waits seven days" in you_page("key")
+    assert "We wait seven days before deleting" in you_page("key")
 
 
 def test_privacy_hands_on_to_the_other_two() -> None:

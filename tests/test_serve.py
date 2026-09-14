@@ -545,7 +545,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "ru", "from": "he"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"] == "Russian is not in your profile."
+    assert status == 400 and answer["error"].startswith("Russian isn't in your profile")
 
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert me["learning"] == ["he"] and me["reads"] == ["en"]
@@ -570,7 +570,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "en", "from": "arc"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"] == "Aramaic is not in your profile."
+    assert status == 400 and answer["error"].startswith("Aramaic isn't in your profile")
 
 
 @pytest.mark.parametrize(
@@ -578,7 +578,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
     [
         ({"learning": ["he"], "reads": []}, "Keep at least one."),
         ({"learning": ["yi"], "reads": ["en"]}, "Hebrew stays on."),
-        ({"learning": ["he"], "reads": ["fr"]}, "targum does not have French."),
+        ({"learning": ["he"], "reads": ["fr"]}, "We don't offer French."),
     ],
 )
 def test_a_profile_nobody_can_read_with_is_refused_whole(
@@ -2381,8 +2381,8 @@ def test_carrying_translations_does_not_let_a_language_past(
 @pytest.mark.parametrize(
     ("view", "expected"),
     [
-        ({"to": "de"}, "translates into"),
-        ({"from": "fr"}, "reads"),
+        ({"to": "de"}, "translate into"),
+        ({"from": "fr"}, "can read"),
     ],
 )
 def test_a_pair_the_page_does_not_offer_is_refused(
@@ -2626,7 +2626,7 @@ def test_an_unpriced_voice_is_not_for_sale(served: tuple[int, str, Path], monkey
     port, key, out = served
     _book(out / "local" / "book-he", chapters=2, translated=2)
     status, answer, _ = call(port, "POST", f"/voice?k={key}", {"name": "book-he", "section": 1})
-    assert status == 402 and "no price" in answer["error"]
+    assert status == 402 and "voice yet" in answer["error"]
 
 
 def test_hear_this_section_is_a_job_claimed_at_the_estimate(
@@ -2885,7 +2885,7 @@ def test_a_follower_can_stop_from_the_email_with_one_press(
     assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
     assert book.followers("parasha"), "fetching the link spent nothing"
     status, body, _ = form(port, "/series/stop", {"t": stop})
-    assert status == 200 and b"not be told" in body
+    assert status == 200 and b"tell you about it again" in body
     assert book.followers("parasha") == []
 
 

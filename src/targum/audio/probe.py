@@ -61,7 +61,7 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
     the routing decides what the file may be, not the file.
     """
     if path.suffix.lower() in DRM_SUFFIXES:
-        raise TargumError("This file is protected, so targum cannot read it.")
+        raise TargumError("This file is protected, so we can't read it.")
     answer = tools.ffprobe_json(path)
     form = answer.get("format") or {}
     tags = {str(k).lower(): str(v) for k, v in (form.get("tags") or {}).items()}
@@ -73,7 +73,7 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
         if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic")
     ]
     if not sound and moving:
-        raise TargumError("There is nothing to transcribe in a silent video.")
+        raise TargumError("There's nothing to transcribe in a silent video.")
     if not sound or (moving and not allow_video):
         # A film with a soundtrack is not a recording, and extracting one from the
         # other is a different product. Attached cover art is not moving pictures.
@@ -82,9 +82,9 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
     if length < MIN_DURATION_S:
         raise TargumError(tools.UNREADABLE)
     if moving and length > MAX_VIDEO_DURATION_S:
-        raise TargumError("That video is over 4 hours.")
+        raise TargumError("That video is over 4 hours. Try a shorter one.")
     if length > MAX_DURATION_S:
-        raise TargumError("That recording is over 12 hours.")
+        raise TargumError("That recording is over 12 hours. Try a shorter one.")
     marks = [
         Mark(
             start=_floated(chapter.get("start_time")),

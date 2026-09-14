@@ -269,7 +269,7 @@ def test_a_chat_turn_counts_against_the_account_rail_too(tmp_path: Path) -> None
     library.jobs[build.id] = build
     library.remember(build)
     store.settle(f"chat-{asked.chat_id}-1", TURN_RESERVE)
-    assert "Building a lot" in library.claim(build)
+    assert "a lot to build" in library.claim(build)
 
 
 def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> None:
@@ -290,7 +290,7 @@ def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> N
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "The conversation could not continue. Try again."
+    assert said[0]["message"] == "We couldn't carry on the conversation. Try again."
     assert "boom" not in json.dumps(said), "the library's own words never reach a reader"
     assert library.jobs[f"chat-{asked.chat_id}-1"].stage == "failed"
     assert store.committed(0) == 0.0, "the reserve went back"
@@ -899,11 +899,11 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
 
     row = next(r for r in store.chat_turns(first.chat_id) if r["n"] == first.n)
     assert row["stage"] == "failed", "the page stops waiting"
-    assert row["error"] == "The conversation could not continue. Try again."
+    assert row["error"] == "We couldn't carry on the conversation. Try again."
     feed = chats.feed_for(first.chat_id, first.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said and said[0]["message"] == "The conversation could not continue. Try again."
+    assert said and said[0]["message"] == "We couldn't carry on the conversation. Try again."
     assert "wordlist" not in json.dumps(said), "the library's own words never reach a reader"
 
     second = chats.say(None, library.home(None), "", "again", admin=False)

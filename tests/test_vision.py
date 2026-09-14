@@ -140,7 +140,7 @@ def test_a_sideways_phone_photo_is_turned_upright_first(tmp_path: Path) -> None:
 def test_a_file_that_is_not_a_picture_is_said_so(tmp_path: Path) -> None:
     fake = tmp_path / "notes.png"
     fake.write_text("not a picture", encoding="utf-8")
-    with pytest.raises(TargumError, match="could not be read"):
+    with pytest.raises(TargumError, match="couldn't read that picture"):
         vision.probe(fake)
     assert vision.probe(FIXTURES / "screenshot.png") == (720, 420)
 

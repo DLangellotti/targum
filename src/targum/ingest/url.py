@@ -78,25 +78,27 @@ def _reachable(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise TargumError(
-            f"targum only reads web pages, and {url} is not one.",
-            "Give an http:// or https:// address, or a file.",
+            f"We only read web pages, and {url} isn't one.",
+            "Paste an http:// or https:// address, or drop in a file.",
         )
     host = parsed.hostname
     if not host:
-        raise TargumError(f"There is no site name in {url}.", "Check the address.")
+        raise TargumError(
+            f"We couldn't find a site name in {url}.", "Check the address and try again."
+        )
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         found = socket.getaddrinfo(host, port)
     except socket.gaierror as exc:
-        raise TargumError(f"Could not find {host}.", str(exc)) from exc
+        raise TargumError(f"We couldn't find {host}.", str(exc)) from exc
     for info in found:
         address = ipaddress.ip_address(info[4][0])
         # is_global is false for loopback, private, link-local, reserved and
         # multicast in one check, on both IPv4 and IPv6.
         if not address.is_global:
             raise TargumError(
-                f"{host} is on a private network, so targum will not fetch it.",
-                "Give a public web address, or save the page and open the file.",
+                f"{host} is on a private network, so we won't fetch it.",
+                "Paste a public web address, or save the page and drop in the file.",
             )
 
 
@@ -205,13 +207,13 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         except Exception as exc:
             # Never got an answer at all: a timeout, a refused connection, a name that
             # does not resolve. No status, so `shut()` reads it as a shut door.
-            raise Unreachable(f"Could not fetch {url}", str(exc), host=host, via=via) from exc
+            raise Unreachable(f"We couldn't open {url}.", str(exc), host=host, via=via) from exc
         status = int(response.status_code)
         if 300 <= status < 400:
             location = response.headers.get("location")
             response.close()
             if not location:
-                raise TargumError(f"Could not fetch {url}", "Redirect with nowhere to go")
+                raise TargumError(f"We couldn't open {url}.", "Redirect with nowhere to go")
             # Relative locations are legal, and the query belongs to the address it
             # was written for, not to wherever it points.
             target, params = urljoin(target, location), None
@@ -220,7 +222,7 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
             challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
             response.close()
             raise Unreachable(
-                f"Could not fetch {url}",
+                f"We couldn't open {url}.",
                 "a bot check, not a page" if challenge else f"HTTP {status}",
                 status=status,
                 host=host,
@@ -229,7 +231,7 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
             )
         return response, target
     raise Unreachable(
-        f"Could not fetch {url}",
+        f"We couldn't open {url}.",
         f"More than {MAX_REDIRECTS} redirects",
         host=urlparse(target).hostname or "",
         via=via,
@@ -270,14 +272,14 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
     try:
         declared = response.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > MAX_BYTES:
-            raise TargumError(f"{url} is too big to read.", "Try a single article.")
+            raise TargumError(f"{url} is too big for us to read.", "Try a single article.")
         body = bytearray()
         for chunk in response.iter_content():
             body += chunk
             if len(body) > MAX_BYTES:
                 raise TargumError(
-                    f"{url} is too big to read.",
-                    "targum stops at 8 MB. Try a single article.",
+                    f"{url} is too big for us to read.",
+                    "We stop at 8 MB. Try a single article.",
                 )
         encoding = response.charset or response.encoding or "utf-8"
         return Fetched(
@@ -332,15 +334,15 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
     try:
         declared = response.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > max_bytes:
-            raise TargumError(f"{url} is too big to fetch.")
+            raise TargumError(f"{url} is too big for us to fetch.")
         written = 0
         with into.open("wb") as out:
             for chunk in response.iter_content():
                 written += len(chunk)
                 if written > max_bytes:
                     raise TargumError(
-                        f"{url} is too big to fetch.",
-                        f"targum stops at {max_bytes // (1024 * 1024)} MB.",
+                        f"{url} is too big for us to fetch.",
+                        f"We stop at {max_bytes // (1024 * 1024)} MB.",
                     )
                 out.write(chunk)
         return Downloaded(into, response.headers.get("content-type", ""), target, via=via)
@@ -369,7 +371,7 @@ class UrlIngester:
         ]
         if not paragraphs:
             raise TargumError(
-                f"No readable text found at {source}",
+                f"We couldn't find any text at {source}.",
                 "The address answered with an empty file.",
             )
         return build_document(
@@ -408,8 +410,8 @@ class UrlIngester:
         )
         if not paragraphs:
             raise TargumError(
-                f"No readable text found at {source}",
-                "Save the page as .txt or .md and point targum at the file.",
+                f"We couldn't find any text at {source}.",
+                "Save the page as .txt or .md and drop the file in.",
             )
         paragraphs = [(kind, level, normalize(text)) for kind, level, text in paragraphs]
 

@@ -35,7 +35,7 @@ def test_a_broken_pdf_gets_a_message_not_a_traceback(tmp_path: Path) -> None:
     pdf.write_bytes(b"%PDF-1.4")
     result = runner.invoke(app, ["build", str(pdf), "--to", "en", "--provider", "null"])
     assert result.exit_code == 1
-    assert "could not be opened" in result.output
+    assert "couldn't open that PDF" in result.output
     assert "Traceback" not in result.output
 
 

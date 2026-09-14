@@ -26,7 +26,7 @@ def pages_of(source: str | Path) -> list[Path]:
     if path.is_dir():
         found = sorted(p for p in path.iterdir() if p.is_file() and vision.is_picture(p))
         if not found:
-            raise TargumError(f"No pictures in {path.name}.")
+            raise TargumError(f"We couldn't find any pictures in {path.name}.")
         return found
     return [path]
 
@@ -60,8 +60,8 @@ class PictureIngester:
         pages = [read.lines for read in reads]
         if not any(line.strip() for lines in pages for line in lines):
             raise TargumError(
-                "No text could be read in that picture.",
-                "A clearer photo, or a screenshot, reads better.",
+                "We couldn't find any text in that picture.",
+                "Try a clearer photo or a screenshot.",
             )
         document = document_from_pages(
             str(source),
@@ -73,5 +73,5 @@ class PictureIngester:
             conversation=any(read.conversation for read in reads),
         )
         if not document.blocks:
-            raise TargumError("No text could be read in that picture.")
+            raise TargumError("We couldn't find any text in that picture.")
         return document

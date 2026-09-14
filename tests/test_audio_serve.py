@@ -146,7 +146,7 @@ def test_a_recording_in_a_language_targum_does_not_read_costs_a_minute_not_a_par
         transcriber=Russian(),
         out_root=tmp_path / "out",
     )
-    with pytest.raises(TargumError, match="targum reads"):
+    with pytest.raises(TargumError, match="We can read"):
         build.run(chapters=1)
     # The probe clip, not a whole part, is what was heard.
     heard = build.transcriber.spent.seconds_by_model.get("null", 0.0)
@@ -384,7 +384,7 @@ def test_a_box_without_ytdlp_says_so_rather_than_failing_later(tmp_path: Path, m
     job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
     library.prepare(job)
     assert job.stage == "failed"
-    assert "cannot fetch from YouTube" in job.error
+    assert "can't fetch from YouTube" in job.error
 
 
 def test_a_watch_page_never_reaches_the_generic_ingester(tmp_path: Path, monkeypatch) -> None:
@@ -419,7 +419,7 @@ def test_a_file_that_is_not_audio_or_video_is_refused_at_the_door(served) -> Non
     port, token, _out = served
     status, answer = begin(port, token, name="film.avi")
     assert status == 400
-    assert "not a recording, a video, a picture or a PDF" in answer["error"]
+    assert "a recording, a video, a picture or a PDF" in answer["error"]
 
 
 def test_a_video_is_taken_at_the_door_and_probed_as_one(served, fake_audio) -> None:

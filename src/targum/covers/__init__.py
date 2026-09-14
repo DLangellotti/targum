@@ -157,7 +157,7 @@ class OpenAIImages:
     def _answer(self, response: Any) -> bytes:
         if response.status_code >= 400:
             # Their message, not ours: it says which of the many things went wrong.
-            raise TargumError("The cover could not be drawn.", response.text[:200])
+            raise TargumError("We couldn't draw the cover.", response.text[:200])
         answer = response.json()
         used = answer.get("usage") or {}
         prices = TOKEN_PRICES.get(self.model)
@@ -171,7 +171,7 @@ class OpenAIImages:
             self.spent += self.price
         data = answer.get("data") or []
         if not data or not data[0].get("b64_json"):
-            raise TargumError("The cover came back empty.", "Nothing was drawn.")
+            raise TargumError("The cover came back empty.", "Try again in a moment.")
         return base64.b64decode(data[0]["b64_json"])
 
     def draw(self, prompt: str, reference: bytes | None = None) -> bytes:

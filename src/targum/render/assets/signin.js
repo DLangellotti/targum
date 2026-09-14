@@ -38,18 +38,20 @@
       .then(function (answer) {
         said.hidden = false;
         if (answer.ok) {
-          said.textContent = answer.body.message || "Check your email.";
+          // Thanked, and told where the link went. The server says the same thing for
+          // every address, so naming the one just typed confirms nothing about it.
+          said.textContent = "Thanks. We've sent a link to " + field.value + ".";
           form.hidden = true;
           return;
         }
         said.classList.add("bad");
-        said.textContent = answer.body.error || "That did not work. Try again.";
+        said.textContent = answer.body.error || "We couldn't send a link. Try again.";
         button.disabled = false;
       })
       .catch(function () {
         said.hidden = false;
         said.classList.add("bad");
-        said.textContent = "Cannot reach targum.";
+        said.textContent = "We couldn't connect. Check your connection and try again.";
         button.disabled = false;
       });
   });

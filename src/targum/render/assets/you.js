@@ -90,7 +90,7 @@
         // A session that ended while the page was open answers `signedIn: false` with no
         // error in it, and that is not "Saved."
         if (answer.error || answer.signedIn === false) {
-          return say("you-said", answer.error || "Sign in again.", true);
+          return say("you-said", answer.error || "You've been signed out. Sign in again.", true);
         }
         say("you-said", "Saved.");
         drawWho(answer);
@@ -183,7 +183,7 @@
         // and a refused change puts its boxes back rather than showing what was asked.
         if (answer.learning || answer.reads) drawLanguages(answer);
         if (answer.error || answer.signedIn === false) {
-          return say("you-languages-said", answer.error || "Sign in again.");
+          return say("you-languages-said", answer.error || "You've been signed out. Sign in again.");
         }
         say("you-languages-said", "Saved.");
         // The pages that offer a language read the account's answer through sync, so
@@ -215,7 +215,7 @@
       }
       press.disabled = true;
       ask("/account/forget", {}).then(function (answer) {
-        say("you-ending-said", answer.message || "Your account is closing.");
+        say("you-ending-said", answer.message || "We're closing your account.");
       });
     });
   }

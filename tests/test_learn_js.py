@@ -225,13 +225,9 @@ def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
     reader sees. Until ten, the line says what to do here — decided with David on
     2026-09-11: one quiet sentence for a new reader — which is what makes the count."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=9)))
-    assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
     nine = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(9))))
-    assert (
-        nine["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert nine["known"] == "Read, tap the words you don't know and talk to targum about any line."
     ten = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(10))))
     assert ten["known"] == "You know 10 Hebrew words."
 
@@ -239,9 +235,7 @@ def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
 def test_knowing_nothing_yet_asks_rather_than_scoring_zero() -> None:
     """ "You know 0 words" is a score of zero, which is the arcade the brand keeps out."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=1)))
-    assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
 
 
 def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
@@ -359,7 +353,7 @@ def test_a_reader_past_the_whole_catalogue_is_told_the_truth() -> None:
     shelf = [reader("a", "א", difficulty=99, opened=1)]
     done = {"targum:docs": json.dumps({"a": {"done": 1}})}
     drawn = draw(shelf, done, catalogue=CATALOGUE)
-    assert drawn["carry"]["meta"].startswith("About where you are reading")
+    assert drawn["carry"]["meta"].startswith("About where you're reading")
 
 
 def test_an_unfinished_text_of_your_own_is_the_door_whatever_the_catalogue_offers() -> None:
@@ -403,9 +397,7 @@ def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
     fresh = draw([], shared=[ruth, holon])
     assert fresh["carry"]["track"] == "Modern Hebrew" and fresh["carry"]["title"] == "הפועל חולון"
     assert fresh["carry"]["heading"] == "Start here"
-    assert (
-        fresh["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert fresh["known"] == "Read, tap the words you don't know and talk to targum about any line."
     biblical = draw([], {"targum:opened": json.dumps({"ruth": 7})}, shared=[holon, ruth])
     assert biblical["carry"]["track"] == "Biblical Hebrew" and biblical["carry"]["title"] == "רות"
     assert biblical["carry"]["heading"] == "Continue reading"
@@ -520,9 +512,7 @@ def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
     """The sheet at Start here on Scene 1, which says which scene of how many, how long,
     and that it can be heard. Nothing says "ready", and Open opens a built text."""
     drawn = draw([], shared=SCENES + [RUTH])
-    assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
     assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["heading"] == "Start here"
     assert (
         drawn["carry"]["title"] == "נעים מאוד" and drawn["carry"]["english"] == "Nice to meet you"
@@ -543,9 +533,7 @@ def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
     drawn = draw([], opened, shared=[first, *SCENES[1:], RUTH])
     assert drawn["carry"]["heading"] == "Continue reading"
     assert drawn["carry"]["meta"] == "Scene 1 of 3 · 12 words left · audio"
-    assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
 
 
 def test_a_finished_scene_hands_over_to_the_next() -> None:
@@ -558,9 +546,7 @@ def test_a_finished_scene_hands_over_to_the_next() -> None:
     assert drawn["carry"]["heading"] == "Up next"
     assert drawn["carry"]["title"] == "בבית קפה"
     assert drawn["carry"]["meta"] == "Scene 2 of 3 · 19 words · audio"
-    assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
-    )
+    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
 
 
 def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
@@ -570,7 +556,7 @@ def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
     drawn = draw([], done, shared=SCENES + [RUTH])
     assert drawn["carry"]["heading"] == "Up next" and drawn["carry"]["title"] == "בבית קפה"
     assert (
-        drawn["known"] == "Read, tap the words you do not know, and talk to targum about any line."
+        drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
     ), "every word ignored and Done pressed is not a score of zero"
 
 
@@ -930,7 +916,7 @@ def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
     assert [d["label"] for d in drawn["doors"]] == ROW
     pressed = draw([mine], stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
-    assert pressed["carry"]["meta"].startswith("A step up from what you have read")
+    assert pressed["carry"]["meta"].startswith("A step up from what you've read")
     assert pressed["carry"]["href"] == "/library?k=k#harder"
 
 

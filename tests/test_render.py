@@ -1297,8 +1297,8 @@ def test_a_biblical_reader_says_its_dictionary_forms_are_less_reliable(tmp_path:
     scripture = render_with_vocalization(tmp_path / "a", [segment], voc, source="sefaria:Esther")
     news = render_with_vocalization(tmp_path / "b", [hebrew(0, BARE_TEXT)], None)
 
-    assert "Dictionary forms on biblical Hebrew are less reliable" in scripture
-    assert "Dictionary forms on biblical Hebrew" not in news, "a modern text is not warned"
+    assert "Our dictionary forms are less reliable on biblical Hebrew" in scripture
+    assert "Our dictionary forms are less reliable" not in news, "a modern text is not warned"
     # Never in money, never in jargon: the sentence names what a reader would see go
     # wrong, not the tool that gets it wrong.
     assert "Stanza" not in scripture, "the reader is told the effect, not the dependency"
@@ -3115,7 +3115,9 @@ def test_no_scope_reads_a_constant_from_another_one() -> None:
         out = []
         for part in parts:
             body = re.sub(r"/\*.*?\*/", "", part, flags=re.S)
-            out.append(re.sub(r"^\s*//.*$", "", body, flags=re.M))
+            body = re.sub(r"^\s*//.*$", "", body, flags=re.M)
+            # A name inside a sentence is copy, not a read: "Thanks for the PDF."
+            out.append(re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', body))
         return out
 
     scoped: list[tuple[str, int, str]] = []
@@ -4920,7 +4922,7 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
     assert 'id="waiting-note"' not in two, "the chapter is translated, in Aramaic"
 
     assert 'id="waiting-note"' in three
-    assert "Not translated yet." in three
+    assert "We haven't translated this chapter yet." in three
     assert '<p class="tr"' not in three
 
 

@@ -149,7 +149,7 @@
     sort: {
       difficulty: "New words — the share of a text's words that are hard.",
     },
-    unmeasured: "— means not measured yet.",
+    unmeasured: "— means we haven't measured it yet.",
   };
 
   function noteFor(showing) {
@@ -889,16 +889,16 @@
 
   // The pipeline narrates itself in its own words. This is the reader's.
   var PLAIN = {
-    "Finding each word's dictionary form…": "Reading the words…",
-    "Adding vowel points…": "Adding vowel points…",
-    "Building the reader…": "Setting the page…",
+    "Finding each word's dictionary form…": "We're reading the words…",
+    "Adding vowel points…": "We're adding vowel points…",
+    "Building the reader…": "We're setting the page…",
   };
 
   function say(message) {
     if (!message) return "";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "Lining up…";
-    if (message.indexOf("Looking up") === 0) return "Looking words up…";
+    if (message.indexOf("Matching") === 0) return "We're lining it up…";
+    if (message.indexOf("Looking up") === 0) return "We're looking up the words…";
     return "Almost there…";
   }
 
@@ -926,7 +926,7 @@
   function build(open, entry) {
     var state = open.querySelector(".row-state");
     open.disabled = true;
-    state.textContent = "Getting ready…";
+    state.textContent = "We're getting it ready…";
     ask("/prepare", {
       source: entry.source,
       // The language this reader reads into, not English by assumption. They read in
@@ -945,7 +945,7 @@
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (job.blocked) throw new Error(job.blocked);
-        state.textContent = "Lining up…";
+        state.textContent = "We're lining it up…";
         return ask("/build", { id: job.id }).then(function () {
           return watch(job.id, state);
         });
@@ -1097,7 +1097,7 @@
         empty.textContent = here.length
           ? "Nothing here matches that."
           : view.where === "mine"
-            ? "Nothing uploaded yet. Add your own from Upload."
+            ? "You haven't added anything yet. Use Add to bring your own."
             : "Nothing here yet.";
       }
       var total = here.length;

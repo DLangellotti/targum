@@ -65,7 +65,7 @@ def find(url: str) -> Episode | None:
         # Spotify's page offers a one-minute preview as og:audio, and a reader handed
         # a minute titled as the episode has been lied to. The show exists elsewhere.
         raise UnsupportedSource(
-            "Spotify keeps its audio to itself.",
+            "Spotify keeps its audio to itself, so we can't fetch it.",
             "Paste the show's page on Apple Podcasts, its RSS feed, or the episode's "
             "own site instead.",
         )

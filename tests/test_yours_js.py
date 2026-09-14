@@ -170,7 +170,7 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
         do=[{"type": "all"}, {"type": "yes"}],
     )
     assert sorted(marked["ledger"]) == ["את", "הוא", "ספר", "של"]
-    assert marked["claim"]["hidden"] and marked["claim"]["said"] == "That is the whole list."
+    assert marked["claim"]["hidden"] and marked["claim"]["said"] == "That's the whole list."
     assert marked["wordsTitle"] == "Your Words (4)", "collected again, not drawn stale"
 
 

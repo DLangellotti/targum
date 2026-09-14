@@ -991,11 +991,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "quote_build",
-        "Price a text for the reader, for nothing: a link (an article, a podcast episode, "
-        "a YouTube address, a Gutenberg or Wikisource id) or a library text by id. Returns "
-        "the quote the page draws a card from — title, language, sentences or chapters, "
-        "audio length — or why it cannot be built. The reader presses the card to start it; "
-        "you cannot.",
+        "Estimate how long a text will take for the reader, free to call: a link (an "
+        "article, a podcast episode, a YouTube address, a Gutenberg or Wikisource id) or a "
+        "library text by id. Returns the estimate the page draws a card from — title, "
+        "language, sentences or chapters, audio length — or why it cannot be built. The "
+        "reader presses the card to start it; you cannot.",
         _schema(
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
@@ -1007,7 +1007,7 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "describe_source",
-        "What is at a link before it is quoted: a YouTube video (length, audio language, "
+        "What is at a link before it is offered: a YouTube video (length, audio language, "
         "whether it has Hebrew subtitles somebody wrote), a podcast episode (length, whether "
         "a transcript comes with it), or an article (words, minutes, how much is Hebrew). "
         "The licence is recorded, never a refusal. Metadata only; nothing is fetched whole.",
@@ -1018,7 +1018,7 @@ REGISTRY: tuple[Tool, ...] = (
         "search_sources",
         "What the Hebrew publishers this box knows have published lately, matched to words "
         "in the title or summary. News, podcasts and videos, newest first, each with its "
-        "link to describe or quote.",
+        "link to describe or offer.",
         _schema(
             {
                 "query": {"type": "string"},
@@ -1030,9 +1030,9 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "quote_conversation",
-        "Write this conversation down as a Hebrew text with its English and price reading "
-        "it back, for nothing. The page shows a card; the reader presses it and the "
-        "conversation opens on their shelf with every word tappable and on their ledger.",
+        "Write this conversation down as a Hebrew text with its English and estimate "
+        "reading it back, free to call. The page shows a card; the reader presses it and "
+        "the conversation opens on their shelf with every word tappable and on their ledger.",
         _schema({}),
         quote_conversation,
     ),

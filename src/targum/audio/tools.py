@@ -26,7 +26,7 @@ LEAST_SILENCE_S = 0.4
 _SILENCE_START = re.compile(r"silence_start:\s*([0-9.]+)")
 _SILENCE_END = re.compile(r"silence_end:\s*([0-9.]+)")
 
-UNREADABLE = "targum could not read this audio file."
+UNREADABLE = "We couldn't read this audio file."
 
 
 def ffprobe_json(path: Path) -> dict[str, Any]:

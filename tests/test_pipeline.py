@@ -187,7 +187,7 @@ def test_translation_covers_every_segment(
 def test_empty_source_says_so(tmp_path: Path, fake_segmenter: object) -> None:
     empty = tmp_path / "empty.txt"
     empty.write_text("   \n\n  \n", encoding="utf-8")
-    with pytest.raises(TargumError, match="No text found"):
+    with pytest.raises(TargumError, match="couldn't find any text"):
         build(empty, tmp_path / "out", fake_segmenter).run()
 
 

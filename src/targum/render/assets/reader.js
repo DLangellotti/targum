@@ -789,7 +789,7 @@ var targumReader = function () {
     }
     if (window.TargumSync) window.TargumSync.touched();
     renderFinished();
-    say(on ? "Finished. It counts on your progress page." : "Not finished.");
+    say(on ? "Finished. You'll see it on your progress page." : "Not finished.");
   }
 
   /* What one document is worth to the count: the greater of its old whole-document
@@ -1374,7 +1374,7 @@ var targumReader = function () {
       })
       .catch(function () {
         asked[form] = false;
-        onDone("Cannot reach targum.");
+        onDone("We couldn't connect. Try again.");
       });
   }
 
@@ -1583,7 +1583,7 @@ var targumReader = function () {
     restSaid = batch.length;
     remember();
     redraw();
-    say(batch.length + " words marked known. Nothing left to mark here.");
+    say("You marked " + batch.length + " words as known. Nothing left to mark here.");
     return batch.length;
   }
 
@@ -2177,7 +2177,7 @@ var targumReader = function () {
         : "Clear names and numbers";
       restMark.setAttribute(
         "title",
-        left ? "Names and numbers are cleared too, without being counted." : ""
+        left ? "We clear names and numbers too, without counting them." : ""
       );
       restMark.hidden = false;
       restUndo.hidden = true;
@@ -3298,7 +3298,7 @@ var targumReader = function () {
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
-        meaning.textContent = "nothing found — write your own";
+        meaning.textContent = "we found nothing — write your own";
       } else {
         if (!peeked[glossedAs(index)]) {
           peeked[glossedAs(index)] = true;
@@ -3627,10 +3627,10 @@ var targumReader = function () {
         return response.json();
       })
       .catch(function () {
-        return { error: "Cannot reach targum." };
+        return { error: "We couldn't connect. Try again." };
       })
       .then(function (got) {
-        if (!got || got.error) return settle((got && got.error) || "Cannot reach targum.", true);
+        if (!got || got.error) return settle((got && got.error) || "We couldn't connect. Try again.", true);
         state.chat = got.chat;
         followAsk(got.chat, got.turn, draw, settle);
       });
@@ -3666,7 +3666,7 @@ var targumReader = function () {
           } catch (e) {
             why = {};
           }
-          settle(why.message || "The conversation could not continue.", true);
+          settle(why.message || "We couldn't continue the conversation. Try again.", true);
         } else if (source.readyState === 2) {
           poll();
         }
@@ -3683,7 +3683,7 @@ var targumReader = function () {
           return response.json();
         })
         .catch(function () {
-          return { error: "Cannot reach targum.", done: true };
+          return { error: "We couldn't connect. Try again.", done: true };
         })
         .then(function (state) {
           if (state.error && state.done) return settle(state.error, true);
@@ -7268,7 +7268,7 @@ var targumReader = function () {
       })
       .then(function (job) {
         if (job.ready) return location.reload();
-        if (!job.id) throw new Error(job.error || job.blocked || "That did not work.");
+        if (!job.id) throw new Error(job.error || job.blocked || "We couldn't start that. Try again.");
         var timer = setInterval(function () {
           fetch(keyed("/job/" + job.id))
             .then(function (r) {
@@ -7281,7 +7281,7 @@ var targumReader = function () {
               } else if (state.stage === "failed" || state.blocked) {
                 clearInterval(timer);
                 press.disabled = false;
-                press.textContent = state.error || state.blocked || "That did not work.";
+                press.textContent = state.error || state.blocked || "We couldn't start that. Try again.";
               }
             });
         }, 1500);
@@ -7441,7 +7441,7 @@ var targumReader = function () {
     try {
       audio.currentTime = from;
     } catch (why) {
-      return refused("This recording will not play in this browser.", why);
+      return refused("We can't play this recording in this browser.", why);
     }
     /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
        that tick, and the strip is anchored to the foot of the window — so when its text
@@ -7459,8 +7459,8 @@ var targumReader = function () {
         // file: the control flipped back and the page had nothing to say for itself.
         refused(
           why && why.name === "NotAllowedError"
-            ? "This tab is not allowed to play sound. Check the address bar."
-            : "This recording would not play.",
+            ? "This tab isn't allowed to play sound. Check the address bar."
+            : "We couldn't play this recording. Try again.",
           why
         );
       });
@@ -8451,7 +8451,7 @@ else targumReader();
       .then(function (state) {
         if (state.error && !state.stage) return failed(state.error);
         if (state.stage === "failed" || state.stage === "blocked") {
-          return failed(state.error || state.blocked || "That did not go through.");
+          return failed(state.error || state.blocked || "We couldn't make the recording. Try again.");
         }
         if (state.stage === "done") {
           tell("Ready.");
@@ -8463,7 +8463,7 @@ else targumReader();
         }, window.TargumVoice.POLL);
       })
       .catch(function () {
-        failed("targum could not be reached. Try again.");
+        failed("We couldn't connect. Try again.");
       });
   }
 
@@ -8475,7 +8475,7 @@ else targumReader();
   go.onclick = function () {
     go.disabled = true;
     var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
-    tell("Reading it aloud. About " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    tell("Thanks. We're reading this section aloud. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
     fetch(keyed("/voice"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -8493,7 +8493,7 @@ else targumReader();
         follow(state.id);
       })
       .catch(function () {
-        failed("targum could not be reached. Try again.");
+        failed("We couldn't connect. Try again.");
       });
   };
 

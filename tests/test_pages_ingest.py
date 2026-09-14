@@ -197,7 +197,7 @@ def test_a_picture_with_no_words_is_said_so(monkeypatch: pytest.MonkeyPatch) -> 
         return vision.parse("?")
 
     monkeypatch.setattr(vision, "read_one", blank)
-    with pytest.raises(TargumError, match="No text could be read"):
+    with pytest.raises(TargumError, match="couldn't find any text"):
         ingest.load(str(FIXTURES / "screenshot.png"))
 
 

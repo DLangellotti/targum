@@ -34,8 +34,8 @@ from .pages import document_from_pages, mixed
 #: Below this many letters a page, on average, the PDF is pictures of pages.
 SCAN_LETTERS_PER_PAGE = 20
 
-SCAN = "This PDF is a scan, and targum does not read scans yet."
-PROTECTED = "This PDF is protected, so targum cannot read it."
+SCAN = "This PDF is a scan, and we can't read scans yet."
+PROTECTED = "This PDF is protected, so we can't read it."
 MISSING = "Reading PDFs needs the `bring` extra: uv sync --extra bring"
 
 _LETTER = re.compile(r"[^\W\d_]")
@@ -57,7 +57,7 @@ def _reader(path: Path) -> Any:
     except TargumError:
         raise
     except Exception as broken:
-        raise TargumError("That PDF could not be opened.") from broken
+        raise TargumError("We couldn't open that PDF.") from broken
 
 
 def page_count(path: Path) -> int:
@@ -79,7 +79,7 @@ def page_lines(path: Path) -> list[list[str]]:
     reader = _reader(path)
     if len(reader.pages) > MAX_PAGES:
         raise TargumError(
-            f"That PDF is {len(reader.pages)} pages. targum reads up to {MAX_PAGES} at a time."
+            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time."
         )
     pages: list[list[str]] = []
     for page in reader.pages:
