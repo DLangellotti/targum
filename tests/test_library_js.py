@@ -490,7 +490,10 @@ def vocabulary(*lemmas: str) -> dict[str, str]:
 def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Path) -> None:
     """The one sentence on the page written for a reader who cannot yet read a title.
     It used to live in tooltips, which is nowhere on a phone."""
-    assert draw(tmp_path)["note"] == "Hard words — the share of a text's words that are rare in everyday use."
+    assert (
+        draw(tmp_path)["note"]
+        == "Hard words — the share of a text's words that are rare in everyday use."
+    )
     assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
         "Scenes — numbered conversations with audio. Start at 1."
     )

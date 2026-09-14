@@ -64,6 +64,7 @@ def hebrew_citation(text: str) -> str:
     out = re.sub(r"(?<=[\u05d0-\u05ea׳״])-(?=[\u05d0-\u05ea])", "–", out)
     return re.sub(r"ס׳ (?=[\u05d0-\u05ea])", "סדר ", out)
 
+
 #: Hebcal's calendar endpoint. Four cycles for a year is about 90 kB.
 ENDPOINT = "https://www.hebcal.com/hebcal"
 

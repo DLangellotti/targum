@@ -350,7 +350,8 @@ def test_the_wrong_script_names_the_language_chosen(browser) -> None:
     context.close()
 
     assert said == (
-        "You're adding Russian, and this isn't in Cyrillic letters. Choose its language under Change."
+        "You're adding Russian, and this isn't in Cyrillic letters. "
+        "Choose its language under Change."
     ), said
 
 

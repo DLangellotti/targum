@@ -245,7 +245,10 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
-    assert page["hours"] == "You've used 6 hours 30 minutes of your 8 hours this month. They reset on 1 October."
+    assert (
+        page["hours"]
+        == "You've used 6 hours 30 minutes of your 8 hours this month. They reset on 1 October."
+    )
     assert not page["hoursHidden"]
     quiet = run(
         answers={

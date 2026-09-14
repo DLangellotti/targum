@@ -117,7 +117,11 @@ LEVELS: dict[Level, LevelSpec] = {
     Level.gimel: LevelSpec(
         # "Native", not "Real Hebrew": the other two editions are real Hebrew too, and a
         # learner reading one should not be told otherwise (2026-09-14).
-        name="Native", written_for=5000, open_ended=True, band=(14, 28), sentence=(12.5, 26)
+        name="Native",
+        written_for=5000,
+        open_ended=True,
+        band=(14, 28),
+        sentence=(12.5, 26),
     ),
 }
 

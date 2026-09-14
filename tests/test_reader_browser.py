@@ -3103,7 +3103,10 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     row has no room for is behind ⋯, and none of it is drawn in the bar."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
-        html = html.replace('<html lang="en" dir="rtl" data-language="he">', '<html lang="en" dir="ltr" data-language="en">')
+        html = html.replace(
+            '<html lang="en" dir="rtl" data-language="he">',
+            '<html lang="en" dir="ltr" data-language="en">',
+        )
     page_file = tmp_path / f"{direction}.html"
     page_file.write_text(html, encoding="utf-8")
     context = opened(browser, viewport={"width": 390, "height": 844})
@@ -3590,7 +3593,10 @@ def test_a_swipe_turns_the_page_in_the_reading_direction(
     that is more up-and-down than across is scrolling, and turns nothing."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
-        html = html.replace('<html lang="en" dir="rtl" data-language="he">', '<html lang="en" dir="ltr" data-language="en">')
+        html = html.replace(
+            '<html lang="en" dir="rtl" data-language="he">',
+            '<html lang="en" dir="ltr" data-language="en">',
+        )
     page_file = tmp_path / f"swipe-{direction}.html"
     page_file.write_text(html, encoding="utf-8")
     context = opened(browser, viewport=PHONE, scrolling=False)

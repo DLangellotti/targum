@@ -884,7 +884,9 @@ class Store:
         """'m', 'f', or '' where they have not said."""
         if person_id is None:
             return ""
-        row = self.db.execute("SELECT address FROM person WHERE id = ?", (int(person_id),)).fetchone()
+        row = self.db.execute(
+            "SELECT address FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
         return str(row["address"] or "") if row is not None else ""
 
     def set_address(self, person: Person, address: str) -> str:

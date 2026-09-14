@@ -50,9 +50,9 @@ from .render.builder import (
     back_office_page,
     daily_page,
     holding_page,
-    not_found_page,
     legal_is_public,
     legal_page,
+    not_found_page,
     parasha_page,
     shelf_page,
     signin_page,
@@ -2957,8 +2957,21 @@ class Handler(BaseHTTPRequestHandler):
     #: Every address a person can be looking at, or that a page asks for data from.
     #: Anything else is not a page, and says so rather than answering "Coming soon".
     PAGES = frozenset(
-        {"/", "/add", "/chat", "/progress", "/library", "/you", "/readers", "/suggest",
-         "/series", "/words/common", "/jobs", "/account/export", "/account/follows"}
+        {
+            "/",
+            "/add",
+            "/chat",
+            "/progress",
+            "/library",
+            "/you",
+            "/readers",
+            "/suggest",
+            "/series",
+            "/words/common",
+            "/jobs",
+            "/account/export",
+            "/account/follows",
+        }
     )
     PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/")
 
