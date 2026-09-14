@@ -6103,3 +6103,62 @@ def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path
 def test_a_page_without_cases_has_no_lens(browser, built: Path) -> None:
     html = built.read_text(encoding="utf-8")
     assert "<select data-case-lens" not in html
+
+
+def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
+    browser, fake_audio, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A waiting part's page is a clock and nothing else, so it read as "most of the way
+    through" the moment it opened and bought the part after it — ahead of the one the
+    reader came to press Transcribe for, which then queued behind it or was told ready
+    while it was still on its way. A heard part still buys the next as a chapter does."""
+    from targum.pipeline import Build
+    from targum.transcribe.null import NullTranscriber
+
+    class SplitsOnFullStops:
+        name = "fake/1"
+
+        def split(self, texts: list[str], language: str) -> list[list[str]]:
+            return [[p.strip() + "." for p in text.split(".") if p.strip()] for text in texts]
+
+    # The browser job installs no ffmpeg, and every tool it would run is faked anyway.
+    monkeypatch.setattr("targum.audio.ffmpeg_available", lambda: (True, "ffmpeg"))
+    fake_audio.duration = 2160.0
+    fake_audio.pauses = [(719.0, 721.0), (1439.0, 1441.0)]
+    source = tmp_path / "talk.mp3"
+    source.write_bytes(b"audio")
+    build = Build(
+        str(source),
+        target_language="en",
+        source_language="en",
+        provider_name="null",
+        segmenter=SplitsOnFullStops(),
+        transcriber=NullTranscriber(text="the winter came early. the river froze.", language="en"),
+        out_root=tmp_path / "out",
+    )
+    folder = build.run(chapters=1).out_dir / "reader"
+
+    def bought(name: str) -> list[dict]:
+        asked: list[dict] = []
+
+        def answer(route, request):
+            if request.url.split("?")[0].endswith("/chapter"):
+                asked.append(request.post_data_json)
+                route.fulfill(status=200, content_type="application/json", body="{}")
+            elif "/reader/talk-en/reader/" in request.url:
+                body = (folder / request.url.split("?")[0].rsplit("/", 1)[1]).read_bytes()
+                route.fulfill(status=200, content_type="text/html", body=body)
+            else:
+                route.fulfill(status=200, content_type="application/json", body="{}")
+
+        context = opened(browser)
+        open_page = context.new_page()
+        open_page.route("http://reader.test/**", answer)
+        open_page.goto(f"http://reader.test/reader/talk-en/reader/{name}")
+        open_page.wait_for_timeout(600)
+        context.close()
+        return asked
+
+    assert "data-audio" in (folder / "sec-0002.html").read_text(encoding="utf-8")
+    assert bought("sec-0002.html") == []
+    assert [ask["number"] for ask in bought("sec-0001.html")] == [2], "a heard part still does"
