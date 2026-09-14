@@ -130,6 +130,19 @@
       {%- endfor %}
     </div>
     {% endif %}
+    {#- Shnayim mikra: each verse twice in Hebrew and once in Onkelos, kept verse by verse
+        or a whole section at a time (targum-internal#202). Drawn only where the source
+        is Hebrew and Onkelos is beside it, so the haftarah — read once, and with no
+        targum — never offers it. The same pill as the renderings: a choice with a
+        position. On a portion the section is an aliyah and says so; on a book it is a
+        chapter. -#}
+    {% if practice %}
+    <div class="group practice" id="practice" role="group" aria-label="Shnayim mikra" data-what="Shnayim mikra">
+      <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="Read as usual">Read</button>
+      <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="Each verse twice in Hebrew, then once in Onkelos">By verse</button>
+      <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="The whole {{ practice }} twice in Hebrew, then once in Onkelos">By {{ practice }}</button>
+    </div>
+    {% endif %}
     {#- One button, not two: it is a thing that is on or off, and two buttons for that
         made a scale out of a switch. The drawing is a letter with its points beneath —
         §7 wants a line diagram of what the thing does, and this is literally it. -#}
@@ -587,6 +600,15 @@
     nothing, and the ledger agreed with them. That is most of what "feels like work"
     means (targum-internal#173, and #167–#171). A chapter is a chapter however short —
     the structure decides and there is no floor. -#}
+{#- Where the practice stands, at the foot of the section: which reading of it this is,
+    and the press to the next. Filled in and shown by the script, and only while the
+    practice is kept by section — or, kept by verse, once every verse is read. -#}
+{% if practice %}
+<div class="practice-step" id="practice-step" dir="ltr" hidden>
+  <span id="practice-said"></span>
+  <button type="button" id="practice-next"></button>
+</div>
+{% endif %}
 <div class="finished" id="finished" dir="ltr">
   <span id="done-said" hidden></span>
   <button type="button" id="done-mark">Done</button>

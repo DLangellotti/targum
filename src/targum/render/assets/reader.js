@@ -385,6 +385,11 @@ var targumReader = function () {
     // Where you were, per chapter: the first sentence of the page you were on. A page
     // number would be wrong after the type grows or the window turns.
     pageBy: {},
+    // Shnayim mikra, on a text that carries Onkelos: "" is reading, "verse" is each verse
+    // twice in Hebrew and once in Onkelos before the next, "section" is the whole aliyah
+    // twice and then its Onkelos (targum-internal#202). Not per document: which custom
+    // somebody keeps is a fact about them, the way the chanting marks are.
+    practice: "",
     // Which generation of the defaults this browser has seen. See below.
     defaults: 0,
   };
@@ -5681,7 +5686,7 @@ var targumReader = function () {
   // Not the marks, though. They are painted from the word's level, which is a fact about
   // the word and not about the language it is being read in — redrawing them here would
   // be a full re-mark of the screen to arrive at the page that is already on it.
-  function applyTranslation(id, first) {
+  function applyTranslation(id, first, remember) {
     var entry = translationData[id];
     // Never an empty column, whichever door asked: a press, a kept choice, a language
     // read into, or a test.
@@ -5713,7 +5718,11 @@ var targumReader = function () {
     var subtitle = document.querySelector(".video-tr");
     if (subtitle && columnLanguage) subtitle.setAttribute("lang", columnLanguage);
     if (subtitle && columnDirection) subtitle.setAttribute("dir", columnDirection);
-    if (prefs.translationBy && documentId) prefs.translationBy[documentId] = id;
+    // Not when the practice put Onkelos in the column for its reading: that is the
+    // practice's choice for a moment, not the reader's for the text.
+    if (remember !== false && prefs.translationBy && documentId) {
+      prefs.translationBy[documentId] = id;
+    }
     save();
     if (!first && targetLanguage !== was) {
       // What was asked and answered in the language being left says nothing about the
@@ -5769,6 +5778,270 @@ var targumReader = function () {
       if (id && id !== showing) applyTranslation(id);
     });
   });
+
+  /* --- shnayim mikra --------------------------------------------------------------
+   *
+   * The weekly practice, on a text that carries Onkelos beside the Hebrew: each verse
+   * read twice in Hebrew and once in Onkelos (targum-internal#202). People keep it two
+   * ways and both are here — verse by verse, or the whole aliyah twice and then its
+   * Onkelos — because serving one custom would turn away the other.
+   *
+   * The structure is the progress. Nothing here counts anything: a verse read is quieter
+   * than one still to read, the foot says which reading of the aliyah this is, and the
+   * section's own Done is where it finishes, as every section does (#173). Nor does it
+   * rule on anything — how many readings, what counts — it lays the text out in the
+   * order the practice reads it and says nothing more.
+   *
+   * Where a reader is in it is kept per section and per way of keeping it, so leaving
+   * the practice, switching between the two, or closing the page loses no place — and
+   * the words, which live in their own stores, are never touched by any of it.
+   */
+  var practiceGroup = document.getElementById("practice");
+  var practiceKeys = practiceGroup
+    ? Array.prototype.slice.call(practiceGroup.querySelectorAll(".practice-key"))
+    : [];
+  var besideId = "";
+  Object.keys(translationData).forEach(function (id) {
+    if (!besideId && translationData[id] && translationData[id].beside) besideId = id;
+  });
+  // Drawn by the page only where the source is Hebrew and Onkelos is beside it; asked
+  // again here, so a page whose Onkelos has nothing for this section offers nothing.
+  var practising = !!(practiceGroup && besideId && covers(besideId));
+  if (practiceGroup && !practising) practiceGroup.hidden = true;
+  var PRACTICE = "targum:practice";
+  var practiceStore = read(PRACTICE, "{}");
+  var practiceAt = documentId + "#" + sectionId;
+  // Every verse of the section, in order. A heading is the section's name, not a verse.
+  var practiceVerses = pairs.filter(function (pair) {
+    return /(^|\s)verse(\s|$)/.test(pair.className || "") || pair.classList.contains("verse");
+  });
+  // The verse walk has run off the end of the section.
+  var PRACTICE_DONE = "done";
+  var practiceLine = null;
+  // Onkelos is put in the column for the third reading of an aliyah and taken out
+  // again afterwards, back to whatever the reader had there.
+  var borrowedFrom = "";
+  var practiceStep = document.getElementById("practice-step");
+  var practiceSaid = document.getElementById("practice-said");
+  var practiceNext = document.getElementById("practice-next");
+
+  function practiceKind() {
+    if (!practising) return "";
+    return prefs.practice === "verse" || prefs.practice === "section" ? prefs.practice : "";
+  }
+
+  function practiceRecord() {
+    var mine = practiceStore[practiceAt];
+    if (!mine || typeof mine !== "object") mine = practiceStore[practiceAt] = {};
+    if (!(mine.pass >= 1 && mine.pass <= 3)) mine.pass = 1;
+    if (!(mine.step >= 0 && mine.step <= 2)) mine.step = 0;
+    if (typeof mine.verse !== "string") mine.verse = "";
+    return mine;
+  }
+
+  function keepPractice() {
+    try {
+      targumKeep(PRACTICE, JSON.stringify(practiceStore));
+    } catch (e) {}
+  }
+
+  // Which verse the walk stands on: the one kept, the first where none is or where the
+  // one kept is no longer in the section, and -1 once the walk has run off the end.
+  function practiceIndex(record) {
+    if (record.verse === PRACTICE_DONE) return -1;
+    for (var i = 0; i < practiceVerses.length; i++) {
+      if (practiceVerses[i].getAttribute("data-id") === record.verse) return i;
+    }
+    return practiceVerses.length ? 0 : -1;
+  }
+
+  function practiceButton(label, onPress) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", onPress);
+    return button;
+  }
+
+  function drawVerseWalk(record) {
+    if (practiceLine && practiceLine.parentNode) practiceLine.parentNode.removeChild(practiceLine);
+    practiceLine = null;
+    practiceVerses.forEach(function (pair) {
+      pair.classList.remove("practised");
+      pair.classList.remove("practising");
+    });
+    if (!record) return;
+    var at = practiceIndex(record);
+    var upTo = at < 0 ? practiceVerses.length : at;
+    for (var i = 0; i < upTo; i++) practiceVerses[i].classList.add("practised");
+    if (at < 0) return;
+    var pair = practiceVerses[at];
+    var id = pair.getAttribute("data-id");
+    pair.classList.add("practising");
+    var line = document.createElement("div");
+    line.className = "practice-line";
+    if (record.step === 2) {
+      var entry = translationData[besideId] || {};
+      var onkelos = document.createElement("p");
+      onkelos.className = "practice-targum";
+      if (entry.language) onkelos.setAttribute("lang", entry.language);
+      if (entry.direction) onkelos.setAttribute("dir", entry.direction);
+      onkelos.textContent = (entry.text && entry.text[id]) || "";
+      line.appendChild(onkelos);
+    }
+    var row = document.createElement("div");
+    row.className = "practice-row";
+    row.setAttribute("dir", "ltr");
+    var said = document.createElement("span");
+    said.textContent = ["In Hebrew", "Again, in Hebrew", "In Onkelos"][record.step];
+    row.appendChild(said);
+    var last = at === practiceVerses.length - 1;
+    row.appendChild(
+      practiceButton(
+        record.step === 0 ? "Again" : record.step === 1 ? "Onkelos" : last ? "Finish" : "Next verse",
+        advancePractice
+      )
+    );
+    line.appendChild(row);
+    pair.appendChild(line);
+    practiceLine = line;
+  }
+
+  function drawPracticeFoot(kind, record) {
+    if (!practiceStep) return;
+    var words = "";
+    var press = "";
+    if (kind === "section") {
+      words = ["First reading, in Hebrew", "Second reading, in Hebrew", "Once in Onkelos"][
+        record.pass - 1
+      ];
+      press = ["Read it again", "Now Onkelos", "Start again"][record.pass - 1];
+    } else if (kind === "verse" && record.verse === PRACTICE_DONE) {
+      words = "Every verse, twice in Hebrew and once in Onkelos";
+      press = "Start again";
+    }
+    practiceStep.hidden = !words;
+    if (practiceSaid) practiceSaid.textContent = words;
+    if (practiceNext) {
+      practiceNext.textContent = press;
+      practiceNext.classList.toggle("again", press === "Start again");
+    }
+  }
+
+  function applyPractice(first) {
+    var kind = practiceKind();
+    var record = practiceRecord();
+    practiceKeys.forEach(function (key) {
+      var on = (key.getAttribute("data-practice") || "") === kind;
+      key.classList.toggle("on", on);
+      key.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var ended =
+      (kind === "section" && record.pass === 3) ||
+      (kind === "verse" && record.verse === PRACTICE_DONE);
+    body.classList.toggle("practice-verse", kind === "verse");
+    body.classList.toggle("practice-section", kind === "section");
+    // The Hebrew alone, for every reading but the aliyah's third.
+    body.classList.toggle("practice-hebrew", kind === "verse" || (kind === "section" && !ended));
+    body.classList.toggle("practice-ended", ended);
+
+    var wantOnkelos = kind === "section" && record.pass === 3;
+    if (wantOnkelos && showing !== besideId) {
+      borrowedFrom = showing;
+      applyTranslation(besideId, false, false);
+    } else if (!wantOnkelos && borrowedFrom && showing === besideId) {
+      var back = borrowedFrom;
+      borrowedFrom = "";
+      applyTranslation(back, false, false);
+    } else if (!wantOnkelos) {
+      borrowedFrom = "";
+    }
+
+    drawVerseWalk(kind === "verse" ? record : null);
+    drawPracticeFoot(kind, record);
+    if (!first) relayout();
+  }
+
+  function showPracticeVerse() {
+    var at = practiceIndex(practiceRecord());
+    var pair = at < 0 ? practiceVerses[practiceVerses.length - 1] : practiceVerses[at];
+    if (!pair) return;
+    if (paged()) turnTo(pair);
+    else if (typeof pair.scrollIntoView === "function") {
+      pair.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function advancePractice() {
+    var kind = practiceKind();
+    var record = practiceRecord();
+    if (kind === "verse") {
+      var at = practiceIndex(record);
+      if (at < 0) {
+        record.verse = practiceVerses.length ? practiceVerses[0].getAttribute("data-id") : "";
+        record.step = 0;
+      } else if (record.step < 2) {
+        record.verse = practiceVerses[at].getAttribute("data-id");
+        record.step += 1;
+      } else if (at + 1 < practiceVerses.length) {
+        record.verse = practiceVerses[at + 1].getAttribute("data-id");
+        record.step = 0;
+      } else {
+        record.verse = PRACTICE_DONE;
+        record.step = 0;
+      }
+    } else if (kind === "section") {
+      record.pass = record.pass >= 3 ? 1 : record.pass + 1;
+    } else {
+      return;
+    }
+    keepPractice();
+    applyPractice();
+    if (kind === "verse") {
+      showPracticeVerse();
+      var done = document.getElementById("done-mark");
+      if (record.verse === PRACTICE_DONE && done && typeof done.focus === "function") {
+        done.focus();
+      } else if (practiceLine) {
+        var next = practiceLine.querySelector("button");
+        if (next && typeof next.focus === "function") next.focus();
+      }
+    } else if (paged() && pairs.length) {
+      // A new reading of the aliyah starts at its first verse.
+      showPage(0, true);
+    } else if (typeof window.scrollTo === "function") {
+      window.scrollTo(0, 0);
+    }
+  }
+
+  function choosePractice(kind) {
+    if (!practising) return;
+    prefs.practice = kind === "verse" || kind === "section" ? kind : "";
+    save();
+    applyPractice();
+    if (prefs.practice === "verse") showPracticeVerse();
+  }
+
+  practiceKeys.forEach(function (key) {
+    key.addEventListener("click", function () {
+      choosePractice(key.getAttribute("data-practice") || "");
+    });
+  });
+  if (practiceNext) practiceNext.addEventListener("click", advancePractice);
+  // Starting anywhere: in the verse walk, a verse's number is where the walk goes.
+  practiceVerses.forEach(function (pair) {
+    var number = pair.querySelector(".verse-number");
+    if (!number) return;
+    number.addEventListener("click", function () {
+      if (practiceKind() !== "verse") return;
+      var record = practiceRecord();
+      record.verse = pair.getAttribute("data-id");
+      record.step = 0;
+      keepPractice();
+      applyPractice();
+    });
+  });
+  if (practising) applyPractice(true);
 
   /* --- keyboard help ------------------------------------------------------- */
 
@@ -7048,6 +7321,34 @@ var targumReader = function () {
     rendering: function (id) {
       if (id) applyTranslation(id);
       return showing;
+    },
+    // The practice: which way it is kept, where the walk stands, and pressing on.
+    practice: function (kind) {
+      if (kind !== undefined) choosePractice(kind);
+      var record = practiceRecord();
+      return {
+        kind: practiceKind(),
+        offered: practising,
+        pass: record.pass,
+        verse: record.verse,
+        step: record.step,
+        practised: practiceVerses
+          .filter(function (pair) {
+            return pair.classList.contains("practised");
+          })
+          .map(function (pair) {
+            return pair.getAttribute("data-id");
+          }),
+        onkelos: practiceLine
+          ? (practiceLine.querySelector(".practice-targum") || {}).textContent || ""
+          : "",
+        hebrewOnly: body.classList.contains("practice-hebrew"),
+        showing: showing,
+        foot: practiceStep && !practiceStep.hidden ? practiceSaid.textContent : "",
+      };
+    },
+    practiceNext: function () {
+      advancePractice();
     },
     // Which language the meanings are in, and the sentence a phrase is read against:
     // the column's, except beside Onkelos, which leaves both where they were.

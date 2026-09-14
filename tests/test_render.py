@@ -4950,6 +4950,32 @@ def test_a_torah_opens_in_its_own_language_with_onkelos_one_press_away(tmp_path:
     assert set(re.findall(r'<p class="tr" lang="(\w+)"', html)) == {"en"}
 
 
+def test_shnayim_mikra_is_offered_only_where_onkelos_is_beside_the_hebrew(
+    tmp_path: Path,
+) -> None:
+    """The practice needs something to be read once in (targum-internal#202). A Hebrew
+    text with Onkelos offers it, named by chapter on a book and by aliyah on a portion;
+    a text with no Onkelos — the haftarah among them, read once and with no targum —
+    draws neither the control nor its strip."""
+    book = _genesis(tmp_path / "book", [_english(), _onkelos()])
+    assert 'id="practice"' in book and 'id="practice-step"' in book
+    assert ">By chapter</button>" in book and ">By verse</button>" in book
+
+    without = _genesis(tmp_path / "plain", [_english()])
+    assert 'id="practice"' not in without and 'id="practice-step"' not in without
+
+    document = Document(
+        source="memory",
+        title="בראשית",
+        language="he",
+        blocks=[],
+        content_hash="h",
+        ingester="parasha/1",
+    )
+    pages = render(document, make_segmented(GENESIS), [_english(), _onkelos()], tmp_path / "p")
+    assert ">By aliyah</button>" in pages[0].read_text(encoding="utf-8")
+
+
 def test_only_a_rendering_read_beside_says_so(tmp_path: Path) -> None:
     """The page is told which rendering the meanings must not follow, and only that one
     carries the word — so every text without Onkelos ships the payload it always did."""

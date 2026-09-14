@@ -631,7 +631,7 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 }
 
 /* The pairing has to be visible, or a learner cannot trust it. */
-.pair:hover, .pair:focus-visible, .pair.here { background: var(--paper-raised); }
+.pair:hover, .pair:focus-visible, .pair.here, .pair.practising { background: var(--paper-raised); }
 /* Inset because a sentence is as wide as the column and an outset ring would clip at
    the window's edge — but at §8's 2px, not the hairline this used to be: the one place
    keyboard focus landed thinner than everywhere else was the reading itself. */
@@ -1616,7 +1616,8 @@ table.rows tr:hover .copy,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
-    .list-items .drop, .toc .get, .rest .keep, .picked-note button
+    .list-items .drop, .toc .get, .rest .keep, .picked-note button,
+    .practice-key, .practice-row button, .practice-step button
   ) {
     position: relative;
   }
@@ -1625,7 +1626,8 @@ table.rows tr:hover .copy,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
-    .list-items .drop, .toc .get, .rest .keep, .picked-note button
+    .list-items .drop, .toc .get, .rest .keep, .picked-note button,
+    .practice-key, .practice-row button, .practice-step button
   )::after {
     content: "";
     position: absolute;
@@ -2021,6 +2023,7 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
    it. The suggestion was left out of this when it was added and turned up under page one
    of five, offering somewhere else to go to somebody who had just arrived. */
 body.paged:not(.last-page) .finished,
+body.paged:not(.last-page) .practice-step,
 body.paged:not(.last-page) .next-up { display: none; }
 
 /* Room under the last block for the player to sit in. The pairs are budgeted around it —
@@ -2212,6 +2215,90 @@ body.has-player .next-up { margin-block-end: 9rem; }
 .bar .renderings .rendering.on {
   background: var(--ink-soft);
   color: var(--paper);
+}
+
+/* Shnayim mikra (targum-internal#202). The same pill as the renderings beside it: which
+   way the practice is kept is a choice with a position, and ink, not accent. */
+.bar .practice {
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.bar .practice .practice-key {
+  padding: 0.28rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.bar .practice .practice-key:hover { color: var(--ink); background: none; }
+.bar .practice .practice-key.on {
+  background: var(--ink-soft);
+  color: var(--paper);
+}
+.bar .practice[hidden] { display: none; }
+
+/* The readings in Hebrew are the Hebrew alone, laid out the way "source only" lays it. */
+body.practice-hebrew .pair { grid-template-columns: 1fr; }
+body.practice-hebrew .pair > .tr { display: none; }
+body.practice-hebrew .src { max-width: none; }
+
+/* By verse: a verse read is quieter than one still to read, which is how a reader sees
+   what is left without counting it. Muted is §9's colour for what is secondary, and a
+   verse already read twice and once is. */
+.pair.practised .src { color: var(--ink-soft); }
+
+/* Under the verse being read: its Onkelos, when that is the reading, and the press on.
+   In the flow, under the verse it belongs to — nothing floats over the text (§8). */
+.practice-line {
+  grid-column: 1 / -1;
+  margin-block: 0.35rem 0.25rem;
+}
+.practice-targum {
+  margin: 0 0 0.35rem;
+  font-family: var(--reading-hebrew);
+  color: var(--ink);
+}
+.practice-row,
+.practice-step {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.practice-step {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+}
+.practice-step > span { flex: 1; }
+.practice-step[hidden] { display: none; }
+/* A working action, in the accent (§9). Start again goes back rather than on, and is
+   drawn as the secondary it is. */
+.practice-row button,
+.practice-step button {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.practice-row button:hover,
+.practice-step button:hover { background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+.practice-step button.again { border-color: var(--rule); color: var(--ink); }
+/* A section kept by the practice is finished once the practice has read it through —
+   the third reading of the aliyah, or the last verse — unless it is finished already,
+   in which case its record and its Undo stay where they are. */
+body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.is-done) {
+  display: none;
 }
 
 /* How the issue was made, on the page a reader lands on. Body size and full ink: §9
