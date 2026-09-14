@@ -2514,7 +2514,9 @@ class Library:
         job.message = "We're reading it aloud…"
         self.remember(job)
         try:
-            clip, spans = speech.render_lines(lines, folder / "audio" / f"voice-{number:03d}")
+            clip, spans = speech.render_lines(
+                lines, folder / "audio" / f"voice-{number:03d}", language=document.language
+            )
         except speech.Interrupted as error:
             # Some of it was said, and Google charged for what was. `_blame` settles a
             # job with money on it rather than releasing the claim.
@@ -4430,7 +4432,10 @@ class Handler(BaseHTTPRequestHandler):
             self.library.remember(job)
             return self._json({"error": refused}, 402)
         try:
-            clip = speech.render(text, where / f"{chat_id}-{n}")
+            # In the conversation's own language: a French conversation is read in French.
+            opened = store.chat_owned(person.id if person else None, chat_id) or {}
+            spoken_in = str(opened.get("language") or "he")
+            clip = speech.render(text, where / f"{chat_id}-{n}", language=spoken_in)
         except Exception as error:
             # Anything, not only what `speech` says in words: a claim left held by an
             # exception nobody caught stays counted against the day until it ages out.
@@ -4646,6 +4651,9 @@ class Handler(BaseHTTPRequestHandler):
         segmented = read(SegmentedDocument, folder / "segments.json")
         if segmented is None:
             return self._json({"error": "not found"}, 404)
+        if not speech.speaks(segmented.language):
+            # Yiddish and Aramaic: the voice does not read them, so it is not for sale.
+            return self._json({"error": "We can't read this language aloud yet."}, 402)
         section = next((one for one in split_sections(segmented) if one.number == number), None)
         if section is None:
             return self._json({"error": "not found"}, 404)

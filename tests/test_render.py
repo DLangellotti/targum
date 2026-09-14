@@ -5036,6 +5036,45 @@ def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Pat
 # -- hear a silent text (targum-internal#246) ----------------------------------------
 
 
+def test_a_silent_section_is_offered_a_voice_in_the_languages_the_voice_reads(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """French, Russian and Italian since 2026-09-13; Yiddish and Aramaic are not, because
+    the voice would read their letters as Hebrew."""
+    from targum import speech
+    from targum.models import SegmentedDocument
+
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
+
+    def page(language: str, text: str) -> str:
+        segment = Segment(
+            id="0000.000-x",
+            block_id="b0000",
+            block_index=0,
+            index=0,
+            kind=BlockKind.paragraph,
+            text=text,
+        )
+        segmented = SegmentedDocument(
+            document_hash="h", language=language, segmenter="rules", segments=[segment]
+        )
+        document = Document(source="m", title="T", language=language, blocks=[], content_hash="h")
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language=language,
+            target_language="en",
+            provider="null",
+            segments={segment.id: "tr"},
+        )
+        out = tmp_path / language
+        return render(document, segmented, [translation], out)[0].read_text(encoding="utf-8")
+
+    assert 'id="voice-offer"' in page("fr", "Le chat dort.")
+    assert 'id="voice-offer"' in page("ru", "Кошка спит.")
+    assert 'id="voice-offer"' not in page("yi", "די קאַץ שלאָפֿט.")
+
+
 def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced(
     tmp_path: Path, segmented: SegmentedDocument, translation: Translation, monkeypatch: Any
 ) -> None:

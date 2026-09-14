@@ -407,7 +407,9 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     chats.answer(chats.queue.get())
     rendered: list[str] = []
 
-    def render(text: str, into: Path, voice: str = speech.VOICE) -> speech.Clip:
+    def render(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
         rendered.append(text)
         into.parent.mkdir(parents=True, exist_ok=True)
         target = into.with_suffix(".wav")
@@ -448,7 +450,9 @@ def test_a_voice_that_breaks_gives_its_claim_back(chatting, monkeypatch: Any) ->
     chats.answer(chats.queue.get())
     before = store.committed(0)
 
-    def broken(text: str, into: Path, voice: str = speech.VOICE) -> speech.Clip:
+    def broken(
+        text: str, into: Path, voice: str = speech.VOICE, language: str = "he"
+    ) -> speech.Clip:
         raise RuntimeError("ffmpeg went away")
 
     monkeypatch.setattr(speech, "render", broken)

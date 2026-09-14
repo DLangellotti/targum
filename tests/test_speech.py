@@ -30,7 +30,9 @@ def test_render_keeps_the_wav_where_there_is_no_ffmpeg(monkeypatch: Any, tmp_pat
     monkeypatch.setattr(
         speech,
         "say",
-        lambda text, voice=speech.VOICE: speech.wav(b"\x00" * speech.BYTES_PER_SECOND),
+        lambda text, voice=speech.VOICE, language="he": speech.wav(
+            b"\x00" * speech.BYTES_PER_SECOND
+        ),
     )
     monkeypatch.setattr(speech.shutil, "which", lambda name: None)
     clip = speech.render("שָׁלוֹם", tmp_path / "audio" / "c-1")
@@ -61,7 +63,7 @@ def test_a_voice_that_stops_part_way_says_how_much_it_made(
     """Google charges for each line said. When the third fails the first two were paid
     for, and the worker has to know to settle them rather than release the claim."""
 
-    def say(text: str, voice: str = speech.VOICE) -> bytes:
+    def say(text: str, voice: str = speech.VOICE, language: str = "he") -> bytes:
         if text == "ג":
             raise TargumError("The voice did not answer.", "Try again in a moment.")
         return speech.wav(b"\x00" * speech.BYTES_PER_SECOND * 2)
@@ -88,7 +90,7 @@ def test_many_lines_become_one_clip_with_exact_spans(monkeypatch: Any, tmp_path:
     monkeypatch.setattr(
         speech,
         "say",
-        lambda text, voice=speech.VOICE: speech.wav(
+        lambda text, voice=speech.VOICE, language="he": speech.wav(
             b"\x00" * (speech.BYTES_PER_SECOND * lengths[text])
         ),
     )
@@ -105,3 +107,14 @@ def test_the_voice_is_for_sale_only_while_it_has_a_price(monkeypatch: Any) -> No
     assert speech.priced() is True
     monkeypatch.delitem(speech.PRICES, speech.NAME)
     assert speech.priced() is False
+
+
+def test_the_voice_is_told_which_language_it_is_reading() -> None:
+    """French, Russian and Italian since 2026-09-13; Hebrew's instruction is unchanged,
+    and a language the voice does not read is refused rather than read as Hebrew."""
+    assert speech.ask("he") == speech.ASK
+    assert speech.ask("fr-FR").startswith("Read this French aloud")
+    assert speech.ask("ru").startswith("Read this Russian aloud")
+    assert speech.speaks("it") and not speech.speaks("yi") and not speech.speaks("arc")
+    with pytest.raises(TargumError, match="can't read that language aloud"):
+        speech.say("װאָס", language="yi")

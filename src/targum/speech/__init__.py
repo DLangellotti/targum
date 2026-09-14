@@ -1,4 +1,4 @@
-"""Speech out: a line of Hebrew read aloud, on a path a reader can trigger.
+"""Speech out: a line read aloud, on a path a reader can trigger.
 
 The client lived in `weekly/voice.py`, which is gitignored: it is content tooling, run by
 the operator on a laptop, and a public checkout — CI's, and the wheel on the box — has
@@ -51,6 +51,32 @@ KEY = "TARGUM_TTS_KEY"
 
 ASK = "Read this Hebrew aloud, unhurried, as a teacher would to a learner. Say only this:\n\n"
 
+#: The languages the voice reads, and asks for by name (2026-09-13). Gemini's speech model
+#: lists all four; it lists neither Yiddish nor Aramaic, and a Hebrew reading of either
+#: would be a voice saying the letters in the wrong language, so neither is offered.
+SPOKEN = frozenset({"he", "fr", "ru", "it"})
+
+
+def _code(language: str) -> str:
+    return (language or "he").split("-")[0].lower()
+
+
+def speaks(language: str) -> bool:
+    """Whether the voice reads this language."""
+    return _code(language) in SPOKEN
+
+
+def ask(language: str = "he") -> str:
+    """The instruction in front of the text, naming the language it is in. Hebrew's is
+    `ASK`, byte for byte."""
+    code = _code(language)
+    if code == "he":
+        return ASK
+    from ..translate.prompts import language_name
+
+    return ASK.replace("Hebrew", language_name(code))
+
+
 #: 24 kHz, mono, 16-bit: what the API answers with, and what the header below declares.
 RATE = 24000
 BYTES_PER_SECOND = RATE * 2
@@ -82,17 +108,19 @@ class Interrupted(TargumError):
         self.seconds = seconds
 
 
-def say(text: str, voice: str = VOICE, key: str | None = None) -> bytes:
-    """One request, one clip. Returns WAV bytes."""
+def say(text: str, voice: str = VOICE, key: str | None = None, language: str = "he") -> bytes:
+    """One request, one clip, in the language named. Returns WAV bytes."""
     import base64
     import urllib.request
 
+    if not speaks(language):
+        raise TargumError("We can't read that language aloud yet.")
     token = key or os.environ.get(KEY, "")
     if not token:
         raise TargumError("We can't make a voice here.", available()[1])
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={token}"
     body = {
-        "contents": [{"parts": [{"text": ASK + text}]}],
+        "contents": [{"parts": [{"text": ask(language) + text}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
@@ -133,11 +161,11 @@ class Clip:
     seconds: float
 
 
-def render(text: str, into: Path, voice: str = VOICE) -> Clip:
+def render(text: str, into: Path, voice: str = VOICE, language: str = "he") -> Clip:
     """Say `text` and write the clip beside `into` (its suffix chosen here): mp3 where
     ffmpeg is present, at the bitrate the rest of the shelf's speech is at; the WAV
     itself where it is not. The seconds come off the WAV either way."""
-    spoken = say(text, voice)
+    spoken = say(text, voice, language=language)
     try:
         return write(spoken, into)
     except Exception as error:
@@ -149,7 +177,7 @@ def render(text: str, into: Path, voice: str = VOICE) -> Clip:
 
 
 def render_lines(
-    lines: list[str], into: Path, voice: str = VOICE
+    lines: list[str], into: Path, voice: str = VOICE, language: str = "he"
 ) -> tuple[Clip, list[tuple[float, float]]]:
     """Say each line and write them as one clip, with where each line sits in it.
 
@@ -163,7 +191,7 @@ def render_lines(
     spans: list[tuple[float, float]] = []
     for line in lines:
         try:
-            spoken = say(line, voice) if line.strip() else wav(b"")
+            spoken = say(line, voice, language=language) if line.strip() else wav(b"")
         except TargumError as error:
             raise Interrupted(
                 error.message, error.hint, seconds=len(pcm) / BYTES_PER_SECOND
