@@ -421,10 +421,42 @@
    */
   // The time of day and nothing else: no "Shabbat shalom" on a Saturday (David,
   // 2026-09-11: somebody on the internet on Shabbat does not get one).
-  function greeting(name) {
+  //
+  // Said in the language the page is in, in Latin letters (David, 2026-09-14): "Boker tov"
+  // rather than "Good morning" on Hebrew, so the first words on the page are ones the
+  // reader can say before they can read the script. Morning, afternoon, evening. The
+  // afternoon is Shalom on Hebrew and Shlama, peace, on Aramaic; French and Italian say
+  // their day's greeting until the evening (David, 2026-09-14). The English is the title.
+  var GREETINGS = {
+    he: ["Boker tov", "Shalom", "Erev tov"],
+    arc: ["Tzafra tava", "Shlama", "Ramsha tava"],
+    yi: ["Gut morgn", "Gutn tog", "Gutn ovnt"],
+    fr: ["Bonjour", "Bonjour", "Bonsoir"],
+    ru: ["Dobroye utro", "Dobry den", "Dobry vecher"],
+    it: ["Buongiorno", "Buongiorno", "Buonasera"],
+  };
+  var ENGLISH_GREETINGS = ["Good morning", "Good afternoon", "Good evening"];
+  function partOfDay() {
     var hour = new Date().getHours();
-    var said = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    return hour < 12 ? 0 : hour < 18 ? 1 : 2;
+  }
+  function greeting(name, code) {
+    var said = (GREETINGS[code] || ENGLISH_GREETINGS)[partOfDay()];
     return said + (name ? ", " + name : "") + ".";
+  }
+  var greetedName = "";
+  function drawGreeting() {
+    var hello = document.getElementById("greeting");
+    if (!hello) return;
+    var code = speaking();
+    hello.textContent = greeting(greetedName, code);
+    if (GREETINGS[code]) {
+      hello.setAttribute("lang", code + "-Latn");
+      hello.title = ENGLISH_GREETINGS[partOfDay()];
+    } else {
+      hello.removeAttribute("lang");
+      hello.removeAttribute("title");
+    }
   }
 
   // A number as Hebrew letters, the way a date is written: ט״ו and ט״ז rather than
@@ -601,14 +633,15 @@
   }
   // In the calendar of the language the switcher moves to.
   window.addEventListener("targum:language", function () {
+    drawGreeting();
     var today = document.getElementById("today");
     if (today && lastSeries) today.textContent = todayLine(lastSeries);
   });
 
   function drawHello(name, series) {
-    var hello = document.getElementById("greeting");
     var today = document.getElementById("today");
-    if (hello) hello.textContent = greeting(name);
+    greetedName = name || "";
+    drawGreeting();
     if (today) today.textContent = todayLine(series);
   }
 
