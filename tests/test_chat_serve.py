@@ -281,7 +281,7 @@ def test_the_list_carries_the_hours_and_every_conversation_is_in_hebrew(chatting
     status, answer, _ = call(port, "GET", f"/chat/list?k={key}")
     assert answer["hours"] == {"used": 0.0, "allowed": 8.0, "ends": answer["hours"]["ends"]}
     assert answer["hours"]["ends"]
-    assert answer["talk"] is True, "the page is told whether to offer Speak"
+    assert answer["talk"] is True, "the page is told whether the conversation is held in Hebrew"
     status, shelf, _ = call(port, "GET", f"/readers?k={key}")
     assert shelf["talk"] is True, "and the front door is told the same"
     status, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "שלום"})
@@ -313,6 +313,7 @@ class Heard:
         self.text = text
         self.spent = Usage()
         self.heard: list[Path] = []
+        self.languages: list[str] = []
 
     def available(self) -> tuple[bool, str]:
         return True, self.model
@@ -322,6 +323,7 @@ class Heard:
 
     def transcribe(self, audio: Path, language: str = "", on_progress: Any = None) -> Any:
         self.heard.append(audio)
+        self.languages.append(language)
         self.spent.add_seconds(self.name, 4.0)
         return SimpleNamespace(words=[SimpleNamespace(text=w) for w in self.text.split()])
 
@@ -349,6 +351,7 @@ def test_a_spoken_line_is_written_down_metered_once_and_asked(chatting, monkeypa
     connection.close()
     assert response.status == 200 and answer["heard"] == "שלום לך" and answer["turn"] == 1
     assert ears.heard and ears.heard[0].suffix == ".webm"
+    assert ears.languages == ["he"], "a conversation held in Hebrew is heard as Hebrew"
     assert store.chat_owned(None, answer["chat"])["mode"] == "talk"  # type: ignore[index]
     assert store.hours_used(None, 0) == pytest.approx(4.0), "the clip's seconds, once"
 
@@ -362,6 +365,43 @@ def test_a_spoken_line_is_written_down_metered_once_and_asked(chatting, monkeypa
     assert store.hours_used(None, 0) == pytest.approx(4.0 + turn.seconds), (
         "reply alone, on top of the clip"
     )
+
+
+def test_a_line_is_heard_in_any_conversation_and_keeps_where_the_reader_is(
+    chatting, monkeypatch: Any
+) -> None:
+    """2026-09-14: "people should be able to talk to targum". Speak was Hebrew's alone;
+    an Italian conversation is heard in whatever language was spoken, opens in Italian,
+    and the note of where the reader is rides with the clip as it does with a line."""
+    from urllib.parse import quote
+
+    from targum import transcribe
+    from targum.audio import probe
+
+    port, key, store, chats = chatting
+    ears = Heard("come si dice")
+    monkeypatch.setattr(transcribe, "build", lambda name, **options: ears)
+    monkeypatch.setattr(
+        probe, "examine", lambda path, allow_video=False: SimpleNamespace(duration=3.0)
+    )
+    about = quote(json.dumps({"document": "luisa-it", "sentence": "Non dimenticate i vestiti"}))
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request(
+        "POST",
+        f"/chat/hear?chat=&language=it&about={about}&k={key}",
+        body=b"clip",
+        headers={"Content-Type": "audio/mp4;codecs=mp4a"},
+    )
+    response = connection.getresponse()
+    answer = json.loads(response.read())
+    connection.close()
+    assert response.status == 200 and answer["heard"] == "come si dice"
+    assert ears.languages == [""], "left to the transcriber to recognise"
+    assert ears.heard[0].suffix == ".m4a"
+    chat = store.chat_owned(None, answer["chat"])
+    assert chat is not None and chat["language"] == "it" and chat["mode"] == "find"
+    said = store.chat_turns(answer["chat"])[0]["content"]
+    assert "Non dimenticate i vestiti" in json.dumps(said, ensure_ascii=False)
 
 
 def test_hearing_refuses_what_cannot_be_heard(chatting, monkeypatch: Any) -> None:

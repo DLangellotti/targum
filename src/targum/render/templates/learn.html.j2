@@ -76,9 +76,16 @@
             <span class="card-meta" id="carry-meta"></span>
             <span class="carry-known" id="carry-known" hidden></span>
           </p>
+          {#- Reading in the sheet is comfortable, and the reader's own page is better
+              (2026-09-14, David: "while they can comfortably read on that page ... for
+              the best experience, they should click open and go to the reader page").
+              Said once, beside the press, and only over a framed reader. -#}
+          <p class="page-hint" id="carry-hint">Read here, or go full screen.</p>
           <p class="page-actions">
-            {#- Open goes to the reader's own page. -#}
-            <a class="open" id="carry" href="/">Open</a>
+            {#- Open goes to the reader's own page, and says so: "Open" alone read as
+                opening something inside the sheet. The glyph is the expand corners a
+                window is made full-size by. -#}
+            <a class="open" id="carry" href="/"><svg class="open-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg><span>Open the reader</span></a>
           </p>
         </div>
         <div class="page-window" id="carry-window" hidden>

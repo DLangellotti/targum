@@ -842,3 +842,80 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
   .page-head .card-track, .page-head .card-meta, .page-head .page-english { display: none; }
   body.learn .nothing { padding-inline: 1rem; }
 }
+
+/* --- the way to the reader (2026-09-14) -----------------------------------------------
+   The sheet is comfortable to read in and the reader's own page is better, and the page
+   said neither: Open was a small pill at the end of the head. Now it names where it goes,
+   with the expand corners a window is made full-size by, in the filled primary at the
+   control height a thumb gets, and one line beside it says what the reader gives. The
+   line stands only over a framed reader: a sheet with no window is not a preview. */
+.page-head { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas:
+    "state hint actions"
+    "title hint actions"
+    "facts hint actions"; }
+.page-hint {
+  grid-area: hint;
+  margin: 0;
+  max-inline-size: 19rem;
+  text-wrap: balance;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  text-align: end;
+}
+.page-sheet:has(.page-window[hidden]) .page-hint { display: none; }
+.page-head .open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.5rem;
+  padding: 0.5rem 1.1rem 0.5rem 0.95rem;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: var(--shadow-raised);
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.page-head .open:active { transform: scale(0.98); }
+.page-head .open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.open-glyph {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-head .open { transition: none; }
+  .page-head .open:active { transform: none; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .page-head .open { min-block-size: 44px; }
+}
+@media (max-width: 40rem) {
+  /* On a phone the head over a framed reader is the line and the known share, stacked,
+     with the press beside them. */
+  .page-sheet:has(.page-window:not([hidden])) .page-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hint actions"
+      "facts actions";
+    padding-block: 0.5rem;
+  }
+  .page-sheet:has(.page-window[hidden]) .page-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "state actions"
+      "title actions"
+      "facts actions";
+  }
+  .page-hint { max-inline-size: none; text-align: start; font-size: 0.8125rem; }
+  .page-head .open { padding-inline: 0.8rem 0.95rem; font-size: 0.875rem; }
+}

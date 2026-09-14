@@ -77,7 +77,10 @@ def test_the_library_and_the_progress_page_build_nothing() -> None:
     learn = PAGES["learn"]
     assert 'id="source"' not in learn and 'id="drop"' not in learn, "no form on the front door"
     assert learn.count('type="file"') == 0, "the + is in the framed conversation (2026-09-11)"
-    assert EMBED.count('type="file"') == 1, "one hidden input behind the +"
+    # One hidden input behind the +, and one behind Speak for a device that cannot record
+    # live, which opens its own recorder (2026-09-14).
+    assert EMBED.count('type="file"') == 2, "a hidden input behind the + and one behind Speak"
+    assert 'id="chat-voice" hidden accept="audio/*" capture' in EMBED
 
 
 def test_the_library_carries_nothing_personal() -> None:

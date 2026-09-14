@@ -132,7 +132,7 @@
     <span class="talk-drawer-title">Talk to targum</span>
     <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
   </div>
-  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
 </aside>
 <script>{{ asset('talk.js') }}</script>
 {#- The command palette (2026-09-11): one field that finds a place, a text, a series or
