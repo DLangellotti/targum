@@ -3139,16 +3139,6 @@ def parasha_leyning(
     )
 
 
-# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
-# then calls main(), so anything defined below the guard is not registered yet when the
-# app is invoked — the parasha commands were added after it and `python -m targum.cli
-# parasha` printed an empty command group while `targum parasha` worked. Keeping the
-# guard at the end means a command appended in the ordinary way is registered whichever
-# entry point is used.
-if __name__ == "__main__":
-    main()
-
-
 @video_app.command("curate")
 def video_curate(
     built: Annotated[Path, typer.Argument(help="A folder `targum build --video` wrote.")],
@@ -3205,3 +3195,13 @@ def video_list() -> None:
         licence = held.licence or "[red]no licence[/red]"
         console.print(f"video:{name}[dim] · {held.title} · {held.credit} · {licence}[/dim]")
     console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
+
+
+# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
+# then calls main(), so anything defined below the guard is not registered yet when the
+# app is invoked — the parasha commands were added after it and `python -m targum.cli
+# parasha` printed an empty command group while `targum parasha` worked. Keeping the
+# guard at the end means a command appended in the ordinary way is registered whichever
+# entry point is used.
+if __name__ == "__main__":
+    main()

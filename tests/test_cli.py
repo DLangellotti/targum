@@ -1076,3 +1076,18 @@ def test_a_rebuilt_import_keeps_its_recording_and_its_pictures(tmp_path: Path) -
     assert "data:audio" in again, "the rebuild wrote a reader with no recording in it"
     assert "<video" in again, "the rebuild wrote a reader with no picture in it"
     assert (folder / "reader" / "video" / "part-001.mp4").is_file()
+
+
+def test_the_main_guard_is_the_last_thing_in_the_module() -> None:
+    """`python -m targum.cli` calls main() when it reaches the guard, so a command
+    defined below it is not registered on that entry point. It has happened twice:
+    parasha, then video curate (2026-09-14)."""
+    import ast
+
+    import targum.cli
+
+    tree = ast.parse(Path(targum.cli.__file__).read_text(encoding="utf-8"))
+    last = tree.body[-1]
+    assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test), (
+        "something is defined after `if __name__ == '__main__'` in cli.py"
+    )
