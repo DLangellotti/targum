@@ -28,13 +28,23 @@ what says which Hebrew a text is in.
 Brenner harder than his vocabulary suggests. The number is about words, and the library
 says so.
 
-Run when the catalogue changes; write what it prints into `catalogue.py`. Kept out of
-the package because it is minutes of Stanza over a hundred thousand words, and no reader
+**Every language, not only Hebrew.** A text is read the way a build reads it: split in
+its own language, and its words taken from `lemma.for_text`, which sends French, Russian,
+Italian and Yiddish to the model (`annotate/model_lemma.py`) and everything else to
+`lemma.for_source` exactly as before — so no Hebrew number moves. The model is asked
+nothing here: its lemmatizer reads the cache alone, and a text whose words were never
+bought has nothing to count and says so. A text not yet in the catalogue, or one that
+lives deeper than `<out>/<shelf>/<text>` — the Italian shelf keeps Global Voices a level
+down — is measured by naming its built folder.
+
+Run when the catalogue changes; write what it prints into the catalogue. Kept out of
+the package because it is minutes of work over a hundred thousand words, and no reader
 should ever wait for it — but the counting itself moved into `annotate/difficulty.py`,
 because the weekly measures an issue before publishing it and does that from the
 installed package, which cannot import a script.
 
     uv run python scripts/measure_difficulty.py [--out targum-out] [--only <id>]
+    uv run python scripts/measure_difficulty.py targum-out/italian/cenere [more folders]
 """
 
 from __future__ import annotations
@@ -142,14 +152,19 @@ def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
     # Nothing built yet, or nothing built the right way: fetch it and read it here. No
     # spend — the network, the rule splitter and DICTA — though DICTA on a box without a
     # GPU is about a minute a text.
-    document = ingest.load(entry.source)
+    #
+    # In the entry's language. Left to the script, every Latin alphabet reads as English,
+    # and an Italian novel was split by the English rules and lemmatized as English.
+    # `HebrewSegmenter` is every language's splitter, the one a build uses: it routes by
+    # the language it is handed, which is why the language has to be the right one.
+    document = ingest.load(entry.source, language=entry.language)
     segmented = segment_document(document, HebrewSegmenter())
     # Built the way `rebuild` builds it (`cli.py`, the `annotate` closure). A bare
     # `Annotator()` is the modern path, so every biblical entry not already on disk was
     # measured as though it were a news article, deterministically and without a word of
     # complaint.
     annotation = Annotator(
-        lemmatizer=lemma.for_source(document.source),
+        lemmatizer=lemma.for_text(document.source, entry.language),
         bands=biblical.for_source(document.source),
     ).annotate(segmented)
     if scripture and not by_scripture_path(annotation):
@@ -157,14 +172,54 @@ def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
         # tagging is actually on disk, so a box without that data quietly returns the
         # modern reading under the same annotator name. Refusing is the whole point.
         return None, "refused — the hand tagging is not on this box"
+    if not any(annotation.tokens.values()):
+        # The model's lemmatizer reads the cache and buys nothing, so a text whose words
+        # were never bought comes back empty — and 0 would read as the easiest text on
+        # the shelf.
+        return None, "no words read yet — build it with its words first"
     return hard_share(annotation, entry.language), "measured now"
+
+
+def in_folder(folder: Path) -> tuple[int | None, str]:
+    """A built folder's difficulty, off its own `annotation.json`, in its own language.
+
+    For the texts the catalogue sweep cannot reach: one not catalogued yet, or one built
+    somewhere `on_disk` does not look. The same refusal holds for scripture read the
+    modern way, and for a folder with no words to count.
+    """
+    if folder.name == "annotation.json":
+        folder = folder.parent
+    annotation = read_artifact(Annotation, folder / "annotation.json")
+    if annotation is None:
+        return None, "no annotation.json — build it with its words first"
+    try:
+        source = str(
+            json.loads((folder / "document.json").read_text(encoding="utf-8")).get("source", "")
+        )
+    except (OSError, json.JSONDecodeError):
+        source = ""
+    if is_biblical(source) and not by_scripture_path(annotation):
+        return None, "refused — read the modern way, not by the hand tagging"
+    if not any(annotation.tokens.values()):
+        return None, "no words read yet"
+    return hard_share(annotation, annotation.language), f"on disk, {annotation.language}"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "folders", nargs="*", type=Path, help="Built folders to measure instead of the catalogue."
+    )
     parser.add_argument("--out", type=Path, default=Path("targum-out"))
     parser.add_argument("--only", default="", help="One entry id, for a quick check.")
     args = parser.parse_args()
+
+    if args.folders:
+        for folder in args.folders:
+            share, how = in_folder(folder)
+            shown = "" if share is None else f"difficulty={share:3}  "
+            print(f"{folder}  {shown}({how})", flush=True)
+        return
 
     for entry in CATALOGUE:
         if args.only and entry.id != args.only:
