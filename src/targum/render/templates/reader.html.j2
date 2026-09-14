@@ -252,6 +252,22 @@
       </button>
     </div>
     {% endif %}
+    {#- One case at a time, on demand. Always-on grammar colouring costs comprehension
+        (Lee & Huang 2008), so nothing is shown until a case is chosen, only one is ever
+        shown, and it is never remembered (targum-internal#261). -#}
+    {% if cases %}
+    <div class="group" data-what="Show one case">
+      <select data-case-lens aria-label="Show one case" title="Show every word in one case (c)">
+        <option value="">cases</option>
+        <option value="Nom">nominative</option>
+        <option value="Gen">genitive</option>
+        <option value="Dat">dative</option>
+        <option value="Acc">accusative</option>
+        <option value="Ins">instrumental</option>
+        <option value="Loc">prepositional</option>
+      </select>
+    </div>
+    {% endif %}
     {%- if siblings %}
     {#- The same news at another level. One press, and the reader keeps their place in
         the issue rather than being sent back to the library to find the easy one. -#}
@@ -750,6 +766,7 @@
     <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
     {% else %}<dt>Esc</dt><dd>close this</dd>
     <dt>?</dt><dd>these keys</dd>{% endif %}
+    {% if cases %}<dt>c</dt><dd>one case at a time</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>the chanting marks, with the vowels on</dd>{% endif %}
     <dt>p</dt><dd>parallel</dd>

@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A Russian page can show every word in one case. A "cases" choice in the bar lists the
+  six cases with how many words of each the page has ("genitive · 12"). Choosing one gives
+  those words the highlight wash and a dotted underline, `c` steps to the next case, and
+  Escape clears it. It is off until asked for, shows one case at a time, and is not
+  remembered: always-on grammar colouring costs comprehension (Lee & Huang 2008), and
+  design.md §4 allows one functional hue at a time and never colour alone. Pages whose
+  words carry no case, which is every page outside Russian and Yiddish, have no such
+  control (targum-internal#261).
 - Russian stress marks. A Russian reader's `n` switch shows an acute over the stressed
   vowel and restores ё. A word is marked only where silero-stress (MIT, the new `stress`
   extra, which the deploy installs) and OpenRussian's tables agree on one stress. A

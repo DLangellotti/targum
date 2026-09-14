@@ -1215,6 +1215,23 @@ table.rows tr:hover .copy,
 .copy:focus-visible,
 .copy.copied { opacity: 1; }
 
+/* --- one case at a time -------------------------------------------------- */
+
+/* The words in the case chosen: the highlight wash, inside §4's 12–22%, and a dotted
+   underline in the working accent so the mark is not colour alone. Nothing else on the
+   page changes, and nothing moves (targum-internal#261). */
+body[data-case="Nom"] .w.case-Nom,
+body[data-case="Gen"] .w.case-Gen,
+body[data-case="Dat"] .w.case-Dat,
+body[data-case="Acc"] .w.case-Acc,
+body[data-case="Ins"] .w.case-Ins,
+body[data-case="Loc"] .w.case-Loc {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration: underline dotted var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
 /* --- phrases you picked out ---------------------------------------------- */
 
 /* Underlined rather than filled, so a saved phrase reads as a note you made and does

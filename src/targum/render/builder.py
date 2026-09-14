@@ -2289,6 +2289,9 @@ def render(
             translated=translated,
             audio_waiting=audio_waiting,
             words=bool(words),
+            # The case lens, on a page whose words carry a case — which is to say a
+            # Russian one (targum-internal#261).
+            cases=any("Case=" in line for line in grammar),
             # CC BY asks to be named where the work is used, and the words are used in
             # the reader, so the naming goes in the reader rather than in a file about
             # the reader. Keyed off what actually ran: a text annotated before the swap
