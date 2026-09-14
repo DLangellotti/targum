@@ -422,6 +422,11 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     assert store.hours_used(None, 0) == pytest.approx(
         3.0 + chats.library.jobs[f"chat-{asked['chat']}-1"].seconds
     )
+    # Money as well as hours: three seconds at the voice's rate, on the job and on the
+    # conversation's own total. A spoken reply used to settle at nothing.
+    spoken = chats.library.jobs[f"speak-{asked['chat']}-1"]
+    assert spoken.spent == pytest.approx(3.0 / 60 * speech.PRICES[speech.NAME]) and spoken.spent > 0
+    assert store.committed(0) >= spoken.spent, "the box's day can see it"
     call(port, "GET", f"/chat/audio/{asked['chat']}/1?k={key}")
     assert len(rendered) == 1, "kept, not made again"
 
@@ -431,6 +436,26 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")
     assert status == 402 and "No voice" in body["error"]
     assert call(port, "GET", f"/chat/audio/{store.chat_open(42)}/1?k={key}")[0] == 404
+
+
+def test_a_voice_that_breaks_gives_its_claim_back(chatting, monkeypatch: Any) -> None:
+    """Any failure, not only one `speech` put into words. A claim nobody released stays
+    counted against the box's day until it ages out of the window."""
+    from targum import speech
+
+    port, key, store, chats = chatting
+    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hi"})
+    chats.answer(chats.queue.get())
+    before = store.committed(0)
+
+    def broken(text: str, into: Path, voice: str = speech.VOICE) -> speech.Clip:
+        raise RuntimeError("ffmpeg went away")
+
+    monkeypatch.setattr(speech, "render", broken)
+    monkeypatch.setenv(speech.KEY, "k")
+    status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/1?k={key}")
+    assert status == 502 and body["error"] == "The voice did not answer."
+    assert store.committed(0) == pytest.approx(before), "released, nothing held"
 
 
 def test_a_line_from_a_word_s_card_carries_its_note_and_nothing_else(chatting) -> None:

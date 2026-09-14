@@ -4983,16 +4983,17 @@ def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Pat
 def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced(
     tmp_path: Path, segmented: SegmentedDocument, translation: Translation, monkeypatch: Any
 ) -> None:
-    from targum import speech, transcribe
+    from targum import speech
 
     document = Document(
         source="memory", title="Declaration", language="he", blocks=[], content_hash="abc123"
     )
+    monkeypatch.delitem(speech.PRICES, speech.NAME)
     silent = render(document, segmented, [translation], tmp_path / "unpriced")[0].read_text(
         encoding="utf-8"
     )
     assert 'id="voice-offer"' not in silent, "no price, no door"
-    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
     offered = render(document, segmented, [translation], tmp_path / "priced")[0].read_text(
         encoding="utf-8"
     )

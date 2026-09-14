@@ -5324,9 +5324,9 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
     is hidden."""
     import json
 
-    from targum import speech, transcribe
+    from targum import speech
 
-    monkeypatch.setitem(transcribe.PRICES, speech.NAME, 0.02)
+    monkeypatch.setitem(speech.PRICES, speech.NAME, 0.02)
     built = chapter(tmp_path / "out")
     html = built.read_text(encoding="utf-8")
     assert 'id="voice-offer"' in html

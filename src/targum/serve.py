@@ -2486,12 +2486,19 @@ class Library:
         self.remember(job)
         try:
             clip, spans = speech.render_lines(lines, folder / "audio" / f"voice-{number:03d}")
+        except speech.Interrupted as error:
+            # Some of it was said, and Google charged for what was. `_blame` settles a
+            # job with money on it rather than releasing the claim.
+            self._charge_speech(job, error.seconds)
+            return self._blame(job, error.message)
         except TargumError as error:
             return self._blame(job, error.message)
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice", error, job=job.id)
             return self._blame(job, "Something went wrong. The Terminal has the detail.")
+        # Paid for from here on, whatever happens to the page below.
+        self._charge_speech(job, clip.seconds)
         kept = manifest_module.load(folder) or manifest_module.AudioManifest(
             source=str(folder),
             sha256=str(document.content_hash or ""),
@@ -2540,16 +2547,22 @@ class Library:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice:render", error, job=job.id)
             return self._blame(job, "Something went wrong. The Terminal has the detail.")
-        job.seconds = clip.seconds
-        spent = Usage()
-        spent.add_seconds(speech.NAME, clip.seconds)
-        job.spent = spent.cost()
         job.reader = f"{folder.name}/reader/{pages[0].name}"
         job.message = ""
         job.stage = "done"
         self.settle(job)
         self.remember(job)
         self.tell(job)
+
+    @staticmethod
+    def _charge_speech(job: Job, seconds: float) -> None:
+        """What a voice job has spent: the seconds made, at the voice's price."""
+        from . import speech
+
+        job.seconds = seconds
+        spent = Usage()
+        spent.add_seconds(speech.NAME, seconds)
+        job.spent = spent.cost()
 
     def run_part(self, job: Job) -> None:
         """Hear one more part of an imported recording, and rebuild around it.
@@ -4323,8 +4336,9 @@ class Handler(BaseHTTPRequestHandler):
         Made once and kept beside the transcript, then served like any media file. The
         press is the spend — a reader who did not press hears nothing and pays nothing —
         and the clip's seconds come out of the same eight hours a recording does, read
-        off the clip and never off the text. The voice's own price is not yet in any
-        table, so the money side is counted and not charged; see `speech`.
+        off the clip and never off the text. It is claimed at the voice's price for the
+        words, so the box's day and the account's see it before it is spent, and settled
+        to the clip — including a clip that was made and then could not be kept.
         """
         from . import speech
         from .chat import hebrew as hebrew_module
@@ -4350,11 +4364,12 @@ class Handler(BaseHTTPRequestHandler):
         text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
         if not text:
             return self._json({"error": "Nothing to read aloud yet."}, 404)
+        seconds = hebrew_module.seconds_for(hebrew_module.words_in(text))
         job = Job(
             id=f"speak-{chat_id}-{n}",
             source=f"chat:{chat_id}",
-            estimate=0.0,
-            seconds=hebrew_module.seconds_for(hebrew_module.words_in(text)),
+            estimate=seconds / 60 * speech.PRICES[speech.NAME],
+            seconds=seconds,
             stage="working",
             owner=person.id if person else None,
             home=home,
@@ -4371,19 +4386,38 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": refused}, 402)
         try:
             clip = speech.render(text, where / f"{chat_id}-{n}")
-        except TargumError as error:
+        except Exception as error:
+            # Anything, not only what `speech` says in words: a claim left held by an
+            # exception nobody caught stays counted against the day until it ages out.
             job.stage = "failed"
-            self.library.release(job)
+            made = error.seconds if isinstance(error, speech.Interrupted) else 0.0
+            if made > 0:
+                self._settle_speech(job, made, chat_id)
+            else:
+                self.library.release(job)
             self.library.remember(job)
-            return self._json({"error": error.message}, 502)
-        job.seconds = clip.seconds
+            if not isinstance(error, TargumError):
+                traceback.print_exc()
+                incidents_module.record(self.library.incidents, "speak", error, job=job.id)
+            said = error.message if isinstance(error, TargumError) else "The voice did not answer."
+            return self._json({"error": said}, 502)
         job.stage = "done"
-        spent = Usage()
-        spent.add_seconds(speech.NAME, clip.seconds)
-        job.spent = spent.cost()
-        self.library.settle(job)
+        self._settle_speech(job, clip.seconds, chat_id)
         self.library.remember(job)
         self._send_file(clip.path, clip.kind)
+
+    def _settle_speech(self, job: Job, seconds: float, chat_id: str) -> None:
+        """Settle a spoken reply to the seconds the voice made, and put what they cost on
+        the conversation's own total beside what its turns cost."""
+        from . import speech
+
+        job.seconds = seconds
+        spent = Usage()
+        spent.add_seconds(speech.NAME, seconds)
+        job.spent = spent.cost()
+        self.library.settle(job)
+        if job.spent > 0:
+            self.chats.store.chat_add_spent(chat_id, job.spent)
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.
@@ -4550,7 +4584,6 @@ class Handler(BaseHTTPRequestHandler):
         from .models import SegmentedDocument
         from .models import read_artifact as read
         from .render import split_sections
-        from .transcribe import PRICES as MINUTES
 
         home = self._home()
         folder = self.library.within(home, str(payload.get("name") or ""))
@@ -4576,6 +4609,22 @@ class Handler(BaseHTTPRequestHandler):
             part = kept.part_for(section.segment_ids)
             if part is not None and part.audio:
                 return self._json({"ready": True})
+        # A second press while the first is still being made joins it. Two presses
+        # would otherwise make the same section twice and pay for both.
+        underway = next(
+            (
+                other
+                for other in list(self.library.jobs.values())
+                if other.kind == "voice"
+                and other.home == home
+                and other.options.get("folder") == folder.name
+                and other.options.get("section") == number
+                and other.stage not in ("done", "failed", "blocked")
+            ),
+            None,
+        )
+        if underway is not None:
+            return self._json(underway.state())
         wanted = set(section.segment_ids)
         words = hebrew_module.words_in(
             *(segment.text for segment in segmented.segments if segment.id in wanted)
@@ -4591,16 +4640,20 @@ class Handler(BaseHTTPRequestHandler):
             admin=bool(person and self.store.is_admin(person.email)),
             kind="voice",
             seconds=seconds,
-            estimate=seconds / 60 * MINUTES[speech.NAME],
+            estimate=seconds / 60 * speech.PRICES[speech.NAME],
             title=section.title,
         )
+        # Written down before it is claimed. `Store.claim` reserves by updating the job's
+        # row, and a row that is not there yet takes the update silently: the press was
+        # claimed at nothing, in money and in hours, until the worker settled it.
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
         refused = self.library.claim_turn(job, kind="voice")
         if refused:
             job.stage = "blocked"
             job.blocked = refused
+            self.library.remember(job)
             return self._json({"error": refused}, 402)
-        self.library.jobs[job.id] = job
-        self.library.remember(job)
         self.library.enqueue(job)
         self._json(job.state())
 

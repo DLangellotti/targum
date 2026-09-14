@@ -769,6 +769,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   stops letting a path with a colon in it through. Carrying `translations` no longer lets
   a `from` targum does not read past the check either. Links were already safe: the URL
   ingester refuses private addresses on every hop.
+- Speech has a price, and every money ceiling sees it. The voice was counted in seconds
+  and charged nothing, so a spoken reply and a read-aloud section were claimed at $0,
+  and the box's day, the account's and the chat's — all sums of claims — could not see
+  a cent of it; an admin had no bound at all. `speech.PRICES` holds Gemini 3.1 Flash
+  TTS at $0.03 a minute ($20 per million audio tokens at 25 a second), in its own table
+  because `transcribe.PRICES`'s dearest row is the fallback quote for a recording. A
+  spoken reply is claimed at that rate for its words and settled to the clip, onto the
+  conversation's total too. Pricing it opens "Hear this section", as #246 decided, and
+  that door had two faults waiting behind it: the press claimed before its job was
+  written down, so the reservation updated no row and went nowhere, and two presses made
+  the section twice. The job is written first now, and a second press joins the first.
+  A voice that stops part-way settles the lines it already said instead of releasing
+  them, and a spoken reply that fails in any way gives its claim back. A test fails when
+  a model targum spends on has no price, so this cannot recur quietly.
 - Buying a recording's second part, or a book's next chapter, no longer rebuilds the
   reader without a word to tap. Every reader is built through one place, and that place
   read `words` off the door's options and took silence for no; the part and chapter

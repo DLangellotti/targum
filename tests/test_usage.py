@@ -549,3 +549,43 @@ def test_cache_reads_and_writes_are_counted_and_priced() -> None:
     unpriced = Usage()
     unpriced.add("nobody-priced-this", 1, 1, cache_read=1_000_000)
     assert unpriced.cost() == 0
+
+
+def test_every_model_targum_spends_on_has_a_price() -> None:
+    """An unpriced model costs nothing in the ledger, which is honest about one row and a
+    hole in every ceiling: the box's day, the account's and the chat's are sums of claims,
+    and a claim of nothing is invisible to all three. The voice ran that way from the day
+    it shipped until 2026-09-13. So a model that is used and not priced fails here, before
+    it can be sold."""
+    from targum import speech, transcribe
+    from targum.annotate.dictionary import DICTIONARY_MODEL
+    from targum.annotate.gloss import GLOSS_MODEL
+    from targum.annotate.phrase import PHRASE_MODEL
+    from targum.chat import CHAT_MODEL
+    from targum.serve import HOSTED_MODEL
+    from targum.transcribe.elevenlabs import ScribeTranscriber
+    from targum.transcribe.openai_whisper import WhisperTranscriber
+    from targum.transcribe.refine.anthropic import MODEL as REFINE_MODEL
+    from targum.translate.anthropic_provider import DEFAULT_MODEL, PRICES
+
+    by_tokens = {
+        DEFAULT_MODEL,
+        HOSTED_MODEL,
+        CHAT_MODEL,
+        GLOSS_MODEL,
+        PHRASE_MODEL,
+        DICTIONARY_MODEL,
+        REFINE_MODEL,
+    }
+    assert by_tokens <= set(PRICES), by_tokens - set(PRICES)
+    by_minutes = {ScribeTranscriber().name, WhisperTranscriber().name}
+    assert by_minutes <= set(transcribe.PRICES), by_minutes - set(transcribe.PRICES)
+    assert speech.NAME in speech.PRICES
+    for model in by_tokens:
+        spent = Usage()
+        spent.add(model, 1000, 1000)
+        assert spent.cost() > 0, model
+    for model in (*by_minutes, speech.NAME):
+        spent = Usage()
+        spent.add_seconds(model, 60.0)
+        assert spent.cost() > 0, model
