@@ -5968,3 +5968,39 @@ def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: 
     head = page.evaluate("() => document.querySelector('.gloss-card .lemma').textContent")
     assert head == "ру\u0301ку", "the card shows the word stressed, as tapped"
     context.close()
+
+
+CASES_SHOWN = """
+() => [...document.querySelectorAll('.w')]
+  .filter((w) => getComputedStyle(w).textDecorationStyle === 'dotted')
+  .map((w) => w.textContent)
+"""
+
+
+def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path) -> None:
+    """The lens lights the words in one case, with its count in the choice, steps with
+    `c`, and goes with Escape; nothing is lit until it is asked for (targum-internal#261)."""
+    reader = russian(tmp_path / "reader")
+    context, page = open_reader(browser, reader)
+    assert page.evaluate(CASES_SHOWN) == [], "off by default"
+    options = page.evaluate(
+        "() => [...document.querySelector('[data-case-lens]').options].map((o) => o.textContent)"
+    )
+    assert options[:3] == ["cases", "nominative · 2", "genitive · 0"]
+    assert "accusative · 1" in options and "instrumental · 1" in options
+    page.select_option("[data-case-lens]", "Acc")
+    assert page.evaluate(CASES_SHOWN) == ["руку"]
+    page.keyboard.press("c")
+    assert page.evaluate("() => document.body.getAttribute('data-case')") == "Ins"
+    assert page.evaluate(CASES_SHOWN) == ["рукой"]
+    page.keyboard.press("Escape")
+    assert (
+        page.evaluate(CASES_SHOWN) == []
+        and page.evaluate("() => document.querySelector('[data-case-lens]').value") == ""
+    )
+    context.close()
+
+
+def test_a_page_without_cases_has_no_lens(browser, built: Path) -> None:
+    html = built.read_text(encoding="utf-8")
+    assert "<select data-case-lens" not in html

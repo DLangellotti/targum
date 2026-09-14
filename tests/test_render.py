@@ -3817,7 +3817,11 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     assert escape.index("showMore(false);") < escape.index("showKeys(false);")
     # And each layer stops there: closing the keys used to fall straight through and drop
     # you out of the queue in the same press.
-    assert escape.count("return;") == 6
+    # A case on show is a layer over the text, taken off after the card and before the
+    # panel (targum-internal#261).
+    assert escape.index("hideCard();") < escape.index('showCase("");')
+    assert escape.index('showCase("");') < escape.index("showList(false);")
+    assert escape.count("return;") == 7
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:

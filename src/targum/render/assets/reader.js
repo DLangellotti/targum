@@ -1865,6 +1865,10 @@ var targumReader = function () {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
       if (token[3]) classes.push("split");
+      // Which case the word is in, for the lens: a class the stylesheet lights only for
+      // the one case chosen, so choosing another redraws nothing.
+      var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
+      if (CASE_LENS.indexOf(inCase) >= 0) classes.push("case-" + inCase);
       var status = statusOf(lemma);
       layers.push({
         start: at(token[0]),
@@ -3049,6 +3053,8 @@ var targumReader = function () {
     Voc: "vocative",
   };
   var ASPECT_WORDS = { Perf: "perfective", Imp: "imperfective" };
+  // The six a Russian course teaches, in the order it teaches them; the lens offers these.
+  var CASE_LENS = ["Nom", "Gen", "Dat", "Acc", "Ins", "Loc"];
   var GENDER_MARKS = { Masc: "m", Fem: "f", Neut: "n" };
   var POS_WORDS = {
     NOUN: "noun",
@@ -3425,6 +3431,56 @@ var targumReader = function () {
       }
     }
     return out;
+  }
+
+  /* --- one case at a time --------------------------------------------------
+   *
+   * A Russian page can light every word in one case: the wash kept words wear, and a
+   * dotted underline so the mark never rests on colour alone (design.md §4). One case,
+   * never six colours; chosen, never on by default; forgotten when the page is left
+   * (targum-internal#261). The count of each case on this page rides in its option, so
+   * "genitive · 12" is both the label and the answer to how many.
+   */
+  var caseLens = document.querySelector("[data-case-lens]");
+  var caseCounts = {};
+  CASE_LENS.forEach(function (name) {
+    caseCounts[name] = 0;
+  });
+  Object.keys(wordData).forEach(function (segmentId) {
+    (wordData[segmentId] || []).forEach(function (token) {
+      var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
+      if (caseCounts[inCase] !== undefined) caseCounts[inCase]++;
+    });
+  });
+  if (caseLens) {
+    Array.prototype.forEach.call(caseLens.options, function (option) {
+      if (!option.value) return;
+      var count = caseCounts[option.value] || 0;
+      option.textContent = CASE_WORDS[option.value] + " · " + count;
+      option.disabled = !count;
+    });
+    caseLens.addEventListener("change", function () {
+      showCase(caseLens.value);
+    });
+  }
+
+  function showCase(name) {
+    var chosen = CASE_LENS.indexOf(name) >= 0 ? name : "";
+    if (chosen) body.setAttribute("data-case", chosen);
+    else body.removeAttribute("data-case");
+    if (caseLens) caseLens.value = chosen;
+    say(chosen ? CASE_WORDS[chosen] + ", " + caseCounts[chosen] + " here." : "No case shown.");
+  }
+
+  // `c` steps through the cases this page has, and past the last one back to none.
+  function nextCase() {
+    if (!caseLens) return false;
+    var present = CASE_LENS.filter(function (name) {
+      return caseCounts[name] > 0;
+    });
+    var at = present.indexOf(body.getAttribute("data-case") || "");
+    showCase(at + 1 < present.length ? present[at + 1] : "");
+    return true;
   }
 
   // The first place in this text a partner verb is used, and the form it takes there. A
@@ -7223,6 +7279,9 @@ var targumReader = function () {
       case "n":
         toggleVowels();
         return;
+      case "c":
+        if (!nextCase()) return;
+        break;
       case "a":
         toggleTaamim();
         return;
@@ -7261,6 +7320,11 @@ var targumReader = function () {
         if (card && !card.hidden && !fading) {
           hideCard();
           if (standing && standing.focus) standing.focus({ preventScroll: true });
+          return;
+        }
+        // A case on show is a layer over the text too.
+        if (body.hasAttribute("data-case")) {
+          showCase("");
           return;
         }
         // Then the panel, which covers the translation you are grading against. It is a
