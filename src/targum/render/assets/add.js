@@ -160,6 +160,11 @@
     var text = given ? given.value.trim() : "";
     if (!text) return { kind: "empty", text: "" };
     if (LINK.test(text) || IDENTIFIER.test(text)) return { kind: "link", text: text };
+    // A link with a few words after it — "https://… the article about the election" —
+    // is still the link (2026-09-14). It was read as a description, and Continue then
+    // said the same sentence again, as an error.
+    var leading = /^(https?:\/\/\S+)\s+(?!https?:)[\s\S]*$/i.exec(text);
+    if (leading) return { kind: "link", text: leading[1] };
     var words = text.split(/\s+/).length;
     if (inLanguage(text, adding())) {
       var sentence = /[.!?׃:]\s*$|[.!?׃]\s/.test(text);
@@ -377,8 +382,8 @@
     if (read.kind === "foreign") {
       var code = adding();
       return english(read.text, code)
-        ? "You're adding " + named(code) + ", and this reads as English. Choose its language at the top."
-        : "You're adding " + named(code) + ", and this isn't in " + scriptOf(code).called + ". Choose its language at the top.";
+        ? "You're adding " + named(code) + ", and this reads as English. Choose its language under Change."
+        : "You're adding " + named(code) + ", and this isn't in " + scriptOf(code).called + ". Choose its language under Change.";
     }
     return RESTING;
   }
@@ -1010,11 +1015,16 @@
       // goes. Words in another script are not a text targum reads.
       if (read.kind !== "link") {
         go.disabled = false;
+        // What to do instead, not the line under the box said a second time in red.
         say(
           line(
-            read.kind === "description" || read.kind === "foreign"
-              ? understanding()
-              : "Paste a link or some " + named(adding()) + ", or drop a file."
+            read.kind === "description"
+              ? talks()
+                ? "Continue reads a link, a file or the text itself. Press Ask targum and we'll look for it."
+                : "Continue reads a link, a file or the text itself. Paste one of those here."
+              : read.kind === "foreign"
+                ? "Choose its language under Change, then press Continue."
+                : "Paste a link or some " + named(adding()) + ", or drop a file."
           ),
           true
         );
@@ -1038,9 +1048,11 @@
         if (job.blocked) return refuse(job);
         offer(job);
       })
-      .catch(function (error) {
+      .catch(function () {
         go.disabled = false;
-        say(line(String(error)), true);
+        // Never the exception itself: "TypeError: Failed to fetch" is not a sentence
+        // anybody should be handed (2026-09-14).
+        say(line("We couldn't reach targum. Check your connection and try again."), true);
       });
   };
 

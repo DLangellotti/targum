@@ -345,3 +345,15 @@ body.add > .add-main {
   .bring > .drop,
   .drop.small { transition: none; }
 }
+
+/* The box says what it is for above it, not only in its placeholder, which goes the
+   moment anything is typed (2026-09-14). */
+.given-label {
+  display: block;
+  margin-block-end: 0.35rem;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+/* Change is a press, and looks like one. */
+.add .change { color: var(--teal); }
