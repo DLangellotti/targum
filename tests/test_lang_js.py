@@ -61,3 +61,10 @@ def test_one_language_draws_no_menu() -> None:
 
 def test_anywhere_but_the_nav_the_same_call_still_draws_tabs() -> None:
     assert set(menu()["tabs"]) == {"tab"}
+
+
+def test_each_language_wears_a_small_flag_and_a_language_with_no_country_keeps_the_room() -> None:
+    """2026-09-14 (design.md §12): a drawn flag beside each name in the menu. Yiddish and
+    Aramaic have no country, so no flag, and an empty box the flag's width."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi"])})
+    assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "none"}

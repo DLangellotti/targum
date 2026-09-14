@@ -73,5 +73,14 @@ process.stdout.write(
     stored: global.localStorage.getItem("targum:language"),
     afterPanelHidden: panel ? panel.hidden : true,
     tabs: other.children.map((c) => c.getAttribute("role")),
+    // What sits beside each name: a drawn flag, or the empty room one would take.
+    flags: Object.fromEntries(
+      items.map((item) => {
+        const named = item.children[0];
+        const box = named && named.children ? named.children[0] : null;
+        const drawn = box && String(box.className).includes("none") ? "none" : box && box.innerHTML ? "flag" : "";
+        return [item.getAttribute("data-code"), drawn];
+      })
+    ),
   })
 );

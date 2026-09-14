@@ -177,3 +177,33 @@ def test_a_rendering_is_in_the_language_its_source_names() -> None:
     assert language("siddur:en:shacharit") == "en"
     assert language("wikisource:United States Declaration of Independence") == "en"
     assert language("https://globalvoices.org/2014/07/15/farz") == "en"
+
+
+def test_a_text_says_every_language_it_can_be_read_in() -> None:
+    """2026-09-14: the Aramaic shelf showed nothing, because a row named one language.
+    Daniel and Ezra have Aramaic chapters; a Torah book carrying Targum Onkelos beside it
+    has Aramaic too; everything else is its own language alone."""
+    from targum.catalogue import Entry, Kind, Register, Rendering
+
+    def entry(source: str, *renderings: str) -> Entry:
+        return Entry(
+            id="x",
+            title="x",
+            author="",
+            language="he",
+            source=source,
+            blurb="",
+            words=10,
+            tags=frozenset(),
+            translations=tuple(Rendering(name="r", source=one) for one in renderings),
+            kind=Kind.prose,
+            register=Register.biblical,
+        )
+
+    assert entry("sefaria:Daniel").languages == ["he", "arc"]
+    assert entry("sefaria:Genesis", "sefaria:en:Genesis", "sefaria:arc:Genesis").languages == [
+        "he",
+        "arc",
+    ]
+    assert entry("sefaria:Ruth", "sefaria:en:Ruth").languages == ["he"]
+    assert entry("sefaria:Ruth").state()["languages"] == ["he"]

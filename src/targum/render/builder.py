@@ -304,6 +304,18 @@ MODERN_FACE = ("Frank Ruhl Libre", "fonts/FrankRuhlLibre-Regular.woff2")
 _FALLBACK = '"Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT", David, serif'
 
 
+def _language_names() -> list[tuple[str, str]]:
+    """Every language a page may have to name: offered, learned or read into.
+
+    `OFFERED` alone left Aramaic and Yiddish out, and the language menu called them
+    "ARC" and "YI" (2026-09-14).
+    """
+    from ..translate.prompts import INTO, OFFERED, READING, language_name
+
+    codes = dict.fromkeys([*OFFERED, *(code for code, _ in READING), *(code for code, _ in INTO)])
+    return [(code, language_name(code)) for code in codes]
+
+
 @cache
 def _hebrew_face(biblical: bool = False) -> Markup:
     """The page's own Hebrew face, carried rather than hoped for.
@@ -871,14 +883,14 @@ def learn_page(token: str) -> str:
     from the browser's own stores, which is what lets one rendered page serve everybody.
     """
     from ..catalogue import everything
-    from ..translate.prompts import INTO, OFFERED, language_name
+    from ..translate.prompts import INTO
 
     return (
         _environment()
         .get_template("learn.html.j2")
         .render(
             token=token,
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
             # Which languages the conversation's "= " lines can be in, for the first
             # visit's one question (targum-internal#243).
             into=[code for code, _ in INTO],
@@ -927,7 +939,6 @@ def list_page(token: str, which: str) -> str:
     same template three times rather than three templates: the difference between them is
     which section is rendered, and nothing else.
     """
-    from ..translate.prompts import OFFERED, language_name
 
     if which not in LISTS:
         raise KeyError(which)
@@ -938,7 +949,7 @@ def list_page(token: str, which: str) -> str:
             token=token,
             which=which,
             heading=LISTS[which],
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
         )
     )
 
@@ -955,7 +966,7 @@ def add_page(token: str, no_key: str = "") -> str:
     refused with — and it matters more here than it used to, this now being the only page
     that spends anything.
     """
-    from ..translate.prompts import INTO, OFFERED, READING, language_name
+    from ..translate.prompts import INTO, READING
 
     return (
         _environment()
@@ -967,7 +978,7 @@ def add_page(token: str, no_key: str = "") -> str:
             reading=_staged(READING),
             into=_staged(INTO),
             no_key=no_key,
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
         )
     )
 
@@ -986,7 +997,7 @@ def chat_page(token: str, embed: bool = False) -> str:
     page (design.md §13, 2026-09-11): the front page holds the conversation itself
     rather than a copy of its box. Every link inside opens in the page that holds it.
     """
-    from ..translate.prompts import INTO, OFFERED, language_name
+    from ..translate.prompts import INTO
 
     return (
         _environment()
@@ -994,7 +1005,7 @@ def chat_page(token: str, embed: bool = False) -> str:
         .render(
             token=token,
             into=[code for code, _ in INTO],
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
             embed=embed,
         )
     )
@@ -1161,14 +1172,13 @@ def progress_page(token: str) -> str:
     Built from the browser's own store like the start page, because that is where a
     word list lives; the server only hands over the page.
     """
-    from ..translate.prompts import OFFERED
 
     return (
         _environment()
         .get_template("progress.html.j2")
         .render(
             token=token,
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
             # The week's issue, if there is a readable one. Learn is the only surface
             # that knows who is reading, so it is the only one that can open the digest
             # at the reader's own rung rather than asking them to pick a level — see
@@ -1614,7 +1624,6 @@ def library_page(token: str) -> str:
     that can be empty.
     """
     from ..catalogue import collections, everything
-    from ..translate.prompts import OFFERED
 
     return (
         _environment()
@@ -1626,7 +1635,7 @@ def library_page(token: str) -> str:
             # for the same reason — and only the members actually on the shelf, so a
             # collection can never open onto a row that is not there.
             collections=[group.state() for group in collections()],
-            languages=[(code, language_name(code)) for code in OFFERED],
+            languages=_language_names(),
         )
     )
 

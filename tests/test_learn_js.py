@@ -938,3 +938,31 @@ def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
     drawn = draw(built_all, stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert [d["label"] for d in drawn["doors"]] == ROW
     assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"
+
+
+def test_the_date_follows_the_language_the_page_is_in() -> None:
+    """2026-09-14: the Hebrew date is for Hebrew, Aramaic and Yiddish, with the week's
+    portion. In French, Italian or Russian the date is the country's, in its language,
+    and the portion is not this page's to mention."""
+    portion = {
+        "id": "parasha",
+        "name": "Parashat HaShavua",
+        "instalment": {
+            "id": "haazinu",
+            "title": "Ha'azinu",
+            "hebrew": "האזינו",
+            "when": "2026-09-12",
+        },
+    }
+    aramaic = draw([reader("a", "א")], series=[portion], language="arc")
+    assert "This week: האזינו" in aramaic["today"]
+    assert re.search(r"\(.*[\u05d0-\u05ea].*\)", aramaic["today"]), "the Hebrew date"
+
+    french = draw([reader("a", "א")], series=[portion], language="fr")
+    inside = re.search(r"\((.*)\)", french["today"])
+    assert inside and not re.search(r"[\u05d0-\u05ea]", french["today"])
+    assert re.search(r"(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)", inside.group(1))
+    assert "This week" not in french["today"]
+
+    russian = draw([reader("a", "א")], language="ru")
+    assert re.search(r"[\u0400-\u04ff]", russian["today"]), "in Russian"

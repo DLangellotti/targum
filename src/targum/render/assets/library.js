@@ -152,10 +152,19 @@
     unmeasured: "— means we haven't measured it yet.",
   };
 
+  /* Whether the shelf on show is Hebrew's (2026-09-14). "Which Hebrew" — the register, its
+     chips, its column and its note — is a question about Hebrew texts, and under another
+     language it is not asked: a register picked while reading Hebrew went on filtering a
+     Russian shelf down to nothing, under a note about the Hebrew of the Bible. The choice
+     is kept for when the reader comes back to Hebrew. */
+  var inHebrew = true;
+
   function noteFor(showing) {
     var clauses = [];
     if (view.kind && NOTES.kind[view.kind]) clauses.push(NOTES.kind[view.kind]);
-    if (view.register && NOTES.register[view.register]) clauses.push(NOTES.register[view.register]);
+    if (inHebrew && view.register && NOTES.register[view.register]) {
+      clauses.push(NOTES.register[view.register]);
+    }
     if (view.spoken === "yes") clauses.push(NOTES.spoken);
     if (view.spoken === "video") clauses.push(NOTES.video);
     if (NOTES.sort[view.sort]) clauses.push(NOTES.sort[view.sort]);
@@ -292,6 +301,9 @@
         english: entry.english || "",
         author: entry.author,
         language: entry.language,
+        // Every language it can be read in: Daniel's Hebrew and Aramaic, a Torah book's
+        // Hebrew and the Onkelos beside it (2026-09-14).
+        languages: entry.languages || [entry.language],
         kind: entry.kind,
         register: entry.register,
         difficulty: entry.difficulty,
@@ -721,7 +733,7 @@
     var state = using || view;
     if (!inLanguage(row, code)) return false;
     if (state.kind && row.kind !== state.kind) return false;
-    if (state.register && row.register !== state.register) return false;
+    if (code === lang.HOME && state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
     if (state.spoken === "yes" && !row.spoken) return false;
     if (state.spoken === "video" && !row.video) return false;
@@ -861,7 +873,9 @@
     var host = document.getElementById("rows-head");
     host.textContent = "";
     COLUMNS.forEach(function (pair) {
-      if (!pair[0]) {
+      // The register's column says nothing under another language: kept as an empty cell
+      // so the row still lines up with the heading.
+      if (!pair[0] || (pair[0] === "register" && !inHebrew)) {
         host.appendChild(el("span"));
         return;
       }
@@ -1244,12 +1258,16 @@
 
     function show(code) {
       chosen = code;
+      inHebrew = code === lang.HOME;
       lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       if (betaNote) {
         betaNote.hidden = !lang.beta(code);
         if (lang.beta(code)) betaNote.textContent = lang.betaNote(code, names);
       }
+      // The search names the language the shelf is in.
+      var box = document.getElementById("find");
+      if (box) box.placeholder = "Search a title, " + (names[code] || "the text") + " or English";
       redraw();
     }
 

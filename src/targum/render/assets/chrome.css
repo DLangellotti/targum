@@ -362,7 +362,25 @@ body {
   cursor: pointer;
 }
 .lang-panel button:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.lang-panel button[aria-checked="true"] { font-weight: 600; box-shadow: inset 2px 0 0 var(--teal); }
+/* The language the page is in: the row's own tint and the primary's ink, the way the nav
+   marks the page you are on. A bar at the edge of a rounded row read as a crescent. */
+.lang-panel button[aria-checked="true"] { font-weight: 600; color: var(--teal); background: var(--teal-wash); }
+.lang-panel .lang-item { display: inline-flex; align-items: center; gap: 0.55rem; }
+/* A flag beside each name (§12, 2026-09-14): small, square-cornered at the scale's
+   smallest step, a hairline round the white stripes. A language with no country keeps the
+   width, so the names line up. */
+.lang-flag {
+  display: inline-block;
+  flex: none;
+  inline-size: 1.125rem;
+  block-size: 0.75rem;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--hairline);
+  line-height: 0;
+}
+.lang-flag svg { display: block; inline-size: 100%; block-size: 100%; }
+.lang-flag.none { box-shadow: none; }
 .lang-panel .lang-more {
   margin-block-start: 0.3rem;
   padding: 0.5rem 0.6rem 0.2rem;
@@ -605,6 +623,27 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .account > button.avatar.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal); }
 .notices > button { border: 0; border-radius: 999px; color: var(--ink-soft); background: transparent; }
 .notices > button:hover, .notices > button.on { color: var(--ink); background: var(--teal-wash); }
+/* The language menu on glass (2026-09-14): it was the ink bar's light text on a light bar
+   and could hardly be read. Ink on the tint, a pill, like the places beside it. */
+.lang-menu .lang-open {
+  color: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9375rem;
+  gap: 0.5rem;
+}
+.lang-menu .lang-open:hover,
+.lang-menu .lang-open.on { color: var(--ink); background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.lang-panel {
+  border: 0;
+  border-radius: var(--radius-sheet);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+  padding: 0.5rem;
+}
+.lang-panel button { border-radius: var(--radius-row); font-size: 0.9375rem; padding: 0.5rem 0.7rem; }
 
 /* --- floating panels: the sheet's corners, the floating tier, no line ----------------- */
 .account-panel, .notices-panel, .talk-drawer {

@@ -37,8 +37,8 @@ picture is on. Nothing plays until pressed, and the text is still the page. This
 "the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
 meant still holds: engagement is welcome, arcade is not. Streaks,
 goals and milestones are a ledger: real counts in serif tabular numbers, leaf for
-achievement, iris for novelty, celebration in type rather than motion. No mascots, no flags,
-no emoji.
+achievement, iris for novelty, celebration in type rather than motion. No mascots, no flags
+(one exception, the language menu — §12, 2026-09-14), no emoji.
 
 Positions deliberately avoided: heritage gold (the Orthodox-publisher shelf), Koren's
 burgundy `#800020`, the language-app orange, and everyone's blue.
@@ -288,7 +288,8 @@ acts.
 - Metallic golds, bevels, emblems, or any gradient on the mark, lockup or wordmark —
   "printed sefer" is the wrong century and the wrong product. (UI gloss per §9 is the only
   permitted sheen.)
-- Mascots, squircle app-mark clichés, flag imagery — texts, not countries.
+- Mascots, squircle app-mark clichés, flag imagery — texts, not countries. (The language
+  menu's small flags are the one exception: §12, 2026-09-14.)
 - Burgundy `#800020` (Koren's), orange (the language-app default), blue (everyone's).
 - Ritual objects **in the identity** — the mark, the lockup, the wordmark, the app icon,
   anything that stands for targum itself. A Hebrew letterform may be used as pure form
@@ -447,6 +448,26 @@ is the one place whose glyph, a `+`, stands beside its word at a desk as well as
 on a phone, since the `+` is how the product already says "bring something". On a phone
 the bar at the foot takes four columns. The `+` on the box stays: it brings a file while
 asking, and the page is for everything else.
+
+### The language menu carries flags, and the date follows the language — 2026-09-14
+
+§1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things
+targum never does. David asked for a small flag beside each language in the menu, and
+this is the one place that rule now gives way: the language menu, and nothing else. The
+flags are drawn, not typed — an emoji flag is an emoji, which §6 still refuses — at the
+size of a word's cap height, with the smallest corner the scale has and a hairline round
+the white stripes. They are painted in their own national colours, which are not the
+palette's and are not meant to be: a flag recoloured into brand neutrals is not the flag.
+Hebrew wears Israel's. Yiddish and Aramaic have no country and so no flag, and keep its
+width so the names still line up. Everywhere else, the rule stands: no flag on a shelf, a
+card, a text or the identity, because a text is still not a country.
+
+The same day, the date under the greeting stopped being Hebrew's in every language. It
+gives the Hebrew date for Hebrew, Aramaic and Yiddish, whose texts keep that calendar, and
+the week's portion with it. For French, Italian and Russian it gives the date the way that
+country writes it, in its language, with the public holiday when today is one — fixed
+dates and the ones that move with Easter, Western for France and Italy, Orthodox for
+Russia. Nothing else there moved: one line, the reader's own date first.
 
 ### A language with CEFR levels shows them — 2026-09-13
 

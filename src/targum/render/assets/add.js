@@ -705,8 +705,8 @@
         note.textContent =
           found.name +
           (found.stage === "R&D"
-            ? " is experimental. It has no word levels yet, and everything works best in Hebrew."
-            : " is experimental. Everything works best in Hebrew.");
+            ? " is experimental. It has no word levels yet."
+            : " is new here, and still experimental.");
       }
       if (code) lang.set(code);
     }

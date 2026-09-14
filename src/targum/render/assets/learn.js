@@ -136,6 +136,14 @@
   var ago = shelf.ago;
   var base = shelf.base;
 
+  // Every language a text can be read in: Daniel's Hebrew and Aramaic, a Torah book's
+  // Hebrew and the Onkelos beside it (2026-09-14). A row from before has its one.
+  function inLanguage(thing, code) {
+    var all = thing.languages && thing.languages.length ? thing.languages : [thing.language];
+    for (var n = 0; n < all.length; n++) if (base(all[n]) === code) return true;
+    return false;
+  }
+
   /* Languages this reader has words in. Signed out with nothing kept, this is empty
      and the switcher does not appear, which is the intended resting state. */
   function kept() {
@@ -427,17 +435,140 @@
     }
   }
 
+  /* --- a country's calendar, beside the date (2026-09-14) -----------------------------
+   *
+   * The Hebrew date is Hebrew's, and Aramaic's and Yiddish's: their texts keep that
+   * calendar. A reader in French, Italian or Russian is not helped by it, so the date is
+   * given the way that country gives it, in its own language, with the public holiday
+   * when today is one. Fixed dates, and the ones that move with Easter: the Western
+   * reckoning for France and Italy, the Orthodox one for Russia.
+   */
+  var COUNTRIES = {
+    fr: {
+      locale: "fr-FR",
+      easter: "western",
+      fixed: {
+        "1-1": "Jour de l'an",
+        "5-1": "Fête du Travail",
+        "5-8": "Victoire 1945",
+        "7-14": "Fête nationale",
+        "8-15": "Assomption",
+        "11-1": "Toussaint",
+        "11-11": "Armistice 1918",
+        "12-25": "Noël",
+      },
+      moving: { 1: "Lundi de Pâques", 39: "Ascension", 50: "Lundi de Pentecôte" },
+    },
+    it: {
+      locale: "it-IT",
+      easter: "western",
+      fixed: {
+        "1-1": "Capodanno",
+        "1-6": "Epifania",
+        "4-25": "Festa della Liberazione",
+        "5-1": "Festa dei Lavoratori",
+        "6-2": "Festa della Repubblica",
+        "8-15": "Ferragosto",
+        "11-1": "Ognissanti",
+        "12-8": "Immacolata Concezione",
+        "12-25": "Natale",
+        "12-26": "Santo Stefano",
+      },
+      moving: { 0: "Pasqua", 1: "Lunedì dell'Angelo" },
+    },
+    ru: {
+      locale: "ru-RU",
+      easter: "orthodox",
+      fixed: {
+        "1-1": "Новый год",
+        "1-7": "Рождество Христово",
+        "2-23": "День защитника Отечества",
+        "3-8": "Международный женский день",
+        "5-1": "Праздник Весны и Труда",
+        "5-9": "День Победы",
+        "6-12": "День России",
+        "11-4": "День народного единства",
+      },
+      moving: { 0: "Пасха" },
+    },
+  };
+
+  // Easter Sunday as a local date. Western: the Gregorian computus. Orthodox: the Julian
+  // computus, moved onto the Gregorian calendar (thirteen days, true from 1900 to 2099).
+  function easter(year, reckoning) {
+    if (reckoning === "orthodox") {
+      var a = year % 4;
+      var b = year % 7;
+      var c = year % 19;
+      var d = (19 * c + 15) % 30;
+      var e = (2 * a + 4 * b - d + 34) % 7;
+      var month = Math.floor((d + e + 114) / 31);
+      var day = ((d + e + 114) % 31) + 1;
+      return new Date(year, month - 1, day + 13);
+    }
+    var g = year % 19;
+    var century = Math.floor(year / 100);
+    var h = (century - Math.floor(century / 4) - Math.floor((8 * century + 13) / 25) + 19 * g + 15) % 30;
+    var i = h - Math.floor(h / 28) * (1 - Math.floor(29 / (h + 1)) * Math.floor((21 - g) / 11));
+    var j = (year + Math.floor(year / 4) + i + 2 - century + Math.floor(century / 4)) % 7;
+    var l = i - j;
+    var m = 3 + Math.floor((l + 40) / 44);
+    var dayOf = l + 28 - 31 * Math.floor(m / 4);
+    return new Date(year, m - 1, dayOf);
+  }
+
+  function holiday(now, country) {
+    var named = country.fixed[now.getMonth() + 1 + "-" + now.getDate()];
+    if (named) return named;
+    var sunday = easter(now.getFullYear(), country.easter);
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var after = Math.round((today - sunday) / 86400000);
+    return country.moving[after] || "";
+  }
+
+  function countryDate(now, code) {
+    var country = COUNTRIES[code];
+    if (!country) return "";
+    try {
+      var said = new Intl.DateTimeFormat(country.locale, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(now);
+      var feast = holiday(now, country);
+      return feast ? said + ", " + feast : said;
+    } catch (e) {
+      return "";
+    }
+  }
+
+  // The calendars that are Hebrew's: its own texts, and the two languages written in
+  // its letters.
+  var HEBREW_CALENDAR = { he: true, arc: true, yi: true };
+
+  var lastSeries = null;
   function todayLine(series) {
+    lastSeries = series || lastSeries;
     var now = new Date();
     var day = now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    var hebrew = hebrewDate(now);
-    var parts = [hebrew ? day + " (" + hebrew + ")" : day];
-    (series || []).forEach(function (one) {
-      var inst = one.instalment;
-      if (one.id === "parasha" && inst) parts.push("This week: " + (inst.hebrew || inst.title));
-    });
+    var code = speaking();
+    var hebrewCalendar = HEBREW_CALENDAR[code] === true;
+    var beside = hebrewCalendar ? hebrewDate(now) : countryDate(now, code);
+    var parts = [beside ? day + " (" + beside + ")" : day];
+    // The week's portion is the Hebrew calendar's too.
+    if (hebrewCalendar) {
+      (lastSeries || []).forEach(function (one) {
+        var inst = one.instalment;
+        if (one.id === "parasha" && inst) parts.push("This week: " + (inst.hebrew || inst.title));
+      });
+    }
     return parts.join(" · ");
   }
+  // In the calendar of the language the switcher moves to.
+  window.addEventListener("targum:language", function () {
+    var today = document.getElementById("today");
+    if (today && lastSeries) today.textContent = todayLine(lastSeries);
+  });
 
   function drawHello(name, series) {
     var hello = document.getElementById("greeting");
@@ -786,7 +917,7 @@
         // reading it as "not measured" dropped the seven easiest texts in the library
         // out of the one list a beginner is shown.
         return (
-          base(entry.language) === code &&
+          inLanguage(entry, code) &&
           !built[entry.id] &&
           entry.difficulty >= 0 &&
           (!register || entry.register === register)
@@ -798,7 +929,7 @@
     if (!open.length) return null;
     var level = 0;
     readers.forEach(function (reader) {
-      if (base(reader.language) !== code) return;
+      if (!inLanguage(reader, code)) return;
       if (register && reader.register !== register) return;
       if (reader.difficulty > level) level = reader.difficulty;
     });
@@ -954,10 +1085,10 @@
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         var mine = readers.filter(function (reader) {
-          return base(reader.language) === code;
+          return inLanguage(reader, code);
         });
         var handed = shared.filter(function (reader) {
-          return base(reader.language) === code;
+          return inLanguage(reader, code);
         });
         if (code === lang.HOME) {
           // Hebrew: two tracks, one sheet. The track opened most recently takes it; on

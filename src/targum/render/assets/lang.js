@@ -117,6 +117,44 @@
   /* The nav's host, which draws a menu rather than tabs. */
   var NAV = "langs";
 
+  /* A small flag beside each language in the menu (2026-09-14, design.md §12 — which
+   * reverses "no flags" for this one place). The flag of the country whose language it
+   * is, in that flag's own colours, drawn rather than typed: an emoji flag is an emoji,
+   * and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no country, so they
+   * have no flag, and keep the flag's width so the names still line up. */
+  var FLAGS = {
+    he:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.3" width="18" height="1.5" fill="#0038b8"/>' +
+      '<rect y="9.2" width="18" height="1.5" fill="#0038b8"/>' +
+      '<path d="M9 3.4 11.6 7.9H6.4ZM9 8.6 6.4 4.1H11.6Z" fill="none" stroke="#0038b8" stroke-width="0.7"/>',
+    fr:
+      '<rect width="6" height="12" fill="#0055a4"/>' +
+      '<rect x="6" width="6" height="12" fill="#fff"/>' +
+      '<rect x="12" width="6" height="12" fill="#ef4135"/>',
+    it:
+      '<rect width="6" height="12" fill="#009246"/>' +
+      '<rect x="6" width="6" height="12" fill="#fff"/>' +
+      '<rect x="12" width="6" height="12" fill="#ce2b37"/>',
+    ru:
+      '<rect width="18" height="4" fill="#fff"/>' +
+      '<rect y="4" width="18" height="4" fill="#0039a6"/>' +
+      '<rect y="8" width="18" height="4" fill="#d52b1e"/>',
+  };
+
+  function flag(code) {
+    var box = document.createElement("span");
+    box.className = "lang-flag";
+    box.setAttribute("aria-hidden", "true");
+    var drawn = FLAGS[String(code || "").split("-")[0].toLowerCase()];
+    if (drawn) {
+      box.innerHTML = '<svg viewBox="0 0 18 12" focusable="false">' + drawn + "</svg>";
+    } else {
+      box.className += " none";
+    }
+    return box;
+  }
+
   /* One switcher, built the same way on the library page and the words page.
    *
    * `onPick` is handed the code. Nothing is drawn for a single language: a switcher
@@ -200,6 +238,7 @@
     var label = document.createElement("span");
     label.className = "lang-name";
     label.textContent = names[chosen] || String(chosen || "").toUpperCase();
+    open.appendChild(flag(chosen));
     open.appendChild(label);
     host.appendChild(open);
 
@@ -213,7 +252,11 @@
       item.setAttribute("role", "menuitemradio");
       item.setAttribute("data-code", code);
       item.setAttribute("aria-checked", code === chosen ? "true" : "false");
-      item.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
+      var named = document.createElement("span");
+      named.className = "lang-item";
+      named.appendChild(flag(code));
+      named.appendChild(document.createTextNode(names[code] || code.toUpperCase()));
+      item.appendChild(named);
       if (tag(code)) {
         var mark = document.createElement("span");
         mark.className = "beta";
@@ -276,6 +319,9 @@
         var code = event && event.detail;
         var name = host.querySelector && host.querySelector(".lang-name");
         if (name && code) name.textContent = names[code] || String(code).toUpperCase();
+        var button = host.querySelector && host.querySelector(".lang-open");
+        var shown = button && button.querySelector && button.querySelector(".lang-flag");
+        if (button && shown && code) button.replaceChild(flag(code), shown);
       });
     }
   }
@@ -306,7 +352,7 @@
   function betaNote(code, names) {
     return (
       (names[code] || code.toUpperCase()) +
-      " is experimental. Everything works best in Hebrew."
+      " is new here, and still experimental."
     );
   }
 

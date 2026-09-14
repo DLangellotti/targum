@@ -36,7 +36,9 @@ install({
   TargumLang: {
     HOME: "he",
     order: (codes) => codes,
-    current: () => "he",
+    // The language the switcher shows, where a test says one.
+    current: () => payload.language || "he",
+    learning: () => [payload.language || "he"],
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
     into: () => "",
