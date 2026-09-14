@@ -790,7 +790,9 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
     padding-block: 0.4rem;
   }
   .front { gap: 1rem; margin-block-end: 1rem; }
-  .front .learn-head { padding-inline: 1rem; }
+  /* Room between the bar and the greeting (2026-09-14): the phone's main has no padding
+     at its top, so the greeting stood against the bar. */
+  .front .learn-head { padding: 1.25rem 1rem 0; }
   /* The track is one row that scrolls sideways (2026-09-14). It wrapped to a second row
      when four pills would not fit one, which was a box as tall as the greeting; one row
      keeps the page quiet, and the pill cut off at its far edge says there is more. The
