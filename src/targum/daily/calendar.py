@@ -36,7 +36,33 @@ from ..parasha.calendar import FLIP_ZONE, now_in_flip_zone, root
 from ..paths import write_atomic
 from .cycles import BY_CATEGORY, CYCLES, Cycle, Span, parse_reference, reference_of
 
-__all__ = ["Day", "FLIP_ZONE", "current", "for_day", "refresh", "window", "year"]
+__all__ = ["Day", "FLIP_ZONE", "current", "for_day", "hebrew_citation", "refresh", "window", "year"]
+
+
+def hebrew_citation(text: str) -> str:
+    """Hebcal's Hebrew name for a day, written the way a Hebrew reader writes a citation.
+
+    Hebcal gives the Mishnah in Arabic numerals — "אהלות 1:6-7", "כלים 30:4-אהלות 1:1" —
+    beside Nach and Tehillim lines it gives in letters, "ירמיהו ב׳", and the hyphen glued
+    a number to the next tractate's name (2026-09-14). Chapter and mishnah in letters,
+    "אהלות א, ו–ז"; a range between two places spaced with an en dash; Tanakh Yomi's
+    "ס׳ י" said as the seder it is.
+    """
+    import re
+
+    from ..ingest.fetch.sefaria import hebrew_numeral
+
+    def letters(match: re.Match[str]) -> str:
+        chapter, first, last = match.group(1), match.group(2), match.group(3)
+        said = f"{hebrew_numeral(int(chapter))}, {hebrew_numeral(int(first))}"
+        return said + (f"–{hebrew_numeral(int(last))}" if last else "")
+
+    out = re.sub(r"(\d+):(\d+)(?:-(\d+)(?!:))?", letters, text)
+    # Between two places — a hyphen before a name — a spaced en dash; between two
+    # numbers, a plain one.
+    out = re.sub(r"\s*-\s*(?=[\u05d0-\u05ea]{2,} )", " – ", out)
+    out = re.sub(r"(?<=[\u05d0-\u05ea׳״])-(?=[\u05d0-\u05ea])", "–", out)
+    return re.sub(r"ס׳ (?=[\u05d0-\u05ea])", "סדר ", out)
 
 #: Hebcal's calendar endpoint. Four cycles for a year is about 90 kB.
 ENDPOINT = "https://www.hebcal.com/hebcal"
@@ -89,7 +115,7 @@ def parse(payload: dict[str, Any]) -> list[Day]:
                 day=when,
                 cycle=cycle.slug,
                 title=str(item.get("title", "")),
-                hebrew=str(item.get("hebrew", "")),
+                hebrew=hebrew_citation(str(item.get("hebrew", ""))),
                 hdate=str(item.get("hdate", "")),
                 reference=reference,
                 span=parse_reference(reference),

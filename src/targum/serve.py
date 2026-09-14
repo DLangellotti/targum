@@ -4312,6 +4312,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._sync(payload)
         if route == "/account/name":
             return self._rename(payload)
+        if route == "/account/address":
+            return self._address(payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -5096,6 +5098,17 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "name": stored}
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _address(self, payload: dict[str, Any]) -> None:
+        """How the conversation addresses them in Hebrew (2026-09-14)."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            stored = self.store.set_address(person, str(payload.get("address") or ""))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "address": stored})
 
     def _languages(self, payload: dict[str, Any]) -> None:
         """What they are learning and what they read into, from the profile page.

@@ -69,7 +69,7 @@ PARASHA = {
 }
 QUIET = {
     "id": "mishna-yomi",
-    "name": "Mishna Yomi",
+    "name": "Mishnah Yomit",
     "what": "Two mishnayot a day.",
     "page": "/mishna-yomi",
     "instalment": None,

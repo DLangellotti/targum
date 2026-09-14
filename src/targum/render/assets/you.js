@@ -73,6 +73,10 @@
     avatar.appendChild(document.createTextNode(who.initials || "?"));
     at("you-email").textContent = who.email || "";
     at("you-name").value = who.name || "";
+    var address = who.address || "";
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="address"]'), function (box) {
+      box.checked = box.value === address;
+    });
 
     var counts = who.counts || {};
     var kept = (counts.words || 0) + " words, " + (counts.phrases || 0) + " phrases";
@@ -99,6 +103,18 @@
         if (window.TargumSync) window.TargumSync.start();
       });
     }, 400);
+  }
+
+  // How the conversation addresses them in Hebrew. Saved on the press, as a name is.
+  function saveAddress(event) {
+    var box = event && event.target;
+    if (!box || box.name !== "address") return;
+    ask("/account/address", { address: box.value }).then(function (answer) {
+      if (answer.error || answer.signedIn === false) {
+        return say("you-said", answer.error || "You've been signed out. Sign in again.", true);
+      }
+      say("you-said", "Saved.");
+    });
   }
 
   /* --- your languages ---------------------------------------------------------- */
@@ -229,6 +245,8 @@
       drawWho(who);
       drawLanguages(who);
       at("you-name").addEventListener("input", saveName);
+      var address = at("you-address");
+      if (address) address.addEventListener("change", saveAddress);
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })

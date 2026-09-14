@@ -32,6 +32,16 @@
         <p class="you-email" id="you-email"></p>
       </div>
     </div>
+    {#- How the conversation says "you" in Hebrew (2026-09-14). Every second person and
+        every present-tense "I" in Hebrew has a gender, and nikkud makes it visible; a
+        conversation that guessed once rewrote a man's sentence into the feminine and
+        called it a correction. -#}
+    <fieldset class="address" id="you-address">
+      <legend>In Hebrew, targum calls you</legend>
+      <label><input type="radio" name="address" id="address-m" value="m"> <bdi lang="he" dir="rtl">אַתָּה</bdi></label>
+      <label><input type="radio" name="address" id="address-f" value="f"> <bdi lang="he" dir="rtl">אַתְּ</bdi></label>
+      <label><input type="radio" name="address" id="address-either" value=""> Either</label>
+    </fieldset>
     <p class="said" id="you-said" hidden></p>
   </section>
 

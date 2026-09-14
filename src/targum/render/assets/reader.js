@@ -197,6 +197,15 @@ var targumReader = function () {
   var extensions = data.extensions || {};
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
+  var POINTED_BINYANIM = {
+    "פעל": "פָּעַל",
+    "נפעל": "נִפְעַל",
+    "פיעל": "פִּעֵל",
+    "פועל": "פֻּעַל",
+    "הפעיל": "הִפְעִיל",
+    "הופעל": "הֻפְעַל",
+    "התפעל": "הִתְפַּעֵל",
+  };
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
@@ -3395,6 +3404,27 @@ var targumReader = function () {
   // How the word you tapped is said, for this occurrence and not for its dictionary
   // form. בצל is batsˈal after "I ate" and btsˈel under a tree; the lemma is the same
   // word in both and the row drawn here is the only thing that knows which was meant.
+  // The stress mark before its syllable, as IPA writes it. phonikud sets it before the
+  // vowel — "mvukˈaʃ", "heχalˈav" — which a reader of IPA takes for a syllable that
+  // begins with a vowel (2026-09-14). Moved before the onset: "mvuˈkaʃ", "heχaˈlav".
+  var AFFRICATES = ["tʃ", "dʒ", "ts", "dz"];
+  function syllableStress(ipa) {
+    var text = String(ipa || "");
+    var out = "";
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (ch !== "\u02c8" || !/[aeiouəɛɔ]/.test(text.charAt(i + 1))) {
+        out += ch;
+        continue;
+      }
+      var two = out.slice(-2);
+      var one = out.slice(-1);
+      var take = AFFRICATES.indexOf(two) >= 0 ? 2 : one && /[^\saeiouəɛɔˈ'.-]/.test(one) ? 1 : 0;
+      out = out.slice(0, out.length - take) + ch + out.slice(out.length - take);
+    }
+    return out;
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -3629,7 +3659,8 @@ var targumReader = function () {
         notation.className = "said";
         var heard = document.createElement("bdi");
         heard.setAttribute("dir", "ltr");
-        heard.textContent = said;
+        heard.setAttribute("lang", "he-fonipa");
+        heard.textContent = syllableStress(said);
         notation.appendChild(heard);
         saying.appendChild(notation);
       }
@@ -3704,7 +3735,10 @@ var targumReader = function () {
         // per function — shadowing it here silenced the split caveat for every verb.
         var pattern = document.createElement("bdi");
         pattern.setAttribute("lang", language);
-        pattern.textContent = binyan;
+        // Pointed, as a grammar prints them: unpointed, פועל is the everyday word for
+        // a worker, or for "verb" (2026-09-14). The stored name stays as the analyser
+        // wrote it, so nothing already built needs building again.
+        pattern.textContent = POINTED_BINYANIM[binyan] || binyan;
         verb.appendChild(pattern);
       }
       var pealim = document.createElement("a");
