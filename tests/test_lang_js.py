@@ -54,6 +54,27 @@ def test_the_current_language_pressed_again_changes_nothing() -> None:
     assert drawn["picked"] == [] and drawn["told"] == []
 
 
+def test_a_language_chosen_stands_on_a_page_with_nothing_in_it_yet() -> None:
+    """Every desk page lists the languages it has something in — readers, kept words —
+    and asked `current` of that list. A language chosen in the menu with nothing built
+    in it yet was not on it, so the next page settled on Hebrew and wrote Hebrew back:
+    every change of page put the reader back in Hebrew (2026-09-14). A language the
+    reader learns is a language a page can be in."""
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he", "arc"]), "targum:language": "arc"},
+        currentOf=["he"],
+    )
+    assert drawn["current"] == "arc"
+
+
+def test_a_language_no_longer_learned_falls_back_to_hebrew() -> None:
+    drawn = menu(
+        stored={"targum:learning": json.dumps(["he"]), "targum:language": "arc"},
+        currentOf=["he"],
+    )
+    assert drawn["current"] == "he"
+
+
 def test_one_language_draws_no_menu() -> None:
     """A menu with one thing in it asks a question with no other answer."""
     assert menu(stored={"targum:learning": json.dumps(["he"])})["before"]["hidden"] is True

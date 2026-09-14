@@ -29,7 +29,7 @@ install({
   TargumLang: {
     HOME: "he",
     order: (codes) => codes.sort(),
-    current: (codes) => codes[0],
+    current: (codes) => payload.chosen || codes[0],
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
     into: () => "",

@@ -66,11 +66,17 @@
     return code;
   }
 
-  // The one to show, given what this page can actually show. A remembered choice
-  // wins, then Hebrew, then whatever there is.
+  // The one to show, given what this page has something in. A remembered choice wins,
+  // then Hebrew, then whatever there is.
+  //
+  // A remembered choice wins where the reader learns it, too, and not only where this
+  // page has something in it (2026-09-14). The menu lists every language learned, so a
+  // language with nothing built or kept in it yet can be chosen — and a page asking only
+  // of its own list then settled on Hebrew and wrote Hebrew back, so every change of page
+  // put the reader back in Hebrew.
   function current(codes) {
     var was = stored(NAME);
-    if (was && codes.indexOf(was) >= 0) return was;
+    if (was && (codes.indexOf(was) >= 0 || learning().indexOf(was) >= 0)) return was;
     if (codes.indexOf(HOME) >= 0) return HOME;
     return codes[0] || HOME;
   }
