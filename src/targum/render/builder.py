@@ -1968,6 +1968,8 @@ def render(
         "source_direction": source_direction,
         "page_direction": source_direction,
         "has_nikkud": bool(pointed),
+        # Russian's marks are stress, not vowels, and the switch says so.
+        "stress_marks": bool(pointed) and segmented.language.split("-")[0].lower() == "ru",
         "has_taamim": bool(unaccented),
         "source_pointed": source_pointed,
         "mark_guessed": mark_guessed,
@@ -2300,8 +2302,11 @@ def render(
                 and vocalization.machine
                 and vocalization.vocalizer.startswith("dicta/")
             ),
-            # CC BY-SA asks the same naming, on a page that quoted the tables.
-            lexicon_credit="partners" in extensions or "stress" in extensions,
+            # CC BY-SA asks the same naming, on a page that quoted the tables — which the
+            # stress marks do too, since every mark was confirmed against them.
+            lexicon_credit="partners" in extensions
+            or "stress" in extensions
+            or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
             segments=segments,
             verses=verses,
             languages=languages,

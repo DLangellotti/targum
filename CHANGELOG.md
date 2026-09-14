@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Russian stress marks. A Russian reader's `n` switch shows an acute over the stressed
+  vowel and restores ё. A word is marked only where silero-stress (MIT, the new `stress`
+  extra, which the deploy installs) and OpenRussian's tables agree on one stress. A
+  homograph is settled only by the case and number the tagger gave it, so the stage runs
+  after the words. Names, one-vowel words and the first half of a hyphenated word are
+  never marked. On 1,000 sentences a person stressed by hand in Wiktionary the marks
+  placed are right 99.8% of the time, and 83% of the words that need a mark get one
+  (`scripts/eval_stress.py`, floors in `evals/floors.json`). The marks are combining
+  characters after a Cyrillic letter, U+0301 and U+0308, so every offset, saved word
+  and phrase is the same with the switch on or off; the same code points after a Latin
+  letter stay text. `rebuild --words` marks a Russian text already on the shelf, and
+  marks it again when its words are read again (targum-internal#260).
 - A Russian verb's card names its other aspect, stressed ("the other aspect: говори́ть").
   Where the partner is used in the same text, the card offers to go and read it there.
   A word whose stress moves across its forms says where: "stress moves: рука́ · ру́ку".

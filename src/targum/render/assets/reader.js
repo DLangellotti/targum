@@ -1293,6 +1293,19 @@ var targumReader = function () {
   // the server about the first — which is what the mark-parity test checks, and why one
   // constant here keeps it sufficient.
   var MARK = /[\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C5\u05C7]/;
+  // Russian stress: the acute over a vowel and the diaeresis of a restored ё, marks only
+  // after a Cyrillic letter, since the same two code points spell a decomposed é. Mirrors
+  // STRESS and `is_mark` in vocalize/base.py (targum-internal#260).
+  var STRESS_MARK = /[\u0301\u0308]/;
+  var CYRILLIC = /[\u0400-\u04FF]/;
+  function isMark(text, i) {
+    var char = text[i];
+    if (MARK.test(char)) return true;
+    if (!STRESS_MARK.test(char)) return false;
+    var before = i - 1;
+    while (before >= 0 && STRESS_MARK.test(text[before])) before--;
+    return before >= 0 && CYRILLIC.test(text[before]);
+  }
 
   // Every stored offset — a token span, a phrase you kept — is measured against the
   // bare text, whichever form happens to be on show. That way turning the vowels on
@@ -1310,7 +1323,7 @@ var targumReader = function () {
     if (cell.__targumMap === undefined) {
       var text = cellText(cell);
       var map = [];
-      for (var i = 0; i < text.length; i++) if (!MARK.test(text[i])) map.push(i);
+      for (var i = 0; i < text.length; i++) if (!isMark(text, i)) map.push(i);
       map.push(text.length);
       cell.__targumMap = map;
     }
@@ -1321,7 +1334,7 @@ var targumReader = function () {
   function toBare(cell, offset) {
     var text = cellText(cell);
     var bare = 0;
-    for (var i = 0; i < offset && i < text.length; i++) if (!MARK.test(text[i])) bare++;
+    for (var i = 0; i < offset && i < text.length; i++) if (!isMark(text, i)) bare++;
     return bare;
   }
 
@@ -5376,7 +5389,8 @@ var targumReader = function () {
   // asked otherwise, which is the same offer made to an unpointed one.
   // What a screen reader hears when the switch is pressed. The button's own state is
   // `aria-pressed`; this says what changed.
-  var FORM_SAID = ["Bare text.", "Vowel points."];
+  var FORM_SAID =
+    language === "ru" ? ["Bare text.", "Stress marks."] : ["Bare text.", "Vowel points."];
 
   function toggleVowels() {
     if (!hasNikkud) return;

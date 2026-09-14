@@ -5788,7 +5788,7 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
     context.close()
 
 
-def russian(out: Path) -> Path:
+def russian(out: Path, stressed: bool = False) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
     lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
     words = {
@@ -5855,7 +5855,26 @@ def russian(out: Path) -> Path:
         method_note="a test",
         tokens=tokens,
     )
-    return render(document, segmented, [translation], out, annotation=annotation)[0]
+    # The marks the stress stage writes: an acute after the vowel, ё as е plus a diaeresis.
+    marks = {
+        segments[0].id: "Он взял её за ру\u0301ку.",
+        segments[1].id: "Рука\u0301 боле\u0301ла, и руко\u0301й он брал хлеб.",
+    }
+    vocalization = Vocalization(
+        document_hash="r",
+        language="ru",
+        vocalizer="stress/test",
+        segments=marks,
+        machine=list(marks),
+    )
+    return render(
+        document,
+        segmented,
+        [translation],
+        out,
+        annotation=annotation,
+        vocalization=vocalization if stressed else None,
+    )[0]
 
 
 CARD_LINES = """
@@ -5923,4 +5942,29 @@ def test_a_russian_verb_names_its_partner_and_goes_to_it(
     page.click(".gloss-card .partner .here")
     page.wait_for_timeout(300)
     assert page.evaluate("() => document.querySelector('.gloss-card').hidden"), "gone to read it"
+    context.close()
+
+
+def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: Path) -> None:
+    """A Russian page's `n` shows the stress marks, the switch calls them stress marks, and
+    a word tapped with the marks on is the same word, saved the same way, as with them off
+    (targum-internal#260)."""
+    reader = russian(tmp_path / "reader", stressed=True)
+    html = reader.read_text(encoding="utf-8")
+    assert 'aria-label="Stress marks"' in html and 'aria-label="Vowel points"' not in html
+    context, page = open_reader(browser, reader)
+    bare = page.evaluate(CARD_LINES, "руку")
+    page.keyboard.press("Escape")
+    page.click("[data-nikkud-toggle]")
+    page.wait_for_timeout(200)
+    shown = page.evaluate(
+        "() => [...document.querySelectorAll('.pair .src')].filter((c) => !c.hidden"
+        " && c.offsetParent).map((c) => c.textContent.trim())"
+    )
+    assert "Он взял её за ру\u0301ку." in shown
+    marked = page.evaluate(CARD_LINES, "ру\u0301ку")
+    assert marked["use"] == bare["use"] == "noun · f · accusative"
+    assert marked["forms"] == bare["forms"] == "here also as рука · рукой", "offsets held"
+    head = page.evaluate("() => document.querySelector('.gloss-card .lemma').textContent")
+    assert head == "ру\u0301ку", "the card shows the word stressed, as tapped"
     context.close()
