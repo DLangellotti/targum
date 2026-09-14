@@ -6106,7 +6106,7 @@ def test_a_page_without_cases_has_no_lens(browser, built: Path) -> None:
 
 
 def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
-    browser, fake_audio, tmp_path: Path
+    browser, fake_audio, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A waiting part's page is a clock and nothing else, so it read as "most of the way
     through" the moment it opened and bought the part after it — ahead of the one the
@@ -6121,6 +6121,8 @@ def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
         def split(self, texts: list[str], language: str) -> list[list[str]]:
             return [[p.strip() + "." for p in text.split(".") if p.strip()] for text in texts]
 
+    # The browser job installs no ffmpeg, and every tool it would run is faked anyway.
+    monkeypatch.setattr("targum.audio.ffmpeg_available", lambda: (True, "ffmpeg"))
     fake_audio.duration = 2160.0
     fake_audio.pauses = [(719.0, 721.0), (1439.0, 1441.0)]
     source = tmp_path / "talk.mp3"
