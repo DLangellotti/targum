@@ -948,3 +948,89 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   font-size: 0.9375rem;
 }
 .learn-waiting[hidden] { display: none; }
+
+/* --- on a phone, cards (2026-09-14) ---------------------------------------------------
+   David: the framed reader on a phone "had to be a card, not an actual reader", and then
+   several of them, "giving more choice and a more useful and efficient mobile
+   experience". Under 40rem the sheet and the row of doors give way to a column of cards,
+   one for every text the page can offer; above it the cards are not drawn at all. Each
+   card is §13's: raised on the desk, 16px corners, 20px in, the cover beside what is said
+   about the text, the title in its own face, and the whole card the press. */
+.learn-cards { display: none; }
+@media (max-width: 40rem) {
+  body.learn .carry-on { display: none; }
+  body.learn .learn-head .ways { display: none; }
+  .learn-cards { display: block; padding-inline: 1rem; }
+  .learn-card-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .learn-card-list[hidden] { display: none; }
+  .learn-cards .see-all { display: inline-block; margin-block-start: 0.75rem; }
+  .learn-cards .see-all[hidden] { display: none; }
+  .learn-card {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+    padding: 1.25rem;
+    overflow: hidden;
+    border-radius: var(--radius-card);
+    background: var(--card);
+    box-shadow: var(--shadow-raised);
+    color: var(--ink);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .learn-card:active { background: color-mix(in srgb, var(--teal) 6%, var(--card)); }
+  .learn-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .learn-card .card-cover .thumb { inline-size: 3.25rem; block-size: 4.5rem; }
+  .learn-card-what { display: grid; gap: 0.15rem; min-inline-size: 0; flex: 1 1 auto; }
+  /* §13's label: what this text is to the reader — Continue reading, Suggested for you,
+     Recently read, the series' name. */
+  .learn-card-state {
+    color: var(--ink-soft);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  /* Its own face and never scaled (§5); two lines at most, cut at the end of the second
+     rather than at the start of the first. */
+  .learn-card-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    font-family: var(--reading);
+    font-size: 1.25rem;
+    line-height: 1.35;
+  }
+  /* Right to left inside, and at the start of the chrome's line like every other word
+     on the card, as the sheet's title is at a desk. */
+  .learn-card-title:lang(he), .learn-card-title:lang(yi), .learn-card-title:lang(arc) {
+    font-family: var(--reading-hebrew);
+    direction: rtl;
+    text-align: left;
+  }
+  .learn-card-english {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9375rem;
+    color: var(--ink);
+  }
+  .learn-card-meta { font-size: 0.875rem; color: var(--ink-soft); }
+  .learn-card-known {
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--leaf);
+  }
+  /* How far through: the sheet's line, along the card's foot. */
+  .learn-card .page-progress { inset-block-end: 0; }
+}

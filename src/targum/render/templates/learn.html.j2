@@ -93,6 +93,13 @@
         </div>
       </div>
     </section>
+    {#- On a phone, cards instead of the sheet (David, 2026-09-14): one for every text the
+        page can offer, each a press to its reader. Drawn by `learn.js`, shown by the
+        stylesheet under 40rem. -#}
+    <section class="learn-cards" aria-label="Your texts">
+      <ul class="learn-card-list" id="learn-cards" hidden></ul>
+      <a class="see-all" id="learn-cards-all" href="/texts" hidden>All your targums</a>
+    </section>
 
   </div>
 
