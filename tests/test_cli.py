@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from targum.catalogue import Entry
 from targum.cli import app
 
 runner = CliRunner()
@@ -780,6 +781,73 @@ def test_seed_shares_one_lemmatizer_per_register(
     assert len({id(lemmatizer) for lemmatizer in handed}) == len(registers), (
         "one per register, not one per text"
     )
+
+
+def italian_row() -> Entry:
+    return Entry(
+        id="cenere",
+        title="Cenere",
+        author="Grazia Deledda",
+        language="it",
+        source="wikisource:it:Cenere",
+        blurb="b",
+        words=1,
+        difficulty=1,
+    )
+
+
+def test_every_door_a_catalogue_row_is_built_through_names_its_language(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Left to the script, every Latin alphabet reads as English, and `targum seed`
+    passed no language: an Italian row was seeded as English (2026-09-14). The seed, the
+    command line and the server's builder all hand `Build` the row's own language."""
+    from targum import catalogue, cli
+    from targum.serve import Job, Library
+
+    row = italian_row()
+    handed: list[dict[str, object]] = []
+
+    class FakeBuild:
+        def __init__(self, source: str, **options: object) -> None:
+            handed.append(options)
+            self.source = source
+
+        def run(self) -> object:
+            out = tmp_path / "shared" / "cenere-it"
+            out.mkdir(parents=True, exist_ok=True)
+            return type("Result", (), {"out_dir": out})()
+
+    monkeypatch.setattr(cli, "Build", FakeBuild)
+    monkeypatch.setattr(catalogue, "CATALOGUE", [row])
+    monkeypatch.setattr(catalogue, "matching", lambda source: row)
+    monkeypatch.setattr(cli, "seeds", lambda: ["cenere"])
+    monkeypatch.setattr("targum.coverage.lemmas", lambda folder: {})
+
+    cli.seed(out=tmp_path)
+    assert handed[-1]["source_language"] == "it"
+    # The model reads Italian's words; the shared Stanza chain would refuse them.
+    assert handed[-1]["lemmatizer"] is None
+
+    class Stop(Exception):
+        pass
+
+    def stopping(source: str, **options: object) -> None:
+        handed.append(options)
+        raise Stop
+
+    monkeypatch.setattr(cli, "Build", stopping)
+    with pytest.raises(Stop):
+        runner.invoke(app, ["build", row.source], catch_exceptions=False)
+    assert handed[-1]["source_language"] == "it"
+    runner.invoke(app, ["build", row.source, "--from", "fr"])
+    assert handed[-1]["source_language"] == "fr", "what the person said still wins"
+
+    library = Library(tmp_path)
+    build = library._builder(Job(id="a", source=row.source, options={"to": "en"}))
+    assert build.source_language == "it"
+    build = library._builder(Job(id="a", source=row.source, options={"to": "en", "from": "he"}))
+    assert build.source_language == "he"
 
 
 def test_licences_reports_the_corpus_by_what_may_leave(

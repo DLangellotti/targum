@@ -1489,7 +1489,7 @@ def seed(
     anything. Free — each has a published translation — and safe to run again.
     """
     from . import catalogue as catalogue_module
-    from .annotate import lemma
+    from .annotate import lemma, model_lemma
     from .annotate.base import Lemmatizer as LemmatizerProtocol
     from .coverage import lemmas
     from .serve import HOSTED_MODEL
@@ -1507,16 +1507,25 @@ def seed(
             fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
             continue
         scripture = is_biblical(entry.source)
-        if scripture not in lemmatizers:
-            lemmatizers[scripture] = lemma.for_source(entry.source)
+        shared_lemmatizer: LemmatizerProtocol | None = None
+        # A language the model reads is left to the build, which reads it the way every
+        # build does. Handed the shared Stanza chain, an Italian row went to DICTA's
+        # delegate, which refuses Italian.
+        if not model_lemma.reads(entry.language):
+            if scripture not in lemmatizers:
+                lemmatizers[scripture] = lemma.for_source(entry.source)
+            shared_lemmatizer = lemmatizers[scripture]
         builder = Build(
             entry.source,
             target_language="en",
+            # The row says what language it is in. Left to the script, every Latin
+            # alphabet reads as English, and an Italian row was seeded as one.
+            source_language=entry.language,
             title=entry.title,
             model=entry.model or HOSTED_MODEL,
             out_root=shared,
             translations=[rendering.source for rendering in entry.translations],
-            lemmatizer=lemmatizers[scripture],
+            lemmatizer=shared_lemmatizer,
             # Machine-translated only where nothing published exists, and then under the
             # model it was translated with, so the cache answers rather than the API.
             machine=None,
@@ -1642,7 +1651,9 @@ def build(
         builder = Build(
             source,
             target_language=to,
-            source_language=source_language,
+            # What the reader said, or else what the catalogue says: a row names its
+            # language, and a guess from the script calls Italian English.
+            source_language=source_language or (known.language if known else None),
             style=style,
             title=known.title if known else "",
             provider_name=provider or settings.provider,

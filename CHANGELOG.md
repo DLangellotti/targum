@@ -108,6 +108,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A catalogue row is built in its own language on every path. `targum seed` passed no
+  language, so an Italian row was detected from its script and seeded as English, with
+  its words handed to a lemmatizer that refuses Italian. The seed, `targum build` of a
+  catalogued source and the server's builder now pass the row's language whenever the
+  person or the door did not name one.
+- A book-length word buy in French, Russian, Italian or Yiddish keeps each batch as it
+  returns. One failed call used to throw away every batch already paid for.
 - A Wikisource work split into subpages builds from its name. `wikisource:it:Cenere`,
   `Cuore (1889)` and `Il Principe` said "no readable text" and `Novelle rusticane` came
   back as thirty words of titles, because each is a contents page. A page that links two
