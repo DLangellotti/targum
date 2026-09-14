@@ -1,53 +1,67 @@
 /* The door. One column, centred, nothing else on it.
 
-   §9: the page is near-white and the text is full ink, the one primary action carries
-   the accent and the sheen the recipe allows, and the hue budget goes on that button
-   and nowhere else. A sign-in page is mostly white space and one thing to press. */
+   On the desk since 2026-09-14 (§13; the Hebrew-first audit's PU-04): the page was paper
+   with a serif heading and lined fields, and the product behind it is sans on the desk
+   with cards and wells, so the first thing a reader met was a different site from the
+   one they were let into. The ground, a card for the door, a well for the address and
+   the chrome's face. The one call to action stays ink (§9, and §13's "calls to action
+   stay ink-filled"), as a pill like every button on the desk. */
 
 body.signin {
   min-height: 100svh;
   display: grid;
   place-items: center;
-  padding: 1.5rem;
-  background: var(--paper);
+  padding: 1.5rem 1rem;
+  background: var(--ground);
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
 }
 
 .gate {
   width: 100%;
-  max-width: 24rem;
+  max-width: 26rem;
 }
 
+/* The wordmark keeps the reading serif (§13: "and in the wordmark"). */
 .gate .brand {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  margin-block-end: 2.5rem;
+  margin-block-end: 1.25rem;
+  margin-inline-start: 0.25rem;
   color: var(--ink);
   text-decoration: none;
   font-family: var(--reading);
   font-weight: 600;
-  font-size: 1.0625rem;
+  font-size: 1.25rem;
   letter-spacing: -0.01em;
 }
 .gate .brand-mark { width: 0.85em; height: 1.1em; }
 
+.gate .door {
+  padding: 1.75rem 1.25rem 1.5rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+
 .gate h1 {
-  margin: 0 0 0.6rem;
-  font-family: var(--reading);
+  margin: 0 0 0.5rem;
+  font-family: var(--chrome);
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.25;
+  text-wrap: balance;
 }
 
 .gate .said {
-  margin: 0 0 1.5rem;
+  margin: 0 0 1.25rem;
   color: var(--ink-soft);
-  font-size: 0.8125rem;
-  line-height: 1.6;
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }
 
+/* The desk's label (§13): 0.6875rem, uppercase, at 0.08em. */
 .gate label {
   display: block;
   margin-block-end: 0.4rem;
@@ -55,37 +69,41 @@ body.signin {
   font-size: 0.6875rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 
+/* A well (§13): no line, the ground mixed into the card, the primary's ring on focus. */
 .gate input[type="email"] {
+  display: block;
   width: 100%;
-  padding: 0.6rem 0.7rem;
-  margin-block-end: 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  background: var(--paper);
+  min-block-size: 2.75rem;
+  padding: 0.6rem 0.9rem;
+  margin-block-end: 0.75rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: var(--field);
   color: var(--ink);
   font: inherit;
   font-size: 1.0625rem;
 }
+.gate input[type="email"]::placeholder { color: var(--ink-soft); }
 .gate input[type="email"]:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-  border-color: var(--focus);
+  outline: 0;
+  box-shadow: inset 0 0 0 2px var(--teal);
 }
 
 /* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
 .gate .go {
   width: 100%;
-  padding: 0.7rem;
+  min-block-size: 2.75rem;
+  padding: 0.6rem 1.25rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 999px;
   background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
   color: var(--page-max, #fffdf9);
-  font-weight: 600;
   font: inherit;
   font-size: 1.0625rem;
+  font-weight: 600;
   cursor: pointer;
   transition: box-shadow 200ms ease;
 }
@@ -94,10 +112,10 @@ body.signin {
 .gate .go[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
 
 .gate .aside {
-  margin: 1.5rem 0 0;
+  margin: 1.25rem 0 0;
   color: var(--ink-soft);
-  font-size: 0.6875rem;
-  line-height: 1.6;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .gate .sent { margin-block-start: 1rem; margin-block-end: 0; color: var(--ink); }
@@ -110,14 +128,18 @@ body.signin {
 
 /* Somebody handing over an address deserves to read what happens to it first, so the
    door carries the same foot as everywhere else. Inside the gate rather than beside it:
-   the page is a centred grid of one column, and a second child would move the door. */
+   the page is a centred grid of one column, and a second child would move the door.
+   Each item keeps its words together, so a narrow screen wraps between items and never
+   leaves half of one on a line of its own. */
 .gate .foot {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-block-start: 2.5rem;
+  gap: 0.4rem 1rem;
+  margin-block-start: 1.25rem;
+  padding-inline: 0.25rem;
   color: var(--ink-soft);
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
 }
+.gate .foot > * { white-space: nowrap; }
 .gate .foot a { color: var(--ink-soft); text-decoration: none; }
 .gate .foot a:hover { color: var(--ink); }

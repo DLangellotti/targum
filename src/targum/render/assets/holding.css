@@ -1,17 +1,18 @@
 /* The holding page.
 
-   One screen, nothing on it. §9's hue budget taken to its limit: the page is paper, the
-   wordmark is ink, and the only colour anywhere is the accent column of the mark and the
-   one thing a visitor can actually do. */
+   One screen, nothing on it. §9's hue budget taken to its limit: the page is the desk's
+   ground (§13, since 2026-09-14, as the pages behind the door are), the wordmark is ink,
+   and the only colour anywhere is the accent column of the mark and the one thing a
+   visitor can actually do. */
 
 body.holding {
   min-height: 100svh;
   margin: 0;
   display: grid;
   place-items: center;
-  background: var(--paper);
+  background: var(--ground);
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
 }
 
 .corner {
@@ -25,27 +26,35 @@ body.holding {
 
 /* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
 .corner .enter {
-  padding: 0.4rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.25rem;
+  padding: 0.4rem 1rem;
   border-radius: 999px;
   background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
   color: var(--page-max, #fffdf9);
   font-weight: 600;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   text-decoration: none;
   transition: box-shadow 200ms ease;
 }
 .corner .enter:hover { box-shadow: var(--lift); }
 .corner .enter:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+/* A round ghost button, as the desk's bar draws its own (§13). */
 .corner [data-theme-toggle] {
-  border: 1px solid var(--rule);
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  padding: 0.35rem 0.5rem;
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
 }
-.corner [data-theme-toggle]:hover { color: var(--ink); border-color: var(--ink-soft); }
+.corner [data-theme-toggle]:hover { color: var(--ink); background: var(--teal-wash); }
 .corner [data-theme-toggle]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .middle {
@@ -70,12 +79,14 @@ body.holding {
 
 /* A line of text, not a control. It was a pill first and read as a button — anything
    with a border and a radius on a page this empty invites a press, and this one cannot
-   answer. §9 again: interactive means visibly different, and the converse holds too. */
+   answer. §9 again: interactive means visibly different, and the converse holds too.
+   The desk's label (§13): 0.6875rem, uppercase, at 0.08em. */
 .middle .soon {
   margin: 0;
   color: var(--ink-soft);
-  font-size: 0.8125rem;
-  letter-spacing: 0.06em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -90,12 +101,17 @@ body.holding {
   inset-inline: 0;
   display: flex;
   justify-content: center;
-  gap: 1.2rem;
-  font-size: 0.6875rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  padding-inline: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
 }
+.holding .foot > * { white-space: nowrap; }
 .holding .foot a { color: var(--ink-soft); text-decoration: none; }
 .holding .foot a:hover { color: var(--ink); }
 
 /* An address that is not a page (2026-09-14): one line of what to do, under the state. */
 .holding .missing { margin: 0; max-inline-size: 24rem; text-align: center; color: var(--ink-soft); font-size: 0.9375rem; }
-.holding .missing a { color: var(--ink); }
+.holding .missing a { color: var(--teal); text-decoration: none; }
+.holding .missing a:hover { text-decoration: underline; }

@@ -1327,7 +1327,10 @@ every message.
 
 The reader is the page. Everything around it — Learn, the conversation, the library, Your
 Progress, the account, the Add page — is the desk the page lies on, and is built to be
-operated rather than read. Added 2026-09-11; the reasons are in §12.
+operated rather than read. Added 2026-09-11; the reasons are in §12. The pages in front of
+the door — sign-in, the holding page and its 404, What's built — stand on the desk too
+since 2026-09-14 (targum-internal#276): the ground, the chrome's face, the door and the
+count as cards, the address in a well, and the call to action still ink (§9).
 
 **Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
 things sit on it as cards, `#fffdf9` (dark `#201e1b`), raised by their shadow and not by

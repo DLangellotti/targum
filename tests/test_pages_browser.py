@@ -32,12 +32,16 @@ import pytest
 
 from targum.render.builder import (
     LISTS,
+    about_page,
     add_page,
     chat_page,
+    holding_page,
     learn_page,
     library_page,
     list_page,
+    not_found_page,
     progress_page,
+    signin_page,
     you_page,
 )
 
@@ -641,6 +645,52 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     context.close()
     assert one_line
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
+
+
+@pytest.mark.parametrize("width", [320, 390, 1440])
+def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Path, width) -> None:
+    """Sign-in, the holding page, its 404 and What's built were paper with serif headings
+    while everything behind the door is the desk (targum-internal#276). Each is on the
+    ground in the chrome's face now; none scrolls sideways; and a footer item is never
+    broken across two lines — "AGPL-3.0" stood on a line of its own on sign-in."""
+    pages = {
+        "signin": signin_page(),
+        "holding": holding_page(),
+        "missing": not_found_page(),
+        "about": about_page(),
+    }
+    context = browser.new_context(viewport={"width": width, "height": 800})
+    seen = {}
+    for name, html in pages.items():
+        page_file = tmp_path / f"{name}.html"
+        page_file.write_text(html, encoding="utf-8")
+        open_page = context.new_page()
+        open_page.goto(page_file.as_uri())
+        open_page.wait_for_timeout(100)
+        seen[name] = open_page.evaluate(
+            """() => {
+              const body = getComputedStyle(document.body);
+              const ground = getComputedStyle(document.documentElement)
+                .getPropertyValue('--ground').trim();
+              const probe = document.createElement('i');
+              probe.style.color = ground;
+              document.body.append(probe);
+              const groundRgb = getComputedStyle(probe).color;
+              return {
+                ground: body.backgroundColor === groundRgb,
+                face: body.fontFamily.includes('Source Sans 3'),
+                sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
+                split: [...document.querySelectorAll('.foot > *')]
+                  .filter((el) => el.getClientRects().length > 1).map((el) => el.textContent),
+              };
+            }"""
+        )
+        open_page.close()
+    context.close()
+    for name, got in seen.items():
+        assert got == {"ground": True, "face": True, "sideways": False, "split": []}, (
+            f"{name} at {width}px: {got}"
+        )
 
 
 def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
