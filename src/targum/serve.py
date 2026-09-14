@@ -188,6 +188,10 @@ ABOUT_FIELDS = {
     # said "the definition here is change, not teachings" with a correct parsing and no
     # idea it was contradicting the card (2026-09-08).
     "meaning": 200,
+    # What the card says the form is — "noun · f · accusative" — sent only for a word
+    # whose line names a case or an aspect, so the model explains the tag it was shown
+    # rather than a parsing of its own (targum-internal#258).
+    "grammar": 120,
 }
 
 POLICY = (

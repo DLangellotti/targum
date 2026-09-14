@@ -205,3 +205,57 @@ def test_hebrew_keeps_its_chain_and_its_name() -> None:
         chosen = for_text("x.md", language)
         assert isinstance(chosen, ModelLemmatizer) and chosen.buy is False
     assert for_text("x.md", "fr", buy=True).buy is True
+
+
+def test_the_grammar_comes_with_the_word() -> None:
+    """A fifth column of features, kept only from the list a card can say something with,
+    written in one order whatever order the model used (targum-internal#258)."""
+    text = "Он взял её руку."
+    answer = "\n".join(
+        [
+            "1\tОн\tон\tPRON\tPerson=3|Gender=Masc|Number=Sing|Case=Nom",
+            "1\tвзял\tвзять\tVERB\tTense=Past|Aspect=Perf|Gender=Masc|Number=Sing|VerbForm=Fin",
+            # Invented features and values are dropped rather than shipped.
+            "1\tеё\tона\tDET\tCase=Acc|Poss=Yes|Gender=Hmm",
+            "1\tруку\tрука\tNOUN\tNumber=Sing|Case=Acc|Gender=Fem|Animacy=Inan",
+        ]
+    )
+    [tokens] = model_lemma.parse(answer, [text])
+    assert tokens is not None
+    assert [t.feats for t in tokens] == [
+        "UPOS=PRON|Case=Nom|Gender=Masc|Number=Sing|Person=3",
+        "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin",
+        "UPOS=DET|Case=Acc",
+        "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan",
+    ]
+    # An answer that left the column off still has its words, with only the tag.
+    [bare] = model_lemma.parse("1\tОн\tон\tPRON\n1\tвзял\tвзять\tVERB\t_", [text])
+    assert bare is not None and [t.feats for t in bare] == ["UPOS=PRON", "UPOS=VERB"]
+
+
+def test_the_grammar_is_kept_with_the_words(tmp_path: Path) -> None:
+    fake = FakeModel()
+    first = reader(tmp_path, fake, buy=True).lemmas([segment(0, "Кошка спит.")], "ru")
+    again = reader(tmp_path, fake).lemmas([segment(0, "Кошка спит.")], "ru")
+    assert len(fake.asked) == 1 and again == first
+    assert [t.feats for t in again["0000.000-x"]] == ["UPOS=NOUN", "UPOS=VERB"]
+
+
+def test_the_question_is_version_two_and_names_the_features() -> None:
+    """Prompt 2 asks the grammar; a stored prompt-1 row is under another key and is read
+    again rather than shown without it."""
+    assert model_lemma.provider_name().endswith("/2")
+    assert "Case (Nom Gen Dat Acc Ins Loc Par Voc)" in model_lemma.SYSTEM
+    for name in model_lemma.FEATURES:
+        assert name in model_lemma.SYSTEM
+
+
+def test_a_language_keeps_only_the_grammar_it_has() -> None:
+    """French has no case to show, and the model's case for a French pronoun was measured
+    to be a guess; Yiddish has case and no aspect."""
+    line = "Case=Acc|Gender=Fem|Number=Sing|Aspect=Perf|Animacy=Anim"
+    assert model_lemma.features(line, "PRON", "fr") == "UPOS=PRON|Gender=Fem|Number=Sing"
+    assert model_lemma.features(line, "NOUN", "yi") == "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"
+    assert model_lemma.features(line, "NOUN", "ru") == (
+        "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Anim|Aspect=Perf"
+    )

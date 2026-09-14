@@ -324,6 +324,16 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
             "for this sentence, say so plainly; you cannot change the card, and the "
             "reader can write their own meaning under it."
         )
+    if about.get("grammar"):
+        # An explanation tied to a concrete fact is right far more often than one the
+        # model reads off the sentence itself (Song et al. 2024), so the card's own tag
+        # is the fact. It can be wrong, and the model is told to say so rather than to
+        # explain a case the word is not in (targum-internal#258).
+        lines.append(
+            f"The card tags the form: {about['grammar']}. Explain why the word is in that "
+            "form here from the sentence. If the tag is wrong for this sentence, say so "
+            "plainly and say what it is."
+        )
     lines.append("Their question:")
     lines.append(text)
     return "\n".join(lines)

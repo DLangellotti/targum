@@ -17,6 +17,13 @@ it split or joined differently is a miss. Over the words that matched, `lemma_ac
 syntactic words (French *du*, Italian *della*) is scored as one word whose dictionary form
 is the first part's, which is what the prompt asks for.
 
+**And the grammar** (prompt 2, targum-internal#258). Over the matched words whose hand
+annotation carries the feature, the share the model gave the same value: `case_accuracy`,
+`aspect_accuracy`, `gender_accuracy`, `number_accuracy`. A word the model left without the
+feature counts as wrong. A language whose treebank never marks a feature, or whose card
+does not keep it (`model_lemma.KEPT`), gets no row for it. The run also prints output
+tokens per word, which is the figure the quote uses (`model_lemma.TOKENS_PER_WORD_OUT`).
+
 **What it costs.** A few cents a language at the default sample. Nothing is read from or
 written to the production cache: the question is what the model does today.
 
@@ -68,6 +75,24 @@ class Word:
     form: str
     lemma: str
     upos: str
+    feats: str = ""
+
+
+#: The features scored, by the metric each is written under.
+SCORED = {
+    "Case": "case_accuracy",
+    "Aspect": "aspect_accuracy",
+    "Gender": "gender_accuracy",
+    "Number": "number_accuracy",
+}
+
+
+def feature(feats: str, name: str) -> str:
+    for part in (feats or "").split("|"):
+        key, _, value = part.partition("=")
+        if key == name:
+            return value
+    return ""
 
 
 def fetch(language: str) -> Path:
@@ -100,6 +125,7 @@ def sentences(path: Path) -> list[tuple[str, list[Word]]]:
             if len(cells) < 4:
                 continue
             ident, form, lemma, upos = cells[0], cells[1], cells[2], cells[3]
+            feats = cells[5] if len(cells) > 5 and cells[5] != "_" else ""
             if "." in ident:
                 continue
             if "-" in ident:
@@ -110,9 +136,9 @@ def sentences(path: Path) -> list[tuple[str, list[Word]]]:
             number = int(ident)
             if number in covered:
                 if words and not words[-1].lemma:
-                    words[-1] = Word(words[-1].form, lemma, upos)
+                    words[-1] = Word(words[-1].form, lemma, upos, feats)
                 continue
-            words.append(Word(form, lemma, upos))
+            words.append(Word(form, lemma, upos, feats))
     return out
 
 
@@ -147,6 +173,8 @@ def score(language: str, count: int, model: str) -> list[evals.Row]:
         reader = model_lemma.ModelLemmatizer(model, buy=True, cache=Cache(Path(scratch)))
         read = reader.lemmas(segments, language)
     gold_words = found = lemma_right = upos_right = 0
+    marked = dict.fromkeys(SCORED, 0)
+    agreed = dict.fromkeys(SCORED, 0)
     for segment, (text, words) in zip(segments, picked, strict=True):
         gold = {
             span: word
@@ -162,9 +190,17 @@ def score(language: str, count: int, model: str) -> list[evals.Row]:
             found += 1
             lemma_right += token.lemma.casefold() == word.lemma.casefold()
             upos_right += token.pos == word.upos
+            for name in SCORED:
+                gold_value = feature(word.feats, name)
+                if gold_value:
+                    marked[name] += 1
+                    agreed[name] += feature(token.feats or "", name) == gold_value
     today = date.today().isoformat()
     version = model_lemma.provider_name(model)
+    words_in = sum(len(text.split()) for text, _ in picked)
+    per_word = reader.spent.output_tokens / max(1, words_in)
     note = f"sentences={len(picked)} spent=${reader.spent.cost():.3f}"
+    print(f"{language}  output tokens per word {per_word:.1f}", flush=True)
     rows = [
         evals.Row(
             today,
@@ -200,6 +236,21 @@ def score(language: str, count: int, model: str) -> list[evals.Row]:
             note,
         ),
     ]
+    rows.extend(
+        evals.Row(
+            today,
+            "lemma",
+            "model-lemma",
+            version,
+            metric,
+            round(agreed[name] / marked[name], 4),
+            marked[name],
+            corpus,
+            note,
+        )
+        for name, metric in SCORED.items()
+        if marked[name] and name in model_lemma.KEPT.get(language, frozenset(model_lemma.FEATURES))
+    )
     return rows
 
 

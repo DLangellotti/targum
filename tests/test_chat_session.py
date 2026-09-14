@@ -716,6 +716,24 @@ def test_sentences_a_hebrew_speaker_wrote_ride_with_the_ledger_only_in_hebrew(
     assert "Sentences a Hebrew speaker wrote" not in client.requests[3]["system"][1]["text"]
 
 
+def test_the_card_s_grammar_tag_is_the_fact_an_answer_starts_from() -> None:
+    """The model explains the tag the card showed, and says so when the tag is wrong,
+    rather than reading a case off the sentence on its own (targum-internal#258)."""
+    framed = session_module.framed(
+        "why this ending?",
+        {
+            "sentence": "Он взял её за руку.",
+            "surface": "руку",
+            "lemma": "рука",
+            "grammar": "noun · f · accusative",
+        },
+    )
+    assert "The card tags the form: noun · f · accusative." in framed
+    assert "If the tag is wrong for this sentence, say so" in framed
+    assert framed.endswith("Their question:\nwhy this ending?")
+    assert "card tags" not in session_module.framed("?", {"surface": "руку"})
+
+
 def test_a_brought_text_is_framed_as_a_fact_the_model_can_use() -> None:
     """The reader gave the model a text; the note says what it is and that it is on its
     way, so the model never asks for it (2026-09-07)."""

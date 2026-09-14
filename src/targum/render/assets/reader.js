@@ -3002,11 +3002,27 @@ var targumReader = function () {
       if (plural) return "they";
       if (gender === "Masc") return "he";
       if (gender === "Fem") return "she";
+      // A Russian present or future names no gender: пишет is anyone's.
+      if (feat(line, "Number") === "Sing") return "he/she";
     }
     return "";
   }
 
   var TENSE_WORDS = { Past: "past", Pres: "present", Fut: "future" };
+  // The case a word is in, by the name a Russian course teaches it under. Universal
+  // Dependencies calls the prepositional Loc; nobody learning Russian does.
+  var CASE_WORDS = {
+    Nom: "nominative",
+    Gen: "genitive",
+    Dat: "dative",
+    Acc: "accusative",
+    Ins: "instrumental",
+    Loc: "prepositional",
+    Par: "partitive",
+    Voc: "vocative",
+  };
+  var ASPECT_WORDS = { Perf: "perfective", Imp: "imperfective" };
+  var GENDER_MARKS = { Masc: "m", Fem: "f", Neut: "n" };
   var POS_WORDS = {
     NOUN: "noun",
     ADJ: "adjective",
@@ -3034,37 +3050,80 @@ var targumReader = function () {
     return "";
   }
 
+  // Case and aspect are said wherever a word carries them, and only Russian's words do:
+  // DICTA never tags either, so every Hebrew line comes out exactly as it did
+  // (targum-internal#258). They go last on the line, after what the word is, because the
+  // case is the fact a Russian learner tapped the word to find.
   function useLine(line) {
     var pos = feat(line, "UPOS");
+    var inCase = CASE_WORDS[feat(line, "Case")] || "";
+    var aspect = ASPECT_WORDS[feat(line, "Aspect")] || "";
     if (pos === "VERB" || pos === "AUX") {
       var parts = [];
       var form = feat(line, "VerbForm");
       var tense = TENSE_WORDS[feat(line, "Tense")];
-      if (form === "Inf") parts.push("infinitive");
+      // A Russian participle declines, so it is the only verb form with a case, and the
+      // case is what tells it from the beinoni, which is tagged the same and has none.
+      if (form === "Part" && inCase) parts.push(tense ? tense + " participle" : "participle");
+      else if (form === "Inf") parts.push("infinitive");
+      else if (form === "Conv") parts.push("verbal adverb");
+      else if (feat(line, "Mood") === "Imp") parts.push("imperative");
       else if (tense) parts.push(tense);
       // The beinoni: tagged as a participle, met as the present tense.
       else if (form === "Part") parts.push("present");
+      if (aspect) parts.push(aspect);
       var who = personWord(line);
+      // A Russian past agrees with its subject's gender rather than its person, so it
+      // says the gender: сказал is "m" whether I, you or he said it.
+      if (!who && !inCase && tense === "past") who = agreement(line);
       if (who) parts.push(who);
+      if (inCase) {
+        var mark = agreement(line);
+        if (mark) parts.push(mark);
+        parts.push(inCase);
+      }
       return parts.join(" · ");
     }
     if (pos === "NOUN") {
       var noun = ["noun"];
       var gender = feat(line, "Gender");
-      if (gender === "Masc") noun.push("m");
-      if (gender === "Fem") noun.push("f");
+      if (GENDER_MARKS[gender]) noun.push(GENDER_MARKS[gender]);
       if (feat(line, "Number") === "Plur") noun.push("pl.");
       if (feat(line, "Definite") === "Cons") noun.push("construct");
+      if (inCase) noun.push(inCase);
       return noun.length > 1 ? noun.join(" · ") : "";
     }
     if (pos === "ADJ") {
       var agree = ["adjective"];
-      if (feat(line, "Gender") === "Fem") agree.push("f");
-      if (feat(line, "Number") === "Plur") agree.push("pl.");
+      // Masculine singular is the form an adjective is looked up under, so it said
+      // nothing — until a case came with it, when "adjective · genitive" needs the
+      // gender to say which genitive.
+      var said = inCase ? agreement(line) : feat(line, "Gender") === "Fem" ? "f" : "";
+      if (inCase) {
+        if (said) agree.push(said);
+      } else {
+        if (said) agree.push(said);
+        if (feat(line, "Number") === "Plur") agree.push("pl.");
+      }
+      if (inCase) agree.push(inCase);
       return agree.join(" · ");
     }
-    if (pos === "PRON") return personWord(line);
+    if (pos === "PRON") {
+      var person = personWord(line);
+      if (!inCase) return person;
+      return (person || "pronoun") + " · " + inCase;
+    }
+    if (inCase && (pos === "DET" || pos === "NUM" || pos === "PROPN")) {
+      return (pos === "DET" ? "determiner" : pos === "NUM" ? "number" : "name") + " · " + inCase;
+    }
     return POS_WORDS[pos] || "";
+  }
+
+  // Gender and number as one mark, the way a Russian table heads its columns: the plural
+  // has no gender, so it is "pl." alone.
+  function agreement(line) {
+    if (feat(line, "Number") === "Plur") return "pl.";
+    return GENDER_MARKS[feat(line, "Gender")] || "";
   }
 
   // A line that mixes Hebrew pieces with English glue — "ו and + ל to + בית". The
@@ -3320,6 +3379,35 @@ var targumReader = function () {
     return null;
   }
 
+  // Every other spelling a lemma has in this text, in reading order, the tapped one left
+  // out. Read back out of the bare text, so a form is one entry however it is pointed.
+  var FORMS_SHOWN = 6;
+  function formsHere(index, surface) {
+    var seen = {};
+    var out = [];
+    seen[surface.toLowerCase()] = true;
+    var ids = Object.keys(wordData).sort();
+    for (var i = 0; i < ids.length && out.length < FORMS_SHOWN; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var r = 0; r < rows.length && out.length < FORMS_SHOWN; r++) {
+        if (rows[r][4] !== index) continue;
+        var form = segmentText(ids[i]).slice(rows[r][0], rows[r][1]).toLowerCase();
+        if (!form || seen[form]) continue;
+        seen[form] = true;
+        out.push(form);
+      }
+    }
+    return out;
+  }
+
+  // The card's grammar line for a word, as the ask sends it: only a line that names a
+  // case or an aspect, which is the one a model's own reading could contradict.
+  function grammarOf(word) {
+    var row = rowOf(word);
+    var line = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    return feat(line, "Case") || feat(line, "Aspect") ? useLine(line) : "";
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -3462,6 +3550,25 @@ var targumReader = function () {
       bdi.textContent = lemma;
       form.appendChild(bdi);
       card.appendChild(form);
+    }
+
+    // The other shapes this word takes in this text. A Russian noun is met in one to three
+    // forms far more often than in its table (Janda & Tyers 2018), and seeing руку and
+    // рукой beside рука is the paradigm a reader has actually met. Only for a word whose
+    // grammar carries a case or an aspect, which is to say an inflecting language's.
+    var grammarLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    if (feat(grammarLine, "Case") || feat(grammarLine, "Aspect")) {
+      var others = formsHere(index, surface);
+      if (others.length) {
+        var met = document.createElement("span");
+        met.className = "form forms-here";
+        met.appendChild(document.createTextNode("here also as "));
+        var listed = document.createElement("bdi");
+        listed.setAttribute("lang", language);
+        listed.textContent = others.join(" · ");
+        met.appendChild(listed);
+        card.appendChild(met);
+      }
     }
 
     // A Hebrew verb, taken apart. This is the half of the card that costs nothing and
@@ -3704,6 +3811,9 @@ var targumReader = function () {
           lemma: lemma,
           // What the card says, so an answer can disagree with it out loud.
           meaning: glosses[index] || "",
+          // And what it says the form is, so an explanation starts from the tag rather
+          // than inventing one (targum-internal#258).
+          grammar: grammarOf(word),
         },
       }),
     })

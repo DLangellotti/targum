@@ -1142,6 +1142,7 @@ def test_a_word_tapped_is_a_question_half_asked(browser, built: Path) -> None:
     assert sent["about"]["surface"] == word, "the word as it sits on the page"
     assert word in sent["about"]["sentence"] or sent["about"]["sentence"], "and its sentence"
     assert sent["about"]["document"] and sent["about"]["section"]
+    assert sent["about"]["grammar"] == "", "a word with no case or aspect sends no tag"
 
     page.fill(".gloss-card .ask-field", "and where else?")
     page.press(".gloss-card .ask-field", "Enter")
@@ -5784,4 +5785,97 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
         })"""
     )
     assert heard["sentence"] and heard["segment"], "a tapped word says where"
+    context.close()
+
+
+def russian(out: Path) -> Path:
+    """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
+    lines = ["Он взял её за руку.", "Рука болела, и рукой он писал."]
+    words = {
+        0: [
+            ("Он", "он", "UPOS=PRON|Case=Nom|Gender=Masc|Number=Sing|Person=3"),
+            (
+                "взял",
+                "взять",
+                "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin",
+            ),
+            ("руку", "рука", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan"),
+        ],
+        1: [
+            ("Рука", "рука", "UPOS=NOUN|Case=Nom|Gender=Fem|Number=Sing|Animacy=Inan"),
+            ("рукой", "рука", "UPOS=NOUN|Case=Ins|Gender=Fem|Number=Sing|Animacy=Inan"),
+        ],
+    }
+    segments, tokens = [], {}
+    for n, text in enumerate(lines):
+        segment = Segment(
+            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=n, text=text
+        )
+        segments.append(segment)
+        placed, cursor = [], 0
+        for surface, lemma, feats in words[n]:
+            start = text.index(surface, cursor)
+            cursor = start + len(surface)
+            placed.append(
+                Token(
+                    start=start,
+                    end=cursor,
+                    surface=surface,
+                    lemma=lemma,
+                    band=1,
+                    pos=feats.split("|")[0][5:],
+                    feats=feats,
+                )
+            )
+        tokens[segment.id] = placed
+    document = Document(
+        source="memory",
+        title="Рука",
+        language="ru",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=lines[0])],
+        content_hash="r",
+    )
+    segmented = SegmentedDocument(
+        document_hash="r", language="ru", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="r",
+        source_language="ru",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"A line ({s.id})." for s in segments},
+    )
+    annotation = Annotation(
+        document_hash="r",
+        language="ru",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens=tokens,
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+CARD_LINES = """
+(text) => {
+  [...document.querySelectorAll('.w')].find((w) => w.textContent === text).click();
+  const card = document.querySelector('.gloss-card');
+  const line = (selector) => {
+    const el = card.querySelector(selector);
+    return el ? el.textContent : null;
+  };
+  return { use: line('.use'), forms: line('.forms-here') };
+}
+"""
+
+
+def test_a_russian_card_says_the_case_and_the_other_forms_here(browser, tmp_path: Path) -> None:
+    """The case goes on the grammar line, and the card lists the shapes the same word takes
+    elsewhere in the text: the paradigm this reader has actually met."""
+    context, page = open_reader(browser, russian(tmp_path / "reader"))
+    shown = page.evaluate(CARD_LINES, "руку")
+    assert shown == {"use": "noun · f · accusative", "forms": "here also as рука · рукой"}
+    verb = page.evaluate(CARD_LINES, "взял")
+    assert verb == {"use": "past · perfective · m", "forms": None}, "one form, nothing to list"
     context.close()
