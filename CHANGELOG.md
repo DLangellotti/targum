@@ -108,6 +108,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A recording built with a transcript is read in the language the transcript's name
+  gives (`abc123.it.vtt`, `it.vtt`), or the `language` in a yt-dlp `.info.json` beside a
+  local video, where `--from` was not passed. Before, it was read as Hebrew. A subtitle
+  file built on its own takes its language from its name the same way, and a plain-text
+  transcript is loaded in the recording's language, so the aligner's model is the
+  language's own. Where nothing names the language the build still reads Hebrew, and the
+  command line now says so and says to pass `--from`.
+- `targum video curate` carries a video's own English, aligned from
+  `--translation en.vtt`, and prefers it to a bought one. Before, it skipped every
+  aligned translation and refused the folder with "No English".
+- Subtitle cues decode HTML entities. `&nbsp;` between two sentences in YouTube's
+  Italian tracks glued them into one row.
+- `python -m targum.cli video curate` and `video list` exist. The `__main__` guard sat
+  above them, and a test now keeps it last.
 - Italian quotations stay on one row. A full stop or an ellipsis inside «», “”, straight
   quotes or a dash-set line of dialogue split the quotation in two, and a straight `"`
   opening a sentence after a full stop was read as closing the one before, gluing the
