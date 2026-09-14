@@ -103,7 +103,7 @@ def book_id(identifier: str) -> int:
 def _clean(text: str) -> str:
     # Soft hyphens and a byte-order mark both turn up inside words on these pages, typed
     # by whoever pasted the text in, and neither is visible or a character of the story.
-    text = text.replace("\xad", "").replace("﻿", "").replace("​", "")
+    text = text.replace("\xad", "").replace("\ufeff", "").replace("\u200b", "")
     return " ".join(normalize(text).split())
 
 
@@ -178,7 +178,7 @@ def drop_capital_copies(lines: list[str]) -> list[str]:
 #: How alike every pair of pages must be for a book to be a book with each page twice.
 #: Measured over the 1,020 Italian books on 2026-09-14: *Buonanotte, Tinku!* (7751), whose
 #: twenty-two pages are its eleven twice, pairs at 0.99 at the worst; no other book of
-#: four pages or more pairs above 0.71 throughout.
+#: four pages or more pairs above 0.67 throughout.
 DOUBLED_LIKENESS = 0.95
 
 
