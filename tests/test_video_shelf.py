@@ -349,6 +349,58 @@ def test_curation_carries_the_text_the_english_and_the_files(tmp_path: Path) -> 
     assert held["credit"] == "Khan Academy Hebrew"
 
 
+def test_curation_carries_the_videos_own_english_over_a_bought_one(tmp_path: Path) -> None:
+    """`targum build --transcript it.vtt --translation en.vtt --video` aligns the track
+    somebody wrote, and curation refused it for "No English" (2026-09-14). A published
+    English is the better one to carry, and it still says it was aligned."""
+    from targum.video.curate import curate
+
+    built = tmp_path / "built"
+    (built / "audio" / "parts").mkdir(parents=True)
+    (built / "translations").mkdir(parents=True)
+    (built / "audio" / "parts" / "part-001.mp4").write_bytes(b"ftypmp42film")
+    document = Document(source="source.mp4", title="Un discorso", language="it", blocks=[])
+    document.content_hash = document.recompute_hash()
+    document.write(built / "document.json")
+    manifest_module.write(
+        built,
+        manifest_module.AudioManifest(
+            source="source.mp4",
+            home="https://youtu.be/abc123",
+            sha256="x",
+            duration=10.0,
+            language="it",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1, start=0.0, end=10.0, video="audio/parts/part-001.mp4"
+                )
+            ],
+        ),
+    )
+
+    def english(provider: str, kind: str, said: str, file: str) -> None:
+        Translation(
+            name=file,
+            document_hash=document.content_hash,
+            source_language="it",
+            target_language="en",
+            provider=provider,
+            kind=kind,
+            segments={"0000.000-aaa": said},
+        ).write(built / "translations" / file)
+
+    english("aligned", "aligned", "written", "aligned.english.en.json")
+    folder = curate(built, credit="Somebody", into=tmp_path / "only")
+    carried = Translation.model_validate_json((folder / store.ENGLISH).read_text("utf-8"))
+    assert (carried.provider, carried.kind) == ("aligned", "aligned")
+
+    # With a bought English beside it, the written one still wins.
+    english("anthropic", "machine", "bought", "anthropic.natural.en.json")
+    folder = curate(built, credit="Somebody", into=tmp_path / "both")
+    carried = Translation.model_validate_json((folder / store.ENGLISH).read_text("utf-8"))
+    assert carried.segments["0000.000-aaa"] == "written"
+
+
 def test_the_server_prices_a_curated_video_at_nothing_with_no_key(
     shelf: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

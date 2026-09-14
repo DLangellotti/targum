@@ -13,7 +13,7 @@ What is kept is what the box cannot make for itself:
 
     <root>/<id>/video.json      who made it, under what licence, and where it lives
     <root>/<id>/document.json   the text, with `source` already `video:<id>`
-    <root>/<id>/english.json    the translation, bought once by the operator
+    <root>/<id>/english.json    the translation: the video's own track, or bought once
     <root>/<id>/audio.json      the import manifest, verbatim
     <root>/<id>/audio/parts/…   the cut mp3 and the 480p mp4 it names
 

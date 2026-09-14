@@ -761,11 +761,12 @@ class Build:
         correspondence is a fact of the file rather than something to infer from shapes.
         One turn is one block is one segment, which is what `UNSPLIT` guarantees.
 
-        A curated video's English was not written by hand; it was bought once, by the
-        operator, before the video was shipped. So it arrives as it was made — provider,
-        model and `kind: machine` all kept, because a machine translation that stops
-        saying so at the shelf is the one thing this must not do. What it saves is the
-        box buying, per video, an English that has already been paid for.
+        A curated video's English was not written by hand here; it was bought once by
+        the operator, or aligned from the video's own published track, before the video
+        was shipped. So it arrives as it was made — provider, model and `kind` all kept,
+        because a machine translation that stops saying so at the shelf is the one thing
+        this must not do. What it saves is the box buying, per video, an English that
+        has already been paid for.
         """
         if source.source.startswith("video:"):
             from .video import store as video_store

@@ -24,17 +24,25 @@ from . import store, youtube
 
 
 def _translation(folder: Path) -> Translation | None:
-    """The English this build bought, or None.
+    """The English this build carries, or None.
 
-    The same rule `warm` uses to tell a bought translation from a matched one: an
-    aligned rendering is a published translation someone else wrote, and it belongs to
-    that publisher rather than to the shelf.
+    A published English wins over a bought one: `targum build --translation en.vtt`
+    aligns the track somebody wrote for the video, and that is the better English for
+    the shelf to carry. It arrives as it was made — `provider` and `kind` both
+    `aligned` — so nothing downstream mistakes it for a bought one, and `warm`, which
+    promotes only bought English into the shared cache, still leaves it alone. Every
+    Hebrew video on the shelf was curated from a bought English with no track beside
+    it, so each still curates to the same file.
     """
+    bought: Translation | None = None
     for path in sorted((folder / "translations").glob("*.json")):
         held = read_artifact(Translation, path)
-        if held is not None and held.provider != "aligned" and held.target_language == "en":
+        if held is None or held.target_language != "en":
+            continue
+        if held.provider == "aligned":
             return held
-    return None
+        bought = bought or held
+    return bought
 
 
 def curate(
