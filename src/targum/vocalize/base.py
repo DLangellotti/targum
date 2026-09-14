@@ -1,4 +1,4 @@
-"""Hebrew vowel points: removing them, and deciding whose pointing wins.
+"""Hebrew vowel points, and Russian stress marks: removing them, and deciding whose wins.
 
 Nikkud only ever adds combining marks; it never changes a letter. Everything in this
 package rests on that, which is why the consonant skeleton is checked rather than
@@ -10,7 +10,7 @@ the text and break every token offset the reader draws from.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
 from ..errors import SkeletonChanged
@@ -28,6 +28,23 @@ MARKS = frozenset(cp for cp in range(0x0591, 0x05C8) if unicodedata.category(chr
 
 # Alef through tav, final forms included.
 LETTERS = frozenset(range(0x05D0, 0x05EB))
+
+# Russian stress (targum-internal#260): the combining acute over a stressed vowel, and the
+# diaeresis that writes a restored ё as е plus a mark. Both are marks only after a Cyrillic
+# letter — the same two code points are how a decomposed é or ü is spelled, and a French
+# word must never lose its accent to a Russian rule. So these are not in MARKS, which is
+# Hebrew's alone and mirrored by the reader; `is_mark` asks with the letter before.
+STRESS = frozenset({0x0301, 0x0308})
+
+
+def cyrillic(char: str) -> bool:
+    return "\u0400" <= char <= "\u04ff"
+
+
+def is_mark(char: str, before: str) -> bool:
+    """Whether `char` is a mark on the base character `before`, rather than text."""
+    return ord(char) in MARKS or (ord(char) in STRESS and cyrillic(before))
+
 
 # The te'amim, U+0591-U+05AF: the chanting marks a Masoretic edition carries above and
 # below its vowels, and the one part of the pointing a reader may reasonably want out of
@@ -50,7 +67,7 @@ def strip_nikkud(text: str) -> tuple[str, list[int]]:
     index: list[int] = []
     for char in text:
         index.append(len(bare))
-        if ord(char) not in MARKS:
+        if not is_mark(char, bare[-1] if bare else ""):
             bare.append(char)
     index.append(len(bare))
     return "".join(bare), index
@@ -73,7 +90,12 @@ def pointed_positions(text: str) -> list[int]:
     character itself, so a span's end lands past the marks belonging to the character
     before it — which is what makes a word's marks travel with the word.
     """
-    positions = [i for i, char in enumerate(text) if ord(char) not in MARKS]
+    positions: list[int] = []
+    base = ""
+    for i, char in enumerate(text):
+        if not is_mark(char, base):
+            positions.append(i)
+            base = char
     positions.append(len(text))
     return positions
 
@@ -101,7 +123,7 @@ def _js_units(text: str, index: int) -> int:
 
 
 def has_nikkud(text: str) -> bool:
-    return any(ord(char) in MARKS for char in text)
+    return any(is_mark(char, text[i - 1] if i else "") for i, char in enumerate(text))
 
 
 def has_taamim(text: str) -> bool:
@@ -112,7 +134,7 @@ def _units(text: str) -> list[tuple[str, str]]:
     """Each non-mark character paired with the marks that follow it."""
     units: list[tuple[str, list[str]]] = []
     for char in text:
-        if ord(char) in MARKS:
+        if is_mark(char, units[-1][0] if units else ""):
             # A mark before any base character has nothing to attach to. Real text does
             # not do this, but a truncated extraction can, and dropping it silently is
             # better than indexing off the front of the list.
@@ -123,24 +145,37 @@ def _units(text: str) -> list[tuple[str, str]]:
     return [(base, "".join(marks)) for base, marks in units]
 
 
-def _word_spans(units: list[tuple[str, str]]) -> list[tuple[int, int]]:
-    """The [start, end) runs of Hebrew letters.
+def _word_spans(
+    units: list[tuple[str, str]], letter: Callable[[str], bool] | None = None
+) -> list[tuple[int, int]]:
+    """The [start, end) runs of letters.
 
     Everything else ends a word: whitespace, punctuation, digits, Latin runs, and the
     maqaf. So 'אל־חלוני' is two words and each side is pointed on its own merits.
+    Hebrew letters only unless `letter` says otherwise: whether a Hebrew text is fully
+    pointed must not turn on a Russian word quoted in it.
     """
+    letter = letter or _hebrew
     spans: list[tuple[int, int]] = []
     start = 0
     while start < len(units):
-        if ord(units[start][0]) not in LETTERS:
+        if not letter(units[start][0]):
             start += 1
             continue
         end = start
-        while end < len(units) and ord(units[end][0]) in LETTERS:
+        while end < len(units) and letter(units[end][0]):
             end += 1
         spans.append((start, end))
         start = end
     return spans
+
+
+def _hebrew(char: str) -> bool:
+    return ord(char) in LETTERS
+
+
+def _letter(char: str) -> bool:
+    return ord(char) in LETTERS or (cyrillic(char) and char.isalpha())
 
 
 def is_fully_pointed(text: str) -> bool:
@@ -204,7 +239,7 @@ def splice(source: str, model: str) -> tuple[str, bool]:
     out: list[str] = []
     machine = False
     cursor = 0
-    for start, end in _word_spans(src):
+    for start, end in _word_spans(src, _letter):
         out.extend(base + marks for base, marks in src[cursor:start])
         if any(marks for _, marks in src[start:end]):
             out.extend(base + marks for base, marks in src[start:end])

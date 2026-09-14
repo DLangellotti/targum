@@ -1628,6 +1628,33 @@ def test_the_reader_agrees_with_python_on_what_a_mark_is() -> None:
     assert sorted(json.loads(result.stdout)) == sorted(MARKS)
 
 
+def test_the_reader_agrees_with_python_on_what_a_stress_mark_is() -> None:
+    """Russian's acute and diaeresis are marks after a Cyrillic letter and text after any
+    other, in both languages: a French é spelled with a combining acute keeps it."""
+    from targum.render import builder
+    from targum.vocalize.base import strip_nikkud
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    script = (Path(builder.__file__).parent / "assets/reader.js").read_text(encoding="utf-8")
+    start = script.index("  var STRESS_MARK")
+    end = script.index("  }\n", script.index("function isMark", start)) + 4
+    samples = ["рука\u0301 е\u0308ще", "cafe\u0301", "\u0301рука", "a\u0308 и\u0301"]
+    probe = (
+        f"const MARK = /[\\u0591-\\u05BD]/;{script[start:end]}"
+        f"const samples = {json.dumps(samples)};"
+        "console.log(JSON.stringify(samples.map((t) => "
+        "[...t].filter((c, i) => !isMark(t, i)).join(''))));"
+    )
+    result = subprocess.run(
+        [node, "-e", probe], capture_output=True, text=True, timeout=30, check=True
+    )
+    assert json.loads(result.stdout) == [strip_nikkud(text)[0] for text in samples]
+    assert strip_nikkud("cafe\u0301")[0] == "cafe\u0301"
+    assert strip_nikkud("рука\u0301")[0] == "рука"
+
+
 def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     """The catalogue is the cheap half of targum, and there are two ways to be cheap.
 

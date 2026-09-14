@@ -1018,6 +1018,55 @@ class Build:
         vocalization.write(path)
         return vocalization
 
+    def stress(
+        self, segmented: SegmentedDocument, annotation: Annotation | None
+    ) -> Vocalization | None:
+        """Russian stress marks, for the reader's toggle (targum-internal#260).
+
+        After the words rather than before, the way round from Hebrew's vowels: a
+        homograph's stress is settled by the case and number the tagger gave it. Nothing
+        is spent — silero runs here and OpenRussian is a table — and a machine without
+        either builds the reader it always did, and says so.
+        """
+        from .vocalize import russian
+
+        if not russian.supports(segmented.language):
+            return None
+        engine = self._vocalizer if isinstance(self._vocalizer, russian.StressVocalizer) else None
+        engine = engine or russian.StressVocalizer()
+        usable, why = engine.available()
+        if not usable:
+            self.notify(f"{why} Building without stress marks.")
+            return None
+        self.notify("Adding stress marks…")
+        path = self.resolved_out / "vocalization.json"
+        if not self.force and russian.current(
+            read_artifact(Vocalization, path), segmented.document_hash, engine, annotation
+        ):
+            self.reused.append("stress")
+            return read_artifact(Vocalization, path)
+        key = self.cache.key(
+            "vocalize",
+            document=segmented.document_hash,
+            vocalizer=engine.name,
+            model=russian.settled_by(engine, annotation),
+        )
+        stored = self.cache.get("vocalize", key)
+        if isinstance(stored, dict) and not self.force:
+            vocalization = Vocalization.model_validate(stored)
+            self.reused.append("stress (cache)")
+        else:
+            try:
+                vocalization = russian.mark_document(
+                    segmented, engine, annotation, str(self.source)
+                )
+            except TargumError as error:
+                self.notify(f"{error.message} Building without stress marks.")
+                return None
+            self.cache.put("vocalize", key, vocalization.model_dump(mode="json"))
+        vocalization.write(path)
+        return vocalization
+
     def glossary(
         self, annotation: Annotation | None, only: list[Segment] | None = None
     ) -> Glossary | None:
@@ -1997,6 +2046,11 @@ class Build:
         # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
         annotation = self.annotate(segmented, vocalization, only=only)
+        # Russian's marks come the other way round: after the words, which settle a
+        # homograph's stress. Hebrew's vowels are None here only for a language without
+        # them, so this is never a second pointing of one text.
+        if vocalization is None:
+            vocalization = self.stress(segmented, annotation)
 
         def build_reader(glossary: Glossary | None, *, clean: bool) -> list[Path]:
             self.notify("Building the reader…")

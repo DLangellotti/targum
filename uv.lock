@@ -4057,6 +4057,18 @@ wheels = [
 ]
 
 [[package]]
+name = "silero-stress"
+version = "1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fc/f7/f3bd17e658343373b76afc00c1fcff63ee225c90363e7e2730a199aab2b9/silero_stress-1.4.tar.gz", hash = "sha256:40770053fe7cf0fd6613e31a8bc6309a7ae025da4e7febe97282c5c21860a65c", size = 38580513, upload-time = "2026-02-12T14:02:29.59Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/72/5edf26c74a8d48640108976db5bc3e9e59722b63ccaa36b21894bf79ad77/silero_stress-1.4-py3-none-any.whl", hash = "sha256:c772725dc03c647e2b33961280dc35f41b7f43ac0861575884fea0c2a6cb8ae2", size = 38587594, upload-time = "2026-02-12T14:02:26.203Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4202,6 +4214,9 @@ speech-align = [
     { name = "torchaudio" },
     { name = "transformers" },
 ]
+stress = [
+    { name = "silero-stress" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -4229,6 +4244,7 @@ requires-dist = [
     { name = "pypdf", marker = "extra == 'bring'", specifier = ">=5.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "sentence-transformers", marker = "extra == 'align'", specifier = ">=3.0" },
+    { name = "silero-stress", marker = "extra == 'stress'", specifier = ">=1.4" },
     { name = "stanza", specifier = ">=1.8" },
     { name = "torchaudio", marker = "extra == 'speech-align'", specifier = ">=2.1" },
     { name = "trafilatura", specifier = ">=1.12" },
@@ -4237,7 +4253,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.12" },
     { name = "wordfreq", marker = "extra == 'difficulty'", specifier = ">=3.1" },
 ]
-provides-extras = ["align", "speech-align", "covers", "bring", "difficulty", "phonetics", "browser", "mcp"]
+provides-extras = ["align", "speech-align", "covers", "bring", "difficulty", "stress", "phonetics", "browser", "mcp"]
 
 [package.metadata.requires-dev]
 dev = [

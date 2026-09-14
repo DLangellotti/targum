@@ -1094,7 +1094,14 @@ def rebuild_one(
     moves: dict[str, object] | None = moves_module.carried(folder) or None
     repointed = False
     vocalization = read_artifact(Vocalization, folder / "vocalization.json")
-    if vocalization is not None and vocalize is not None and vocalization.machine:
+    from .vocalize import russian as russian_stress
+
+    if (
+        vocalization is not None
+        and vocalize is not None
+        and vocalization.machine
+        and not russian_stress.supports(document.language)
+    ):
         # Only a text a model pointed: one pointed by its edition names `source` and is
         # nobody's to redo. The engine is chosen by register and by what is on disk, so
         # a box without the menaked's weights compares Nakdimon with Nakdimon and moves
@@ -1119,6 +1126,23 @@ def rebuild_one(
             if was.document_hash == annotation.document_hash:
                 moves = moves_module.keep(folder, moves_module.between(was, annotation))
             annotation.write(folder / "annotation.json")
+    # Russian stress after the words, which settle a homograph (targum-internal#260): marked
+    # again where the engine, the tables' pin or the words it was settled with changed. A
+    # machine without silero or the tables leaves the text as it was.
+    if vocalize is not None and russian_stress.supports(document.language):
+        engine = vocalize(document)
+        if isinstance(engine, russian_stress.StressVocalizer) and engine.available()[0]:
+            if not russian_stress.current(
+                vocalization, segmented.document_hash, engine, annotation
+            ):
+                try:
+                    fresh = russian_stress.mark_document(
+                        segmented, engine, annotation, document.source
+                    )
+                except TargumError as error:
+                    console.print(f"[dim]{error.message} Kept the text unmarked.[/dim]")
+                else:
+                    fresh.write(folder / "vocalization.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
         # Meanings held in the cache since this reader was written — looked up from
@@ -1249,7 +1273,15 @@ def rebuild(
                 said.add(message)
                 console.print(f"[dim]{message}[/dim]")
 
+        from .vocalize import russian as russian_stress
+
+        # One accentor for the run: silero takes a couple of seconds to load, and a
+        # rebuild of the Russian shelf would otherwise pay that per text.
+        stresser = russian_stress.StressVocalizer()
+
         def vocalize(document: Document) -> Vocalizer:
+            if russian_stress.supports(document.language):
+                return stresser
             return vocalizer_for(document.source, notify=once)
 
         from .annotate import (

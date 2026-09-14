@@ -313,6 +313,30 @@ is about models trained on ShareAlike data, and nothing here is a model.
 The dictionary's README says its data "is not void of flaws". So a spelling it files
 twice (за́мок and замо́к, the two писать) gets no partner and no stress line.
 
+### silero-stress — MIT, training data not disclosed (2026-09-14)
+
+Russian stress marks are proposed by
+**[silero-stress](https://github.com/snakers4/silero-stress)**. It is installed by the
+`stress` extra, which the deploy includes. The wheel on PyPI carries its weights (38 MB)
+and one licence, MIT (Silero Team), which grants use, copying and sale on condition that
+the notice travels with any copy. So targum may redistribute it and serve its output
+commercially, as with Nakdimon above.
+
+The caveat is also Nakdimon's. Its README says it was trained on "~4M known words and word
+forms and ~120M annotated sentences with homographs" and does not say where those came
+from. Its authors wrote that the Russian National Corpus was not used
+([Habr, 2025](https://habr.com/ru/articles/955130/)). On 2026-09-14 David accepted it on
+those terms, and it is recorded here so the acceptance is a decision rather than a drift.
+The alternatives were checked and refused: RUAccent was trained on the RNC and Wikipedia
+(CC BY-SA), Omogre is CC BY-NC-SA, and every model built from Zaliznyak's dictionary
+inherits its NonCommercial grant.
+
+silero proposes, but no mark rests on it alone. `vocalize/stress.py` places a mark only
+where OpenRussian's tables (above) allow the word a single stress and silero chose it.
+Measured on 1,000 sentences stressed by hand in Wiktionary (`scripts/eval_stress.py`,
+evaluation only), marks placed that way were right 99.8% of the time, against 98.5% for
+silero alone.
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each

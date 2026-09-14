@@ -33,5 +33,8 @@
   {"stage": "lemma", "corpus": "ud-fr-gsd", "metric": "gender_accuracy", "system": "model-lemma", "at_least": 0.94, "why": "0.9667 on 2026-09-14 over 120 dev sentences, Haiku 4.5, prompt 2"},
   {"stage": "lemma", "corpus": "ud-fr-gsd", "metric": "number_accuracy", "system": "model-lemma", "at_least": 0.89, "why": "0.9154 on 2026-09-14 over 120 dev sentences, Haiku 4.5, prompt 2"},
   {"stage": "lemma", "corpus": "ud-it-isdt", "metric": "gender_accuracy", "system": "model-lemma", "at_least": 0.96, "why": "0.9887 on 2026-09-14 over 120 dev sentences, Haiku 4.5, prompt 2"},
-  {"stage": "lemma", "corpus": "ud-it-isdt", "metric": "number_accuracy", "system": "model-lemma", "at_least": 0.97, "why": "0.9916 on 2026-09-14 over 120 dev sentences, Haiku 4.5, prompt 2"}
+  {"stage": "lemma", "corpus": "ud-it-isdt", "metric": "number_accuracy", "system": "model-lemma", "at_least": 0.97, "why": "0.9916 on 2026-09-14 over 120 dev sentences, Haiku 4.5, prompt 2"},
+  {"stage": "stress", "corpus": "wiktionary-ru", "metric": "stress_precision", "system": "stress", "at_least": 0.99, "why": "0.9978 on 2026-09-14 over 1,000 Wiktionary sentences (9,805 marks); silero alone 0.9853. The gate: a wrong mark is worse than none (targum-internal#260)"},
+  {"stage": "stress", "corpus": "wiktionary-ru", "metric": "stress_coverage", "system": "stress", "at_least": 0.78, "why": "0.8262 on 2026-09-14 over 1,000 Wiktionary sentences, untagged; tagging settles more homographs in a build"},
+  {"stage": "stress", "corpus": "wiktionary-ru", "metric": "yo_precision", "system": "stress", "at_least": 0.98, "why": "0.9974 on 2026-09-14 over 1,000 Wiktionary sentences (380 ё restored)"}
 ]
