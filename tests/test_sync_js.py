@@ -232,3 +232,50 @@ def test_a_word_that_moved_here_does_not_come_back_under_its_old_name_from_the_a
     assert set(answer["meanings"]) == {"ארך"}
     # And what went up: the moved record under its new name, and the old name as gone.
     assert answer["pushed"] == [["ארך", 0], ["לאורך", 1]]
+
+
+def test_a_language_pressed_while_the_account_answers_is_not_put_back() -> None:
+    """The account's answer to `/account/me` was written over the browser's language on
+    every page. A press made on the page while that answer was on its way was undone by
+    it, and the next page opened in the language just left (2026-09-14). And the press
+    itself is sent kept alive: the conversation reloads on it, and a request cut off by
+    the page going never reached the account."""
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {{ "targum:language": "he" }};
+      install({{ TARGUM_KEY: "", stored }});
+      let answerMe = null;
+      const sent = [];
+      global.fetch = function (url, options) {{
+        sent.push({{ url: String(url), keepalive: !!(options && options.keepalive) }});
+        if (String(url).indexOf("/account/me") >= 0) {{
+          return new Promise(function (resolve) {{
+            answerMe = function () {{
+              resolve({{ ok: true, status: 200, json: () => Promise.resolve({{
+                signedIn: true, email: "r@example.com", reads: [], learning: ["he", "arc"],
+                language: "he",
+              }}) }});
+            }};
+          }});
+        }}
+        return Promise.resolve({{ ok: true, status: 200, json: () => Promise.resolve({{}}) }});
+      }};
+      require({where});
+      const started = window.TargumSync.start();
+      // The reader presses Aramaic in the menu before the account has answered.
+      localStorage.setItem("targum:language", "arc");
+      answerMe();
+      started.then(function () {{
+        return window.TargumSync.language("arc");
+      }}).then(function () {{
+        console.log(JSON.stringify({{
+          language: localStorage.getItem("targum:language"),
+          pressed: sent.filter((r) => r.url.indexOf("/account/language") >= 0),
+        }}));
+      }});
+    """.format(dom=json.dumps(str(DOM)), where=json.dumps(str(ASSETS / "sync.js")))
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    seen = json.loads(done.stdout)
+    assert seen["language"] == "arc", "the press stands over the account's older answer"
+    assert seen["pressed"] and all(row["keepalive"] for row in seen["pressed"])

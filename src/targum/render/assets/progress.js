@@ -602,6 +602,9 @@
 
   function show(code) {
     currentCode = code;
+    // A language the reader learns and has kept nothing in yet is a page this can be:
+    // chosen in the menu, it is drawn empty rather than thrown on.
+    if (!data[code]) data[code] = { code: code, words: [], phrases: [], texts: 0, finished: 0 };
     window.TargumLang.set(code);
     window.TargumLang.switcher(document.getElementById("langs"), codes, names, code, show);
     var betaNote = document.getElementById("beta-note");

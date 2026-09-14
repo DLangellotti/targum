@@ -34,6 +34,9 @@ global.window.dispatchEvent = (event) => heard.push(event.detail);
 require(path.join(assets, "lang.js"));
 const lang = global.window.TargumLang;
 
+// Which language a page settles on as it loads, given only what it has something in.
+const current = payload.currentOf ? lang.current(payload.currentOf) : null;
+
 const nav = document.getElementById("langs");
 nav.id = "langs";
 const picked = [];
@@ -66,6 +69,7 @@ lang.switcher(other, ["en", "ru"], { en: "English", ru: "Russian" }, "en", () =>
 process.stdout.write(
   JSON.stringify({
     before,
+    current,
     openedPanel,
     picked,
     told,

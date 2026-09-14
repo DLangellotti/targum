@@ -79,6 +79,15 @@
     }
   }
 
+  // A key kept as a bare string rather than JSON: the language.
+  function local(name) {
+    try {
+      return localStorage.getItem(name) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
   function write(name, value) {
     try {
       targumKeep(name, JSON.stringify(value));
@@ -634,7 +643,7 @@
 
   /* --- talking to the account ----------------------------------------------- */
 
-  function ask(path, body) {
+  function ask(path, body, keep) {
     var options = {
       method: body ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
@@ -644,6 +653,8 @@
     };
     if (key) options.headers["X-Targum-Key"] = key;
     if (body) options.body = JSON.stringify(body);
+    // Outlives the page: a press that is followed by a change of page must still arrive.
+    if (keep) options.keepalive = true;
     return fetch(path + (key ? "?k=" + encodeURIComponent(key) : ""), options).then(function (
       response
     ) {
@@ -752,6 +763,7 @@
        signed out on their own machine. */
 
     start: function () {
+      var asked = local("targum:language");
       return ask("/account/me")
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
@@ -761,7 +773,11 @@
           // The language chosen on another device, for the next page this one opens. Not
           // the page already drawn: redrawing under somebody's hand is worse than one
           // page in the language they last saw here.
-          if (me.language) {
+          //
+          // And not over a press made on this page while the account was answering: the
+          // account's answer is from before it, and would put the reader back where they
+          // just left (2026-09-14).
+          if (me.language && local("targum:language") === asked) {
             try {
               localStorage.setItem("targum:language", me.language);
             } catch (e) {}
@@ -879,7 +895,9 @@
   // signed out: the browser keeps it, as it always did.
   api.language = function (code) {
     if (!api.who || !code) return Promise.resolve(null);
-    return ask("/account/language", { language: code }).catch(function () {
+    // Kept alive: the conversation reloads on the press, and a request cut off by the
+    // page going left the account in the old language, which the next page then took.
+    return ask("/account/language", { language: code }, true).catch(function () {
       return null;
     });
   };

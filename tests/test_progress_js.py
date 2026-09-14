@@ -38,12 +38,12 @@ def vocab(known: int = 0, learning: int = 0) -> dict[str, Any]:
     return out
 
 
-def draw(stored: dict[str, Any]) -> dict[str, Any]:
+def draw(stored: dict[str, Any], chosen: str = "") -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
         # The store holds strings, the way localStorage does.
         payload.write_text(
-            json.dumps({"stored": {k: json.dumps(v) for k, v in stored.items()}}),
+            json.dumps({"stored": {k: json.dumps(v) for k, v in stored.items()}, "chosen": chosen}),
             encoding="utf-8",
         )
         done = subprocess.run(
@@ -616,3 +616,12 @@ def test_the_longest_run_of_days_is_counted_and_the_current_one_never() -> None:
 
     one = draw({"targum:vocab:he": vocab(known=1), "targum:days": {"2026-08-01": 1}})
     assert one["counts"]["day running, your longest"] == 1, "singular, like the rest"
+
+
+def test_a_language_with_no_words_in_it_yet_draws_an_empty_ledger() -> None:
+    """The menu lists every language the reader learns, and the page opens in the one they
+    chose even where nothing is kept in it yet (2026-09-14). The page used to reach for
+    that language's words and throw, leaving the page half drawn."""
+    drawn = draw({"targum:vocab:he": vocab(known=3)}, chosen="arc")
+    assert drawn["nothing"] is False
+    assert all(not any(ch.isdigit() and ch != "0" for ch in label) for label in drawn["counts"])
