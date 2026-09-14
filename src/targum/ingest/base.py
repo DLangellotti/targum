@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol
 
 from ..ids import block_id
@@ -164,6 +165,28 @@ def detect_language(text: str) -> str:
     if best == "he" and _yiddish(text):
         return "yi"
     return best
+
+
+#: A language tag as yt-dlp spells one in a file name: `it`, `pt-BR`, `zh-Hans`, `es-419`,
+#: and Aramaic's three letters. The region is shaped strictly, so `my-talk` is not Burmese.
+_NAMED_TAG = re.compile(r"^(?:[a-z]{2}|arc)(?:-(?:[A-Z]{2}|\d{3}|[A-Z][a-z]{3}))?$")
+#: The tags YouTube still files tracks under, long after they were retired.
+_RETIRED_TAGS = {"iw": "he", "ji": "yi"}
+
+
+def named_language(path: Path) -> str:
+    """The language a transcript's file name states, or "" where it states none.
+
+    yt-dlp writes a track as `<id>.it.vtt`, and an operator who renames one keeps the
+    tag: `it.vtt`. That is the file saying what it is, not a guess, so it is used where
+    `--from` was not given. Only the part just before the suffix counts, so `lesson.1.vtt`
+    and `my-talk.srt` name nothing.
+    """
+    tag = path.stem.rsplit(".", 1)[-1]
+    if not _NAMED_TAG.fullmatch(tag):
+        return ""
+    head = tag.split("-")[0].lower()
+    return _RETIRED_TAGS.get(head, head)
 
 
 def build_document(

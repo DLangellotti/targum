@@ -1687,6 +1687,14 @@ def build(
             f"[bold]{plan.document.title or Path(source).name}[/bold] "
             f"[dim]{plan.document.language} → {to}, {count} segments[/dim]"
         )
+        if builder.language_assumed:
+            from .translate.prompts import language_name
+
+            console.print(
+                f"[yellow]Nothing names this recording's language, so we read it as "
+                f"{language_name(plan.document.language)}.[/yellow] "
+                "[dim]Pass --from if it is not.[/dim]"
+            )
 
         if plan.needs_payment:
             console.print(f"[dim]Estimated cost: about ${plan.estimated_cost:.2f}[/dim]")

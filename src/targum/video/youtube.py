@@ -281,6 +281,22 @@ def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]
         raise _refusal(error, "YouTube wouldn't tell us about that video.") from error
 
 
+def info_language(media: Path) -> str:
+    """The language yt-dlp's `--write-info-json` sidecar names for this file, or "".
+
+    `<stem>.info.json` beside the video is where yt-dlp leaves it. Nothing is fetched:
+    a video that arrived without one names nothing, and the build says so.
+    """
+    sidecar = media.with_name(f"{media.stem}.info.json")
+    try:
+        info = json.loads(sidecar.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    tag = str(info.get("language") or "") if isinstance(info, dict) else ""
+    head = tag.split("-")[0].lower()
+    return {"iw": "he", "ji": "yi"}.get(head, head) if head.isalpha() else ""
+
+
 def describe(url: str) -> dict[str, Any]:
     """What yt-dlp knows about the video without fetching it: `yt-dlp -J`.
 

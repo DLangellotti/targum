@@ -18,7 +18,7 @@ from ..errors import TargumError
 from ..models import BlockKind, Document
 from ..transcribe.models import Refined, RefinedParagraph, Word
 from ..transcribe.refine.rules import PARAGRAPH_PAUSE_S
-from .base import Paragraph, build_document, normalize, with_front_matter
+from .base import Paragraph, build_document, named_language, normalize, with_front_matter
 
 #: 00:01:02,345 or 01:02.345 — SRT writes a comma and always hours; VTT writes a dot
 #: and lets the hours go missing.
@@ -183,5 +183,7 @@ class SubtitleIngester:
             str(path),
             blocks_from_paragraphs(with_front_matter(flowing, title, None)),
             ingester=self.name,
+            # `talk.it.vtt` says it is Italian; the script alone would call it English.
+            language=named_language(path) or None,
             title=title,
         )
