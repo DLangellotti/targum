@@ -795,6 +795,20 @@ class Drawable:
     language: str
 
 
+def unreadable(error: Exception) -> str:
+    """What a reader is told when bringing something in failed for a reason nobody wrote a
+    sentence for. A web page's refusal carries its status, and the status says what to do."""
+    response = getattr(error, "response", None)
+    status = getattr(response, "status_code", None)
+    if status in (401, 403, 451):
+        return "That site won't let us read the page. Copy the text and paste it here instead."
+    if status in (404, 410):
+        return "That page isn't there. Check the link and try again."
+    if isinstance(status, int) and status >= 400:
+        return "That site didn't answer properly. Try again, or paste the text itself."
+    return "We couldn't read that. Try again, or paste the text itself."
+
+
 class Jobs(dict[str, Job]):
     """Every job the process knows about, with the ones that can be in a line indexed.
 
@@ -964,6 +978,10 @@ class Library:
                 owner=row["owner"],
                 home=Path(str(row["home"])),
                 kind=str(row["kind"] or "build"),
+                # When it was made, not when it was read back. Left out, every job ever
+                # run came back made at start-up, so each deploy made the whole history
+                # "lately finished" for an hour and the bell filled with it (2026-09-14).
+                made=int(row["made"] or 0) or now(),
             )
             self.jobs[job.id] = job
 
@@ -1828,7 +1846,12 @@ class Library:
             job.error = f"{error.message} {error.hint or ''}".strip()
             job.stage = "failed"
         except Exception as error:  # a bad file should not take the server down
-            job.error = str(error)
+            # Said plainly, with the library's own words kept for the back office: a
+            # page that refused us came to the bell as "Client error '403 Forbidden' for
+            # url …, For more information check: developer.mozilla.org" (2026-09-14).
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "prepare", error, job=job.id)
+            job.error = unreadable(error)
             job.stage = "failed"
 
     @staticmethod

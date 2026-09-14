@@ -1256,9 +1256,15 @@ morning): sticky, no rule under it, the places as tint pills with the current on
 primary, the bell and the account as round buttons; the reader keeps its own bar. On a
 phone (under 40rem) the four places — Learn, Library, Your Progress, Add — are a bar at
 the foot of the window on glass, a glyph over each word, and at a desk only Add keeps its
-glyph, a `+` before the word; the top bar keeps the mark, the bell and the account; the pill
+glyph, a `+` before the word; the top bar keeps the mark, the language (its flag alone), the
+bell and the account, with find and the light switch as rows in the account's sheet; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
-as a sheet from the foot. Fields are wells: no line,
+as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
+alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
+a phone is quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
+count without the date, the doors one row that scrolls sideways, and over a framed reader
+the sheet's head is the known share and Open alone, since the door pressed says why this
+text and the reader's own bar names it; the frame ends above whatever is fixed at the foot. Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.

@@ -450,8 +450,9 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
 
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
-    """On a phone the header is one line — the name at one corner and the bell, the
-    account and the light switch at the other — and the four places are a bar at the
+    """On a phone the header is one line — the name at one corner and the bell and the
+    account at the other, find and the light switch in the account's sheet since
+    2026-09-14 (design.md §13) — and the four places are a bar at the
     foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
     under the name, and before that indented under it with Upload cut off at the edge:
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
@@ -466,14 +467,17 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const brand = box('.brand'), nav = box('.site-nav');
-          const toggle = box('[data-theme-toggle]'), account = box('.account');
+          const account = box('.account');
+          const shown = (s) => getComputedStyle(document.querySelector(s)).display;
           return {
             navFlush: nav.left <= 1 && nav.right >= document.documentElement.clientWidth - 1,
             navBelow: Math.abs(nav.bottom - window.innerHeight) <= 1
               && getComputedStyle(document.querySelector('.site-nav')).position === 'fixed',
-            toggleBeside: toggle.top < brand.bottom && toggle.bottom > brand.top,
+            barToggle: shown('.site-head-row > [data-theme-toggle]'),
+            barFind: shown('.site-head-row > .palette-open'),
+            sheetToggle: !!document.querySelector('.account-panel [data-theme-toggle]'),
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
-            toggleAtEdge: toggle.right >= document.documentElement.clientWidth - 24,
+            accountAtEdge: account.right >= document.documentElement.clientWidth - 24,
             noUpload: document.querySelector('.upload') === null,
             cut: [...document.querySelectorAll('.site-nav a')]
               .filter((a) => a.scrollWidth > a.clientWidth + 1).map((a) => a.textContent),
@@ -485,8 +489,10 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
 
     assert measured["navFlush"], "the places take the whole foot of the window"
     assert measured["navBelow"], "and stay there"
-    assert measured["toggleBeside"] and measured["accountBeside"], "the corner is the account's"
-    assert measured["toggleAtEdge"], "at the far edge"
+    assert measured["accountBeside"], "the corner is the account's"
+    assert measured["accountAtEdge"], "at the far edge"
+    assert measured["barToggle"] == "none" and measured["barFind"] == "none", measured
+    assert measured["sheetToggle"], "the light switch is in the account's sheet"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
     assert measured["cut"] == [], "all four places are read whole, Add among them (2026-09-13)"
     assert measured["width"] <= width, "and the page does not scroll sideways"
@@ -543,6 +549,72 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     assert got["inner"] == width and got["scrollWidth"] <= width, f"sideways at {width}px: {got}"
     assert got["chevronDrawn"] and got["flag"], f"the chevron in its pill: {got}"
     assert got["round"], f"the account is a circle: {got}"
+
+
+def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
+    """A long inbox on a phone ran off the top of the screen with Clear all above it, a
+    failure's address ran past the edge, a line with nothing to open put its × in the
+    Open column, and the round pill stood over the sheet (2026-09-14)."""
+    html = learn_page(TOKEN)
+    address = "https://www.example.test/" + "a-long-path-segment-" * 8 + "?utm_source=copy_link"
+    jobs = [
+        {"id": f"j{n}", "title": f"text {n}", "stage": "done", "reader": f"r{n}/reader/index.html"}
+        for n in range(24)
+    ] + [
+        {"id": "bad", "title": "", "stage": "failed", "error": f"Client error for url '{address}'"}
+    ]
+
+    def answer(route, request):
+        u = request.url
+        if "/jobs" in u:
+            body = {"jobs": jobs}
+        elif "/account/me" in u:
+            body = {"signedIn": True, "email": "d@x.test", "initials": "DJ"}
+        elif request.resource_type == "document":
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": 384, "height": 694}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.wait_for_selector("#notices-count:not([hidden])")
+    page.click("#notices-open")
+    page.wait_for_timeout(300)
+    got = page.evaluate(
+        """() => {
+          const panel = document.getElementById('notices-panel');
+          const box = panel.getBoundingClientRect();
+          const clear = document.getElementById('notices-clear').getBoundingClientRect();
+          const xs = [...panel.querySelectorAll('.notices-x')]
+            .map((x) => Math.round(x.getBoundingClientRect().right));
+          const pill = document.getElementById('talk-open').getBoundingClientRect();
+          const under = document.elementFromPoint(
+            pill.left + pill.width / 2, pill.top + pill.height / 2);
+          return {
+            top: box.top, bottom: box.bottom, height: innerHeight, width: innerWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            panelScrolls: panel.scrollHeight > panel.clientHeight,
+            clearTop: clear.top, clearBottom: clear.bottom,
+            xs: [...new Set(xs)],
+            pillCovers: !panel.contains(under),
+            wide: [...panel.querySelectorAll('li')]
+              .filter((li) => li.scrollWidth > li.clientWidth + 1).length,
+          };
+        }"""
+    )
+    context.close()
+    assert got["top"] >= 40 and got["bottom"] <= got["height"] + 1, f"on the screen: {got}"
+    assert got["panelScrolls"], "the inbox scrolls inside the sheet"
+    assert got["top"] <= got["clearTop"] and got["clearBottom"] <= got["bottom"], got
+    assert len(got["xs"]) == 1, f"every × in one column: {got['xs']}"
+    assert got["wide"] == 0 and got["scrollWidth"] <= got["width"], f"an address runs past: {got}"
+    assert not got["pillCovers"], "the pill does not stand over the sheet"
 
 
 def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:

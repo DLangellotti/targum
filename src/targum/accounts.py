@@ -2277,12 +2277,22 @@ class Store:
         of the window on its own within the day.
         """
         with self.write() as db:
-            rows = db.execute("SELECT id FROM job WHERE stage = 'working'").fetchall()
+            rows = db.execute("SELECT id FROM job WHERE stage IN ('working', 'queued')").fetchall()
             db.execute(
                 "UPDATE job SET stage = 'failed', error = ? WHERE stage = 'working'",
                 (
                     "targum restarted while this was building. Start it again — "
                     "anything already translated is cached, so it will not be paid for twice.",
                 ),
+            )
+            # A build still waiting in line when the process died is in no line now: the
+            # queue was memory, and nothing puts a recovered job back on it. It sat at
+            # "queued" for good, and the bell said "We'll start it after four other
+            # texts" for days (2026-09-14). It never started, so nothing was spent, and
+            # unlike a working build its claim goes back.
+            db.execute(
+                "UPDATE job SET stage = 'failed', error = ?, claimed = 0, length = 0 "
+                "WHERE stage = 'queued'",
+                ("targum restarted before this one started. Start it again.",),
             )
         return [row["id"] for row in rows]
