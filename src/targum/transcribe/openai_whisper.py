@@ -27,9 +27,15 @@ TIMEOUT = 300.0
 MAX_BYTES = 24 * 1024 * 1024
 
 #: whisper invents fluent text over silence and music, and says so obliquely: the
-#: segment's no-speech probability is high, or its mean log-probability is low. Words
+#: segment's no-speech probability is high *and* its mean log-probability is low. Words
 #: in such a segment are dropped — a reader cannot tell a hallucinated sentence from a
 #: heard one, and the difficulty measurement counts every invented word.
+#:
+#: Both, as whisper's own decoder asks, never the first alone. On Hebrew the no-speech
+#: probability runs high over plain speech: measured on a ten-minute interview
+#: (2026-09-14), two minutes of it read 0.90–0.98 while whisper was sure of every word
+#: (−0.17), and the old either-one rule threw away 463 of 1,283 words — a gap a reader
+#: saw as a big chunk of the transcript missing.
 NO_SPEECH = 0.6
 LOW_SEGMENT_LOGPROB = -1.0
 
@@ -153,9 +159,10 @@ class WhisperTranscriber:
         for segment in answer.get("segments") or []:
             start = float(segment.get("start") or 0.0)
             end = float(segment.get("end") or 0.0)
-            if float(segment.get("no_speech_prob") or 0.0) > NO_SPEECH:
+            unsure = float(segment.get("avg_logprob") or 0.0) < LOW_SEGMENT_LOGPROB
+            if unsure and float(segment.get("no_speech_prob") or 0.0) > NO_SPEECH:
                 invented.append((start, end))
-            elif float(segment.get("avg_logprob") or 0.0) < LOW_SEGMENT_LOGPROB:
+            elif unsure:
                 shaky.append((start, end))
 
         def inside(moment: float, spans: list[tuple[float, float]]) -> bool:

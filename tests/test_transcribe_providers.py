@@ -57,7 +57,8 @@ def test_whisper_words_are_read_from_verbose_json_and_hallucinated_segments_drop
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """whisper invents fluent text over silence and confesses in the segment's
-    no-speech probability; a reader cannot tell an invented sentence from a heard one."""
+    no-speech probability and its log-probability together; a reader cannot tell an
+    invented sentence from a heard one."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     recording = tmp_path / "part.mp3"
     recording.write_bytes(b"audio")
@@ -74,7 +75,7 @@ def test_whisper_words_are_read_from_verbose_json_and_hallucinated_segments_drop
                 ],
                 "segments": [
                     {"start": 0.0, "end": 2.0, "no_speech_prob": 0.1, "avg_logprob": -0.2},
-                    {"start": 4.0, "end": 6.0, "no_speech_prob": 0.9, "avg_logprob": -0.4},
+                    {"start": 4.0, "end": 6.0, "no_speech_prob": 0.9, "avg_logprob": -1.3},
                 ],
             }
         ],
@@ -83,6 +84,38 @@ def test_whisper_words_are_read_from_verbose_json_and_hallucinated_segments_drop
     assert [word.text for word in heard.words] == ["שלום", "עולם"]
     assert heard.language == "he"
     assert heard.duration == 10.0
+
+
+def test_a_high_no_speech_probability_alone_does_not_drop_words_whisper_is_sure_of(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The shape measured on a real Hebrew interview: two minutes of speech at 0.90–0.98
+    no-speech and −0.17 log-probability. Dropped on the first number alone, a third of
+    the part's words vanished and the reader saw a hole in the transcript."""
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    recording = tmp_path / "part.mp3"
+    recording.write_bytes(b"audio")
+    canned(
+        monkeypatch,
+        [
+            {
+                "language": "hebrew",
+                "duration": 40.0,
+                "words": [
+                    {"word": "אדוני", "start": 5.0, "end": 5.5},
+                    {"word": "שמח", "start": 25.0, "end": 25.5},
+                    {"word": "לדבר", "start": 26.0, "end": 26.5},
+                ],
+                "segments": [
+                    {"start": 4.5, "end": 23.2, "no_speech_prob": 0.12, "avg_logprob": -0.20},
+                    {"start": 23.2, "end": 38.0, "no_speech_prob": 0.92, "avg_logprob": -0.17},
+                ],
+            }
+        ],
+    )
+    heard = WhisperTranscriber().transcribe(recording, "he")
+    assert [word.text for word in heard.words] == ["אדוני", "שמח", "לדבר"]
+    assert all(word.confidence == 1.0 for word in heard.words)
 
 
 def test_a_part_over_the_api_ceiling_is_chunked_and_its_timings_offset(
