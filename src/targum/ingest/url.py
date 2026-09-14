@@ -354,7 +354,10 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
 
 
 class UrlIngester:
-    name = "url/4"
+    # 5: a line break reads as a space (`htmltext`), which moved one catalogue text of 54
+    # measured — a he.wikinews reference line, "2022מסכי" — so the pages already on a
+    # shelf are read again rather than kept as though somebody had edited them.
+    name = "url/5"
 
     # A .txt served over http is a text file that happens to live on the web, and the
     # artifact says so: what a text arrived as decides what may later be inferred about

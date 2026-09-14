@@ -108,6 +108,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A line break in a web page, an EPUB or a Wikisource page reads as a space. `lettura<br>rende`
+  came out as one word on the EU's easy-read pages. The URL ingester is `url/5`: one
+  catalogue text changes, a Hebrew Wikinews article whose reference line read
+  "2022מסכי", and it is read again on its next build.
 - `targum build --translation` takes a link or a named source (`gutenberg:1232`) as well
   as a file. It was read as a path, which turns `https://` into `https:/`.
 - A catalogue row is built in its own language on every path. `targum seed` passed no
