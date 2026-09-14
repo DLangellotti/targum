@@ -116,10 +116,22 @@
    * drawer in a reader — the text's own, so a French text is talked about in its own
    * conversation. Each language keeps a conversation of its own on the server. */
   var listedIn = "";
+  // In the drawer, the language of the page holding it (`talk.js`): in the address as the
+  // frame loads, and in a message whenever that page changes language. Read for itself,
+  // the frame was one switch behind the page it sat in (2026-09-14).
+  var holder = "";
+  if (EMBED) {
+    try {
+      holder = (new URLSearchParams(window.location.search).get("language") || "").split("-")[0];
+    } catch (e) {
+      holder = "";
+    }
+  }
   function spoken() {
     var fromText =
       EMBED && reading && reading.language ? String(reading.language).split("-")[0] : "";
     if (fromText) return fromText;
+    if (holder) return holder;
     var lang = window.TargumLang;
     return lang && lang.learning ? lang.current(lang.learning()) : "he";
   }
@@ -1291,6 +1303,15 @@
         Promise.resolve(booted).then(function () {
           if (asked) say(asked);
         });
+      }
+      if (data.type === "targum:language" && typeof data.code === "string") {
+        holder = data.code.split("-")[0];
+        // Another language's conversation, once the first list has been drawn; before
+        // that, the first list is simply asked in this one.
+        if (listedIn && spoken() !== listedIn) {
+          current = "";
+          load();
+        }
       }
     });
   }
