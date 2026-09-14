@@ -282,6 +282,23 @@
     label.textContent = name;
   }
 
+  // Where a door goes. The box is the link, so this is the only href on it. A step up
+  // past the sequence is a text not yet built, and this door is a link rather than a
+  // button: it goes to the library row, which is where building is pressed for.
+  function hrefOf(reader, door) {
+    if (door.href) {
+      // The key rides in the query, and a query belongs before the fragment.
+      var parts = door.href.split("#");
+      return keyed(parts[0]) + (parts[1] ? "#" + parts[1] : "");
+    }
+    if (door.src) return keyed(door.src);
+    return keyed("/reader/" + readerPath(reader, door));
+  }
+
+  // Every text the sheet has been given since the page settled on its language, newest
+  // first: what the phone's cards lead with, since the sheet is not drawn there.
+  var sheets = [];
+
   function drawCarry(reader, door) {
     var sheet = document.getElementById("carry-sheet");
     var panel = document.getElementById("carry");
@@ -299,18 +316,11 @@
     markDoor(door.id || "");
     trackLabel("carry-track", door.register);
     panel.classList.toggle("primary", !!door.primary);
-    // The box is the link, so this is the only href on it. A step up past the sequence
-    // is a text not yet built, and this door is a link rather than a button: it goes to
-    // the library row, which is where building is pressed for.
-    if (door.href) {
-      // The key rides in the query, and a query belongs before the fragment.
-      var parts = door.href.split("#");
-      panel.href = keyed(parts[0]) + (parts[1] ? "#" + parts[1] : "");
-    } else if (door.src) {
-      panel.href = keyed(door.src);
-    } else {
-      panel.href = keyed("/reader/" + readerPath(reader, door));
-    }
+    panel.href = hrefOf(reader, door);
+    sheets = sheets.filter(function (one) {
+      return hrefOf(one.reader, one.door) !== panel.href;
+    });
+    sheets.unshift({ reader: reader, door: door });
     panel.setAttribute("data-entry", reader.entry || reader.id || "");
 
     var cover = document.getElementById("carry-cover");
@@ -382,48 +392,21 @@
     fitWindow();
   }
 
-  // On a phone the window runs from where it stands down to whatever is fixed at the foot
-  // of the screen — the bar of places and the round pill above it — so the reader's own
-  // bar at the bottom of the frame is never under them (2026-09-14). The stylesheet
-  // guessed the height of everything above the window, and a greeting that wrapped or a
-  // row of doors made the guess short: the frame ran behind the bar. Measured here, and
-  // again whenever anything above it changes size.
-  //
-  // And where that leaves too little to read in, there is no window (targum-internal#275).
-  // On a 320×568 phone the frame held one line, with the reader's own page count and
-  // arrows over it: a preview nobody can read is not comfortable reading. The sheet is then
-  // what it is for a library row — the title, the known share and Open the reader — and
-  // the frame is not loaded at all. The floor is the height of two short pairs and the
-  // reader's foot; a 390×844 phone clears it with room to spare.
+  // A phone frames no reader (David, 2026-09-14: "the reading on mobile learn page had to
+  // be a card, not an actual reader"). A phone gets the cards below instead, one for each
+  // text the page can offer, and the frame is not loaded behind them. At a desk the
+  // window is the reader, framed and working, as before.
   var phone = window.matchMedia ? window.matchMedia("(max-width: 40rem)") : null;
-  var READABLE = 20; // rem
   function fitWindow() {
     var window_ = document.getElementById("carry-window");
     var frame = document.getElementById("carry-frame");
     var src = framing;
     if (!window_ || !frame || !src) return;
-    window_.hidden = false;
-    if (!phone || !phone.matches) {
-      window_.classList.remove("fitted");
-      show(frame, src);
-      return;
-    }
-    var bottom = window.innerHeight;
-    [".site-nav", "#talk-open"].forEach(function (selector) {
-      var fixed = document.querySelector(selector);
-      if (!fixed || getComputedStyle(fixed).position !== "fixed") return;
-      var box = fixed.getBoundingClientRect();
-      if (box.height) bottom = Math.min(bottom, box.top - 8);
-    });
-    var top = window_.getBoundingClientRect().top + (window.scrollY || 0);
-    var above = Math.round(top + window.innerHeight - bottom);
-    var rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    if (window.innerHeight - above < READABLE * rem) {
+    if (phone && phone.matches) {
       window_.hidden = true;
       return;
     }
-    window_.style.setProperty("--sheet-above", above + "px");
-    window_.classList.add("fitted");
+    window_.hidden = false;
     show(frame, src);
   }
 
@@ -714,6 +697,95 @@
     }
     if (series.length) row.appendChild(menu({ id: "subscriptions", label: "Subscriptions", items: series }));
     markDoor(current);
+    drawCards();
+  }
+
+  /* --- on a phone, cards (2026-09-14) -------------------------------------------------
+   * David, on a phone: the framed reader on Learn "had to be a card, not an actual
+   * reader", and then "maybe we can have multiple cards on mobile, giving more choice".
+   * So a phone draws no sheet and no row of doors: it draws a card for every text the
+   * page can offer — what the sheet would hold, a new instalment, the suggestion, what
+   * was read lately and what is followed — each a press to its reader. One text is one
+   * card: the text carried on with is also the first recently read, and it is drawn once,
+   * under the name that says why it leads. The stylesheet shows these under 40rem and
+   * the sheet above it. */
+  var LABELS = { recent: "Recently read" };
+  function drawCards() {
+    var list = document.getElementById("learn-cards");
+    if (!list) return;
+    list.textContent = "";
+    var seen = {};
+    sheets
+      .concat(
+        doors.filter(function (one) {
+          return one.reader;
+        })
+      )
+      .forEach(function (one) {
+        var door = one.door || { state: "carry" };
+        var href = hrefOf(one.reader, door);
+        if (seen[href]) return;
+        seen[href] = true;
+        list.appendChild(card(one.reader, door, one));
+      });
+    list.hidden = !list.children.length;
+    // The way to the whole list, which the Recently read menu carries at a desk.
+    var all = document.getElementById("learn-cards-all");
+    if (all) {
+      all.href = keyed("/texts");
+      all.hidden = !doors.some(function (one) {
+        return one.reader && kind(one) === "recent";
+      });
+    }
+  }
+
+  function card(reader, door, one) {
+    var item = el("li", "learn-card-item");
+    var link = el("a", "learn-card");
+    link.href = hrefOf(reader, door);
+    link.setAttribute("data-entry", reader.entry || reader.id || "");
+    var pictured = reader.entry || reader.id || reader.name;
+    var cover = el("span", "card-cover");
+    cover.setAttribute("aria-hidden", "true");
+    cover.appendChild(
+      window.TargumCovers.tile(pictured ? keyed("/thumb/" + encodeURIComponent(pictured)) : "", {
+        title: reader.title,
+        language: reader.language,
+        drawn: pictured ? reader.drawn : false,
+      })
+    );
+    link.appendChild(cover);
+
+    var what = el("span", "learn-card-what");
+    var kindOf = one && one.id ? kind(one) : "";
+    what.appendChild(
+      el("span", "learn-card-state", door.heading || LABELS[kindOf] || STATES[door.state] || "Continue reading")
+    );
+    var title = el("bdi", "learn-card-title", reader.title);
+    title.setAttribute("lang", reader.language || "he");
+    what.appendChild(title);
+    if (reader.english) {
+      var english_ = el("span", "learn-card-english", reader.english);
+      english_.setAttribute("lang", "en");
+      english_.setAttribute("dir", "ltr");
+      what.appendChild(english_);
+    }
+    var meta = door.meta !== undefined ? door.meta : facts(reader, door);
+    if (meta) what.appendChild(el("span", "learn-card-meta", meta));
+    var said = share(reader);
+    if (said) what.appendChild(el("span", "learn-card-known", said));
+    link.appendChild(what);
+
+    var done = door.state === "carry" && !door.src ? progress(reader) : 0;
+    if (done) {
+      var line = el("span", "page-progress");
+      line.setAttribute("role", "img");
+      line.setAttribute("aria-label", Math.round(done * 100) + "% read");
+      line.style.setProperty("--done", String(done));
+      link.appendChild(line);
+    }
+    item.appendChild(link);
+    return item;
   }
 
   function pill(one) {
@@ -964,6 +1036,11 @@
       if (!found && reader.name === name) found = reader;
     });
     var reader = found || { name: name, title: name, language: "he" };
+    // A phone has no sheet to open it in: the reader itself, as any other page does.
+    if (phone && phone.matches) {
+      window.location.href = keyed("/reader/" + readerPath(reader, { path: path }));
+      return;
+    }
     drawCarry(reader, {
       id: "offered",
       state: "carry",
@@ -1175,6 +1252,7 @@
 
       function show(code) {
         chosen = code;
+        sheets = [];
         // Remembered here rather than inside the switcher: the same control now draws
         // two different preferences, and only the caller knows which one it is drawing.
         lang.set(code);

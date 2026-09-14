@@ -1043,6 +1043,24 @@ in front of the reader changed twice for one look at one meaning, and the reader
 until they turn the page. A card over the last lines of a page is a card they can pull
 down. A page that moves under their finger is not something they can do anything about.
 
+### Learn on a phone is cards, not a reader — 2026-09-14
+
+The morning's decision put the reader itself on a phone's Learn page, framed and working
+under the known share and Open the reader, and the same afternoon a floor was added for
+phones too short to read in. Using it on his own phone, David reversed it: "the reading on
+mobile learn page had to be a card, not an actual reader", and then "maybe we can have
+multiple cards on mobile, giving more choice and a more useful and efficient mobile
+experience". A reader in a frame the width of a phone is a reader with half of its own
+controls over the text, one line or two of it, and the real reader one press away anyway.
+
+So under 40rem Learn draws a card for every text it would otherwise put behind a door: what
+the sheet holds first, a subscription's new instalment, the suggestion, the texts read
+lately and the ones followed, each once, each the press to its reader, with All your
+targums under them. The row of doors goes with the sheet, because the cards are the
+doors. A text the conversation offers opens its reader directly, as on every other page.
+At a desk nothing changes: the sheet frames the reader across the row, and the doors choose
+what it holds.
+
 ### The menu behind ⋯ covers the page too — 2026-09-14
 
 The same reasoning, one visit later. Opening ⋯ on a phone laid the chapter out again for
@@ -1364,12 +1382,12 @@ that opens the conversation is a round button above the bar, and every panel com
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
 a phone is quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the
-count without the date, the doors one row that scrolls sideways, and over a framed reader
-the sheet's head is the known share, the line "Read here, or go full screen",
-and Open the reader, since the door pressed says why this text and the reader's own bar
-names it; the frame ends above whatever is fixed at the foot, and where that would leave
-under 20rem to read in (a 320×568 or 375×667 phone) there is no frame: the sheet is the
-title, the known share and Open the reader, as over a library row (targum-internal#275). Fields are wells: no line,
+count without the date, and no sheet and no row of doors: a column of cards, one for every
+text the page can offer — the one carried on with, a new instalment, the suggestion, what
+was read lately, what is followed — each raised on the desk with its cover, what it is to
+the reader, its title in its own face, the English, the facts and the known share, the
+whole card the press to its reader, and All your targums under them (2026-09-14, below).
+No reader is framed on a phone. Fields are wells: no line,
 the ground mixed into the card inside, 12px corners, the primary's ring on focus. "One raised layer per
 view" (§9) is a reader rule; on the desk every card is raised and the sheet is the
 brightest object.

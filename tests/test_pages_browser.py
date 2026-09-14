@@ -1082,7 +1082,10 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     # Before the drawer opens, while the pill stands at the corner: on a phone the sheet's
     # window ends above everything fixed at the foot (2026-09-14), so the reader's own bar
     # at the bottom of the frame is never behind the places or the pill.
-    page.wait_for_selector("#carry-window:not([hidden])")
+    # A phone draws cards rather than the sheet (David, 2026-09-14), and a desk the sheet.
+    page.wait_for_selector(
+        "#learn-cards:not([hidden])" if width <= 640 else "#carry-window:not([hidden])"
+    )
     page.wait_for_timeout(300)
     foot = page.evaluate(
         """() => {
@@ -1148,7 +1151,8 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
-    assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
+    if width > 640:
+        assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
     # Phase 4: on a phone the four places are a bar at the foot of the window.
     assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
     if width <= 640:
@@ -1161,7 +1165,10 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
         assert foot["window"] <= min(foot["nav"], foot["pill"]), f"the sheet runs under: {foot}"
         # And the page you were on still shows above the drawer (2026-09-14).
         assert got["drawerTop"] >= 800 * 0.15, f"the drawer covers the page: {got}"
-    assert "preview=1" in got["reader"], "the sheet frames the reader, working"
+    if width <= 640:
+        assert got["reader"] == "", "a phone frames no reader"
+    else:
+        assert "preview=1" in got["reader"], "the sheet frames the reader, working"
     assert 16 <= got["root"] <= 22, f"the rem is {got['root']} at {width}px"
     assert inside["scrollWidth"] <= inside["width"] + 1, f"the frame scrolls sideways: {inside}"
     assert inside["chipsPast"] == 0, f"a chip runs past the frame at {width}px"
@@ -1170,8 +1177,11 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert inside["base"] == "_top", "every link in the frame opens the page that holds it"
     # 2026-09-14: "people should be able to talk to targum ... on any device".
     assert inside["mic"], f"no microphone in the conversation at {width}px"
-    # And the sheet says the reader is the better place to read, at every width: the press
-    # names where it goes, the line beside it says why, and neither runs out of the head.
+    # And at a desk the sheet says the reader is the better place to read: the press names
+    # where it goes, the line beside it says why, and neither runs out of the head. A phone
+    # has no sheet (2026-09-14); its cards are the press.
+    if width <= 640:
+        return
     assert foot["open"] == "Open the reader", foot
     assert foot["hint"] == "Read here, or go full screen.", foot
     for part in ("openBox", "hintBox"):
@@ -1185,45 +1195,63 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     ), f"the line and the press overlap at {width}px: {foot}"
 
 
-@pytest.mark.parametrize(
-    ("width", "height", "framed"), [(320, 568, False), (375, 667, False), (390, 844, True)]
-)
-def test_a_phone_too_short_to_read_in_the_sheet_frames_nothing(
-    browser, width: int, height: int, framed: bool
+@pytest.mark.parametrize(("width", "height"), [(320, 568), (390, 844), (1280, 800)])
+def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
+    browser, width: int, height: int
 ) -> None:
-    """At 320×568 the sheet's window held one line of the reader, with its page count and
-    arrows over it (targum-internal#275). Where the window would be shorter than two
-    pairs and the reader's foot, the sheet is what it is for a library row — the title,
-    the known share and Open the reader."""
+    """David, on a phone (2026-09-14): the framed reader on Learn "had to be a card, not an
+    actual reader", and several cards, "giving more choice". Under 40rem the page draws a
+    card for every text it can offer — the one carried on with, the suggestion, what was
+    read lately — each a press to its reader, with no sheet, no row of doors and no
+    reader loaded behind them. At a desk the sheet frames the reader as before."""
     html = learn_page(TOKEN)
     readers = [
         {
-            "name": "doctor-he",
-            "title": "תור לרופא",
+            "name": name,
+            "title": title,
+            "english": english,
             "language": "he",
             "register": "modern",
-            "document": "h1",
-            "built": 1,
-            "chapters": [1],
-            "readyChapters": 1,
-            "known": 0.31,
-            "reader": "doctor-he/reader/index.html",
+            "document": doc,
+            "built": built,
+            "sections": 1,
+            "known": 0.5,
         }
+        for name, title, english, doc, built in (
+            ("doctor-he", "תור לרופא", "A doctor's appointment", "d1", 3),
+            ("bank-he", "בבנק", "At the bank", "d2", 2),
+        )
     ]
+    suggestion = {
+        "id": "ynet-1",
+        "title": "מחאה בתל אביב",
+        "english": "A protest in Tel Aviv",
+        "language": "he",
+        "minutes": 3,
+        "register": "modern",
+        "because": "News at your level",
+    }
+    framed: list[str] = []
 
     def answer(route, request):
         u = request.url
         if "/reader/" in u:
+            framed.append(u)
             route.fulfill(status=200, content_type="text/html", body="<p>שורה</p>")
             return
         if "/readers" in u:
             body: dict = {"readers": readers, "shared": [], "trash": []}
+        elif "/suggest" in u:
+            body = {"suggestion": suggestion}
         elif "/chat/list" in u:
             body = {"chats": [], "usable": True, "talk": True, "chips": []}
         elif "/account/me" in u:
             body = {"signedIn": False}
         elif "/words/common" in u:
             body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        elif "/thumb/" in u:
+            route.fulfill(status=404, body="")
+            return
         else:
             route.fulfill(status=200, content_type="text/html", body=html)
             return
@@ -1231,36 +1259,46 @@ def test_a_phone_too_short_to_read_in_the_sheet_frames_nothing(
 
     context = browser.new_context(viewport={"width": width, "height": height})
     page = context.new_page()
-    page.add_init_script("localStorage.setItem('targum:opened', JSON.stringify({h1: 1}))")
+    page.add_init_script(
+        "localStorage.setItem('targum:opened', JSON.stringify("
+        "{d1: Date.now() - 3600e3, d2: Date.now() - 7200e3}))"
+    )
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
-    page.wait_for_selector("#carry-sheet:not([hidden])")
-    page.wait_for_timeout(400)
+    page.wait_for_selector("#carry-sheet:not([hidden])", state="attached")
+    page.wait_for_timeout(500)
     got = page.evaluate(
         """() => {
-          const shown = (id) => {
-            const el = document.getElementById(id);
-            return !el.hidden && getComputedStyle(el).display !== 'none'
-              && el.getBoundingClientRect().height > 0;
-          };
+          const shown = (el) => !!el && getComputedStyle(el).display !== 'none'
+            && el.getBoundingClientRect().height > 0;
+          const cards = [...document.querySelectorAll('.learn-card')];
           return {
-            window: shown('carry-window'),
-            height: document.getElementById('carry-window').getBoundingClientRect().height,
-            src: document.getElementById('carry-frame').getAttribute('src') || '',
-            title: shown('carry-title'),
-            open: shown('carry'),
-            hint: shown('carry-hint'),
+            cards: cards.filter(shown).map((a) => [
+              a.querySelector('.learn-card-state').textContent,
+              a.querySelector('.learn-card-title').textContent,
+              new URL(a.href).pathname,
+            ]),
+            sheet: shown(document.getElementById('carry-sheet')),
+            doors: shown(document.getElementById('doors')),
+            all: shown(document.getElementById('learn-cards-all')),
+            sideways: document.documentElement.scrollWidth > window.innerWidth + 1,
           };
         }"""
     )
     context.close()
-    assert got["open"], got
-    if framed:
-        assert got["window"] and "preview=1" in got["src"], got
-        assert got["height"] >= 320, f"room to read at {width}×{height}: {got}"
+    assert not got["sideways"], got
+    if width <= 640:
+        assert got["cards"] == [
+            ["Continue reading", "תור לרופא", "/reader/doctor-he/reader/index.html"],
+            ["Suggested for you", "מחאה בתל אביב", "/library"],
+            ["Recently read", "בבנק", "/reader/bank-he/reader/index.html"],
+        ], got
+        assert not got["sheet"] and not got["doors"], "no sheet and no row of doors on a phone"
+        assert got["all"], "and the way to the whole list"
+        assert not framed, "no reader loaded behind the cards"
     else:
-        assert not got["window"], f"no frame at {width}×{height}: {got}"
-        assert got["title"] and not got["hint"], "the sheet names the text and says no 'Read here'"
+        assert not got["cards"], "a desk draws the sheet"
+        assert got["sheet"] and framed, "with the reader framed in it"
 
 
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:
