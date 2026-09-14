@@ -162,7 +162,26 @@ class StanzaLemmatizer:
         }
 
 
-def for_source(source: object, *, auto_download: bool = True) -> Lemmatizer:
+def for_language(lemmatizer: Lemmatizer, language: str | None) -> Lemmatizer:
+    """The same lemmatizer, with the Aramaic reader in front of it for a text in Aramaic.
+
+    Asked of the document's language rather than folded into `for_source`'s choice,
+    because the source cannot say it — an upload is a file path — and because a lemmatizer
+    is often built once and shared across a run of texts in different languages. Only a
+    text *written* in Aramaic is wrapped: a Hebrew text with an Aramaic block in it, which
+    is Daniel and Ezra, keeps the annotator it has, so wrapping changes no name on the
+    shelf and re-reads nothing (targum-internal#64).
+    """
+    from .aramaic import AramaicLemmatizer
+
+    if (language or "").split("-")[0].lower() != "arc" or isinstance(lemmatizer, AramaicLemmatizer):
+        return lemmatizer
+    return AramaicLemmatizer(lemmatizer)
+
+
+def for_source(
+    source: object, *, auto_download: bool = True, language: str | None = None
+) -> Lemmatizer:
     """The lemmatizer for a text, by where the text came from.
 
     Hebrew is read by DICTA, under CC BY 4.0, and not by Stanza's Hebrew models, which
@@ -189,11 +208,11 @@ def for_source(source: object, *, auto_download: bool = True) -> Lemmatizer:
         auto_download=auto_download,
     )
     if not is_biblical(source):
-        return model
+        return for_language(model, language)
     from . import oshb
     from .scripture import ScriptureLemmatizer
 
-    return ScriptureLemmatizer(model) if oshb.available() else model
+    return for_language(ScriptureLemmatizer(model) if oshb.available() else model, language)
 
 
 def _tokens(document: Any) -> list[Token]:

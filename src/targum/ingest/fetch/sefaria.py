@@ -5,8 +5,10 @@
     targum build sefaria:en:Ruth
     targum build "sefaria:Mishneh Torah, Repentance"
     targum build "sefaria:en:Kuzari 1"
+    targum build sefaria:arc:Genesis
 
-Hebrew unless a language is named. One request per book: the API returns a whole book as
+Hebrew unless a language is named. `arc` is Targum Onkelos on a book of the Torah, and
+nothing else: see `ONKELOS`. One request per book: the API returns a whole book as
 chapters of verses, and the largest of them is a fraction of what `url.get` will carry,
 so looping over 150 chapters would be a hundred and fifty times the traffic for the same
 answer.
@@ -347,10 +349,40 @@ BEYOND_TANAKH: dict[str, Pair] = {
 }
 
 
-_TAG = {"he": "hebrew", "en": "english"}
+#: The languages a reference may name, and what Sefaria calls each when a version is
+#: asked for. Aramaic is `hebrew` there because a Sefaria version's language is its
+#: script, not its language (see `USABLE`), and Onkelos is written in Hebrew letters.
+_TAG = {"he": "hebrew", "en": "english", "arc": "hebrew"}
 
 #: The one language of the Tanakh that is not Hebrew, and where it is.
 ARAMAIC = "arc"
+
+#: Targum Onkelos, the Aramaic translation of the Torah read beside it, keyed by the book it
+#: translates (targum-internal#65). `sefaria:arc:Genesis` asks for it, and it is fetched
+#: as the index Sefaria files it under, `Onkelos Genesis`.
+#:
+#: **One edition per book, and it is the only one that may be served.** Sefaria holds
+#: three Onkelos texts. This one is public domain. `Targum Onkelos, vocalized according
+#: to the Yemenite Taj` is CC-BY-SA, and the English `Metsudah Chumash … [with Onkelos
+#: translation]` is CC-BY-NC — the trap named at the top of this file. The licence is
+#: still asserted per fetch, in `_payload`, like every other edition.
+#:
+#: **It pairs for nothing.** Measured 2026-09-13 against `Tanach with Ta'amei Hamikra`,
+#: all five books: the same chapter count, the same verse count in every one of the 187
+#: chapters, not one empty verse and no markup. Onkelos translates verse for verse, so the
+#: correspondence is stated in the numbering, the same as a published English, and
+#: `parallel_key` reads `sefaria:arc:Genesis` as the same text as `sefaria:Genesis`.
+#:
+#: **It arrives pointed, and nothing may point it again.** The Hebrew vocalizer guesses
+#: Hebrew vowels, and a guessed Hebrew vowel on an Aramaic word is wrong in a way a reader
+#: learning the Aramaic cannot see. It is a rendering and not a source, and a rendering is
+#: never vocalized.
+ONKELOS: dict[str, str] = {
+    book: f"Onkelos {book}" for book in ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy")
+}
+
+#: The languages written in Hebrew letters, whose chapter headings are Hebrew numerals.
+_HEBREW_SCRIPT = frozenset({"he", ARAMAIC})
 
 #: The Aramaic of the Tanakh, by book, as closed verse ranges `(from, to)` in
 #: `(chapter, verse)`. Daniel 2:4b to 7:28 and Ezra 4:8 to 6:18 and 7:12 to 26, which
@@ -503,6 +535,14 @@ def version_for(language: str, ref: str) -> str:
     Hebrew edition covering the shelf.
     """
     book = book_of(ref)
+    if language == ARAMAIC:
+        if book not in ONKELOS:
+            raise TargumError(
+                f"targum has no Aramaic edition of {book}.",
+                "The Aramaic on the shelf is Targum Onkelos, on the five books of the "
+                "Torah: try sefaria:arc:Genesis.",
+            )
+        return ONKELOS[book]
     if is_mishnah(book):
         return MISHNAH.hebrew if language == "he" else MISHNAH.english
     beyond = BEYOND_TANAKH.get(book)
@@ -527,8 +567,15 @@ def version_for(language: str, ref: str) -> str:
     return ENGLISH[book]
 
 
+def asked_as(ref: str, language: str) -> str:
+    """The reference Sefaria files this side under. The same one, except for Onkelos:
+    `Genesis 1-11` in Aramaic is `Onkelos Genesis 1-11`, an index of its own."""
+    return f"Onkelos {ref}" if language == ARAMAIC else ref
+
+
 def _payload(ref: str, language: str) -> dict[str, Any]:
     version = version_for(language, ref)
+    ref = asked_as(ref, language)
     url = API.format(ref=quote(ref), version=quote(f"{_TAG[language]}|{version}", safe="|"))
     try:
         body = json.loads(get(url))
@@ -604,8 +651,13 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     """
     body = payload["body"]
     start = first_chapter(payload)
+    # Onkelos is titled in English, like the English beside it: the title is what names a
+    # rendering on the reader's switch, where "Onkelos Genesis" says which one it is and
+    # the Hebrew name would say only that it is not the English. Its chapter headings are
+    # the Hebrew ones, because they sit in a column of Hebrew letters.
     named = body.get("heRef") if language == "he" else body.get("ref")
     title = str(named or ref)
+    headed = book_of(str(body.get("heRef") or title)) if language == ARAMAIC else book_of(title)
 
     # The English book name, whatever language the text is in: a ref is an address, and
     # an address has to be the same one the recording and Sefaria itself use. The Hebrew
@@ -622,8 +674,8 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     languages: dict[int, str] = {}
     for offset, verses in enumerate(chapters(payload)):
         number = start + offset
-        label = hebrew_numeral(number) if language == "he" else str(number)
-        paragraphs.append((BlockKind.heading, 2, f"{book_of(title)} {label}".strip()))
+        label = hebrew_numeral(number) if language in _HEBREW_SCRIPT else str(number)
+        paragraphs.append((BlockKind.heading, 2, f"{headed} {label}".strip()))
         for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.

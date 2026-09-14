@@ -1452,13 +1452,19 @@ class Library:
         A folder holds a translation per language it was built into, and the reader's
         picker offers them all. Anything that has to name one — buying the next chapter,
         asking for the meanings — asks here rather than assuming English.
+
+        Onkelos is not one of them. It is read beside the Torah rather than into, and a
+        whole book of it beside a whole book of English ties on completeness and sorts
+        first by name — which would have made Aramaic the language Genesis opens in and
+        the one its next chapter is bought in (`BESIDE`).
         """
         from .models import Translation, read_artifact
+        from .translate.prompts import BESIDE
 
         weight: dict[str, int] = {}
         for path in sorted((folder / "translations").glob("*.json")):
             translation = read_artifact(Translation, path)
-            if translation is None:
+            if translation is None or translation.target_language in BESIDE:
                 continue
             said = sum(1 for text in translation.segments.values() if text)
             code = translation.target_language
@@ -2140,7 +2146,7 @@ class Library:
         # by the build that follows and leave every other chapter unmarked.
         try:
             annotation = Annotator(
-                lemmatizer=lemma.for_source(builder.source),
+                lemmatizer=lemma.for_source(builder.source, language=run.language),
                 bands=biblical.for_source(builder.source),
                 **dictionary_module.for_language(segmented.language),
             ).annotate(run)

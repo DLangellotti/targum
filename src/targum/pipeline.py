@@ -856,7 +856,9 @@ class Build:
                 pronouncer = candidate
 
         annotator = self._annotator or annotate_module.Annotator(
-            lemmatizer=self._lemmatizer or lemma.for_source(self.source),
+            lemmatizer=lemma.for_language(
+                self._lemmatizer or lemma.for_source(self.source), segmented.language
+            ),
             bands=biblical.for_source(self.source),
             pronouncer=pronouncer,
             **self._dictionary(segmented.language),
