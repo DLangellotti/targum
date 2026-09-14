@@ -850,6 +850,43 @@ def test_every_door_a_catalogue_row_is_built_through_names_its_language(
     assert build.source_language == "he"
 
 
+def test_a_translation_may_be_a_link_or_a_named_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`--translation` was a Path, which turns https:// into https:/ — "couldn't find a
+    site name" — and a file could be named but `gutenberg:1232` could not (2026-09-14)."""
+    from targum import cli
+
+    handed: list[object] = []
+
+    class Stop(Exception):
+        pass
+
+    def stopping(source: str, **options: object) -> None:
+        handed.extend(options["translations"])  # type: ignore[call-overload]
+        raise Stop
+
+    monkeypatch.setattr(cli, "Build", stopping)
+    link = "https://it.globalvoices.org/2024/01/tatar-tea/"
+    local = tmp_path / "en.vtt"
+    with pytest.raises(Stop):
+        runner.invoke(
+            app,
+            [
+                "build",
+                str(tmp_path / "it.vtt"),
+                "--translation",
+                link,
+                "--translation",
+                "gutenberg:1232",
+                "--translation",
+                str(local),
+            ],
+            catch_exceptions=False,
+        )
+    assert handed == [link, "gutenberg:1232", local]
+
+
 def test_licences_reports_the_corpus_by_what_may_leave(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

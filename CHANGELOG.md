@@ -108,6 +108,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- `targum build --translation` takes a link or a named source (`gutenberg:1232`) as well
+  as a file. It was read as a path, which turns `https://` into `https:/`.
 - A catalogue row is built in its own language on every path. `targum seed` passed no
   language, so an Italian row was detected from its script and seeded as English, with
   its words handed to a lemmatizer that refuses Italian. The seed, `targum build` of a

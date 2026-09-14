@@ -1541,6 +1541,16 @@ def seed(
     console.print("[dim]Done.[/dim]")
 
 
+def translation_source(given: str) -> Path | str:
+    """A `--translation` as `Build` takes it: a link or a named source as typed, a file
+    as a path, so its name is still the file's own stem."""
+    from urllib.parse import urlparse
+
+    if urlparse(given).scheme in ("http", "https") or ingest.fetch.is_identifier(given):
+        return given
+    return Path(given)
+
+
 @app.command()
 def build(
     # A string, not a Path: pathlib collapses the double slash in https:// and would
@@ -1575,11 +1585,14 @@ def build(
             help="Folder for the targum and its files. Default: ./targum-out/<title>-<lang>/",
         ),
     ] = None,
+    # Strings, for the reason `source` is one: pathlib turns https:// into https:/, and a
+    # published translation is as often a link or `gutenberg:1232` as a file.
     translation: Annotated[
-        list[Path] | None,
+        list[str] | None,
         typer.Option(
             "--translation",
-            help="An existing translation to align. Repeat for several.",
+            help="An existing translation to align: a file, a link, or gutenberg:/wikisource:. "
+            "Repeat for several.",
         ),
     ] = None,
     machine: Annotated[
@@ -1662,7 +1675,7 @@ def build(
             force=force,
             batch_size=settings.batch_size,
             effort=settings.effort,
-            translations=translation or [],
+            translations=[translation_source(one) for one in translation or []],
             machine=machine,
             difficulty=words,
             gloss=gloss,
