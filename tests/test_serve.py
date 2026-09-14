@@ -2434,12 +2434,12 @@ def test_carrying_translations_does_not_let_a_language_past(
         {
             "source": "https://example.com/story",
             "to": "en",
-            "from": "ru",
+            "from": "de",
             "translations": ["test:ruth-en"],
         },
         cookie=cookie,
     )
-    assert status == 400 and "reads" in answer["error"], answer
+    assert status == 400 and "can read" in answer["error"], answer
 
 
 @pytest.mark.parametrize(
