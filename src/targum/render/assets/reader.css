@@ -800,6 +800,10 @@ body.nikkud.mark-guessed .pair.machine .src.pointed::after {
 /* The title in English under the Hebrew heading of the contents page, in ink: a reader
    who cannot yet read the heading came for this line. */
 #reader > .english { margin-block-start: -0.75rem; color: var(--ink); font-size: 0.9375rem; }
+/* Under a right-to-left title the English stands at the same edge as the title it names.
+   It is its own left-to-right line, so it started at the far side of the page, a column's
+   width from the Hebrew (2026-09-14). */
+html[dir="rtl"] #reader > .english { text-align: end; }
 
 /* --- a drawn cover -------------------------------------------------------- */
 
@@ -877,6 +881,11 @@ body.marking .w[data-status="3"] {
 }
 /* Known and ignored are deliberately plain. A word you have finished with should read
    like any other word. */
+/* And so are names, numerals and a byline: none of them is a word to learn, and tinting
+   them spent the page's one wash on "26", on "שרון" and on the product's own name in the
+   weekly's byline (2026-09-14). */
+body.marking .w.not-vocab,
+body.marking .byline .w { background: none; box-shadow: none; }
 
 /* Nothing marks a split word in the running text. Most Hebrew words carry a prefix,
    so marking them all decorated the page without telling a reader anything they could
@@ -954,7 +963,9 @@ body.marking .w.here,
    a beat, then goes. §8: where the reader asked for stillness there is no fade, only the
    beat and then nothing. The timings are `LINGER` and `FADE` in reader.js. */
 .gloss-card.going { opacity: 0; transition: opacity 220ms ease; }
-.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.1em; }
+/* The word the card is about, larger than anything else on it (2026-09-14). At 1.1em it
+   was smaller than the English meaning under it, and Hebrew is never the small half. */
+.gloss-card .lemma { font-family: var(--reading); font-weight: 600; font-size: 1.5em; line-height: 1.5; }
 .gloss-card .form { color: var(--ink-soft); font-size: 0.8125rem; }
 
 /* How well you know it, and what you want it to say. A scale rather than a switch: the
@@ -2383,13 +2394,15 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .pair.said,
 .pair.voiced { position: relative; }
 
+/* 0.8125rem, not the label size: a Hebrew name at 11px beside a 17px pointed line was
+   the smallest Hebrew on the page, which §5 forbids (2026-09-14). */
 .pair.said .who {
   position: absolute;
-  inset-inline-start: -4.2rem;
-  inset-block-start: 0.42rem;
-  width: 3.6rem;
+  inset-inline-start: -4.4rem;
+  inset-block-start: 0.35rem;
+  width: 3.9rem;
   text-align: end;
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
   line-height: 1.4;
   color: var(--ink-soft);
   white-space: nowrap;

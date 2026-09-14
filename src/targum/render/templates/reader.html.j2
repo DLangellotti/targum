@@ -575,7 +575,9 @@
       play control appears only where that line has a span of the scene's audio: a turn
       with no sound shows none, rather than a button that does nothing. -#}
   <div class="pair said{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" data-speaker="{{ speakers.get(segment.id, '') }}" tabindex="-1">
-    <span class="who" aria-hidden="true">{{ speakers.get(segment.id, '') }}</span>
+    {#- Heard by a screen reader too (2026-09-14): hidden, a dialogue was a list of lines
+        with nobody saying them. Still never pointed, counted or read aloud by the voice. -#}
+    <span class="who" lang="{{ source_language }}">{{ speakers.get(segment.id, '') }}</span>
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}
     <p class="src plain" data-form="plain" lang="{{ source_language }}" dir="{{ source_direction }}">{{ bare[segment.id]|isolate(source_direction) }}</p>
     {% if segment.id in pointed %}
@@ -721,7 +723,7 @@
       else on. The Mark button in the bar does the whole job now. -#}
   <div class="list-body">
     <ol class="list-items" id="list-items" role="tabpanel" aria-labelledby="tab-words"></ol>
-    <p class="list-empty" id="words-empty">Tap any word to say how well you know it.</p>
+    <p class="list-empty" id="words-empty">Tap or click a word to say how well you know it.</p>
     <ol class="list-items" id="phrase-items" role="tabpanel" aria-labelledby="tab-phrases" hidden></ol>
     <p class="list-empty" id="phrases-empty" hidden>Drag across words to keep a phrase.</p>
   </div>
@@ -753,7 +755,7 @@
   <dl>
     {% if words %}<dt>&larr; &rarr;</dt><dd>forward through the words you have not finished with, then the foot of the page, then the next page — and, off the last, the next chapter; back through the words as they are written</dd>
     <dt>k 4</dt><dd>known</dd>
-    <dt>1 2 3</dt><dd>just met it, getting there, nearly know it</dd>
+    <dt>1 2 3</dt><dd>just met, getting there, nearly there</dd>
     <dt>i</dt><dd>ignore it — a name, a numeral, a word from another language</dd>
     <dt>Enter</dt><dd>what the word you are on means; again to look it up</dd>
     <dt>u</dt><dd>take back the last level, and stand on that word again</dd>

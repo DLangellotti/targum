@@ -1601,9 +1601,9 @@ var targumReader = function () {
   // word: the ignore button reads "a name or a number", and hearing that back as the
   // answer to a keystroke tells you nothing about what happened.
   var SAID = {};
-  SAID[1] = "just met it";
+  SAID[1] = "just met";
   SAID[2] = "getting there";
-  SAID[3] = "nearly know it";
+  SAID[3] = "nearly there";
   SAID[KNOWN] = "known";
   SAID[IGNORED] = "ignored";
 
@@ -1878,6 +1878,9 @@ var targumReader = function () {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
       if (token[3]) classes.push("split");
+      // A name or a numeral is not vocabulary: tappable as ever, never tinted as a word
+      // still to learn (2026-09-14). "בְּ־26" and "שָׁרוֹן" were marked like new words.
+      if (isName(token)) classes.push("not-vocab");
       // Which case the word is in, for the lens: a class the stylesheet lights only for
       // the one case chosen, so choosing another redraws nothing.
       var inCase = token.length > 8 ? feat(grammarTable[token[8]] || "", "Case") : "";
@@ -2382,8 +2385,10 @@ var targumReader = function () {
       return;
     }
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
+    // The bar says how many of how many; the list says what is left to do, in the same
+    // words, so one count is not said twice in two phrasings on one screen (2026-09-14).
     listStats.textContent =
-      share + "% known here · " + counts.fresh + " you have not marked yet";
+      share + "% known here · " + counts.fresh + (counts.fresh === 1 ? " word to mark" : " words to mark");
   }
 
   // Reading or marking. One class on the body, and nothing is redrawn: every word is
@@ -2585,8 +2590,17 @@ var targumReader = function () {
     if (wordsEmpty) wordsEmpty.hidden = onPhrases || lastWords > 0;
     if (phrasesEmpty) phrasesEmpty.hidden = !onPhrases || lastPhrases > 0;
     // Nothing to hand over is not worth offering.
-    if (exportButton) exportButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
-    if (ankiButton) ankiButton.disabled = (onPhrases ? lastPhrases : lastWords) === 0;
+    // Not offered at all: disabled, the two buttons were near-invisible grey boxes at the
+    // foot of an empty list (2026-09-14).
+    var nothing = (onPhrases ? lastPhrases : lastWords) === 0;
+    if (exportButton) {
+      exportButton.disabled = nothing;
+      exportButton.hidden = nothing;
+    }
+    if (ankiButton) {
+      ankiButton.disabled = nothing;
+      ankiButton.hidden = nothing;
+    }
   }
 
   function renderList() {
@@ -7971,6 +7985,10 @@ var targumReader = function () {
       })
       .then(function (job) {
         if (job.ready) return location.reload();
+        // Refused at the door — over the month's hours, or the day's — says so now. A
+        // refusal still carries an id, and polling a job that was never kept waited on
+        // "Translating…" for ever (2026-09-14).
+        if (job.blocked || job.stage === "blocked") throw new Error(job.blocked || job.error);
         if (!job.id) throw new Error(job.error || job.blocked || "We couldn't start that. Try again.");
         var timer = setInterval(function () {
           fetch(keyed("/job/" + job.id))
@@ -7981,11 +7999,16 @@ var targumReader = function () {
               if (state.stage === "done") {
                 clearInterval(timer);
                 location.reload();
-              } else if (state.stage === "failed" || state.blocked) {
+              } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
                 press.disabled = false;
                 press.textContent = state.error || state.blocked || "We couldn't start that. Try again.";
               }
+            })
+            .catch(function () {
+              clearInterval(timer);
+              press.disabled = false;
+              press.textContent = "We couldn't reach targum. Try again.";
             });
         }, 1500);
       })

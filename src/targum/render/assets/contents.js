@@ -181,9 +181,22 @@
       get.onclick = function () {
         get.disabled = true;
         get.textContent = hearing ? "Transcribing…" : "Translating…";
-        ask("/chapter", { name: name, number: number }).then(function (job) {
-          watch(job.id, get);
-        });
+        ask("/chapter", { name: name, number: number })
+          .then(function (job) {
+            if (job.ready) return location.reload();
+            // A refusal carries an id too, and watching a job that was never kept
+            // spun for ever (2026-09-14).
+            if (job.blocked || job.stage === "blocked" || !job.id) {
+              get.disabled = false;
+              get.textContent = job.blocked || job.error || "We couldn't do that. Try again.";
+              return;
+            }
+            watch(job.id, get);
+          })
+          .catch(function () {
+            get.disabled = false;
+            get.textContent = "We couldn't reach targum. Try again.";
+          });
       };
       row.appendChild(get);
     });
@@ -199,11 +212,16 @@
           if (job.stage === "done") {
             clearInterval(timer);
             location.reload();
-          } else if (job.stage === "failed" || job.blocked) {
+          } else if (job.stage === "failed" || job.blocked || (job.error && !job.stage)) {
             clearInterval(timer);
             button.disabled = false;
             button.textContent = job.error || job.blocked || "We couldn't do that. Try again.";
           }
+        })
+        .catch(function () {
+          clearInterval(timer);
+          button.disabled = false;
+          button.textContent = "We couldn't reach targum. Try again.";
         });
     }, 1500);
   }
@@ -267,6 +285,11 @@
         return r.json();
       })
       .then(function (job) {
+        if (job.blocked || job.stage === "blocked") {
+          press.disabled = false;
+          press.textContent = job.blocked || job.error;
+          return;
+        }
         if (!job.id) return location.reload();
         var timer = setInterval(function () {
           fetch(keyed("/job/" + job.id))
@@ -277,13 +300,22 @@
               if (state.stage === "done") {
                 clearInterval(timer);
                 location.reload();
-              } else if (state.stage === "failed" || state.blocked) {
+              } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
                 press.disabled = false;
                 press.textContent = state.error || state.blocked || "We couldn't prepare it. Try again.";
               }
+            })
+            .catch(function () {
+              clearInterval(timer);
+              press.disabled = false;
+              press.textContent = "We couldn't reach targum. Try again.";
             });
         }, 1500);
+      })
+      .catch(function () {
+        press.disabled = false;
+        press.textContent = "We couldn't reach targum. Try again.";
       });
   };
 

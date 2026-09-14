@@ -201,9 +201,9 @@
   var IGNORED = 0;
 
   var STEPS = [
-    { value: 1, label: "1", title: "Just met it" },
+    { value: 1, label: "1", title: "Just met" },
     { value: 2, label: "2", title: "Getting there" },
-    { value: 3, label: "3", title: "Nearly know it" },
+    { value: 3, label: "3", title: "Nearly there" },
     { value: KNOWN, label: "known", title: "Known" },
     { value: IGNORED, label: "ignore", title: "A name or a number" },
   ];
@@ -286,7 +286,7 @@
       });
       legend.textContent = pressed
         ? pressed.label + " · " + pressed.title.toLowerCase()
-        : "1 just met it · 2 getting there · 3 nearly know it";
+        : "1 just met · 2 getting there · 3 nearly there";
       box.appendChild(legend);
     }
 

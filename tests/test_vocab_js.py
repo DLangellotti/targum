@@ -296,7 +296,7 @@ def test_the_scale_says_what_the_pressed_step_means() -> None:
     in the buttons' tooltips, which is nowhere on a phone."""
     assert run(status=2, legend=True)["legend"] == "2 · getting there"
     assert run(status=9, legend=True)["legend"] == "known · known"
-    assert run(legend=True)["legend"] == "1 just met it · 2 getting there · 3 nearly know it"
+    assert run(legend=True)["legend"] == "1 just met · 2 getting there · 3 nearly there"
     assert run(status=2)["legend"] is None, "the list beside the text has no room for it"
 
 
