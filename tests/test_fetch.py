@@ -297,6 +297,96 @@ def test_a_paragraph_with_one_or_two_links_is_never_furniture() -> None:
     assert "כן" in drop_link_lists(html)
 
 
+FIXTURES = Path(__file__).parent / "fixtures" / "wikisource"
+
+
+def served(monkeypatch: pytest.MonkeyPatch, name: str) -> list[str]:
+    """Answer the API from pages recorded off the wiki, and note what was asked for."""
+    import json
+
+    from targum.ingest.fetch import wikisource
+
+    pages = json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
+    asked: list[str] = []
+
+    def get(url: str, params: dict[str, str] | None = None) -> str:
+        assert params is not None
+        asked.append(params["page"])
+        return json.dumps(pages[params["page"]])
+
+    monkeypatch.setattr(wikisource, "get", get)
+    return asked
+
+
+def test_a_contents_page_is_read_as_its_subpages_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On it.wikisource a book is a contents page and its chapters are subpages, so
+    `wikisource:it:Novelle rusticane` came back as thirty words of titles (2026-09-14).
+    Recorded pages, trimmed to two stories of two paragraphs."""
+    from targum.ingest.fetch.wikisource import WikisourceFetcher
+
+    asked = served(monkeypatch, "novelle-rusticane")
+    document = WikisourceFetcher().load("it:Novelle rusticane")
+    assert asked == [
+        "Novelle rusticane",
+        "Novelle rusticane/Il Reverendo",
+        "Novelle rusticane/Cos'è il re",
+    ]
+    shape = [(b.kind, b.level, b.text[:20]) for b in document.blocks]
+    assert shape[:3] == [
+        (BlockKind.heading, 1, "Novelle rusticane"),
+        (BlockKind.heading, 2, "Il Reverendo"),
+        (BlockKind.paragraph, None, "Di reverendo non ave"),
+    ]
+    assert (BlockKind.heading, 2, "Cos'è il re") in shape
+    body = " ".join(b.text for b in document.blocks)
+    # The edition box and the chapter bar are the wiki's, and so is the title the
+    # chapter prints again under its own heading.
+    assert "Giovanni Verga" not in body and "◄" not in body and "COS’È IL RE" not in body
+    assert document.language == "it" and document.source == "wikisource:it:Novelle rusticane"
+
+
+def test_a_part_that_is_contents_itself_nests_its_chapters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`Cenere` lists `Cenere/Parte I` and its chapters both. Each is read once, a level
+    deeper for each level of its title."""
+    from targum.ingest.fetch.wikisource import WikisourceFetcher
+
+    asked = served(monkeypatch, "cenere")
+    document = WikisourceFetcher().load("it:Cenere")
+    assert asked == ["Cenere", "Cenere/Parte I", "Cenere/Parte I/I", "Cenere/Parte I/II"]
+    headings = [(b.level, b.text) for b in document.blocks if b.kind is BlockKind.heading]
+    assert headings == [(1, "Cenere"), (2, "Parte I"), (3, "I"), (3, "II")]
+    assert document.blocks[3].text.startswith("Cadeva la notte di San Giovanni.")
+
+
+def test_a_page_with_text_of_its_own_is_read_as_it_always_was(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Declaration links its pointed copy, `/מנוקד`, and is not a contents page. The
+    hash is what `wikisource/2` made of this recorded page, byte for byte."""
+    from targum.ingest.fetch.wikisource import WikisourceFetcher
+
+    asked = served(monkeypatch, "il-declaration.he")
+    document = WikisourceFetcher().load("he:מגילת העצמאות של מדינת ישראל")
+    assert asked == ["מגילת העצמאות של מדינת ישראל"]
+    assert len(document.blocks) == 20
+    assert document.content_hash == (
+        "3f25f663e2334f93856c6e96de0a0d575636d09e9b7dd2ca7dc343ee645b78f7"
+    )
+
+
+def test_a_work_past_the_page_limit_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum.ingest.fetch import wikisource
+
+    served(monkeypatch, "novelle-rusticane")
+    monkeypatch.setattr(wikisource, "MAX_SUBPAGES", 1)
+    with pytest.raises(TargumError, match="runs past 1 pages"):
+        wikisource.WikisourceFetcher().load("it:Novelle rusticane")
+
+
 # --- live ---------------------------------------------------------------------
 
 

@@ -108,6 +108,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A Wikisource work split into subpages builds from its name. `wikisource:it:Cenere`,
+  `Cuore (1889)` and `Il Principe` said "no readable text" and `Novelle rusticane` came
+  back as thirty words of titles, because each is a contents page. A page that links two
+  or more of its own subpages and has almost no words besides is now read as the work:
+  each subpage in the order the page lists it, under its own heading, without the wiki's
+  edition box and chapter bar. Every page with text of its own reads exactly as before,
+  and the fetcher is `wikisource/3` so a contents page ingested as its titles is read again.
 - A recording built with a transcript is read in the language the transcript's name
   gives (`abc123.it.vtt`, `it.vtt`), or the `language` in a yt-dlp `.info.json` beside a
   local video, where `--from` was not passed. Before, it was read as Hebrew. A subtitle
