@@ -7,11 +7,12 @@
     targum build "sefaria:en:Kuzari 1"
     targum build sefaria:arc:Genesis
 
-Hebrew unless a language is named. `arc` is Targum Onkelos on a book of the Torah, and
-nothing else: see `ONKELOS`. One request per book: the API returns a whole book as
-chapters of verses, and the largest of them is a fraction of what `url.get` will carry,
-so looping over 150 chapters would be a hundred and fifty times the traffic for the same
-answer.
+Hebrew unless a language is named. `arc` is Targum Onkelos on a book of the Torah, or
+another Aramaic targum by the title Sefaria files it under — `sefaria:arc:Targum Jonathan
+on Joshua` — and nothing else: see `ONKELOS` and `TARGUMS`. One request per book: the
+API returns a whole book as chapters of verses, and the largest of them is a fraction of
+what `url.get` will carry, so looping over 150 chapters would be a hundred and fifty times
+the traffic for the same answer.
 
 **Anything shaped like chapters and verses reads through here.** A section of the Mishneh
 Torah is chapters of halakhot and the Kuzari is parts of numbered speeches, which is the
@@ -381,6 +382,60 @@ ONKELOS: dict[str, str] = {
     book: f"Onkelos {book}" for book in ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy")
 }
 
+_TORAH = ("Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy")
+_PROPHETS = (
+    "Joshua", "Judges", "I Samuel", "II Samuel", "I Kings", "II Kings", "Isaiah", "Jeremiah",
+    "Ezekiel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk",
+    "Zephaniah", "Haggai", "Zechariah", "Malachi",
+)  # fmt: skip
+_WRITINGS = (
+    "Psalms", "Proverbs", "Job", "Song of Songs", "Ruth", "Lamentations", "Ecclesiastes",
+    "Esther",
+)  # fmt: skip
+
+#: The rest of the Aramaic Tanakh Sefaria holds, by the index it is filed under, pinned to
+#: the one edition of each that may be served (2026-09-14). David asked where the Aramaic
+#: texts were, and the Aramaic shelf had nothing of its own: Onkelos only as a column
+#: beside the Hebrew, and Daniel and Ezra as Hebrew books with Aramaic chapters.
+#:
+#: Surveyed that day over every index in Sefaria's Targum category. Each one here is
+#: public domain, chapters of verses, and not one verse empty except six in Targum
+#: Jonathan on Genesis. Left out, and why: Targum Neofiti and Targum Sheni on Esther say
+#: "unknown", which `USABLE` reads as no; Targum Jerusalem is fragments, not a book's
+#: chapters; Tafsir Rasag is Arabic. Targum Jonathan on the Torah (Pseudo-Jonathan) is its
+#: own edition per book; the Prophets and the Writings are the Mikraot Gedolot; Chronicles
+#: is the Wikisource text.
+#:
+#: They pair with the Hebrew they translate by numbering, the way Onkelos does, but they are
+#: not offered as a column beside it: that is Onkelos's place (targum-internal#65), and a
+#: Hebrew book with three Aramaic columns is a choice nobody asked for.
+TARGUMS: dict[str, str] = {
+    **{f"Targum Jonathan on {book}": f"Targum Jonathan on {book}" for book in _TORAH},
+    **{f"Targum Jonathan on {book}": "Mikraot Gedolot" for book in _PROPHETS},
+    **{f"Aramaic Targum to {book}": "Mikraot Gedolot" for book in _WRITINGS},
+    "Targum of I Chronicles": "Wikisource Aramaic Targum to Chronicles",
+    "Targum of II Chronicles": "Wikisource Aramaic Targum to Chronicles",
+}
+
+#: The English beside an Aramaic targum, where one is complete and may be served. Measured
+#: 2026-09-14 against each Aramaic edition, verse by verse: Etheridge's 1862 Pseudo-
+#: Jonathan fills 99% or more of every book of the Torah, the 1871 "Chaldee Paraphrase"
+#: 99.9% of Isaiah, and the Community Translation all of Jonah. Nothing else comes close.
+#: Etheridge's Onkelos covers 14% of Genesis and nothing after it; the Community Translation
+#: of the Psalms Targum 8%, of Proverbs 1%; Ginsburg's Coheleth 72%. A translation with
+#: holes in it is an em dash on most lines of the reader, so those texts carry no English
+#: here, and a build is quoted for one the way any untranslated text is.
+TARGUM_ENGLISH: dict[str, str] = {
+    **{
+        f"Targum Jonathan on {book}": (
+            "The Targum of Jonathan ben Uzziel, trans. J. W. Etheridge, London, 1862"
+        )
+        for book in _TORAH
+    },
+    "Targum Jonathan on Isaiah": 'London "Chaldee Paraphrase," 1871',
+    "Targum Jonathan on Jonah": "Sefaria Community Translation",
+}
+
 #: The languages written in Hebrew letters, whose chapter headings are Hebrew numerals.
 _HEBREW_SCRIPT = frozenset({"he", ARAMAIC})
 
@@ -536,13 +591,24 @@ def version_for(language: str, ref: str) -> str:
     """
     book = book_of(ref)
     if language == ARAMAIC:
-        if book not in ONKELOS:
-            raise TargumError(
-                f"targum has no Aramaic edition of {book}.",
-                "The Aramaic on the shelf is Targum Onkelos, on the five books of the "
-                "Torah: try sefaria:arc:Genesis.",
-            )
-        return ONKELOS[book]
+        if book in ONKELOS:
+            return ONKELOS[book]
+        if book in TARGUMS:
+            return TARGUMS[book]
+        raise TargumError(
+            f"targum has no Aramaic edition of {book}.",
+            "The Aramaic on the shelf is Targum Onkelos on the Torah (sefaria:arc:Genesis) "
+            "and the targums by their Sefaria titles "
+            "(sefaria:arc:Targum Jonathan on Joshua, sefaria:arc:Aramaic Targum to Ruth).",
+        )
+    if language == "en" and book in TARGUM_ENGLISH:
+        return TARGUM_ENGLISH[book]
+    if language == "en" and book in TARGUMS:
+        raise TargumError(
+            f"targum has no English edition of {book}.",
+            "No complete English of it may be served. Build the Aramaic alone and it is "
+            "translated, at a price quoted first.",
+        )
     if is_mishnah(book):
         return MISHNAH.hebrew if language == "he" else MISHNAH.english
     beyond = BEYOND_TANAKH.get(book)
@@ -569,8 +635,9 @@ def version_for(language: str, ref: str) -> str:
 
 def asked_as(ref: str, language: str) -> str:
     """The reference Sefaria files this side under. The same one, except for Onkelos:
-    `Genesis 1-11` in Aramaic is `Onkelos Genesis 1-11`, an index of its own."""
-    return f"Onkelos {ref}" if language == ARAMAIC else ref
+    `Genesis 1-11` in Aramaic is `Onkelos Genesis 1-11`, an index of its own. Every other
+    targum is already asked for by its own index's name."""
+    return f"Onkelos {ref}" if language == ARAMAIC and book_of(ref) in ONKELOS else ref
 
 
 def _payload(ref: str, language: str) -> dict[str, Any]:

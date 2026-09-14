@@ -330,21 +330,20 @@ class Entry:
 
     @property
     def languages(self) -> list[str]:
-        """Every language this text can be read in on the shelf (2026-09-14).
+        """Every language this text is written in (2026-09-14).
 
-        Its own; Aramaic for a book of the Bible with Aramaic chapters in it, which is
-        Daniel and Ezra; and the language of a rendering read beside it, which is Targum
-        Onkelos on the Torah. Under Aramaic on the Library these are the Aramaic texts,
-        where filing by the one language a row names showed nothing at all.
+        Its own, and Aramaic for a book of the Bible with Aramaic chapters in it, which is
+        Daniel and Ezra. Not the language of a rendering read beside it: a Torah book
+        carrying Onkelos as a column was filed under Aramaic for a morning, and the
+        Aramaic shelf became the Hebrew Torah. Onkelos and the other targums are texts of
+        their own on that shelf now, written in Aramaic.
         """
         from .ingest.fetch.sefaria import BIBLICAL_ARAMAIC
-        from .translate.prompts import BESIDE
 
         found = [self.language]
         scheme, _, book = self.source.partition(":")
         if scheme == "sefaria" and book in BIBLICAL_ARAMAIC:
             found.append("arc")
-        found.extend(t.language for t in self.translations if t.language in BESIDE)
         return list(dict.fromkeys(code for code in found if code))
 
     def state(self) -> dict[str, object]:

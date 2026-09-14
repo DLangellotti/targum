@@ -6,6 +6,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The Aramaic shelf has Aramaic texts of its own. Sefaria's public-domain targums can be
+  fetched by the title Sefaria files each under — Targum Jonathan on the Torah and on the
+  Prophets, the targums to the Writings and to Chronicles — pinned to one surveyed edition
+  apiece, the licence still asserted at every fetch (`sefaria.TARGUMS`). An English is
+  paired with one only where a complete one may be served: Etheridge's Pseudo-Jonathan,
+  the 1871 Isaiah and the Community Translation of Jonah (`sefaria.TARGUM_ENGLISH`).
+  Every other English on offer was measured and is mostly holes. A Torah book carrying
+  Onkelos as a column is no longer filed under Aramaic, which had made the Aramaic shelf
+  the Hebrew Torah.
 - French, Russian and Italian can be read, beside Yiddish, with a word card on every
   word. No Stanza model for any of them clears the licence bar, so their dictionary forms
   and parts of speech are read by the model (`annotate/model_lemma.py`, Haiku 4.5): a

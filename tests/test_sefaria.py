@@ -716,6 +716,63 @@ def test_onkelos_is_pinned_to_the_one_edition_that_may_be_served() -> None:
 def test_there_is_no_aramaic_of_a_book_onkelos_did_not_translate() -> None:
     with pytest.raises(TargumError, match="no Aramaic edition of Isaiah"):
         sefaria.version_for("arc", "Isaiah")
+    with pytest.raises(TargumError, match="no Aramaic edition of Targum Neofiti"):
+        sefaria.version_for("arc", "Targum Neofiti")
+
+
+# -- the other targums (2026-09-14) -----------------------------------------------------
+
+
+def test_every_other_targum_is_asked_for_by_its_own_index_and_pinned() -> None:
+    """Where the Aramaic texts were, David asked. The public-domain targums on Sefaria are
+    each pinned to the one edition surveyed, and asked for under their own index — only
+    Onkelos, which is addressed by the book it translates, is renamed on the way."""
+    assert sefaria.version_for("arc", "Targum Jonathan on Joshua") == "Mikraot Gedolot"
+    assert sefaria.version_for("arc", "Targum Jonathan on Genesis 1-3") == (
+        "Targum Jonathan on Genesis"
+    )
+    assert sefaria.version_for("arc", "Aramaic Targum to Ruth") == "Mikraot Gedolot"
+    assert sefaria.version_for("arc", "Targum of II Chronicles") == (
+        "Wikisource Aramaic Targum to Chronicles"
+    )
+    assert sefaria.asked_as("Targum Jonathan on Joshua 1-2", "arc") == (
+        "Targum Jonathan on Joshua 1-2"
+    )
+    assert len(sefaria.TARGUMS) == 36, "5 Pseudo-Jonathan, 21 Prophets, 8 Writings, 2 Chronicles"
+
+
+def test_a_targum_has_english_only_where_a_complete_one_may_be_served() -> None:
+    """Measured verse by verse: Etheridge's Pseudo-Jonathan, the 1871 Isaiah and the
+    Community Translation of Jonah are whole. Every other English is mostly holes, and
+    the reader would be an em dash on most lines — so it is refused and the Aramaic is
+    built alone."""
+    assert sefaria.version_for("en", "Targum Jonathan on Numbers").startswith(
+        "The Targum of Jonathan ben Uzziel, trans. J. W. Etheridge"
+    )
+    assert sefaria.version_for("en", "Targum Jonathan on Isaiah") == (
+        'London "Chaldee Paraphrase," 1871'
+    )
+    assert sefaria.version_for("en", "Targum Jonathan on Jonah") == "Sefaria Community Translation"
+    with pytest.raises(TargumError, match="no English edition of Aramaic Targum to Psalms"):
+        sefaria.version_for("en", "Aramaic Targum to Psalms")
+    # The Hebrew book is still the Hebrew book's English, whatever the targums hold.
+    assert sefaria.version_for("en", "Isaiah") == sefaria.ENGLISH["Isaiah"]
+
+
+def test_a_targum_and_its_english_pair_by_their_numbering() -> None:
+    """The two sides are the same index in two languages, so `parallel_key` calls them one
+    text and the verses pair for nothing."""
+
+    class Ref:
+        ingester = sefaria.SefariaFetcher.name
+
+        def __init__(self, source: str) -> None:
+            self.source = source
+
+    aramaic = Ref("sefaria:arc:Targum Jonathan on Genesis")
+    english = Ref("sefaria:en:Targum Jonathan on Genesis")
+    assert parallel.parallel_key(aramaic) == parallel.parallel_key(english)
+    assert parallel.parallel_key(aramaic) != parallel.parallel_key(Ref("sefaria:Genesis"))
 
 
 def test_onkelos_is_asked_for_as_its_own_index_in_hebrew_letters(

@@ -181,8 +181,11 @@ def test_a_rendering_is_in_the_language_its_source_names() -> None:
 
 def test_a_text_says_every_language_it_can_be_read_in() -> None:
     """2026-09-14: the Aramaic shelf showed nothing, because a row named one language.
-    Daniel and Ezra have Aramaic chapters; a Torah book carrying Targum Onkelos beside it
-    has Aramaic too; everything else is its own language alone."""
+    Daniel and Ezra have Aramaic chapters. A Torah book carrying Targum Onkelos beside it
+    is not an Aramaic text — filing it there made the Aramaic shelf the Hebrew Torah — and
+    an Aramaic targum is Aramaic alone."""
+    from dataclasses import replace
+
     from targum.catalogue import Entry, Kind, Register, Rendering
 
     def entry(source: str, *renderings: str) -> Entry:
@@ -201,9 +204,8 @@ def test_a_text_says_every_language_it_can_be_read_in() -> None:
         )
 
     assert entry("sefaria:Daniel").languages == ["he", "arc"]
-    assert entry("sefaria:Genesis", "sefaria:en:Genesis", "sefaria:arc:Genesis").languages == [
-        "he",
-        "arc",
-    ]
+    assert entry("sefaria:Genesis", "sefaria:en:Genesis", "sefaria:arc:Genesis").languages == ["he"]
+    onkelos = replace(entry("sefaria:arc:Genesis"), language="arc")
+    assert onkelos.languages == ["arc"]
     assert entry("sefaria:Ruth", "sefaria:en:Ruth").languages == ["he"]
     assert entry("sefaria:Ruth").state()["languages"] == ["he"]
