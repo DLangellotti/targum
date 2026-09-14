@@ -104,6 +104,19 @@ def _bare(word: str, language: str = LANGUAGE) -> str:
     return "".join(ch for ch in composed if ch.isalpha() or ch in "'’").replace("’", "'")
 
 
+def match_score(words: list[str], scores: list[float], language: str) -> float | None:
+    """How closely a stretch of text matched its recording: the mean score of the words
+    the model has letters for, or None where it has letters for none of them.
+
+    A word it cannot spell — English inside Hebrew, a numeral — is placed by its
+    neighbours at `SCORE_FLOOR`, and averaged in with the rest a travel vlog's few English
+    phrases pulled a well-matched part under `MATCH_FLOOR`, and the part lost following
+    along for words the model was never asked about (2026-09-14).
+    """
+    heard = [score for word, score in zip(words, scores, strict=True) if _bare(word, language)]
+    return sum(heard) / len(heard) if heard else None
+
+
 class CtcAligner:
     """Word timings for a recording, in a language `MODELS` has an acoustic model for."""
 

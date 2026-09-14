@@ -16,7 +16,7 @@ from typing import Any
 
 from ..errors import TargumError
 from ..usage import Usage
-from .base import Progress
+from .base import Progress, language_tag
 from .models import Transcript, Word
 
 URL = "https://api.openai.com/v1/audio/transcriptions"
@@ -180,6 +180,4 @@ class WhisperTranscriber:
 
 def _tag(language: str) -> str:
     """whisper answers with a language name — "hebrew" — rather than a tag."""
-    names = {"hebrew": "he", "yiddish": "yi", "english": "en", "russian": "ru", "arabic": "ar"}
-    lowered = language.strip().lower()
-    return names.get(lowered, lowered if len(lowered) <= 3 else "")
+    return language_tag(language)

@@ -8,6 +8,7 @@ data or a frequency proxy.
 
 from __future__ import annotations
 
+import re
 from typing import Protocol
 
 from ..models import Segment, Token
@@ -97,6 +98,61 @@ SCRIPTS: dict[str, range] = {
     "uk": range(0x0400, 0x0530),
     "ar": range(0x0600, 0x0700),
 }
+
+
+#: What is left of a Hebrew word when the word itself is English (2026-09-14). Spoken
+#: Hebrew puts its prefixes on English words — ה-AI, וה-NSA, ב-MIT, שה-app — and a
+#: transcript writes them apart: "ה AI". With the English read past, the prefix was left
+#: standing as a word of its own, tappable and counted, and "ה" filed in the ledger. Only
+#: letter runs that are nothing but prefixes: מה, לה, בה, כה, של and שב are words, and
+#: are not here.
+PREFIXES = frozenset(
+    {
+        "ה",
+        "ו",
+        "ב",
+        "כ",
+        "ל",
+        "מ",
+        "ש",
+        "וה",
+        "שה",
+        "ושה",
+        "כשה",
+        "וב",
+        "ול",
+        "ומ",
+        "וכ",
+        "וש",
+        "כש",
+        "וכש",
+    }
+)
+_MARKS = re.compile("[\u0591-\u05c7]")
+
+
+def is_stranded_prefix(surface: str, following: str, language: str) -> bool:
+    """Whether a token is only a Hebrew prefix, written apart from the English word it
+    belongs to — the next word with letters in it, past a hyphen or a maqaf."""
+    if (language or "").split("-")[0].lower() not in {"he", "iw"}:
+        return False
+    bare = _MARKS.sub("", surface).strip("-\u05be")
+    return bare in PREFIXES and bool(following) and not in_script(following, language)
+
+
+#: The same prefix written onto the English word rather than apart from it: ה-AI, בMIT.
+_PREFIXED_FOREIGN = re.compile(
+    "^[\u05d5\u05d4\u05d1\u05db\u05dc\u05de\u05e9]{1,3}[-\u05be]?(?P<rest>[^\u05d0-\u05ea]+)$"
+)
+
+
+def is_prefixed_foreign(surface: str, language: str) -> bool:
+    """Whether a token is a Hebrew prefix joined to a word with no Hebrew letter in it,
+    which is the English word it belongs to and not a Hebrew word."""
+    if (language or "").split("-")[0].lower() not in {"he", "iw"}:
+        return False
+    found = _PREFIXED_FOREIGN.match(_MARKS.sub("", surface))
+    return found is not None and any(char.isalpha() for char in found.group("rest"))
 
 
 def in_script(surface: str, language: str) -> bool:
