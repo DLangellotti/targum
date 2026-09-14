@@ -128,6 +128,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   two. Italian is the one language this is turned on for (`cased.QUOTING`); the cased
   rules are `cased-rules/2`, and Hebrew splits exactly as before. On the Italian shelf it
   changes 467 blocks and no curated video. A text already built keeps its segments.
+- A conversation reopened while targum was still answering now shows the answer. The
+  model's tool results were handed to the page as if they were your lines: each was drawn
+  as an empty grey bubble, and each told the page nothing was still being answered, so it
+  never picked the answer up again and waited for good on one the server had finished.
 - The commonest-words list no longer offers English to a language wordfreq has no list
   for. Asked for Yiddish, wordfreq answers with its fallback list instead of refusing,
   and `common_words` only caught a refusal; it now checks the language is really there.
@@ -140,6 +144,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the tool left them out. `search_my_shelf` comes back newest opened first with
   `last_opened`, `days_since_opened` and `finished` on each row and `now` beside the
   list, so the model can count as well as read.
+- The chat takes a language however the model names it. `quote_build` refused
+  `"to": "English"` and `"english"` and took only `"en"`, and each refusal cost the
+  reader a whole model round trip; a name, a code in any case and a regional tag now all
+  mean the code, and the tool's schema lists the codes (targum-internal#270).
 - The haftarah, under the reading on `/parasha`. Hebcal was already returning it on the
   call the calendar makes and the parser was throwing it away; now it is parsed beside
   the aliyot — `Reading.haftarah`, not a third `ReadingKind`, because it is the second
@@ -154,6 +162,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Sephardic reading Hebcal returns is recorded on the week and the portion and is not
   shown: no rite chooser. One chanting-marks switch reaches both frames
   (targum-internal#201).
+- The chat's search of the publishers' feeds pulls them side by side and keeps them
+  five minutes. It pulled nineteen feeds one after another, each allowed thirty seconds:
+  a "tech news" turn spent 21 s in that one step. A feed that misses the eight-second
+  budget is named as late and lands for the next search, and a feed that would not
+  answer is left alone for two minutes (targum-internal#272).
 - At the foot of a finished section, which words cost the reader the most
   (targum-internal#174). Every card opened on a word is counted, by lemma, in the
   browser (`targum:cards:<language>`), and the foot says which words were looked up
@@ -175,6 +188,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on no other day; the current streak is refused, not unbuilt — design.md §12 records
   the decision of 2026-09-03 and `test_brand.py` pins the absence. The reader now
   carries `charts.js` for the arithmetic, so three pages cannot disagree about it.
+- A chat line targum was answering when it restarted says so. Start-up told a build
+  the truth and left the reader's line at "working" for good, so a page opening it
+  again waited on an answer nobody was writing, or drew an empty one. It now reads "We
+  restarted while we were answering. Ask again." (targum-internal#269).
 - The Hebrew of a daf, from Sefaria (targum-internal#193): `sefaria:daf:<tractate>` is
   the tractate's Mishnah in the Romm edition, the daf's own printing, a perek a heading
   and a mishnah a verse; `sefaria:Rashi on <tractate>` and `sefaria:Tosafot on
@@ -192,6 +209,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   last two hundred, and the back office lists them newest first with the traceback's
   tail behind a disclosure. A file on the box rather than a vendor, for the reason the
   back office gives for itself; never a request body, an address or a reader's text.
+- A chat turn says what we are doing while it works, and never waits for good. The page
+  says "We're searching the web…" or "We're reading the page…" as each step starts, and
+  "We're still working on it…" after twenty quiet seconds. The server ends a turn after
+  four minutes and says "We took too long to answer that. Try again."; the page stops
+  waiting a little after, and shows an answer that did arrive (targum-internal#271).
 - The reader switches between renderings (targum-internal#199). A document has always
   been able to carry several translations; the page now draws every one it carries —
   each with its own language, direction and coarse marks — and a text with more than

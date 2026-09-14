@@ -118,6 +118,21 @@ def test_a_build_still_in_line_is_let_go_and_its_money_given_back(tmp_path: Path
     assert after.committed == 0.0, "nothing was spent on a build that never started"
 
 
+def test_a_chat_turn_caught_mid_answer_is_told_the_truth(tmp_path: Path) -> None:
+    """A deploy restarts the box. The turn's job row was swept, and the reader's line
+    stayed at "working" for good (targum-internal#269)."""
+    _, store = library(tmp_path)
+    chat = store.chat_open(None)
+    asked = store.chat_say(chat, "user", "find me tech news", "find me tech news", stage="working")
+    answered = store.chat_say(chat, "user", "hello", "hello", stage="done")
+
+    Library(tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db"))
+    turns = {turn["n"]: turn for turn in Store(tmp_path / "targum.db").chat_turns(chat)}
+    assert turns[asked]["stage"] == "failed"
+    assert "restarted" in turns[asked]["error"] and "Ask again" in turns[asked]["error"]
+    assert turns[answered]["stage"] == "done" and turns[answered]["error"] == ""
+
+
 def test_a_job_comes_back_made_when_it_was_made(tmp_path: Path) -> None:
     """Not at start-up: a history made "lately" by every restart filled the bell with it."""
     lib, _ = library(tmp_path)

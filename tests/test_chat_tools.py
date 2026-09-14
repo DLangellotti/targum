@@ -317,6 +317,33 @@ def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypa
     assert "error" in tools.quote_build(ctx, {"catalogue_id": "nope"})
 
 
+def test_a_quote_takes_a_language_however_the_model_names_it(world, monkeypatch) -> None:
+    """A "tech news" turn on 2026-09-14 sent `"to": "English"`, was refused, sent
+    `"english"`, was refused again, and only then `"en"`: two whole model round trips on
+    a turn the reader was waiting for (targum-internal#270)."""
+    from targum.translate.prompts import INTO
+
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en", "ru"}
+    for said, code in [
+        ("English", "en"),
+        ("english", "en"),
+        ("EN", "en"),
+        ("en", "en"),
+        ("en-US", "en"),
+        ("Russian", "ru"),
+    ]:
+        got = tools.quote_build(ctx, {"source": "https://example.com/article", "to": said})
+        assert "quote" in got, (said, got)
+        assert library.jobs[got["quote"]["id"]].options["to"] == code, said
+    refused = tools.quote_build(ctx, {"source": "https://x.org/a", "to": "French"})["error"]
+    assert "(en)" in refused and "(ru)" in refused, "a refusal names the codes it takes"
+    schema = tools.BY_NAME["quote_build"].schema["properties"]["to"]
+    assert schema["enum"] == [code for code, _ in INTO], "the schema offers the codes"
+
+
 def test_a_quote_is_refused_on_the_add_page_s_grounds(world, monkeypatch) -> None:
     library, store, person, home = world
     monkeypatch.setattr(library, "prepare", priced)
@@ -563,6 +590,7 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
         ]
 
     monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
     library, store, person, home = world
     ctx = context(library, store, person, home)
     got = tools.search_sources(ctx, {"query": "הים"})
@@ -576,6 +604,80 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
+
+
+def test_search_sources_pulls_the_feeds_side_by_side_and_keeps_them(
+    world, monkeypatch, tmp_path
+) -> None:
+    """Nineteen feeds, pulled one after another at up to thirty seconds each, held a
+    "tech news" turn for 21 s on 2026-09-14 and could have held it for nine minutes
+    (targum-internal#272)."""
+    import threading
+    import time
+    from datetime import UTC, datetime
+
+    from targum.errors import TargumError
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    publishers = [
+        {"key": f"p{i}", "name": f"P{i}", "feed": f"https://p{i}.example/rss", "kind": "news"}
+        for i in range(19)
+    ]
+    publishers.append(
+        {"key": "slow", "name": "Slow", "feed": "https://slow.example/rss", "kind": "news"}
+    )
+    publishers.append(
+        {"key": "dead", "name": "Dead", "feed": "https://dead.example/rss", "kind": "news"}
+    )
+    path.write_text(json.dumps({"publishers": publishers}), encoding="utf-8")
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    knocks: dict[str, int] = {}
+    counting = threading.Lock()
+    slow_may_answer = threading.Event()
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        with counting:
+            knocks[url] = knocks.get(url, 0) + 1
+        if "dead" in url:
+            raise TargumError("Could not fetch")
+        if "slow" in url:
+            slow_may_answer.wait(5)
+        else:
+            time.sleep(0.3)
+        return [
+            feeds.Item(
+                title="חדשות",
+                link=url.replace("/rss", "/1"),
+                published=datetime(2026, 9, 14, tzinfo=UTC),
+            )
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    monkeypatch.setattr(tools, "FEEDS_BUDGET_S", 2.0)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+
+    started = time.monotonic()
+    got = tools.search_sources(ctx, {"limit": 30})
+    took = time.monotonic() - started
+    assert took < 2.0 + 1.0, f"nineteen 0.3 s feeds side by side, not {took:.1f} s in a row"
+    assert got["count"] == 19
+    assert got["unreachable"] == ["dead"]
+    assert got["late"] == ["slow"], "a feed past the budget is named, not waited for"
+
+    slow_may_answer.set()
+    for _ in range(50):
+        if "https://slow.example/rss" not in tools.FEEDS._pending:
+            break
+        time.sleep(0.02)
+    again = tools.search_sources(ctx, {"limit": 30})
+    assert again["count"] == 20, "the late feed came in behind, and the next search has it"
+    assert "late" not in again
+    assert all(count == 1 for count in knocks.values()), (
+        "inside the window nothing is pulled again, the dead feed included"
+    )
 
 
 def test_the_search_carries_no_country_the_api_refuses() -> None:

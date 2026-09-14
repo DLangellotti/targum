@@ -155,6 +155,23 @@ def test_a_lost_feed_answers_from_the_store(chatting) -> None:
     assert "event: done\n" in body
 
 
+def test_a_turn_nothing_is_answering_is_said_to_be_over(chatting) -> None:
+    """A turn at "working" with no live feed is one the process that was answering it
+    lost. It was `done: false` to a polling page and `done` with no text to a stream, so
+    the page either waited for good or drew an empty answer (targum-internal#269)."""
+    port, key, store, _ = chatting
+    chat = store.chat_open(None)
+    n = store.chat_say(chat, "user", "find me tech news", "find me tech news", stage="working")
+    status, state, _ = call(port, "GET", f"/chat/turn/{chat}/{n}?k={key}")
+    assert status == 200
+    assert state["done"] is True and "Ask again" in state["error"]
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/chat/stream/{chat}/{n}?k={key}")
+    body = connection.getresponse().read().decode("utf-8")
+    connection.close()
+    assert "event: error\n" in body and "event: done\n" not in body
+
+
 def test_somebody_else_s_conversation_is_not_found(chatting) -> None:
     port, key, store, _ = chatting
     theirs = store.chat_open(42)
@@ -257,6 +274,29 @@ def test_a_conversation_opened_again_carries_the_cards_it_quoted(chatting) -> No
     assert quotes[0]["source"] == live.source, "the card can link to where the text is from"
     assert quotes[1] == gone, "a job the process lost is the quote as it was"
     assert "quotes" not in answers[1], "only the answer that followed the quote carries it"
+
+
+def test_a_conversation_opened_mid_turn_is_still_waiting_on_the_reader_s_line(chatting) -> None:
+    """The tool traffic is stored as `user` rows, and `/chat/<id>` handed them to the page
+    as the reader's own lines (2026-09-14: "Find me something interesting to read (tech
+    news)", reopened on a phone while the model searched). Each was drawn as an empty
+    bubble — the grey bars — and each, being `done`, cleared the page's note that the
+    reader's line was still `working`, so the page never picked the stream back up and
+    waited for good on an answer the box had already written."""
+    port, key, store, _ = chatting
+    chat = store.chat_open(None)
+    n = store.chat_say(chat, "user", "find me tech news", "find me tech news", stage="working")
+    store.chat_say(chat, "assistant", [{"type": "tool_use", "id": "t1"}], "", stage="done")
+    store.chat_say(
+        chat, "user", [{"type": "tool_result", "tool_use_id": "t1", "content": "{}"}], ""
+    )
+    status, whole, _ = call(port, "GET", f"/chat/{chat}?k={key}")
+    assert status == 200
+    theirs = [t for t in whole["turns"] if t["role"] == "user"]
+    assert [t["said"] for t in theirs] == ["find me tech news"], "no tool result is a line"
+    assert theirs[-1]["n"] == n and theirs[-1]["stage"] == "working", (
+        "the last line the page sees is the one still being answered"
+    )
 
 
 def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:

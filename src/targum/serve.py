@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from .accounts import Person, Store, now, plausible
+from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -4309,6 +4309,19 @@ class Handler(BaseHTTPRequestHandler):
                 waiting.extend(self._quoted(turn))
                 if not (turn["said"] or turn["role"] == "user"):
                     continue
+                content = turn["content"]
+                if (
+                    turn["role"] == "user"
+                    and isinstance(content, list)
+                    and content
+                    and all(block.get("type") == "tool_result" for block in content)
+                ):
+                    # The tool traffic rides as `user` rows, and it is not the reader's
+                    # line. Handed to the page, each was an empty bubble, and each —
+                    # being `done` — told a page reopened mid-turn that nothing was
+                    # still being answered, so it never took the stream up again
+                    # (2026-09-14). Its cards are already gathered above.
+                    continue
                 entry: dict[str, Any] = {
                     "n": turn["n"],
                     "role": turn["role"],
@@ -4385,10 +4398,17 @@ class Handler(BaseHTTPRequestHandler):
             str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
         )
         stage = str(asked["stage"]) if asked else "done"
+        error = str(asked["error"]) if asked else ""
+        if stage == "working":
+            # Nothing in this process is answering it: every turn it answers has a feed.
+            # Start-up marks such a turn failed, so this is the moment between; said as
+            # over, rather than `done: false` to a page that would wait for good
+            # (targum-internal#269).
+            error = error or CHAT_RESTARTED
         return {
             "text": answered,
-            "done": stage != "working",
-            "error": str(asked["error"]) if asked else "",
+            "done": True,
+            "error": error,
             "words": asked.get("words") if asked else None,
         }
 
