@@ -27,92 +27,46 @@
   <p class="notice" role="status">{{ no_key }}</p>
   {% endif %}
 
-  {#- Two columns, so the whole of it is one screen. It was a column of five stacked
-      sections and the button that starts a build was below the fold on a laptop: what
-      the page asks for is small, and asking for it in single file made it look long. -#}
-  <div class="add-grid">
-    <section class="step">
-      <h2>Your content</h2>
+  {#- One box, for any medium (design.md §12, 2026-09-13, targum-internal#249). It was
+      three boxes to choose between — a file, a link, the text — with a Translation and a
+      Transcript toggle and two language pickers asked before anything had been read. The
+      box takes whatever it is given and a line under it says what targum thinks that
+      was; every choice the form had is behind Change. -#}
+  {% include '_glyphs.html.j2' %}
+  <section class="bring" aria-label="What to add">
+    <div class="drop" id="drop">
+      <ul class="given-files" id="given-files" hidden></ul>
+      <textarea id="given" rows="2" dir="auto" spellcheck="false" aria-describedby="understood"
+                aria-label="A link, some Hebrew, or what you want to read"
+                placeholder="Paste a link or some Hebrew, drop a file, or say what you want"></textarea>
+      <p class="understood" id="understood" aria-live="polite">Books, articles, podcasts, videos, voice notes, subtitles, photos of pages.</p>
+    </div>
+    <input type="file" id="file" multiple
+           accept=".txt,.md,.markdown,.epub,.pdf,.srt,.vtt,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
+    <div class="bring-row">
+      <button type="button" id="choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>Choose files</span></button>
+      {#- Only for a description, and only where the talk drawer is there to say it in:
+          looking for a text by describing it is a turn of conversation, metered like one,
+          and the reader's own press sends it. -#}
+      <button type="button" id="ask-targum" class="bring-ask" hidden>Ask targum</button>
+      <button type="button" id="go" class="go">Continue</button>
+    </div>
+  </section>
 
-      <div class="drop" id="drop" tabindex="0">
-        <p class="drop-label">Drop a book, an article, a picture, or a recording</p>
-        <p class="drop-note">EPUB, plain text, markdown, PDF, pictures, audio, or video</p>
-        <input type="file" id="file" multiple
-               accept=".txt,.md,.markdown,.epub,.pdf,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
-        <button type="button" id="choose">Choose file</button>
-        <button type="button" id="unchoose" class="unchoose" hidden>Something else</button>
-      </div>
+  {#- What the box understood, and every choice on one line. -#}
+  <div class="summary" id="summary" hidden>
+    <p class="summary-line" id="summary-line"></p>
+    <button type="button" id="change" class="change" aria-expanded="false" aria-controls="options">Change</button>
+  </div>
 
-      {#- The other two ways in, labelled rather than announced: three "or" lines between
-          three boxes was three lines of chrome for no information. -#}
-      <label class="field">
-        <input type="text" id="source" placeholder="Or paste a link" spellcheck="false">
-      </label>
-      <label class="field">
-        <textarea id="pasted" rows="4" spellcheck="false"
-                  placeholder="Or paste the text"></textarea>
-      </label>
-      <p class="hint">Articles, wiki pages, podcast episodes, and YouTube videos. A pasted
-        text takes its title from its first line.</p>
-      {#- The refusals, named before they are met: a reader who tries a PDF or a Spotify
-          link learns the limit from a sentence here rather than from a failed attempt. -#}
-      <p class="hint">A screenshot or a photo of a page is read as it is printed; several
-        pictures chosen together are one text. Not scanned PDFs, protected audiobooks
-        (.aax), or Spotify. Nothing behind a login. A video counts against your hours,
-        like a recording.</p>
-
-      {#- Only when the file is a recording. A transcript with its own timings makes the
-          import free of transcription; without one, targum writes down what is said,
-          part by part, as each part is asked for. -#}
-      <section class="step" id="audio-extra" hidden>
-        <h2>Transcript</h2>
-        <div class="segmented" id="spoken-how" role="group" aria-label="Where the transcript comes from">
-          <button type="button" class="segment" data-spoken="make" aria-pressed="true">Transcribe</button>
-          <button type="button" class="segment" data-spoken="mine" aria-pressed="false">I have one</button>
-        </div>
-        <p class="hint" id="spoken-note">targum writes down what is said, part by part.</p>
-        <div id="have-transcript" hidden>
-          <div class="drop small" id="drop-transcript" tabindex="0">
-            <p class="drop-label">Drop the transcript</p>
-            <p class="drop-note">SRT or VTT, timings kept</p>
-            <input type="file" id="transcript" accept=".srt,.vtt" hidden>
-            <button type="button" id="choose-transcript">Choose file</button>
-            <button type="button" id="unchoose-transcript" class="unchoose" hidden>Something else</button>
-          </div>
-        </div>
-      </section>
-    </section>
-
-    <div class="beside">
-      {#- A translation the reader already has is a translation nobody has to make. The
-          aligner lines it up sentence by sentence, the same way the catalogue's published
-          translations are lined up. -#}
-      <section class="step">
-        <h2>Translation</h2>
-        <div class="segmented" id="how" role="group" aria-label="Where the translation comes from">
-          <button type="button" class="segment" data-how="make" aria-pressed="true">Make one</button>
-          <button type="button" class="segment" data-how="mine" aria-pressed="false">I have one</button>
-        </div>
-        <p class="hint" id="how-note">targum translates it, sentence by sentence.</p>
-
-        <div id="have-translation" hidden>
-          <div class="drop small" id="drop-translation" tabindex="0">
-            <p class="drop-label">Drop the translation</p>
-            <p class="drop-note">Plain text or markdown, in reading order</p>
-            <input type="file" id="translation" accept=".txt,.md,.markdown,.epub" hidden>
-            <button type="button" id="choose-translation">Choose file</button>
-            <button type="button" id="unchoose-translation" class="unchoose" hidden>Something else</button>
-          </div>
-          <label class="field">
-            <textarea id="pasted-translation" rows="3" spellcheck="false"
-                      placeholder="Or paste the translation"></textarea>
-          </label>
-        </div>
-      </section>
-
-      <section class="step">
-        <h2>Languages</h2>
-        <div class="options">
+  {#- The manual page: the controls the form had, with the ids they had, so a reader who
+      knows exactly what they brought is never asked to trust a guess. Rows that do not
+      apply to what is in the box are hidden. -#}
+  <section class="options" id="options" aria-label="Choices" hidden>
+    <div class="option-row">
+      <h2>Languages</h2>
+      <div class="option-body">
+        <div class="pickers">
           {#- Three in and two out, each one saying how far along it is. Narrower than
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
@@ -134,14 +88,66 @@
           </label>
         </div>
         <p class="hint" id="from-beta" hidden></p>
-      </section>
-
-      <button type="button" id="go" class="go">Read this</button>
-      <p class="hint caps">You will see how long first.</p>
+      </div>
     </div>
-  </div>
+
+    {#- A translation the reader already has is a translation nobody has to make. The
+        aligner lines it up sentence by sentence, the same way the catalogue's published
+        translations are lined up. -#}
+    <div class="option-row" id="translation-row">
+      <h2>Translation</h2>
+      <div class="option-body">
+        <div class="segmented" id="how" role="group" aria-label="Where the translation comes from">
+          <button type="button" class="segment" data-how="make" aria-pressed="true">targum makes one</button>
+          <button type="button" class="segment" data-how="mine" aria-pressed="false">I have one</button>
+        </div>
+        <p class="hint" id="how-note">targum translates it, sentence by sentence.</p>
+        <div id="have-translation" hidden>
+          <div class="drop small" id="drop-translation" tabindex="0">
+            <p class="drop-label">Drop the translation</p>
+            <p class="drop-note">Plain text or markdown, in reading order</p>
+            <input type="file" id="translation" accept=".txt,.md,.markdown,.epub" hidden>
+            <button type="button" id="choose-translation">Choose file</button>
+            <button type="button" id="unchoose-translation" class="unchoose" hidden>Something else</button>
+          </div>
+          <label class="field">
+            <textarea id="pasted-translation" rows="3" spellcheck="false"
+                      placeholder="Or paste the translation"></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    {#- Only when the box holds a recording. A transcript with its own timings makes the
+        import free of transcription; without one, targum writes down what is said, part
+        by part, as each part is asked for. -#}
+    <div class="option-row" id="audio-extra" hidden>
+      <h2>Transcript</h2>
+      <div class="option-body">
+        <div class="segmented" id="spoken-how" role="group" aria-label="Where the transcript comes from">
+          <button type="button" class="segment" data-spoken="make" aria-pressed="true">targum writes one</button>
+          <button type="button" class="segment" data-spoken="mine" aria-pressed="false">I have one</button>
+        </div>
+        <p class="hint" id="spoken-note">targum writes down what is said, part by part.</p>
+        <div id="have-transcript" hidden>
+          <div class="drop small" id="drop-transcript" tabindex="0">
+            <p class="drop-label">Drop the transcript</p>
+            <p class="drop-note">SRT or VTT, timings kept</p>
+            <input type="file" id="transcript" accept=".srt,.vtt" hidden>
+            <button type="button" id="choose-transcript">Choose file</button>
+            <button type="button" id="unchoose-transcript" class="unchoose" hidden>Something else</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <div class="status" id="status" hidden></div>
+
+  {#- The refusals, named before they are met, until each is said where it happens with
+      the way on (targum-internal#252). -#}
+  <p class="hint limits">Not scanned PDFs, protected audiobooks (.aax), Spotify, or anything
+    behind a login. A recording or a video counts against your hours.</p>
 
 </main>
 {% include '_foot.html.j2' %}

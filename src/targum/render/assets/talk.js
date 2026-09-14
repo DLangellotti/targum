@@ -161,5 +161,23 @@
     else frame.addEventListener("load", name, { once: true });
   }
 
-  window.TargumTalk = { show: show, open: open };
+  // A line said in the conversation from the page holding the drawer, by the reader's
+  // own press: Add's Ask targum, for a description of what they want to read
+  // (2026-09-13, targum-internal#249). The frame says it once it has loaded its list.
+  function say(text) {
+    var line = String(text || "").trim();
+    if (!line) return;
+    show(true);
+    var send = function () {
+      try {
+        frame.contentWindow.postMessage({ type: "targum:say", text: line }, window.location.origin);
+      } catch (e) {
+        /* not this origin yet; nothing is said */
+      }
+    };
+    if (frame.contentWindow && frame.contentWindow.location && frame.contentWindow.location.href !== "about:blank") send();
+    else frame.addEventListener("load", send, { once: true });
+  }
+
+  window.TargumTalk = { show: show, open: open, say: say };
 })();

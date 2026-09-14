@@ -336,6 +336,53 @@ because a rating put in front of a reader unbidden is the half of the mechanism 
 works, and /progress is a destination.
 
 
+### Add is one box, for any medium — 2026-09-13
+
+Asked the same day how the Add page could be "more AI native and user friendly, whilst
+still allowing users to do manual uploads", and then that it "should be truly media type
+agnostic (texts, videos, podcasts, audio notes, etc)". The page was a form: three boxes
+to choose between (a file, a link, the text), a Translation toggle, a Transcript toggle
+for a recording, and two language pickers, all asked before targum had looked at what
+was brought. A stranger had already called the product work (2026-09-03), and this was
+the page where that was most true.
+
+Decided, on the preview
+https://claude.ai/code/artifact/c1181c3b-1d29-4fa3-ae1f-4b7fd475c838:
+
+- **One box.** It takes a dropped file, several files, a pasted link, pasted Hebrew, or
+  a sentence saying what the reader wants. It never asks what kind of thing it was
+  given; a line under it says what targum thinks it was, as it is typed.
+- **Any medium is the same act.** A book, an article, a podcast episode, a recording, a
+  voice note, a video, a subtitle file, a photo of a page: each becomes Hebrew with its
+  English beside every line, with its media under it where it has some. The page names
+  the medium on the card; it never makes the reader pick one first.
+- **What was found, before anything is asked.** A card says what targum read — the
+  length, whether a person wrote the subtitles, whether an episode brings its own
+  transcript, how much of an article is Hebrew — and puts every decision on one line
+  that ends in **Change**.
+- **Change is the manual page.** Every control the form had stands behind it, rows that
+  do not apply to the medium hidden rather than greyed, open for whoever opened it last.
+  Files that belong together are paired without asking — a recording and a subtitle file
+  of the same name, a text and its translation in the other script — and the toggles
+  return only where the pairing cannot tell.
+- **The language is still not guessed.** The page stopped offering "work it out for me"
+  because a reader cannot check a guess on a build they are about to pay for
+  (`test_the_upload_page_does_not_offer_to_guess_the_language`), and that stands: the summary line names the language the reader last chose, where they
+  can see it, and Change is where it is changed. Hebrew, Yiddish and Aramaic share a
+  script, so a script could not decide it anyway.
+- **Only a description reaches the model.** A file, a link or Hebrew is priced with no
+  model at all. A sentence in words is a turn of conversation, is metered like one, and
+  the line under the box says so before it is sent. The model finds and prices; the
+  reader presses. Its results mix media, because the medium was never the question.
+- **The library answers first**, while the words go in, and a refusal says what to do
+  instead (a scanned PDF can be read as pictures; a locked link can be looked for
+  elsewhere, as an offer, never run unasked).
+
+What it does not overturn: the price before any spend, the model never pressing,
+`Library.claim` as the one door, the Add page's reason to exist beside the `+` on the box
+(the `+` brings a file while asking; this page is for everything else), and §13 for how
+it looks. Other video sites than YouTube are a separate question, not part of this.
+
 ### Add is a place again — 2026-09-13
 
 The entry of 2026-09-06 below took Upload out of the nav and made it the `+` on the box,

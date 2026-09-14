@@ -1645,3 +1645,32 @@ def test_the_script_rule_is_the_blocks_own_language() -> None:
     assert in_script("שלום", "he") and not in_script("Hannah", "he")
     assert in_script("мир", "ru") and not in_script("mir", "ru")
     assert in_script("מלכא", "arc"), "Aramaic is written in Hebrew letters"
+
+
+def test_every_transformers_requirement_refuses_the_release_that_breaks_dicta() -> None:
+    """5.17.0 removed a method DICTA's dictabert-joint code calls on every sentence.
+
+    The lockfile is not what the box installs: `uv tool install` resolves the wheel's own
+    requirements fresh, so a floor with no ceiling took 5.17.0 on 2026-09-13 and every
+    Hebrew build on targum.page failed while CI, on the lockfile's 5.15.1, stayed green.
+    """
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    named = [*project["dependencies"]]
+    for extra in project.get("optional-dependencies", {}).values():
+        named += extra
+    wanted = [Requirement(line) for line in named if Requirement(line).name == "transformers"]
+    assert wanted, "transformers is no longer a requirement; drop this test with it"
+    for requirement in wanted:
+        assert not requirement.specifier.contains("5.17.0"), str(requirement)
+        assert requirement.specifier.contains("5.16.1"), str(requirement)
+
+
+def test_the_installed_transformers_still_has_what_dicta_calls() -> None:
+    """The other half: a lockfile bump past the cap fails here rather than on the box."""
+    modeling = pytest.importorskip("transformers.modeling_utils")
+    assert hasattr(modeling.PreTrainedModel, "get_extended_attention_mask")
