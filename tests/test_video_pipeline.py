@@ -195,7 +195,7 @@ def test_a_video_from_youtube_links_home_at_the_line_and_an_upload_links_nowhere
     assert '"home": "https://www.youtube.com/watch?v=abc123"' in html
     assert '"offset": 0.0' in html, "the first part begins at the start"
     assert "data-video aria-pressed" in html, "and the sidecar is still the instrument"
-    assert '<span class="player-said">Watch the video</span>' in html, "a video is watched"
+    assert '<span class="player-said" dir="ltr">Watch the video</span>' in html, "a video is watched"
 
     (tmp_path / "up").mkdir()
     uploaded = builder(tmp_path / "up", film(tmp_path / "up")).run()
