@@ -108,6 +108,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- Learn opens without a long blank wait. The page draws once the shelf answers, and the
+  shelf re-read every text's document, segments, translations, annotation and audio
+  manifest on every request: 65 MB of JSON for a shelf of 163, 31.5 s on the live box once
+  those files had left memory. Each row's answer is now kept in `shelf.json` beside the
+  reader, stamped with the size and time of the files it came from, and worked out again
+  only when one of them changes. The first open after the deploy is still slow once per
+  shelf. Chat turns, which ask the same shelf, get the same saving.
 - A Global Voices post in a language other than English loses its translators' notes on
   what language each link opens in, such as "[en, come tutti i link successivi, salvo
   diversa indicazione]". The extractor dropped the link and kept the note in the sentence.

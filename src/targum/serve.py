@@ -30,7 +30,7 @@ import webbrowser
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from functools import cache, lru_cache
+from functools import cache, lru_cache, partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -43,6 +43,7 @@ from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
+from .remembered import Remembered
 from .render.builder import (
     LEGAL,
     about_page,
@@ -938,6 +939,10 @@ class Library:
         # request — nothing routed through `within(home, …)` can reach it, so a shared
         # text cannot be bought, trashed or rebuilt by whoever is reading it.
         self.shared = out / "shared"
+        # What each shelf row says, kept beside each reader (`remembered`). The one
+        # thing a request writes on the shared shelf, as `coverage.lemmas` already did:
+        # an answer about a text, never the text.
+        self.remembered = Remembered()
         # Where published issues of the weekly land. A third read-only home, owned by
         # nobody, written only by `targum weekly publish` and never by a request.
         self.weekly = out / "weekly"
@@ -1633,11 +1638,17 @@ class Library:
             # A conversation read back: shaped like a scene, filed like one.
             kind = "dialogue"
         annotation = folder / "annotation.json"
-        difficulty = (
-            self._own_difficulty(str(annotation), annotation.stat().st_mtime, language)
-            if annotation.is_file()
-            else 0
+        difficulty = self.remembered.get(
+            folder,
+            f"difficulty:{language}",
+            [annotation],
+            lambda: (
+                self._own_difficulty(str(annotation), annotation.stat().st_mtime, language)
+                if annotation.is_file()
+                else 0
+            ),
         )
+        manifest = folder / manifest_module.MANIFEST
         return {
             "kind": kind,
             "register": "biblical" if is_biblical(source) else "modern",
@@ -1645,10 +1656,15 @@ class Library:
             "minutes": max(1, round(words / 130)),
             # The claim is made by whatever is actually there — for an import, the
             # manifest sitting beside the reader.
-            "spoken": spoken.is_spoken(source) or (folder / "audio.json").is_file(),
+            "spoken": spoken.is_spoken(source) or manifest.is_file(),
             # Kept its pictures, by the manifest's own word — the sidecar folder is a
             # copy the build remakes, and the manifest is the claim.
-            "video": spoken.is_video(source) or manifest_module.keeps_video(folder),
+            "video": spoken.is_video(source)
+            or bool(
+                self.remembered.get(
+                    folder, "video", [manifest], lambda: manifest_module.keeps_video(folder)
+                )
+            ),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.
@@ -1697,61 +1713,48 @@ class Library:
             when = self.trashed_at(folder)
             if bool(when) != trashed:
                 continue
-            title = folder.name
-            author = ""
-            language = ""
-            contains: list[str] = []
-            content_hash = ""
-            source = ""
-            words = 0
-            sections = len(list((folder / "reader").glob("sec-*.html"))) or 1
-            chapters = self.chapters(folder)
+            # Every read below goes through `remembered`: the answers are small and the
+            # files they come from are not (2026-09-14, Learn waiting 31 s on a cold box).
+            remember = self.remembered.get
             document = folder / "document.json"
-            if document.is_file():
-                try:
-                    data = json.loads(document.read_text(encoding="utf-8"))
-                    title = data.get("title") or title
-                    # Who wrote it, which for the weekly is how it was made. It rides on
-                    # the document rather than being looked up per row, so the shelf
-                    # cannot show an issue without also showing that a model compiled it.
-                    author = data.get("author", "")
-                    language = data.get("language", "")
-                    # Every language the text is written in, its blocks' own included: a
-                    # Daniel is Hebrew and Aramaic, and shows under both (2026-09-13).
-                    contains = sorted(
-                        (
-                            {language}
-                            | {
-                                str(block.get("language"))
-                                for block in data.get("blocks", [])
-                                if block.get("language")
-                            }
-                        )
-                        - {""}
-                    )
-                    source = data.get("source", "")
-                    words = sum(len(str(b.get("text", "")).split()) for b in data.get("blocks", []))
-                    # The same identity the reader keeps its word list under, so the
-                    # page can say how far through each text you are.
-                    content_hash = data.get("content_hash", "")
-                except json.JSONDecodeError:
-                    pass
+            facts = remember(
+                folder, "document", [document], partial(self._document_facts, document)
+            )
+            title = facts["title"] or folder.name
+            language = facts["language"]
+            words = facts["words"]
+            translations = sorted((folder / "translations").glob("*.json"))
+            chapters = remember(
+                folder,
+                "chapters",
+                [folder / "segments.json", *translations],
+                partial(self.chapters, folder),
+            )
+            sections = remember(
+                folder,
+                "sections",
+                # A section added or taken away changes the folder's own time.
+                [folder / "reader"],
+                partial(self._sections, folder),
+            )
             found.append(
                 {
                     "name": folder.name,
                     "title": title,
-                    "author": author,
+                    "author": facts["author"],
                     "language": language,
-                    "languages": contains or ([language] if language else []),
+                    "languages": facts["contains"] or ([language] if language else []),
                     # And which languages it can be read *into*. A text built twice is
                     # one text with two translations, and a shelf that said only what
                     # language it was in could not tell a reader of two which of them
                     # this one would open in.
-                    "targets": self.targets(folder),
-                    "document": content_hash,
+                    "targets": remember(
+                        folder, "targets", translations, partial(self.targets, folder)
+                    ),
+                    "document": facts["content_hash"],
                     "words": words,
-                    **self._shape(folder, source, language, words),
-                    "sections": sections,
+                    **self._shape(folder, facts["source"], language, words),
+                    "sections": sections or 1,
                     "chapters": chapters,
                     "readyChapters": sum(1 for c in chapters if c["ready"]),
                     "trashed": when,
@@ -1764,6 +1767,50 @@ class Library:
             )
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
+
+    @staticmethod
+    def _sections(folder: Path) -> int:
+        return len(list((folder / "reader").glob("sec-*.html")))
+
+    @staticmethod
+    def _document_facts(document: Path) -> dict[str, Any]:
+        """What the shelf takes from a reader's document, which is the whole text."""
+        facts: dict[str, Any] = {
+            "title": "",
+            "author": "",
+            "language": "",
+            "contains": [],
+            "source": "",
+            "words": 0,
+            "content_hash": "",
+        }
+        if not document.is_file():
+            return facts
+        try:
+            data = json.loads(document.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return facts
+        language = data.get("language", "")
+        blocks = data.get("blocks", [])
+        facts.update(
+            title=data.get("title") or "",
+            # Who wrote it, which for the weekly is how it was made. It rides on the
+            # document rather than being looked up per row, so the shelf cannot show an
+            # issue without also showing that a model compiled it.
+            author=data.get("author", ""),
+            language=language,
+            # Every language the text is written in, its blocks' own included: a Daniel
+            # is Hebrew and Aramaic, and shows under both (2026-09-13).
+            contains=sorted(
+                ({language} | {str(b.get("language")) for b in blocks if b.get("language")}) - {""}
+            ),
+            source=data.get("source", ""),
+            words=sum(len(str(b.get("text", "")).split()) for b in blocks),
+            # The same identity the reader keeps its word list under, so the page can say
+            # how far through each text you are.
+            content_hash=data.get("content_hash", ""),
+        )
+        return facts
 
     @staticmethod
     def can_draw() -> bool:
