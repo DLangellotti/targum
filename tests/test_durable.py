@@ -102,6 +102,39 @@ def test_a_build_caught_mid_flight_is_told_the_truth(tmp_path: Path) -> None:
     assert after.committed == 2.0
 
 
+def test_a_build_caught_mid_flight_gives_its_hours_back(tmp_path: Path) -> None:
+    """The money is kept, the hours are not. The box was OOM-killed on the same video
+    four times in an hour on 2026-09-14, and each try kept the whole recording's length
+    against the month — a reader charged four hours for a video they never got. The
+    money claim ages out within the day; the hours stayed until the month turned."""
+    lib, store = library(tmp_path)
+    running = job(lib, 2.0)
+    assert store.claim(running.id, 2.0, 10.0, 0, length=3600.0) == ""
+    running.stage = "working"
+    lib.remember(running)
+    assert store.hours_used(None, 0) == 3600.0
+
+    after = Library(
+        tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db")
+    )
+    assert after.jobs[running.id].stage == "failed"
+    assert Store(tmp_path / "targum.db").hours_used(None, 0) == 0.0
+    assert after.committed == 2.0, "the money claim is still kept"
+
+
+def test_a_restart_repairs_the_hours_an_earlier_restart_kept(tmp_path: Path) -> None:
+    """Rows failed by a restart before the hours went back still hold their length. The
+    next start-up gives it back, so no one has to edit the live database by hand."""
+    lib, store = library(tmp_path)
+    old = job(lib, 2.0, stage="failed", error="targum restarted while this was building.")
+    assert store.claim(old.id, 2.0, 10.0, 0, length=1800.0) == ""
+    other = job(lib, 1.0, id="j2", stage="failed", error="The video is private.")
+    assert store.claim(other.id, 1.0, 10.0, 0, length=600.0) == ""
+
+    Library(tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db"))
+    assert Store(tmp_path / "targum.db").hours_used(None, 0) == 600.0
+
+
 def test_a_build_still_in_line_is_let_go_and_its_money_given_back(tmp_path: Path) -> None:
     """The line was memory, and nothing puts a recovered job back on it: a queued build
     sat at "queued" for good. It never started, so its claim goes back."""

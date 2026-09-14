@@ -103,6 +103,32 @@ class TestTheVocalizer:
             assert strip_nikkud(out[segment.id])[0] == segment.text
         assert "־" in out["s1"], "the maqaf survived"
 
+    def test_a_segment_past_the_ceiling_is_pointed_to_its_last_letter(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The tokenizer truncates at `MAX_CHARS`, and a transcript nobody punctuated came
+        back with everything past it unvowelled (2026-09-14)."""
+        asked: list[int] = []
+
+        def truncating(model: Any, tokenizer: Any, text: str) -> tuple[Any, Any, Any]:
+            asked.append(len(text))
+            offsets = [(0, 0)] + [(at, at + 1) for at in range(len(text))][: dicta.MAX_CHARS - 2]
+            return offsets, [7] * (len(offsets) + 1), [0] * (len(offsets) + 1)
+
+        monkeypatch.setattr(dicta, "infer", truncating)
+        engine = dicta.DictaVocalizer()
+        monkeypatch.setattr(engine, "load", lambda: (StubModel(), object()))
+        text = " ".join(["בגד"] * 1500)
+        assert len(text) > dicta.MAX_CHARS * 2
+
+        out = engine.vocalize(
+            [Segment(id="s0", block_id="b", block_index=0, index=0, text=text)], "he"
+        )
+
+        assert len(asked) > 1 and max(asked) <= dicta.PIECE_CHARS
+        assert strip_nikkud(out["s0"])[0] == text, "the pieces join back into the segment"
+        assert out["s0"].count(CLASSES[7]) == text.count("ב") * 3, "every letter has its mark"
+
     def test_the_name_says_dicta_and_the_model_is_named_in_full(self) -> None:
         engine = dicta.DictaVocalizer()
         assert engine.name.startswith("dicta/")

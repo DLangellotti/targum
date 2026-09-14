@@ -48,6 +48,7 @@ from typing import Any
 from ..errors import TargumError
 from ..models import Segment
 from ..paths import model_dir
+from ..segment.pieces import at_spaces
 from .base import LETTERS
 
 LOG = logging.getLogger(__name__)
@@ -61,10 +62,16 @@ MODEL_URL = f"https://huggingface.co/{MODEL}"
 
 #: What the model's head answers for a letter it reads as a mater lectionis.
 MAT_LECT = "<MAT_LECT>"
-#: The model's own ceiling, characters plus the two sentinel tokens. A segment past it
-#: is truncated by the tokenizer and its tail comes back bare; the letters are still
-#: all there, so the skeleton holds.
+#: The model's own ceiling, characters plus the two sentinel tokens. Text past it is
+#: truncated by the tokenizer and its tail comes back bare; the letters are still all
+#: there, so the skeleton holds.
 MAX_CHARS = 2048
+
+#: So a segment is pointed in pieces no longer than this, cut at a space, and none of it
+#: is past the ceiling. A sentence is nowhere near it; a transcript nobody punctuated was,
+#: and came back with its tail unvowelled (2026-09-14). Short of the ceiling by a margin,
+#: because a character the tokenizer expands takes more than one of its places.
+PIECE_CHARS = 1600
 
 #: Loaded once per process and shared, the way the annotator's weights are: a rebuild
 #: that points a hundred texts loads 1.2 GB once.
@@ -242,7 +249,12 @@ class DictaVocalizer:
                 # Per sentence, for Nakdimon's reason: one sentence a model dislikes
                 # must not cost the document its vowels.
                 try:
-                    out[segment.id] = point(model, tokenizer, text)
+                    # `assemble` writes every character it is given, so the pieces, pointed
+                    # and joined, are the segment pointed.
+                    out[segment.id] = "".join(
+                        point(model, tokenizer, text[start:end])
+                        for start, end in at_spaces(text, PIECE_CHARS)
+                    )
                 except Exception as error:  # noqa: BLE001 - a third-party model, not our code
                     failed += 1
                     LOG.debug("no vowel points for %s: %s", segment.id, error)

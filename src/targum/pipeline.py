@@ -1567,7 +1567,13 @@ class Build:
             # A supplied transcript is the source, not a refinement of a hearing —
             # there is nothing better to redo it with.
             return False
-        return kept.refiner != build_refiner().name
+        refiner = build_refiner()
+        # A refiner may say which of its forerunners it improves on without redoing: the
+        # rules that cut long paragraphs did not re-cut, and re-buy, every hearing made
+        # before them (2026-09-14).
+        return kept.refiner != refiner.name and kept.refiner not in getattr(
+            refiner, "keeps", frozenset()
+        )
 
     def _parts_owed(self, chapters: int | None, also: Sequence[int] = ()) -> list[int]:
         """Which parts this run buys: the first `chapters` still unheard, plus `also`.

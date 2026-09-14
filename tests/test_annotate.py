@@ -1430,6 +1430,183 @@ def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
     assert sum(asked) == len(segments), "and each segment is asked about exactly once"
 
 
+def test_long_segments_are_handed_over_by_the_token_not_by_the_count() -> None:
+    """Sixteen at a time held a book, and killed the box on a recording. A pasted video's
+    transcript has almost no sentence ends, so a segment runs to the model's 512 tokens,
+    and DICTA's lemma head sorts a 128,000-wide row for every padded token: measured on
+    2026-09-14 at about 1 GB a segment. A batch of sixteen of those is 16 GB, and the box
+    was OOM-killed at `annotate` four times in an hour on one video."""
+    from targum.annotate.dicta import BATCH, TOKENS, DictaLemmatizer, _tokens_in
+    from targum.models import Segment
+
+    asked: list[list[str]] = []
+
+    class Counting:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            asked.append(list(texts))
+            return [{"tokens": []} for _ in texts]
+
+    lemmatizer = DictaLemmatizer()
+    lemmatizer._model = Counting()
+    lemmatizer._tokenizer = object()
+
+    def segment(n: int, text: str) -> Segment:
+        return Segment(
+            id=f"s{n}",
+            text=text,
+            ref=str(n),
+            kind="paragraph",
+            block_id="b1",
+            block_index=1,
+            index=n,
+        )
+
+    long = " ".join(["הוא הלך לבית הספר בבוקר"] * 30)  # under PIECE_CHARS: one piece
+    short = "הוא הלך לבית הספר."
+    # A run of short lines first, as a book is, then a transcript's long ones among them.
+    texts = [short] * BATCH + [long if n % 5 == 0 else short for n in range(BATCH * 3)]
+    segments = [segment(n, text) for n, text in enumerate(texts)]
+    read = lemmatizer.lemmas(segments, "he")
+
+    assert len(read) == len(segments)
+    assert sum(len(texts) for texts in asked) == len(segments)
+    for texts in asked:
+        padded = len(texts) * max(_tokens_in(text) for text in texts)
+        assert len(texts) <= BATCH
+        assert padded <= TOKENS, f"{len(texts)} segments padded to {padded} tokens at once"
+    assert [text for texts in asked for text in texts] == [s.text for s in segments], (
+        "in the order they came, so a text of short lines is batched exactly as before"
+    )
+    assert max(len(texts) for texts in asked) == BATCH, "short lines still go sixteen at a time"
+
+
+def test_a_segment_past_what_the_model_reads_gets_every_word_back_in_place() -> None:
+    """The model stops at 512 tokens and hands back the rest bare. A transcript nobody
+    punctuated lost the dictionary form of every word past it (2026-09-14)."""
+    from targum.annotate.dicta import PIECE_CHARS, DictaLemmatizer
+    from targum.models import Segment
+
+    asked: list[str] = []
+
+    class Words:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            import re
+
+            asked.extend(texts)
+            return [
+                {
+                    "tokens": [
+                        {
+                            "token": found.group(0),
+                            "lex": found.group(0),
+                            "morph": {"pos": "NOUN"},
+                            "offsets": {"start": found.start(), "end": found.end()},
+                        }
+                        for found in re.finditer(r"\S+", text)
+                    ]
+                }
+                for text in texts
+            ]
+
+    lemmatizer = DictaLemmatizer()
+    lemmatizer._model = Words()
+    lemmatizer._tokenizer = object()
+
+    text = " ".join(f"מילה{n}" for n in range(600))
+    assert len(text) > PIECE_CHARS * 3
+    segment = Segment(
+        id="s0", text=text, ref="0", kind="paragraph", block_id="b1", block_index=1, index=0
+    )
+    read = lemmatizer.lemmas([segment], "he")["s0"]
+
+    assert len(asked) > 1 and max(len(piece) for piece in asked) <= PIECE_CHARS
+    assert [token.surface for token in read] == text.split(), "every word, once, in order"
+    assert all(text[token.start : token.end] == token.surface for token in read)
+
+
+def test_the_build_and_the_chat_never_run_the_model_at_once(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Each call can hold gigabytes while it runs. The chat's record had a lock of its own
+    and the build worker none, so a turn during a build was two spikes on one box."""
+    import threading
+    import time
+
+    from targum.annotate import dicta
+    from targum.models import Segment
+
+    inside = 0
+    most = 0
+    counting = threading.Lock()
+
+    class Slow:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            nonlocal inside, most
+            with counting:
+                inside += 1
+                most = max(most, inside)
+            time.sleep(0.02)
+            with counting:
+                inside -= 1
+            return [{"tokens": []} for _ in texts]
+
+    def reader() -> dicta.DictaLemmatizer:
+        made = dicta.DictaLemmatizer()
+        made._model = Slow()
+        made._tokenizer = object()
+        return made
+
+    segments = [
+        Segment(
+            id=f"s{n}",
+            text="הוא הלך.",
+            ref="",
+            kind="paragraph",
+            block_id="b",
+            block_index=0,
+            index=n,
+        )
+        for n in range(dicta.BATCH * 5)
+    ]
+    threads = [threading.Thread(target=reader().lemmas, args=(segments, "he")) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert most == 1, f"{most} calls ran the model at once"
+
+
+def test_two_threads_asking_for_the_weights_load_them_once(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """The chat warms the model at start-up; a build arriving in those seconds loaded a
+    second 744 MB copy."""
+    import threading
+    import time
+
+    import transformers
+
+    from targum.annotate import dicta
+
+    loads = 0
+
+    class Model:
+        def eval(self) -> None:
+            pass
+
+    def pretrained(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        nonlocal loads
+        loads += 1
+        time.sleep(0.05)
+        return Model()
+
+    monkeypatch.setattr(dicta, "_LOADED", {})
+    monkeypatch.setattr(transformers.AutoModel, "from_pretrained", pretrained)
+    monkeypatch.setattr(transformers.AutoTokenizer, "from_pretrained", lambda *_a, **_k: object())
+    threads = [threading.Thread(target=dicta.DictaLemmatizer().model) for _ in range(3)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert loads == 1
+
+
 def test_two_words_that_share_a_spelling_are_two_entries(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """אֵלֶּה and אָלָה are one lemma and two meanings. The list a glossary is bought from
     counts them apart, and the glossary files each under its own headword — so the curse

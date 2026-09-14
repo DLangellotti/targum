@@ -2306,15 +2306,25 @@ class Store:
         is the hole this whole change exists to close. Over-counting a build that died
         early costs a reader one refusal; under-counting costs money. The claim ages out
         of the window on its own within the day.
+
+        **Its hours go back.** They are counted over the month, not the day, so a kept
+        length did not age out: a video that OOM-killed the box four times in an hour
+        (2026-09-14) charged its reader four times its length for nothing. The reader
+        heard none of it, which is `unclaim`'s reason, and a retry claims the hours again.
+        The sweep also clears rows an earlier start-up failed with the length kept.
         """
         with self.write() as db:
             rows = db.execute("SELECT id FROM job WHERE stage IN ('working', 'queued')").fetchall()
             db.execute(
-                "UPDATE job SET stage = 'failed', error = ? WHERE stage = 'working'",
+                "UPDATE job SET stage = 'failed', error = ?, length = 0 WHERE stage = 'working'",
                 (
                     "targum restarted while this was building. Start it again — "
                     "anything already translated is cached, so it will not be paid for twice.",
                 ),
+            )
+            db.execute(
+                "UPDATE job SET length = 0 WHERE stage = 'failed' AND length > 0 "
+                "AND error LIKE 'targum restarted while this was building%'"
             )
             # A build still waiting in line when the process died is in no line now: the
             # queue was memory, and nothing puts a recovered job back on it. It sat at
