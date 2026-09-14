@@ -112,6 +112,11 @@ global.window.TargumCharts.tiles = () => {};
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
 require(path.join(assets, "scenes.js"));
+// The day the fixtures were written about, so "new for a week" is decided by them and
+// not by the day the suite happens to run.
+global.window.TargumClock = Object.assign({}, global.window.TargumClock, {
+  now: () => Date.parse(payload.now || "2026-09-14T12:00:00Z"),
+});
 require(path.join(assets, "follow.js"));
 require(path.join(assets, "learn.js"));
 

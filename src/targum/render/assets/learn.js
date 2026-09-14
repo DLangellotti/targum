@@ -1223,6 +1223,8 @@
         drawKnown(code, store);
       }
 
+      var waiting = document.getElementById("learn-waiting");
+      if (waiting) waiting.hidden = true;
       show(chosen);
       hello();
       suggested();
@@ -1230,8 +1232,12 @@
     })
     .catch(function () {
       // Signed out, or the server went away. The page says nothing rather than half of
-      // something, and the nav is still there to leave by.
-      document.getElementById("nothing").hidden = false;
+      // something, and the nav is still there to leave by — and it says what happened,
+      // rather than telling a reader with a shelf that they have nothing (2026-09-14).
+      var waiting = document.getElementById("learn-waiting");
+      if (waiting) waiting.hidden = true;
+      var failed = document.getElementById("learn-failed");
+      (failed || document.getElementById("nothing")).hidden = false;
     });
 
   /* --- a subscription that landed (2026-09-11) ------------------------------------
@@ -1362,7 +1368,9 @@
           primary: true,
           src: src,
           href: src,
-          meta: follow.whenSaid(inst.when),
+          // The date once: a title that already carries it ("… · 24 באוגוסט 2026") is not
+          // followed by "Aug 24".
+          meta: /\d/.test(inst.hebrew || inst.title || "") ? "" : follow.whenSaid(inst.when),
         }
       );
       follow.markSeen(newest.id, inst.id);

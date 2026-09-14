@@ -133,12 +133,25 @@
 
   // The followed series whose current instalment this browser has not seen, newest
   // first: what lands in the sheet and the bell.
+  // News for as long as it is the week's, not for ever (2026-09-14). A browser that had
+  // never seen the weekly was told an issue three weeks old was "New", in the bell and in
+  // Learn's sheet: followed and unseen here, but not new. Ten days: a week, and the few
+  // days a late issue or a long weekend puts between one and the next.
+  var FRESH_FOR = 10 * 24 * 3600 * 1000;
+  function recent(instalment) {
+    var at = instalment && instalment.when ? new Date(instalment.when).getTime() : NaN;
+    var now = window.TargumClock && window.TargumClock.now ? window.TargumClock.now() : Date.now();
+    return isNaN(at) || now - at <= FRESH_FOR;
+  }
+
   function fresh(series) {
     var kept = follows();
     var saw = seen();
     return series
       .filter(function (one) {
-        return kept[one.id] && one.instalment && saw[one.id] !== one.instalment.id;
+        return (
+          kept[one.id] && one.instalment && saw[one.id] !== one.instalment.id && recent(one.instalment)
+        );
       })
       .sort(function (a, b) {
         return String(b.instalment.when || "").localeCompare(String(a.instalment.when || ""));

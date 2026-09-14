@@ -780,9 +780,18 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   color: var(--ink-soft);
 }
 .page-window {
-  block-size: calc(100dvh - 19rem);
+  block-size: calc(100svh - 19rem);
   min-block-size: 24rem;
   max-block-size: none;
+}
+/* A laptop's short screen (2026-09-14). At 1280×720 the window was its floor, 24rem, and
+   the reader in it showed one sentence under its own bar, its strip and its pages. On a
+   screen this short the hint gives way, and the window is the height of the
+   screen under the bar, so a scroll of the page puts the whole reader in view. `svh`
+   rather than `dvh`: a tablet's toolbar coming and going must not repaginate a reader. */
+@media (min-width: 40.01rem) and (max-height: 51.25rem) {
+  .page-hint { display: none; }
+  .page-window { block-size: max(24rem, calc(100svh - 4.5rem)); }
 }
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
@@ -927,3 +936,14 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   .page-hint { max-inline-size: none; text-align: start; font-size: 0.8125rem; }
   .page-head .open { padding-inline: 0.8rem 0.95rem; font-size: 0.875rem; }
 }
+
+/* While the shelf is asked for (2026-09-14): one quiet line where the sheet will stand,
+   so the page under the bar is not blank for the seconds a large shelf takes. */
+.learn-waiting {
+  margin: 3rem auto;
+  max-width: 62rem;
+  padding-inline: 1.5rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.learn-waiting[hidden] { display: none; }
