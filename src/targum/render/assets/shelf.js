@@ -160,7 +160,7 @@
       var controls = document.createElement("span");
       controls.className = "row-controls";
       if (reader.chapters && reader.chapters.length) controls.appendChild(opener(reader, item));
-      controls.appendChild(binButton(reader));
+      controls.appendChild(binButton(reader, item));
       item.appendChild(controls);
       list.appendChild(item);
     });
@@ -264,10 +264,14 @@
 
   /* Throwing one away and getting it back.
    *
-   * Both go through the same shape: press, ask the server, redraw. There is no
-   * confirmation step — the trash is the confirmation, and a dialog asking "are you
-   * sure" before something reversible is a question nobody can answer usefully. */
-  function binButton(reader) {
+   * No confirmation step: the trash is the confirmation, and a dialog asking "are you
+   * sure" before something reversible is a question nobody can answer usefully. But the
+   * way back has to be where the press was. The row used to vanish into a reload, with
+   * Put back in a panel further down the page, which a reader who pressed Delete for
+   * Chapters did not know to look for (targum-internal#278). So the row stays, says where
+   * the text went, and holds Undo under the same finger; the next load files it in Trash
+   * with the others. */
+  function binButton(reader, item) {
     var press = document.createElement("button");
     press.type = "button";
     press.className = "bin";
@@ -275,11 +279,44 @@
     press.title = "Move to trash";
     press.onclick = function () {
       press.disabled = true;
-      post("/trash", { name: reader.name }).then(reload, function () {
+      post("/trash", { name: reader.name }).then(function () {
+        binned(reader, item);
+      }, function () {
         press.disabled = false;
       });
     };
     return press;
+  }
+
+  function binned(reader, item) {
+    var tree = item.nextElementSibling;
+    if (tree && tree.classList.contains("chapters")) tree.remove();
+    item.textContent = "";
+    item.classList.add("binned");
+
+    var said = document.createElement("span");
+    said.className = "binned-note";
+    said.setAttribute("role", "status");
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", reader.language || "und");
+    title.className = "book-title";
+    title.textContent = reader.title;
+    said.appendChild(title);
+    said.appendChild(document.createTextNode(" is in Trash"));
+    item.appendChild(said);
+
+    var undo = document.createElement("button");
+    undo.type = "button";
+    undo.className = "restore";
+    undo.textContent = "Undo";
+    undo.onclick = function () {
+      undo.disabled = true;
+      post("/restore", { name: reader.name }).then(reload, function () {
+        undo.disabled = false;
+      });
+    };
+    item.appendChild(undo);
+    undo.focus();
   }
 
   function drawTrash(code, trash) {

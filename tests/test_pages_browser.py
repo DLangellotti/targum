@@ -643,6 +643,71 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
+def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
+    browser, tmp_path: Path
+) -> None:
+    """Delete sits beside Chapters, and a reload used to take the row away with Put back
+    in a panel further down. The row stays, says it is in Trash, and Undo is where Delete
+    was (targum-internal#278)."""
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    chapters = [{"number": 1, "title": "א", "ready": True, "file": "1.html"}]
+    readers = [
+        {
+            "name": name,
+            "document": name,
+            "title": title,
+            "language": "he",
+            "chapters": chapters,
+            "readyChapters": 1,
+            "sections": 1,
+            "built": 1,
+        }
+        for name, title in (("jonah", "יונה"), ("ruth", "רות"))
+    ]
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    open_page = context.new_page()
+    # The page asks the server with fetch; this answers for it, and keeps what was posted
+    # across the reload Undo ends with.
+    open_page.add_init_script(
+        f"const readers = {json.dumps(readers)};"
+        """
+        const said = (x) => Promise.resolve(new Response(JSON.stringify(x)));
+        window.fetch = (url, opts) => {
+          const path = String(url).split('?')[0];
+          if (path.endsWith('/readers')) return said({ readers, trash: [] });
+          if (path.endsWith('/trash') || path.endsWith('/restore')) {
+            const posted = JSON.parse(sessionStorage.getItem('posted') || '[]');
+            posted.push([path.split('/').pop(), JSON.parse(opts.body).name]);
+            sessionStorage.setItem('posted', JSON.stringify(posted));
+            return said({ ok: true });
+          }
+          return said({});
+        };
+        """
+    )
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_selector(".bin")
+    open_page.locator(".open-chapters").first.click()
+    open_page.locator(".bin").first.click()
+    open_page.wait_for_selector("li.binned")
+    got = open_page.evaluate(
+        """() => ({
+          note: document.querySelector('li.binned .binned-note').textContent,
+          focused: document.activeElement.textContent,
+          tree: !!document.querySelector('.chapters'),
+          rows: document.querySelectorAll('#library-list > li').length,
+        })"""
+    )
+    assert got == {"note": "יונה is in Trash", "focused": "Undo", "tree": False, "rows": 2}
+    open_page.locator("li.binned .restore").click()
+    open_page.wait_for_load_state("load")
+    open_page.wait_for_selector(".bin")
+    posted = open_page.evaluate("() => JSON.parse(sessionStorage.getItem('posted'))")
+    context.close()
+    assert posted == [["trash", "jonah"], ["restore", "jonah"]]
+
+
 def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
     """A conversation is titled with its first line, and a first line can be long. The
     rail's column is 14rem; a grid item's minimum width is its content unless told

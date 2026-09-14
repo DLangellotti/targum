@@ -525,6 +525,11 @@
 .books .restore:disabled { opacity: 0.5; cursor: default; }
 
 .trash .gone { flex: 1; min-width: 0; display: block; }
+/* A row just deleted: where the text went, and Undo where Delete was. */
+.books.shelf-rows li.binned { grid-template-columns: minmax(0, 1fr) auto; min-block-size: 3.25rem; }
+.books.shelf-rows li.binned:hover { background: none; }
+.binned-note { min-width: 0; color: var(--ink-soft); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.binned-note .book-title { display: inline; color: var(--ink-soft); }
 .trash .book-title { color: var(--ink-soft); }
 .trash .book-meta { display: block; color: var(--clay); }
 
