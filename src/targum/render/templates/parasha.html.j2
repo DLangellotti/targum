@@ -82,7 +82,9 @@
   {#- The dateline says which portion, when, and how much of it — the four things
       somebody preparing checks before they start. -#}
   <p class="dateline">
-    <bdi class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi>
+    {#- The English name first, the Hebrew beside it (2026-09-14): an English sentence that
+        opened on a Hebrew word began at the wrong end for the eye. -#}
+    {{ portion.name }}{% if portion.hebrew %} (<bdi class="named" lang="he" dir="rtl">{{ portion.hebrew }}</bdi>){% endif %}
     is read on {{ shabbat_said }}{% if hdate %} ({{ hdate }}){% endif %} —
     {{ portion.summary }}, {{ portion.verses }} verses in
     {{ portion.aliyot }} aliyot.{% if portion.kind.value == 'festival' %}

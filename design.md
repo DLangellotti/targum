@@ -315,8 +315,63 @@ In *this* repository: tokens are the `:root` block of
 
 ## 12 · Where the code departs, and why
 
-Eighteen places. Each was a deliberate decision with a date, kept here so nobody
-"corrects" the code back to a rule that was already retired.
+Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
+the code back to a rule that was already retired. (The count this line used to give had
+fallen behind the entries by half; the dates are the index.)
+
+
+### The Hebrew-first audit — 2026-09-14
+
+David asked for a complete review of the product with the Hebrew learner as its user,
+and then for every finding to be fixed. The review is the artifact
+https://claude.ai/code/artifact/bf361ca0-73da-4d73-8ddc-1958f1f602a4. Most of what it
+found broke rules this file already states — Hebrew in a fallback face, Hebrew scaled
+below Latin, `left`/`right` where the desk meant the end — and those were simply fixed.
+These are the ones that change or add a rule, so they are recorded.
+
+- **Hebrew is isolated where it meets English, and every field takes its own
+  direction.** Every text field is `dir="auto"` with `unicode-bidi: plaintext`; a title
+  clips on its own isolate, never on the LTR box around it; plain text that carries a
+  Hebrew title (a mail subject, a tab title, a notification) wraps it in U+2068 … U+2069
+  and leads with the English. Inside anything tagged Hebrew-script, `--reading` and
+  `--chrome` are the Hebrew stack, so a component names its face by variable and never
+  has to out-specify the `[lang]` rule.
+- **A reader page is English chrome around a text.** `<html lang="en">`, the direction
+  still the text's, the text's language on `data-language`, and `lang` on every source
+  cell as before. A speaker's name is 0.8125rem in the reading face and is heard by a
+  screen reader.
+- **The translation language has one name: "Translations in".** On You, Add and Your
+  Words, and the first visit asks about translations rather than answers. Every
+  language list shows the language's own name after English's, and the language menu is
+  headed "You're learning", because it changes neither the interface nor the
+  translations.
+- **The conversation knows how to address the reader in Hebrew.** You carries "In
+  Hebrew, targum calls you" — אַתָּה, אַתְּ or Either — kept on the account and said in
+  the ledger. Without an answer the model uses forms that do not choose, and it never
+  changes the gender of the reader's own words in a recast: a man's רוצה had been
+  "corrected" to רוֹצָה.
+- **A Library row says how long before it builds.** The first press prices the text
+  and a Start reading beside the row is the spend, as the conversation's card and the
+  Add page already had it (see "Add is one box" below).
+- **A followed instalment is news for ten days.** After that it is the current issue,
+  in the bell and in Learn's sheet, whatever this browser has seen.
+- **Names on the Library.** The difficulty column is "Hard words", because it counts
+  words rare in the language rather than words new to the reader; the register column
+  and filter are "Which Hebrew"; the tabs are All texts and Your uploads. The weekly's
+  top edition is "Native": the other two are real Hebrew too.
+- **Delete account stands on its own row, in clay, and its second press offers Keep
+  my account.** A deleted account signs the browser out and empties its store.
+- **Breakpoints.** A `min-width` at 60rem is written 60.01rem, as `reader.css` already
+  did once, so a 960px window is one layout and not two at once. The reader's own
+  `main` padding and its drawer-as-sheet belong to `body.reader` only.
+- **An address that is not a page answers 404, with a page.** It had answered "Coming
+  soon" with a 200.
+
+What it does not overturn: "targum" as the name of a built text, the pages on a phone,
+the brown-to-leaf ramp on Your Progress, the monospace counts (§5), the reader's
+glyph bar (§7), the teal tint on the reader's own conversation lines (§13, phase 2) and
+the sheet's "Read here, or go full screen." Each was raised in the review and each is a
+decision already recorded here or in a test.
 
 
 ### The picture can be picked up — 2026-09-13
@@ -1347,8 +1402,10 @@ bell in the ink bar with a count and a panel under it; nothing is fixed at the f
 the window but the pill.
 
 **Language.** One menu at the end of the places, on every desk page that is in a
-language — Learn, Library, Your Progress, Add, the conversation — says which language the
-page is in and lists the reader's languages under it, with "Your languages" last, where
+language — Learn, Library, Your Progress, Add, the conversation, You and the lists behind
+the account — says which language the page is in and lists the reader's languages under
+it, headed "You're learning", each in its own name after English's (§12, 2026-09-14), with
+"Your languages" last, where
 the list itself is chosen (decided 2026-09-13; it replaced a row of tabs under the
 heading that only three pages drew). The button is the bar's own kind, its panel the
 bell's. Drawn only when the reader learns more than one language. The choice is kept on
