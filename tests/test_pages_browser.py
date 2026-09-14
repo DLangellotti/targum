@@ -658,7 +658,8 @@ def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path)
           for (const dir of ['ltr', 'rtl']) {
             const host = document.createElement('div');
             host.dir = dir;
-            host.innerHTML = '<span class="lang-menu"><button class="lang-open">Hebrew</button></span>'
+            host.innerHTML = '<span class="lang-menu">'
+              + '<button class="lang-open">Hebrew</button></span>'
               + '<button class="way-menu">Following</button>';
             document.body.append(host);
             for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before'],
