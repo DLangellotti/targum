@@ -208,6 +208,16 @@ global.window.TargumBring.POLL = 0;
 require(path.join(assets, "speak.js"));
 // The checklist the first exchange draws (2026-09-11).
 require(path.join(assets, "claim.js"));
+// A clock the payload moves (`tick`), so waiting four minutes takes no time at all and a
+// timer left running cannot keep node from exiting (targum-internal#271).
+const clock = { at: 0, timers: [] };
+global.window.TargumClock = {
+  now: () => clock.at,
+  every: (fn, ms) => clock.timers.push({ fn, ms, stopped: false }) - 1,
+  stop: (id) => {
+    if (clock.timers[id]) clock.timers[id].stopped = true;
+  },
+};
 require(path.join(assets, "chat.js"));
 
 const turns = byId["turns"];
@@ -322,6 +332,9 @@ function drawn() {
     return {
       cls: li.className,
       text: line ? line.textContent : "",
+      doing: (li.children || [])
+        .filter((c) => String(c.className).split(" ").includes("chat-doing"))
+        .map((c) => c.textContent),
       links: line ? line.children.filter((c) => c.tagName === "a").map((a) => a.href) : [],
       hebrew: line ? line.children.filter((c) => c.attrs && c.attrs.lang === "he").length : 0,
       pictures: pictured(li),
@@ -340,6 +353,17 @@ function drawn() {
     }
     if (step.type === "stream") {
       sources[sources.length - 1].fire(step.event, step.data || "");
+    }
+    if (step.type === "tick") {
+      // The clock moves on by `seconds`, every running timer firing as it would have.
+      const until = clock.at + step.seconds * 1000;
+      while (clock.at < until) {
+        clock.at = Math.min(until, clock.at + 1000);
+        clock.timers.forEach((t) => {
+          if (!t.stopped && clock.at % t.ms === 0) t.fn();
+        });
+      }
+      for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
     if (step.type === "file") {
       // One file, or several chosen together (`files`): the pages of one text.
@@ -455,6 +479,8 @@ function drawn() {
     JSON.stringify({
       posted,
       streams: sources.map((s) => s.url),
+      closed: sources.map((s) => s.readyState === 2),
+      timersRunning: clock.timers.filter((t) => !t.stopped).length,
       turns: drawn(),
       cards: cards(),
       went: global.location.href,

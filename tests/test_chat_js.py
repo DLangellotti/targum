@@ -1497,3 +1497,76 @@ def test_a_text_named_with_no_sentence_is_a_way_to_talk_about_it() -> None:
     assert page["posted"][0]["body"]["text"] == "Let's talk about this text."
     assert page["posted"][0]["body"]["about"]["document"] == "hapoel-he"
     assert page["posted"][0]["body"]["about"]["title"] == about["title"]
+
+
+def test_a_turn_says_what_we_are_doing_while_it_works() -> None:
+    """A search ran inside the model's reply with nothing on the page but three dots; a
+    reader on 2026-09-14 could not tell a slow turn from a dead one (targum-internal#271)."""
+    page = run(
+        do=[
+            {"type": "say", "text": "find me tech news"},
+            {"type": "stream", "event": "tool", "data": json.dumps({"name": "web_search"})},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["turns"][1]["doing"] == ["We're searching the web…"]
+    page = run(
+        do=[
+            {"type": "say", "text": "find me tech news"},
+            {"type": "stream", "event": "tool", "data": json.dumps({"name": "describe_source"})},
+            {"type": "tick", "seconds": 10},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["turns"][1]["doing"] == ["We're reading the page…"], "one note, the latest"
+    page = run(
+        do=[
+            {"type": "say", "text": "find me tech news"},
+            {"type": "stream", "event": "tool", "data": json.dumps({"name": "search_sources"})},
+            {"type": "stream", "event": "text", "data": "Here"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert page["turns"][1]["doing"] == [], "the answer arriving takes the note away"
+    quiet = run(
+        do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 25}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert quiet["turns"][1]["doing"] == ["We're still working on it…"]
+
+
+def test_the_page_stops_waiting_after_the_server_s_deadline() -> None:
+    """The server ends a turn at `TURN_DEADLINE_S`; the page stops a little after, in
+    case what was lost is only the stream, and asks once whether an answer came."""
+    from targum.chat import TURN_DEADLINE_S, TURN_TOO_LONG
+
+    source = (Path(__file__).resolve().parents[1] / "src/targum/render/assets/chat.js").read_text()
+    assert f"var GIVE_UP_MS = {int(TURN_DEADLINE_S) + 30} * 1000;" in source
+    assert f'var TOO_LONG = "{TURN_TOO_LONG}";' in source
+
+    lost = run(
+        do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 240}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert "working" in lost["turns"][1]["cls"], "not before the deadline and its margin"
+    lost = run(
+        do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 275}],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/chat/turn/abc/1": {"text": "", "done": False, "error": ""},
+        },
+    )
+    answer = lost["turns"][1]
+    assert answer["cls"] == "chat-turn them bad" and answer["text"] == TURN_TOO_LONG
+    assert answer["doing"] == [] and lost["closed"] == [True] and lost["timersRunning"] == 0
+    assert lost["sendDisabled"] is False, "the reader can ask again"
+
+    came = run(
+        do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 275}],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/chat/turn/abc/1": {"text": "Try Ruth.", "done": True, "error": ""},
+        },
+    )
+    assert came["turns"][1]["cls"] == "chat-turn them"
+    assert came["turns"][1]["text"] == "Try Ruth.", "an answer that did come is shown"

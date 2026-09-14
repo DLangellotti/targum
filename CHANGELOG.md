@@ -172,6 +172,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   last two hundred, and the back office lists them newest first with the traceback's
   tail behind a disclosure. A file on the box rather than a vendor, for the reason the
   back office gives for itself; never a request body, an address or a reader's text.
+- A chat turn says what we are doing while it works, and never waits for good. The page
+  says "We're searching the web…" or "We're reading the page…" as each step starts, and
+  "We're still working on it…" after twenty quiet seconds. The server ends a turn after
+  four minutes and says "We took too long to answer that. Try again."; the page stops
+  waiting a little after, and shows an answer that did arrive (targum-internal#271).
 - The reader switches between renderings (targum-internal#199). A document has always
   been able to carry several translations; the page now draws every one it carries —
   each with its own language, direction and coarse marks — and a text with more than

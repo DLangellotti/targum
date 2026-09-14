@@ -1311,11 +1311,87 @@
     });
   }
 
+  // While a turn is answered (targum-internal#271). The server ends a turn at
+  // `chat.TURN_DEADLINE_S` (240 s); the page stops waiting a little after, in case what
+  // was lost is only the stream, and asks once whether an answer came. Meanwhile it says
+  // what we are doing, and after a long quiet that we are still at it.
+  var GIVE_UP_MS = 270 * 1000;
+  var QUIET_MS = 20 * 1000;
+  var TOO_LONG = "We took too long to answer that. Try again.";
+  var DOING = {
+    web_search: "We're searching the web…",
+    describe_source: "We're reading the page…",
+    search_sources: "We're checking the news…",
+    search_library: "We're looking through the library…",
+    suggest_next: "We're looking through the library…",
+    open_library_text: "We're opening the text…",
+    quote_build: "We're working out how long it'll take…",
+    quote_conversation: "We're working out how long it'll take…",
+  };
+  // A clock a test can stand in for; the browser's own everywhere else.
+  var clock = window.TargumClock || {
+    now: function () {
+      return Date.now();
+    },
+    every: function (fn, ms) {
+      return setInterval(fn, ms);
+    },
+    stop: function (id) {
+      clearInterval(id);
+    },
+  };
+
   function follow(chat, n, li) {
     var line = li.querySelector(".chat-line");
     var text = "";
     var words = null;
+    var source = null;
+    var over = false;
+    var givingUp = false;
+    var started = clock.now();
+    var heard = started;
+    var doing = null;
+    function tellDoing(said) {
+      if (!doing) {
+        doing = document.createElement("p");
+        doing.className = "note chat-doing";
+        li.appendChild(doing);
+      }
+      doing.textContent = said;
+    }
+    function heardNow() {
+      heard = clock.now();
+      if (doing) {
+        li.removeChild(doing);
+        doing = null;
+      }
+    }
+    var watch = clock.every(function () {
+      if (over) return;
+      var at = clock.now();
+      if (at - started >= GIVE_UP_MS) return giveUp();
+      if (at - heard >= QUIET_MS) tellDoing("We're still working on it…");
+    }, 5000);
+    function giveUp() {
+      if (givingUp) return;
+      givingUp = true;
+      if (source) source.close();
+      ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
+        if (state && state.done && !state.error) {
+          if (state.words) words = state.words;
+          return finish("done", { text: state.text || text });
+        }
+        finish("error", { message: (state && state.done && state.error) || TOO_LONG });
+      });
+    }
     function finish(kind, payload) {
+      if (over) return;
+      over = true;
+      clock.stop(watch);
+      if (doing) {
+        li.removeChild(doing);
+        doing = null;
+      }
       var was = atBottom();
       li.className = "chat-turn them" + (kind === "error" ? " bad" : "");
       render(line, kind === "error" ? payload.message : payload.text || text, words);
@@ -1329,13 +1405,14 @@
     }
     var path = "/chat/stream/" + encodeURIComponent(chat) + "/" + n;
     if (typeof EventSource === "function") {
-      var source = new EventSource(keyed(path));
+      source = new EventSource(keyed(path));
       // The lines that are whole are drawn as pairs; the tail the model is still
       // writing is appended as it comes rather than the whole line drawn again on
       // every piece (targum-internal#247). A whole line is one with a newline after it.
       var drawnUpTo = 0;
       var partial = null;
       source.addEventListener("text", function (event) {
+        heardNow();
         var was = atBottom();
         text += event.data;
         var cut = text.lastIndexOf("\n") + 1;
@@ -1357,14 +1434,24 @@
         }
         keepBottom(was);
       });
-      source.addEventListener("tool", function () {
-        // A lookup in progress. Said in the reader's words, not the tool's name.
-        if (!text) line.textContent = "looking…";
+      source.addEventListener("tool", function (event) {
+        // A lookup in progress. Said in the reader's words, not the tool's name, as it
+        // starts: a search runs inside the model's reply, and used to be told after it.
+        heardNow();
+        var name = "";
+        try {
+          name = String(JSON.parse(event.data || "{}").name || "");
+        } catch (e) {
+          name = "";
+        }
+        tellDoing(DOING[name] || "We're looking it up…");
       });
       source.addEventListener("quote", function (event) {
+        heardNow();
         quoteCard(li, JSON.parse(event.data || "{}"));
       });
       source.addEventListener("words", function (event) {
+        heardNow();
         // The lines read as a text is read: drawn again with their words marked.
         words = JSON.parse(event.data || "{}");
         var was = atBottom();
@@ -1390,7 +1477,9 @@
     poll();
 
     function poll() {
+      if (over || givingUp) return;
       ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
+        if (over || givingUp) return;
         if (state.error && state.done) return finish("error", { message: state.error });
         text = state.text || "";
         if (state.words) words = state.words;
