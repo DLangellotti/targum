@@ -2294,6 +2294,90 @@ def test_a_translation_has_to_be_something_targum_can_read(
     assert "pdf" in answer["error"].lower()
 
 
+def test_a_path_on_the_server_is_never_a_source(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The door takes a link, an identifier or an upload. A path in `source` would be
+    read off this server's own disk and handed back as a text on somebody's shelf."""
+    port, token, out = served
+    cookie = sign_in(port, postbox)
+    private = out.parent / "private.txt"
+    private.write_text("שלום עולם. זה סוד.", encoding="utf-8")
+
+    for named in (str(private), f"file://{private}"):
+        status, answer, _ = call(
+            port,
+            "POST",
+            f"/prepare?k={token}",
+            {"source": named, "to": "en", "from": "he"},
+            cookie=cookie,
+        )
+        assert status == 400, (named, answer)
+        assert answer["error"].startswith("Paste a link"), answer
+        assert "id" not in answer, "a refused source leaves no job to press"
+
+
+def test_a_translation_is_taken_only_where_the_catalogue_holds_it(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Library's button names a catalogue text's published translations, and the
+    reader switches between them. That list is taken for that text and nothing else:
+    a path in it would be read off the server's disk and shown as the translation."""
+    port, token, out = served
+    cookie = sign_in(port, postbox)
+    # Pricing reaches the network; what is under test is what the door lets reach it.
+    monkeypatch.setattr(Library, "prepare", lambda self, job: None)
+    private = out.parent / "private.en.txt"
+    private.write_text("A secret.", encoding="utf-8")
+
+    refused = [
+        {"source": "test:ruth", "translations": [str(private)]},
+        {"source": "test:ruth", "translations": ["test:ruth-en", str(private)]},
+        # Another text's translation is not this one's.
+        {"source": "test:ruth", "translations": ["test:esther-en"]},
+        {"source": "https://example.com/story", "translations": ["test:ruth-en"]},
+        {"source": "test:ruth", "translations": "test:ruth-en"},
+    ]
+    for asked in refused:
+        status, answer, _ = call(
+            port, "POST", f"/prepare?k={token}", {"to": "en", "from": "he", **asked}, cookie=cookie
+        )
+        assert status == 400, (asked, answer)
+        assert answer["error"] == "That translation is not one targum has.", answer
+
+    status, job, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {"source": "test:ruth", "to": "en", "from": "he", "translations": ["test:ruth-en"]},
+        cookie=cookie,
+    )
+    assert status == 200, job
+    assert job["id"], "the catalogue's own translation is the Library button's ordinary press"
+
+
+def test_carrying_translations_does_not_let_a_language_past(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Naming translations used to wave any `from` through. A language targum does not
+    read is refused whatever else the request carries."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/prepare?k={token}",
+        {
+            "source": "https://example.com/story",
+            "to": "en",
+            "from": "ru",
+            "translations": ["test:ruth-en"],
+        },
+        cookie=cookie,
+    )
+    assert status == 400 and "reads" in answer["error"], answer
+
+
 @pytest.mark.parametrize(
     ("view", "expected"),
     [

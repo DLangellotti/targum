@@ -469,12 +469,16 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             }
         )
     elif source:
-        # A link or a fetcher's identifier (`gutenberg:…`, `wikisource:…`). A bare word
-        # is neither, and would be read as a file on the server.
-        if "://" not in source and ":" not in source:
+        # A link or a fetcher's identifier (`gutenberg:…`, `wikisource:…`). Anything else
+        # would be read as a file on the server — including a path with a colon in it,
+        # which the looser check this replaced let through. `ingest.fetchable` is the
+        # one rule the Add page's door keeps too.
+        from ..ingest import fetchable
+
+        if not fetchable(source) and catalogue_module.matching(source) is None:
+            if urlparse(source).scheme in ("http", "https"):
+                return {"error": "That link has no address in it."}
             return {"error": "Give a link, or a library text's id."}
-        if urlparse(source).scheme in ("http", "https") and not urlparse(source).hostname:
-            return {"error": "That link has no address in it."}
         already = catalogue_module.matching(source)
         if already is not None and already.translations:
             mine, shared = _shelf(ctx)
