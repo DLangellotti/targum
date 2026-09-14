@@ -120,8 +120,13 @@
   /* A small flag beside each language in the menu (2026-09-14, design.md §12 — which
    * reverses "no flags" for this one place). The flag of the country whose language it
    * is, in that flag's own colours, drawn rather than typed: an emoji flag is an emoji,
-   * and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no country, so they
-   * have no flag, and keep the flag's width so the names still line up. */
+   * and §6 has none. Hebrew is Israel's. Yiddish and Aramaic have no country, and wear
+   * the language flags David chose for them: Yiddish the white flag with two black
+   * stripes and a menorah (the proposal most often flown for it, the menorah traced from
+   * its SVG), Aramaic the Jewish Babylonian Aramaic proposal, two blue stripes round the
+   * gate of the Vilna Talmud's title page, drawn here as the gate's outline because an
+   * engraving at eighteen pixels is a grey smudge. A code with no flag keeps the width
+   * so the names still line up. */
   var FLAGS = {
     he:
       '<rect width="18" height="12" fill="#fff"/>' +
@@ -140,6 +145,37 @@
       '<rect width="18" height="4" fill="#fff"/>' +
       '<rect y="4" width="18" height="4" fill="#0039a6"/>' +
       '<rect y="8" width="18" height="4" fill="#d52b1e"/>',
+    yi:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.125" width="18" height="1.875" fill="#000"/>' +
+      '<rect y="9" width="18" height="1.875" fill="#000"/>' +
+      '<g fill="#000" transform="translate(0.75 0) scale(0.025)">' +
+      '<path d="M230.694,172.92A99.306,99.306 0 1,0 429.306,172.92H419.851A89.851,89.851 0 1,1 240.149,172.92z"/>' +
+      '<path d="M259.256,173.35A70.744,70.744 0 1,0 400.744,173.35H391.223A61.223,61.223 0 1,1 268.777,173.35z"/>' +
+      '<path d="M288.157,172.92A41.843,41.843 0 1,0 371.843,172.92H362.388A32.388,32.388 0 1,1 297.612,172.92z"/>' +
+      '<path d="M278.562,317.879V324.35H381.438V317.879L334.727,307.466V165.639H325.273V307.466z"/>' +
+        '<path transform="translate(0 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(28.731 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(57.461 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(94.577 -7.261)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(131.693 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(160.424 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+        '<path transform="translate(189.154 0)" d="M223.357,161.017H247.489L240.151,170.934H230.696z"/>' +
+      "</g>",
+    arc:
+      '<rect width="18" height="12" fill="#fff"/>' +
+      '<rect y="1.25" width="18" height="1.45" fill="#0000f5"/>' +
+      '<rect y="9.45" width="18" height="1.45" fill="#0000f5"/>' +
+      '<g fill="#3a3a3a">' +
+      '<path d="M6.9 4.25 8.8 3.4V3.9L7.5 4.25ZM11.1 4.25 9.2 3.4V3.9L10.5 4.25Z"/>' +
+      '<rect x="6.8" y="4.25" width="4.4" height="0.5"/>' +
+      '<rect x="7.05" y="4.75" width="0.5" height="3.6"/>' +
+      '<rect x="7.8" y="4.75" width="0.4" height="3.6"/>' +
+      '<rect x="9.8" y="4.75" width="0.4" height="3.6"/>' +
+      '<rect x="10.45" y="4.75" width="0.5" height="3.6"/>' +
+      '<rect x="6.8" y="8.35" width="4.4" height="0.65"/>' +
+      "</g>" +
+      '<path d="M8.2 7.75H9.8M8.2 5.1Q9 5.9 9.8 5.1" fill="none" stroke="#3a3a3a" stroke-width="0.3"/>',
   };
 
   function flag(code) {

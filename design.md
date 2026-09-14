@@ -470,8 +470,12 @@ flags are drawn, not typed — an emoji flag is an emoji, which §6 still refuse
 size of a word's cap height, with the smallest corner the scale has and a hairline round
 the white stripes. They are painted in their own national colours, which are not the
 palette's and are not meant to be: a flag recoloured into brand neutrals is not the flag.
-Hebrew wears Israel's. Yiddish and Aramaic have no country and so no flag, and keep its
-width so the names still line up. Everywhere else, the rule stands: no flag on a shelf, a
+Hebrew wears Israel's. Yiddish and Aramaic have no country, and wear language flags David
+chose the same day: for Yiddish the white flag with two black stripes and a menorah that is
+the proposal most often flown for it, and for Aramaic the Jewish Babylonian Aramaic
+proposal, two blue stripes round the gate from the Vilna Talmud's title page, which at this
+size is drawn as the gate's outline. A language with no flag keeps its width so the names
+still line up. Everywhere else, the rule stands: no flag on a shelf, a
 card, a text or the identity, because a text is still not a country.
 
 The same day, the date under the greeting stopped being Hebrew's in every language. It

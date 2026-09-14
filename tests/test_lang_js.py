@@ -65,6 +65,7 @@ def test_anywhere_but_the_nav_the_same_call_still_draws_tabs() -> None:
 
 def test_each_language_wears_a_small_flag_and_a_language_with_no_country_keeps_the_room() -> None:
     """2026-09-14 (design.md §12): a drawn flag beside each name in the menu. Yiddish and
-    Aramaic have no country, so no flag, and an empty box the flag's width."""
-    drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi"])})
-    assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "none"}
+    Aramaic have no country and wear the language flags David chose; a code with no
+    flag at all keeps an empty box the flag's width."""
+    drawn = menu(stored={"targum:learning": json.dumps(["he", "fr", "yi", "arc", "de"])})
+    assert drawn["flags"] == {"he": "flag", "fr": "flag", "yi": "flag", "arc": "flag", "de": "none"}
