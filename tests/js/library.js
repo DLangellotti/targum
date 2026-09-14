@@ -31,7 +31,7 @@ const byId = install({
   // browser's store — the vocabulary the page counts, for one, and which collections
   // this reader has opened.
   stored: Object.assign(
-    payload.firstVisit ? {} : { "targum:library": JSON.stringify(payload.view || {}) },
+    payload.firstVisit ? {} : { "targum:library": JSON.stringify(payload.views || payload.view || {}) },
     payload.opened ? { "targum:opened-groups": JSON.stringify(payload.opened) } : {},
     payload.stored || {}
   ),
@@ -44,7 +44,10 @@ const byId = install({
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
     into: () => "",
-    switcher: () => {},
+    // Kept so a test can press another language once the page has drawn (`switchTo`).
+    switcher: (host, codes, names, code, pick) => {
+      global.targumPick = pick;
+    },
     beta: () => false,
     betaNote: () => "",
   },
@@ -67,6 +70,7 @@ require(path.join(assets, "library.js"));
 // The page draws once its own request for /readers resolves. One turn of the microtask
 // queue is enough; nothing here waits on a timer.
 setTimeout(() => {
+  if (payload.switchTo) global.targumPick(payload.switchTo);
   const rows = byId["catalogue"].children;
   const read = (row) => {
     const open = row.children[0];
@@ -119,6 +123,8 @@ setTimeout(() => {
         const head = byId["rows-head"].children.find((c) => c.className === "drop" && /New words|Scene number/.test(c.textContent));
         return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
       })(),
+      find: byId["find"].value || "",
+      views: JSON.parse(global.localStorage.getItem("targum:library") || "{}"),
       kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
       gauges: rows.map((row) => row.children[0].children.find((c) => String(c.className).includes("gauge")).getAttribute("aria-label") || ""),
     })

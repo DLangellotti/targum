@@ -708,16 +708,37 @@
     firstVisit = false;
   }
 
-  var view = stored("targum:library");
-  // Easiest first. The default was by access, which sorted the catalogue into public and
-  // private — a fact about who may read a text rather than about whether this reader
-  // can. Somebody arriving at forty texts in a language they are learning is asking
-  // which of them they can read now, and that is what the list answers.
-  if (!view.sort) view.sort = "difficulty";
-  if (!view.dir) view.dir = 1;
-  if (!view.kind) view.kind = "";
-  if (!view.register) view.register = "";
-  if (!view.where) view.where = "library";
+  // One view per language (2026-09-14). A filter set on the Hebrew shelf is a question
+  // about Hebrew texts: carried to French it hid the shelf behind a choice made
+  // somewhere else, and "Poetry, under ten minutes" set for one language is not what
+  // the reader asked of the next. A store from before this is one flat view, and it was
+  // Hebrew's.
+  var VIEW_FIELDS = ["sort", "dir", "kind", "register", "level", "length", "spoken", "where", "find"];
+  var views = stored("targum:library");
+  if (
+    VIEW_FIELDS.some(function (field) {
+      return Object.prototype.hasOwnProperty.call(views, field);
+    })
+  ) {
+    views = { he: views };
+  }
+
+  function viewFor(code) {
+    var one = views[code];
+    if (!one || typeof one !== "object") one = views[code] = {};
+    // Easiest first. The default was by access, which sorted the catalogue into public
+    // and private — a fact about who may read a text rather than about whether this
+    // reader can. Somebody arriving at forty texts in a language they are learning is
+    // asking which of them they can read now, and that is what the list answers.
+    if (!one.sort) one.sort = "difficulty";
+    if (!one.dir) one.dir = 1;
+    if (!one.kind) one.kind = "";
+    if (!one.register) one.register = "";
+    if (!one.where) one.where = "library";
+    return one;
+  }
+
+  var view = viewFor(lang.HOME);
 
   /* Whether one row survives the filters. `using` lets a caller ask the question against
      a different set of them — see `present()`, which asks it with one filter lifted. */
@@ -1059,7 +1080,7 @@
     var chosen;
 
     function redraw() {
-      remember("targum:library", view);
+      remember("targum:library", views);
       // "Which Hebrew" asks nothing of another language (2026-09-13).
       var registerSet = document.getElementById("register-chips");
       if (registerSet && registerSet.parentNode) registerSet.parentNode.hidden = chosen !== lang.HOME;
@@ -1177,10 +1198,12 @@
       }
       if (!target) return;
       lifted = true;
+      var code = base(target.language);
+      // The filters lifted are the ones on the shelf the text is on.
+      if (code && code !== chosen) view = viewFor(code);
       view.find = view.kind = view.register = view.length = view.level = "";
       view.where = target.entry ? "library" : "mine";
       find.value = "";
-      var code = base(target.language);
       // show() redraws, and redraw() comes back through here with the row in the list.
       if (code && code !== chosen) return show(code);
       redraw();
@@ -1236,6 +1259,7 @@
     });
     var codes = lang.order(all, names);
     chosen = lang.current(codes);
+    view = viewFor(chosen);
     var betaNote = document.getElementById("beta-note");
 
     /* Where the page opens for an account that knows nothing. A first visit, no word
@@ -1258,6 +1282,8 @@
 
     function show(code) {
       chosen = code;
+      view = viewFor(code);
+      find.value = view.find || "";
       inHebrew = code === lang.HOME;
       lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);

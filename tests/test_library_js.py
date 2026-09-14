@@ -709,3 +709,47 @@ def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Pa
     assert videos["note"].startswith("With video — ")
     heard = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "yes"})
     assert {row["title"] for row in heard["rows"]} == {"lecture-he", "podcast-he"}
+
+
+# -- a view per language ---------------------------------------------------------------
+
+
+def test_filters_set_on_one_language_stay_with_it(tmp_path: Path) -> None:
+    """David, 2026-09-14: "If you set filters for one language in the library, those
+    filters should not remain in another." Poetry and a search typed on the Hebrew shelf
+    are a question about Hebrew texts; switching to Russian opens Russian's own view, and
+    switching back finds Hebrew's where it was left."""
+    russian = shelf("", "otets-sergiy-ru", language="ru", languages=["ru"], kind="story")
+    hebrew = {"kind": "poetry", "find": "שיר", "level": "easy"}
+
+    there = draw(tmp_path, readers=[russian], view=hebrew, switchTo="ru")
+    assert there["kindOn"] != "Poetry", "the Hebrew chip did not follow"
+    assert there["find"] == ""
+    # And the Hebrew view is still in the store under its own language.
+    assert there["views"]["he"]["kind"] == "poetry"
+    assert there["views"]["he"]["find"] == "שיר"
+    assert there["views"]["ru"]["kind"] == ""
+
+    views = {"he": {"kind": "poetry"}, "ru": {"kind": "story", "find": "сергий"}}
+    back = draw(tmp_path, readers=[russian], views=views, language="ru", switchTo="he")
+    assert back["kindOn"] == "Poetry"
+    assert back["find"] == ""
+    searched = {"he": {"find": "שיר"}, "ru": {}}
+    assert (
+        draw(tmp_path, readers=[russian], views=searched, language="ru", switchTo="he")["find"]
+        == "שיר"
+    )
+
+
+def test_a_view_from_before_languages_had_their_own_is_hebrews(tmp_path: Path) -> None:
+    """A store written before 2026-09-14 is one flat view. It was set on the Hebrew shelf,
+    which is where it stays; Russian starts clean."""
+    russian = shelf("", "otets-sergiy-ru", language="ru", languages=["ru"], kind="story")
+    kept = draw(tmp_path, readers=[russian], view={"kind": "poetry"})
+    assert kept["kindOn"] == "Poetry"
+    assert set(kept["views"]) == {"he"}
+
+    moved = draw(tmp_path, readers=[russian], view={"kind": "poetry"}, language="ru")
+    assert moved["kindOn"] != "Poetry"
+    assert moved["views"]["ru"]["kind"] == ""
+    assert moved["views"]["he"]["kind"] == "poetry"
